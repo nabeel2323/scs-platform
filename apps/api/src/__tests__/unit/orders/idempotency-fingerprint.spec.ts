@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { OrdersService } from '../../../modules/orders/orders.service';
 import { ConflictException } from '@nestjs/common';
+import { products, productVariants } from '../../../modules/catalog/catalog.schema';
+import { merchantOffers } from '../../../modules/catalog/catalog.offer.schema';
 
 /**
  * Phase 1.1 — Idempotency Fingerprint Consistency
@@ -50,12 +52,26 @@ function createMocks(existingMaster?: any, cartItemsOverride?: any[]) {
   const db = {
     insert: vi.fn().mockReturnValue({ values: insertValues }),
     update: vi.fn().mockReturnValue({ set: updateSet }),
-    select: vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          orderBy: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }),
-        }),
-      }),
+    select: vi.fn(() => {
+      let selectedTable: unknown;
+      const builder: Record<string, any> = {};
+      builder['from'] = vi.fn((table: unknown) => { selectedTable = table; return builder; });
+      builder['where'] = vi.fn(() => builder);
+      builder['orderBy'] = vi.fn(() => builder);
+      builder['limit'] = vi.fn().mockResolvedValue([]);
+      builder['for'] = vi.fn(async () => {
+        if (selectedTable === products) return [mockProduct];
+        if (selectedTable === merchantOffers) {
+          return resolvedCartItems.filter(item => item.offerId).map(item => ({
+            id: item.offerId, status: 'ACTIVE', isAvailable: true, storeId: STORE_1,
+            currency: 'SAR', moq: 1, orderIncrement: null, priceListId: null,
+            warehouseId: null, basePriceMinor: 200, compareAtPriceMinor: null,
+            leadTimeDays: null,
+          }));
+        }
+        return [];
+      });
+      return builder;
     }),
     transaction: vi.fn(async (cb: any) => cb(db)),
     query: {
@@ -66,7 +82,10 @@ function createMocks(existingMaster?: any, cartItemsOverride?: any[]) {
       orderItems: { findMany: vi.fn() },
       orderFinancialBreakdown: { findFirst: vi.fn() },
       orderStatusHistory: { findMany: vi.fn() },
-      productVariants: { findFirst: vi.fn().mockResolvedValue(mockVariant) },
+      productVariants: {
+        findFirst: vi.fn().mockResolvedValue(mockVariant),
+        findMany: vi.fn().mockResolvedValue([mockVariant]),
+      },
       products: { findFirst: vi.fn().mockResolvedValue(mockProduct) },
       stores: { findMany: vi.fn().mockResolvedValue([]) },
       stockMovements: { findMany: vi.fn().mockResolvedValue([]) },

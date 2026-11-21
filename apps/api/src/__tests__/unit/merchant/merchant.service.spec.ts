@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { MerchantService } from '../../../modules/merchant/merchant.service';
 import { products } from '../../../modules/catalog/catalog.schema';
-import { stores, verificationRequests } from '../../../modules/merchant/merchant.schema';
+import { stores, storeMembers, verificationRequests } from '../../../modules/merchant/merchant.schema';
 import { organizations } from '../../../modules/identity/identity.schema';
 import { PgDialect } from 'drizzle-orm/pg-core';
 
@@ -352,5 +352,106 @@ describe('MerchantService.presignForMerchant', () => {
 
     await expect(service.presignForMerchant('nonexistent', 'user-1'))
       .rejects.toThrow(NotFoundException);
+  });
+});
+
+
+describe('MerchantService.createStore', () => {
+  it('creates the store, initial OWNER membership and outbox event in one transaction', async () => {
+    const createdStore = {
+      id: 'store-created',
+      orgId: 'org-1',
+      slug: 'new-store',
+      displayName: 'New Store',
+    };
+    const storesFindFirst = vi.fn()
+      .mockResolvedValueOnce(null) // slug uniqueness check
+      .mockResolvedValueOnce(createdStore); // read-back after commit
+    const inserted: Array<{ table: unknown; values: unknown }> = [];
+    const tx = {
+      insert: (table: unknown) => ({
+        values: async (values: unknown) => {
+          inserted.push({ table, values });
+          return undefined;
+        },
+      }),
+    };
+    const transaction = vi.fn(async (callback: (transactionClient: typeof tx) => Promise<unknown>) => callback(tx));
+    const db = {
+      db: {
+        transaction,
+        query: {
+          organizations: { findFirst: vi.fn().mockResolvedValue({ id: 'org-1' }) },
+          organizationMembers: { findFirst: vi.fn().mockResolvedValue({ status: 'ACTIVE' }) },
+          stores: { findFirst: storesFindFirst },
+        },
+      },
+    };
+    const outbox = { publish: vi.fn().mockResolvedValue('event-1') };
+    const service = new MerchantService(db as any, outbox as any, {} as any);
+
+    const result = await service.createStore(
+      { orgId: 'org-1', displayName: 'New Store' } as any,
+      'user-1',
+    );
+
+    expect(result).toEqual(createdStore);
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(inserted.find((row) => row.table === stores)?.values).toMatchObject({
+      id: expect.any(String),
+      orgId: 'org-1',
+      displayName: 'New Store',
+    });
+    expect(inserted.find((row) => row.table === storeMembers)?.values).toMatchObject({
+      storeId: expect.any(String),
+      userId: 'user-1',
+      role: 'OWNER',
+      status: 'ACTIVE',
+    });
+    const createdStoreInsert = inserted.find((row) => row.table === stores)?.values as {
+      id: string;
+    };
+    expect(inserted.find((row) => row.table === storeMembers)?.values).toMatchObject({
+      storeId: createdStoreInsert.id,
+    });
+    expect(outbox.publish).toHaveBeenCalledWith(
+      'merchant.store.created',
+      createdStoreInsert.id,
+      expect.objectContaining({ storeId: createdStoreInsert.id, orgId: 'org-1' }),
+      { userId: 'user-1' },
+      null,
+      tx,
+    );
+  });
+
+  it('propagates an outbox failure so the store transaction can roll back', async () => {
+    const inserted: unknown[] = [];
+    const tx = {
+      insert: (table: unknown) => ({
+        values: async (values: unknown) => {
+          inserted.push({ table, values });
+          return undefined;
+        },
+      }),
+    };
+    const transaction = vi.fn(async (callback: (transactionClient: typeof tx) => Promise<unknown>) => callback(tx));
+    const db = {
+      db: {
+        transaction,
+        query: {
+          organizations: { findFirst: vi.fn().mockResolvedValue({ id: 'org-1' }) },
+          organizationMembers: { findFirst: vi.fn().mockResolvedValue({ status: 'ACTIVE' }) },
+          stores: { findFirst: vi.fn().mockResolvedValue(null) },
+        },
+      },
+    };
+    const outbox = { publish: vi.fn().mockRejectedValue(new Error('outbox unavailable')) };
+    const service = new MerchantService(db as any, outbox as any, {} as any);
+
+    await expect(
+      service.createStore({ orgId: 'org-1', displayName: 'New Store' } as any, 'user-1'),
+    ).rejects.toThrow('outbox unavailable');
+    expect(inserted).toHaveLength(2);
+    expect(outbox.publish).toHaveBeenCalledOnce();
   });
 });

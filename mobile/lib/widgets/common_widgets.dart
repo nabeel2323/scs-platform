@@ -267,12 +267,14 @@ class QuantityStepper extends StatefulWidget {
   final int value;
   final ValueChanged<int> onChanged;
   final int minQty;
+  final int step;
   final String? tierHint;
   const QuantityStepper({
     super.key,
     required this.value,
     required this.onChanged,
     this.minQty = 1,
+    this.step = 1,
     this.tierHint,
   });
   @override
@@ -293,11 +295,19 @@ class _QuantityStepperState extends State<QuantityStepper> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant QuantityStepper oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) _ctrl.text = widget.value.toString();
+  }
+
   void _commit(String text) {
     final v = int.tryParse(text) ?? widget.minQty;
-    final clamped = v < widget.minQty ? widget.minQty : v;
-    widget.onChanged(clamped);
-    _ctrl.text = clamped.toString();
+    final candidate = v < widget.minQty ? widget.minQty : v;
+    final step = widget.step > 0 ? widget.step : 1;
+    final normalized = widget.minQty + ((candidate - widget.minQty + step - 1) ~/ step) * step;
+    widget.onChanged(normalized);
+    _ctrl.text = normalized.toString();
   }
 
   @override
@@ -308,7 +318,7 @@ class _QuantityStepperState extends State<QuantityStepper> {
           onPressed: widget.value <= widget.minQty
               ? null
               : () {
-                  _commit((widget.value - 1).toString());
+                  _commit((widget.value - widget.step).toString());
                 },
           icon: const Icon(Icons.remove, size: 18),
           iconSize: 18,
@@ -330,7 +340,7 @@ class _QuantityStepperState extends State<QuantityStepper> {
         ),
         IconButton(
           onPressed: () {
-            _commit((widget.value + 1).toString());
+            _commit((widget.value + widget.step).toString());
           },
           icon: const Icon(Icons.add, size: 18),
           iconSize: 18,

@@ -40,8 +40,12 @@ export default function CartPage() {
   useEffect(() => { loadCart(); }, []);
 
   const handleUpdateQty = async (itemId: string, qty: number) => {
-    if (qty < 1) return;
-    await updateCartItem(itemId, qty);
+    const item = cart?.items.find(row => row.id === itemId);
+    const moq = Math.max(1, item?.offer?.moq ?? item?.moq ?? 1);
+    const step = Math.max(1, item?.offer?.orderIncrement ?? 1);
+    const normalizedQty = qty <= moq ? moq : moq + Math.ceil((qty - moq) / step) * step;
+    if (!item || normalizedQty === item.quantity) return;
+    await updateCartItem(itemId, normalizedQty);
     await loadCart();
   };
 
@@ -150,16 +154,18 @@ export default function CartPage() {
                             {item.storeName ? ' · ' : ''}
                             Offer {item.offer.status === 'ACTIVE' ? 'active' : item.offer.status.toLowerCase()}
                             {item.offer.leadTimeDays != null && ` · Lead ${item.offer.leadTimeDays}d`}
-                            {item.offer.moq > 1 && ` · MOQ ${item.offer.moq}`}
+                            {(item.offer.moq ?? item.moq ?? 1) > 1 && ` · MOQ ${item.offer.moq ?? item.moq ?? 1}`}
+                            {item.offer.orderIncrement != null && ` · Step ${item.offer.orderIncrement}`}
                           </>
                         )}
+                        {!item.offer && (item.moq ?? 1) > 1 && ` · MOQ ${item.moq ?? 1}`}
                       </div>
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={() => handleUpdateQty(item.id, item.quantity - 1)} style={qtyBtnStyle}>−</button>
+                    <button disabled={item.quantity <= Math.max(1, item.offer?.moq ?? item.moq ?? 1)} onClick={() => handleUpdateQty(item.id, item.quantity - Math.max(1, item.offer?.orderIncrement ?? 1))} style={{ ...qtyBtnStyle, opacity: item.quantity <= Math.max(1, item.offer?.moq ?? item.moq ?? 1) ? 0.45 : 1 }}>−</button>
                     <span style={{ ...typeScale.body, fontWeight: 600, minWidth: 24, textAlign: 'center' }}>{item.quantity}</span>
-                    <button onClick={() => handleUpdateQty(item.id, item.quantity + 1)} style={qtyBtnStyle}>+</button>
+                    <button onClick={() => handleUpdateQty(item.id, item.quantity + Math.max(1, item.offer?.orderIncrement ?? 1))} style={qtyBtnStyle}>+</button>
                     <span style={{ ...typeScale.body, fontWeight: 600, color: colors.brand[700], minWidth: 80, textAlign: 'right' }}>
                       {formatMinor(item.lineTotalMinor, item.currency)}
                     </span>

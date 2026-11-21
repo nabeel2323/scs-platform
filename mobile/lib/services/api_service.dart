@@ -611,7 +611,7 @@ class ApiService {
   ///
   /// PHASE 13: `offerId` routes the line through a specific seller's offer.
   Future<void> addProductToCart(Product product,
-      {String? variantId, String? offerId}) async {
+      {String? variantId, String? offerId, int? quantity}) async {
     String? chosen = variantId ?? product.orderableVariant?.id;
     if (chosen == null) {
       for (final v in await fetchVariants(product.id)) {
@@ -632,7 +632,7 @@ class ApiService {
     return addToCart(
         variantId: chosen,
         storeId: product.storeId,
-        quantity: product.moq > 0 ? product.moq : 1,
+        quantity: quantity ?? (product.moq > 0 ? product.moq : 1),
         offerId: offerId);
   }
 
@@ -649,17 +649,52 @@ class ApiService {
 
   Future<void> applyPromo(String code) async =>
       _dio.post('/v1/cart/promo', data: {'code': code});
+  Future<void> removePromo() async => _dio.delete('/v1/cart/promo');
 
   // ── Checkout ──────────────────────────────────────────────
-  Future<MasterOrder> checkout(
-      {required Map<String, dynamic> deliveryAddress,
-      String? notes,
-      String? idempotencyKey,
-      String? fulfillmentMethod}) async {
+  Future<Map<String, dynamic>> fetchShippingEstimate({
+    required String storeId,
+    required int subtotalMinor,
+    String? city,
+    String? postalCode,
+  }) async {
+    final response = await _dio.get(
+      '/v1/shipping/estimate',
+      queryParameters: {
+        'storeId': storeId,
+        'subtotal': subtotalMinor,
+        if (city != null && city.isNotEmpty) 'city': city,
+        if (postalCode != null && postalCode.isNotEmpty) 'postalCode': postalCode,
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> previewCheckout({
+    required Map<String, dynamic> deliveryAddress,
+    required List<Map<String, dynamic>> shippingSelections,
+  }) async {
+    final response = await _dio.post('/v1/checkout/preview', data: {
+      'deliveryAddress': deliveryAddress,
+      'shippingSelections': shippingSelections,
+    });
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<MasterOrder> checkout({
+    required Map<String, dynamic> deliveryAddress,
+    String? notes,
+    String? idempotencyKey,
+    String? fulfillmentMethod,
+    List<Map<String, dynamic>>? shippingSelections,
+    String? paymentMethod,
+  }) async {
     final d = <String, dynamic>{'deliveryAddress': deliveryAddress};
     if (notes != null) d['notes'] = notes;
     if (idempotencyKey != null) d['idempotencyKey'] = idempotencyKey;
     if (fulfillmentMethod != null) d['fulfillmentMethod'] = fulfillmentMethod;
+    if (shippingSelections != null) d['shippingSelections'] = shippingSelections;
+    if (paymentMethod != null) d['paymentMethod'] = paymentMethod;
     return MasterOrder.fromJson((await _dio.post('/v1/checkout',
             data: d,
             options: Options(
@@ -1100,6 +1135,7 @@ class ApiService {
     int? basePriceMinor,
     String currency = 'SAR',
     int moq = 1,
+    int? orderIncrement,
     int? leadTimeDays,
   }) async {
     final d = <String, dynamic>{
@@ -1108,6 +1144,7 @@ class ApiService {
       'currency': currency,
       'moq': moq,
     };
+    if (orderIncrement != null) d['orderIncrement'] = orderIncrement;
     if (variantId != null) d['variantId'] = variantId;
     if (basePriceMinor != null) d['basePriceMinor'] = basePriceMinor;
     if (leadTimeDays != null) d['leadTimeDays'] = leadTimeDays;

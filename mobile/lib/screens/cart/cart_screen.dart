@@ -16,6 +16,7 @@ class CartScreen extends ConsumerStatefulWidget {
 class _CartScreenState extends ConsumerState<CartScreen> {
   final _promoCtrl = TextEditingController();
   bool _applyingPromo = false;
+  bool _removingPromo = false;
   bool _clearing = false;
 
   @override
@@ -70,13 +71,39 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     }
   }
 
+  Future<void> _removePromo() async {
+    setState(() => _removingPromo = true);
+    try {
+      await ref.read(apiServiceProvider).removePromo();
+      ref.invalidate(cartProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Promo code removed')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ApiService.errorMessage(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _removingPromo = false);
+    }
+  }
+
   /// MOQ floor for a line: the seller's minimum order quantity when the offer
   /// carries one, else 1. [QuantityStepper] refuses to go below it (audit 4.3
   /// row 151: "Use QuantityStepper + MOQ floor" — the raw ± buttons let a buyer
   /// decrement under the MOQ, which checkout would then reject).
   int _floorFor(CartItem item) {
-    final moq = item.offer?.moq ?? 1;
+    final moq = item.offer?.moq ?? item.moq;
     return moq > 1 ? moq : 1;
+  }
+
+  int _stepFor(CartItem item) {
+    final increment = item.offer?.orderIncrement ?? 1;
+    return increment > 0 ? increment : 1;
   }
 
   Widget _cartLine(CartItem item) {
@@ -102,7 +129,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                       '${formatMinor(item.priceMinor, item.currency)} each'
                       '${item.offer != null ? '  ·  Offer ${item.offer!.status.toLowerCase()}' : ''}'
                       '${item.offer?.leadTimeDays != null ? '  ·  Lead ${item.offer!.leadTimeDays}d' : ''}'
-                      '${floor > 1 ? '  ·  MOQ $floor' : ''}',
+                      '${floor > 1 ? '  ·  MOQ $floor' : ''}'
+                      '${item.offer?.orderIncrement != null ? '  ·  Step ${_stepFor(item)}' : ''}',
                       style: const TextStyle(
                           fontSize: 12, color: TaifTokens.muted),
                     ),
@@ -119,6 +147,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
             QuantityStepper(
               value: item.quantity,
               minQty: floor,
+              step: _stepFor(item),
               onChanged: (q) => _setQty(item, q),
             ),
             const Spacer(),
@@ -132,9 +161,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
   }
 
-  /// Promo code input (audit 4.3 row 153: `applyPromo()` existed but had no
-  /// UI). Apply-only — the API exposes no remove-promo route, so an applied
-  /// code renders as a confirmation chip rather than a removable one.
+  /// Promo code input and applied-promotion removal (finding G-019).
   Widget _promoSection(Cart c) {
     final applied = c.promoCode != null && c.promoCode!.isNotEmpty;
     return Card(
@@ -152,6 +179,16 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: TaifTokens.ok)),
+                ),
+                TextButton(
+                  onPressed: _removingPromo ? null : _removePromo,
+                  child: _removingPromo
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Remove'),
                 ),
               ])
             : Row(children: [

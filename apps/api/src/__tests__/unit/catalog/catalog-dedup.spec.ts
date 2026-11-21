@@ -99,7 +99,7 @@ describe('findProductByIdentifiers', () => {
     // First findFirst (gtin) → null; second findFirst (ean) → null; third (mpn) → match
     const match = { id: 'p9', title: 'MPN Product', slug: 'mpn-prod' };
     const { svc } = makeHarness({
-      products: { findFirst: [null, null, null, match] },
+      products: { findFirst: [null, null, match] },
     });
     const result = await svc.findProductByIdentifiers({ gtin: 'G1', ean: 'E1', mpn: 'M1' });
     // The primary search (AND with first non-null = gtin) returns null

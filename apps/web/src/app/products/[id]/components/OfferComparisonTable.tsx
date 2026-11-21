@@ -65,8 +65,10 @@ export function OfferComparisonTable({
             <span style={{ fontWeight: 700, color: colors.brand[700] }}>
               {formatMinor(currentSellerRow.basePriceMinor, currentSellerRow.currency)}
             </span>
-            {currentSellerRow.moq > 1 && (
-              <span style={{ ...typeScale.caption, color: colors.muted }}>MOQ: {currentSellerRow.moq}</span>
+            {(currentSellerRow.moq > 1 || currentSellerRow.orderIncrement != null) && (
+              <span style={{ ...typeScale.caption, color: colors.muted }}>
+                MOQ: {currentSellerRow.moq}{currentSellerRow.orderIncrement != null ? ` · Step: ${currentSellerRow.orderIncrement}` : ''}
+              </span>
             )}
           </div>
         </div>
@@ -136,7 +138,7 @@ export function OfferComparisonTable({
                   </td>
                   {/* MOQ */}
                   <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {row.moq > 1 ? row.moq : <span style={{ color: colors.muted }}>1</span>}
+                    {row.moq > 1 ? row.moq : <span style={{ color: colors.muted }}>1</span>}{row.orderIncrement != null ? ` · +${row.orderIncrement}` : ''}
                   </td>
                   {/* Lead Time */}
                   <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -216,7 +218,7 @@ export function OfferComparisonTable({
                     {formatMinor(row.basePriceMinor, row.currency)}
                   </div>
                   <div style={{ ...typeScale.caption, color: colors.muted }}>
-                    MOQ: {row.moq}{row.leadTimeDays != null ? ` · ${row.leadTimeDays}d` : ''}
+                    MOQ: {row.moq}{row.orderIncrement != null ? ` · Step ${row.orderIncrement}` : ''}{row.leadTimeDays != null ? ` · ${row.leadTimeDays}d` : ''}
                   </div>
                 </div>
               </div>

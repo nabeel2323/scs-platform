@@ -13,7 +13,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-const MODULES_DIR = path.resolve(__dirname, '../src/modules');
+const MODULES_DIR = path.resolve(__dirname, '../../apps/api/src/modules');
 
 const MODULES = fs.readdirSync(MODULES_DIR).filter((d) => {
   const full = path.join(MODULES_DIR, d);
@@ -52,15 +52,32 @@ for (const mod of MODULES) {
   }
 }
 
-if (errors.length > 0) {
-  console.error(`\n❌ Boundary lint found ${errors.length} violation(s):\n`);
-  for (const err of errors) {
-    console.error(`  ${err}`);
-  }
-  process.exit(1);
-} else {
-  console.log(`✅ Boundary lint passed — ${MODULES.length} modules, no violations.`);
+const baselinePath = path.resolve(__dirname, 'boundary-lint-baseline.json');
+const baselineDocument = JSON.parse(fs.readFileSync(baselinePath, 'utf-8')) as {
+  violations?: string[];
+};
+if (!Array.isArray(baselineDocument.violations)) {
+  throw new Error('Boundary lint baseline is missing its violations array');
 }
+
+const baseline = new Set(baselineDocument.violations);
+const current = [...new Set(errors)];
+const newErrors = current.filter((error) => !baseline.has(error));
+const resolvedErrors = [...baseline].filter((error) => !current.includes(error));
+
+console.log(
+  `Boundary lint: ${MODULES.length} modules; ${current.length} current violations; ` +
+  `${resolvedErrors.length} baseline violations resolved; ${newErrors.length} new violations ` +
+  `against the ${baseline.size}-entry reviewed baseline.`,
+);
+
+if (newErrors.length > 0) {
+  console.error('\n❌ New modular-boundary violations:\n');
+  for (const error of newErrors) console.error(`  ${error}`);
+  process.exit(1);
+}
+
+console.log('✅ Boundary lint passed — no new cross-module imports; legacy debt remains tracked.');
 
 // ── Helpers ──────────────────────────────────────────────────
 

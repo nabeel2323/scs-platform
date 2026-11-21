@@ -262,6 +262,105 @@ describe('M7.1 — Security & Concurrency', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════
+  //  COMMERCE TERM CONCURRENCY TESTS
+  // ═══════════════════════════════════════════════════════════════════
+
+  describe('Checkout offer-term concurrency', () => {
+    it('waits for a concurrent offer edit and rejects using the committed MOQ', async () => {
+      const cartId = randomUUID();
+      await pool.query(
+        `INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`,
+        [cartId, buyerA],
+      );
+      await pool.query(
+        `INSERT INTO cart_items
+          (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
+         VALUES ($1, $2, $3, $4, 2, 1000, 2000, $5)`,
+        [randomUUID(), cartId, storeA, variantA, offerA],
+      );
+
+      const beforeOrders = await pool.query<{ count: number }>(
+        'SELECT COUNT(*)::int AS count FROM orders WHERE buyer_id = $1',
+        [buyerA],
+      );
+
+      // Preserve the shared fixture's original terms: later security and
+      // lifecycle concurrency cases create accepted orders using this offer.
+      const originalOffer = await pool.query<{ moq: number | null; order_increment: number | null }>(
+        'SELECT moq, order_increment FROM merchant_offers WHERE id = $1',
+        [offerA],
+      );
+      expect(originalOffer.rows[0]).toBeDefined();
+
+      // Hold an uncommitted MOQ change. Checkout's initial non-locking read
+      // sees the old MOQ, but its authoritative SELECT ... FOR UPDATE must
+      // wait and then observe the newly committed MOQ.
+      const editor = await pool.connect();
+      let checkoutPromise: Promise<unknown> | undefined;
+      try {
+        await editor.query('BEGIN');
+        await editor.query(
+          'UPDATE merchant_offers SET moq = 3, order_increment = 1 WHERE id = $1',
+          [offerA],
+        );
+
+        checkoutPromise = ordersService.checkout({
+          buyerId: buyerA,
+          deliveryAddress: {},
+          idempotencyKey: `moq-race-${randomUUID()}`,
+        });
+
+        const deadline = Date.now() + 15_000;
+        let blockedOnOfferLock = false;
+        while (Date.now() < deadline) {
+          const waiting = await pool.query<{ pid: number }>(
+            `SELECT pid
+               FROM pg_stat_activity
+              WHERE datname = current_database()
+                AND wait_event_type = 'Lock'
+                AND query ILIKE '%merchant_offers%'
+                AND query ILIKE '%FOR UPDATE%'
+              LIMIT 1`,
+          );
+          if (waiting.rows.length > 0) {
+            blockedOnOfferLock = true;
+            break;
+          }
+          await new Promise(resolve => setTimeout(resolve, 25));
+        }
+
+        expect(blockedOnOfferLock).toBe(true);
+        await editor.query('COMMIT');
+        await expect(checkoutPromise).rejects.toThrow(/Minimum order quantity|minimum.*3/i);
+
+        const persisted = await pool.query(
+          'SELECT COUNT(*)::int AS count FROM orders WHERE buyer_id = $1',
+          [buyerA],
+        );
+        expect(persisted.rows[0]?.count).toBe(beforeOrders.rows[0]?.count);
+      } finally {
+        // Release the editor lock first, then let checkout settle before
+        // restoring the shared offer fixture for the following test cases.
+        await editor.query('ROLLBACK').catch(() => undefined);
+        if (checkoutPromise) {
+          await Promise.race([
+            checkoutPromise.then(() => undefined, () => undefined),
+            new Promise(resolve => setTimeout(resolve, 2_000)),
+          ]);
+        }
+        editor.release();
+        const originalTerms = originalOffer.rows[0];
+        if (originalTerms) {
+          await pool.query(
+            'UPDATE merchant_offers SET moq = $2, order_increment = $3 WHERE id = $1',
+            [offerA, originalTerms.moq, originalTerms.order_increment],
+          );
+        }
+      }
+    }, 30_000);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
   //  CONCURRENCY TESTS
   // ═══════════════════════════════════════════════════════════════════
 

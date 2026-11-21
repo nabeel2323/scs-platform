@@ -285,12 +285,16 @@ export class CatalogService {
     //       category contain").
     const linkedTypes = await this.db.db.select({ id: productTypes.id })
       .from(productTypes)
-      .where(eq(productTypes.categoryId, cat.id));
+      .where(and(
+        eq(productTypes.categoryId, cat.id),
+        eq(productTypes.status, 'PUBLISHED'),
+      ));
     const typesByProducts = await this.db.db.selectDistinct({ productTypeId: products.productTypeId })
       .from(products)
       .where(and(
         isNull(products.storeId),
         isNull(products.deletedAt),
+        eq(products.status, 'ACTIVE'),
         inArray(products.categoryId, [cat.id, ...descendantIds]),
       ));
     const typeIdSet = new Set<string>();
@@ -321,7 +325,11 @@ export class CatalogService {
       count: sql<number>`count(*)::int`,
     })
       .from(products)
-      .where(and(isNull(products.storeId), isNull(products.deletedAt)))
+      .where(and(
+        isNull(products.storeId),
+        isNull(products.deletedAt),
+        eq(products.status, 'ACTIVE'),
+      ))
       .groupBy(products.categoryId);
     const countByCat = new Map<string, number>(
       counts.filter(c => c.categoryId != null).map(c => [c.categoryId as string, c.count] as const),
@@ -393,7 +401,12 @@ export class CatalogService {
     const platformCats = await this.loadPlatformCategoryNodes();
     const descendantIds = collectDescendantIds(platformCats, cat.id);
 
-    const baseConditions = [isNull(products.storeId), isNull(products.deletedAt)];
+    // Buyer-facing category surfaces must not include unpublished canonical products.
+    const baseConditions = [
+      isNull(products.storeId),
+      isNull(products.deletedAt),
+      eq(products.status, 'ACTIVE'),
+    ];
 
     const directRows = scope === 'DESCENDANT' ? [] : await this.queryCategoryProductRows(baseConditions, [cat.id]);
     const descendantRows = scope === 'DIRECT' || descendantIds.size === 0
@@ -498,6 +511,7 @@ export class CatalogService {
         inArray(products.categoryId, categoryIds),
         isNull(products.storeId),
         isNull(products.deletedAt),
+        eq(products.status, 'ACTIVE'),
       ));
     return rows[0]?.count ?? 0;
   }
@@ -811,7 +825,13 @@ export class CatalogService {
     const { gtin, ean, mpn } = ids;
     if (!gtin && !ean && !mpn) return null;
 
-    const conditions = [isNull(products.deletedAt)];
+    // Deduplication must only resolve to public canonical catalog records.
+    // Never disclose a merchant-owned or unpublished product through identifier matching.
+    const conditions = [
+      isNull(products.storeId),
+      isNull(products.deletedAt),
+      eq(products.status, 'ACTIVE'),
+    ];
     if (gtin) conditions.push(eq(products.gtin, gtin));
     else if (ean) conditions.push(eq(products.ean, ean));
     else if (mpn) conditions.push(eq(products.mpn, mpn));
@@ -822,14 +842,21 @@ export class CatalogService {
     });
     if (!match) {
       // Fallback: try remaining identifiers individually
-      if (gtin && !ean && !mpn) return null;
+      const primaryIdentifier = gtin ? 'gtin' : ean ? 'ean' : 'mpn';
       const remaining: Array<{ col: typeof products.gtin | typeof products.ean | typeof products.mpn; val: string; label: 'gtin' | 'ean' | 'mpn' }> = [];
       if (gtin) remaining.push({ col: products.gtin, val: gtin, label: 'gtin' });
       if (ean) remaining.push({ col: products.ean, val: ean, label: 'ean' });
       if (mpn) remaining.push({ col: products.mpn, val: mpn, label: 'mpn' });
       for (const r of remaining) {
+        // The first query already tried the highest-priority supplied identifier.
+        if (r.label === primaryIdentifier) continue;
         const found = await this.db.db.query.products.findFirst({
-          where: and(isNull(products.deletedAt), eq(r.col, r.val)),
+          where: and(
+            isNull(products.storeId),
+            isNull(products.deletedAt),
+            eq(products.status, 'ACTIVE'),
+            eq(r.col, r.val),
+          ),
           columns: { id: true, title: true, slug: true },
         });
         if (found) return { ...found, matched: r.label };
@@ -858,7 +885,12 @@ export class CatalogService {
   }) {
     const limit = Math.min(filters.limit ?? 20, 50);
     const offset = filters.offset ?? 0;
-    const conditions = [isNull(products.storeId), isNull(products.deletedAt)];
+    // Merchant selector may discover only published canonical products.
+    const conditions = [
+      isNull(products.storeId),
+      isNull(products.deletedAt),
+      eq(products.status, 'ACTIVE'),
+    ];
 
     if (filters.search) {
       const q = `%${filters.search}%`;
@@ -1037,6 +1069,20 @@ export class CatalogService {
     }));
   }
 
+  async getVariantStoreId(variantId: string): Promise<string | null> {
+    const variant = await this.db.db.query.productVariants.findFirst({
+      where: eq(productVariants.id, variantId),
+      columns: { productId: true },
+    });
+    if (!variant) return null;
+
+    const product = await this.db.db.query.products.findFirst({
+      where: eq(products.id, variant.productId),
+      columns: { storeId: true },
+    });
+    return product?.storeId ?? null;
+  }
+
   async getProduct(id: string) {
     const product = await this.db.db.query.products.findFirst({
       where: and(eq(products.id, id), isNull(products.deletedAt)),
@@ -1049,16 +1095,17 @@ export class CatalogService {
   private static readonly PRODUCT_DETAIL_CACHE_PREFIX = 'product:detail:';
   private static readonly PRODUCT_DETAIL_TTL_S = 300;
 
-  async getProductDetail(id: string) {
-    // Attempt cache hit
-    const cacheKey = CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id;
+  async getProductDetail(id: string, includeInactiveVariants = true) {
+    // Keep studio and buyer cache entries separate: merchant callers may see
+    // inactive variants, while public product reads must not.
+    const cacheKey = CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id + (includeInactiveVariants ? '' : ':public');
     try {
       const cached = await this.redis.client.get(cacheKey);
       if (cached) { recordCacheHit('product_detail'); return JSON.parse(cached); }
       recordCacheMiss('product_detail');
     } catch { recordCacheMiss('product_detail'); }
 
-    const result = await timeQuery(`getProductDetail:${id}`, () => this._getProductDetailUncached(id));
+    const result = await timeQuery(`getProductDetail:${id}:${includeInactiveVariants ? 'studio' : 'public'}`, () => this._getProductDetailUncached(id, includeInactiveVariants));
 
     // Fire-and-forget cache write
     try {
@@ -1071,11 +1118,15 @@ export class CatalogService {
   /** Invalidate product detail cache (call on update/delete). */
   async invalidateProductCache(id: string) {
     try {
-      await this.redis.client.del(CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id);
+      await Promise.all([
+        this.redis.client.del(CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id + ':studio'),
+        this.redis.client.del(CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id + ':public'),
+        this.redis.client.del(CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id),
+      ]);
     } catch { /* non-blocking */ }
   }
 
-  private async _getProductDetailUncached(id: string) {
+  private async _getProductDetailUncached(id: string, includeInactiveVariants = true) {
     const product = await this.getProduct(id);
     const productStoreId = product.storeId;
     const [storeRows, media, variants, labels] = await Promise.all([
@@ -1086,7 +1137,7 @@ export class CatalogService {
           }).from(stores).leftJoin(organizations, eq(stores.orgId, organizations.id)).where(eq(stores.id, productStoreId))
         : Promise.resolve([] as any[]),
       this.listMediaByProduct(id),
-      this.listVariantsByProduct(id),
+      this.listVariantsByProduct(id, includeInactiveVariants),
       this.db.db.select({ categoryName: categories.name, brandName: brands.name }).from(products)
         .leftJoin(categories, eq(products.categoryId, categories.id)).leftJoin(brands, eq(products.brandId, brands.id))
         .where(eq(products.id, id)),
@@ -2066,17 +2117,24 @@ export class CatalogService {
    * List all variants across all products for a store.
    * Eliminates the N+1 pattern where clients paginate products then fetch variants per product.
    */
-  async listVariantsByStore(storeId: string) {
+  async listVariantsByStore(storeId: string, includeInactive = true) {
     const storeProducts = await this.db.db
       .select({ id: products.id })
       .from(products)
-      .where(and(eq(products.storeId, storeId), isNull(products.deletedAt)));
+      .where(and(
+        eq(products.storeId, storeId),
+        isNull(products.deletedAt),
+        ...(includeInactive ? [] : [eq(products.status, 'ACTIVE')]),
+      ));
 
     const productIds = storeProducts.map((p) => p.id);
     if (productIds.length === 0) return [];
 
     return this.db.db.query.productVariants.findMany({
-      where: inArray(productVariants.productId, productIds),
+      where: and(
+        inArray(productVariants.productId, productIds),
+        ...(includeInactive ? [] : [eq(productVariants.isActive, true)]),
+      ),
       orderBy: [productVariants.createdAt],
     });
   }
@@ -2260,9 +2318,12 @@ export class CatalogService {
     return this.coerceVariantNumeric(variant);
   }
 
-  async listVariantsByProduct(productId: string) {
+  async listVariantsByProduct(productId: string, includeInactive = true) {
     const variants = await this.db.db.query.productVariants.findMany({
-      where: eq(productVariants.productId, productId),
+      where: and(
+        eq(productVariants.productId, productId),
+        ...(includeInactive ? [] : [eq(productVariants.isActive, true)]),
+      ),
       orderBy: [productVariants.createdAt],
     }).then(rows => rows.map(r => this.coerceVariantNumeric(r)));
     // Attach stock status per variant (same shape as getProductDetail)
@@ -2376,7 +2437,7 @@ export class CatalogService {
     });
 
     // 5. Load variants with stock enrichment (reuse listVariantsByProduct)
-    const enrichedVariants = await this.listVariantsByProduct(productId);
+    const enrichedVariants = await this.listVariantsByProduct(productId, false);
 
     // 6. Build code → attributeDefinitionId lookup for typed attribute mapping
     const codeToDefId = new Map<string, string>();

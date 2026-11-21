@@ -8,7 +8,7 @@ import {
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { StorageService } from '../../common/storage/storage.service';
-import { stores, warehouses, businessDocuments, verificationRequests } from './merchant.schema';
+import { stores, warehouses, businessDocuments, verificationRequests, storeMembers } from './merchant.schema';
 import { organizations, organizationMembers, users } from '../identity/identity.schema';
 import { orders } from '../orders/orders.schema';
 import { eq, and, or, desc, sql, isNull, inArray } from 'drizzle-orm';
@@ -70,30 +70,44 @@ export class MerchantService {
     if (existing) throw new ConflictException('Store slug already taken');
 
     const storeId = crypto.randomUUID();
-    await this.db.db.insert(stores).values({
-      id: storeId,
-      orgId: input.orgId,
-      slug,
-      displayName: input.displayName,
-      description: input.description || null,
-      logoUrl: input.logoUrl || null,
-      coverUrl: input.coverUrl || null,
-      currency: input.currency || 'SAR',
-      timezone: input.timezone || 'Asia/Riyadh',
-      locale: input.locale || 'ar',
-      status: 'DRAFT',
-      verificationStatus: 'PENDING',
-      address: input.address || {},
-      metadata: {},
-    });
 
-    // Emit domain event via outbox
-    await this.outbox.publish(
-      'merchant.store.created',
-      storeId,
-      { storeId, orgId: input.orgId, slug, displayName: input.displayName },
-      { userId },
-    );
+    // Store creation, initial OWNER membership and the creation event must be
+    // atomic. Without the membership row, the creator cannot manage members or
+    // use store-scoped merchant routes (which fail closed on store membership).
+    await this.db.db.transaction(async (tx) => {
+      await tx.insert(stores).values({
+        id: storeId,
+        orgId: input.orgId,
+        slug,
+        displayName: input.displayName,
+        description: input.description || null,
+        logoUrl: input.logoUrl || null,
+        coverUrl: input.coverUrl || null,
+        currency: input.currency || 'SAR',
+        timezone: input.timezone || 'Asia/Riyadh',
+        locale: input.locale || 'ar',
+        status: 'DRAFT',
+        verificationStatus: 'PENDING',
+        address: input.address || {},
+        metadata: {},
+      });
+
+      await tx.insert(storeMembers).values({
+        storeId,
+        userId,
+        role: 'OWNER',
+        status: 'ACTIVE',
+      });
+
+      await this.outbox.publish(
+        'merchant.store.created',
+        storeId,
+        { storeId, orgId: input.orgId, slug, displayName: input.displayName },
+        { userId },
+        null,
+        tx,
+      );
+    });
 
     return this.getStore(storeId);
   }

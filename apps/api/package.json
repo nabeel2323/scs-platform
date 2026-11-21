@@ -29,8 +29,8 @@
     "db:demo": "tsx src/scripts/demo-data.ts",
     "db:reset": "tsx infra/drizzle/reset.ts",
     "db:generate": "drizzle-kit generate",
-    "db:audit-access": "tsx scripts/audit-db-access.ts",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "db:audit-access": "tsx scripts/audit-db-access.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1131.0",

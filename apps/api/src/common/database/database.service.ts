@@ -50,6 +50,58 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       }),
     });
 
+    // Emit a non-secret identity fingerprint for the actual API pool connection.
+    // This lets operators verify the runtime login/effective role independently of
+    // the migration workflow credential. Never log the DSN, host, address, or query.
+    try {
+      const identityResult = await this.pool.query<{
+        session_user: string;
+        current_user: string;
+        database_name: string;
+        session_role_superuser: boolean;
+        session_role_bypassrls: boolean;
+        session_role_createrole: boolean;
+        session_role_createdb: boolean;
+        effective_role_superuser: boolean;
+        effective_role_bypassrls: boolean;
+        effective_role_createrole: boolean;
+        effective_role_createdb: boolean;
+        ssl: boolean | null;
+      }>(
+        `SELECT
+          session_user::text AS session_user,
+          current_user::text AS current_user,
+          current_database()::text AS database_name,
+          session_role.rolsuper AS session_role_superuser,
+          session_role.rolbypassrls AS session_role_bypassrls,
+          session_role.rolcreaterole AS session_role_createrole,
+          session_role.rolcreatedb AS session_role_createdb,
+          effective_role.rolsuper AS effective_role_superuser,
+          effective_role.rolbypassrls AS effective_role_bypassrls,
+          effective_role.rolcreaterole AS effective_role_createrole,
+          effective_role.rolcreatedb AS effective_role_createdb,
+          pg_stat_ssl.ssl AS ssl
+        FROM pg_roles AS session_role
+        JOIN pg_roles AS effective_role ON effective_role.rolname = current_user
+        LEFT JOIN pg_stat_ssl ON pg_stat_ssl.pid = pg_backend_pid()
+        WHERE session_role.rolname = session_user`,
+      );
+      const identity = identityResult.rows[0];
+      if (identity) {
+        DatabaseService.logger.log(`Runtime database identity: ${JSON.stringify(identity)}`);
+      } else {
+        DatabaseService.logger.warn(
+          'Runtime database identity query returned no role metadata; identity remains unverified.',
+        );
+      }
+    } catch {
+      // Diagnostics must never prevent API startup. Do not log the database error,
+      // which may contain connection details or other sensitive information.
+      DatabaseService.logger.warn(
+        'Runtime database identity diagnostics failed; identity remains unverified.',
+      );
+    }
+
     // Auto-migrate and seed in development mode so debugging "just works".
     const nodeEnv = (process.env['NODE_ENV'] ?? 'development').trim().toLowerCase();
     if (nodeEnv === 'development' || nodeEnv === 'test') {
@@ -126,7 +178,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           }
           DatabaseService.logger.log(`Migrations complete (${pending.length} applied).`);
         } else {
-          DatabaseService.logger.log(`Database up-to-date — all ${files.length} migration(s) applied.`);
+          DatabaseService.logger.log(
+            `Database up-to-date — all ${files.length} migration(s) applied.`,
+          );
         }
       } else {
         DatabaseService.logger.warn(`Migrations directory not found: ${migrationsDir}`);
@@ -139,7 +193,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       // Don't crash — let the app try to start anyway (tables may already exist).
     } finally {
       if (client) {
-        try { await client.release(); } catch { /* ignore */ }
+        try {
+          await client.release();
+        } catch {
+          /* ignore */
+        }
       }
       await bootstrapPool.end();
     }
@@ -207,7 +265,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         DatabaseService.logger.log('Seed: RBAC data up-to-date.');
       }
     } catch (err: any) {
-      try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* ignore */
+      }
       DatabaseService.logger.error(`Seed failed: ${err.message}`);
     }
   }

@@ -8,10 +8,8 @@ import {
   fetchStalePayments,
   type AdminPayment,
 } from '../../lib/api';
-import { useRequirePerms } from '../../hooks/useRequirePerms';
-import {
-  PageHeader, Card, Button, colors, typeScale, radii,
-} from '@scs/ui-kit';
+import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
+import { PageHeader, Card, Button, colors, typeScale, radii } from '@scs/ui-kit';
 
 type Tab = 'queue' | 'all' | 'stale';
 
@@ -29,10 +27,19 @@ const STATUS_COLORS: Record<string, string> = {
 function PaymentStatusBadge({ status }: { status: string }) {
   const bg = STATUS_COLORS[status] || '#6b7280';
   return (
-    <span style={{
-      display: 'inline-block', padding: '2px 8px', borderRadius: 12,
-      fontSize: 11, fontWeight: 600, color: '#fff', background: bg,
-    }}>{status.replace(/_/g, ' ')}</span>
+    <span
+      style={{
+        display: 'inline-block',
+        padding: '2px 8px',
+        borderRadius: 12,
+        fontSize: 11,
+        fontWeight: 600,
+        color: '#fff',
+        background: bg,
+      }}
+    >
+      {status.replace(/_/g, ' ')}
+    </span>
   );
 }
 
@@ -42,14 +49,20 @@ function formatMinor(minor: number | null, currency?: string) {
 }
 
 export default function AdminPaymentsPage() {
-  useRequirePerms(['admin:payments:read']);
-  const [tab, setTab] = useState<Tab>('queue');
+  const { hasAccess, missingPerms } = useRequirePerms(['admin:payments:read']);
+  const { hasAccess: canVerifyPayments } = useRequirePerms(['admin:payments:verify']);
+  const [tab, setTab] = useState<Tab>(canVerifyPayments ? 'queue' : 'all');
   const [payments, setPayments] = useState<AdminPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [acting, setActing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (!hasAccess) return;
+    if (tab === 'queue' && !canVerifyPayments) {
+      setTab('all');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -63,11 +76,14 @@ export default function AdminPaymentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab]);
+  }, [tab, hasAccess, canVerifyPayments]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (hasAccess) load();
+  }, [load, hasAccess]);
 
   const handleVerify = async (paymentId: string, decision: 'CONFIRMED' | 'REJECTED') => {
+    if (!canVerifyPayments) return;
     setActing(paymentId);
     setError('');
     try {
@@ -81,10 +97,13 @@ export default function AdminPaymentsPage() {
   };
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'queue', label: 'Verification Queue' },
+    ...(canVerifyPayments ? [{ key: 'queue' as const, label: 'Verification Queue' }] : []),
     { key: 'all', label: 'All Payments' },
     { key: 'stale', label: 'Stale / Expiring' },
   ];
+
+  if (!hasAccess)
+    return <AccessDenied requiredPerms={['admin:payments:read']} missingPerms={missingPerms} />;
 
   return (
     <div style={{ padding: '24px 28px' }}>
@@ -92,18 +111,38 @@ export default function AdminPaymentsPage() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{
-            padding: '8px 16px', borderRadius: radii.sm, border: 'none', cursor: 'pointer',
-            fontWeight: 600, fontSize: 13,
-            background: tab === t.key ? colors.brand[700] : colors.bgSubtle,
-            color: tab === t.key ? '#fff' : colors.brand[700],
-          }}>{t.label}</button>
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: radii.sm,
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: 13,
+              background: tab === t.key ? colors.brand[700] : colors.bgSubtle,
+              color: tab === t.key ? '#fff' : colors.brand[700],
+            }}
+          >
+            {t.label}
+          </button>
         ))}
       </div>
 
       {error && (
-        <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.sm, color: '#dc2626', marginBottom: 12, fontSize: 13 }}>
+        <div
+          style={{
+            padding: '10px 14px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: radii.sm,
+            color: '#dc2626',
+            marginBottom: 12,
+            fontSize: 13,
+          }}
+        >
           {error}
         </div>
       )}
@@ -125,28 +164,48 @@ export default function AdminPaymentsPage() {
                 <th style={{ textAlign: 'right', padding: '10px 8px' }}>Amount</th>
                 <th style={{ textAlign: 'left', padding: '10px 8px' }}>Reference</th>
                 <th style={{ textAlign: 'left', padding: '10px 8px' }}>Created</th>
-                {tab === 'queue' && <th style={{ textAlign: 'center', padding: '10px 8px' }}>Actions</th>}
+                {tab === 'queue' && canVerifyPayments && (
+                  <th style={{ textAlign: 'center', padding: '10px 8px' }}>Actions</th>
+                )}
               </tr>
             </thead>
             <tbody>
-              {payments.map(p => (
+              {payments.map((p) => (
                 <tr key={p.id} style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
                   <td style={{ padding: '10px 8px', fontFamily: 'monospace', fontSize: 11 }}>
                     {(p.orderId || '').slice(0, 8)}
                   </td>
                   <td style={{ padding: '10px 8px' }}>{p.paymentMethod?.replace(/_/g, ' ')}</td>
-                  <td style={{ padding: '10px 8px' }}><PaymentStatusBadge status={p.status} /></td>
-                  <td style={{ padding: '10px 8px', textAlign: 'right' }}>{formatMinor(p.amountMinor, p.currency)}</td>
+                  <td style={{ padding: '10px 8px' }}>
+                    <PaymentStatusBadge status={p.status} />
+                  </td>
+                  <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                    {formatMinor(p.amountMinor, p.currency)}
+                  </td>
                   <td style={{ padding: '10px 8px', fontSize: 11, color: colors.muted }}>
                     {p.receiptReference || '—'}
                   </td>
-                  <td style={{ padding: '10px 8px', fontSize: 11 }}>{new Date(p.createdAt).toLocaleDateString()}</td>
-                  {tab === 'queue' && (
+                  <td style={{ padding: '10px 8px', fontSize: 11 }}>
+                    {new Date(p.createdAt).toLocaleDateString()}
+                  </td>
+                  {tab === 'queue' && canVerifyPayments && (
                     <td style={{ padding: '10px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                      <Button size="sm" variant="primary" disabled={acting === p.id}
-                        onClick={() => handleVerify(p.id, 'CONFIRMED')}>Confirm</Button>{' '}
-                      <Button size="sm" variant="danger" disabled={acting === p.id}
-                        onClick={() => handleVerify(p.id, 'REJECTED')}>Reject</Button>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={acting === p.id}
+                        onClick={() => handleVerify(p.id, 'CONFIRMED')}
+                      >
+                        Confirm
+                      </Button>{' '}
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={acting === p.id}
+                        onClick={() => handleVerify(p.id, 'REJECTED')}
+                      >
+                        Reject
+                      </Button>
                     </td>
                   )}
                 </tr>

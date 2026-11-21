@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { checkout, fetchCart, Cart, CartItem, fetchShippingEstimate, ShippingEstimate } from '../../lib/buyer-api';
+import { checkout, fetchCart, Cart, CartItem, fetchShippingEstimate, ShippingEstimate, previewCheckout, CheckoutPreview } from '../../lib/buyer-api';
 import { formatMinor, ErrorBanner, LoadingSpinner } from '../../components/Shared';
 import {
   PageHeader, Card, Button, TextInput, Select, EmptyState,
@@ -30,6 +30,9 @@ export default function CheckoutPage() {
   const [storeSelections, setStoreSelections] = useState<Map<string, StoreSelection>>(new Map());
   const [estimatesLoading, setEstimatesLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH_ON_DELIVERY');
+  const [checkoutPreview, setCheckoutPreview] = useState<CheckoutPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
 
   useEffect(() => {
     fetchCart()
@@ -45,10 +48,8 @@ export default function CheckoutPage() {
     if (list) list.push(item);
     else grouped.set(item.storeId, [item]);
   }
-  const cartCurrencies = new Set(cartItems.map((i) => i.currency).filter(Boolean));
-  const cartCurrency = cartCurrencies.size === 1 ? Array.from(cartCurrencies)[0] : undefined;
   const multiStore = grouped.size > 1;
-
+  const storeCount = grouped.size;
   // Load shipping estimates for each store when cart loads or address changes
   useEffect(() => {
     if (cartItems.length === 0 || grouped.size === 0) return;
@@ -61,13 +62,15 @@ export default function CheckoutPage() {
         const storeName = items[0]?.storeName || `Supplier ${storeId.slice(0, 8)}`;
         try {
           const estimate = await fetchShippingEstimate(storeId, subtotal, city || undefined);
-          const availableMethods = estimate.methods.filter(m => m.status !== 'UNAVAILABLE');
+          const availableMethods = estimate.deliveryAvailable
+            ? estimate.methods.filter(m => m.status !== 'UNAVAILABLE')
+            : [];
           const defaultMethod = availableMethods[0];
-          const isPickup = !defaultMethod || defaultMethod.type === 'PICKUP';
+          const isPickup = !defaultMethod;
           newSelections.set(storeId, {
             storeId,
             storeName,
-            fulfillmentMethod: isPickup ? 'PICKUP' : 'PLATFORM_DELIVERY',
+            fulfillmentMethod: defaultMethod?.fulfillmentMethod || (isPickup ? 'PICKUP' : 'PLATFORM_DELIVERY'),
             shippingMethodId: defaultMethod?.methodId || null,
             estimate,
           });
@@ -76,7 +79,7 @@ export default function CheckoutPage() {
           newSelections.set(storeId, {
             storeId,
             storeName,
-            fulfillmentMethod: 'PLATFORM_DELIVERY',
+            fulfillmentMethod: 'PICKUP',
             shippingMethodId: null,
             estimate: null,
           });
@@ -98,17 +101,45 @@ export default function CheckoutPage() {
     });
   };
 
-  // Compute total including per-store shipping
-  const computeTotal = (): number => {
-    let total = cart?.totalMinor || 0;
-    for (const [, sel] of storeSelections) {
-      if (sel.estimate && sel.shippingMethodId) {
-        const method = sel.estimate.methods.find(m => m.methodId === sel.shippingMethodId);
-        if (method) total += method.feeMinor;
-      }
+  // Ask the API to calculate the exact per-supplier financial breakdown,
+  // including the configured VAT rate, promotion discount and authoritative fees.
+  useEffect(() => {
+    if (
+      cartItems.length === 0 ||
+      estimatesLoading ||
+      storeSelections.size !== storeCount ||
+      !address.trim() ||
+      !city.trim()
+    ) {
+      setCheckoutPreview(null);
+      setPreviewLoading(false);
+      return;
     }
-    return total;
-  };
+    let active = true;
+    setPreviewLoading(true);
+    setPreviewError('');
+    previewCheckout({
+      deliveryAddress: { street: address.trim(), city: city.trim() },
+      shippingSelections: [...storeSelections.values()].map(selection => ({
+        storeId: selection.storeId,
+        fulfillmentMethod: selection.fulfillmentMethod,
+        shippingMethodId: selection.shippingMethodId || undefined,
+      })),
+    })
+      .then(result => {
+        if (active) setCheckoutPreview(result);
+      })
+      .catch((error: any) => {
+        if (active) {
+          setCheckoutPreview(null);
+          setPreviewError(error.message || 'Could not calculate checkout totals');
+        }
+      })
+      .finally(() => {
+        if (active) setPreviewLoading(false);
+      });
+    return () => { active = false; };
+  }, [cartItems.length, estimatesLoading, storeSelections, storeCount, address, city]);
 
   const handleSubmit = async () => {
     if (!address.trim()) { setError('Delivery address is required'); return; }
@@ -189,13 +220,18 @@ export default function CheckoutPage() {
                     </div>
 
                     {/* Per-store shipping selection */}
-                    {sel?.estimate && sel.estimate.methods.length > 0 && (
+                    {sel && (
                       <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${colors.borderLight}` }}>
                         <div style={{ ...typeScale.bodySm, fontWeight: 600, color: colors.brand[700], marginBottom: 4 }}>Shipping</div>
-                        {sel.estimate.methods.filter(m => m.status !== 'UNAVAILABLE').map(m => (
+                        {sel.estimate?.deliveryAvailable === false && (
+                          <div style={{ ...typeScale.bodySm, color: colors.muted, marginBottom: 4 }}>
+                            {sel.estimate ? 'Delivery is unavailable for this address.' : 'Delivery options could not be loaded.'} Pickup remains available.
+                          </div>
+                        )}
+                        {(sel.estimate?.deliveryAvailable ? sel.estimate.methods.filter(m => m.status !== 'UNAVAILABLE') : []).map(m => (
                           <label key={m.methodId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', cursor: 'pointer', ...typeScale.bodySm }}>
                             <input type="radio" name={`shipping-${storeId}`} checked={sel.shippingMethodId === m.methodId}
-                              onChange={() => updateSelection(storeId, { shippingMethodId: m.methodId })} />
+                              onChange={() => updateSelection(storeId, { shippingMethodId: m.methodId, fulfillmentMethod: m.fulfillmentMethod })} />
                             <span>{m.name}</span>
                             <span style={{ marginLeft: 'auto', color: m.status === 'FREE' ? colors.ok : colors.muted }}>
                               {m.status === 'FREE' ? 'Free' : formatMinor(m.feeMinor, m.currency)}
@@ -207,7 +243,6 @@ export default function CheckoutPage() {
                             )}
                           </label>
                         ))}
-                        {/* Pickup option */}
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', cursor: 'pointer', ...typeScale.bodySm }}>
                           <input type="radio" name={`shipping-${storeId}`} checked={sel.fulfillmentMethod === 'PICKUP'}
                             onChange={() => updateSelection(storeId, { fulfillmentMethod: 'PICKUP', shippingMethodId: null })} />
@@ -222,13 +257,54 @@ export default function CheckoutPage() {
               {cart?.promoCode && (
                 <div style={{ ...typeScale.bodySm, color: colors.ok, margin: '4px 0 8px' }}>Promo applied: {cart.promoCode}</div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: colors.brand[700] }}>
-                <span>Estimated total</span>
-                <span>{formatMinor(computeTotal(), cartCurrency)}</span>
+              <div style={{ marginTop: 12, padding: '12px', border: `1px solid ${colors.borderLight}`, borderRadius: radii.sm }}>
+                <div style={{ ...typeScale.body, fontWeight: 700, color: colors.brand[700], marginBottom: 8 }}>
+                  Tax-inclusive estimate
+                </div>
+                {previewLoading ? (
+                  <div style={{ ...typeScale.bodySm, color: colors.muted }}>Calculating supplier totals, delivery and VAT…</div>
+                ) : checkoutPreview ? (
+                  <>
+                    {checkoutPreview.stores.map(row => (
+                      <div key={row.storeId} style={{ padding: '8px 0', borderTop: `1px solid ${colors.borderLight}` }}>
+                        <div style={{ ...typeScale.body, fontWeight: 600, marginBottom: 4 }}>
+                          {grouped.get(row.storeId)?.[0]?.storeName || 'Supplier'}
+                        </div>
+                        {[
+                          ['Items', row.subtotalMinor],
+                          ['Discount', -row.discountMinor],
+                          ['Delivery', row.deliveryFeeMinor],
+                          ['VAT', row.taxMinor],
+                        ].map(([label, amount]) => (
+                          <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', ...typeScale.bodySm, color: colors.muted }}>
+                            <span>{label}</span>
+                            <span>{formatMinor(Number(amount), row.currency || undefined)}</span>
+                          </div>
+                        ))}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', ...typeScale.body, fontWeight: 700, marginTop: 4 }}>
+                          <span>Supplier total</span>
+                          <span>{formatMinor(row.totalMinor, row.currency || undefined)}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {checkoutPreview.hasUnpricedAmounts ? (
+                      <div style={{ ...typeScale.bodySm, color: colors.muted }}>Some supplier totals have no confirmed currency.</div>
+                    ) : Object.entries(checkoutPreview.totalsByCurrency).map(([currency, amount]) => (
+                      <div key={currency} style={{ display: 'flex', justifyContent: 'space-between', ...typeScale.body, fontWeight: 700, marginTop: 8 }}>
+                        <span>Total ({currency})</span>
+                        <span>{formatMinor(amount, currency)}</span>
+                      </div>
+                    ))}
+                    <p style={{ ...typeScale.bodySm, color: colors.muted, margin: '8px 0 0' }}>
+                      VAT is estimated by the server using the current tax configuration. The server recalculates all amounts when you place the order.
+                    </p>
+                  </>
+                ) : (
+                  <div style={{ ...typeScale.bodySm, color: colors.muted }}>
+                    {previewError || 'Enter your delivery address and choose shipping for each supplier to calculate VAT and final estimates.'}
+                  </div>
+                )}
               </div>
-              <p style={{ ...typeScale.bodySm, color: colors.muted, margin: '8px 0 0' }}>
-                Final amounts are confirmed per supplier. Delivery fees and VAT are added per supplier.
-              </p>
               <div style={{ marginTop: 12, padding: '10px 12px', background: colors.bgSubtle, border: `1px solid ${colors.border}`, borderRadius: radii.sm }}>
                 <div style={{ ...typeScale.label, fontWeight: 600, color: colors.brand[700], marginBottom: 8 }}>Payment Method</div>
                 {[
@@ -286,8 +362,8 @@ export default function CheckoutPage() {
                 <div style={{ ...typeScale.bodySm, color: colors.muted, marginBottom: 12 }}>Loading shipping options...</div>
               )}
 
-              <Button size="lg" onClick={handleSubmit} disabled={submitting || estimatesLoading} style={{ width: '100%' }}>
-                {submitting ? 'Placing Order...' : `Place Order · ${formatMinor(computeTotal(), cartCurrency)}`}
+              <Button size="lg" onClick={handleSubmit} disabled={submitting || estimatesLoading || previewLoading || !checkoutPreview} style={{ width: '100%' }}>
+                {submitting ? 'Placing Order...' : 'Place Order'}
               </Button>
               <div style={{ textAlign: 'center', marginTop: 12 }}>
                 <Link href="/cart" style={{ ...typeScale.bodySm, color: colors.muted, textDecoration: 'none' }}>← Edit cart</Link>

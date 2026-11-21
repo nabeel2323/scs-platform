@@ -280,91 +280,47 @@ export class NotificationsService implements OnModuleInit {
     }
   }
 
-  // SMS with two-provider failover
-  private async sendSms(notificationId: string, userId: string, body: string) {
-    // Get user phone from users table
-    const user = await this.db.db.query.users.findFirst({
-      where: eq((await import('../identity/identity.schema')).users.id, userId),
-    });
-    if (!user) throw new Error('User not found');
-    const phone = user['phone'];
-    if (!phone) throw new Error('User has no phone number for SMS delivery');
-
-    // Primary provider
-    try {
-      const result = await this.smsProviderPrimary(phone, body);
-      await this.db.db
-        .update(notifications)
-        .set({ status: 'SENT', provider: 'primary-sms', providerMsgId: result, sentAt: new Date() })
-        .where(eq(notifications.id, notificationId));
-      return;
-    } catch {
-      console.warn('[SMS] Primary provider failed, trying fallback');
-    }
-
-    // Fallback provider
-    try {
-      const result = await this.smsProviderFallback(phone, body);
-      await this.db.db
-        .update(notifications)
-        .set({ status: 'SENT', provider: 'fallback-sms', providerMsgId: result, sentAt: new Date() })
-        .where(eq(notifications.id, notificationId));
-    } catch (err: any) {
-      // WhatsApp fallback
-      try {
-        await this.sendWhatsApp(notificationId, userId, body);
-      } catch {
-        throw new Error(`All SMS providers failed: ${err?.message}`);
-      }
-    }
-  }
-
-  private async sendPush(notificationId: string, userId: string, title: string, body: string) {
-    const tokens = await this.db.db.select().from(deviceTokens)
-      .where(and(eq(deviceTokens.userId, userId), eq(deviceTokens.isActive, true)));
-
-    if (tokens.length === 0) {
-      await this.db.db
-        .update(notifications)
-        .set({ status: 'SENT', provider: 'fcm-no-token', sentAt: new Date() })
-        .where(eq(notifications.id, notificationId));
-      return;
-    }
-
-    // FCM send (placeholder — in production, use firebase-admin SDK)
-    const fcmResult = await this.fcmSend(tokens.map((t: any) => t.token), title, body);
-
+  // External delivery channels remain explicitly unavailable until real provider
+  // adapters are configured. Never fabricate provider message IDs or mark a stub SENT.
+  private async markNotConfigured(notificationId: string, provider: string, reason: string) {
     await this.db.db
       .update(notifications)
-      .set({ status: 'SENT', provider: 'fcm', providerMsgId: fcmResult, sentAt: new Date() })
+      .set({
+        status: 'NOT_CONFIGURED',
+        provider,
+        failureReason: reason,
+        failedAt: new Date(),
+      })
       .where(eq(notifications.id, notificationId));
+  }
+
+  private async sendSms(notificationId: string, _userId: string, _body: string) {
+    await this.markNotConfigured(
+      notificationId,
+      'sms-unconfigured',
+      'SMS_PROVIDER_NOT_CONFIGURED',
+    );
+  }
+
+  private async sendPush(notificationId: string, userId: string, _title: string, _body: string) {
+    const tokens = await this.db.db
+      .select()
+      .from(deviceTokens)
+      .where(and(eq(deviceTokens.userId, userId), eq(deviceTokens.isActive, true)));
+
+    await this.markNotConfigured(
+      notificationId,
+      'fcm-unconfigured',
+      tokens.length === 0 ? 'PUSH_NO_ACTIVE_DEVICE_TOKEN' : 'PUSH_PROVIDER_NOT_CONFIGURED',
+    );
   }
 
   private async sendWhatsApp(notificationId: string, _userId: string, _body: string) {
-    // Placeholder — in production, integrate WhatsApp Business API
-    await this.db.db
-      .update(notifications)
-      .set({ status: 'SENT', provider: 'whatsapp', sentAt: new Date() })
-      .where(eq(notifications.id, notificationId));
-  }
-
-  // ── Provider Stubs ───────────────────────────────────────────
-
-  private async smsProviderPrimary(_phone: string, _body: string): Promise<string> {
-    // In production: call primary SMS API (e.g., Unifonic, Twilio)
-    // For now, simulate success
-    return `primary-${crypto.randomUUID().slice(0, 8)}`;
-  }
-
-  private async smsProviderFallback(_phone: string, _body: string): Promise<string> {
-    // In production: call fallback SMS API
-    return `fallback-${crypto.randomUUID().slice(0, 8)}`;
-  }
-
-  private async fcmSend(_tokens: string[], _title: string, _body: string): Promise<string> {
-    // In production: use firebase-admin SDK
-    // admin.messaging().sendEachForMulticast({ tokens, notification: { title, body } })
-    return `fcm-${crypto.randomUUID().slice(0, 8)}`;
+    await this.markNotConfigured(
+      notificationId,
+      'whatsapp-unconfigured',
+      'WHATSAPP_PROVIDER_NOT_CONFIGURED',
+    );
   }
 
   // ── Preferences ──────────────────────────────────────────────

@@ -67,7 +67,7 @@ export function trackEvent(eventType: string, properties?: Record<string, unknow
 // ── Pre-defined event helpers (type-safe + consistent naming) ────
 
 export const analytics = {
-  productViewed(productId: string, storeId: string, title?: string) {
+  productViewed(productId: string, storeId: string | null, title?: string) {
     trackEvent('product_viewed', { product_id: productId, store_id: storeId, title });
   },
   variantSelected(productId: string, variantId: string, dimensionValues: Record<string, string>) {

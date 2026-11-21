@@ -1,0 +1,50 @@
+# P1-04 — Adjacent Tenant-Scope Audit
+
+**Date:** 18 November 2026  
+**Repository:** `nabeel2323/scs-platform`  
+**Audit branch:** `remediation/phase-0-1-tenant-security`  
+**Source snapshot reviewed:** remediation branch after canonical lookup, category-count and carrier lease-scope refinements (latest test commit `7758d7911f4af229511eda6c54438ea8777cdfe6`)  
+**Parent finding:** G-001 — merchant offer tenant authorization
+
+## Purpose and method
+
+This is a source-level audit of adjacent API routes that accept `storeId`, `orgId`, product IDs, warehouse IDs, price-list IDs, variant IDs or other tenant-owned object identifiers. The audit checks whether the authenticated caller is bound to the object's active organization and active store membership before the controller invokes a service.
+
+This report distinguishes source-confirmed omissions from fixes already committed and items requiring additional contract review. It does not claim runtime exploitation or live staging reproduction.
+
+## Findings
+
+| Finding | Affected area / routes | Source evidence at reviewed snapshot | Result |
+|---|---|---|---|
+| G-024 | `POST/GET /merchant/requests`; admin approve/reject actor identity | `catalog.requests.controller.ts:36-47,64-81`; service persists `requestedBy` | Merchant request list/create accepted caller-supplied store scope without store membership. Requester/reviewer IDs were accepted from request bodies. **Fix committed**: store/org + active membership checks; actor IDs derived from JWT. |
+| G-025 | `PATCH /stores/:id`; `POST/GET /stores/:storeId/warehouses`; `PATCH /warehouses/:id`; `POST /stores/:storeId/verify` | `merchant.controller.ts:125-150,213-218` | Active-org and permission guards did not bind the target store/warehouse to the caller's active store membership; warehouse list lacked a functional permission check. **Fix committed**: target-store membership checks; warehouse listing requires `merchant:stores:read`. |
+| G-026 | Price-list and price-tier list/detail/create/update/delete/resolve routes | `pricing.controller.ts:17-97`; `pricing.service.ts:23-190` | Permission checks existed, but object-level store ownership was not enforced. Tier creation/update could pair a variant with another store's price list. **Fix committed**: store membership checks and variant/list store consistency checks. |
+| G-027 | Store inventory, warehouse inventory, variant inventory, item movements, low-stock listing and stock mutations | `inventory.controller.ts`; `inventory.service.ts`; `common/tenant-scope.ts` | Source omission confirmed. **Fix verified in CI #554:** inventory HTTP routes forward authenticated caller context; warehouse, variant and inventory-item helpers enforce active organization + active store membership; inventory items must reference a variant and warehouse from the same store; unqualified low-stock reads are limited to active memberships in the caller's active organization. Added 14 focused regression tests. |
+| G-028 | `GET /stores/:storeId/products`; `GET /products/:id`; product variants, variant matrix, media and canonical category product/count reads | `catalog.controller.ts`; `catalog.service.ts`; `buyer-api.ts:398-405` | Buyer API documentation said buyers had to request `ACTIVE`, but the API did not enforce it. **Implemented; CI pending:** ACTIVE product details are public to authenticated callers; non-ACTIVE details require owning-store active membership or privileged platform role. Store product and variant grids force ACTIVE-only product/active-variant results for non-members. Detail authorization runs before Redis cache lookup, and studio/public cache keys are separated. Standalone variant reads filter inactive variants. Canonical category product rows and category counts now include ACTIVE products only; category product-type counts include PUBLISHED types only. The matrix builder already filtered inactive variants from returned combinations; its DB read now also skips inactive variants to avoid unnecessary enrichment. Added 8 focused helper tests, 6 controller-boundary tests, 2 category publication-query/count tests and 3 canonical lookup tests. Canonical lookup and latest category-count source changes await CI.
+| G-029 | `POST /stores/:storeId/products/bulk` | `catalog.controller.ts`; `catalog.service.ts` | Permission check existed, but the controller did not verify the caller's organization/store membership before bulk delete/archive/draft actions. **Closed — CI #592:** controller requires active organization ownership and active store membership before calling the bulk mutation service. All 3 controller regression tests passed API unit/coverage. |
+
+## Changes committed
+
+The following fixes and regression tests are committed on the remediation branch:
+
+- **G-024:** commit `c48bb9d` (controller fix), `c0b8f0e` (security tests).
+- **G-025:** commit `9511d5a` (controller fix), `f77f553` (security tests).
+- **G-026:** commit `d83da11` (controller fix), `2b16c3e` (security tests).
+
+- **G-027:** commits `ce6a0c4`, `cc7ddbb`, `8af101e`, `a79ad4f`, `a2f0814`, `ca4c637`, `f995157`, `2e45806` (inventory source, tests and supporting fixes).
+- **G-028:** commits `d4ddaaa`, `527e21c`, `eac0817`, `904d20c`, `9432ad7`, `cc3aba6`, `09f57c6`, `f4127d6`, `3a05c00`, `44746ce`, `9709d67`, `98b918f`, `335d8db`, `9693427`, `06be570`, `123d4b0`, `7758d79` (publication-aware reads, cache separation, canonical category and lookup scope, regression tests).
+- **G-029:** commits `b8f240e`, `3e030bf` (bulk mutation membership guard and controller regression tests).
+
+CI #554 completed successfully on G-027 code head `2e45806`; all jobs passed. CI #592 passed API unit/coverage, integration, build, contract/codegen, lint/typecheck, mobile, web/admin, boundary lint and full migration apply for the G-028/G-029 code through `335d8db`; the container build/smoke job was cancelled and is being rerun. G-029's 3 bulk-mutation controller tests passed and are closed. G-028 now has 19 focused tests (8 publication helper, 6 publication controller, 2 category publication query/count, 3 canonical lookup). Latest lookup/category-count changes await a fresh CI run. Vercel web/admin checks show the external `build-rate-limit` gate, not an application test result.
+
+## Remaining implementation order
+
+1. **G-027 — closed:** CI #554 passed all jobs, including API unit/coverage and integration.
+2. **G-028 — implemented, latest changes CI pending:** verify publication-aware product detail, store grid, variants, matrix, media, category listings/counts, identifier matching and canonical selector search.
+3. **G-029 — closed:** CI #592 passed all 3 bulk mutation controller regression tests.
+4. **G-003 — partial:** generic dispatcher exclusion passed CI #592; carrier worker stale-lease ownership refinement and two tests await CI.\n5. Re-run the authorization matrix for owner, staff, same-organization non-member, buyer, foreign merchant and privileged platform roles.
+5. Continue G-002 runtime DB-role verification; live role evidence remains incomplete. Do not enable RLS or change live database privileges based on source assumptions.
+
+## Safety boundary
+
+No live database grants or policies were changed. No Render environment variables, deployment settings, staging records, protected workers, payment providers, shipping providers or customer notifications were modified or activated.

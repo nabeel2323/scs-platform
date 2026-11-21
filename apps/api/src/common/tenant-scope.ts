@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { DatabaseService } from './database/database.service';
 import { recordOpsCounter } from '../modules/operations/ops-counters';
 import { stores, warehouses, storeMembers } from '../modules/merchant/merchant.schema';
@@ -45,9 +45,7 @@ export function financialOrgScope(caller: CallerContext): string | null {
   if (isTenantPrivileged(caller)) return caller.activeOrg ?? null;
   if (!caller.activeOrg) {
     recordOpsCounter('financial_isolation_denials_total', 1, 'missing_active_org');
-    throw new ForbiddenException(
-      'An active organization is required to access financial records',
-    );
+    throw new ForbiddenException('An active organization is required to access financial records');
   }
   return caller.activeOrg;
 }
@@ -171,6 +169,95 @@ export async function assertOrderAccessible(
 }
 
 /**
+ * warehouse → store → active organization + active store membership.
+ * Inventory HTTP/service paths must use this instead of organization-only scope.
+ */
+export async function assertWarehouseMember(
+  db: DatabaseService,
+  caller: CallerContext,
+  warehouseId: string,
+): Promise<string> {
+  if (isTenantPrivileged(caller)) {
+    const privilegedWarehouse = await db.db.query.warehouses.findFirst({
+      where: eq(warehouses.id, warehouseId),
+      columns: { storeId: true },
+    });
+    if (!privilegedWarehouse)
+      throw new ForbiddenException('You do not have access to this warehouse');
+    return privilegedWarehouse.storeId;
+  }
+
+  const warehouse = await db.db.query.warehouses.findFirst({
+    where: eq(warehouses.id, warehouseId),
+    columns: { storeId: true },
+  });
+  if (!warehouse) throw new ForbiddenException('You do not have access to this warehouse');
+
+  await assertStoreInOrg(db, caller, warehouse.storeId);
+  await assertStoreMember(db, caller, warehouse.storeId);
+  return warehouse.storeId;
+}
+
+/** variant → product → store → active organization + active store membership. */
+export async function assertVariantStoreMember(
+  db: DatabaseService,
+  caller: CallerContext,
+  variantId: string,
+): Promise<string> {
+  if (isTenantPrivileged(caller)) {
+    const privilegedVariant = await db.db.query.productVariants.findFirst({
+      where: eq(productVariants.id, variantId),
+      columns: { productId: true },
+    });
+    if (!privilegedVariant) throw new ForbiddenException('You do not have access to this variant');
+    const privilegedProduct = await db.db.query.products.findFirst({
+      where: eq(products.id, privilegedVariant.productId),
+      columns: { storeId: true },
+    });
+    if (!privilegedProduct?.storeId)
+      throw new ForbiddenException('You do not have access to this variant');
+    return privilegedProduct.storeId;
+  }
+
+  const variant = await db.db.query.productVariants.findFirst({
+    where: eq(productVariants.id, variantId),
+    columns: { productId: true },
+  });
+  if (!variant) throw new ForbiddenException('You do not have access to this variant');
+
+  const product = await db.db.query.products.findFirst({
+    where: eq(products.id, variant.productId),
+    columns: { storeId: true },
+  });
+  if (!product?.storeId) throw new ForbiddenException('You do not have access to this variant');
+
+  await assertStoreInOrg(db, caller, product.storeId);
+  await assertStoreMember(db, caller, product.storeId);
+  return product.storeId;
+}
+
+/** inventory item → warehouse → store → active organization + active membership. */
+export async function assertInventoryItemMember(
+  db: DatabaseService,
+  caller: CallerContext,
+  itemId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+
+  const item = await db.db.query.inventoryItems.findFirst({
+    where: eq(inventoryItems.id, itemId),
+    columns: { warehouseId: true, variantId: true },
+  });
+  if (!item) throw new ForbiddenException('You do not have access to this inventory item');
+
+  const warehouseStoreId = await assertWarehouseMember(db, caller, item.warehouseId);
+  const variantStoreId = await assertVariantStoreMember(db, caller, item.variantId);
+  if (warehouseStoreId !== variantStoreId) {
+    throw new ForbiddenException('You do not have access to this inventory item');
+  }
+}
+
+/**
  * Store-level membership check (migration 0054).
  *
  * Verifies that the caller is an ACTIVE member of the specified store.
@@ -201,6 +288,67 @@ export async function assertStoreMember(
   if (!membership) {
     throw new ForbiddenException('You are not authorized for this store');
   }
+}
+
+/**
+ * Read visibility for catalog surfaces:
+ * - ACTIVE products are buyer-visible.
+ * - Non-ACTIVE products are visible only to an active member of the owning
+ *   store (or a platform-privileged caller).
+ * A missing/foreign store membership is a normal public-read path, not an
+ * authorization error; callers must then constrain queries to ACTIVE.
+ */
+export async function canManageStoreCatalog(
+  db: DatabaseService,
+  caller: CallerContext,
+  storeId: string,
+): Promise<boolean> {
+  if (isTenantPrivileged(caller)) return true;
+  if (!caller.activeOrg) return false;
+  const orgId = await storeOrgId(db, storeId);
+  if (!orgId || orgId !== caller.activeOrg) return false;
+  const membership = await db.db.query.storeMembers.findFirst({
+    where: and(
+      eq(storeMembers.storeId, storeId),
+      eq(storeMembers.userId, caller.sub),
+      eq(storeMembers.status, 'ACTIVE'),
+    ),
+    columns: { id: true },
+  });
+  return !!membership;
+}
+
+/**
+ * Product detail/variant/media read boundary. Public callers may read ACTIVE
+ * products; drafts, rejected, archived and other non-ACTIVE states are
+ * restricted to active members of the owning store and platform staff.
+ */
+export async function assertProductReadable(
+  db: DatabaseService,
+  caller: CallerContext,
+  productId: string,
+): Promise<void> {
+  const product = await db.db.query.products.findFirst({
+    where: and(eq(products.id, productId), isNull(products.deletedAt)),
+    columns: { storeId: true, status: true },
+  });
+  if (!product) throw new ForbiddenException('You do not have access to this product');
+  if (product.status === 'ACTIVE' || isTenantPrivileged(caller)) return;
+  await assertProductEditableByMerchant(db, caller, productId);
+}
+
+/** product → store → active organization + membership visibility for studio data. */
+export async function canManageProductCatalog(
+  db: DatabaseService,
+  caller: CallerContext,
+  productId: string,
+): Promise<boolean> {
+  const product = await db.db.query.products.findFirst({
+    where: eq(products.id, productId),
+    columns: { storeId: true },
+  });
+  if (!product?.storeId) return false;
+  return canManageStoreCatalog(db, caller, product.storeId);
 }
 
 /**

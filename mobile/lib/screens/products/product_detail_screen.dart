@@ -91,11 +91,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   }
 
   Future<void> _add(BuildContext context, WidgetRef ref, Product p,
-      {String? variantId, String? offerId}) async {
+      {String? variantId, String? offerId, int? quantity}) async {
     try {
       await ref
           .read(apiServiceProvider)
-          .addProductToCart(p, variantId: variantId, offerId: offerId);
+          .addProductToCart(p, variantId: variantId, offerId: offerId, quantity: quantity);
       ref.invalidate(cartProvider);
       if (!context.mounted) return;
       setState(() => _addedId = offerId ?? variantId ?? 'default');
@@ -817,7 +817,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           ]),
                           const SizedBox(height: 4),
                           Text(
-                              'MOQ: ${offer.moq}${offer.leadTimeDays != null ? ' · ${offer.leadTimeDays}d lead' : ''}',
+                              'MOQ: ${offer.moq}${offer.orderIncrement != null ? ' · Step ${offer.orderIncrement}' : ''}${offer.leadTimeDays != null ? ' · ${offer.leadTimeDays}d lead' : ''}',
                               style: const TextStyle(
                                   fontSize: 12, color: TaifTokens.muted)),
                         ],
@@ -836,7 +836,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           height: 32,
                           child: ElevatedButton(
                             onPressed: () => _add(context, ref, p,
-                                variantId: offer.variantId, offerId: offer.id),
+                                variantId: offer.variantId, offerId: offer.id, quantity: offer.moq),
                             style: ElevatedButton.styleFrom(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 12),

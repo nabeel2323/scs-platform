@@ -1,6 +1,7 @@
 import {
   Injectable,
   NotFoundException,
+  ForbiddenException,
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
@@ -13,10 +14,15 @@ import { priceLists } from '../pricing/pricing.schema';
 import { orderItems } from '../orders/orders.schema';
 import { eq, and, isNull, asc, desc, inArray, sql, count, gte, lt } from 'drizzle-orm';
 import crypto from 'node:crypto';
-import { assertStoreInOrg, type CallerContext } from '../../common/tenant-scope';
+import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 
 const OFFER_STATUSES: ReadonlySet<OfferStatus> = new Set<OfferStatus>([
-  'DRAFT', 'PROPOSED', 'ACTIVE', 'SUSPENDED', 'REJECTED', 'WITHDRAWN',
+  'DRAFT',
+  'PROPOSED',
+  'ACTIVE',
+  'SUSPENDED',
+  'REJECTED',
+  'WITHDRAWN',
 ]);
 
 /** Allowed status moves (§ offer lifecycle). Anything else is rejected. */
@@ -75,9 +81,16 @@ export interface UpdateOfferPricingInput {
 @Injectable()
 export class CatalogOfferService {
   constructor(
-      private readonly db: DatabaseService,
-      private readonly audit: AuditService,
-    ) {}
+    private readonly db: DatabaseService,
+    private readonly audit: AuditService,
+  ) {}
+
+  /** Defense in depth: merchant service entry points must not trust controller-only role checks. */
+  private assertMerchantCaller(caller: CallerContext): void {
+    if (!['MERCHANT', 'MERCHANT_OWNER', 'MERCHANT_STAFF'].includes(caller.role ?? '')) {
+      throw new ForbiddenException('Merchant role required');
+    }
+  }
 
   private async getOrThrow(id: string) {
     const offer = await this.db.db.query.merchantOffers.findFirst({
@@ -88,12 +101,44 @@ export class CatalogOfferService {
   }
 
   private assertTransition(from: string, to: OfferStatus) {
-    if (!OFFER_STATUSES.has(from as OfferStatus) || !TRANSITIONS[from as OfferStatus].includes(to)) {
+    if (
+      !OFFER_STATUSES.has(from as OfferStatus) ||
+      !TRANSITIONS[from as OfferStatus].includes(to)
+    ) {
       throw new BadRequestException(`Illegal offer transition: ${from} → ${to}`);
     }
   }
 
-  async createOffer(input: CreateOfferInput) {
+  private async assertStoreReferencesBelongToStore(
+    storeId: string,
+    priceListId?: string | null,
+    warehouseId?: string | null,
+  ): Promise<void> {
+    if (priceListId != null) {
+      const priceList = await this.db.db.query.priceLists.findFirst({
+        where: eq(priceLists.id, priceListId),
+        columns: { id: true, storeId: true },
+      });
+      if (!priceList) throw new NotFoundException('Price list not found');
+      if (priceList.storeId !== storeId) {
+        throw new BadRequestException('Price list does not belong to the offer store');
+      }
+    }
+
+    if (warehouseId != null) {
+      const warehouse = await this.db.db.query.warehouses.findFirst({
+        where: eq(warehouses.id, warehouseId),
+        columns: { id: true, storeId: true },
+      });
+      if (!warehouse) throw new NotFoundException('Warehouse not found');
+      if (warehouse.storeId !== storeId) {
+        throw new BadRequestException('Warehouse does not belong to the offer store');
+      }
+    }
+  }
+
+  async createOffer(input: CreateOfferInput, caller: CallerContext) {
+    this.assertMerchantCaller(caller);
     if (!input.storeId?.trim()) throw new BadRequestException('Offer requires a store');
     if (!input.productId?.trim()) throw new BadRequestException('Offer requires a product');
     const status = input.status ?? 'DRAFT';
@@ -108,6 +153,14 @@ export class CatalogOfferService {
     if (input.basePriceMinor != null && input.basePriceMinor < 0) {
       throw new BadRequestException('Base price cannot be negative');
     }
+
+    await assertStoreInOrg(this.db, caller, input.storeId);
+    await assertStoreMember(this.db, caller, input.storeId);
+    await this.assertStoreReferencesBelongToStore(
+      input.storeId,
+      input.priceListId,
+      input.warehouseId,
+    );
 
     const product = await this.db.db.query.products.findFirst({
       where: eq(products.id, input.productId),
@@ -126,7 +179,10 @@ export class CatalogOfferService {
 
     // Enforce one offer per (store, variant) or (store, product-default).
     const dupCond = input.variantId
-      ? and(eq(merchantOffers.storeId, input.storeId), eq(merchantOffers.variantId, input.variantId))
+      ? and(
+          eq(merchantOffers.storeId, input.storeId),
+          eq(merchantOffers.variantId, input.variantId),
+        )
       : and(
           eq(merchantOffers.storeId, input.storeId),
           eq(merchantOffers.productId, input.productId),
@@ -154,14 +210,14 @@ export class CatalogOfferService {
       priceListId: input.priceListId ?? null,
       warehouseId: input.warehouseId ?? null,
       externalRef: input.externalRef ?? null,
-      proposedBy: status === 'PROPOSED' ? input.proposedBy ?? null : null,
+      proposedBy: status === 'PROPOSED' ? caller.sub : null,
       metadata: input.metadata ?? {},
     });
 
     // PHASE 9: Audit — offer created
     await this.audit.record({
       actorType: 'MERCHANT',
-      actorId: input.proposedBy ?? null,
+      actorId: caller.sub,
       action: 'offer.created',
       resource: 'merchant_offer',
       resourceId: id,
@@ -176,11 +232,66 @@ export class CatalogOfferService {
     return offer;
   }
 
-  async listOffersForProduct(productId: string, opts?: { status?: OfferStatus }) {
-    const conditions = [eq(merchantOffers.productId, productId)];
-    if (opts?.status) conditions.push(eq(merchantOffers.status, opts.status));
+  /**
+   * Resolve merchant scope before loading full offer detail. Unknown,
+   * foreign-organization and non-member offer IDs share one 404 response
+   * so callers cannot enumerate another tenant's offers.
+   */
+  async getOfferForMerchant(id: string, caller: CallerContext) {
+    this.assertMerchantCaller(caller);
+    const scope = await this.db.db.query.merchantOffers.findFirst({
+      where: eq(merchantOffers.id, id),
+      columns: { storeId: true },
+    });
+    if (!scope) throw new NotFoundException('Offer not found');
+
+    try {
+      await assertStoreInOrg(this.db, caller, scope.storeId);
+      await assertStoreMember(this.db, caller, scope.storeId);
+    } catch (error) {
+      if (error instanceof ForbiddenException) {
+        throw new NotFoundException('Offer not found');
+      }
+      throw error;
+    }
+
+    return this.getOffer(id);
+  }
+
+  /**
+   * Buyer-facing product offer list. Only currently active and available
+   * offers are public commerce data; draft/proposed/rejected/withdrawn offers
+   * and unavailable inventory must remain inside merchant/admin workflows.
+   */
+  private activeStoreVisibilityPredicate() {
+    return inArray(
+      merchantOffers.storeId,
+      this.db.db.select({ id: stores.id }).from(stores).where(eq(stores.status, 'ACTIVE')),
+    );
+  }
+
+  async listOffersForProduct(productId: string) {
     return this.db.db.query.merchantOffers.findMany({
-      where: and(...conditions),
+      where: and(
+        eq(merchantOffers.productId, productId),
+        eq(merchantOffers.status, 'ACTIVE'),
+        eq(merchantOffers.isAvailable, true),
+        this.activeStoreVisibilityPredicate(),
+      ),
+      columns: {
+        id: true,
+        storeId: true,
+        productId: true,
+        variantId: true,
+        status: true,
+        currency: true,
+        basePriceMinor: true,
+        compareAtPriceMinor: true,
+        moq: true,
+        orderIncrement: true,
+        leadTimeDays: true,
+        isAvailable: true,
+      },
       orderBy: [asc(merchantOffers.createdAt)],
     });
   }
@@ -206,16 +317,24 @@ export class CatalogOfferService {
       where: and(
         eq(merchantOffers.productId, productId),
         eq(merchantOffers.status, 'ACTIVE'),
+        eq(merchantOffers.isAvailable, true),
+        this.activeStoreVisibilityPredicate(),
       ),
       columns: {
-        id: true, storeId: true, productId: true, variantId: true,
-        currency: true, basePriceMinor: true, moq: true, leadTimeDays: true,
-        priceListId: true, activatedAt: true,
+        id: true,
+        storeId: true,
+        productId: true,
+        variantId: true,
+        currency: true,
+        basePriceMinor: true,
+        moq: true,
+        leadTimeDays: true,
+        activatedAt: true,
       },
     });
     if (offers.length === 0) return [];
 
-    const offerIds = offers.map(o => o.id);
+    const offerIds = offers.map((o) => o.id);
     const aggregates = await this.db.db
       .select({
         offerId: orderItems.offerId,
@@ -226,7 +345,7 @@ export class CatalogOfferService {
       .where(and(inArray(orderItems.offerId, offerIds)))
       .groupBy(orderItems.offerId);
     const byOffer = new Map(
-      aggregates.map(a => [
+      aggregates.map((a) => [
         a.offerId as string,
         {
           ordersCount: Number(a.ordersCount ?? 0),
@@ -235,17 +354,24 @@ export class CatalogOfferService {
       ]),
     );
 
-    const storeIds = Array.from(new Set(offers.map(o => o.storeId)));
+    const storeIds = Array.from(new Set(offers.map((o) => o.storeId)));
     const storeRows = await this.db.db.query.stores.findMany({
       where: inArray(stores.id, storeIds),
       // PHASE 23: `hidePopularityBadge` is fetched here (not filtered out) so a
       // store's opt-out only affects the *buyer projection* — the sort key
       // stays on true counts, then we null out disclosure fields per row.
-      columns: { id: true, displayName: true, slug: true, currency: true, verificationStatus: true, hidePopularityBadge: true },
+      columns: {
+        id: true,
+        displayName: true,
+        slug: true,
+        currency: true,
+        verificationStatus: true,
+        hidePopularityBadge: true,
+      },
     });
-    const storeById = new Map(storeRows.map(s => [s.id, s]));
+    const storeById = new Map(storeRows.map((s) => [s.id, s]));
 
-    const enriched = offers.map(o => {
+    const enriched = offers.map((o) => {
       const agg = byOffer.get(o.id) ?? { ordersCount: 0, unitsSold: 0 };
       const s = storeById.get(o.storeId);
       return {
@@ -259,7 +385,6 @@ export class CatalogOfferService {
         basePriceMinor: o.basePriceMinor,
         moq: o.moq,
         leadTimeDays: o.leadTimeDays,
-        priceListId: o.priceListId,
         activatedAt: o.activatedAt,
         ordersCount: agg.ordersCount,
         unitsSold: agg.unitsSold,
@@ -296,7 +421,6 @@ export class CatalogOfferService {
           basePriceMinor: row.basePriceMinor,
           moq: row.moq,
           leadTimeDays: row.leadTimeDays,
-          priceListId: row.priceListId,
           ordersCount: 0,
           unitsSold: 0,
           rank: null as number | null,
@@ -315,7 +439,6 @@ export class CatalogOfferService {
         basePriceMinor: row.basePriceMinor,
         moq: row.moq,
         leadTimeDays: row.leadTimeDays,
-        priceListId: row.priceListId,
         ordersCount: row.ordersCount,
         unitsSold: row.unitsSold,
         rank: i + 1,
@@ -348,15 +471,22 @@ export class CatalogOfferService {
     const offers = await this.db.db.query.merchantOffers.findMany({
       where: eq(merchantOffers.storeId, storeId),
       columns: {
-        id: true, storeId: true, productId: true, variantId: true,
-        status: true, currency: true, basePriceMinor: true,
-        moq: true, leadTimeDays: true, createdAt: true,
+        id: true,
+        storeId: true,
+        productId: true,
+        variantId: true,
+        status: true,
+        currency: true,
+        basePriceMinor: true,
+        moq: true,
+        leadTimeDays: true,
+        createdAt: true,
       },
       orderBy: [desc(merchantOffers.createdAt)],
     });
     if (offers.length === 0) return [];
 
-    const offerIds = offers.map(o => o.id);
+    const offerIds = offers.map((o) => o.id);
 
     // 2) Aggregate line-level sales per offer. `lineTotalMinor` is the
     //    authoritative charged amount (the cart snapshot); SUM over the group
@@ -373,7 +503,7 @@ export class CatalogOfferService {
       .groupBy(orderItems.offerId);
 
     const byOffer = new Map(
-      aggregates.map(a => [
+      aggregates.map((a) => [
         a.offerId as string,
         {
           ordersCount: Number(a.ordersCount ?? 0),
@@ -386,9 +516,9 @@ export class CatalogOfferService {
     // 3) Merge zero-sale offers into the response and attach labels from the
     //    canonical variant/product where available.
     const variantIds = Array.from(
-      new Set(offers.map(o => o.variantId).filter(Boolean) as string[]),
+      new Set(offers.map((o) => o.variantId).filter(Boolean) as string[]),
     );
-    const productIds = Array.from(new Set(offers.map(o => o.productId)));
+    const productIds = Array.from(new Set(offers.map((o) => o.productId)));
     const [variantRows, productRows] = await Promise.all([
       variantIds.length
         ? this.db.db.query.productVariants.findMany({
@@ -401,10 +531,10 @@ export class CatalogOfferService {
         columns: { id: true, title: true },
       }),
     ]);
-    const variantById = new Map(variantRows.map(v => [v.id, v]));
-    const productById = new Map(productRows.map(p => [p.id, p]));
+    const variantById = new Map(variantRows.map((v) => [v.id, v]));
+    const productById = new Map(productRows.map((p) => [p.id, p]));
 
-    return offers.map(o => {
+    return offers.map((o) => {
       const agg = byOffer.get(o.id) ?? { ordersCount: 0, unitsSold: 0, revenueMinor: 0 };
       const v = o.variantId ? variantById.get(o.variantId) : undefined;
       const p = productById.get(o.productId);
@@ -449,12 +579,14 @@ export class CatalogOfferService {
     granularity?: 'day' | 'week';
     from?: Date;
     to?: Date;
-  }): Promise<Array<{
-    bucket: string;
-    ordersCount: number;
-    unitsSold: number;
-    revenueMinor: number;
-  }>> {
+  }): Promise<
+    Array<{
+      bucket: string;
+      ordersCount: number;
+      unitsSold: number;
+      revenueMinor: number;
+    }>
+  > {
     if (!opts.storeId) return [];
     // Whitelist granularity before interpolation — Postgres date_trunc accepts
     // text but we build the SQL string via sql.raw so validate strictly.
@@ -469,7 +601,7 @@ export class CatalogOfferService {
       columns: { id: true },
     });
     if (offers.length === 0) return [];
-    const offerIds = offers.map(o => o.id);
+    const offerIds = offers.map((o) => o.id);
 
     // 2) Build the WHERE clause; date range is optional.
     const whereParts = [inArray(orderItems.offerId, offerIds)];
@@ -492,7 +624,7 @@ export class CatalogOfferService {
       .groupBy(bucketExpr)
       .orderBy(asc(bucketExpr));
 
-    return groups.map(g => ({
+    return groups.map((g) => ({
       bucket: g.bucket,
       ordersCount: Number(g.ordersCount ?? 0),
       unitsSold: Number(g.unitsSold ?? 0),
@@ -502,15 +634,14 @@ export class CatalogOfferService {
 
   // ── Lifecycle transitions ────────────────────────────────────
 
-  async proposeOffer(id: string, proposedBy?: string | null, caller?: CallerContext) {
-    const offer = await this.getOrThrow(id);
-    if (caller) await assertStoreInOrg(this.db, caller, offer.storeId);
+  async proposeOffer(id: string, caller: CallerContext) {
+    const offer = await this.getOfferForMerchant(id, caller);
     this.assertTransition(offer.status, 'PROPOSED');
     await this.db.db
       .update(merchantOffers)
       .set({
         status: 'PROPOSED',
-        proposedBy: proposedBy ?? offer.proposedBy,
+        proposedBy: caller.sub,
         reviewedBy: null,
         reviewedAt: null,
         rejectionReason: null,
@@ -520,7 +651,7 @@ export class CatalogOfferService {
 
     await this.audit.record({
       actorType: 'MERCHANT',
-      actorId: proposedBy ?? null,
+      actorId: caller.sub,
       action: 'offer.proposed',
       resource: 'merchant_offer',
       resourceId: id,
@@ -586,16 +717,20 @@ export class CatalogOfferService {
     return this.getOffer(id);
   }
 
-  async suspendOffer(id: string) {
+  async suspendOffer(id: string, reviewerId: string) {
     const offer = await this.getOrThrow(id);
     this.assertTransition(offer.status, 'SUSPENDED');
+    // Suspension is a lifecycle state, separate from the merchant's
+    // availability preference. Preserve is_available so reactivation does
+    // not accidentally leave a previously available offer unsellable.
     await this.db.db
       .update(merchantOffers)
-      .set({ status: 'SUSPENDED', isAvailable: false, updatedAt: new Date() })
+      .set({ status: 'SUSPENDED', updatedAt: new Date() })
       .where(eq(merchantOffers.id, id));
 
     await this.audit.record({
       actorType: 'ADMIN',
+      actorId: reviewerId,
       action: 'offer.suspended',
       resource: 'merchant_offer',
       resourceId: id,
@@ -605,7 +740,7 @@ export class CatalogOfferService {
     return this.getOffer(id);
   }
 
-  async reactivateOffer(id: string) {
+  async reactivateOffer(id: string, reviewerId: string) {
     const offer = await this.getOrThrow(id);
     this.assertTransition(offer.status, 'ACTIVE');
     await this.db.db
@@ -615,6 +750,7 @@ export class CatalogOfferService {
 
     await this.audit.record({
       actorType: 'ADMIN',
+      actorId: reviewerId,
       action: 'offer.reactivated',
       resource: 'merchant_offer',
       resourceId: id,
@@ -624,9 +760,8 @@ export class CatalogOfferService {
     return this.getOffer(id);
   }
 
-  async withdrawOffer(id: string, caller?: CallerContext) {
-    const offer = await this.getOrThrow(id);
-    if (caller) await assertStoreInOrg(this.db, caller, offer.storeId);
+  async withdrawOffer(id: string, caller: CallerContext) {
+    const offer = await this.getOfferForMerchant(id, caller);
     this.assertTransition(offer.status, 'WITHDRAWN');
     await this.db.db
       .update(merchantOffers)
@@ -635,7 +770,7 @@ export class CatalogOfferService {
 
     await this.audit.record({
       actorType: 'MERCHANT',
-      actorId: offer.proposedBy,
+      actorId: caller.sub,
       action: 'offer.withdrawn',
       resource: 'merchant_offer',
       resourceId: id,
@@ -653,32 +788,18 @@ export class CatalogOfferService {
    * belong to the SAME store as the offer — an offer may not spend another
    * store's price book or stock.
    */
-  async updateOfferPricing(id: string, input: UpdateOfferPricingInput, caller?: CallerContext) {
-    const offer = await this.getOrThrow(id);
-    if (caller) await assertStoreInOrg(this.db, caller, offer.storeId);
+  async updateOfferPricing(id: string, input: UpdateOfferPricingInput, caller: CallerContext) {
+    const offer = await this.getOfferForMerchant(id, caller);
     if (input.moq != null && input.moq < 1) throw new BadRequestException('MOQ must be at least 1');
     if (input.basePriceMinor != null && input.basePriceMinor < 0) {
       throw new BadRequestException('Base price cannot be negative');
     }
 
-    if (input.priceListId) {
-      const pl = await this.db.db.query.priceLists.findFirst({
-        where: eq(priceLists.id, input.priceListId),
-      });
-      if (!pl) throw new NotFoundException('Price list not found');
-      if (pl.storeId !== offer.storeId) {
-        throw new BadRequestException('Price list does not belong to the offer store');
-      }
-    }
-    if (input.warehouseId) {
-      const wh = await this.db.db.query.warehouses.findFirst({
-        where: eq(warehouses.id, input.warehouseId),
-      });
-      if (!wh) throw new NotFoundException('Warehouse not found');
-      if (wh.storeId !== offer.storeId) {
-        throw new BadRequestException('Warehouse does not belong to the offer store');
-      }
-    }
+    await this.assertStoreReferencesBelongToStore(
+      offer.storeId,
+      input.priceListId,
+      input.warehouseId,
+    );
 
     await this.db.db
       .update(merchantOffers)
@@ -698,11 +819,14 @@ export class CatalogOfferService {
 
     await this.audit.record({
       actorType: 'MERCHANT',
-      actorId: offer.proposedBy,
+      actorId: caller.sub,
       action: 'offer.pricing_updated',
       resource: 'merchant_offer',
       resourceId: id,
-      metadata: { storeId: offer.storeId, changes: Object.keys(input).filter(k => (input as any)[k] != null) },
+      metadata: {
+        storeId: offer.storeId,
+        changes: Object.keys(input).filter((k) => (input as any)[k] != null),
+      },
     });
 
     return this.getOffer(id);

@@ -79,6 +79,7 @@ export interface UpdateDeliveryZoneInput {
 
 export interface ShippingEstimateItem {
   methodId: string;
+  fulfillmentMethod: string;
   key: string | null;
   name: string;
   type: string;
@@ -460,6 +461,7 @@ export class ShippingService implements OnModuleInit {
       });
       return {
         methodId: m.id,
+        fulfillmentMethod: m.fulfillmentMethod,
         key: m.key,
         name: m.name,
         type: m.type,

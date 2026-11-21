@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Param, Body, Query, UseGuards, HttpCode,
-  NotFoundException, BadRequestException,
+  NotFoundException, BadRequestException, Optional,
 } from '@nestjs/common';
 import { eq, and, desc, asc, or, inArray, sql, ilike } from 'drizzle-orm';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -9,6 +9,7 @@ import {
   CurrentUser, JwtPayload, RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import { DatabaseService } from '../../common/database/database.service';
+import { StorageService } from '../../common/storage/storage.service';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { shipments, shipmentEvents } from '../orders/shipment.schema';
 import { shipmentLabels } from './shipping.schema';
@@ -59,6 +60,7 @@ export class ShipmentOperationsController {
     private readonly db: DatabaseService,
     private readonly registry: ShippingProviderRegistry,
     private readonly ordersService: OrdersService,
+    @Optional() private readonly storage?: StorageService,
   ) {}
 
   // ── POST /v1/shipments/:id/create ──────────────────────────────────────
@@ -258,6 +260,99 @@ export class ShipmentOperationsController {
     };
   }
 
+  // ── POST /v1/shipments/:id/labels ──────────────────────────────────────
+
+  @Post(':id/labels')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:labels:write')
+  @HttpCode(202)
+  async requestLabel(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const caller = this.toCallerContext(user);
+    const shipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, id),
+    });
+    if (!shipment) throw new NotFoundException('Shipment not found');
+    await this.assertShipmentAccessible(shipment, caller);
+
+    if (!shipment.carrierShipmentId) {
+      throw new BadRequestException('Create the carrier shipment before requesting a label');
+    }
+
+    const providerKey = shipment.shippingProviderKey || 'manual-driver';
+    const provider = this.registry.findProvider(providerKey);
+    if (!provider || !provider.capabilities.canGenerateLabel) {
+      throw new BadRequestException('The assigned shipping provider does not support labels');
+    }
+
+    let outcome:
+      | { status: 'AVAILABLE'; labelId: string }
+      | { status: 'IN_PROGRESS'; eventId: string }
+      | { status: 'QUEUED'; eventId: string }
+      | undefined;
+
+    // Serialize concurrent label requests for this shipment. The worker also
+    // uses the outbox UUID as the label row/object identity for retry safety.
+    await this.db.db.transaction(async (tx) => {
+      const locked = await tx
+        .select({
+          id: shipments.id,
+          carrierShipmentId: shipments.carrierShipmentId,
+          shippingProviderKey: shipments.shippingProviderKey,
+        })
+        .from(shipments)
+        .where(eq(shipments.id, id))
+        .for('update');
+      const lockedShipment = locked[0];
+      if (!lockedShipment) throw new NotFoundException('Shipment not found');
+      if (!lockedShipment.carrierShipmentId) {
+        throw new BadRequestException('Create the carrier shipment before requesting a label');
+      }
+      if ((lockedShipment.shippingProviderKey || 'manual-driver') !== providerKey) {
+        throw new BadRequestException('The assigned shipping provider changed; refresh and retry');
+      }
+
+      const [existingLabel] = await tx
+        .select({ id: shipmentLabels.id })
+        .from(shipmentLabels)
+        .where(and(eq(shipmentLabels.shipmentId, id), eq(shipmentLabels.isVoid, false)))
+        .limit(1);
+      if (existingLabel) {
+        outcome = { status: 'AVAILABLE', labelId: existingLabel.id };
+        return;
+      }
+
+      const [pendingEvent] = await tx
+        .select({ id: outboxEvents.id })
+        .from(outboxEvents)
+        .where(and(
+          eq(outboxEvents.eventType, 'shipping.carrier.label'),
+          eq(outboxEvents.aggregateId, id),
+          inArray(outboxEvents.status, ['PENDING', 'PROCESSING']),
+        ))
+        .limit(1);
+      if (pendingEvent) {
+        outcome = { status: 'IN_PROGRESS', eventId: pendingEvent.id };
+        return;
+      }
+
+      const eventId = crypto.randomUUID();
+      await tx.insert(outboxEvents).values({
+        id: eventId,
+        eventType: 'shipping.carrier.label',
+        aggregateId: id,
+        payload: { shipmentId: id },
+        metadata: { providerKey },
+        status: 'PENDING',
+      });
+      outcome = { status: 'QUEUED', eventId };
+    });
+
+    return { shipmentId: id, ...outcome! };
+  }
+
   // ── GET /v1/shipments/:id/labels ───────────────────────────────────────
 
   @Get(':id/labels')
@@ -282,18 +377,7 @@ export class ShipmentOperationsController {
 
     return {
       shipmentId: id,
-      labels: labels.map((l) => ({
-        id: l.id,
-        labelNumber: l.labelNumber,
-        storageKey: l.storageKey,
-        mimeType: l.mimeType,
-        sizeBytes: l.sizeBytes,
-        trackingUrl: l.trackingUrl,
-        isVoid: l.isVoid,
-        providerKey: l.providerKey,
-        labelType: l.labelType,
-        createdAt: l.createdAt,
-      })),
+      labels: await Promise.all(labels.map((label) => this.toLabelView(label))),
     };
   }
 
@@ -491,20 +575,36 @@ export class ShipmentOperationsController {
         sequence: e.sequence,
         createdAt: e.createdAt,
       })),
-      labels: labels.map((l) => ({
-        id: l.id,
-        labelNumber: l.labelNumber,
-        storageKey: l.storageKey,
-        mimeType: l.mimeType,
-        trackingUrl: l.trackingUrl,
-        isVoid: l.isVoid,
-        labelType: l.labelType,
-        createdAt: l.createdAt,
-      })),
+      labels: await Promise.all(labels.map((label) => this.toLabelView(label))),
     };
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────
+
+  private async toLabelView(label: any) {
+    const isManagedObject = typeof label.storageKey === 'string'
+      && label.storageKey.startsWith('shipping-labels/');
+    const downloadUrl = this.storage && isManagedObject
+      ? await this.storage.createPresignedGetUrl(
+          process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads',
+          label.storageKey,
+        )
+      : null;
+
+    return {
+      id: label.id,
+      labelNumber: label.labelNumber,
+      storageKey: label.storageKey,
+      downloadUrl,
+      mimeType: label.mimeType,
+      sizeBytes: label.sizeBytes,
+      trackingUrl: label.trackingUrl,
+      isVoid: label.isVoid,
+      providerKey: label.providerKey,
+      labelType: label.labelType,
+      createdAt: label.createdAt,
+    };
+  }
 
   private isPrivilegedRole(role: string | null | undefined): boolean {
     return ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'].includes(role || '');

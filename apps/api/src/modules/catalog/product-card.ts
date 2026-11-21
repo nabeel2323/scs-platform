@@ -1,8 +1,8 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, asc } from 'drizzle-orm';
 import { productVariants, productMedia } from './catalog.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import { inventoryItems } from '../inventory/inventory.schema';
-import { resolveOfferPrices, type VariantPricing } from '../pricing/price-resolution';
+import { resolveOfferPrices, resolveSelectedOfferPrices, selectedOfferPriceKey, type OfferPriceSource, type VariantPricing } from '../pricing/price-resolution';
 import type { DatabaseService } from '../../common/database/database.service';
 import type { StorageService } from '../../common/storage/storage.service';
 import { imageReferences, isProductMediaKey } from './product-images';
@@ -31,10 +31,12 @@ export interface CardSource {
 
 export interface StoreCard {
   id: string;
+  displayName: string;
   name: string;
   slug: string;
   verificationStatus: string;
   currency: string;
+  status: string;
 }
 
 export interface CardEnrichment {
@@ -62,18 +64,24 @@ export interface CardEnrichment {
    */
   imageUrl: string | null;
   /**
-   * Number of ACTIVE merchant offers for this product (across all stores).
+   * Number of ACTIVE and available merchant offers for this product (across all stores).
    * Zero when the product has no competing offers — the buyer then knows the
    * product-owner's price is the only one available.
    */
   activeOfferCount: number;
   /**
-   * Lowest `basePriceMinor` across the product's active merchant offers.
-   * Null when no active offer exists. This may differ from `priceFromMinor`
-   * when a competing merchant offers a lower price than the product owner.
+   * Lowest available offer in the product price currency (or the sole offer
+   * currency for canonical products without an owner price). Never compares
+   * minor units across currencies. Null when no safe comparable offer exists.
    */
   lowestOfferPriceMinor: number | null;
   lowestOfferCurrency: string | null;
+  lowestOfferId: string | null;
+  lowestOfferStoreId: string | null;
+  lowestOfferVariantId: string | null;
+  lowestOfferMoq: number | null;
+  lowestOfferOrderIncrement: number | null;
+  lowestOfferStore: StoreCard | null;
 }
 
 /**
@@ -108,7 +116,49 @@ export async function enrichProductCards<T extends CardSource>(
 ): Promise<Array<T & CardEnrichment>> {
   if (items.length === 0) return [];
 
-  const storeIds = [...new Set(items.map(item => item.storeId).filter((s): s is string => !!s))];
+  type OfferCardRow = {
+    id: string;
+    productId: string;
+    storeId: string;
+    variantId: string | null;
+    basePriceMinor: number | null;
+    currency: string;
+    moq: number;
+    orderIncrement: number | null;
+    priceListId: string | null;
+  };
+
+  // Fetch the offer identity together with its display price. The exact row
+  // selected here is also the row the search card will submit to the cart.
+  let offerRows: OfferCardRow[] = [];
+  try {
+    offerRows = await db.query.merchantOffers.findMany({
+      where: and(
+        inArray(merchantOffers.productId, items.map(item => item.id)),
+        eq(merchantOffers.status, 'ACTIVE'),
+        eq(merchantOffers.isAvailable, true),
+      ),
+      columns: {
+        id: true,
+        productId: true,
+        storeId: true,
+        variantId: true,
+        basePriceMinor: true,
+        currency: true,
+        moq: true,
+        orderIncrement: true,
+        priceListId: true,
+      },
+      orderBy: [asc(merchantOffers.activatedAt), asc(merchantOffers.id)],
+    }) as OfferCardRow[];
+  } catch {
+    // Offer table may not exist in all environments (e.g. test mocks).
+  }
+
+  const storeIds = [...new Set([
+    ...items.map(item => item.storeId).filter((s): s is string => !!s),
+    ...offerRows.map(offer => offer.storeId),
+  ])];
   const storeRows =
     storeIds.length > 0
       ? await db.query.stores.findMany({
@@ -119,6 +169,7 @@ export async function enrichProductCards<T extends CardSource>(
             slug: true,
             verificationStatus: true,
             currency: true,
+            status: true,
           },
         })
       : [];
@@ -126,10 +177,12 @@ export async function enrichProductCards<T extends CardSource>(
   for (const row of storeRows) {
     storeById.set(row['id'], {
       id: row['id'],
+      displayName: row['displayName'],
       name: row['displayName'],
       slug: row['slug'],
       verificationStatus: row['verificationStatus'],
       currency: row['currency'],
+      status: row['status'],
     });
   }
 
@@ -150,6 +203,57 @@ export async function enrichProductCards<T extends CardSource>(
     if (existing) existing.push(row['id']);
     else variantsByProduct.set(productId, [row['id']]);
   }
+
+  // Resolve every selectable offer at its own MOQ using the same exact-offer
+  // pricing function used by the cart. A product-level offer is pinned to the
+  // first active variant here and that concrete variant is returned to the UI.
+  const offerRequests = offerRows.flatMap(row => {
+    const activeVariantIds = variantsByProduct.get(row.productId) ?? [];
+    const variantId = row.variantId
+      ? (activeVariantIds.includes(row.variantId) ? row.variantId : null)
+      : (activeVariantIds[0] ?? null);
+    return variantId
+      ? [{ offerId: row.id, variantId, quantity: row.moq }]
+      : [];
+  });
+  const resolvedOffers = await resolveSelectedOfferPrices(
+    db,
+    offerRows.map(row => ({
+      ...row,
+      status: 'ACTIVE',
+      isAvailable: true,
+    })) as OfferPriceSource[],
+    offerRequests,
+  );
+  const offerRequestById = new Map(offerRequests.map(request => [request.offerId, request]));
+
+  const offerByProduct = new Map<string, {
+    count: number;
+    lowestByCurrency: Map<string, OfferCardRow>;
+  }>();
+  for (const row of offerRows) {
+    const entry = offerByProduct.get(row.productId);
+    if (entry) entry.count++;
+    else offerByProduct.set(row.productId, { count: 1, lowestByCurrency: new Map() });
+
+    const request = offerRequestById.get(row.id);
+    const resolved = request
+      ? resolvedOffers.get(selectedOfferPriceKey(request.offerId, request.variantId, request.quantity))
+      : undefined;
+    if (!resolved) continue;
+    const pricedRow: OfferCardRow = {
+      ...row,
+      variantId: resolved.variantId,
+      basePriceMinor: resolved.unitPriceMinor,
+      currency: resolved.currency,
+    };
+    const productEntry = offerByProduct.get(row.productId)!;
+    const previous = productEntry.lowestByCurrency.get(resolved.currency);
+    if (previous == null || resolved.unitPriceMinor < (previous.basePriceMinor ?? Infinity)) {
+      productEntry.lowestByCurrency.set(resolved.currency, pricedRow);
+    }
+  }
+
 
   // Price is resolved per (store, quantity). MOQ is now offer-owned, so we
   // resolve at quantity=1 (base tier) for display cards. The cart uses the
@@ -257,46 +361,6 @@ export async function enrichProductCards<T extends CardSource>(
     }
   }
 
-  // Active merchant offer enrichment: count and lowest price across ALL stores'
-  // offers for each product. This tells the buyer whether competing sellers
-  // exist and what the cheapest entry point is, regardless of the product owner.
-  //
-  // Cross-currency safety: prices are tracked per-currency so we never compare
-  // 3250 SAR against 900 USD numerically. The "lowest" reported to the client
-  // prefers the product's own store currency when available.
-  const offerByProduct = new Map<string, { count: number; lowestByCurrency: Map<string, number> }>();
-  try {
-    const productIds = items.map(i => i.id);
-    const offerRows = await db.query.merchantOffers.findMany({
-      where: and(
-        inArray(merchantOffers.productId, productIds),
-        eq(merchantOffers.status, 'ACTIVE'),
-      ),
-      columns: { productId: true, basePriceMinor: true, currency: true },
-    });
-    for (const row of offerRows) {
-      const pid = row['productId'];
-      const entry = offerByProduct.get(pid);
-      const price = row['basePriceMinor'];
-      const currency = row['currency'];
-      if (entry) {
-        entry.count++;
-        if (price != null && currency) {
-          const prev = entry.lowestByCurrency.get(currency);
-          if (prev == null || price < prev) {
-            entry.lowestByCurrency.set(currency, price);
-          }
-        }
-      } else {
-        const byCurrency = new Map<string, number>();
-        if (price != null && currency) byCurrency.set(currency, price);
-        offerByProduct.set(pid, { count: 1, lowestByCurrency: byCurrency });
-      }
-    }
-  } catch {
-    // Offer table may not exist in all environments (e.g. test mocks)
-  }
-
   return items.map(item => {
     const prices = pricesByBatch.get(`${item.storeId}|1`);
     let cheapest: VariantPricing | undefined;
@@ -306,25 +370,21 @@ export async function enrichProductCards<T extends CardSource>(
       if (!cheapest || pricing.unitPriceMinor < cheapest.unitPriceMinor) cheapest = pricing;
     }
     const offerData = offerByProduct.get(item.id);
-    // Pick the lowest offer price in the product's own store currency when
-    // available; otherwise report the first currency's lowest (no cross-currency
-    // numeric comparison — each currency is tracked independently).
-    let lowestPrice: number | null = null;
-    let lowestCurrency: string | null = null;
+    // Compare only within the resolved product-price currency. Canonical
+    // products have no owner currency, so a sole offer currency is unambiguous;
+    // multiple currencies require seller selection on the detail page.
+    const comparisonCurrency =
+      cheapest?.currency ?? (item.storeId ? storeById.get(item.storeId)?.currency : null);
+    let selectedOffer: OfferCardRow | undefined;
     if (offerData && offerData.lowestByCurrency.size > 0) {
-      const storeCurrency = item.storeId ? (storeById.get(item.storeId)?.currency) : null;
-      if (storeCurrency && offerData.lowestByCurrency.has(storeCurrency)) {
-        lowestPrice = offerData.lowestByCurrency.get(storeCurrency)!;
-        lowestCurrency = storeCurrency;
-      } else {
-        // No offers in the store currency — report the first available currency.
-        const first = offerData.lowestByCurrency.entries().next();
-        if (!first.done) {
-          lowestCurrency = first.value[0];
-          lowestPrice = first.value[1];
-        }
+      if (comparisonCurrency) {
+        selectedOffer = offerData.lowestByCurrency.get(comparisonCurrency.trim());
+      } else if (offerData.lowestByCurrency.size === 1) {
+        selectedOffer = offerData.lowestByCurrency.values().next().value;
       }
     }
+    const lowestPrice = selectedOffer?.basePriceMinor ?? null;
+    const lowestCurrency = selectedOffer?.currency.trim() ?? null;
     return {
       ...item,
       store: item.storeId ? (storeById.get(item.storeId) ?? null) : null,
@@ -335,6 +395,12 @@ export async function enrichProductCards<T extends CardSource>(
       activeOfferCount: offerData?.count ?? 0,
       lowestOfferPriceMinor: lowestPrice,
       lowestOfferCurrency: lowestCurrency,
+      lowestOfferId: selectedOffer?.id ?? null,
+      lowestOfferStoreId: selectedOffer?.storeId ?? null,
+      lowestOfferVariantId: selectedOffer?.variantId ?? null,
+      lowestOfferMoq: selectedOffer?.moq ?? null,
+      lowestOfferOrderIncrement: selectedOffer?.orderIncrement ?? null,
+      lowestOfferStore: selectedOffer ? (storeById.get(selectedOffer.storeId) ?? null) : null,
     };
   });
 }

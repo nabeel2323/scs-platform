@@ -1,4 +1,17 @@
-import { Controller, Get, Post, Put, Patch, Delete, Param, Query, Body, UseGuards, HttpCode, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Delete,
+  Param,
+  Query,
+  Body,
+  UseGuards,
+  HttpCode,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { AdminListInput } from './dto/admin-list-query.dto';
 import { AdminService } from './admin.service';
 import { ModerateProductDto } from './dto/moderate-product.dto';
@@ -7,11 +20,19 @@ import { ReviewOrgUpdateDto } from './dto/review-org-update.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { AssignRolePermissionsDto } from './dto/assign-role-permissions.dto';
-import { CreateProductInput, UpdateProductInput, CreateVariantInput } from '../catalog/catalog.service';
+import {
+  CreateProductInput,
+  UpdateProductInput,
+  CreateVariantInput,
+} from '../catalog/catalog.service';
 import { AttributeValueInput } from '../catalog/catalog.taxonomy.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
+import {
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
+} from '../../common/guards/current-user.decorator';
 
 /**
  * Admin controller — 4 endpoints
@@ -341,17 +362,17 @@ export class AdminController {
 
   @Post('products/:id/moderate')
   @HttpCode(200)
-  @RequirePermission('admin:merchants:read')
-  async moderateProductPost(@Param('id', ParseUUIDPipe) id: string, @Body() body: ModerateProductDto) {
+  @RequirePermission('admin:products:moderate')
+  async moderateProductPost(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: ModerateProductDto,
+  ) {
     return this.adminService.moderateProduct(id, body.decision, body.reason, body.updatedAt);
   }
 
   @Patch('products/:id/moderate')
-  @RequirePermission('admin:merchants:read')
-  async moderateProduct(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: ModerateProductDto,
-  ) {
+  @RequirePermission('admin:products:moderate')
+  async moderateProduct(@Param('id', ParseUUIDPipe) id: string, @Body() body: ModerateProductDto) {
     return this.adminService.moderateProduct(id, body.decision, body.reason, body.updatedAt);
   }
 
@@ -503,7 +524,8 @@ export class AdminController {
   @RequirePermission('catalog:products:write')
   async adminBulkVariantOperations(
     @Param('productId', ParseUUIDPipe) productId: string,
-    @Body() body: {
+    @Body()
+    body: {
       create?: CreateVariantInput[];
       deleteIds?: string[];
       toggleActive?: Array<{ id: string; isActive: boolean }>;

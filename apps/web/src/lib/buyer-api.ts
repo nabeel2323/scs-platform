@@ -32,7 +32,9 @@ export class ApiError extends Error {
     try {
       const body = await res.clone().json();
       detail = body?.detail || body?.message || '';
-    } catch { /* non-JSON body — use status map */ }
+    } catch {
+      /* non-JSON body — use status map */
+    }
 
     if (!detail) {
       detail = fallback;
@@ -59,7 +61,7 @@ export interface SearchResult {
 
 export interface Product {
   id: string;
-  storeId: string;
+  storeId: string | null;
   categoryId: string | null;
   brandId: string | null;
   slug: string;
@@ -96,9 +98,15 @@ export interface Product {
   imageUrl?: string | null;
   /** Offer enrichment: number of ACTIVE merchant offers across all stores. */
   activeOfferCount?: number;
-  /** Offer enrichment: lowest base price among active merchant offers. */
+  /** Offer enrichment: lowest comparable base price among active, available merchant offers. */
   lowestOfferPriceMinor?: number | null;
   lowestOfferCurrency?: string | null;
+  /** Exact active offer row responsible for the card's displayed offer price. */
+  lowestOfferId?: string | null;
+  lowestOfferStoreId?: string | null;
+  lowestOfferVariantId?: string | null;
+  lowestOfferMoq?: number | null;
+  lowestOfferStore?: ProductStore | null;
 }
 
 export interface ProductVariant {
@@ -191,6 +199,8 @@ export interface CartItem {
   priceMinor: number;
   tierMinQty: number;
   lineTotalMinor: number;
+  /** Effective minimum quantity from the offer, or product for legacy lines. */
+  moq?: number;
   promoSnapshot: Record<string, unknown>;
   // PHASE 10: the offer that priced this line (null for legacy/price-list-only).
   offerId?: string | null;
@@ -205,6 +215,7 @@ export interface CartItem {
     id: string;
     leadTimeDays: number | null;
     moq: number;
+    orderIncrement: number | null;
     status: string;
   } | null;
 }
@@ -336,7 +347,8 @@ export async function searchProducts(params: {
   if (params.storeId) qs.set('storeId', params.storeId);
   if (params.limit) qs.set('limit', String(params.limit));
   if (params.offset) qs.set('offset', String(params.offset));
-  if (params.attrFilters && Object.keys(params.attrFilters).length > 0) qs.set('attrFilters', JSON.stringify(params.attrFilters));
+  if (params.attrFilters && Object.keys(params.attrFilters).length > 0)
+    qs.set('attrFilters', JSON.stringify(params.attrFilters));
   if (params.priceMin != null) qs.set('priceMin', String(params.priceMin));
   if (params.priceMax != null) qs.set('priceMax', String(params.priceMax));
   if (params.availability) qs.set('availability', params.availability);
@@ -410,7 +422,13 @@ export interface StoreProductsEnvelope {
 
 export async function fetchStoreProducts(
   storeId: string,
-  params?: { categoryId?: string; status?: string; search?: string; limit?: number; offset?: number },
+  params?: {
+    categoryId?: string;
+    status?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  },
 ): Promise<StoreProductsEnvelope> {
   const qs = new URLSearchParams();
   if (params?.categoryId) qs.set('categoryId', params.categoryId);
@@ -433,7 +451,7 @@ export async function fetchCart(): Promise<Cart> {
 
 export async function addToCart(input: {
   variantId: string;
-  storeId: string;
+  storeId?: string;
   quantity: number;
   /** PHASE 13: Optional explicit merchant offer to buy under. */
   offerId?: string;
@@ -495,12 +513,51 @@ export async function applyPromoCode(code: string): Promise<unknown> {
 
 // ── Checkout ─────────────────────────────────────────────────
 
+export interface CheckoutPreview {
+  isEstimate: boolean;
+  vatRate: number;
+  stores: Array<{
+    storeId: string;
+    currency: string | null;
+    fulfillmentMethod: string;
+    shippingMethodId: string | null;
+    subtotalMinor: number;
+    discountMinor: number;
+    deliveryFeeMinor: number;
+    taxMinor: number;
+    totalMinor: number;
+  }>;
+  totalsByCurrency: Record<string, number>;
+  hasUnpricedAmounts: boolean;
+}
+
+export async function previewCheckout(input: {
+  deliveryAddress: Record<string, unknown>;
+  shippingSelections: Array<{
+    storeId: string;
+    fulfillmentMethod: string;
+    shippingMethodId?: string;
+  }>;
+}): Promise<CheckoutPreview> {
+  const res = await authFetch(`${API_URL}/v1/checkout/preview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Checkout estimate failed (${res.status})`);
+  return res.json();
+}
+
 export async function checkout(input: {
   deliveryAddress: Record<string, unknown>;
   notes?: string;
   idempotencyKey?: string;
   fulfillmentMethod?: string;
-  shippingSelections?: Array<{ storeId: string; fulfillmentMethod: string; shippingMethodId?: string }>;
+  shippingSelections?: Array<{
+    storeId: string;
+    fulfillmentMethod: string;
+    shippingMethodId?: string;
+  }>;
   paymentMethod?: string;
 }): Promise<MasterOrder> {
   const res = await authFetch(`${API_URL}/v1/checkout`, {
@@ -651,7 +708,10 @@ export interface TrustSnapshot {
   computedAt: string;
 }
 
-export async function fetchTrust(entityType: string, entityId: string): Promise<TrustSnapshot | null> {
+export async function fetchTrust(
+  entityType: string,
+  entityId: string,
+): Promise<TrustSnapshot | null> {
   const res = await authFetch(`${API_URL}/v1/trust/${entityType}/${entityId}`);
   if (!res.ok) {
     if (res.status === 404) return null;
@@ -843,13 +903,20 @@ export async function fetchTracking(masterOrderId: string): Promise<TrackingInfo
  */
 export function buyerDeliveryNote(exceptionStatus: string): string | null {
   switch (exceptionStatus) {
-    case 'OPEN': return 'There\u2019s a delivery issue with this shipment \u2014 our team is working to resolve it.';
-    case 'RETRY_PENDING': return 'A redelivery is being arranged for this shipment.';
-    case 'RESOLVED': return 'The delivery issue has been resolved.';
-    case 'RTS_PENDING': return 'This shipment is scheduled to be returned to the seller.';
-    case 'RTS_IN_PROGRESS': return 'This shipment is on its way back to the seller.';
-    case 'RTS_COMPLETED': return 'This shipment has been returned to the seller.';
-    default: return null; // CLOSED and unknown states are not shown to buyers.
+    case 'OPEN':
+      return 'There\u2019s a delivery issue with this shipment \u2014 our team is working to resolve it.';
+    case 'RETRY_PENDING':
+      return 'A redelivery is being arranged for this shipment.';
+    case 'RESOLVED':
+      return 'The delivery issue has been resolved.';
+    case 'RTS_PENDING':
+      return 'This shipment is scheduled to be returned to the seller.';
+    case 'RTS_IN_PROGRESS':
+      return 'This shipment is on its way back to the seller.';
+    case 'RTS_COMPLETED':
+      return 'This shipment has been returned to the seller.';
+    default:
+      return null; // CLOSED and unknown states are not shown to buyers.
   }
 }
 
@@ -864,24 +931,36 @@ export function buyerDeliveryNote(exceptionStatus: string): string | null {
  */
 export function buyerEventLabel(eventType: string): string | null {
   switch (eventType) {
-    case 'PREPARING': return 'Order being prepared';
-    case 'READY': return 'Ready for pickup';
-    case 'ASSIGNED': return 'Driver assigned';
-    case 'PICKED_UP': return 'Picked up';
-    case 'OUT_FOR_DELIVERY': return 'Out for delivery';
-    case 'DELIVERED': return 'Delivered';
-    case 'DELIVERY_EXCEPTION': return 'Delivery issue reported';
-    case 'DELIVERY_EXCEPTION_RESOLVED': return 'Delivery issue resolved';
-    case 'DELIVERY_EXCEPTION_CLOSED': return 'Delivery issue closed';
-    case 'DELIVERY_RETRY_REQUESTED': return 'Redelivery being arranged';
-    case 'CANCELLED': return 'Cancelled';
+    case 'PREPARING':
+      return 'Order being prepared';
+    case 'READY':
+      return 'Ready for pickup';
+    case 'ASSIGNED':
+      return 'Driver assigned';
+    case 'PICKED_UP':
+      return 'Picked up';
+    case 'OUT_FOR_DELIVERY':
+      return 'Out for delivery';
+    case 'DELIVERED':
+      return 'Delivered';
+    case 'DELIVERY_EXCEPTION':
+      return 'Delivery issue reported';
+    case 'DELIVERY_EXCEPTION_RESOLVED':
+      return 'Delivery issue resolved';
+    case 'DELIVERY_EXCEPTION_CLOSED':
+      return 'Delivery issue closed';
+    case 'DELIVERY_RETRY_REQUESTED':
+      return 'Redelivery being arranged';
+    case 'CANCELLED':
+      return 'Cancelled';
     // Internal operational events — never shown to buyers.
     case 'RTS_REQUESTED':
     case 'RTS_APPROVED':
     case 'RTS_REJECTED':
     case 'RTS_COMPLETED':
       return null;
-    default: return null;
+    default:
+      return null;
   }
 }
 
@@ -1227,7 +1306,9 @@ export async function addMedia(productId: string, input: AddMediaInput): Promise
 }
 
 export async function removeMedia(productId: string, mediaId: string): Promise<void> {
-  const res = await authFetch(`${API_URL}/v1/products/${productId}/media/${mediaId}`, { method: 'DELETE' });
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/media/${mediaId}`, {
+    method: 'DELETE',
+  });
   if (!res.ok) throw await ApiError.from(res, `Remove media failed (${res.status})`);
 }
 
@@ -1378,8 +1459,13 @@ export interface StockMovement {
   createdAt: string;
 }
 
-export async function fetchInventoryMovements(inventoryItemId: string, limit = 50): Promise<StockMovement[]> {
-  const res = await authFetch(`${API_URL}/v1/inventory/${inventoryItemId}/movements?limit=${limit}`);
+export async function fetchInventoryMovements(
+  inventoryItemId: string,
+  limit = 50,
+): Promise<StockMovement[]> {
+  const res = await authFetch(
+    `${API_URL}/v1/inventory/${inventoryItemId}/movements?limit=${limit}`,
+  );
   if (!res.ok) throw await ApiError.from(res, `Movements failed (${res.status})`);
   return res.json();
 }
@@ -1399,11 +1485,14 @@ export async function createInventoryItem(input: {
   return res.json();
 }
 
-export async function updateInventoryItem(id: string, input: {
-  reorderPoint?: number;
-  maxStock?: number;
-  lowStockAlert?: boolean;
-}): Promise<InventoryItem> {
+export async function updateInventoryItem(
+  id: string,
+  input: {
+    reorderPoint?: number;
+    maxStock?: number;
+    lowStockAlert?: boolean;
+  },
+): Promise<InventoryItem> {
   const res = await authFetch(`${API_URL}/v1/inventory/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -1413,11 +1502,13 @@ export async function updateInventoryItem(id: string, input: {
   return res.json();
 }
 
-export async function bulkAdjustStock(items: Array<{
-  inventoryItemId: string;
-  quantity: number;
-  reason?: string;
-}>): Promise<Array<{ inventoryItemId: string; newQty: number }>> {
+export async function bulkAdjustStock(
+  items: Array<{
+    inventoryItemId: string;
+    quantity: number;
+    reason?: string;
+  }>,
+): Promise<Array<{ inventoryItemId: string; newQty: number }>> {
   const res = await authFetch(`${API_URL}/v1/inventory/bulk-adjust`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1497,7 +1588,12 @@ export async function fetchBrandsAdmin(includeInactive = false): Promise<Brand[]
   return res.json();
 }
 
-export async function createBrand(input: { name: string; nameAr?: string; logoUrl?: string; description?: string }): Promise<Brand> {
+export async function createBrand(input: {
+  name: string;
+  nameAr?: string;
+  logoUrl?: string;
+  description?: string;
+}): Promise<Brand> {
   const res = await authFetch(`${API_URL}/v1/brands`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1563,7 +1659,13 @@ export async function fetchPriceListTiers(listId: string): Promise<PriceTier[]> 
   return res.json();
 }
 
-export async function createPriceList(input: { storeId: string; name: string; currency: string; channel?: string; audience?: string }): Promise<PriceList> {
+export async function createPriceList(input: {
+  storeId: string;
+  name: string;
+  currency: string;
+  channel?: string;
+  audience?: string;
+}): Promise<PriceList> {
   const res = await authFetch(`${API_URL}/v1/price-lists`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1573,7 +1675,13 @@ export async function createPriceList(input: { storeId: string; name: string; cu
   return res.json();
 }
 
-export async function addPriceTier(input: { priceListId: string; variantId: string; minQty: number; maxQty?: number; unitPriceMinor: number }): Promise<PriceTier> {
+export async function addPriceTier(input: {
+  priceListId: string;
+  variantId: string;
+  minQty: number;
+  maxQty?: number;
+  unitPriceMinor: number;
+}): Promise<PriceTier> {
   const res = await authFetch(`${API_URL}/v1/price-lists/${input.priceListId}/tiers`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1583,7 +1691,10 @@ export async function addPriceTier(input: { priceListId: string; variantId: stri
   return res.json();
 }
 
-export async function updatePriceTier(tierId: string, input: { minQty?: number; maxQty?: number | null; unitPriceMinor?: number }): Promise<PriceTier> {
+export async function updatePriceTier(
+  tierId: string,
+  input: { minQty?: number; maxQty?: number | null; unitPriceMinor?: number },
+): Promise<PriceTier> {
   const res = await authFetch(`${API_URL}/v1/tiers/${tierId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -1653,6 +1764,22 @@ export async function fetchStoreVariants(storeId: string): Promise<ProductVarian
 
 // ── Merchant Offers (PHASE 5) ─────────────────────────────────
 
+export interface BuyerProductOffer {
+  id: string;
+  storeId: string;
+  productId: string;
+  variantId: string | null;
+  status: 'ACTIVE';
+  currency: string;
+  basePriceMinor: number;
+  compareAtPriceMinor: number | null;
+  moq: number;
+  orderIncrement: number | null;
+  leadTimeDays: number | null;
+  isAvailable: boolean;
+}
+
+/** Full merchant-management offer record; do not use this shape for buyer APIs. */
 export interface Offer {
   id: string;
   storeId: string;
@@ -1693,7 +1820,7 @@ export interface CreateOfferInput {
   externalRef?: string;
 }
 
-export async function fetchProductOffers(productId: string): Promise<Offer[]> {
+export async function fetchProductOffers(productId: string): Promise<BuyerProductOffer[]> {
   const res = await authFetch(`${API_URL}/v1/products/${productId}/offers`);
   if (!res.ok) throw await ApiError.from(res, `Product offers failed (${res.status})`);
   return res.json();
@@ -1716,7 +1843,6 @@ export interface RankedProductOffer {
   basePriceMinor: number | null;
   moq: number;
   leadTimeDays: number | null;
-  priceListId: string | null;
   ordersCount: number;
   unitsSold: number;
   /**
@@ -1741,7 +1867,9 @@ export async function fetchProductOffersRanked(productId: string): Promise<Ranke
 
 export async function fetchMerchantOffers(storeId: string, status?: string): Promise<Offer[]> {
   const params = status ? `?status=${status}` : '';
-  const res = await authFetch(`${API_URL}/v1/merchant/offers?storeId=${storeId}${status ? `&status=${status}` : ''}`);
+  const res = await authFetch(
+    `${API_URL}/v1/merchant/offers?storeId=${storeId}${status ? `&status=${status}` : ''}`,
+  );
   if (!res.ok) throw await ApiError.from(res, `Merchant offers failed (${res.status})`);
   return res.json();
 }
@@ -1806,27 +1934,38 @@ export async function fetchMerchantOfferTrend(opts: {
 
 export async function createMerchantOffer(input: CreateOfferInput): Promise<Offer> {
   const res = await authFetch(`${API_URL}/v1/merchant/offers`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
   });
   if (!res.ok) throw await ApiError.from(res, `Create offer failed (${res.status})`);
   return res.json();
 }
 
 export async function proposeOffer(offerId: string): Promise<Offer> {
-  const res = await authFetch(`${API_URL}/v1/merchant/offers/${offerId}/propose`, { method: 'POST' });
+  const res = await authFetch(`${API_URL}/v1/merchant/offers/${offerId}/propose`, {
+    method: 'POST',
+  });
   if (!res.ok) throw await ApiError.from(res, `Propose failed (${res.status})`);
   return res.json();
 }
 
 export async function withdrawOffer(offerId: string): Promise<Offer> {
-  const res = await authFetch(`${API_URL}/v1/merchant/offers/${offerId}/withdraw`, { method: 'POST' });
+  const res = await authFetch(`${API_URL}/v1/merchant/offers/${offerId}/withdraw`, {
+    method: 'POST',
+  });
   if (!res.ok) throw await ApiError.from(res, `Withdraw failed (${res.status})`);
   return res.json();
 }
 
-export async function updateOfferPricing(offerId: string, patch: { basePriceMinor?: number; moq?: number; leadTimeDays?: number; isAvailable?: boolean }): Promise<Offer> {
+export async function updateOfferPricing(
+  offerId: string,
+  patch: { basePriceMinor?: number; moq?: number; leadTimeDays?: number; isAvailable?: boolean },
+): Promise<Offer> {
   const res = await authFetch(`${API_URL}/v1/merchant/offers/${offerId}/pricing`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
   });
   if (!res.ok) throw await ApiError.from(res, `Pricing update failed (${res.status})`);
   return res.json();
@@ -1846,7 +1985,8 @@ export interface ProductTypeSummary {
 }
 
 export async function fetchProductTypes(params?: {
-  categoryId?: string; status?: string;
+  categoryId?: string;
+  status?: string;
 }): Promise<ProductTypeSummary[]> {
   const sp = new URLSearchParams();
   if (params?.categoryId) sp.set('categoryId', params.categoryId);
@@ -1868,10 +2008,22 @@ export interface ProductTypeSchemaAttribute {
   visibleInDetail: boolean;
   conditionalRules: unknown[];
   definition: {
-    id: string; code: string; name: string; nameAr: string | null;
-    type: string; scope: string; unit: string | null; description: string | null;
+    id: string;
+    code: string;
+    name: string;
+    nameAr: string | null;
+    type: string;
+    scope: string;
+    unit: string | null;
+    description: string | null;
   } | null;
-  options: Array<{ id: string; value: string; valueAr: string | null; label: string | null; sortOrder: number }>;
+  options: Array<{
+    id: string;
+    value: string;
+    valueAr: string | null;
+    label: string | null;
+    sortOrder: number;
+  }>;
 }
 
 export interface ProductTypeSchemaDetail extends ProductTypeSummary {
@@ -1887,7 +2039,10 @@ export async function fetchProductTypeSchema(id: string): Promise<ProductTypeSch
 }
 
 export async function searchCanonicalProducts(params: {
-  gtin?: string; ean?: string; mpn?: string; title?: string;
+  gtin?: string;
+  ean?: string;
+  mpn?: string;
+  title?: string;
 }): Promise<Product[]> {
   const sp = new URLSearchParams();
   if (params.gtin) sp.set('gtin', params.gtin);
@@ -1979,7 +2134,13 @@ export async function fetchVariantMatrix(productId: string): Promise<VariantMatr
 
 export async function upsertProductAttributeValues(
   productId: string,
-  values: Array<{ attributeDefinitionId: string; valueText?: string; valueNumber?: number; valueBoolean?: boolean; optionValue?: string }>,
+  values: Array<{
+    attributeDefinitionId: string;
+    valueText?: string;
+    valueNumber?: number;
+    valueBoolean?: boolean;
+    optionValue?: string;
+  }>,
 ): Promise<{ success: boolean }> {
   const res = await authFetch(`${API_URL}/v1/products/${productId}/attribute-values`, {
     method: 'PUT',
@@ -2004,7 +2165,9 @@ export interface TypedAttributeValue {
   updatedAt: string;
 }
 
-export async function fetchProductAttributeValues(productId: string): Promise<TypedAttributeValue[]> {
+export async function fetchProductAttributeValues(
+  productId: string,
+): Promise<TypedAttributeValue[]> {
   const res = await authFetch(`${API_URL}/v1/products/${productId}/attribute-values`);
   if (!res.ok) throw await ApiError.from(res, `Fetch product attributes failed (${res.status})`);
   return res.json();
@@ -2024,8 +2187,13 @@ export interface TypedVariantAttributeValue {
   updatedAt: string;
 }
 
-export async function fetchVariantAttributeValues(productId: string, variantId: string): Promise<TypedVariantAttributeValue[]> {
-  const res = await authFetch(`${API_URL}/v1/products/${productId}/variants/${variantId}/attribute-values`);
+export async function fetchVariantAttributeValues(
+  productId: string,
+  variantId: string,
+): Promise<TypedVariantAttributeValue[]> {
+  const res = await authFetch(
+    `${API_URL}/v1/products/${productId}/variants/${variantId}/attribute-values`,
+  );
   if (!res.ok) throw await ApiError.from(res, `Fetch variant attributes failed (${res.status})`);
   return res.json();
 }
@@ -2034,14 +2202,24 @@ export async function fetchVariantAttributeValues(productId: string, variantId: 
 export async function upsertVariantAttributeValues(
   productId: string,
   variantId: string,
-  values: Array<{ attributeDefinitionId: string; valueText?: string; valueNumber?: number; valueBoolean?: boolean; optionValue?: string }>,
+  values: Array<{
+    attributeDefinitionId: string;
+    valueText?: string;
+    valueNumber?: number;
+    valueBoolean?: boolean;
+    optionValue?: string;
+  }>,
 ): Promise<{ success: boolean }> {
-  const res = await authFetch(`${API_URL}/v1/products/${productId}/variants/${variantId}/attribute-values`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values }),
-  });
-  if (!res.ok) throw await ApiError.from(res, `Upsert variant attribute values failed (${res.status})`);
+  const res = await authFetch(
+    `${API_URL}/v1/products/${productId}/variants/${variantId}/attribute-values`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values }),
+    },
+  );
+  if (!res.ok)
+    throw await ApiError.from(res, `Upsert variant attribute values failed (${res.status})`);
   return res.json();
 }
 
@@ -2103,7 +2281,10 @@ export async function createPromotion(input: CreatePromotionInput): Promise<Prom
   return res.json();
 }
 
-export async function updatePromotion(id: string, input: Partial<CreatePromotionInput>): Promise<Promotion> {
+export async function updatePromotion(
+  id: string,
+  input: Partial<CreatePromotionInput>,
+): Promise<Promotion> {
   const res = await authFetch(`${API_URL}/v1/promotions/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -2152,6 +2333,7 @@ export interface ShippingEstimate {
   deliveryAvailable: boolean;
   methods: Array<{
     methodId: string;
+    fulfillmentMethod: string;
     key: string | null;
     name: string;
     type: string;
@@ -2174,21 +2356,33 @@ export async function fetchShippingMethods(storeId: string): Promise<ShippingMet
 }
 
 export async function createShippingMethod(input: {
-  storeId: string; key: string; name: string; fulfillmentMethod: string;
-  baseFeeMinor: number; description?: string; minOrderMinor?: number;
-  freeAboveMinor?: number; estimatedDaysMin?: number; estimatedDaysMax?: number;
+  storeId: string;
+  key: string;
+  name: string;
+  fulfillmentMethod: string;
+  baseFeeMinor: number;
+  description?: string;
+  minOrderMinor?: number;
+  freeAboveMinor?: number;
+  estimatedDaysMin?: number;
+  estimatedDaysMax?: number;
 }): Promise<ShippingMethod> {
   const res = await authFetch(`${API_URL}/v1/shipping/methods`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
   if (!res.ok) throw await ApiError.from(res, `Create shipping method failed (${res.status})`);
   return res.json();
 }
 
-export async function updateShippingMethod(id: string, patch: Record<string, unknown>): Promise<ShippingMethod> {
+export async function updateShippingMethod(
+  id: string,
+  patch: Record<string, unknown>,
+): Promise<ShippingMethod> {
   const res = await authFetch(`${API_URL}/v1/shipping/methods/${id}`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
   });
   if (!res.ok) throw await ApiError.from(res, `Update shipping method failed (${res.status})`);
@@ -2196,7 +2390,9 @@ export async function updateShippingMethod(id: string, patch: Record<string, unk
 }
 
 export async function deactivateShippingMethod(id: string): Promise<ShippingMethod> {
-  const res = await authFetch(`${API_URL}/v1/shipping/methods/${id}/deactivate`, { method: 'POST' });
+  const res = await authFetch(`${API_URL}/v1/shipping/methods/${id}/deactivate`, {
+    method: 'POST',
+  });
   if (!res.ok) throw await ApiError.from(res, `Deactivate failed (${res.status})`);
   return res.json();
 }
@@ -2210,20 +2406,29 @@ export async function fetchDeliveryZones(storeId: string): Promise<DeliveryZone[
 }
 
 export async function createDeliveryZone(input: {
-  storeId: string; name: string; city?: string; region?: string;
-  postalCode?: string; country?: string;
+  storeId: string;
+  name: string;
+  city?: string;
+  region?: string;
+  postalCode?: string;
+  country?: string;
 }): Promise<DeliveryZone> {
   const res = await authFetch(`${API_URL}/v1/shipping/zones`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
   if (!res.ok) throw await ApiError.from(res, `Create zone failed (${res.status})`);
   return res.json();
 }
 
-export async function updateDeliveryZone(id: string, patch: Record<string, unknown>): Promise<DeliveryZone> {
+export async function updateDeliveryZone(
+  id: string,
+  patch: Record<string, unknown>,
+): Promise<DeliveryZone> {
   const res = await authFetch(`${API_URL}/v1/shipping/zones/${id}`, {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
   });
   if (!res.ok) throw await ApiError.from(res, `Update zone failed (${res.status})`);
@@ -2231,9 +2436,14 @@ export async function updateDeliveryZone(id: string, patch: Record<string, unkno
 }
 
 // Zone ↔ method associations
-export async function attachMethodToZone(zoneId: string, shippingMethodId: string, overrideFeeMinor?: number): Promise<unknown> {
+export async function attachMethodToZone(
+  zoneId: string,
+  shippingMethodId: string,
+  overrideFeeMinor?: number,
+): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/shipping/zones/${zoneId}/methods`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ shippingMethodId, overrideFeeMinor }),
   });
   if (!res.ok) throw await ApiError.from(res, `Attach method failed (${res.status})`);
@@ -2241,12 +2451,19 @@ export async function attachMethodToZone(zoneId: string, shippingMethodId: strin
 }
 
 export async function detachMethodFromZone(zoneId: string, methodId: string): Promise<void> {
-  const res = await authFetch(`${API_URL}/v1/shipping/zones/${zoneId}/methods/${methodId}`, { method: 'DELETE' });
+  const res = await authFetch(`${API_URL}/v1/shipping/zones/${zoneId}/methods/${methodId}`, {
+    method: 'DELETE',
+  });
   if (!res.ok) throw await ApiError.from(res, `Detach method failed (${res.status})`);
 }
 
 // Buyer: shipping estimate
-export async function fetchShippingEstimate(storeId: string, subtotal: number, city?: string, postalCode?: string): Promise<ShippingEstimate> {
+export async function fetchShippingEstimate(
+  storeId: string,
+  subtotal: number,
+  city?: string,
+  postalCode?: string,
+): Promise<ShippingEstimate> {
   const params = new URLSearchParams({ storeId, subtotal: String(subtotal) });
   if (city) params.set('city', city);
   if (postalCode) params.set('postalCode', postalCode);
@@ -2269,22 +2486,30 @@ export interface ModerationHistoryEntry {
 }
 
 export async function submitProductForReview(productId: string): Promise<void> {
-  const res = await authFetch(`${API_URL}/v1/merchant/products/${productId}/submit`, { method: 'POST' });
+  const res = await authFetch(`${API_URL}/v1/merchant/products/${productId}/submit`, {
+    method: 'POST',
+  });
   if (!res.ok) throw await ApiError.from(res, `Submit failed (${res.status})`);
 }
 
 export async function withdrawProductFromReview(productId: string): Promise<void> {
-  const res = await authFetch(`${API_URL}/v1/merchant/products/${productId}/withdraw`, { method: 'POST' });
+  const res = await authFetch(`${API_URL}/v1/merchant/products/${productId}/withdraw`, {
+    method: 'POST',
+  });
   if (!res.ok) throw await ApiError.from(res, `Withdraw failed (${res.status})`);
 }
 
 export async function publishProduct(productId: string): Promise<void> {
-  const res = await authFetch(`${API_URL}/v1/merchant/products/${productId}/publish`, { method: 'POST' });
+  const res = await authFetch(`${API_URL}/v1/merchant/products/${productId}/publish`, {
+    method: 'POST',
+  });
   if (!res.ok) throw await ApiError.from(res, `Publish failed (${res.status})`);
 }
 
 export async function unpublishProduct(productId: string): Promise<void> {
-  const res = await authFetch(`${API_URL}/v1/merchant/products/${productId}/unpublish`, { method: 'POST' });
+  const res = await authFetch(`${API_URL}/v1/merchant/products/${productId}/unpublish`, {
+    method: 'POST',
+  });
   if (!res.ok) throw await ApiError.from(res, `Unpublish failed (${res.status})`);
 }
 
@@ -2394,7 +2619,10 @@ export async function markReturnShipped(
 
 // ── Merchant Returns ───────────────────────────────────────────
 
-export async function fetchMerchantReturns(storeId: string, status?: string): Promise<ReturnRequest[]> {
+export async function fetchMerchantReturns(
+  storeId: string,
+  status?: string,
+): Promise<ReturnRequest[]> {
   const params = new URLSearchParams({ storeId });
   if (status) params.set('status', status);
   const res = await authFetch(`${API_URL}/v1/merchant/returns?${params}`);
@@ -2423,7 +2651,9 @@ export async function rejectReturn(returnId: string, notes: string): Promise<Ret
 }
 
 export async function receiveReturn(returnId: string): Promise<ReturnRequest> {
-  const res = await authFetch(`${API_URL}/v1/merchant/returns/${returnId}/receive`, { method: 'POST' });
+  const res = await authFetch(`${API_URL}/v1/merchant/returns/${returnId}/receive`, {
+    method: 'POST',
+  });
   if (!res.ok) throw await ApiError.from(res, `Receive return failed (${res.status})`);
   return res.json();
 }

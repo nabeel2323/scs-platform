@@ -6,16 +6,11 @@ import { InventoryService, AdjustStockInput, ReserveStockInput, UpdateInventoryI
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
-import { DatabaseService } from '../../common/database/database.service';
-import { assertStoreInOrg, type CallerContext } from '../../common/tenant-scope';
 
 @Controller()
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class InventoryController {
-  constructor(
-    private readonly inventoryService: InventoryService,
-    private readonly db: DatabaseService,
-  ) {}
+  constructor(private readonly inventoryService: InventoryService) {}
 
   // ── Store-level inventory (literal paths before parameterized) ──
 
@@ -25,9 +20,7 @@ export class InventoryController {
     @Param('storeId') storeId: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, storeId);
-    return this.inventoryService.exportInventoryCsv(storeId);
+    return this.inventoryService.exportInventoryCsv(storeId, user);
   }
 
   @Get('stores/:storeId/inventory/movements/export')
@@ -36,9 +29,7 @@ export class InventoryController {
     @Param('storeId') storeId: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, storeId);
-    return this.inventoryService.exportMovementsCsv(storeId);
+    return this.inventoryService.exportMovementsCsv(storeId, user);
   }
 
   @Post('stores/:storeId/inventory/check-low-stock')
@@ -47,9 +38,7 @@ export class InventoryController {
     @Param('storeId') storeId: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, storeId);
-    return this.inventoryService.checkAndNotifyLowStock(storeId);
+    return this.inventoryService.checkAndNotifyLowStock(storeId, user);
   }
 
   @Get('stores/:storeId/inventory')
@@ -60,11 +49,9 @@ export class InventoryController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
-    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, storeId);
     const lim = limit ? parseInt(limit, 10) : 50;
     const off = offset ? parseInt(offset, 10) : 0;
-    return this.inventoryService.listByStore(storeId, { limit: lim, offset: off });
+    return this.inventoryService.listByStore(storeId, { limit: lim, offset: off }, user);
   }
 
   // ── Inventory items ────────────────────────────────────────────

@@ -20,11 +20,13 @@ import {
 import { shipments, shipmentEvents } from './shipment.schema';
 import { paymentRecords } from '../payments/payments.schema';
 import { PaymentsService } from '../payments/payments.service';
+import { isSupportedPaymentMethod, SUPPORTED_PAYMENT_METHODS } from '../payments/index';
 import { carts, cartItems } from './cart.schema';
 import { CartService } from './cart.service';
+import { getOrderQuantityViolation } from './order-quantity';
 import { products, productVariants } from '../catalog/catalog.schema';
 import { merchantOffers } from '../catalog/catalog.offer.schema';
-import { resolveOfferPrices } from '../pricing/price-resolution';
+import { resolveOfferPrices, resolveSelectedOfferPrices, selectedOfferPriceKey } from '../pricing/price-resolution';
 import { inventoryItems, stockMovements } from '../inventory/inventory.schema';
 import { outboxEvents } from '../audit/audit.schema';
 import { warehouses, stores } from '../merchant/merchant.schema';
@@ -96,6 +98,175 @@ export class OrdersService {
   ) {}
 
   // ── Checkout ─────────────────────────────────────────────────
+
+  /**
+   * Build a server-authoritative, non-persistent checkout estimate.
+   * Checkout repeats validation and resolves all mutable terms again before commit.
+   */
+  async previewCheckout(input: CheckoutInput) {
+    const cart = await this.db.db.query.carts.findFirst({
+      where: and(eq(carts.userId, input.buyerId), eq(carts.status, 'ACTIVE')),
+    });
+    if (!cart) throw new BadRequestException('No active cart found');
+    const items = await this.db.db.query.cartItems.findMany({
+      where: eq(cartItems.cartId, cart['id']),
+    });
+    if (items.length === 0) throw new BadRequestException('Cart is empty');
+
+    const offerIds = [...new Set(items.map(item => item['offerId']).filter(Boolean) as string[])];
+    const offers = offerIds.length > 0
+      ? await this.db.db.query.merchantOffers.findMany({ where: inArray(merchantOffers.id, offerIds) })
+      : [];
+    const offerById = new Map(offers.map(offer => [offer.id, offer]));
+    for (const item of items) {
+      const variant = await this.db.db.query.productVariants.findFirst({
+        where: eq(productVariants.id, item['variantId']),
+      });
+      if (!variant) throw new BadRequestException('A product in your cart is no longer available');
+      const product = await this.db.db.query.products.findFirst({
+        where: eq(products.id, variant['productId']),
+      });
+      if (!product) throw new BadRequestException('A product in your cart is no longer available');
+      const offerId = item['offerId'] as string | null;
+      const offer = offerId ? offerById.get(offerId) : undefined;
+      if (offerId && (!offer || offer.status !== 'ACTIVE' || !offer.isAvailable || offer.storeId !== item['storeId'])) {
+        throw new BadRequestException('A seller offer in your cart is no longer available. Please review your cart.');
+      }
+      const violation = getOrderQuantityViolation(
+        item['quantity'],
+        offer?.moq ?? product.moq ?? 1,
+        offer?.orderIncrement ?? null,
+      );
+      if (violation) throw new BadRequestException(`${product.title || 'This item'}: ${violation}`);
+    }
+
+    const grouped = new Map<string, typeof items>();
+    for (const item of items) {
+      const storeId = item['storeId'] as string;
+      if (!grouped.has(storeId)) grouped.set(storeId, []);
+      grouped.get(storeId)!.push(item);
+    }
+    const storeIds = [...grouped.keys()];
+    const selectionsByStore = new Map<string, { fulfillmentMethod: string; shippingMethodId?: string }>();
+    if (input.shippingSelections && input.shippingSelections.length > 0) {
+      const selectedIds = input.shippingSelections.map(selection => selection.storeId);
+      const uniqueIds = new Set(selectedIds);
+      if (uniqueIds.size !== selectedIds.length) {
+        throw new BadRequestException('Duplicate shipping selections for the same store');
+      }
+      for (const selection of input.shippingSelections) {
+        if (!grouped.has(selection.storeId)) {
+          throw new BadRequestException(`Selection references store ${selection.storeId} not in cart`);
+        }
+        selectionsByStore.set(selection.storeId, {
+          fulfillmentMethod: selection.fulfillmentMethod,
+          shippingMethodId: selection.shippingMethodId,
+        });
+      }
+      for (const storeId of storeIds) {
+        if (!uniqueIds.has(storeId)) {
+          throw new BadRequestException(`Missing shipping selection for store ${storeId}`);
+        }
+      }
+    } else {
+      const legacyMethod = input.fulfillmentMethod || 'PLATFORM_DELIVERY';
+      for (const storeId of storeIds) {
+        selectionsByStore.set(storeId, { fulfillmentMethod: legacyMethod });
+      }
+    }
+
+    const vatRate = Number(process.env['VAT_RATE'] ?? DEFAULT_VAT_RATE);
+    const commissionRate = Number(process.env['COMMISSION_RATE'] ?? DEFAULT_COMMISSION_RATE);
+    const platformDeliveryFee = Number(
+      process.env['PLATFORM_DELIVERY_FEE_MINOR'] ?? DEFAULT_PLATFORM_DELIVERY_FEE_MINOR,
+    );
+    const resolvedFeeByStore = new Map<string, number>();
+    for (const [storeId, selection] of selectionsByStore) {
+      if (this.shipping) {
+        await this.shipping.validateCheckoutSelection(
+          storeId,
+          selection.fulfillmentMethod,
+          selection.shippingMethodId,
+          input.deliveryAddress as ZoneMatchInput,
+        );
+      }
+      const subtotal = grouped.get(storeId)!.reduce((sum, item) => sum + item['lineTotalMinor'], 0);
+      if (selection.fulfillmentMethod.toUpperCase() === 'PICKUP') {
+        resolvedFeeByStore.set(storeId, 0);
+      } else if (selection.shippingMethodId && this.shipping) {
+        const resolved = await this.shipping.resolveAuthoritativeFee(
+          storeId,
+          selection.shippingMethodId,
+          subtotal,
+        );
+        resolvedFeeByStore.set(storeId, resolved.feeMinor);
+      } else {
+        resolvedFeeByStore.set(
+          storeId,
+          resolveDeliveryFeeMinor(selection.fulfillmentMethod, platformDeliveryFee),
+        );
+      }
+    }
+
+    const storeRows = await this.db.db.query.stores.findMany({
+      where: inArray(stores.id, storeIds),
+      columns: { id: true, currency: true },
+    });
+    const currencyByStore = new Map(storeRows.map(store => [store.id, store.currency]));
+    const breakdowns: Array<{
+      storeId: string;
+      currency: string | null;
+      fulfillmentMethod: string;
+      shippingMethodId: string | null;
+      subtotalMinor: number;
+      discountMinor: number;
+      deliveryFeeMinor: number;
+      taxMinor: number;
+      totalMinor: number;
+    }> = [];
+    const totalsByCurrency: Record<string, number> = {};
+    let hasUnpricedAmounts = false;
+
+    for (const [storeId, storeItems] of grouped) {
+      const subtotal = storeItems.reduce((sum, item) => sum + item['lineTotalMinor'], 0);
+      const hasPromo = Boolean(cart['promotionId'] || cart['promoCode']);
+      const promo = hasPromo
+        ? await this.promotions.resolveApplicable(storeId, {
+            promotionId: cart['promotionId'],
+            code: cart['promoCode'],
+            userId: input.buyerId,
+          })
+        : null;
+      const discount = promo ? this.promotions.calculateDiscount(promo, subtotal) : 0;
+      const selection = selectionsByStore.get(storeId)!;
+      const deliveryFee = resolvedFeeByStore.get(storeId) ?? 0;
+      const financials = computeOrderFinancials({
+        subtotalMinor: subtotal,
+        discountMinor: discount,
+        deliveryFeeMinor: deliveryFee,
+        vatRate,
+        commissionRate,
+      });
+      const currency = currencyByStore.get(storeId) ?? null;
+      if (currency) {
+        totalsByCurrency[currency] = (totalsByCurrency[currency] ?? 0) + financials.totalMinor;
+      } else {
+        hasUnpricedAmounts = true;
+      }
+      breakdowns.push({
+        storeId,
+        currency,
+        fulfillmentMethod: selection.fulfillmentMethod,
+        shippingMethodId: selection.shippingMethodId ?? null,
+        subtotalMinor: financials.productsMinor,
+        discountMinor: financials.discountMinor,
+        deliveryFeeMinor: financials.deliveryFeeMinor,
+        taxMinor: financials.taxMinor,
+        totalMinor: financials.totalMinor,
+      });
+    }
+    return { isEstimate: true, vatRate, stores: breakdowns, totalsByCurrency, hasUnpricedAmounts };
+  }
 
   async checkout(input: CheckoutInput) {
     // PHASE 1.1: Early return for matching idempotency key (before expensive
@@ -221,11 +392,14 @@ export class OrdersService {
       const offerSnapshot = offerId ? offerSnapshotById.get(offerId) : null;
       const authoritativeMoq = offerSnapshot?.moq ?? product?.['moq'] ?? 1;
 
-      if (authoritativeMoq > item['quantity']) {
-        const productName = product?.['title'] || 'this item';
-        throw new BadRequestException(
-          `Minimum order quantity for ${productName} is ${authoritativeMoq}, but only ${item['quantity']} in cart`,
-        );
+      const productName = product?.['title'] || 'this item';
+      const quantityViolation = getOrderQuantityViolation(
+        item['quantity'],
+        authoritativeMoq,
+        offerSnapshot?.orderIncrement ?? null,
+      );
+      if (quantityViolation) {
+        throw new BadRequestException(`${productName}: ${quantityViolation}`);
       }
     }
 
@@ -400,13 +574,79 @@ export class OrdersService {
 
     // P12: Resolve payment method (default to CASH_ON_DELIVERY for legacy compat)
     const paymentMethod = input.paymentMethod || 'CASH_ON_DELIVERY';
-    const validPaymentMethods = ['BANK_TRANSFER', 'CASH_ON_DELIVERY', 'VOUCHER', 'DIGITAL'];
-    if (!validPaymentMethods.includes(paymentMethod)) {
-      throw new BadRequestException(`Invalid payment method: ${paymentMethod}`);
+    if (!isSupportedPaymentMethod(paymentMethod)) {
+      throw new BadRequestException(
+        `Unsupported payment method: ${paymentMethod}. Supported methods: ${SUPPORTED_PAYMENT_METHODS.join(', ')}`,
+      );
     }
 
     try {
     await this.db.db.transaction(async (tx) => {
+      // Re-read and lock the commercial terms inside the order transaction.
+      // Cart-time validation is for fast feedback; this locked read is the
+      // authoritative checkout gate and prevents a concurrent seller edit
+      // from changing MOQ/increment between validation and order persistence.
+      const checkoutVariantIds = [...new Set(items.map(item => item['variantId'] as string))];
+      const checkoutVariants = await tx.query.productVariants.findMany({
+        where: inArray(productVariants.id, checkoutVariantIds),
+        columns: { id: true, productId: true },
+      });
+      const checkoutProductIds = [...new Set(checkoutVariants.map(variant => variant.productId))];
+      const checkoutProducts = checkoutProductIds.length > 0
+        ? await tx.select().from(products).where(inArray(products.id, checkoutProductIds)).for('update')
+        : [];
+      const checkoutOffers = offerIds.length > 0
+        ? await tx.select().from(merchantOffers).where(inArray(merchantOffers.id, offerIds)).for('update')
+        : [];
+      const checkoutVariantById = new Map(checkoutVariants.map(variant => [variant.id, variant]));
+      const checkoutProductById = new Map(checkoutProducts.map(product => [product.id, product]));
+      const checkoutOfferById = new Map(checkoutOffers.map(offer => [offer.id, offer]));
+      const transactionCapturedAt = new Date().toISOString();
+
+      offerSnapshotById.clear();
+      for (const offer of checkoutOffers) {
+        if (offer.status !== 'ACTIVE' || !offer.isAvailable) {
+          throw new BadRequestException(
+            'A seller\'s offer for one of your items is no longer available. Please review your cart.',
+          );
+        }
+        offerSnapshotById.set(offer.id, {
+          id: offer.id,
+          storeId: offer.storeId,
+          priceListId: offer.priceListId ?? null,
+          warehouseId: offer.warehouseId ?? null,
+          basePriceMinor: offer.basePriceMinor ?? null,
+          compareAtPriceMinor: offer.compareAtPriceMinor ?? null,
+          currency: offer.currency,
+          moq: offer.moq,
+          orderIncrement: offer.orderIncrement ?? null,
+          leadTimeDays: offer.leadTimeDays ?? null,
+          snapshotStatus: offer.status,
+          capturedAt: transactionCapturedAt,
+        });
+      }
+
+      for (const item of items) {
+        const variant = checkoutVariantById.get(item['variantId'] as string);
+        const product = variant ? checkoutProductById.get(variant.productId) : undefined;
+        if (!variant || !product) {
+          throw new BadRequestException('A product in your cart is no longer available');
+        }
+        const itemOfferId = item['offerId'] as string | null;
+        const offer = itemOfferId ? checkoutOfferById.get(itemOfferId) : undefined;
+        if (itemOfferId && !offer) {
+          throw new BadRequestException('A seller\'s offer for one of your items is no longer available. Please review your cart.');
+        }
+        const violation = getOrderQuantityViolation(
+          item['quantity'],
+          offer?.moq ?? product.moq ?? 1,
+          offer?.orderIncrement ?? null,
+        );
+        if (violation) {
+          throw new BadRequestException(`${product.title || 'This item'}: ${violation}`);
+        }
+      }
+
       await tx.insert(masterOrders).values({
         id: masterId,
         buyerId: input.buyerId,
@@ -1621,12 +1861,33 @@ export class OrdersService {
     const variantIds = [...new Set(items.map(i => i['variantId']))];
     if (variantIds.length === 0) return deltas;
 
-    // Resolve each item's quantity separately since quantities may differ.
+    // Preserve the exact offer selected at add-to-cart. Re-resolving only by
+    // store/variant can silently switch from a product-default offer to a
+    // variant-specific offer (or another offer's price book) during checkout.
+    const offerBackedItems = items.filter(item => item['offerId']);
+    const selectedOfferIds = [...new Set(offerBackedItems.map(item => item['offerId'] as string))];
+    const selectedOffers = selectedOfferIds.length > 0
+      ? await this.db.db.query.merchantOffers.findMany({
+          where: inArray(merchantOffers.id, selectedOfferIds),
+        })
+      : [];
+    const selectedOfferPrices = await resolveSelectedOfferPrices(
+      this.db.db,
+      selectedOffers,
+      offerBackedItems.map(item => ({
+        offerId: item['offerId'] as string,
+        variantId: item['variantId'],
+        quantity: item['quantity'],
+      })),
+    );
+
+    // Resolve legacy owner-priced items by their store's normal price book.
     for (const item of items) {
-      const pricing = await resolveOfferPrices(
-        this.db.db, storeId, [item['variantId']], item['quantity'], { ladder: false },
-      );
-      const tier = pricing.get(item['variantId']);
+      const tier = item['offerId']
+        ? selectedOfferPrices.get(selectedOfferPriceKey(item['offerId'] as string, item['variantId'], item['quantity']))
+        : (await resolveOfferPrices(
+            this.db.db, storeId, [item['variantId']], item['quantity'], { ladder: false },
+          )).get(item['variantId']);
       if (!tier) continue;
 
       const currentPrice = tier.unitPriceMinor;
@@ -4046,6 +4307,7 @@ export class OrdersService {
     userId: string,
     actorType: string,
     source: string,
+    autoCompleteClaimOwner?: string,
   ) {
     const order = await this.getOrder(orderId);
     this.assertTransition(order['status'], 'COMPLETED');
@@ -4056,10 +4318,28 @@ export class OrdersService {
       ? userId : null;
 
     // Atomic optimistic lock on order status
+    const completionConditions = [
+      eq(orders.id, orderId),
+      eq(orders.status, order['status']),
+    ];
+    if (autoCompleteClaimOwner) {
+      // Fencing check: a worker whose lease expired or was reassigned cannot
+      // complete the order after another worker has acquired the claim.
+      completionConditions.push(
+        eq(orders.autoCompleteClaimedBy, autoCompleteClaimOwner),
+        sql`${orders.autoCompleteClaimedAt} > NOW() - INTERVAL '5 minutes'`,
+      );
+    }
+
     const flipResult = await this.db.db
       .update(orders)
-      .set({ status: 'COMPLETED', updatedAt: new Date() })
-      .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
+      .set({
+        status: 'COMPLETED',
+        updatedAt: new Date(),
+        autoCompleteClaimedAt: null,
+        autoCompleteClaimedBy: null,
+      })
+      .where(and(...completionConditions))
       .returning({ id: orders.id });
 
     if (flipResult.length === 0) {
