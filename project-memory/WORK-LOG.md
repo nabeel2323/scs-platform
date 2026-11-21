@@ -56,7 +56,6 @@ Append newest first. Include date, branch/commit, concise changes, test commands
 - Formatter cleanup commit 2d416c99700de8b511a7c376085a107cc24a854c removed the temporary helper workflow; the final tree was verified not to contain it.
 - CI #1183 on the cleanup commit returned action_required with no jobs; CI #1182 refers to the pre-format helper commit. A new app-authored checkpoint commit is required for exact-head full CI.
 
- 
 ## 21 November 2026 — G-001 offer existence confidentiality
 
 - Added a scope-first merchant offer service boundary: organization ownership and ACTIVE store membership are checked before full offer detail is loaded.
@@ -64,20 +63,17 @@ Append newest first. Include date, branch/commit, concise changes, test commands
 - Added service/controller regression coverage for 404 parity, lookup ordering, active-member access and governance separation.
 - Source/test commits: dd52aaf, bca32b0, 39a0437 and a1602bc. Focused tests and exact-head CI are pending; G-001 remains PARTIAL.
 
- 
 ## 21 November 2026 — G-001 inactive-store buyer visibility
 
 - Buyer product offer lists and ranked seller results now require an ACTIVE owning store in addition to an ACTIVE, available offer.
 - DRAFT stores remain manageable by their active merchant members, but their offers are hidden from buyer discovery until store activation.
 - Added unit coverage for both buyer query paths and the no-active-store case. Exact-head CI is pending.
 
- 
 ## 21 November 2026 — G-001 active-store query efficiency
 
 - Replaced the initial active-store ID materialization with a correlated SQL EXISTS predicate in both buyer-facing offer queries.
 - The store lifecycle boundary remains enforced in SQL without loading all active store IDs into application memory.
 - Unit tests assert the EXISTS predicate for the regular and ranked buyer query paths.
-
 
 ### 21 November 2026 — G-001 merchant read-surface acceptance expansion
 
@@ -86,7 +82,6 @@ Append newest first. Include date, branch/commit, concise changes, test commands
 - This is a test-only acceptance increment. It does not close G-001; exact-head CI, remaining tenant/store lifecycle evidence and independent security review are still required.
 - No shared database, staging, deployment, environment or worker action was performed.
 
-
 ### 21 November 2026 — G-001 missing-organization and membership-denial coverage
 
 - Added controller tests denying foreign-organization offer-list access before service queries.
@@ -94,13 +89,11 @@ Append newest first. Include date, branch/commit, concise changes, test commands
 - The test increment is not yet CI-verified. G-001 remains PARTIAL pending exact-head CI, remaining lifecycle acceptance and independent security review.
 - No shared database, staging, deployment, environment, grant, RLS or worker changes were made.
 
-
 ### 21 November 2026 — G-001 store lifecycle acceptance
 
 - Added a controller regression test confirming an active store member can continue merchant offer management while the store remains DRAFT.
 - This complements the buyer-facing ACTIVE-store visibility predicate; no unrecorded policy for SUSPENDED stores was assumed.
 - Exact-head API CI remains pending. G-001 remains PARTIAL.
-
 
 ### 21 November 2026 — G-001 PostgreSQL buyer visibility regression
 
@@ -108,13 +101,11 @@ Append newest first. Include date, branch/commit, concise changes, test commands
 - Added a PostgreSQL test that sets one store to DRAFT and verifies its offers disappear from both buyer list and ranked queries while the other ACTIVE store remains visible; store status is restored in a `finally` block.
 - Exact-head API and PostgreSQL CI verification remains pending. No shared database or staging data was touched; this test uses the disposable integration database.
 
-
 ### 21 November 2026 — G-001 PostgreSQL offer-detail confidentiality and revocation
 
 - Added disposable-PostgreSQL service tests proving foreign-organization merchants and same-organization non-members receive the same not-found response for offer detail.
 - Added an inactive-membership scenario that denies merchant offer detail and restores the membership to ACTIVE in `finally`.
 - Exact-head API/PostgreSQL CI remains pending; no shared database or staging state was touched.
-
 
 ### 21 November 2026 — G-001 PostgreSQL merchant-staff acceptance
 
