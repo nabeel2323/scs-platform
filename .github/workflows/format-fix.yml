@@ -1,0 +1,415 @@
+name: One-time G-001 confidentiality remediation
+
+on:
+  push:
+    paths:
+      - ".github/workflows/format-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  implement-test-document:
+    if: github.ref == 'refs/heads/remediation/phase-0-1-tenant-security'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: remediation/phase-0-1-tenant-security
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply G-001 confidentiality fix, tests and tracker updates
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, expected=1):
+              p = Path(path)
+              content = p.read_text()
+              count = content.count(old)
+              if count != expected:
+                  raise SystemExit(f"{path}: expected {expected} matches, found {count}: {old[:80]!r}")
+              p.write_text(content.replace(old, new))
+
+          service = "apps/api/src/modules/catalog/catalog.offer.service.ts"
+          replace(service, "  NotFoundException,\n  ConflictException,", "  NotFoundException,\n  ForbiddenException,\n  ConflictException,")
+          replace(service,
+          """  async getOffer(id: string) {
+              const offer = await this.getOrThrow(id);
+              return offer;
+            }
+          """,
+          """  async getOffer(id: string) {
+              const offer = await this.getOrThrow(id);
+              return offer;
+            }
+
+            /**
+             * Resolve merchant scope before loading full offer detail. Unknown,
+             * foreign-organization and non-member offer IDs share one 404 response
+             * so callers cannot enumerate another tenant's offers.
+             */
+            async getOfferForMerchant(id: string, caller: CallerContext) {
+              const scope = await this.db.db.query.merchantOffers.findFirst({
+                where: eq(merchantOffers.id, id),
+                columns: { storeId: true },
+              });
+              if (!scope) throw new NotFoundException('Offer not found');
+
+              try {
+                await assertStoreInOrg(this.db, caller, scope.storeId);
+                await assertStoreMember(this.db, caller, scope.storeId);
+              } catch (error) {
+                if (error instanceof ForbiddenException) {
+                  throw new NotFoundException('Offer not found');
+                }
+                throw error;
+              }
+
+              return this.getOffer(id);
+            }
+          """)
+          replace(service,
+          """    const offer = await this.getOrThrow(id);
+              await assertStoreInOrg(this.db, caller, offer.storeId);
+              await assertStoreMember(this.db, caller, offer.storeId);""",
+          """    const offer = await this.getOfferForMerchant(id, caller);""", 3)
+
+          controller = "apps/api/src/modules/catalog/catalog.offer.controller.ts"
+          replace(controller,
+          """    this.assertMerchantPrincipal(caller);
+              const offer = await this.offerService.getOffer(id);
+
+              // The generic detail route is used by merchant offer detail screens, not buyer PDPs.
+              await assertStoreInOrg(this.db, caller, offer.storeId);
+              await assertStoreMember(this.db, caller, offer.storeId);
+              return offer;""",
+          """    this.assertMerchantPrincipal(caller);
+              return this.offerService.getOfferForMerchant(id, caller);""")
+
+          controller_test = "apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts"
+          replace(controller_test, "import { ForbiddenException } from '@nestjs/common';", "import { ForbiddenException, NotFoundException } from '@nestjs/common';")
+          replace(controller_test,
+          "function makeController(opts: { orgId?: string | null; member?: boolean } = {}) {",
+          "function makeController(opts: { orgId?: string | null; member?: boolean; offerAccessDenied?: boolean } = {}) {")
+          replace(controller_test,
+          "    getOffer: vi.fn().mockResolvedValue({ id: 'offer-1', storeId: 'store-1' }),",
+          """    getOffer: vi.fn().mockResolvedValue({ id: 'offer-1', storeId: 'store-1' }),
+              getOfferForMerchant: vi.fn().mockImplementation(async () => {
+                if (opts.offerAccessDenied) throw new NotFoundException('Offer not found');
+                return { id: 'offer-1', storeId: 'store-1' };
+              }),""")
+          replace(controller_test,
+          """    expect(offerService.getOffer).not.toHaveBeenCalled();
+  });
+});
+
+describe('CatalogOfferController — merchant offer tenant authorization (G-001)', () => {""",
+          """    expect(offerService.getOffer).not.toHaveBeenCalled();
+    expect(offerService.getOfferForMerchant).not.toHaveBeenCalled();
+  });
+});
+
+describe('CatalogOfferController — merchant offer tenant authorization (G-001)', () => {""")
+          old_detail = """describe('CatalogOfferController — offer detail object authorization (G-001)', () => {
+            it('allows an active member of the owning store to read offer detail', async () => {
+              const { controller, offerService } = makeController();
+              await expect(controller.getOffer(merchant, 'offer-1')).resolves.toMatchObject({
+                id: 'offer-1',
+              });
+              expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
+            });
+
+            it('denies a same-organization non-member from reading offer detail', async () => {
+              const { controller, offerService } = makeController({ member: false });
+              await expect(controller.getOffer(merchant, 'offer-1')).rejects.toBeInstanceOf(
+                ForbiddenException,
+              );
+              expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
+            });
+
+            it('denies a foreign-organization merchant from reading offer detail', async () => {
+              const { controller, offerService } = makeController({ orgId: 'org-2' });
+              await expect(controller.getOffer(merchant, 'offer-1')).rejects.toBeInstanceOf(
+                ForbiddenException,
+              );
+              expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
+            });
+
+            it('fails closed when the merchant has no active organization', async () => {
+              const noActiveOrg = { ...merchant, activeOrg: null } as JwtPayload;
+              const { controller, offerService } = makeController();
+              await expect(controller.getOffer(noActiveOrg, 'offer-1')).rejects.toBeInstanceOf(
+                ForbiddenException,
+              );
+              expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
+            });
+
+            it('denies an admin-role caller without offer governance permission', async () => {
+              const adminWithoutPermission = {
+                ...merchant,
+                role: 'ADMIN',
+                perms: [],
+              } as JwtPayload;
+              const { controller, offerService } = makeController();
+              await expect(controller.getOffer(adminWithoutPermission, 'offer-1')).rejects.toBeInstanceOf(
+                ForbiddenException,
+              );
+              expect(offerService.getOffer).not.toHaveBeenCalled();
+            });
+
+            it('allows a privileged admin with offer governance permission', async () => {
+              const admin = {
+                ...merchant,
+                role: 'ADMIN',
+                perms: ['catalog:offers:govern'],
+              } as JwtPayload;
+              const { controller } = makeController();
+              await expect(controller.getOffer(admin, 'offer-1')).resolves.toMatchObject({
+                id: 'offer-1',
+              });
+            });
+          });"""
+          new_detail = """describe('CatalogOfferController — offer detail object authorization (G-001)', () => {
+            it('delegates merchant detail reads to the scope-first service boundary', async () => {
+              const { controller, offerService } = makeController();
+              await expect(controller.getOffer(merchant, 'offer-1')).resolves.toMatchObject({
+                id: 'offer-1',
+              });
+              expect(offerService.getOfferForMerchant).toHaveBeenCalledWith(
+                'offer-1',
+                expect.objectContaining({ sub: merchant.sub, activeOrg: merchant.activeOrg }),
+              );
+              expect(offerService.getOffer).not.toHaveBeenCalled();
+            });
+
+            it('returns not found for a same-organization non-member', async () => {
+              const { controller, offerService } = makeController({
+                member: false,
+                offerAccessDenied: true,
+              });
+              await expect(controller.getOffer(merchant, 'offer-1')).rejects.toBeInstanceOf(
+                NotFoundException,
+              );
+              expect(offerService.getOfferForMerchant).toHaveBeenCalled();
+              expect(offerService.getOffer).not.toHaveBeenCalled();
+            });
+
+            it('returns not found for a foreign-organization merchant', async () => {
+              const { controller, offerService } = makeController({
+                orgId: 'org-2',
+                offerAccessDenied: true,
+              });
+              await expect(controller.getOffer(merchant, 'offer-1')).rejects.toBeInstanceOf(
+                NotFoundException,
+              );
+              expect(offerService.getOfferForMerchant).toHaveBeenCalled();
+              expect(offerService.getOffer).not.toHaveBeenCalled();
+            });
+
+            it('returns not found when the merchant has no active organization', async () => {
+              const noActiveOrg = { ...merchant, activeOrg: null } as JwtPayload;
+              const { controller, offerService } = makeController({ offerAccessDenied: true });
+              await expect(controller.getOffer(noActiveOrg, 'offer-1')).rejects.toBeInstanceOf(
+                NotFoundException,
+              );
+              expect(offerService.getOfferForMerchant).toHaveBeenCalled();
+              expect(offerService.getOffer).not.toHaveBeenCalled();
+            });
+
+            it('denies an admin-role caller without governance permission before lookup', async () => {
+              const adminWithoutPermission = {
+                ...merchant,
+                role: 'ADMIN',
+                perms: [],
+              } as JwtPayload;
+              const { controller, offerService } = makeController();
+              await expect(controller.getOffer(adminWithoutPermission, 'offer-1')).rejects.toBeInstanceOf(
+                ForbiddenException,
+              );
+              expect(offerService.getOffer).not.toHaveBeenCalled();
+              expect(offerService.getOfferForMerchant).not.toHaveBeenCalled();
+            });
+
+            it('allows a privileged admin with governance permission through the admin read', async () => {
+              const admin = {
+                ...merchant,
+                role: 'ADMIN',
+                perms: ['catalog:offers:govern'],
+              } as JwtPayload;
+              const { controller, offerService } = makeController();
+              await expect(controller.getOffer(admin, 'offer-1')).resolves.toMatchObject({
+                id: 'offer-1',
+              });
+              expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
+              expect(offerService.getOfferForMerchant).not.toHaveBeenCalled();
+            });
+          });"""
+          replace(controller_test, old_detail, new_detail)
+
+          service_test = "apps/api/src/__tests__/unit/catalog/catalog-offer.spec.ts"
+          replace(service_test, "  findManyCalls: unknown[];\n}", "  findManyCalls: unknown[];\n  merchantOfferFindFirstCalls: unknown[];\n}")
+          replace(service_test, "  const findManyCalls: unknown[] = [];", "  const findManyCalls: unknown[] = [];\n  const merchantOfferFindFirstCalls: unknown[] = [];")
+          replace(service_test,
+          "  const firstFn = (spec?: Row | Array<Row | null> | null) => {",
+          "  const firstFn = (spec?: Row | Array<Row | null> | null, calls?: unknown[]) => {")
+          replace(service_test,
+          """      return async () => spec[Math.min(i++, spec.length - 1)] ?? null;
+            }
+            return async () => (spec as Row | undefined | null) ?? null;""",
+          """      return async (config?: unknown) => {
+                calls?.push(config);
+                return spec[Math.min(i++, spec.length - 1)] ?? null;
+              };
+            }
+            return async (config?: unknown) => {
+              calls?.push(config);
+              return (spec as Row | undefined | null) ?? null;
+            };""")
+          replace(service_test,
+          "  const q = (cfg?: QueryConfig) => ({\n    findFirst: firstFn(cfg?.findFirst),",
+          "  const q = (cfg?: QueryConfig, calls?: unknown[]) => ({\n    findFirst: firstFn(cfg?.findFirst, calls),")
+          replace(service_test, "        merchantOffers: q(queries.merchantOffers),", "        merchantOffers: q(queries.merchantOffers, merchantOfferFindFirstCalls),")
+          replace(service_test, "  return { svc, inserted, updated, auditRecords, findManyCalls };", "  return { svc, inserted, updated, auditRecords, findManyCalls, merchantOfferFindFirstCalls };")
+          replace(service_test,
+          "describe('CatalogOfferService — merchant mutation tenant authorization (G-001)', () => {",
+          """describe('CatalogOfferService — merchant offer existence confidentiality (G-001)', () => {
+            it('returns not found for a foreign-organization offer before loading full detail', async () => {
+              const { svc, merchantOfferFindFirstCalls } = makeHarness({
+                merchantOffers: { findFirst: { id: 'o1', storeId: 's2' } },
+                stores: { findFirst: { orgId: 'org-2' } },
+              });
+              await expect(svc.getOfferForMerchant('o1', caller)).rejects.toBeInstanceOf(
+                NotFoundException,
+              );
+              expect(merchantOfferFindFirstCalls).toHaveLength(1);
+            });
+
+            it('returns the same not-found response for a same-organization non-member', async () => {
+              const { svc, merchantOfferFindFirstCalls } = makeHarness({
+                merchantOffers: { findFirst: { id: 'o1', storeId: 's1' } },
+                stores: { findFirst: { orgId: 'org-1' } },
+                storeMembers: { findFirst: null },
+              });
+              await expect(svc.getOfferForMerchant('o1', caller)).rejects.toBeInstanceOf(
+                NotFoundException,
+              );
+              expect(merchantOfferFindFirstCalls).toHaveLength(1);
+            });
+
+            it('loads full offer detail only after active organization and membership checks', async () => {
+              const offer = { id: 'o1', storeId: 's1', status: 'DRAFT' };
+              const { svc, merchantOfferFindFirstCalls } = makeHarness({
+                merchantOffers: { findFirst: [{ storeId: 's1' }, offer] },
+                stores: { findFirst: { orgId: 'org-1' } },
+                storeMembers: { findFirst: { id: 'membership-1' } },
+              });
+              await expect(svc.getOfferForMerchant('o1', caller)).resolves.toMatchObject({
+                id: 'o1',
+              });
+              expect(merchantOfferFindFirstCalls).toHaveLength(2);
+            });
+          });
+
+          describe('CatalogOfferService — merchant mutation tenant authorization (G-001)', () => {""")
+          replace(service_test,
+          "merchantOffers: { findFirst: [offer, { ...offer, status: 'WITHDRAWN' }] },",
+          "merchantOffers: { findFirst: [offer, offer, { ...offer, status: 'WITHDRAWN' }] },")
+          replace(service_test,
+          """          { id: 'o1', storeId: 's1', status: 'DRAFT' },
+                    { id: 'o1', storeId: 's1', status: 'DRAFT' },""",
+          """          { id: 'o1', storeId: 's1', status: 'DRAFT' },
+                    { id: 'o1', storeId: 's1', status: 'DRAFT' },
+                    { id: 'o1', storeId: 's1', status: 'DRAFT' },""")
+          replace(service_test, "merchantOffers: { findFirst: [offer, offer] },", "merchantOffers: { findFirst: [offer, offer, offer] },")
+          replace(service_test,
+          "merchantOffers: { findFirst: [offer, { ...offer, status: 'PROPOSED' }] },",
+          "merchantOffers: { findFirst: [offer, offer, { ...offer, status: 'PROPOSED' }] },")
+          replace(service_test,
+          "rejects.toThrow('not authorized for this store')",
+          "rejects.toBeInstanceOf(NotFoundException)", 3)
+          replace(service_test,
+          """    await expect(svc.withdrawOffer('o1', caller)).rejects.toThrow(
+                'You do not have access to this store',
+              );""",
+          """    await expect(svc.withdrawOffer('o1', caller)).rejects.toBeInstanceOf(NotFoundException);""")
+          replace(service_test,
+          """    await expect(svc.proposeOffer('o1', caller)).rejects.toThrow(
+                'You do not have access to this store',
+              );""",
+          """    await expect(svc.proposeOffer('o1', caller)).rejects.toBeInstanceOf(NotFoundException);""")
+          replace(service_test,
+          """    await expect(svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller)).rejects.toThrow(
+                'You do not have access to this store',
+              );""",
+          """    await expect(svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller)).rejects.toBeInstanceOf(NotFoundException);""")
+
+          progress = Path("docs/remediation/IMPLEMENTATION-PROGRESS.md")
+          progress.write_text(progress.read_text() + """
+          
+          ### G-001 offer existence confidentiality hardening — 21 November 2026
+          
+          - Added a scope-first merchant offer service boundary: owning-organization and ACTIVE store-membership checks occur before full offer detail is loaded.
+          - Unknown, foreign-organization and same-organization non-member offer identifiers now share the same 404 response on merchant detail, proposal, pricing-update and withdrawal paths.
+          - Added service/controller regression coverage for 404 parity, lookup ordering, active-member access and separation of permission-gated governance reads.
+          - Focused API unit tests and exact-head CI are required before this increment is considered verified. G-001 remains PARTIAL pending the complete acceptance matrix and independent security review.
+          """)
+          plan = Path("docs/remediation/IMPLEMENTATION-PLAN.md")
+          plan.write_text(plan.read_text() + """
+          
+          ## G-001 offer existence confidentiality follow-up — 21 November 2026
+          
+          Merchant offer detail and mutation paths now share a scope-first service boundary. The service resolves the offer's store scope, verifies active-organization ownership and ACTIVE store membership, and only then loads full offer detail. Unknown, foreign-organization and same-organization non-member identifiers return the same 404 response. Governance reads remain on the separate permission-gated admin path. Focused regression coverage and exact-head CI are required before treating this increment as verified; G-001 remains PARTIAL pending the complete acceptance matrix and independent security review.
+          """)
+          worklog = Path("project-memory/WORK-LOG.md")
+          worklog.write_text(worklog.read_text() + """
+          
+          ## 21 November 2026 — G-001 offer existence confidentiality
+          
+          - Added a scope-first merchant offer service boundary: organization ownership and ACTIVE store membership are checked before full offer detail is loaded.
+          - Unknown, foreign-organization and same-organization non-member offer identifiers now share a 404 response on merchant detail, proposal, pricing-update and withdrawal paths. Governance reads remain permission-gated and separate.
+          - Added service/controller regression coverage for 404 parity, lookup ordering, active-member access and governance separation. Focused tests and exact-head CI must pass before this increment is marked CI verified.
+          """)
+          open_issues = Path("project-memory/OPEN-ISSUES.md")
+          replace(str(open_issues),
+          "- Correct current formatting failures and obtain a fresh exact-head CI result.",
+          "- Verify the latest scope-first offer confidentiality changes with focused tests and exact-head CI.")
+          roadmap = Path("project-memory/IMPLEMENTATION-ROADMAP.md")
+          replace(str(roadmap),
+          "- Fresh exact-head CI after the current Prettier correction.",
+          "- Exact-head CI for the scope-first offer confidentiality hardening.")
+          start = Path("project-memory/START-HERE.md")
+          replace(str(start),
+          "See [CURRENT-STATE.md](./CURRENT-STATE.md). At this checkpoint, PR #138 is open and draft; G-001 is PARTIAL; G-002 is IN PROGRESS; CI #1176 failed the changed-file Prettier gate and did not execute downstream API/integration/build jobs. The immediate task is to complete the grouped formatting and handover update, then obtain a fresh exact-head CI result.",
+          "See [CURRENT-STATE.md](./CURRENT-STATE.md) for the live branch and CI checkpoint. PR #138 remains open and draft; G-001 remains PARTIAL; G-002 remains IN PROGRESS. The current implementation task is G-001 scope-first offer confidentiality hardening, followed by exact-head CI and completion of the tenant/role acceptance evidence.")
+          PY
+      - name: Format all changed files with repository-locked Prettier
+        run: >-
+          pnpm exec prettier --write
+          apps/api/src/modules/catalog/catalog.offer.service.ts
+          apps/api/src/modules/catalog/catalog.offer.controller.ts
+          apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts
+          apps/api/src/__tests__/unit/catalog/catalog-offer.spec.ts
+          docs/remediation/IMPLEMENTATION-PLAN.md
+          docs/remediation/IMPLEMENTATION-PROGRESS.md
+          project-memory/*.md
+      - name: Run focused G-001 API unit tests
+        run: >-
+          pnpm --filter @scs/api exec vitest run
+          src/__tests__/unit/catalog/catalog-offer-controller.spec.ts
+          src/__tests__/unit/catalog/catalog-offer.spec.ts
+      - name: Remove temporary workflow and commit cohesive implementation
+        run: |
+          rm .github/workflows/format-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api/src/modules/catalog/catalog.offer.service.ts apps/api/src/modules/catalog/catalog.offer.controller.ts apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts apps/api/src/__tests__/unit/catalog/catalog-offer.spec.ts docs/remediation/IMPLEMENTATION-PLAN.md docs/remediation/IMPLEMENTATION-PROGRESS.md project-memory/*.md .github/workflows/format-fix.yml
+          git commit -m "fix(security): prevent merchant offer existence disclosure"
+          git push origin HEAD:remediation/phase-0-1-tenant-security
