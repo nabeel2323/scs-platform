@@ -71,10 +71,6 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
     };
   };
 
-  const storeMemberFindFirst = firstFn(
-    queries.storeMembers === undefined ? { id: 'membership-1' } : queries.storeMembers.findFirst,
-  );
-
   const q = (cfg?: QueryConfig, calls?: unknown[]) => ({
     findFirst: firstFn(cfg?.findFirst, calls),
     findMany: async (config?: unknown) => {
@@ -85,28 +81,6 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
 
   const db = {
     db: {
-      select: (selection?: unknown) => ({
-        from: () => ({
-          where: (condition?: unknown) => {
-            if (selection !== undefined) {
-              return {
-                getSQL: () => sql`SELECT id FROM stores WHERE ${condition}`,
-                limit: async () => {
-                  const membership = await storeMemberFindFirst();
-                  return membership ? [membership] : [];
-                },
-                groupBy: async () => [],
-              };
-            }
-            return {
-              limit: async () => {
-                const membership = await storeMemberFindFirst();
-                return membership ? [membership] : [];
-              },
-            };
-          },
-        }),
-      }),
       query: {
         merchantOffers: q(queries.merchantOffers, merchantOfferFindFirstCalls),
         products: q(queries.products),
@@ -281,7 +255,7 @@ describe('CatalogOfferService — buyer product offer visibility (G-001)', () =>
     expect(findManyCalls).toHaveLength(1);
     const query = findManyCalls[0] as { where?: unknown };
     const compiled = new PgDialect().sqlToQuery(query.where as SQL);
-    expect(compiled.sql.toLowerCase()).toContain('exists');
+    expect(compiled.sql.toLowerCase()).toContain(' in ');
     expect(compiled.sql).toContain('stores');
     expect(compiled.params).toContain('ACTIVE');
     expect(compiled.params).toContain(true);
