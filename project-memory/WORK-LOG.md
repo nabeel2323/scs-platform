@@ -188,3 +188,7 @@ CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and lint/t
 - Updated the project-memory checkpoint, open issues, roadmap, CI record, authoritative progress tracker and independent-review packet to distinguish implementation, CI verification and independent review.
 - G-001 remains PARTIAL pending a reviewer other than the implementation author. G-002 remains IN PROGRESS; the actual staging API/migration identities and protected read-only staging audit remain unverified.
 - No shared database mutation, grants/default ACL change, migration 0070, RLS enablement, staging deployment/write, environment change or worker activation was performed.
+
+## 21 November 2026 — documentation formatting workflow
+
+A temporary repository-locked Prettier workflow was added to format the synchronized G-001 CI verification handover. The workflow is self-removing and will not remain in the branch after formatting.
