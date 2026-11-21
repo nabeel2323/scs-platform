@@ -14,21 +14,21 @@
 - Conclusion: **FAILURE**
 - Failure point: changed-file Prettier gate in the Lint & Typecheck job.
 
-| Job | Result | Evidence / interpretation |
-| --- | --- | --- |
-| ESLint | PASS | 0 errors; 311 warnings. |
-| TypeScript typecheck | PASS | Completed successfully. |
-| Changed-file Prettier | FAIL | Flagged project-memory/RELEASE-AND-CI-STATUS.md and project-memory/WORK-LOG.md. |
-| Mobile (Flutter analysis/tests) | PASS | Completed successfully. |
-| API unit tests + coverage | SKIPPED | Upstream lint/format gate failed. |
-| PostgreSQL integration | SKIPPED | Upstream lint/format gate failed. |
-| Migration full apply | SKIPPED | Upstream lint/format gate failed. |
-| Web & Admin tests | SKIPPED | Upstream lint/format gate failed. |
-| Boundary lint | SKIPPED | Upstream lint/format gate failed. |
-| Build / container smoke | SKIPPED | Upstream dependency failed/skipped. |
-| Contract spec & codegen | SKIPPED | Upstream dependency failed/skipped. |
-| Staging release | SKIPPED | No staging release executed. |
-| k6 smoke | SKIPPED | No performance verification executed. |
+| Job                             | Result  | Evidence / interpretation                                                       |
+| ------------------------------- | ------- | ------------------------------------------------------------------------------- |
+| ESLint                          | PASS    | 0 errors; 311 warnings.                                                         |
+| TypeScript typecheck            | PASS    | Completed successfully.                                                         |
+| Changed-file Prettier           | FAIL    | Flagged project-memory/RELEASE-AND-CI-STATUS.md and project-memory/WORK-LOG.md. |
+| Mobile (Flutter analysis/tests) | PASS    | Completed successfully.                                                         |
+| API unit tests + coverage       | SKIPPED | Upstream lint/format gate failed.                                               |
+| PostgreSQL integration          | SKIPPED | Upstream lint/format gate failed.                                               |
+| Migration full apply            | SKIPPED | Upstream lint/format gate failed.                                               |
+| Web & Admin tests               | SKIPPED | Upstream lint/format gate failed.                                               |
+| Boundary lint                   | SKIPPED | Upstream lint/format gate failed.                                               |
+| Build / container smoke         | SKIPPED | Upstream dependency failed/skipped.                                             |
+| Contract spec & codegen         | SKIPPED | Upstream dependency failed/skipped.                                             |
+| Staging release                 | SKIPPED | No staging release executed.                                                    |
+| k6 smoke                        | SKIPPED | No performance verification executed.                                           |
 
 ## Formatter and subsequent checkpoint runs
 
@@ -100,7 +100,6 @@ For every run, record:
 - CI #1182 is associated with the pre-format helper commit; CI #1183 on the cleanup commit returned action_required with no jobs. Neither is a passing verification result.
 - A new app-authored checkpoint commit is being created to trigger full CI on the formatted tree. Inspect that run's exact SHA and all jobs.
 
-
 ## Live branch verification — 21 November 2026
 
 - The G-001 controller acceptance expansion is committed in `0d00dbac10b4c7de53aef4bbf860850668cf39fd`; the remediation tracker and project-memory work log were updated in subsequent commits.
@@ -110,7 +109,6 @@ For every run, record:
 - No staging release, k6 run, database mutation, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment was performed.
 - PR #138 remains open and draft. G-001 remains PARTIAL; G-002 remains IN PROGRESS.
 
-
 ## Latest exact-head check — 21 November 2026
 
 - Inspected branch head: `ae2d3ea97a16b7ebb916e390dbf6433733c31438`.
@@ -119,14 +117,12 @@ For every run, record:
 - GitHub Actions exact-head verification remains pending. No k6, staging release, database mutation, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment was performed.
 - PR #138 remains open and draft; G-001 remains PARTIAL and G-002 remains IN PROGRESS.
 
-
 ## G-001 continuation status — 21 November 2026
 
 - Current inspected source/test branch head before this status refresh: `e814f871b2b027c5c44ff614dfcac66eaa06c56e`.
 - Controller regression coverage expanded for foreign-organization offer-list denial, missing active organization, revoked/inactive membership on analytics, and DRAFT-store merchant management.
 - Exact-head GitHub Actions verification is still pending. The previously inspected Vercel web/admin statuses were build-rate-limit provider failures, not application test results.
 - No SUSPENDED-store policy was inferred. No staging release, k6, database mutation, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment was performed.
-
 
 ## PostgreSQL buyer-visibility regression — 21 November 2026
 
@@ -135,13 +131,11 @@ For every run, record:
 - Latest inspected commit before this status refresh: `05fe9c6ecb9590586d9117af6d6ce547dd7e29b6`.
 - Exact-head GitHub Actions run and API/PostgreSQL job results are pending. No shared database or staging mutation was performed.
 
-
 ## Latest G-001 PostgreSQL security tests — 21 November 2026
 
 - Catalog lifecycle integration now covers DRAFT-store exclusion from buyer offer list/ranked results, same-404 confidentiality for foreign merchant and same-organization non-member detail reads, and denial after membership is marked INACTIVE (fixture restored in `finally`).
 - Latest inspected branch commit before this status refresh: `bf8feed6ebf0064bbf95b0a80910b002988d18ad`.
 - Exact-head GitHub Actions/API/PostgreSQL results remain pending. No shared database or staging mutation was performed.
-
 
 ## Merchant-staff PostgreSQL acceptance — 21 November 2026
 
