@@ -221,19 +221,22 @@ export class CatalogOfferService {
    * offers are public commerce data; draft/proposed/rejected/withdrawn offers
    * and unavailable inventory must remain inside merchant/admin workflows.
    */
-  async listOffersForProduct(productId: string) {
-    const activeStores = await this.db.db.query.stores.findMany({
-      where: eq(stores.status, 'ACTIVE'),
-      columns: { id: true },
-    });
-    if (activeStores.length === 0) return [];
+  private activeStoreVisibilityPredicate() {
+    return sql`EXISTS (
+      SELECT 1
+      FROM ${stores}
+      WHERE ${stores.id} = ${merchantOffers.storeId}
+        AND ${stores.status} = ${'ACTIVE'}
+    )`;
+  }
 
+  async listOffersForProduct(productId: string) {
     return this.db.db.query.merchantOffers.findMany({
       where: and(
         eq(merchantOffers.productId, productId),
         eq(merchantOffers.status, 'ACTIVE'),
         eq(merchantOffers.isAvailable, true),
-        inArray(merchantOffers.storeId, activeStores.map((store) => store.id)),
+        this.activeStoreVisibilityPredicate(),
       ),
       orderBy: [asc(merchantOffers.createdAt)],
     });
@@ -256,18 +259,12 @@ export class CatalogOfferService {
    *   so the seller set matches what the buyer sees on the canonical PDP.
    */
   async listOffersForProductRanked(productId: string) {
-    const activeStores = await this.db.db.query.stores.findMany({
-      where: eq(stores.status, 'ACTIVE'),
-      columns: { id: true },
-    });
-    if (activeStores.length === 0) return [];
-
     const offers = await this.db.db.query.merchantOffers.findMany({
       where: and(
         eq(merchantOffers.productId, productId),
         eq(merchantOffers.status, 'ACTIVE'),
         eq(merchantOffers.isAvailable, true),
-        inArray(merchantOffers.storeId, activeStores.map((store) => store.id)),
+        this.activeStoreVisibilityPredicate(),
       ),
       columns: {
         id: true,
