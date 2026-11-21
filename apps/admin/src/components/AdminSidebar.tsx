@@ -12,40 +12,55 @@ import {
   IconSettings, IconFilter, IconStar, IconActivity, IconUpload,
 } from '@scs/ui-kit';
 
-/** Navigation items with SVG icons and permission requirements. */
-const navItems: { href: string; label: string; icon: React.ReactNode; perms: string[] }[] = [
-  { href: '/', label: 'Dashboard', icon: <IconHome size={18} />, perms: [] },
-  { href: '/users', label: 'Users', icon: <IconUsers size={18} />, perms: ['admin:users:read'] },
-  { href: '/roles', label: 'Roles', icon: <IconShield size={18} />, perms: ['admin:users:read'] },
-  { href: '/orders', label: 'Orders', icon: <IconPackage size={18} />, perms: ['admin:orders:read'] },
-  { href: '/shipments', label: 'Ship Operations', icon: <IconBox size={18} />, perms: ['fulfillment:shipments:read'] },
-  { href: '/carrier', label: 'Carrier & Recovery', icon: <IconSettings size={18} />, perms: ['admin:carrier:read'] },
-  { href: '/merchants', label: 'Merchants', icon: <IconStore size={18} />, perms: ['admin:merchants:read'] },
-  { href: '/organizations', label: 'Organizations', icon: <IconBuilding size={18} />, perms: ['admin:users:read'] },
-  { href: '/verification', label: 'Verification', icon: <IconShield size={18} />, perms: ['merchant:verification:review'] },
-  { href: '/categories', label: 'Categories', icon: <IconFolder size={18} />, perms: ['catalog:categories:write'] },
-  { href: '/brands', label: 'Brands', icon: <IconTag size={18} />, perms: ['catalog:brands:manage'] },
-  { href: '/attributes', label: 'Attributes', icon: <IconSettings size={18} />, perms: ['catalog:attributes:manage'] },
-  { href: '/attribute-groups', label: 'Attr. Groups', icon: <IconFilter size={18} />, perms: ['catalog:attributes:manage'] },
-  { href: '/product-types', label: 'Product Types', icon: <IconStar size={18} />, perms: ['catalog:product-types:manage'] },
-  { href: '/disputes', label: 'Disputes', icon: <IconScale size={18} />, perms: ['support:disputes:resolve'] },
-  { href: '/payments', label: 'Payments', icon: <IconShield size={18} />, perms: ['admin:payments:read'] },
-  { href: '/settlements', label: 'Settlements', icon: <IconBarChart size={18} />, perms: ['admin:settlements:read'] },
-  { href: '/returns', label: 'Returns', icon: <IconPackage size={18} />, perms: ['admin:returns:read'] },
-  { href: '/commission', label: 'Commission', icon: <IconBarChart size={18} />, perms: ['admin:commission:read'] },
-  { href: '/settlement-adjustments', label: 'Adjustments', icon: <IconClipboard size={18} />, perms: ['admin:adjustments:read'] },
-  { href: '/reconciliation', label: 'Reconciliation', icon: <IconActivity size={18} />, perms: ['admin:reconciliation:read'] },
-  { href: '/products', label: 'Products', icon: <IconBox size={18} />, perms: ['admin:merchants:read'] },
-  { href: '/offers', label: 'Offers', icon: <IconBox size={18} />, perms: ['catalog:offers:govern'] },
-  { href: '/requests', label: 'Requests', icon: <IconClipboard size={18} />, perms: ['catalog:categories:write'] },
-  { href: '/data-quality', label: 'Data Quality', icon: <IconActivity size={18} />, perms: ['catalog:product-types:manage'] },
-  { href: '/catalog-import', label: 'Import Center', icon: <IconUpload size={18} />, perms: ['catalog:imports:manage'] },
-  { href: '/offers-kpis', label: 'Offer KPIs', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
-  { href: '/offers-trend', label: 'Offer Trend', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
-  { href: '/kpis', label: 'KPIs', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
-  { href: '/analytics', label: 'Analytics', icon: <IconActivity size={18} />, perms: ['analytics:read'] },
-  { href: '/audit', label: 'Audit Log', icon: <IconClipboard size={18} />, perms: ['admin:audit:read'] },
-  { href: '/account', label: 'Account Security', icon: <IconLock size={18} />, perms: [] },
+/** Navigation grouped by the operational domain while preserving each route's permission contract. */
+type NavItem = { href: string; label: string; icon: React.ReactNode; perms: string[] };
+const navGroups: { label: string; items: NavItem[] }[] = [
+  { label: 'Overview', items: [
+    { href: '/', label: 'Dashboard', icon: <IconHome size={18} />, perms: [] },
+  ] },
+  { label: 'Platform Management', items: [
+    { href: '/users', label: 'Users', icon: <IconUsers size={18} />, perms: ['admin:users:read'] },
+    { href: '/roles', label: 'Roles', icon: <IconShield size={18} />, perms: ['admin:users:read'] },
+    { href: '/merchants', label: 'Merchants', icon: <IconStore size={18} />, perms: ['admin:merchants:read'] },
+    { href: '/organizations', label: 'Organizations', icon: <IconBuilding size={18} />, perms: ['admin:users:read'] },
+    { href: '/verification', label: 'Verification', icon: <IconShield size={18} />, perms: ['merchant:verification:review'] },
+  ] },
+  { label: 'Orders & Fulfillment', items: [
+    { href: '/orders', label: 'Orders', icon: <IconPackage size={18} />, perms: ['admin:orders:read'] },
+    { href: '/shipments', label: 'Ship Operations', icon: <IconBox size={18} />, perms: ['fulfillment:shipments:read'] },
+    { href: '/carrier', label: 'Carrier & Recovery', icon: <IconSettings size={18} />, perms: ['admin:carrier:read'] },
+    { href: '/returns', label: 'Returns', icon: <IconPackage size={18} />, perms: ['admin:returns:read'] },
+  ] },
+  { label: 'Catalog', items: [
+    { href: '/categories', label: 'Categories', icon: <IconFolder size={18} />, perms: ['catalog:categories:write'] },
+    { href: '/brands', label: 'Brands', icon: <IconTag size={18} />, perms: ['catalog:brands:manage'] },
+    { href: '/attributes', label: 'Attributes', icon: <IconSettings size={18} />, perms: ['catalog:attributes:manage'] },
+    { href: '/attribute-groups', label: 'Attr. Groups', icon: <IconFilter size={18} />, perms: ['catalog:attributes:manage'] },
+    { href: '/product-types', label: 'Product Types', icon: <IconStar size={18} />, perms: ['catalog:product-types:manage'] },
+    { href: '/products', label: 'Products', icon: <IconBox size={18} />, perms: ['admin:merchants:read'] },
+    { href: '/offers', label: 'Offers', icon: <IconBox size={18} />, perms: ['catalog:offers:govern'] },
+    { href: '/requests', label: 'Requests', icon: <IconClipboard size={18} />, perms: ['catalog:requests:manage'] },
+    { href: '/data-quality', label: 'Data Quality', icon: <IconActivity size={18} />, perms: ['catalog:product-types:manage'] },
+    { href: '/catalog-import', label: 'Import Center', icon: <IconUpload size={18} />, perms: ['catalog:imports:manage'] },
+  ] },
+  { label: 'Finance', items: [
+    { href: '/payments', label: 'Payments', icon: <IconShield size={18} />, perms: ['admin:payments:read'] },
+    { href: '/settlements', label: 'Settlements', icon: <IconBarChart size={18} />, perms: ['admin:settlements:read'] },
+    { href: '/commission', label: 'Commission', icon: <IconBarChart size={18} />, perms: ['admin:commission:read'] },
+    { href: '/settlement-adjustments', label: 'Adjustments', icon: <IconClipboard size={18} />, perms: ['admin:adjustments:read'] },
+    { href: '/reconciliation', label: 'Reconciliation', icon: <IconActivity size={18} />, perms: ['admin:reconciliation:read'] },
+  ] },
+  { label: 'Analytics & Governance', items: [
+    { href: '/offers-kpis', label: 'Offer KPIs', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
+    { href: '/offers-trend', label: 'Offer Trend', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
+    { href: '/kpis', label: 'KPIs', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
+    { href: '/analytics', label: 'Analytics', icon: <IconActivity size={18} />, perms: ['analytics:read'] },
+    { href: '/audit', label: 'Audit Log', icon: <IconClipboard size={18} />, perms: ['admin:audit:read'] },
+    { href: '/disputes', label: 'Disputes', icon: <IconScale size={18} />, perms: ['support:disputes:resolve'] },
+  ] },
+  { label: 'Account', items: [
+    { href: '/account', label: 'Account Security', icon: <IconLock size={18} />, perms: [] },
+  ] },
 ];
 
 const SIDEBAR_WIDTH = 220;
@@ -109,38 +124,58 @@ export function AdminSidebar() {
 
       {/* Navigation */}
       <nav className="admin-sidebar-nav" aria-label="Main navigation" style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
-        {navItems
-          .filter((item) => {
+        {navGroups.map((group, groupIndex) => {
+          const visibleItems = group.items.filter((item) => {
             if (item.perms.length === 0) return true;
             const userPerms = user?.perms ?? [];
-            return item.perms.every((p) => userPerms.includes(p));
-          })
-          .map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="admin-sidebar-link"
-                data-active={isActive}
-                style={{
-                  padding: collapsed && !isMobile ? '10px 0' : '10px 20px',
-                  justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
-                  fontSize: 13,
-                  fontWeight: isActive ? 600 : 400,
-                  color: isActive ? '#fff' : 'rgba(255,255,255,0.65)',
-                }}
-              >
-                <span style={{ color: isActive ? '#fff' : 'rgba(255,255,255,0.55)', flexShrink: 0, display: 'flex' }}>
-                  {item.icon}
-                </span>
-                {(!collapsed || isMobile) && item.label}
-                {collapsed && !isMobile && (
-                  <span className="admin-sidebar-tooltip">{item.label}</span>
-                )}
-              </Link>
-            );
-          })}
+            return item.perms.every((permission) => userPerms.includes(permission));
+          });
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <div key={group.label} role="group" aria-label={group.label}>
+              {(!collapsed || isMobile) ? (
+                <div className="admin-sidebar-group-label">{group.label}</div>
+              ) : groupIndex > 0 ? (
+                <div className="admin-sidebar-group-divider" aria-hidden="true" />
+              ) : null}
+              {visibleItems.map((item) => {
+                const isActive =
+                  pathname === item.href ||
+                  (item.href !== '/' && pathname.startsWith(item.href));
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="admin-sidebar-link"
+                    data-active={isActive}
+                    style={{
+                      padding: collapsed && !isMobile ? '10px 0' : '10px 20px',
+                      justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
+                      fontSize: 13,
+                      fontWeight: isActive ? 600 : 400,
+                      color: isActive ? '#fff' : 'rgba(255,255,255,0.65)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: isActive ? '#fff' : 'rgba(255,255,255,0.55)',
+                        flexShrink: 0,
+                        display: 'flex',
+                      }}
+                    >
+                      {item.icon}
+                    </span>
+                    {(!collapsed || isMobile) && item.label}
+                    {collapsed && !isMobile && (
+                      <span className="admin-sidebar-tooltip">{item.label}</span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })}
       </nav>
 
       {/* Footer */}

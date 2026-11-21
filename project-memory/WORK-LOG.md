@@ -284,3 +284,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Fixed the Admin `/requests` page guard to `catalog:requests:manage`, matching `CatalogRequestsController`; previously it used `catalog:categories:write`. This closes a concrete route-to-endpoint permission mismatch.
 - Renumbered the broad whole-product UX inventory row as UX-010 to avoid collision with the new Admin order-operations UX-001 row.
 - Latest source commit `c61b06241025b7ed5207f8ada533be120faadbec` has no associated GitHub Actions run; combined status only shows Vercel build-rate-limit failures. Do not claim CI verification.
+
+
+## 22 November 2026 — Admin navigation grouping
+
+- Grouped the existing 32 Admin sidebar destinations into Overview, Platform Management, Orders & Fulfillment, Catalog, Finance, Analytics & Governance, and Account.
+- Preserved every existing route, label, icon, permission predicate, active-route rule, collapsed tooltip, responsive breakpoint, mobile overlay, footer identity and logout behavior. Group headings are shown in expanded mode and replaced with separators in collapsed mode.
+- Corrected the Requests sidebar permission to `catalog:requests:manage`, consistent with the page and API controller. Source inventory count is 32 destinations (not the earlier rough 33 estimate).
+- UX-004 is IMPLEMENTED, not Phase 3 verified. No backend, database, staging, worker, deployment or release changes.

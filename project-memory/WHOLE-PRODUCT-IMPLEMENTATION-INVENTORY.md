@@ -196,3 +196,8 @@ MAP-001 is complete only when:
 - Documentation links and acceptance criteria are maintained in the gap register.
 
 This document is a first static inventory checkpoint, not a claim that every route, operation or physical database relation has already been fully reconciled.
+
+
+## Admin navigation structure update — 22 November 2026
+
+The Admin sidebar has 32 destinations grouped by operational domain: Overview, Platform Management, Orders & Fulfillment, Catalog, Finance, Analytics & Governance, and Account. Grouping preserves all destinations, permission checks, active matching, collapsed tooltips and mobile overlay behavior. The Requests destination uses the endpoint's canonical `catalog:requests:manage` permission.
