@@ -81,7 +81,24 @@ describe('CatalogOfferController — merchant role acceptance (G-001)', () => {
       await expect(controller.listMerchantOffers(caller, 'store-1')).resolves.toEqual([
         { id: 'offer-1' },
       ]);
+      await expect(controller.listMerchantOfferAnalytics(caller, 'store-1')).resolves.toEqual([
+        { offerId: 'offer-1' },
+      ]);
+      await expect(controller.listMerchantOfferTrend(caller, 'store-1')).resolves.toEqual([
+        { bucket: '2026-11-20' },
+      ]);
+      await expect(controller.getOffer(caller, 'offer-1')).resolves.toMatchObject({
+        id: 'offer-1',
+      });
       expect(offerService.listOffersForStore).toHaveBeenCalledWith('store-1');
+      expect(offerService.listOfferAnalytics).toHaveBeenCalledWith('store-1');
+      expect(offerService.listOfferTrend).toHaveBeenCalledWith(
+        expect.objectContaining({ storeId: 'store-1' }),
+      );
+      expect(offerService.getOfferForMerchant).toHaveBeenCalledWith(
+        'offer-1',
+        expect.objectContaining({ sub: caller.sub, activeOrg: caller.activeOrg }),
+      );
     },
   );
 
@@ -132,6 +149,14 @@ describe('CatalogOfferController — merchant offer tenant authorization (G-001)
   it('applies the same membership check to analytics trends', async () => {
     const { controller, offerService } = makeController({ member: false });
     await expect(controller.listMerchantOfferTrend(merchant, 'store-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(offerService.listOfferTrend).not.toHaveBeenCalled();
+  });
+
+  it('denies foreign-organization access to merchant offer trends before querying data', async () => {
+    const { controller, offerService } = makeController({ orgId: 'org-2' });
+    await expect(controller.listMerchantOfferTrend(merchant, 'store-2')).rejects.toBeInstanceOf(
       ForbiddenException,
     );
     expect(offerService.listOfferTrend).not.toHaveBeenCalled();
@@ -403,7 +428,7 @@ describe('CatalogOfferController — privileged merchant-list policy (G-001)', (
     },
   );
 
-  it.each(['ADMIN', 'MODERATOR', 'SYSTEM', 'SUPER_ADMIN'])(
+  it.each(['ADMIN', 'MODERATOR', 'FINANCE', 'SYSTEM', 'SUPER_ADMIN'])(
     'denies %s from every privileged offer read without governance permission before object lookup',
     async (role) => {
       const privileged = {
