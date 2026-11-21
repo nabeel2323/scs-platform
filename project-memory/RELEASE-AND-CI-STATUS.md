@@ -278,3 +278,13 @@ Neither PR is merged. CI results are disposable-environment verification only; l
 - The earlier exact-head CI #44954371615 passed all executable jobs on PR #138 source SHA `741a09f68721898a5bed6601bc3bc636867c78c2`; k6 and protected staging release were skipped. PR #142 CI #44953735602 passed all executable jobs on `dddff20c170737dc4694008bb807b2b90e177f77`, including the disposable PostgreSQL identity test; k6 and protected staging release were skipped.
 - Vercel web/admin statuses on the earlier PR #138 checkpoint pointed to the external build-rate-limit page; they are not application test failures.
 - No application code, database, staging, deployment, migration, grant, RLS or worker behavior was changed by this documentation checkpoint.
+
+
+## MAP-001 documentation checkpoint and live CI reconciliation — 22 November 2026
+
+- Current branch and PR #138 head: `7be3e2da3a26ab565f6c5dd391a9bba486d3bcae`; PR #138 remains open/draft/unmerged.
+- The static inventory source inspected was commit `2cca47aa34abd1a014ea16217cfee204c9e9f803`; subsequent commits in this batch are project-memory/documentation updates only.
+- GitHub Actions workflow-run lookup returned no run for exact head `7be3e2da3a26ab565f6c5dd391a9bba486d3bcae`; combined status returned no contexts. This documentation head is NOT CI-VERIFIED.
+- The earlier source CI #44954371615 on `741a09f68721898a5bed6601bc3bc636867c78c2` and PR #142 CI #44953735602 on `dddff20c170737dc4694008bb807b2b90e177f77` remain historical exact-SHA evidence only.
+- No application source was changed in this inventory batch. No tests, staging/database writes, migrations, grants, RLS changes, deployments or worker activations occurred.
+- Next: complete API route-to-contract/permission mapping, admin/mobile route permission mapping, and worker/provider operation ownership; then implement the highest-priority confirmed UX gap in a cohesive batch.
