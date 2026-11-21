@@ -82,7 +82,6 @@ Exact-head CI #1259 exposed two defects. PostgreSQL rejected the correlated `EXI
 
 CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migration/read-only audit passed. API unit/coverage and PostgreSQL integration failed for the two issues above. The correction is committed with regression coverage; exact-head CI must pass before G-001 advances. No staging/database writes or deployment actions were performed.
 
-
 ## Buyer visibility query implementation note — 21 November 2026
 
 Use an uncorrelated store-ID subquery for ACTIVE-store visibility in the Drizzle relational offer queries. The correlated EXISTS form produced an invalid outer-table reference in PostgreSQL integration tests; the IN-subquery expresses the same visibility condition while remaining valid in this query shape.
