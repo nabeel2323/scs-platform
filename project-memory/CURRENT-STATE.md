@@ -623,3 +623,8 @@ Search facet chips now send their selected attribute values through the existing
 ## Mobile Product Detail UX-081 — 23 November 2026
 
 Product detail now uses a stable product-ID-keyed provider, avoiding a new product fetch on every PDP state rebuild. Explicit refresh/pull-to-refresh preserves last-successful details; initial errors are retryable. Variant-matrix, offer-comparison and seller-review failures are visible and retryable, with request-generation guards for route reuse. Focused Flutter tests were added but not executed; they remain pending Phase 3. No product API, permission, cart/order, database or migration behavior changed.
+
+
+## Mobile Notifications UX-082 — 23 November 2026
+
+Notifications now preserve the last successful inbox through refresh/realtime failures, expose explicit refresh/pull-to-refresh and retry, and distinguish initial errors from an empty inbox. Individual mark-read has per-row progress and error feedback; Mark All Read is a guarded action with success/failure feedback. Three focused Flutter widget tests were added but not executed; they remain pending Phase 3. Realtime subscription and notification API contracts are unchanged.
