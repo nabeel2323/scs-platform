@@ -217,7 +217,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canAddToCart = ref.watch(profileProvider).valueOrNull?.hasPermission('orders:write') ?? false;
     final cats = ref.watch(categoriesProvider);
     // Home → Search category hand-off. The shell keeps this branch alive, so
     // initState does not re-run on a tab switch; listening here applies the
@@ -332,6 +331,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _resultsArea(bool hasMore) {
+    final canAddToCart = ref.watch(profileProvider).valueOrNull?.hasPermission('orders:write') ?? false;
     final hasCurrentResults = _items.isNotEmpty &&
         _lastSuccessfulSearchKey == _searchKey(_ctrl.text);
     if (_searching && !hasCurrentResults) {
