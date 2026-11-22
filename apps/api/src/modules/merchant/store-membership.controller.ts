@@ -62,7 +62,7 @@ export class StoreMembershipController {
 
   @Get()
   @UseGuards(PermissionsGuard)
-  @RequirePermission('merchant:products:read')
+  @RequirePermission('merchant:stores:read')
   async listMembers(
     @Param('storeId') storeId: string,
     @CurrentUser() user: JwtPayload,
