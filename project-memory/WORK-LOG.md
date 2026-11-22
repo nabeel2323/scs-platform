@@ -436,3 +436,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Added focused API tests for the catalog route decorators, PermissionsGuard behavior and role-seed alignment, plus store-member list permission/guard alignment.
 - Updated docs/api-route-permission-matrix.md and added API-003 to the programme gap register. No new permission key, database migration or grant was added.
 - Tests were added but not executed; no CI run was triggered. No staging/database mutation, migration, deployment, worker activation or provider call occurred.
+
+
+## 2026-11-22 — API-003 RBAC seed verification correction
+
+- A follow-up inspection of the MERCHANT_OWNER and MERCHANT_STAFF role blocks caught an insertion-position mistake in the first seed edit: it duplicated merchant:stores:read on MERCHANT_OWNER instead of adding it to MERCHANT_STAFF.
+- Corrected the seed: MERCHANT_OWNER has one existing merchant:stores:read grant; MERCHANT_STAFF now has one grant; no duplicate or new permission key remains.
+- Re-read the final role blocks and confirmed CatalogController has five catalog:products:read decorators, StoreMembershipController has merchant:stores:read for member listing, and neither controller references merchant:products:read.
+- The focused test asserts both owner and staff role grants and should catch future drift. Test execution remains deferred to the consolidated campaign.
