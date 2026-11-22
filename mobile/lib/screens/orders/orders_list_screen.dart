@@ -88,21 +88,21 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
                     SizedBox(
                       height: 320,
                       child: EmptyState(
-                      title: 'No orders yet',
-                      description: 'Place your first order from the store',
-                      icon: Icons.receipt_long,
-                      onAction: () => context.go('/search'),
-                      actionLabel: 'Browse',
-                    ),
+                        title: 'No orders yet',
+                        description: 'Place your first order from the store',
+                        icon: Icons.receipt_long,
+                        onAction: () => context.go('/search'),
+                        actionLabel: 'Browse',
+                      ),
                     )
                   else if (filtered.isEmpty)
                     SizedBox(
                       height: 320,
                       child: EmptyState(
-                      title: 'Nothing here',
-                      description: 'No ${_filter.name} orders.',
-                      icon: Icons.filter_alt_off_outlined,
-                    ),
+                        title: 'Nothing here',
+                        description: 'No ${_filter.name} orders.',
+                        icon: Icons.filter_alt_off_outlined,
+                      ),
                     )
                   else
                     ...filtered.map(_orderCard),
