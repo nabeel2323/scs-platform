@@ -154,7 +154,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   Future<void> _refreshProduct() async {
     try {
-      await ref.refresh(productDetailProvider(widget.productId).future);
+      await ref.refresh(productDetailProvider(widget.productId).future).then<void>((_) {});
     } catch (_) {
       // The provider retains the last successful product detail for display.
     }
