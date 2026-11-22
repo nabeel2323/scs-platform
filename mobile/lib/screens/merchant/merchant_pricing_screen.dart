@@ -181,7 +181,7 @@ class _PriceListCreateDialogState extends State<_PriceListCreateDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              initialValue: _channel,
+              value: _channel,
               decoration: const InputDecoration(labelText: 'Channel'),
               items: const [
                 DropdownMenuItem(value: 'B2B', child: Text('B2B')),

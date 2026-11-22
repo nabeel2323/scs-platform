@@ -839,8 +839,11 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
           throw StateError('Select a product variant before using a price list.');
         }
         final tiers = await api.fetchPriceListTiers(_selectedPriceListId!);
-        if (!tiers.any((tier) => tier.variantId == _selectedVariantId)) {
-          throw StateError('The selected price list has no quantity tier for this variant. Add a matching tier or choose base pricing.');
+        if (!tiers.any((tier) =>
+            tier.variantId == _selectedVariantId &&
+            tier.minQty <= moq &&
+            (tier.maxQty == null || moq < tier.maxQty!))) {
+          throw StateError('The selected price list has no quantity tier covering this variant and the offer MOQ. Add a matching tier or choose base pricing.');
         }
       }
       final offer = await api.createMerchantOffer(
