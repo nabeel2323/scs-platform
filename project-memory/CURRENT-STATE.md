@@ -618,3 +618,8 @@ Buyer Order History now retains the last successful order list through refresh f
 ## Mobile Search UX-080 — 23 November 2026
 
 Search facet chips now send their selected attribute values through the existing `attrFilters` API query contract. Search requests are generation-guarded across debounce, filters, pagination and disposal; explicit refresh and same-query stale-result preservation are implemented. Failed new-query reads do not present previous-query results as current or show a false empty result. ApiService and widget regression tests were added but not executed; they remain pending Phase 3. No backend/API route, permission, search SQL, database or migration behavior changed.
+
+
+## Mobile Product Detail UX-081 — 23 November 2026
+
+Product detail now uses a stable product-ID-keyed provider, avoiding a new product fetch on every PDP state rebuild. Explicit refresh/pull-to-refresh preserves last-successful details; initial errors are retryable. Variant-matrix, offer-comparison and seller-review failures are visible and retryable, with request-generation guards for route reuse. Focused Flutter tests were added but not executed; they remain pending Phase 3. No product API, permission, cart/order, database or migration behavior changed.
