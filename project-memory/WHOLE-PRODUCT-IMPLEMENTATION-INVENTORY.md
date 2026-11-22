@@ -438,3 +438,9 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - Admin Dashboard KPI and pending-organization-update failures no longer disappear silently. Catalog Imports and Catalog Requests have independent loading/error/retry states rather than one shared error state.
 - Failed reads no longer become fabricated zero KPIs or successful empty lists. Previously loaded data remains visible after a failed refresh, with a retryable warning.
 - Focused Admin test added but not executed. UX-043 is IMPLEMENTED / TESTING_PENDING. No API, permission or backend behavior changed.
+
+## 22 November 2026 — Admin KPI Dashboard UX-044 re-audit
+
+- The dedicated KPI Dashboard now surfaces read failures with Retry KPIs and request-version guards. Date-range requests cannot overwrite newer results after completing out of order.
+- Failed refreshes retain the last successful KPI dataset; initial failure shows unavailable values rather than fabricated zero metrics. Period subtitle distinguishes unavailable data from loading.
+- Focused test added but not executed. UX-044 is IMPLEMENTED / TESTING_PENDING. No API, permission or backend behavior changed.
