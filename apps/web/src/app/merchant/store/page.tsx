@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { fetchMyStores, fetchStore, updateStore, createWarehouse, Store } from '../../../lib/api';
-import { hasPerm } from '../../../lib/auth';
+import { useAuth } from '../../../components/AuthProvider';
 import { pickStore } from '../../../lib/merchant-store';
 import { fetchStoreWarehouses, WarehouseSummary } from '../../../lib/buyer-api';
 import { LoadingSpinner, ErrorBanner, EmptyState, StatusBadge } from '../../../components/Shared';
@@ -13,6 +13,7 @@ const CURRENCIES = ['SAR', 'USD', 'AED', 'EUR', 'GBP'];
 const LOCALES = [['en', 'English'], ['ar', 'Arabic']] as const;
 
 export default function StoreProfilePage() {
+  const { user } = useAuth();
   const [store, setStore] = useState<Store | null>(null);
   const [noStore, setNoStore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -136,7 +137,7 @@ export default function StoreProfilePage() {
   };
 
   // GAP-2/3: Staff lacks merchant:stores:write — hide write controls
-  const canEdit = hasPerm('merchant:stores:write');
+  const canEdit = user?.perms?.includes('merchant:stores:write') === true;
 
   if (loading) return <LoadingSpinner />;
 
