@@ -3,7 +3,7 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest verified pre-refresh branch head:** `f3401f2826cd1bc6423f3269b278f7f049d7b528` (the current-state refresh commit itself advances the branch; resolve its resulting SHA from GitHub)
+**Latest source/documentation baseline before this state refresh:** `a39a312801a14d694e25d71c498dd83262c60119` (the current-state refresh commit itself advances the branch; resolve its resulting SHA from GitHub)
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,11 +18,11 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ------------------------------------------------------------------------ |
 | Repository           | nabeel2323/scs-platform                                                  |
 | Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | `f3401f2826cd1bc6423f3269b278f7f049d7b528` before this state refresh; resulting state-refresh SHA must be resolved live |
-| Latest commit        | `docs(project-memory): link G-002 operation map [skip ci]`                |
+| Live branch head     | `a39a312801a14d694e25d71c498dd83262c60119` before this state refresh; resulting state-refresh SHA must be resolved live |
+| Latest commit        | `docs(project-memory): record G-002 worker map [skip ci]`                |
 | PR #138              | Open; draft; not merged                                                  |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
-| Latest exact-head CI | No Actions run for source commit `733320e...`; subsequent docs commits use `[skip ci]`; current head NOT CI-VERIFIED |
+| Latest exact-head CI | No Actions run for source commits `733320e...` and `a39a312...`; subsequent docs commits use `[skip ci]`; current head NOT CI-VERIFIED |
 | PR #142 CI           | #44953735602 — passed all executable jobs on `dddff20c...`; disposable PostgreSQL identity test included |
 | PR #138 CI           | Historical #44954371615 passed all executable jobs on `741a09f...`; not transferable to current head |
 
@@ -267,6 +267,6 @@ A 53-file API module service/worker/provider source inventory and shared middlew
 PR #138 source head caba922e866635fad51e549e095a186f9d9df6cf reports SUCCESS for Vercel Admin and Vercel Web. No GitHub Actions run is attached to that exact head; full tests remain deferred to Phase 3.
 
 
-## G-002 operation map source slice — 22 November 2026
+## G-002 operation map source slices — 22 November 2026
 
-A preliminary direct-Drizzle operation map now covers 13 core API services and records observed reads/inserts/updates/deletes for their imported schema tables: [G-002-DATABASE-OPERATION-MAP-2026-11-22.md](../docs/remediation/G-002-DATABASE-OPERATION-MAP-2026-11-22.md). The programme gap register and work log were updated. This does not complete DB-003: worker, webhook, CLI, raw-SQL and remaining service paths, exact tenant predicates, FK ownership and the 114-versus-116 catalog discrepancy remain open. No tests, CI, staging/database changes, migration, grants, RLS, deployment or worker activation occurred.
+A preliminary direct-Drizzle operation map now covers 19 core API services plus the generic outbox, carrier worker and P13 operations-worker/alert paths. It records observed read/insert/update/delete operations and separately identifies raw-SQL touchpoints. See [G-002-DATABASE-OPERATION-MAP-2026-11-22.md](../docs/remediation/G-002-DATABASE-OPERATION-MAP-2026-11-22.md). The programme gap register and work log were updated. This does not complete DB-003: remaining services, webhook/CLI/migration paths, exact SQL predicates, FK ownership and the 114-versus-116 catalog discrepancy remain open. No tests, CI, staging/database changes, migration, grants, RLS, deployment or worker activation occurred.
