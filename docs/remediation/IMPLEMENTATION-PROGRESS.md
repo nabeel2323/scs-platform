@@ -1692,3 +1692,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Existing nullable revenue/units/low-stock values continue to render as unavailable rather than fabricated zero values.
 - Added `merchant_dashboard_kpi_recovery_test.dart` for same-session stale KPI preservation after refresh failure and retry.
 - No KPI calculation, merchant permissions, API, schema, migration, database, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-074 — Mobile Organizations list stale-read recovery — 22 November 2026
+
+- Organizations now has an explicit Refresh action even when the membership list is empty, and pull-to-refresh awaits the provider result.
+- The last successful organization list remains visible during refresh and after refresh failure, with stale-data messaging and Retry. Initial failures remain actionable errors rather than successful empty states.
+- Added `organizations_read_recovery_test.dart` for stale-list preservation and initial failure/retry.
+- Organization switching, token replacement, active-organization selection, creation and membership semantics are unchanged. No API, permission, database, migration, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
