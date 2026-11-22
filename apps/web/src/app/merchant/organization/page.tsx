@@ -217,7 +217,7 @@ export default function MerchantOrganizationPage() {
 
   useEffect(() => {
     if (addOpen && roles.length === 0 && !rolesLoading && !rolesError) void loadRoles();
-  }, [addOpen, roles.length, rolesLoading, loadRoles]);
+  }, [addOpen, roles.length, rolesLoading, rolesError, loadRoles]);
 
   const handleSave = async () => {
     if (!org) return;
@@ -713,7 +713,7 @@ export default function MerchantOrganizationPage() {
           {/* Warehouse Summary */}
           <div style={{ ...card, marginTop: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h2 style={sectionTitle}>Warehouses ({warehouses.length})</h2>
+              <h2 style={sectionTitle}>Warehouses ({warehousesError ? '—' : warehouses.length})</h2>
               <Link href="/merchant/warehouses" style={{ fontSize: 12, color: '#1e6178', textDecoration: 'none', fontWeight: 500 }}>
                 Manage warehouses →
               </Link>
@@ -730,7 +730,7 @@ export default function MerchantOrganizationPage() {
               <div style={{ textAlign: 'center', padding: '20px 0', color: '#5b6b74', fontSize: 13 }}>
                 No warehouses configured. <Link href="/merchant/warehouses" style={{ color: '#1e6178' }}>Add one</Link>
               </div>
-            ) : (
+            ) : warehouses.length > 0 ? (
               <div style={tableWrap}>
                 <table style={table}>
                   <thead><tr style={theadRow}>
@@ -755,7 +755,7 @@ export default function MerchantOrganizationPage() {
                   </tbody>
                 </table>
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Update Requests (admin approval history) */}
