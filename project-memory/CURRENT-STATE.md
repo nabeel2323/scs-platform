@@ -3,7 +3,7 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source/documentation baseline before this state refresh:** `991597f643b76d0cc7fd09e58e2fa1bc54fe2f43` (the current-state refresh commit itself advances the branch; resolve its resulting SHA from GitHub)
+**Latest source/documentation baseline before this state refresh:** `ff8b780beb3460ae84dd6236b4b0526875b3bab4` (the current-state refresh commit itself advances the branch; resolve its resulting SHA from GitHub)
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,8 +18,8 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ------------------------------------------------------------------------ |
 | Repository           | nabeel2323/scs-platform                                                  |
 | Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | `991597f643b76d0cc7fd09e58e2fa1bc54fe2f43` before this state refresh; resulting state-refresh SHA must be resolved live |
-| Latest commit        | `docs(project-memory): record G-002 ownership classification [skip ci]` |
+| Live branch head     | `ff8b780beb3460ae84dd6236b4b0526875b3bab4` before this state refresh; resulting state-refresh SHA must be resolved live |
+| Latest commit        | `docs(security): map controller principal and permission handoffs [skip ci]` |
 | PR #138              | Open; draft; not merged                                                  |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
 | Latest exact-head CI | No Actions run for current docs-only head; combined status contains only Vercel preview failures pointing to external build-rate limit; NOT CI-VERIFIED |
@@ -275,3 +275,8 @@ A preliminary direct-Drizzle operation map now covers 19 core API services plus 
 ## G-002 operation and ownership checkpoint — 22 November 2026
 
 The operation map now includes 26 service files plus supporting outbox, carrier, tracking, operations-control and worker paths. A separate schema review records candidate ownership paths across identity, organization/store membership, catalog, inventory/pricing, buyer/order, shipment/driver, payments/refunds/returns, disputes, notifications, carrier credentials, audit/outbox and system tables. See [G-002-DATABASE-OPERATION-MAP-2026-11-22.md](../docs/remediation/G-002-DATABASE-OPERATION-MAP-2026-11-22.md) and [G-002-TABLE-OWNERSHIP-AND-PREDICATE-CANDIDATES-2026-11-22.md](../docs/remediation/G-002-TABLE-OWNERSHIP-AND-PREDICATE-CANDIDATES-2026-11-22.md). Both are preliminary source evidence, not an approved policy. Exact FK/catalog verification, remaining service/CLI/migration paths, actual runtime identities and the 114-versus-116 discrepancy remain open. Latest source/docs commits use [skip ci]; no Actions run is associated with the current head. Vercel preview statuses currently point to an external build-rate-limit page, not application test results. No staging/database change, migration, grant, RLS, deployment or worker activation occurred.
+
+
+## API-003 RBAC seed alignment checkpoint — 22 November 2026
+
+A static audit of the 28 controller files enumerated in docs/api-route-permission-matrix.md found one permission key absent from the canonical PERMISSIONS seed and every built-in role: merchant:products:read. Five CatalogController read routes and StoreMembershipController member listing used it and were therefore inaccessible to seeded users. CatalogController now uses catalog:products:read with its existing store/org membership checks. StoreMembershipController now uses merchant:stores:read, and MERCHANT_STAFF receives that already-existing key; MERCHANT_OWNER retains its existing grant. All member mutations still require merchant:products:write and service-level manager/target-role checks. Focused tests were added but not executed. API-003 is IMPLEMENTED / NOT VERIFIED; no new permission key, migration, staging change or database grant was added.
