@@ -661,3 +661,19 @@ Source-confirmed gaps closed in implementation: dashboard refresh returned befor
 ## UX-086 — Mobile Merchant Catalog recovery — 23 November 2026
 
 Source-confirmed gaps closed in implementation: product pull-to-refresh invalidated without awaiting; active-store/product reads did not preserve stale data on refresh failure; initial errors and successful empty catalogues needed explicit separation. The screen now awaits current-store refresh, preserves last-successful product rows and filters, and exposes retry. Focused Flutter tests are added but remain TESTING_PENDING. Permission gates and catalog API contract unchanged.
+
+## UX-087 — Mobile Merchant Offer Detail recovery — 23 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- The offer detail screen now preserves the last successful offer and metrics during failed refreshes, exposes retry for initial offer errors, and keeps analytics/trend reads independent from the primary offer read.
+- Analytics failures are presented as unavailable rather than being interpreted as zero sales; trend data is refreshed with the selected offer/date configuration.
+- Added focused Flutter widget coverage for stale offer/analytics preservation and initial failure/retry. Test commit: `910466470d28c7d1eec08c80db47a74b6727f3bc`. Not executed. No API, permission, pricing or offer lifecycle contract changed.
+
+## UX-088 — Mobile Merchant Inventory read recovery — 23 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- Active-store refresh now precedes inventory/warehouse refresh; failed store refreshes retain the last successful store. Inventory and warehouse reads have independent retry/error states.
+- Failed inventory refreshes preserve the last successful page; empty inventory remains pull-to-refreshable and appears only after a successful response. Warehouse lookup failures are explicit and explain that transfer actions depend on a successfully loaded directory.
+- Added Flutter widget coverage for stale inventory preservation, warehouse retry and initial store lookup recovery. Source commit: `df5a171762a5f6a5b365a13f491a975d4c6e9aa8`; test commit: `fe508b0d30c791fb7597ec7f1c95d6b6968461b4`. Not executed. No API, permission, stock mutation, warehouse transfer, database or migration behavior changed.
