@@ -190,7 +190,6 @@ async function main(): Promise<void> {
         ON d.refclassid = 'pg_extension'::regclass
        AND d.refobjid = e.oid
        AND d.deptype = 'e'
-      WHERE e.extname IN ('pg_trgm')
       GROUP BY e.extname, n.nspname, owner.rolname, e.extrelocatable
       ORDER BY e.extname
     `);
@@ -232,6 +231,134 @@ async function main(): Promise<void> {
       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
       WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
     `);
+
+    // Enumerate relation kinds separately so the historical 114/116 counts
+    // cannot silently mix tables, views and sequences.
+    const publicRelationCounts = await client.query<QueryResultRow>(`
+      SELECT c.relkind,
+             CASE c.relkind
+               WHEN 'r' THEN 'table'
+               WHEN 'p' THEN 'partitioned_table'
+               WHEN 'v' THEN 'view'
+               WHEN 'm' THEN 'materialized_view'
+               WHEN 'f' THEN 'foreign_table'
+               WHEN 'S' THEN 'sequence'
+               ELSE c.relkind::text
+             END AS relation_kind,
+             count(*)::int AS relation_count
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+      GROUP BY c.relkind
+      ORDER BY c.relkind
+    `);
+
+    const publicRelationInventory = await client.query<QueryResultRow>(`
+      SELECT n.nspname AS schema_name,
+             c.relname AS relation_name,
+             CASE c.relkind
+               WHEN 'r' THEN 'table'
+               WHEN 'p' THEN 'partitioned_table'
+               WHEN 'v' THEN 'view'
+               WHEN 'm' THEN 'materialized_view'
+               WHEN 'f' THEN 'foreign_table'
+               WHEN 'S' THEN 'sequence'
+               ELSE c.relkind::text
+             END AS relation_kind,
+             pg_get_userbyid(c.relowner) AS owner_role,
+             c.relispartition AS is_partition,
+             c.relrowsecurity AS rls_enabled,
+             c.relforcerowsecurity AS rls_forced,
+             policy_info.policy_count,
+             parent_info.parent_relations,
+             extension_info.extension_names
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      LEFT JOIN LATERAL (
+        SELECT count(*)::int AS policy_count
+        FROM pg_policy p
+        WHERE p.polrelid = c.oid
+      ) policy_info ON true
+      LEFT JOIN LATERAL (
+        SELECT string_agg(
+          parent_ns.nspname || '.' || parent.relname,
+          ', ' ORDER BY parent_ns.nspname, parent.relname
+        ) AS parent_relations
+        FROM pg_inherits inh
+        JOIN pg_class parent ON parent.oid = inh.inhparent
+        JOIN pg_namespace parent_ns ON parent_ns.oid = parent.relnamespace
+        WHERE inh.inhrelid = c.oid
+      ) parent_info ON true
+      LEFT JOIN LATERAL (
+        SELECT string_agg(e.extname, ', ' ORDER BY e.extname) AS extension_names
+        FROM pg_depend d
+        JOIN pg_extension e ON e.oid = d.refobjid
+        WHERE d.classid = 'pg_class'::regclass
+          AND d.objid = c.oid
+          AND d.deptype = 'e'
+      ) extension_info ON true
+      WHERE n.nspname = 'public'
+        AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+      ORDER BY n.nspname, c.relkind, c.relname
+    `);
+
+    const publicPartitionHierarchy = await client.query<QueryResultRow>(`
+      SELECT parent_ns.nspname AS parent_schema,
+             parent.relname AS parent_relation,
+             child_ns.nspname AS child_schema,
+             child.relname AS child_relation,
+             pg_get_expr(child.relpartbound, child.oid) AS partition_bound,
+             child.relrowsecurity AS child_rls_enabled,
+             child.relforcerowsecurity AS child_rls_forced
+      FROM pg_inherits inh
+      JOIN pg_class parent ON parent.oid = inh.inhparent
+      JOIN pg_namespace parent_ns ON parent_ns.oid = parent.relnamespace
+      JOIN pg_class child ON child.oid = inh.inhrelid
+      JOIN pg_namespace child_ns ON child_ns.oid = child.relnamespace
+      WHERE child.relispartition
+        AND (parent_ns.nspname = 'public' OR child_ns.nspname = 'public')
+      ORDER BY parent_ns.nspname, parent.relname, child_ns.nspname, child.relname
+    `);
+
+    const specialObjectSummaries: Record<string, unknown> = {};
+    const migrationLedgerExists = await client.query<QueryResultRow>(`
+      SELECT to_regclass('public._migration_log') IS NOT NULL AS relation_exists
+    `);
+    if (migrationLedgerExists.rows[0]?.['relation_exists']) {
+      const ledger = await client.query<QueryResultRow>(`
+        SELECT count(*)::int AS row_count,
+               max(name) AS latest_migration_name,
+               max(applied_at) AS latest_applied_at
+        FROM public._migration_log
+      `);
+      specialObjectSummaries['migrationLedger'] = {
+        exists: true,
+        ...ledger.rows[0],
+      };
+    } else {
+      specialObjectSummaries['migrationLedger'] = { exists: false };
+    }
+
+    const backfillErrorsExists = await client.query<QueryResultRow>(`
+      SELECT to_regclass('public.backfill_errors') IS NOT NULL AS relation_exists
+    `);
+    if (backfillErrorsExists.rows[0]?.['relation_exists']) {
+      const backfillErrors = await client.query<QueryResultRow>(`
+        SELECT count(*)::int AS row_count,
+               count(DISTINCT migration)::int AS migration_count,
+               max(created_at) AS latest_created_at,
+               array_agg(DISTINCT entity_type ORDER BY entity_type) AS entity_types,
+               array_agg(DISTINCT error_type ORDER BY error_type) AS error_types
+        FROM public.backfill_errors
+      `);
+      specialObjectSummaries['backfillErrors'] = {
+        exists: true,
+        ...backfillErrors.rows[0],
+      };
+    } else {
+      specialObjectSummaries['backfillErrors'] = { exists: false };
+    }
 
     const defaultAcls = await client.query<QueryResultRow>(`
       SELECT d.defaclrole::regrole::text AS owner_role,
@@ -341,6 +468,10 @@ async function main(): Promise<void> {
       publicDefaultAclGrants: publicDefaultAclGrants.rows,
       publicSequencePrivileges: sequencePrivileges.rows,
       rowLevelSecurity: rls.rows[0] ?? null,
+      publicRelationCounts: publicRelationCounts.rows,
+      publicRelationInventory: publicRelationInventory.rows,
+      publicPartitionHierarchy: publicPartitionHierarchy.rows,
+      specialObjectSummaries,
       defaultPrivileges: defaultAcls.rows,
       publicFunctions: functions.rows[0] ?? null,
       extensionInventory: extensionInventory.rows,

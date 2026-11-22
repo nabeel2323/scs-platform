@@ -1347,3 +1347,15 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Added focused controller tests for ambiguous legacy route rejection, single-credential compatibility and exact provider/token lookup. Tests were not run.
 - Updated the G-002 operation map and DB-003 register. Remaining work: physical DB-object inventory, method-level ownership predicate validation, legacy UAT script guard/retirement, staging bootstrap target guard, live runtime identity and protected 114-versus-116 catalog evidence.
 - No webhook was invoked, no worker/provider action occurred, no database query/write or migration was executed, no staging/deployment action occurred, and no test/CI run was triggered.
+
+
+## G-002 physical database object inventory and read-only audit enhancement — 22 November 2026
+
+- Source-reconciled the 15 non-Drizzle public relations in the 19-November 114 r/p table count: public._migration_log, public.backfill_errors, and 13 analytics_events partition children (analytics_events_default plus p20260101–p20261201). The 99 Drizzle declarations plus these 15 relations equal 114.
+- Traced _migration_log to the migration runners; it is created dynamically and written transactionally with each migration under a session advisory lock. The 19-November report recorded 69 rows/latest 0069; 0070/0071 were not applied to the shared DB.
+- Traced backfill_errors to migration 0053_attribute_backfill.sql. The migration creates it and writes PRODUCT/VARIANT conversion/conflict errors; no Drizzle declaration, FK, tenant owner column or API reader/writer was found in the inspected source tree.
+- Traced analytics_events partitioning to migrations 0002/0013/0018 and audit.schema.ts. pg_partman owns monthly partition management, with a default partition and 12 monthly partitions listed in the 19-November snapshot. The analytics controller derives event user/org from CurrentUser; analytics:read is assigned to platform ADMIN/SUPER_ADMIN, while merchant roles receive analytics:track.
+- Extended apps/api/scripts/audit-db-access.ts (still read-only) to report public relation counts by relkind, per-relation owner/RLS/policy/extension/partition metadata, parent/child partition bounds and safe summaries for _migration_log/backfill_errors. The extension inventory now includes all installed extensions, not only pg_trgm.
+- Added docs/remediation/G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md and linked it from the schema reconciliation, CLI map and operation map.
+- No audit was executed, no database contents were read, no live query/write, migration, seed, reset, grant, default-ACL, RLS, deployment, worker or provider action occurred.
+- The 114-versus-116 discrepancy remains unresolved until the enhanced audit is run with an explicitly approved protected read-only connection and its relation-kind scope is compared with the historical count.

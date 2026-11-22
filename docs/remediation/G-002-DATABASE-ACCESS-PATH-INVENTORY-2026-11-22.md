@@ -87,3 +87,6 @@ The following manually invoked utilities contain direct PostgreSQL/Redis/API acc
 - Reconcile every script's schema writes with migration ownership and RLS design. A migration/seed/service-role bypass must remain a separate, least-privilege capability.
 
 No CLI, migration, seed, reset, bootstrap, provider, staging or shared database command was executed while preparing this inventory.
+
+
+Physical relation detail is now recorded in [G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md](./G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md). The read-only audit utility was extended to distinguish public r/p tables from views/sequences, list parent/child partition bounds, RLS/policy/owner/extension metadata, and summarize _migration_log/backfill_errors without reading sensitive row contents. The utility was not executed.

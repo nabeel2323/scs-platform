@@ -152,3 +152,12 @@ Added docs/remediation/G-002-CONTROLLER-TO-SERVICE-CALL-MAP-2026-11-22.md for al
 A multi-tenant webhook ambiguity was corrected: the legacy providerKey-only callback now rejects when more than one active credential exists for that provider; the tenant-specific providerKey+webhookToken route remains exact. Focused tests were added but not executed. This prevents findFirst from silently selecting a credential belonging to an arbitrary organization.
 
 DB-003 remains IMPLEMENTATION_IN_PROGRESS. Physical DB-object inventory, exact service-method predicates, legacy UAT script guards/retirement, uniform staging bootstrap target confirmation, deployed API/migration identities and the protected 114-versus-116 relation reconciliation remain open. No webhook, database, worker, staging or test action was executed.
+
+
+## G-002 physical object inventory and audit tooling — 22 November 2026
+
+Added docs/remediation/G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md. Source evidence reconciles the 19-November 114 public ordinary/partitioned tables as 99 Drizzle declarations plus 15 non-Drizzle relations: _migration_log, backfill_errors and 13 analytics_events partitions. backfill_errors is created and written by migration 0053 only in the inspected source; no API reader/writer or tenant owner fields were found. analytics_events parent/partition creation, retention and controller identity scope are documented. The historical 116 count remains unresolved.
+
+Extended apps/api/scripts/audit-db-access.ts (still BEGIN READ ONLY) to enumerate public relation kinds, names, owners, RLS/policy state, parent/child partition bounds, extension membership and safe summary metadata for _migration_log/backfill_errors. All installed extensions are listed rather than only pg_trgm. The audit utility was not run.
+
+DB-003 remains IMPLEMENTATION_IN_PROGRESS until an authorized read-only live run verifies the current relation-kind counts, partition privileges/policies, actual API/migration identities, and the 114-versus-116 discrepancy. No live query, migration, grant, RLS change or staging action occurred.

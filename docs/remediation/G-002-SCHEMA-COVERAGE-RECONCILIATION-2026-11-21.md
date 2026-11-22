@@ -81,3 +81,8 @@ The schema-count reconciliation does not change those facts and does not prove t
 ## Relation-count reconciliation note — 22 November 2026
 
 The detailed 19-November public-schema report and this 21-November source reconciliation both total 114 relations (99 Drizzle declarations plus 15 relations without separate declarations). The table ownership matrix previously referred to a historical 116-table count. Its scope has not been reconciled against the detailed relation list. The 114 figure is the last detailed snapshot, not a current count guarantee; the 116 figure remains an unresolved discrepancy pending a refreshed protected read-only catalog audit. No live query or database mutation was performed in this update.
+
+
+## Physical object inventory update — 22 November 2026
+
+The detailed 114 count is a public ordinary/partitioned table count (relkind r/p), not a count of every pg_class object. Source reconciliation remains 99 Drizzle declarations plus 15 non-Drizzle public tables: _migration_log, backfill_errors and 13 analytics_events partitions (default plus p20260101–p20261201). See [G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md](./G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md) for DDL/writer evidence and the enhanced read-only audit output. The historical 116 figure remains unresolved; no missing two objects are inferred.

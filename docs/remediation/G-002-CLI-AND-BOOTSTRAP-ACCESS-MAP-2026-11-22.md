@@ -41,3 +41,8 @@ The M6 environment check was hardened: SCS_ENVIRONMENT and SCS_UAT_CONFIRM are r
 ## Explicit non-actions
 
 No script was executed. No staging write, shared DB mutation, migration, seed, reset, bootstrap, grant/default-ACL change, RLS activation, deployment, worker activation or provider call occurred.
+
+
+## Non-Drizzle database object handoff
+
+Migration 0053 creates public.backfill_errors and is the only writer found in the inspected source. It records PRODUCT/VARIANT attribute backfill errors without tenant owner fields or declared FKs; no API reader/writer was found. Treat it as SYSTEM/MIGRATION evidence until a supported operator reader is identified. _migration_log and analytics_events partitions are mapped in the physical object inventory. No table contents were read.

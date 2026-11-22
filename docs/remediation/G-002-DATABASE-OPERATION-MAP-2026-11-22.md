@@ -246,3 +246,8 @@ The complete controller method→service callsite inventory is recorded in [G-00
 ### Carrier webhook ambiguity hardening
 
 The legacy /webhooks/carrier/:providerKey route previously used findFirst on active carrier_credentials and could silently select one organization's credential when multiple organizations configured the same provider. It now fetches at most two active credentials and rejects the provider-only route with 401 when the result is ambiguous. Exactly one active credential remains backward-compatible; the providerKey+webhookToken route retains exact credential lookup. Focused tests were added but not executed.
+
+
+## Physical objects outside the Drizzle table declarations — source slice 9
+
+The 19-November 114 public r/p count reconciles to 99 Drizzle declarations plus 15 non-Drizzle relations: public._migration_log (migration runner), public.backfill_errors (migration 0053 only), and 13 analytics_events partition children (default plus 12 monthly partitions). See [G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md](./G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md) for DDL and access evidence. The historical 116 count remains unresolved.
