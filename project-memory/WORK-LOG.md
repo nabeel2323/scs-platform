@@ -904,3 +904,16 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source audit found both active-store and product reads lacked stale-safe refresh handling; product pull-to-refresh invalidated and returned immediately. Failed initial product reads were retryable but refresh failures replaced the visible catalogue.
 - Added skip-refresh/reload stale handling for the active store, skip-refresh/skip-error product handling, retry notices, awaited current-store refresh and awaited pull-to-refresh. Kept product search/status filters and create/delete permission gates intact.
 - Added two focused Flutter widget tests. Not run under implementation-first cadence. No catalog API/visibility/permission/database/migration/staging behavior changed.
+
+## 2026-11-23 — UX-087 Mobile Merchant Offer Detail recovery
+
+- Re-audited the merchant Offer Detail route. The current implementation preserves the last successful offer and analytics during failed refreshes, exposes retry for the primary offer read, keeps analytics failure distinct from zero sales, and refreshes offer, analytics and trend reads independently.
+- Added focused Flutter widget scenarios for stale offer/analytics preservation and retryable initial offer failure in `mobile/test/merchant_offer_detail_read_recovery_test.dart`.
+- Focused test commit: `910466470d28c7d1eec08c80db47a74b6727f3bc`. Test not executed; remains pending the consolidated Phase 3 campaign. No API, permission, pricing, offer lifecycle, database or migration behavior changed.
+
+## 2026-11-23 — UX-088 Mobile Merchant Inventory read recovery
+
+- Merchant Inventory now refreshes the active store first and then independently refreshes the current store's inventory page and warehouse directory. Failed store refreshes retain the last successful store; inventory and warehouse failures are shown separately with retry.
+- Inventory rows remain visible when a refresh fails, including the last successful page; successful empty inventory remains pull-to-refreshable and distinct from a failed read. Warehouse lookup failures now explain that transfers are unavailable until the directory can be loaded.
+- Added focused Flutter widget coverage for inventory stale-data preservation, retryable warehouse lookup failure, and initial store lookup recovery to a true empty inventory state.
+- Source commit: `df5a171762a5f6a5b365a13f491a975d4c6e9aa8`; focused test commit: `fe508b0d30c791fb7597ec7f1c95d6b6968461b4`. Tests not executed; they remain pending Phase 3. No API, permission, stock mutation, warehouse transfer, database or migration behavior changed.
