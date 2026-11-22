@@ -454,3 +454,11 @@ The Admin User workflows had several correctness and discoverability gaps: phone
 ## UX-047 — Admin Merchant Store Detail — 22 November 2026
 
 The existing store detail response included branding, address, locale and popularity-badge visibility, but the Admin detail view did not present most of those fields. The detail page now displays them using the existing endpoint. A focused test was added but not executed. UX-047 remains TESTING_PENDING; no API/permission/schema/database change.
+
+## UX-048 — Admin Roles List — 22 November 2026
+
+The Roles list previously showed a terminal read error without a retry action and had no stale-response/unmount protection. It now exposes retry and request-version guards. Focused test added but not executed. UX-048 remains TESTING_PENDING; no API or permission change.
+
+## UX-049 — Admin Audit Log — 22 November 2026
+
+Audit Log filter requests could overlap and older responses could overwrite newer filter results. The page now guards all result/error/loading updates by request version, invalidates pending requests during cleanup and exposes Retry audit log on failures while retaining last successful rows. Focused race/retry test added but not executed. UX-049 remains TESTING_PENDING; no API or permission change.
