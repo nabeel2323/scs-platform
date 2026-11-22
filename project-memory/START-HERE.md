@@ -320,3 +320,11 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Latest source implementation commit: `7ce63c27b0920331d181edeb97d3b8d4e06f99d1`; focused test commit: `cfe53d1c7993025b9c578aab127a777624028c21`. The following project-memory commits synchronize the checkpoint; resolve the live PR head from GitHub at session start.
 - Continue UX-010 source re-audit across remaining Admin and Mobile workflows. Merchant Inventory/Import History/Import Wizard/Warehouses slices UX-038–UX-042 are implemented; do not repeat them.
 - PR #138 remains open/draft/unmerged to `develop`. All commits use `[skip ci]`; exact-head CI must be checked live. No merge/deployment, staging/shared DB write, migration, grant/default-ACL change, RLS activation or worker activation occurred.
+
+## Latest continuation checkpoint — 22 November 2026 (UX-043)
+
+- Implemented UX-043 Admin Dashboard independent read recovery. KPI, pending organization updates, Catalog Imports and Catalog Requests now have independent loading/error/retry states and request-version guards. Failed KPI reads show unavailable placeholders instead of zero defaults; failed list reads no longer appear empty; previously loaded data remains visible after refresh failures.
+- Focused test added in `admin-dashboard-recovery.test.tsx`; not executed.
+- Latest source implementation commit: `bd9b89160ce886944cebab227f4a568cdbdb363a`; focused test commit: `cf940371bc77f633cf61561eb443d2b53cab7d83`; source cleanup commit: `ac1373889556750a75c198741f9c2dec16f8db55`. The following project-memory commits synchronize this checkpoint; resolve the live PR head at session start.
+- Continue UX-010 source re-audit across remaining Admin and Mobile workflows. Do not repeat UX-030–UX-043.
+- PR #138 remains open/draft/unmerged to `develop`. All commits use `[skip ci]`; exact-head CI must be checked live. No merge/deployment, staging/shared DB write, migration, grant/default-ACL change, RLS activation or worker activation occurred.
