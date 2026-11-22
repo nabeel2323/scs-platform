@@ -883,3 +883,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source audit found Categories and Suppliers used `maybeWhen(... orElse: SizedBox.shrink())`, Popular Products hid its error state, and the Home refresh callback invalidated five providers but returned before any refresh completed. The unread badge also coerced loading/error to zero.
 - Added independent loading/error/retry and stale-data handling to Categories, Popular Products and Suppliers; made pull-to-refresh await each independent read and added an explicit refresh action. The unread badge remains unknown instead of fabricating zero.
 - Added three focused Flutter widget scenarios. Not run under implementation-first cadence. No API/permission/role/database/migration/staging behavior changed.
+
+
+## 2026-11-23 — UX-084 Mobile Checkout idempotency key lifecycle
+
+- Source audit found the checkout screen retained the idempotency key minted on Review even when the buyer changed payment method before submitting. That changed the request payload while retaining the prior logical-request key.
+- Payment-method changes now mint a fresh key; retries without payload changes retain the same key. Existing server idempotency contract and checkout payload are unchanged.
+- Added a widget regression test covering two failed identical attempts followed by a payment-method change and a successful third attempt. Not run under implementation-first cadence.
