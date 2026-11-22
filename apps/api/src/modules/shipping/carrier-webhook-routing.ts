@@ -15,10 +15,14 @@ export type CarrierWebhookShipmentResolution =
  */
 export async function resolveShipmentForCredential(
   db: DatabaseService,
-  credential: { orgId: string },
+  credential: { orgId: string; providerKey: string },
   providerKey: string,
   externalDeliveryId: string,
 ): Promise<CarrierWebhookShipmentResolution> {
+  if (credential.providerKey !== providerKey) {
+    throw new Error('Webhook credential provider does not match event provider');
+  }
+
   const orgStores = await db.db.query.stores.findMany({
     where: eq(stores.orgId, credential.orgId),
     columns: { id: true },

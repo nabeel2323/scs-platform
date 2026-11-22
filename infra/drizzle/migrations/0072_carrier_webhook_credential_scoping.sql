@@ -20,7 +20,7 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conname = 'fk_carrier_webhook_events_credential'
+    WHERE conname = 'carrier_webhook_events_credential_id_carrier_credentials_id_fk'
   ) THEN
     ALTER TABLE carrier_webhook_events
       ADD CONSTRAINT fk_carrier_webhook_events_credential

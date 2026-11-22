@@ -17,7 +17,7 @@ describe('resolveShipmentForCredential', () => {
     };
 
     await expect(
-      resolveShipmentForCredential(db as any, { orgId: 'org-a' }, 'aramex', 'external-a'),
+      resolveShipmentForCredential(db as any, { orgId: 'org-a', providerKey: 'aramex' }, 'aramex', 'external-a'),
     ).resolves.toEqual({ status: 'FOUND', shipment });
 
     expect(storesFindMany).toHaveBeenCalledOnce();
@@ -62,7 +62,7 @@ describe('resolveShipmentForCredential', () => {
     };
 
     await expect(
-      resolveShipmentForCredential(db as any, { orgId: 'org-empty' }, 'aramex', 'external-a'),
+      resolveShipmentForCredential(db as any, { orgId: 'org-empty', providerKey: 'aramex' }, 'aramex', 'external-a'),
     ).resolves.toEqual({ status: 'NOT_FOUND' });
     expect(shipmentsFindMany).not.toHaveBeenCalled();
   });

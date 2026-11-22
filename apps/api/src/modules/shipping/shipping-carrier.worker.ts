@@ -1099,6 +1099,13 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           );
         }
 
+        if (credential.providerKey !== webhookEvent.providerKey) {
+          throw new NonRetryableCarrierError(
+            'Webhook event provider does not match its bound credential',
+            { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
+          );
+        }
+
         const resolution = await resolveShipmentForCredential(
           this.db,
           credential,
