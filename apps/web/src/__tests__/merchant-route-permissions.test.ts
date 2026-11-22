@@ -13,6 +13,7 @@ describe('merchant route permission policy', () => {
     ['/merchant/inventory', 'merchant:inventory:read'],
     ['/merchant/pricing', 'merchant:pricing:read'],
     ['/merchant/pricing/list-1', 'merchant:pricing:read'],
+    ['/merchant/offers/new', 'catalog:offers:write'],
     ['/merchant/offers', 'merchant:stores:read'],
     ['/merchant/offers/offer-1', 'merchant:stores:read'],
     ['/merchant/customers', 'merchant:orders:read'],
