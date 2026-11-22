@@ -114,7 +114,7 @@ class _DriverShipmentsScreenState extends ConsumerState<DriverShipmentsScreen> {
               : RefreshIndicator(
                   onRefresh: () async {
                     try {
-                      await ref.refresh(driverShipmentsProvider.future);
+                      await ref.refresh(driverShipmentsProvider.future).then<void>((_) {});
                     } catch (_) {
                       // The provider's AsyncValue exposes the error and keeps
                       // its previous successful value for this screen.
