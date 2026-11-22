@@ -61,6 +61,10 @@ class _MerchantShellScreenState extends ConsumerState<MerchantShellScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final activeOrgId = ref.watch(activeOrgIdProvider);
+    ref.listen(activeOrgIdProvider, (previous, next) {
+      if (previous != next) setState(() => _selectedTab = widget.initialTab);
+    });
     final profile = ref.watch(profileProvider).valueOrNull;
     if (profile == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -68,8 +72,16 @@ class _MerchantShellScreenState extends ConsumerState<MerchantShellScreen> {
     final tabs = _visibleTabs(profile);
     final selectedTab = tabs.contains(_selectedTab) ? _selectedTab : tabs.first;
     final selectedIndex = tabs.indexOf(selectedTab);
+    final permissionKey = (profile.perms.toList()..sort()).join(',');
+    final scopeKey = '${activeOrgId ?? 'none'}:$permissionKey';
     return Scaffold(
-      body: IndexedStack(index: selectedIndex, children: tabs.map((tab) => _screen(tab, tabs)).toList()),
+      body: KeyedSubtree(
+        key: ValueKey(scopeKey),
+        child: IndexedStack(
+          index: selectedIndex,
+          children: tabs.map((tab) => _screen(tab, tabs)).toList(),
+        ),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) => setState(() => _selectedTab = tabs[index]),
