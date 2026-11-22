@@ -134,6 +134,8 @@ async function bootstrap() {
           'req.headers.cookie',
           'req.headers["set-cookie"]',
           // Authentication and verification secrets are never allowed in request logs.
+          'req.body',
+          'res.body',
           'req.body.otp',
           'req.body.code',
           'req.body.verificationCode',

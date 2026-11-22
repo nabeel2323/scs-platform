@@ -408,16 +408,27 @@ export class BootstrapService {
       throw new UnauthorizedException('OTP already used.');
     }
     if (verifyStatus === 0) {
-      // Wrong OTP — enforce the verify-failure rate limit, then refuse.
+      // Wrong OTP — enforce the per-owner-address failure budget.
+      let verifyFailureResult: number[] = [];
       try {
-        await this.redis.client.eval(
-          ACQUIRE_RATE_LIMIT, 1,
+        verifyFailureResult = (await this.redis.client.eval(
+          ACQUIRE_RATE_LIMIT,
+          1,
           `${BOOTSTRAP_OTP_PREFIX}:vatt:email:${email}`,
           BOOTSTRAP_OTP_VERIFY_FAIL_LIMIT,
           BOOTSTRAP_OTP_RATE_WINDOW,
-        );
+        )) as number[];
       } catch (_redisError) {
-        /* rate-limit bookkeeping failure must not mask the invalid OTP */
+        // The per-IP limiter was already enforced above. Preserve a generic
+        // invalid-code response if this secondary bookkeeping operation fails.
+      }
+
+      if (Number(verifyFailureResult[0] ?? 1) === 0) {
+        throw new RateLimitException('Too many invalid OTP attempts for this owner address.', {
+          limit: BOOTSTRAP_OTP_VERIFY_FAIL_LIMIT,
+          remaining: 0,
+          retryAfterSeconds: Number(verifyFailureResult[2] ?? BOOTSTRAP_OTP_RATE_WINDOW),
+        });
       }
       throw new UnauthorizedException('Invalid OTP.');
     }

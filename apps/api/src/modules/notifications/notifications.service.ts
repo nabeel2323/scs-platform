@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { notifications, notificationPreferences, deviceTokens } from './notifications.schema';
@@ -32,14 +32,6 @@ export class NotificationsService implements OnModuleInit {
   // ── Template Registry ────────────────────────────────────────
 
   private static readonly TEMPLATES: Record<string, NotificationTemplate> = {
-    'otp.login': {
-      type: 'TRANSACTIONAL',
-      channels: ['SMS'],
-      render: (data) => ({
-        title: 'Login Code',
-        body: `Your login code is ${data['code']}. Valid for 5 minutes.`,
-      }),
-    },
     'order.submitted': {
       type: 'TRANSACTIONAL',
       channels: ['IN_APP', 'PUSH'],
@@ -198,6 +190,11 @@ export class NotificationsService implements OnModuleInit {
   // ── Send Notification ────────────────────────────────────────
 
   async send(userId: string, templateName: string, data: Record<string, unknown> = {}) {
+    if (templateName === 'otp.login') {
+      throw new BadRequestException(
+        'OTP challenges must use the dedicated OTP delivery service and cannot be persisted as notifications',
+      );
+    }
     const template = NotificationsService.TEMPLATES[templateName];
     if (!template) {
       console.warn(`[Notifications] Unknown template: ${templateName}`);
