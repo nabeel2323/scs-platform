@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -42,6 +43,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   /// create a duplicate order; a fresh key is minted if they go back and edit
   /// (a different logical request), which is what avoids a false 409.
   String? _idempotencyKey;
+  String? _idempotencyFingerprint;
 
   /// Non-null once checkout succeeds; switches the body to the Confirmation.
   MasterOrder? _placed;
@@ -140,6 +142,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       if (!mounted) return;
       setState(() {
         _checkoutPreview = preview;
+        _idempotencyFingerprint = _checkoutFingerprint(cart);
         _idempotencyKey = const Uuid().v4();
         _step = 2;
         _loadingPreview = false;
@@ -159,14 +162,57 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         if (_step > 0) _step -= 1;
       });
 
+  /// Stable fingerprint of the exact logical checkout request. Retry attempts
+  /// reuse the key while the request is unchanged; edits (including payment
+  /// method) receive a fresh key so the server does not treat them as retries.
+  String _checkoutFingerprint(Cart cart) {
+    final items = cart.items
+        .map((item) => <String, dynamic>{
+              'storeId': item.storeId,
+              'variantId': item.variantId,
+              'quantity': item.quantity,
+              'priceMinor': item.priceMinor,
+              'lineTotalMinor': item.lineTotalMinor,
+            })
+        .toList()
+      ..sort((a, b) {
+        final storeOrder =
+            (a['storeId'] as String).compareTo(b['storeId'] as String);
+        if (storeOrder != 0) return storeOrder;
+        return (a['variantId'] as String)
+            .compareTo(b['variantId'] as String);
+      });
+    final shipping = _shippingSelections.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    return jsonEncode({
+      'deliveryAddress': {
+        'street': _addressCtrl.text.trim(),
+        'city': _cityCtrl.text.trim(),
+      },
+      'notes': _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
+      'shippingSelections': shipping
+          .map((entry) => {'storeId': entry.key, ...entry.value})
+          .toList(),
+      'paymentMethod': _paymentMethod,
+      'items': items,
+    });
+  }
+
   Future<void> _checkout() async {
-    final key = _idempotencyKey;
-    if (key == null) return; // defensive: Review always mints one
     setState(() {
       _submitting = true;
       _error = null;
     });
     try {
+      final cart = await ref.read(cartProvider.future);
+      final fingerprint = _checkoutFingerprint(cart);
+      if (_idempotencyKey == null ||
+          _idempotencyFingerprint != fingerprint) {
+        _idempotencyKey = const Uuid().v4();
+        _idempotencyFingerprint = fingerprint;
+      }
+      final key = _idempotencyKey!;
       final result = await ref.read(apiServiceProvider).checkout(
         deliveryAddress: {
           'street': _addressCtrl.text.trim(),
