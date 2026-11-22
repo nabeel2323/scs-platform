@@ -71,6 +71,7 @@ describe('DisputesService participant authorization', () => {
     await expect(service.markMessagesRead('conversation-a', 'buyer-a')).resolves.toEqual({ success: true });
     const compiled = new PgDialect().sqlToQuery(where.mock.calls[0]?.[0]);
     expect(compiled.params).toContain('buyer-a');
+    expect(compiled.sql).toContain('<>');
 
     await expect(service.markMessagesRead('conversation-a', 'attacker')).rejects.toBeInstanceOf(NotFoundException);
     expect(where).toHaveBeenCalledOnce();
@@ -99,6 +100,34 @@ describe('DisputesService participant authorization', () => {
         againstId: 'merchant-a',
         reason: 'Not delivered',
       }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+
+  it('rejects conversation creation for a user who is not an order party', async () => {
+    const orderFindFirst = vi.fn().mockResolvedValue({
+      id: 'order-a',
+      buyerId: 'buyer-a',
+      storeId: 'store-a',
+    });
+    const storeMemberFindFirst = vi.fn().mockResolvedValue(null);
+    const insert = vi.fn();
+    const service = new DisputesService(
+      {
+        db: {
+          query: {
+            orders: { findFirst: orderFindFirst },
+            storeMembers: { findFirst: storeMemberFindFirst },
+          },
+          insert,
+        },
+      } as any,
+      {} as any,
+    );
+
+    await expect(
+      service.createOrGetConversation('order-a', attacker as any, 'buyer-a'),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(insert).not.toHaveBeenCalled();
   });
