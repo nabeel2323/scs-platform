@@ -362,7 +362,7 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
   private async processExpiration(
     returnId: string,
     epoch: number,
-  ): Promise<'escalated' | 'skipped' | 'failed'> {
+  ): Promise<'escalated' | 'skipped' | 'failed' | 'fence_lost'> {
     try {
       // Verify the return is still REQUESTED (may have been approved by merchant).
       const ret = await this.db.db.query.returnRequests.findFirst({
