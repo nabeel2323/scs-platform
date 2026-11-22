@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { fetchMyStores, fetchWarehouses, createWarehouse, updateWarehouse, Store, Warehouse } from '../../../lib/api';
 import { hasPerm } from '../../../lib/auth';
@@ -12,7 +12,13 @@ export default function WarehousesPage() {
   const [store, setStore] = useState<Store | null>(null);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [storeError, setStoreError] = useState('');
+  const [noStore, setNoStore] = useState(false);
+  const [warehousesLoading, setWarehousesLoading] = useState(false);
+  const [warehousesError, setWarehousesError] = useState('');
   const [error, setError] = useState('');
+  const storeRequestRef = useRef(0);
+  const warehouseRequestRef = useRef(0);
   const [success, setSuccess] = useState('');
 
   // Form state
@@ -29,33 +35,55 @@ export default function WarehousesPage() {
   const canEdit = hasPerm('merchant:stores:write');
 
   const loadWarehouses = useCallback(async (storeId: string) => {
+    const requestId = ++warehouseRequestRef.current;
+    setWarehousesLoading(true);
+    setWarehousesError('');
     try {
-      const whs = await fetchWarehouses(storeId);
-      setWarehouses(whs);
-      setError('');
-    } catch (err: any) {
-      setError(err.message || 'Failed to load warehouses');
+      const result = await fetchWarehouses(storeId);
+      if (requestId === warehouseRequestRef.current) setWarehouses(result);
+    } catch (err: unknown) {
+      if (requestId === warehouseRequestRef.current) {
+        setWarehousesError(err instanceof Error ? err.message : 'Failed to load warehouses');
+      }
+    } finally {
+      if (requestId === warehouseRequestRef.current) setWarehousesLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const stores = await fetchMyStores();
-        const selected = pickStore(stores);
-        if (!selected) {
-          setLoading(false);
-          return;
-        }
-        setStore(selected);
-        await loadWarehouses(selected.id);
-      } catch (err: any) {
-        setError(err.message || 'Failed to load store');
-      } finally {
-        setLoading(false);
+  const resolveStore = useCallback(async () => {
+    const requestId = ++storeRequestRef.current;
+    setLoading(true);
+    setStoreError('');
+    setNoStore(false);
+    try {
+      const stores = await fetchMyStores();
+      if (requestId !== storeRequestRef.current) return;
+      const selected = pickStore(stores);
+      if (!selected) {
+        setStore(null);
+        setWarehouses([]);
+        setNoStore(true);
+        return;
       }
-    })();
+      setStore(selected);
+      await loadWarehouses(selected.id);
+    } catch (err: unknown) {
+      if (requestId === storeRequestRef.current) {
+        setStore(null);
+        setStoreError(err instanceof Error ? err.message : 'Failed to load store');
+      }
+    } finally {
+      if (requestId === storeRequestRef.current) setLoading(false);
+    }
   }, [loadWarehouses]);
+
+  useEffect(() => {
+    void resolveStore();
+    return () => {
+      storeRequestRef.current += 1;
+      warehouseRequestRef.current += 1;
+    };
+  }, [resolveStore]);
 
   const resetForm = () => {
     setEditingId(null);
@@ -124,7 +152,28 @@ export default function WarehousesPage() {
 
   if (loading) return <LoadingSpinner />;
 
-  if (!store) {
+  if (storeError) {
+    return (
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
+        <nav style={breadcrumb}>
+          <Link href="/" style={crumbLink}>Home</Link>
+          <span style={crumbSep}>›</span>
+          <Link href="/merchant" style={crumbLink}>Merchant</Link>
+          <span style={crumbSep}>›</span>
+          <span>Warehouses</span>
+        </nav>
+        <h1 style={h1}>Warehouses</h1>
+        <div role="alert" style={{ marginTop: 16 }}>
+          <ErrorBanner message={storeError} />
+          <button type="button" onClick={() => void resolveStore()} style={{ ...primaryBtn, marginTop: 12 }}>
+            Retry store lookup
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!store && noStore) {
     return (
       <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
         <nav style={breadcrumb}>
@@ -170,6 +219,14 @@ export default function WarehousesPage() {
 
         <div style={{ padding: '0 28px 48px', background: '#f5f7f9', minHeight: 400 }}>
           {error && <div style={{ marginTop: 20 }}><ErrorBanner message={error} /></div>}
+          {warehousesError && (
+            <div role="alert" style={{ marginTop: 20 }}>
+              <ErrorBanner message={warehousesError} />
+              <button type="button" onClick={() => void loadWarehouses(store.id)} style={{ ...primaryBtn, marginTop: 8 }}>
+                Retry warehouses
+              </button>
+            </div>
+          )}
           {success && <div style={successBanner}>{success}</div>}
 
           {/* Actions */}
@@ -220,7 +277,9 @@ export default function WarehousesPage() {
           {/* Warehouse List */}
           <div style={{ ...card, marginTop: 20 }}>
             <h2 style={sectionTitle}>All Warehouses</h2>
-            {warehouses.length === 0 ? (
+            {warehousesLoading && warehouses.length === 0 ? (
+              <LoadingSpinner />
+            ) : warehousesError && warehouses.length === 0 ? null : warehouses.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '32px 0', color: '#5b6b74', fontSize: 13 }}>
                 No warehouses yet. {canEdit && 'Click "Add Warehouse" to create one.'}
               </div>
