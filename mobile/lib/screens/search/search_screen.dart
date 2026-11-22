@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -39,16 +40,49 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   int _offset = 0;
   bool _searching = true;
   bool _loadingMore = false;
+  int _searchRequestVersion = 0;
+  String? _lastSuccessfulSearchKey;
+
+  String _searchKey(String q) {
+    final sortedFilters = Map.fromEntries(
+      _attrFilters.entries.toList()
+        ..sort((a, b) => a.key.compareTo(b.key)),
+    );
+    return jsonEncode({
+      'q': q.trim(),
+      'categoryId': _selectedCategory,
+      'brandId': _selectedBrand,
+      'hasOffers': _offersOnly,
+      'attributeFilters': sortedFilters,
+    });
+  }
 
   void _onChanged(String q) {
+    // Invalidate an in-flight response as soon as the input changes, not only
+    // after the debounce expires.
+    _searchRequestVersion++;
     _debounce?.cancel();
+    setState(() {
+      _searching = true;
+      _searchError = null;
+      _loadingMore = false;
+    });
     _debounce = Timer(const Duration(milliseconds: 300), () => _search(q));
   }
 
   Future<void> _search(String q, {bool append = false}) async {
+    final searchKey = _searchKey(q);
+    if (append &&
+        (_loadingMore || _lastSuccessfulSearchKey != searchKey)) {
+      return;
+    }
+    final requestVersion = ++_searchRequestVersion;
     ref.read(searchQueryProvider.notifier).state = q;
     if (append) {
-      setState(() => _loadingMore = true);
+      setState(() {
+        _loadingMore = true;
+        _searchError = null;
+      });
     } else {
       setState(() {
         _searching = true;
@@ -58,13 +92,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final offset = append ? _offset : 0;
     try {
       final result = await ref.read(apiServiceProvider).search(
-          q: q.isEmpty ? null : q,
-          categoryId: _selectedCategory,
-          brandId: _selectedBrand,
-          limit: _pageSize,
-          offset: offset,
-          hasOffers: _offersOnly);
-      if (!mounted) return;
+            q: q.isEmpty ? null : q,
+            categoryId: _selectedCategory,
+            brandId: _selectedBrand,
+            limit: _pageSize,
+            offset: offset,
+            hasOffers: _offersOnly,
+            attributeFilters: _attrFilters.isEmpty
+                ? null
+                : {
+                    for (final entry in _attrFilters.entries)
+                      entry.key: [entry.value],
+                  },
+          );
+      if (!mounted || requestVersion != _searchRequestVersion) return;
       setState(() {
         _facets = result.facets;
         _total = result.total;
@@ -73,16 +114,26 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         _searching = false;
         _loadingMore = false;
         _searchError = null;
+        _lastSuccessfulSearchKey = searchKey;
       });
       ref.read(searchResultsProvider.notifier).state = result;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || requestVersion != _searchRequestVersion) return;
+      final sameSearch = _lastSuccessfulSearchKey == searchKey;
       setState(() {
         _searching = false;
         _loadingMore = false;
-        // Route through errorMessage so a failed page never prints a raw
-        // Dio/socket string (spec §40).
-        _searchError = ApiService.errorMessage(e);
+        if (!append && !sameSearch) {
+          // Never label results from a different query/filter set as current.
+          _items = [];
+          _facets = [];
+          _total = 0;
+          _offset = 0;
+        }
+        final message = ApiService.errorMessage(e);
+        _searchError = sameSearch && _items.isNotEmpty
+            ? '$message. Showing the last successful results for this search.'
+            : message;
       });
     }
   }
@@ -157,6 +208,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   void dispose() {
+    _searchRequestVersion++;
     _ctrl.dispose();
     _debounce?.cancel();
     super.dispose();
@@ -179,11 +231,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     });
     final activeFilters =
         (_selectedBrand != null ? 1 : 0) + (_offersOnly ? 1 : 0) + _attrFilters.length;
-    final hasMore = !_searching && _items.length < _total;
+    final hasMore = !_searching &&
+        !_loadingMore &&
+        _searchError == null &&
+        _items.length < _total &&
+        _lastSuccessfulSearchKey == _searchKey(_ctrl.text);
     return Scaffold(
         appBar: AppBar(
           title: const Text('Search'),
           actions: [
+            IconButton(
+              tooltip: 'Refresh search',
+              icon: const Icon(Icons.refresh),
+              onPressed: () => _search(_ctrl.text),
+            ),
             IconButton(
               tooltip: 'Filters',
               icon: Badge(
