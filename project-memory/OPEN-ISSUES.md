@@ -422,3 +422,7 @@ UX-036 makes Merchant Offers store discovery, offer-list, product-directory, ana
 ## UX-037 — Merchant Inventory movement-history read recovery — 22 November 2026
 
 The Inventory movement-history dialog previously swallowed API errors and displayed the same empty state used for a successful response with no movements. It now distinguishes read failure, exposes Retry and uses a small tested read helper. Focused helper tests are added but not executed. Continue UX-010 audit across inventory variant lookup, imports and other remaining workflows.
+
+## UX-038 / UX-039 — Merchant Inventory and Import History recovery — 22 November 2026
+
+The remaining Merchant Inventory and Import History audit found two concrete read-state defects. UX-038's per-product variant lookup silently converted failed variant requests into empty arrays, producing an incomplete picker without an error. UX-039's store lookup swallowed errors and import-job failures could render alongside or as a successful empty history. Both are now implemented with explicit retry/error handling, request guards and focused tests. The new tests have not been executed; both items remain TESTING_PENDING until the consolidated Phase 3 campaign. No API, permission, schema, database, staging, worker or deployment changes were made.
