@@ -413,3 +413,11 @@ Completed the Admin attribute directory recovery slice. Attribute Groups and Att
 - Focused Flutter tests were added for both slices; they have not been executed and remain TESTING_PENDING for Phase 3.
 - No API, permission, offer lifecycle, pricing, stock mutation, warehouse transfer, database or migration behavior changed.
 - Continue the source-first audit across remaining Mobile merchant operational routes, then Web/Admin route/action permission mapping. Keep Phase 3 as the consolidated full test campaign.
+
+## 2026-11-23 — UX-089 / UX-090 Mobile Pricing and Customers
+
+- Merchant Pricing list and detail now preserve last-successful price-list and tier data through refresh failures, expose retryable initial errors and await explicit/pull-to-refresh operations. Initial tier-read failure no longer displays a fabricated zero tier count.
+- Merchant Customers now preserves the last successful directory and filtered statistics during refresh failures, supports awaited explicit/pull-to-refresh and distinguishes failed reads from successful empty/no-match results. Search and sort state are retained.
+- Focused Flutter tests were added for both areas; they have not been executed and remain TESTING_PENDING for Phase 3.
+- No API, permission, pricing, stock, customer, order, financial, database or migration behavior changed.
+- Continue the Mobile merchant audit with Orders and store/profile route transitions, then remaining Web/Admin route/action permission mapping. Keep Phase 3 as the consolidated full test campaign.
