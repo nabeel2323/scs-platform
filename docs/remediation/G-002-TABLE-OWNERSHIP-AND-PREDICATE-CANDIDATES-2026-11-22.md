@@ -125,6 +125,22 @@ The “schema path” column identifies the inspected declaration. The owner pat
 | ops_alerts | modules/operations/operations.schema.ts | optional org_id | SYSTEM/MIXED; alert scope and operator delivery are separate from tenant business access |
 | p13_pilot_allowlist | modules/operations/operations.schema.ts | org_id; store_id; created_by | SYSTEM/ORGANIZATION/STORE; operator-managed pilot configuration |
 
+## Additional financial, reconciliation and calendar ownership paths
+
+| Physical table | Schema path | Declared owner/relationship fields | Candidate class and boundary |
+|---|---|---|---|
+| commission_reversals | modules/returns/financial.schema.ts | return_request_id → return_requests; optional refund_id → refunds; optional settlement_id → settlement_records; created_by → users; org_id | MIXED/ORDER; derive organization from the linked suborder/store and verify org_id consistency; creator is attribution |
+| settlement_adjustments | modules/returns/financial.schema.ts | optional settlement_id → settlement_records; sub_order_id → orders; optional return_request_id → return_requests; created_by → users; org_id | MIXED/ORDER; derive owner from suborder/store and verify any explicit org_id matches |
+| settlement_adjustment_approvals | modules/returns/financial.schema.ts | adjustment_id → settlement_adjustments; approver_id → users | PARENT/MIXED; inherit adjustment owner; approver is actor and must satisfy separate Finance/admin approval policy |
+| reconciliation_runs | modules/returns/financial.schema.ts | optional org_id; executed_by → users | ORGANIZATION or SYSTEM when org_id is null; global reconciliation requires explicit platform/system authority |
+| reconciliation_discrepancies | modules/returns/financial.schema.ts | run_id → reconciliation_runs; optional org_id; resolved_by → users | PARENT/MIXED; inherit run scope; verify explicit org_id consistency; resolver is attribution |
+| business_calendars | modules/returns/business-calendar.schema.ts | created_by → users; no direct org_id observed | UNRESOLVED CONFIGURATION; schema comments describe tenant or global calendars, but the reviewed table declaration does not expose a tenant key; service/migration semantics must be established |
+| business_calendar_holidays | modules/returns/business-calendar.schema.ts | calendar_id → business_calendars; created_by → users | PARENT; inherit calendar scope; creator is attribution |
+| business_calendar_audit | modules/returns/business-calendar.schema.ts | calendar_id → business_calendars; changed_by → users | PARENT/MIXED; inherit calendar scope; changed_by is attribution |
+| carrier_configurations | modules/shipping/shipping.schema.ts | org_id; credential_id → carrier_credentials; optional store_id → stores | ORGANIZATION/STORE; enforce that credential and store belong to the same org |
+| catalog_imports | modules/catalog-import/catalog-import.schema.ts | uploaded_by (UUID; no Drizzle FK observed) | PLATFORM/MIXED unresolved; schema comment describes platform-level admin imports; uploader is actor attribution, not tenant ownership |
+| catalog_import_errors | modules/catalog-import/catalog-import.schema.ts | no direct owner field observed | PARENT; inherit catalog_imports |
+ 
 ## Critical design conclusions
 
 1. **No universal org_id predicate is safe.** Many rows have no org column and inherit access through a parent chain; others are global taxonomy, user-private, multi-party orders or system records.
