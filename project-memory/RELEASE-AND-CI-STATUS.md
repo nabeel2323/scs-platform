@@ -814,3 +814,12 @@ Web typecheck failures from the same run have also been corrected:
 - Replace unsupported test matchers with direct DOM disabled-state assertions.
 
 The next full workflow is required to verify these changes.
+
+
+## API typecheck correction checkpoint — 23 November 2026
+
+- Live PR #138 head before this correction batch was `de9eeafb3852822552c667d13ad1e0c27fa8d28f`. GitHub Actions run [#1380](https://github.com/nabeel2323/scs-platform/actions/runs/45081889002) failed in `Lint & Typecheck` at API TypeScript checking. API lint passed and Mobile analysis/tests passed; unit/coverage, Web/Admin tests, boundary lint, migration, contracts, container, integration and build jobs were skipped after the typecheck failure. Vercel Web/Admin statuses pointed to the external build-rate-limit page and are not application test results.
+- Corrected the 17 reported TypeScript diagnostics in one grouped source/test batch: P13 integration tests now pass explicit platform escalation authority; the return-expiration worker outcome union includes `fence_lost`; Admin order-item product labels join through the variant's product relationship (the order-item schema has no `productId`); the Admin test fixture matches the order-item schema and has a typed history array; the catalog tenant-scope mock matches the helper's `Promise<void>` contract; and SettlementAdjustmentService now resolves sub-order organization through order → store and fails closed when ownership cannot be resolved.
+- Source/test correction commits: `0c6ad31cbb7635bddb702a2fe85006eb7aee6db5`, `caf8088d113ccb14808fb150365b234031cd790e`, `b21b9f1df445cb89360eed625e83a6f64cf918be`, `db6cac84259993f12cbdbf845079613c001bb4e8`, `40e6cf67cb98a1649b2aa171f523a300b5879fb7`, `9113c4aa31260034a6f53cb4b76f2ec04955d28c`.
+- No tests or typecheck were executed after these corrections. The new code head is therefore **IMPLEMENTED / NOT VERIFIED**; no CI pass is claimed. The commits use `[skip ci]` under the Actions-minute budget. Comprehensive verification remains deferred to Phase 3.
+- PR #138 remains OPEN/DRAFT/UNMERGED to `develop`. No staging deployment/write, shared database mutation, migration, grants/default-ACL change, RLS enablement, worker activation, provider call or release action occurred.
