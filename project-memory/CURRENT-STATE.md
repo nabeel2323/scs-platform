@@ -407,3 +407,11 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Added focused Admin tests for detail read recovery and evidence timeline retry. Not executed.
 - Source baseline before docs sync: `344c4b1300a20b2ec33dfc264d975aff27c4da57`; documentation commit advances branch. PR #138 remains open/draft/unmerged.
 - No DB, migration, deployment, worker activation, grants/RLS or provider action occurred.
+
+
+## Admin identity and organization UX-020 checkpoint — 22 November 2026
+
+- User, merchant and organization detail reads now have retryable error states and request-version guards. User permissions are fetched separately; a permission-catalog failure is isolated to the Permissions tab and has its own retry.
+- Added focused tests for all three detail retry paths. Not executed.
+- Source baseline before docs sync: `b20bdbfea47365bd8478f06cfa7ed4e73ce6d613`; docs commit advances branch. PR #138 remains open/draft/unmerged.
+- No DB, migration, deployment, worker activation, grants/RLS or provider actions occurred.

@@ -317,3 +317,10 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Dispute detail and Events/Evidence read failures previously had no retry controls, and obsolete requests could update the view after navigation.
 - Added shared retryable error states, request-version guards and stale evidence clearing. Focused tests added, not executed.
 - Continue remaining UX-010 Admin/Web/Mobile source audit and integration; full test campaign remains deferred.
+
+
+## UX-020 Admin identity/organization detail recovery — 22 November 2026
+
+- User, merchant and organization details previously had non-retryable read failures and no stale-response guard.
+- Added retryable error states and request-version protection; user permission catalog failures are isolated to the Permissions tab.
+- Added focused tests, not executed. Continue UX-010 re-audit; full tests remain deferred.

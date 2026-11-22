@@ -301,3 +301,10 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Dispute detail errors previously had no retry action; Events/Evidence errors were rendered as plain text with no recovery. Async reads were not guarded against stale responses after route/tab changes.
 - Added retryable shared error states and request-version guards for both dispute detail and events. The events list is cleared at the start of a new request so old evidence is not shown alongside a failed refresh.
 - Added focused tests for detail and events retry behavior. Not executed; no browser/CI validation.
+
+
+## 22 November 2026 — Admin identity/organization detail recovery (UX-020)
+
+- User, merchant and organization detail pages previously displayed non-retryable read errors and did not guard against stale request completions.
+- Added retryable shared error states and request-version protection. User detail now isolates the permission catalog read from the core user detail so permission-service failure does not hide user identity; the Permissions tab can retry independently.
+- Added focused component tests for user, merchant and organization detail retry behavior. Not executed.

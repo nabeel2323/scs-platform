@@ -465,3 +465,10 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - PR #138 remains open, draft and unmerged to `develop`.
 - No GitHub Actions CI run was triggered for the source commit. Vercel Admin/Web preview failures are rate-limited provider statuses, not application test results.
 - Focused Admin tests were added but not run. No staging/database/migration/deployment/worker/grant/RLS/provider action occurred.
+
+
+## Exact source checkpoint — UX-020 Admin identity detail recovery — 22 November 2026
+
+- Source implementation commit: `b20bdbfea47365bd8478f06cfa7ed4e73ce6d613`; documentation sync follows separately.
+- PR #138 remains open, draft and unmerged to `develop`.
+- Focused Admin tests were added but not run. No GitHub Actions CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred as part of this source batch.

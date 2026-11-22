@@ -592,3 +592,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added tests in `apps/admin/src/__tests__/management.test.tsx` for dispute detail retry and evidence timeline retry. Not executed.
 - Source baseline: `344c4b1300a20b2ec33dfc264d975aff27c4da57`; docs sync follows separately.
 - No DB, migration, deployment, worker activation, grants/RLS or provider calls.
+
+
+## 2026-11-22 — UX-020 Admin user/merchant/organization detail recovery
+
+- Added retryable request callbacks and request-version guards to user, merchant and organization detail pages. Each retry clears stale errors and ignores obsolete requests.
+- Split user permission catalog loading from the main user record. Permission catalog errors are isolated to the Permissions tab with an independent retry action.
+- Added focused component tests in `apps/admin/src/__tests__/management.test.tsx` for user, merchant and organization detail recovery. Not executed.
+- Source baseline: `b20bdbfea47365bd8478f06cfa7ed4e73ce6d613`; docs sync follows separately.
+- No DB, migration, deployment, worker activation, grants/RLS or provider calls.
