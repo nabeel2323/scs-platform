@@ -1,15 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
-const { fetchAdminUserDetail, fetchRoleDetail } = vi.hoisted(() => ({
+const { fetchAdminUserDetail, fetchRoleDetail, updateUserProfile } = vi.hoisted(() => ({
   fetchAdminUserDetail: vi.fn(),
   fetchRoleDetail: vi.fn(),
+  updateUserProfile: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({ useParams: () => ({ id: 'user-1' }) }));
 vi.mock('../lib/api', () => ({
   fetchAdminUserDetail: (...args: unknown[]) => fetchAdminUserDetail(...args),
   fetchRoleDetail: (...args: unknown[]) => fetchRoleDetail(...args),
+  updateUserProfile: (...args: unknown[]) => updateUserProfile(...args),
+}));
+vi.mock('../components/EntityActions', () => ({
+  UserMemberships: () => <div>Membership assignment controls</div>,
+  UserStatusActions: () => <div>User status controls</div>,
 }));
 vi.mock('../hooks/useRequirePerms', () => ({
   useRequirePerms: () => ({ hasAccess: true }),
@@ -61,6 +67,8 @@ describe('admin user role permissions', () => {
   beforeEach(() => {
     fetchAdminUserDetail.mockReset();
     fetchRoleDetail.mockReset();
+    updateUserProfile.mockReset();
+    updateUserProfile.mockResolvedValue({ id: 'user-1', fullName: 'Jane Updated', email: 'jane@example.com', phone: null, locale: 'en' });
     fetchAdminUserDetail.mockResolvedValue(user);
     fetchRoleDetail
       .mockRejectedValueOnce(new Error('Role permissions unavailable'))
@@ -73,6 +81,30 @@ describe('admin user role permissions', () => {
       });
   });
   afterEach(() => cleanup());
+
+  it('exposes profile editing through the existing audited profile endpoint', async () => {
+    render(<UserDetailPage />);
+
+    expect(await screen.findByRole('heading', { name: 'Jane Doe' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }));
+    fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Jane Updated' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => expect(updateUserProfile).toHaveBeenCalledWith('user-1', expect.objectContaining({
+      fullName: 'Jane Updated',
+      email: 'jane@example.com',
+      locale: 'en',
+    })));
+  });
+
+  it('exposes organization membership controls on the dedicated user detail route', async () => {
+    render(<UserDetailPage />);
+
+    await screen.findByRole('heading', { name: 'Jane Doe' });
+    fireEvent.click(screen.getByRole('button', { name: 'Organizations (1)' }));
+    expect(screen.getByText('Membership assignment controls')).toBeTruthy();
+    expect(screen.getByText('User status controls')).toBeTruthy();
+  });
 
   it('shows permissions configured on the user\'s assigned role, with retry', async () => {
     render(<UserDetailPage />);
