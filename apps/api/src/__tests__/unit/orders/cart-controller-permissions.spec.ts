@@ -18,7 +18,9 @@ const writeMethods = [
   'applyPromo',
 ] as const;
 
-function contextFor(handler: Function, perms: string[]): ExecutionContext {
+type Handler = (...args: never[]) => unknown;
+
+function contextFor(handler: Handler, perms: string[]): ExecutionContext {
   return {
     getHandler: () => handler,
     getClass: () => CartController,
@@ -32,7 +34,7 @@ describe('CartController permission enforcement', () => {
   const guard = new PermissionsGuard(new Reflector());
 
   it('runs JWT and permission guards for the cart controller', () => {
-    const guards = Reflect.getMetadata(GUARDS_METADATA, CartController) as Function[];
+    const guards = Reflect.getMetadata(GUARDS_METADATA, CartController) as unknown[];
     expect(guards).toEqual(expect.arrayContaining([JwtAuthGuard, PermissionsGuard]));
   });
 
