@@ -282,3 +282,10 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 
 - Added retryable offer loading and stale-response protection to the Admin ProductDetails Offers tab. Errors and empty data are now distinct states.
 - Added focused component test; not run. Continue remaining UX-010 source audit.
+
+
+## 2026-11-22 — UX-024 Admin financial workflow recovery
+
+- Added retryable read states and separate action-error feedback to payments, settlements, reconciliation and settlement-adjustment workflows.
+- Added stale-request guards for payment tabs and settlement/reconciliation filters. Reconciliation run detail has its own retry action.
+- Added focused tests for the four financial list recovery paths; not run. Continue UX-010 source audit.

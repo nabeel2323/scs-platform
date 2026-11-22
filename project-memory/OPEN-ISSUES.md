@@ -353,3 +353,10 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 
 - Product detail offers read now has a retryable error state and loading state; only a successful empty response renders the empty-offers message. Added request-version protection and a focused test, not executed.
 - Continue remaining UX-010 audit; full test campaign remains deferred.
+
+
+## UX-024 Admin financial read recovery — 22 November 2026
+
+- Payments, Settlements, Reconciliation and Settlement Adjustments now show retryable read failures separately from mutation errors. Empty financial queues are only shown after a successful read.
+- Added stale-request protection for tabs/filters and retryable reconciliation run detail. Four focused tests added, not executed.
+- Continue UX-010 audit and integration; comprehensive test campaign remains deferred.

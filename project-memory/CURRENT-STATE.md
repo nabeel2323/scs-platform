@@ -446,3 +446,11 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Product detail Merchant Offers now uses a request-version guarded loader with explicit loading, retryable error and true-empty states. A failed request can no longer be mistaken for a product with no merchant offers.
 - Added a focused component test for failed offers read → retry → successful empty state. Not executed.
 - Source baseline before docs sync: `486650b19040c8e4d974e7fb7875f8a47cb46d9c`; docs commit advances branch. PR #138 remains open/draft/unmerged.
+
+
+## Admin financial UX-024 checkpoint — 22 November 2026
+
+- Payments, Settlements, Reconciliation and Settlement Adjustments now have explicit retryable read errors separate from action failures. Failed reads no longer render empty financial queues/tables.
+- Added request-version guards for tab/filter reads and a separate retryable selected-run detail read for reconciliation. Financial mutation failures remain action errors.
+- Added four focused Admin tests; not executed.
+- Source baseline before docs sync: `2fb4628b58420e0e9350bfb296b6266f291ca58d`; docs commit advances branch. PR #138 remains open/draft/unmerged.

@@ -234,6 +234,7 @@ Deferred/remaining:
 | UX-021 | Admin dispute resolution workflow | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Dispute detail exposed overview/events but no resolution form despite the protected resolve API and route permission. Added a required resolution form, guarded PATCH action, progress/error/success feedback and resolved-state rendering. |
 | UX-022 | Admin catalog, offer, order and role detail read recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Several Admin detail pages had non-retryable read failures; the import Errors tab and offer Inventory tab silently converted failed reads into empty states; role permission-save errors replaced the whole detail page. Added retryable loads, stale-request guards, explicit tab errors and isolated role mutation feedback. |
 | UX-023 | Admin product detail merchant-offer read recovery | P2 | IMPLEMENTED IN SOURCE — NOT TESTED | ProductDetails fetched merchant offers once without retry and displayed a plain error above an empty-state table. Added request-version guarded reload, loading skeleton, explicit retryable error and true-empty state. |
+| UX-024 | Admin financial list read/action error separation | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Payments, settlements, reconciliation and settlement-adjustment list reads had no retry; read and action errors shared state, sometimes hiding financial context or presenting failed reads as empty. Added separate load/detail/action errors, retry controls, stale-request protection and recovery tests. |
 
 
 ## UX-015 — Product Studio save and step-transition integrity — 22 November 2026
@@ -302,3 +303,11 @@ Deferred/remaining:
 - ProductDetails now loads merchant offers through an awaitable callback with request-version protection. Retry clears stale error/data, shows a loading skeleton and ignores obsolete completions after product changes/unmount.
 - A failed offers read now displays the shared retryable error state; only a successful empty response displays “No merchant offers yet.”
 - Added a focused ProductDetails component test for failed offer read → retry → empty-success state. Test has not been executed.
+
+
+## UX-024 — Admin financial list read/action error separation — 22 November 2026
+
+- Payments and Settlements now separate list-read errors from mutation errors, expose a Retry action for failed reads, and hide empty states while a read is unavailable. Request-version guards prevent older tab/filter responses from overwriting current data.
+- Reconciliation now separates run-list, selected-run detail and action errors. Both list and detail reads can be retried; run-list requests are guarded against stale responses. Run/resolve failures remain action errors and do not replace read state.
+- Settlement Adjustments now separates list-read and workflow-action errors, exposes Retry, ignores stale filter responses and hides the no-adjustments state after a failed read.
+- Added focused Admin tests for payment queue, settlements, reconciliation and settlement-adjustment read failure → retry → successful empty results. Tests have not been executed.

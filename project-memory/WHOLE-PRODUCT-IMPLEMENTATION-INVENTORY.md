@@ -331,3 +331,11 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - ProductDetails merchant-offer data previously loaded once with no retry; a failed request could be displayed together with the empty-offers state.
 - Added an awaitable offer loader with request-version protection, loading skeleton, retryable error state and a true-empty state only after a successful response.
 - Added a focused component test for offer-read failure and retry. Not executed.
+
+
+## 22 November 2026 — Admin financial workflow read recovery (UX-024)
+
+- Payments, Settlements, Reconciliation and Settlement Adjustments now distinguish load errors from action errors. Financial list read failures expose Retry and no longer masquerade as empty data.
+- Added request-version protection to payment tabs, settlement status filters, reconciliation run history and settlement-adjustment filters. Reconciliation selected-run detail has its own retryable error state.
+- Mutation failures remain inline action errors; successful actions reload the authoritative list/detail state. No finance API contracts or financial side effects were changed.
+- Added four focused Admin tests for read failure/retry on payment queue, settlements, reconciliation and settlement adjustments. Not executed.

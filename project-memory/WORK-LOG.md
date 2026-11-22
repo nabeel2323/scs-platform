@@ -635,3 +635,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Replaced the one-shot merchant-offer fetch in ProductDetails with an awaitable request-version guarded loader, loading skeleton, retryable error and true-empty state.
 - Added a component test in `apps/admin/src/__tests__/management.test.tsx` for an offers read failure followed by a successful retry returning no offers. Not executed.
 - Source baseline: `486650b19040c8e4d974e7fb7875f8a47cb46d9c`; docs sync follows separately.
+
+
+## 2026-11-22 — UX-024 Admin financial workflow recovery
+
+- Payments and Settlements now separate load errors from action errors, expose Retry, hide false empty states and ignore stale tab/filter responses.
+- Reconciliation now has separate list/detail/action errors, retryable run-list and selected-run detail reads, and stale-response guards. Settlement Adjustments now has retryable list reads, action-error separation and filter request sequencing.
+- Added four tests to `apps/admin/src/__tests__/management.test.tsx` for payment queue, settlement, reconciliation and settlement-adjustment read failure → retry → successful empty results. Not executed.
+- Source baseline: `2fb4628b58420e0e9350bfb296b6266f291ca58d`; docs sync follows separately.
+- No database, migration, deployment, worker activation, grants/RLS or provider actions.
