@@ -53,8 +53,14 @@ export default function MerchantOffersPage() {
   const canWriteOffers = !!user?.perms?.includes('catalog:offers:write');
   const [stores, setStores] = useState<Store[]>([]);
   const [storeId, setStoreId] = useState('');
+  const [storeLoading, setStoreLoading] = useState(true);
+  const [storeError, setStoreError] = useState('');
+  const [noStore, setNoStore] = useState(false);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState('');
+  const [analyticsError, setAnalyticsError] = useState('');
   // PHASE 16: per-offer sales performance keyed by offerId so the table can
   // enrich each row with orders/units/revenue without a second join.
   const [analyticsByOffer, setAnalyticsByOffer] = useState<Record<string, OfferAnalyticsRow>>({});
@@ -83,19 +89,14 @@ export default function MerchantOffersPage() {
   const [creating, setCreating] = useState(false);
 
   const loadOffers = useCallback(async () => {
-    if (!storeId) return;
+    if (!storeId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    setError('');
     try {
-      const [data, analytics] = await Promise.all([
-        fetchMerchantOffers(storeId, filterStatus || undefined),
-        // Non-fatal: fall back silently to zero-sales rows if the analytics
-        // call fails (e.g., a stale build without the endpoint).
-        fetchMerchantOfferAnalytics(storeId).catch(() => [] as OfferAnalyticsRow[]),
-      ]);
-      setOffers(data);
-      const map: Record<string, OfferAnalyticsRow> = {};
-      for (const row of analytics) map[row.offerId] = row;
-      setAnalyticsByOffer(map);
+      setOffers(await fetchMerchantOffers(storeId, filterStatus || undefined));
     } catch (err: any) {
       setError(err.message || 'Failed to load offers');
     } finally {
@@ -103,20 +104,82 @@ export default function MerchantOffersPage() {
     }
   }, [storeId, filterStatus]);
 
-  useEffect(() => {
-    if (authLoading || !user) return;
-    fetchMyStores()
-      .then((s) => {
-        setStores(s);
-        const picked = pickStore(s);
-        if (picked) setStoreId(picked.id);
-      })
-      .catch(() => setError('Failed to load stores'));
-  }, [authLoading, user]);
+  const loadAnalytics = useCallback(async () => {
+    if (!storeId) {
+      setAnalyticsByOffer({});
+      setAnalyticsError('');
+      return;
+    }
+    setAnalyticsError('');
+    setAnalyticsByOffer({});
+    try {
+      const analytics = await fetchMerchantOfferAnalytics(storeId);
+      const map: Record<string, OfferAnalyticsRow> = {};
+      for (const row of analytics) map[row.offerId] = row;
+      setAnalyticsByOffer(map);
+    } catch (err: any) {
+      setAnalyticsError(err.message || 'Failed to load offer analytics');
+    }
+  }, [storeId]);
+
+  const loadProducts = useCallback(async () => {
+    if (!storeId) {
+      setProducts([]);
+      setProductsLoading(false);
+      return;
+    }
+    setProductsLoading(true);
+    setProductsError('');
+    setProducts([]);
+    try {
+      const res = await fetchStoreProducts(storeId);
+      setProducts(res.items as Product[]);
+    } catch (err: any) {
+      setProductsError(err.message || 'Failed to load products for offer creation');
+    } finally {
+      setProductsLoading(false);
+    }
+  }, [storeId]);
+
+  const loadStores = useCallback(async () => {
+    setStoreLoading(true);
+    setStoreError('');
+    try {
+      const availableStores = await fetchMyStores();
+      setStores(availableStores);
+      const picked = pickStore(availableStores);
+      if (!picked) {
+        setNoStore(true);
+        setStoreId('');
+        setLoading(false);
+        return;
+      }
+      setNoStore(false);
+      setStoreId(picked.id);
+    } catch (err: any) {
+      setStoreError(err.message || 'Failed to load stores');
+      setLoading(false);
+    } finally {
+      setStoreLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    loadOffers();
+    if (authLoading || !user) return;
+    void loadStores();
+  }, [authLoading, user, loadStores]);
+
+  useEffect(() => {
+    void loadOffers();
   }, [loadOffers]);
+
+  useEffect(() => {
+    void loadAnalytics();
+  }, [loadAnalytics]);
+
+  useEffect(() => {
+    void loadProducts();
+  }, [loadProducts]);
 
   // PHASE 18: refresh the trend series whenever the store, granularity, window,
   // or offer filter changes. Errors are isolated so a slow trend endpoint can't
@@ -254,11 +317,29 @@ export default function MerchantOffersPage() {
 
   if (authLoading) return <LoadingSpinner />;
   if (!user) return <div role="alert">Please sign in to access offers.</div>;
+  if (storeLoading) return <LoadingSpinner />;
+  if (storeError) {
+    return (
+      <div style={{ padding: '20px 24px', maxWidth: 1200 }}>
+        <PageHeader title="My Offers" subtitle="Manage your product offers for the marketplace" />
+        <ErrorBanner message={storeError} onRetry={() => void loadStores()} />
+      </div>
+    );
+  }
+  if (noStore) {
+    return (
+      <div style={{ padding: '20px 24px', maxWidth: 1200 }}>
+        <PageHeader title="My Offers" subtitle="Manage your product offers for the marketplace" />
+        <EmptyState title="No store yet" description="Create a merchant store before managing offers." />
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '20px 24px', maxWidth: 1200 }}>
       <PageHeader title="My Offers" subtitle="Manage your product offers for the marketplace" />
-      {error && <ErrorBanner message={error} />}
+      {error && <ErrorBanner message={error} onRetry={() => void loadOffers()} />}
+      {analyticsError && <ErrorBanner message={analyticsError} onRetry={() => void loadAnalytics()} />}
 
       {/* Store selector + filter */}
       <div
@@ -345,6 +426,7 @@ export default function MerchantOffersPage() {
             background: colors.bgSubtle,
           }}
         >
+          {productsError && <ErrorBanner message={productsError} onRetry={() => void loadProducts()} />}
           <div
             style={{
               display: 'grid',
@@ -358,9 +440,10 @@ export default function MerchantOffersPage() {
                 value={formProductId}
                 onChange={(e) => setFormProductId(e.target.value)}
                 required
+                disabled={productsLoading || !!productsError || products.length === 0}
                 style={inputStyle}
               >
-                <option value="">Select…</option>
+                <option value="">{productsLoading ? 'Loading products…' : productsError ? 'Products unavailable' : 'Select…'}</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.title}
@@ -437,7 +520,7 @@ export default function MerchantOffersPage() {
           </div>
           <button
             type="submit"
-            disabled={creating}
+            disabled={creating || productsLoading || !!productsError || products.length === 0}
             style={{
               marginTop: 12,
               padding: '8px 20px',
@@ -471,12 +554,13 @@ export default function MerchantOffersPage() {
         onOfferId={setTrendOfferId}
         metric={trendMetric}
         onMetric={setTrendMetric}
+        onRetry={loadTrend}
       />
 
       {/* Offers table */}
       {loading ? (
         <LoadingSpinner />
-      ) : offers.length === 0 ? (
+      ) : error ? null : offers.length === 0 ? (
         <EmptyState title="No offers" description="Create an offer to get started." />
       ) : (
         <div style={{ overflowX: 'auto' }}>
@@ -537,10 +621,10 @@ export default function MerchantOffersPage() {
                     </td>
                     {/* PHASE 16: performance columns sourced from order_items + offer_snapshot */}
                     <td style={{ padding: '8px 12px', fontVariantNumeric: 'tabular-nums' }}>
-                      {a?.ordersCount ?? 0}
+                      {analyticsError && !a ? '—' : a?.ordersCount ?? 0}
                     </td>
                     <td style={{ padding: '8px 12px', fontVariantNumeric: 'tabular-nums' }}>
-                      {a?.unitsSold ?? 0}
+                      {analyticsError && !a ? '—' : a?.unitsSold ?? 0}
                     </td>
                     <td
                       style={{
@@ -549,7 +633,7 @@ export default function MerchantOffersPage() {
                         fontVariantNumeric: 'tabular-nums',
                       }}
                     >
-                      {formatMinor(a?.revenueMinor ?? 0, o.currency)}
+                      {analyticsError && !a ? '—' : formatMinor(a?.revenueMinor ?? 0, o.currency)}
                     </td>
                     <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
                       {new Date(o.createdAt).toLocaleDateString()}
@@ -610,6 +694,7 @@ function TrendPanel(props: {
   points: OfferTrendPoint[];
   loading: boolean;
   error: string;
+  onRetry: () => void;
   currency: string;
   offers: Offer[];
   products: Product[];
@@ -626,6 +711,7 @@ function TrendPanel(props: {
     points,
     loading,
     error,
+    onRetry,
     currency,
     offers,
     products,
@@ -778,9 +864,13 @@ function TrendPanel(props: {
         </span>
       </div>
 
-      {error && <div style={{ color: colors.err, fontSize: 12, marginBottom: 8 }}>{error}</div>}
+      {error && (
+        <div style={{ color: colors.err, fontSize: 12, marginBottom: 8 }}>
+          {error} <button type="button" onClick={onRetry} style={actionBtn}>Retry</button>
+        </div>
+      )}
 
-      {n === 0 && !loading ? (
+      {error ? null : n === 0 && !loading ? (
         <div style={{ fontSize: 13, color: colors.muted, padding: '24px 0', textAlign: 'center' }}>
           No sales in this range.
         </div>
