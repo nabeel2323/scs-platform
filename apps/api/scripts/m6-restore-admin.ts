@@ -1,5 +1,8 @@
 import { Pool } from 'pg';
-const p = new Pool({ connectionString: 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform' });
+import { assertLocalUatExecution } from './local-uat-safety';
+const DB_URL = 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform';
+assertLocalUatExecution('m6-restore-admin', { databaseUrl: DB_URL });
+const p = new Pool({ connectionString: DB_URL });
 async function main() {
   // Find admin user and platform org
   const admin = await p.query("SELECT id FROM users WHERE email = 'admin@scsp.dev'");

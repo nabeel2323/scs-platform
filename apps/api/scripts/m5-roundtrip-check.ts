@@ -2,8 +2,11 @@
  * Clean round-trip test: export → re-import → verify idempotency
  */
 import { Pool } from 'pg';
+import { assertLocalUatExecution } from './local-uat-safety';
 
 const API = 'http://localhost:3000/v1';
+const DB_URL = 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform';
+assertLocalUatExecution('m5-roundtrip-check', { databaseUrl: DB_URL, apiUrl: API });
 
 async function main() {
   const loginData = await (await fetch(`${API}/auth/login/password`, {
@@ -20,7 +23,7 @@ async function main() {
   console.log('Auth OK');
 
   // Pre-export counts
-  const pool = new Pool({ connectionString: 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform' });
+  const pool = new Pool({ connectionString: DB_URL });
   const before = await pool.query(`
     SELECT 'categories' AS tbl, COUNT(*) FROM categories WHERE store_id IS NULL
     UNION ALL SELECT 'product_types', COUNT(*) FROM product_types

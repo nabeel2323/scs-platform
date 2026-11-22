@@ -1,7 +1,10 @@
 import { Pool } from 'pg';
+import { assertLocalUatExecution } from './local-uat-safety';
+const DB_URL = 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform';
+assertLocalUatExecution('m6-get-otp', { databaseUrl: DB_URL });
 
 async function main() {
-  const pool = new Pool({ connectionString: 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform' });
+  const pool = new Pool({ connectionString: DB_URL });
   try {
     const tables = [
       'categories', 'product_types', 'products', 'product_variants',

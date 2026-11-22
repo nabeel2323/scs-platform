@@ -12,6 +12,15 @@ const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 
+const uatEnvironment = process.env.SCS_ENVIRONMENT?.trim().toLowerCase();
+if (uatEnvironment !== 'development' && uatEnvironment !== 'test') {
+  throw new Error('This migration harness is restricted to SCS_ENVIRONMENT=development|test.');
+}
+if (process.env.SCS_UAT_CONFIRM !== 'true') {
+  throw new Error('Set SCS_UAT_CONFIRM=true to confirm disposable local migration testing.');
+}
+
+
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
 

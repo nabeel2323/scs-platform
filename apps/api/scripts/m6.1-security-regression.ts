@@ -14,15 +14,18 @@
 import { Pool } from 'pg';
 import Redis from 'ioredis';
 import crypto from 'node:crypto';
+import { assertLocalUatExecution } from './local-uat-safety';
 
 const API = 'http://localhost:3000/v1';
 const DB_URL = 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform';
+const REDIS_URL = 'redis://localhost:6379';
+assertLocalUatExecution('m6.1-security-regression', { databaseUrl: DB_URL, apiUrl: API, redisUrl: REDIS_URL });
 const pool = new Pool({ connectionString: DB_URL });
 
 // ── Auth ────────────────────────────────────────────────────
 
 async function getToken(email: string, password: string, phone: string): Promise<string> {
-  const redis = new Redis('redis://localhost:6379');
+  const redis = new Redis(REDIS_URL);
   const loginRes = await fetch(`${API}/auth/login/password`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password, deviceId: 'm61-sec-' + email }),

@@ -5,11 +5,14 @@
  * Usage: DATABASE_URL=... pnpm tsx scripts/m5-uat-verification.ts
  */
 import { Pool } from 'pg';
+import { assertLocalUatExecution } from './local-uat-safety';
 import { randomUUID } from 'node:crypto';
 import ExcelJS from 'exceljs';
 import bcrypt from 'bcrypt';
 
 const API = 'http://localhost:3000/v1';
+const DB_URL = process.env['DATABASE_URL'] ?? 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform';
+assertLocalUatExecution('m5-uat-verification', { databaseUrl: DB_URL, apiUrl: API });
 let TOKEN = '';
 let USER_ID = '';
 let ORG_ID = '';
@@ -172,8 +175,7 @@ async function buildAcceptanceWorkbook(): Promise<Buffer> {
 // ── Main UAT Flow ────────────────────────────────────────────────────────
 
 async function main() {
-  const connectionString = process.env['DATABASE_URL'] ?? 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform';
-  const pool = new Pool({ connectionString });
+  const pool = new Pool({ connectionString: DB_URL });
   const results: Array<{ id: string; scenario: string; status: string; evidence: string }> = [];
 
   function record(id: string, scenario: string, status: string, evidence: string) {

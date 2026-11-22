@@ -3,10 +3,13 @@
  * Executes all M5 scenarios against real API + PostgreSQL.
  */
 import { Pool } from 'pg';
+import { assertLocalUatExecution } from './local-uat-safety';
 import { randomUUID } from 'node:crypto';
 import { execSync } from 'node:child_process';
 
 const API = 'http://localhost:3000/v1';
+const DB_URL = process.env['DATABASE_URL'] ?? 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform';
+assertLocalUatExecution('m5-uat-run', { databaseUrl: DB_URL, apiUrl: API });
 let TOKEN = '';
 const results: Array<{ id: string; scenario: string; status: string; evidence: string }> = [];
 
@@ -226,8 +229,7 @@ async function buildWorkbookBase64(): Promise<string> {
 // ── Main ─────────────────────────────────────────────────────────────────
 
 async function main() {
-  const connectionString = process.env['DATABASE_URL'] ?? 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform';
-  const pool = new Pool({ connectionString });
+  const pool = new Pool({ connectionString: DB_URL });
 
   console.log('══════════════════════════════════════════════════');
   console.log('M5 FINAL HUMAN UAT — RUNTIME VERIFICATION');

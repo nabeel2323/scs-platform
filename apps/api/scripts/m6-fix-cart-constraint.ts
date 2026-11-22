@@ -1,5 +1,8 @@
 import { Pool } from 'pg';
-const p = new Pool({ connectionString: 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform' });
+import { assertLocalUatExecution } from './local-uat-safety';
+const DB_URL = 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform';
+assertLocalUatExecution('m6-fix-cart-constraint', { databaseUrl: DB_URL });
+const p = new Pool({ connectionString: DB_URL });
 async function main() {
   // Check existing cart_items constraints
   const r = await p.query("SELECT conname, contype, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'cart_items'::regclass");
