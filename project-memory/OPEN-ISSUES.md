@@ -494,3 +494,7 @@ Brand directory read failures lacked retry and could render “No brands found.�
 ## UX-057 — Admin Business Calendar — 22 November 2026
 
 Business Calendar read failures lacked retry and could be mistaken for no configured calendar; dependent holiday/audit empty states were also ambiguous. The page now guards requests, exposes retry and suppresses false empty states. Focused test added but not executed. UX-057 remains TESTING_PENDING.
+
+## UX-058 — Admin Attribute Groups and Definitions — 22 November 2026
+
+Attribute Groups/Definitions previously showed empty result states/counts after failed reads despite a visible error; Attribute Definitions also lacked stale-response protection across filters. Both pages now guard requests, expose accessible retryable errors and suppress false empty results. Focused tests added but not executed. UX-058 remains TESTING_PENDING; no API/permission/schema/database change.
