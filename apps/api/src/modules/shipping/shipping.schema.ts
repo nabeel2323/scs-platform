@@ -1,7 +1,8 @@
 import {
   pgTable, uuid, varchar, char, text, integer, bigint, boolean,
-  jsonb, timestamp, numeric,
+  jsonb, timestamp, numeric, uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { stores } from '../merchant/merchant.schema';
 import { users } from '../identity/identity.schema';
 import { organizations } from '../identity/identity.schema';
@@ -145,6 +146,9 @@ export const driverStoreAssignments = pgTable('driver_store_assignments', {
 export const carrierWebhookEvents = pgTable('carrier_webhook_events', {
   id: uuid('id').primaryKey(),
   providerKey: varchar('provider_key', { length: 40 }).notNull(),
+  // Nullable only for legacy rows; all newly ingested events bind the exact
+  // credential that verified the HMAC signature.
+  credentialId: uuid('credential_id').references(() => carrierCredentials.id, { onDelete: 'set null' }),
   eventType: varchar('event_type', { length: 80 }).notNull(),
   externalDeliveryId: varchar('external_delivery_id', { length: 200 }).notNull(),
   shipmentId: uuid('shipment_id').references(() => shipments.id),
@@ -156,7 +160,11 @@ export const carrierWebhookEvents = pgTable('carrier_webhook_events', {
   rawBody: text('raw_body'),
   processedAt: timestamp('processed_at', { withTimezone: true }),
   processingError: text('processing_error'),
-});
+}, (table) => ({
+  credentialExternalUnique: uniqueIndex('uq_carrier_webhook_dedup_credential')
+    .on(table.credentialId, table.externalDeliveryId)
+    .where(sql`${table.credentialId} IS NOT NULL`),
+}));
 
 // ── Carrier Credentials (M7.2.3-A, 0043) ────────────────────────────────────
 // Encrypted per-org carrier API credentials.  Plaintext secrets are NEVER

@@ -7,7 +7,8 @@ import { CarrierCredentialsService } from './carrier-credentials.service';
 import { CarrierConfigurationsService } from './carrier-configurations.service';
 import { outboxEvents } from '../audit/audit.schema';
 import { shipments } from '../orders/shipment.schema';
-import { carrierWebhookEvents, shipmentLabels } from './shipping.schema';
+import { carrierWebhookEvents, carrierCredentials, shipmentLabels } from './shipping.schema';
+import { resolveShipmentForCredential } from './carrier-webhook-routing';
 import { generateIdempotencyKey, CarrierCreateStatus, CreateShipmentRequest, CancelPickupRequest } from './shipping.types';
 import { classifyCarrierError, NonRetryableCarrierError, RetryableCarrierError } from './carrier-errors';
 import { carrierEndpointAllowlistRegistry } from './ssrf-protection';
@@ -1067,32 +1068,67 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       `(provider: ${webhookEvent.providerKey}, external: ${webhookEvent.externalDeliveryId})`,
     );
 
-    // 3. Re-attempt shipment linkage (may have failed on first attempt)
-    if (!webhookEvent.shipmentId) {
-      const shipment = await this.db.db.query.shipments.findFirst({
-        where: eq(shipments.carrierShipmentId, webhookEvent.externalDeliveryId),
-      });
+    // 3. Re-attempt shipment linkage using the exact credential that
+    //    authenticated the original event. Legacy unbound rows are routable
+    //    only when exactly one credential exists for the provider.
+    try {
+      if (!webhookEvent.shipmentId) {
+        let credential: any = null;
+        if (webhookEvent.credentialId) {
+          credential = await this.db.db.query.carrierCredentials.findFirst({
+            where: eq(carrierCredentials.id, webhookEvent.credentialId),
+          });
+        } else {
+          const legacyCredentials = await this.db.db.query.carrierCredentials.findMany({
+            where: eq(carrierCredentials.providerKey, webhookEvent.providerKey),
+            limit: 2,
+          });
+          if (legacyCredentials.length !== 1) {
+            throw new NonRetryableCarrierError(
+              'Legacy webhook event has no unique credential binding',
+              { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
+            );
+          }
+          credential = legacyCredentials[0];
+        }
 
-      if (shipment) {
+        if (!credential) {
+          throw new NonRetryableCarrierError(
+            'Webhook credential is missing or was deleted',
+            { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
+          );
+        }
+
+        const resolution = await resolveShipmentForCredential(
+          this.db,
+          credential,
+          webhookEvent.providerKey,
+          webhookEvent.externalDeliveryId,
+        );
+        if (resolution.status === 'AMBIGUOUS') {
+          throw new NonRetryableCarrierError(
+            'Ambiguous carrier shipment reference within credential organization',
+            { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
+          );
+        }
+        if (resolution.status === 'NOT_FOUND') {
+          throw new RetryableCarrierError(
+            'No matching shipment found yet for this credential and provider reference',
+            { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
+          );
+        }
+
         await this.db.db
           .update(carrierWebhookEvents)
-          .set({ shipmentId: shipment.id })
+          .set({ shipmentId: resolution.shipment.id })
           .where(eq(carrierWebhookEvents.id, webhookEventId));
 
         this.logger.log(
-          `Webhook retry: linked event ${webhookEventId} to shipment ${shipment.id}`,
-        );
-      } else {
-        this.logger.warn(
-          `Webhook retry: no shipment found for carrier ID ${webhookEvent.externalDeliveryId}`,
+          `Webhook retry: linked event ${webhookEventId} to shipment ${resolution.shipment.id}`,
         );
       }
-    }
 
-    // 4. Mark as processed — the actual "processing" for a webhook is
-    //    the linkage + persistence that already happened at ingest time.
-    //    The retry ensures the event is not silently lost.
-    try {
+      // 4. Mark as processed after successful tenant-scoped linkage.
       await this.db.db
         .update(carrierWebhookEvents)
         .set({
@@ -1103,26 +1139,19 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         .where(eq(carrierWebhookEvents.id, webhookEventId));
 
       this.observability.incrementCounter('carrier_webhook_total', webhookEvent.providerKey);
-
-      this.logger.log(
-        `Webhook retry: event ${webhookEventId} processed successfully.`,
-      );
+      this.logger.log(`Webhook retry: event ${webhookEventId} processed successfully.`);
     } catch (processingErr: any) {
-      // Mark the error but re-throw so the outbox retry policy handles backoff
+      const safeMessage = classifyCarrierError(processingErr).safeMessage;
       await this.db.db
         .update(carrierWebhookEvents)
         .set({
-          processingError: (processingErr?.message || 'Unknown retry processing error').slice(0, 2000),
+          processed: false,
+          processingError: safeMessage.slice(0, 2000),
         })
         .where(eq(carrierWebhookEvents.id, webhookEventId));
 
       this.observability.incrementCounter('carrier_webhook_failures_total', webhookEvent.providerKey);
-
-      this.logger.error(
-        `Webhook retry: event ${webhookEventId} failed: ${processingErr?.message}`,
-      );
-
-      // Re-throw so handleFailure manages the outbox retry/backoff/dead-letter
+      this.logger.error(`Webhook retry: event ${webhookEventId} failed: ${safeMessage}`);
       throw processingErr;
     }
   }

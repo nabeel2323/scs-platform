@@ -11,7 +11,7 @@ import { CarrierCredentialsService } from './carrier-credentials.service';
 import { CarrierObservabilityService } from './carrier-observability';
 import { carrierWebhookEvents, carrierCredentials } from './shipping.schema';
 import { outboxEvents } from '../audit/audit.schema';
-import { shipments } from '../orders/shipment.schema';
+import { resolveShipmentForCredential } from './carrier-webhook-routing';
 
 /**
  * CarrierWebhookController — inbound carrier webhook endpoint.
@@ -36,7 +36,7 @@ import { shipments } from '../orders/shipment.schema';
  *     but is only safe when a single org uses each provider.
  *
  * DEDUPLICATION:
- *   - Atomic insert into carrier_webhook_events with UNIQUE(provider_key, external_delivery_id).
+ *   - Atomic insert into carrier_webhook_events with UNIQUE(credential_id, external_delivery_id).
  *   - Duplicate deliveries return 200 OK (idempotent) without reprocessing.
  *
  * RESPONSE BEHAVIOUR:
@@ -216,6 +216,7 @@ export class CarrierWebhookController {
       await this.db.db.insert(carrierWebhookEvents).values({
         id: webhookEventId,
         providerKey,
+        credentialId: credential.id,
         eventType: (payload['event_type'] as string) || (payload['event'] as string) || 'unknown',
         externalDeliveryId,
         shipmentId: null, // resolved below
@@ -236,29 +237,50 @@ export class CarrierWebhookController {
       throw err;
     }
 
-    // 9. Resolve tenant: carrier shipment reference → SCS shipment → store → org
-    //    NEVER trust storeId/orgId from the webhook payload.
-    const shipment = await this.db.db.query.shipments.findFirst({
-      where: and(
-        eq(shipments.carrierShipmentId, externalDeliveryId),
-      ),
-    });
-
-    if (shipment) {
-      // Link the webhook event to the shipment
-      await this.db.db.update(carrierWebhookEvents)
-        .set({ shipmentId: shipment.id })
-        .where(eq(carrierWebhookEvents.id, webhookEventId));
-
-      this.logger.log(
-        `Webhook from ${providerKey} linked to shipment ${shipment.id} ` +
-        `(store: ${shipment.storeId})`,
+    // 9. Resolve the shipment only inside the organization bound to the
+    // credential that verified this webhook. Never trust tenant IDs in payloads.
+    let resolution;
+    try {
+      resolution = await resolveShipmentForCredential(
+        this.db,
+        credential,
+        providerKey,
+        externalDeliveryId,
       );
-    } else {
-      this.logger.warn(
-        `Webhook from ${providerKey}: no shipment found for carrier ID ${externalDeliveryId}`,
+    } catch (resolutionError: any) {
+      const message = (resolutionError?.message || 'Shipment resolution failed').slice(0, 2000);
+      await this.markWebhookPendingAndEnqueue(
+        webhookEventId, providerKey, externalDeliveryId, credential.orgId, message,
       );
+      return res.status(HttpStatus.OK).json({ received: true, duplicate: false, pending: true });
     }
+
+    if (resolution.status === 'AMBIGUOUS') {
+      const message = 'Ambiguous carrier shipment reference within credential organization';
+      await this.db.db.update(carrierWebhookEvents)
+        .set({ processed: true, processedAt: new Date(), processingError: message })
+        .where(eq(carrierWebhookEvents.id, webhookEventId));
+      this.logger.error(`Webhook ${webhookEventId} not linked: ${message}`);
+      return res.status(HttpStatus.OK).json({ received: true, duplicate: false, ambiguous: true });
+    }
+
+    if (resolution.status === 'NOT_FOUND') {
+      const message = 'No matching shipment found yet for this credential and provider reference';
+      await this.markWebhookPendingAndEnqueue(
+        webhookEventId, providerKey, externalDeliveryId, credential.orgId, message,
+      );
+      return res.status(HttpStatus.OK).json({ received: true, duplicate: false, pending: true });
+    }
+
+    const shipment = resolution.shipment;
+    await this.db.db.update(carrierWebhookEvents)
+      .set({ shipmentId: shipment.id })
+      .where(eq(carrierWebhookEvents.id, webhookEventId));
+
+    this.logger.log(
+      `Webhook from ${providerKey} linked to shipment ${shipment.id} ` +
+      `(store: ${shipment.storeId})`,
+    );
 
     // 10. Process the webhook — on failure, persist error and schedule async retry
     //     M7.2.3-C: Never block the HTTP response; always return 200 to the carrier.
@@ -266,7 +288,7 @@ export class CarrierWebhookController {
     try {
       // Mark as processed
       await this.db.db.update(carrierWebhookEvents)
-        .set({ processed: true, processedAt: new Date() })
+        .set({ processed: true, processedAt: new Date(), processingError: null })
         .where(eq(carrierWebhookEvents.id, webhookEventId));
 
       this.observability.incrementCounter('carrier_webhook_total', providerKey);
@@ -278,44 +300,55 @@ export class CarrierWebhookController {
 
       this.observability.incrementCounter('carrier_webhook_failures_total', providerKey);
 
-      // Mark the webhook event as failed with error details
-      await this.db.db.update(carrierWebhookEvents)
-        .set({
-          processed: false,
-          processingError: (processingErr?.message || 'Unknown processing error').slice(0, 2000),
-        })
-        .where(eq(carrierWebhookEvents.id, webhookEventId));
-
-      // M7.2.4-A: Resolve organizationId from the credential for tenant context.
-      const retryOrgId = (credential as any)?.orgId || null;
-
-      // Insert async retry outbox event — the ShippingCarrierWorker picks this up
-      try {
-        await this.db.db.insert(outboxEvents).values({
-          id: randomUUID(),
-          eventType: 'shipping.carrier.webhook.retry',
-          aggregateId: webhookEventId,
-          payload: {
-            providerKey,
-            externalDeliveryId,
-            webhookEventId,
-            error: (processingErr?.message || 'Unknown').slice(0, 500),
-            source: 'webhook_async_retry',
-          },
-          status: 'PENDING',
-          organizationId: retryOrgId,
-        });
-      } catch (outboxErr: any) {
-        this.logger.error(
-          `Failed to insert webhook retry outbox event: ${outboxErr?.message}`,
-        );
-      }
+      await this.markWebhookPendingAndEnqueue(
+        webhookEventId,
+        providerKey,
+        externalDeliveryId,
+        credential.orgId,
+        processingErr?.message || 'Unknown processing error',
+      );
     }
 
     return res.status(HttpStatus.OK).json({
       received: true,
       duplicate: false,
     });
+  }
+
+  private async markWebhookPendingAndEnqueue(
+    webhookEventId: string,
+    providerKey: string,
+    externalDeliveryId: string,
+    organizationId: string,
+    error: string,
+  ): Promise<void> {
+    const safeError = error.slice(0, 2000);
+    try {
+      await this.db.db.update(carrierWebhookEvents)
+        .set({ processed: false, processingError: safeError })
+        .where(eq(carrierWebhookEvents.id, webhookEventId));
+    } catch (updateError: any) {
+      this.logger.error(`Failed to persist pending webhook state: ${updateError?.message}`);
+    }
+
+    try {
+      await this.db.db.insert(outboxEvents).values({
+        id: randomUUID(),
+        eventType: 'shipping.carrier.webhook.retry',
+        aggregateId: webhookEventId,
+        payload: {
+          providerKey,
+          externalDeliveryId,
+          webhookEventId,
+          error: safeError.slice(0, 500),
+          source: 'webhook_async_retry',
+        },
+        status: 'PENDING',
+        organizationId,
+      });
+    } catch (outboxError: any) {
+      this.logger.error(`Failed to insert webhook retry outbox event: ${outboxError?.message}`);
+    }
   }
 
   /**
