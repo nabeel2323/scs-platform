@@ -159,7 +159,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
             skipError: true,
             data: (list) {
               final content = list.isEmpty
-                  ? const EmptyState(
+                  ? EmptyState(
                       title: 'No organizations',
                       description: canCreate ? 'Create one to get started' : 'No organizations are available to this account')
                   : RefreshIndicator(
