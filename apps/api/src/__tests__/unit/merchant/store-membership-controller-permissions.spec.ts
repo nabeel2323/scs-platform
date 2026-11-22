@@ -44,7 +44,7 @@ describe('StoreMembershipController permission alignment', () => {
     const methodGuards = Reflect.getMetadata(
       GUARDS_METADATA,
       StoreMembershipController.prototype.listMembers,
-    ) as Function[];
+    ) as unknown[];
     expect(classGuards).toContain(JwtAuthGuard);
     expect(methodGuards).toContain(PermissionsGuard);
   });
