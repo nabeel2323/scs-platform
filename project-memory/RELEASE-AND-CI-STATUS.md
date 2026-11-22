@@ -350,3 +350,12 @@ On exact PR #138 source head caba922e866635fad51e549e095a186f9d9df6cf, both Verc
 - Added a preliminary database operation map covering 26 service files plus supporting worker/system paths, and a schema-backed table ownership/predicate-candidate matrix. See the two G-002 documents linked from START-HERE.
 - No test or CI run was triggered. No staging release, shared database query/write, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment occurred.
 - The final full verification campaign remains deferred until implementation is ready, consistent with the Actions-minute conservation decision.
+
+
+## API-003 canonical permission alignment — 22 November 2026
+
+- Static audit compared method-level permission decorators across the 28 API controller files listed in docs/api-route-permission-matrix.md against the canonical PERMISSIONS seed and role grants.
+- Found merchant:products:read used by five CatalogController read routes and StoreMembershipController member listing, but absent from the seed and all built-in roles.
+- Reused existing keys instead of adding a new permission: CatalogController now uses catalog:products:read with existing store/org ownership checks; StoreMembershipController list uses merchant:stores:read; MERCHANT_STAFF now receives the existing store-read permission. Mutations remain merchant:products:write and service-level membership-manager checks.
+- Added focused API tests for route permission metadata, guard behavior and built-in role grants. Tests were not run; no Actions workflow was triggered.
+- No migration, live DB grant, staging change, deployment, worker activation or provider call occurred. API-003 is IMPLEMENTED / NOT VERIFIED pending consolidated validation.
