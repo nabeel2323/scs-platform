@@ -263,3 +263,11 @@ A defect was fixed in InventoryService.transferStock: the destination warehouse 
 ## Method-level predicate checkpoint — Catalog family
 
 See [G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md](./G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md), Catalog/Offers/Product Governance/Taxonomy batch. This pass fixed four concrete ownership gaps: variant attribute GET product/variant mismatch, media attachment to a foreign variant, legacy updateVariant ID-only UPDATE, and createOffer referencing another store's private product. Three focused regression tests were added; not run.
+
+
+## Worker/system ownership correction — return expiration and pilot allowlist — 22 November 2026
+
+- ReturnExpirationWorker claim SQL now locks the exact live P13 lease row in the same bounded statement that claims due return IDs. This is a global system claim, not a tenant HTTP read.
+- ReturnsService.escalateReturn now requires an explicit platform or worker authority. Platform callers are checked with isTenantPrivileged; worker callers must provide holder ID and epoch. The worker lease is locked and revalidated inside the transition transaction, and the lease predicate is repeated in the return UPDATE. Event/outbox writes occur only after the fenced transition succeeds.
+- PilotControlService.addAllowlistEntry validates that the organization exists and any supplied store belongs to that organization. p13_pilot_allowlist has no FK constraints, so this consistency is enforced at the service boundary.
+- These are source-level changes with focused regression tests added but not run. No RLS, transaction interceptor, DB grant, migration, staging action, worker activation or external provider call was performed.

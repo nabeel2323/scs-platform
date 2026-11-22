@@ -40,7 +40,13 @@ import { CommissionReversalService } from './commission-reversal.service';
 import { SettlementAdjustmentService } from './settlement-adjustment.service';
 import { REFUND_REASONS, RefundReason } from '../payments/payments.types';
 import { eq, and, sql, desc, inArray } from 'drizzle-orm';
+import { P13_LEASE_KEY } from '../operations/p13-ops.config';
+import { readRows } from '../operations/raw-result';
 import crypto from 'node:crypto';
+
+export type ReturnEscalationAuthority =
+  | { kind: 'platform'; caller: CallerContext }
+  | { kind: 'worker'; holderId: string; epoch: number };
 
 /** Configurable return window (days from delivery). */
 const RETURN_WINDOW_DAYS = Number(process.env['RETURN_WINDOW_DAYS'] ?? 14);
@@ -423,7 +429,7 @@ export class ReturnsService {
       case 'EXPIRED':
         return this.expireReturn(ret, caller);
       case 'ESCALATED':
-        return this.escalateReturn(ret.id);
+        return this.escalateReturn(ret.id, { kind: 'platform', caller });
       default:
         throw new BadRequestException(`Unknown status: ${newStatus}`);
     }
@@ -793,28 +799,67 @@ export class ReturnsService {
    * Called by the ReturnExpirationWorker. Transitions to ESCALATED
    * instead of EXPIRED. Computes and persists the admin review deadline.
    */
-  async escalateReturn(returnId: string) {
+  async escalateReturn(returnId: string, authority: ReturnEscalationAuthority) {
+    if (authority.kind === 'platform' && !isTenantPrivileged(authority.caller)) {
+      throw new ForbiddenException('Only platform staff can escalate returns manually');
+    }
+    if (
+      authority.kind === 'worker' &&
+      (!authority.holderId || !Number.isSafeInteger(authority.epoch) || authority.epoch <= 0)
+    ) {
+      throw new ForbiddenException('A valid worker lease fence is required for automatic escalation');
+    }
+
     const ret = await this.db.db.query.returnRequests.findFirst({
       where: eq(returnRequests.id, returnId),
     });
     if (!ret) throw new NotFoundException('Return request not found');
-    if (ret.status !== 'REQUESTED') return; // already processed — idempotent
+    if (ret.status !== 'REQUESTED') return null;
 
-    // Calculate admin review deadline using business calendar
     const escalatedAt = new Date();
     let escalationDeadline: Date;
     try {
       escalationDeadline = await this.calendar.addBusinessDays(escalatedAt, 3);
     } catch (err: any) {
-      // Calendar misconfiguration — log but do not silently expire
       this.logger.error(
         `Cannot calculate escalation deadline for ${returnId}: ${err?.message}. ` +
         'Business calendar may be missing or misconfigured.',
       );
-      throw err; // Let the worker retry; do not leave request in false-completed state
+      throw err;
     }
 
-    await this.db.db.transaction(async (tx) => {
+    const escalated = await this.db.db.transaction(async (tx) => {
+      if (authority.kind === 'worker') {
+        // Lock and validate the exact live lease in the same transaction as
+        // the return transition. A timer check immediately before this method
+        // is not sufficient: ownership can expire between the check and write.
+        const fenceRows = readRows<{ lease_key: string }>(await tx.execute(sql`
+          SELECT lease_key
+          FROM worker_leases
+          WHERE lease_key = ${P13_LEASE_KEY}
+            AND holder_id = ${authority.holderId}
+            AND epoch = ${authority.epoch}
+            AND expires_at > now()
+          FOR UPDATE
+        `));
+        if (fenceRows.length === 0) return false;
+      }
+
+      const transitionConditions = [
+        eq(returnRequests.id, returnId),
+        eq(returnRequests.status, 'REQUESTED'),
+      ];
+      if (authority.kind === 'worker') {
+        transitionConditions.push(sql`EXISTS (
+          SELECT 1
+          FROM worker_leases
+          WHERE lease_key = ${P13_LEASE_KEY}
+            AND holder_id = ${authority.holderId}
+            AND epoch = ${authority.epoch}
+            AND expires_at > now()
+        )`);
+      }
+
       const flip = await tx
         .update(returnRequests)
         .set({
@@ -823,12 +868,9 @@ export class ReturnsService {
           escalationDeadline,
           updatedAt: new Date(),
         })
-        .where(and(
-          eq(returnRequests.id, returnId),
-          eq(returnRequests.status, 'REQUESTED'),
-        ))
+        .where(and(...transitionConditions))
         .returning({ id: returnRequests.id });
-      if (flip.length === 0) return; // concurrent transition — idempotent
+      if (flip.length === 0) return false;
 
       await tx.insert(returnRequestEvents).values({
         id: crypto.randomUUID(),
@@ -847,8 +889,10 @@ export class ReturnsService {
         escalatedAt: escalatedAt.toISOString(),
         escalationDeadline: escalationDeadline.toISOString(),
       }, {}, null, tx);
+      return true;
     });
 
+    if (!escalated) return null;
     this.logger.log(`Return ${returnId} escalated to admin review`);
     return this.getReturnRequest(returnId);
   }

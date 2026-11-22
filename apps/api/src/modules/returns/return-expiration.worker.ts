@@ -265,18 +265,31 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
 
     try {
       const claimed = await this.db.db.execute(sql`
-        UPDATE return_requests
-        SET updated_at = NOW()
-        WHERE id IN (
-          SELECT id FROM return_requests
-          WHERE status = 'REQUESTED'
-            AND expires_at IS NOT NULL
-            AND expires_at <= NOW()
-          ORDER BY expires_at ASC
+        WITH live_fence AS MATERIALIZED (
+          SELECT lease_key
+          FROM worker_leases
+          WHERE lease_key = ${P13_LEASE_KEY}
+            AND holder_id = ${this.leases.holderId}
+            AND epoch = ${epoch}
+            AND expires_at > NOW()
+          FOR UPDATE
+        ),
+        candidate AS (
+          SELECT rr.id
+          FROM return_requests rr
+          CROSS JOIN live_fence
+          WHERE rr.status = 'REQUESTED'
+            AND rr.expires_at IS NOT NULL
+            AND rr.expires_at <= NOW()
+          ORDER BY rr.expires_at ASC
           LIMIT ${ReturnExpirationWorker.BATCH_SIZE}
-          FOR UPDATE SKIP LOCKED
+          FOR UPDATE OF rr SKIP LOCKED
         )
-        RETURNING id
+        UPDATE return_requests AS target
+        SET updated_at = NOW()
+        FROM candidate
+        WHERE target.id = candidate.id
+        RETURNING target.id
       `);
       claimedRows = readRows<{ id: string }>(claimed);
     } catch (err) {
@@ -351,7 +364,12 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
 
       // Phase 2: escalate to admin review instead of terminal expiry. This never
       // approves, rejects, refunds, or expires a return on SLA elapse alone.
-      await this.returnsService.escalateReturn(ret.id);
+      const result = await this.returnsService.escalateReturn(ret.id, {
+        kind: 'worker',
+        holderId: this.leases.holderId,
+        epoch,
+      });
+      if (!result) return 'skipped';
       this.logger.log(`Escalated return ${ret.id} to admin review (merchant SLA exceeded)`);
       return 'escalated';
     } catch (err: any) {

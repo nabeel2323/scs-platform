@@ -23,8 +23,8 @@
  * guard still decides what the caller may do.
  */
 
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
-import { sql } from 'drizzle-orm';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { and, eq, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { AuditService } from '../audit/audit.service';
 import { OpsAlertService } from './ops-alert.service';
@@ -32,6 +32,8 @@ import { recordOpsCounter, getOpsCounter } from './ops-counters';
 import { firstRow, readRows } from './raw-result';
 import { featureFlags } from '../audit/audit.schema';
 import { p13PilotAllowlist } from './operations.schema';
+import { organizations } from '../identity/identity.schema';
+import { stores } from '../merchant/merchant.schema';
 import { P13_PILOT_FLAG_KEY, resolveP13OpsConfig, type P13PilotMode } from './p13-ops.config';
 
 export interface PilotEligibility {
@@ -219,6 +221,25 @@ export class PilotControlService {
     actorId?: string | null;
   }): Promise<void> {
     if (!input.orgId) throw new ForbiddenException('orgId is required for an allowlist entry');
+
+    const organization = await this.db.db.query.organizations.findFirst({
+      where: eq(organizations.id, input.orgId),
+      columns: { id: true },
+    });
+    if (!organization) throw new NotFoundException('Organization not found');
+
+    if (input.storeId) {
+      const store = await this.db.db.query.stores.findFirst({
+        where: and(
+          eq(stores.id, input.storeId),
+          eq(stores.orgId, input.orgId),
+        ),
+        columns: { id: true },
+      });
+      if (!store) {
+        throw new NotFoundException('Store not found in the target organization');
+      }
+    }
 
     await this.db.db
       .insert(p13PilotAllowlist)

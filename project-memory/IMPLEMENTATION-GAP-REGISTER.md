@@ -197,3 +197,8 @@ Completed method-level review and targeted corrections. Return inspection invent
 ## G-002 method-level predicate batch 5 — Carrier, Shipping, Webhook and Outbox — 22 November 2026
 
 Completed carrier/shipping source review and corrections. Added ACTIVE organization membership checks to shipping, carrier credentials/configuration, shipment operations and recovery routes. Carrier config resolution now verifies store→org and credential→same org/active. Removed Aramex's arbitrary global merchant-credential fallback; store-bound provider calls resolve the store's own configured active credential, while unscoped address validation uses only a PLATFORM credential. Tracking call sites now pass storeId. Worker event metadata is checked against shipment→store→org before provider side effects; inactive webhook credentials are rejected. Focused specs were added/updated but not run. Remaining: worker/outbox/bootstrap/system method predicates, internal caller/transaction propagation, and protected live identity/catalog evidence. No RLS policy is approved.
+
+
+## G-002 method-level ownership predicate batch 6 — worker/system contexts — 22 November 2026
+
+Closed two source-level correctness gaps found during worker/system context review: ReturnExpirationWorker now carries its lease fence into the actual claim and escalation transactions, and PilotControlService refuses inconsistent store/org allowlist entries. The worker's platform/manual escalation path is independently role-checked. Focused regression tests were added but intentionally not executed. Live runtime identities, protected catalog evidence, RLS design/review and all external release gates remain open.

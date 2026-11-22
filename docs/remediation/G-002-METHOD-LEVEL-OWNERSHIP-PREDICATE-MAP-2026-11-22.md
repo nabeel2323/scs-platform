@@ -279,3 +279,24 @@ Added shipping-tenant-context.spec.ts and updated shipping-carrier-worker-label.
 - Shipment operation scope is organization-level (active org membership) where the current API permissions are org-level; this batch did not silently redefine store-member policy.
 - CarrierTrackingPoller, CarrierReconciliationService and ShippingCarrierWorker are background/global system components. Their timers/worker loops were not started or activated.
 - No tests/CI, DB query/connection, migration, grant/RLS, staging action, deployment or carrier/provider call occurred.
+
+
+## Worker/system context batch 6 — return-expiration fencing and pilot allowlist ownership — 22 November 2026
+
+### ReturnExpirationWorker and ReturnsService.escalateReturn
+
+The worker's lease check previously occurred before the return-state transaction. A lease could expire or be taken over between that check and the mutation, allowing a stale worker to escalate a REQUESTED return. The bounded claim statement also updated return_requests after a separate heartbeat check without locking/revalidating the lease in that statement.
+
+The implementation now:
+- Locks the exact worker_leases row (lease_key, holder_id, epoch, unexpired) inside the bounded claim statement.
+- Requires an explicit escalation authority: a platform CallerContext for manual escalation, or a worker holder/epoch fence for automatic escalation.
+- For worker escalation, locks and validates the live lease inside the same transaction as the return transition, then repeats the lease predicate in the UPDATE.
+- Emits the return event and outbox event only when the fenced status transition actually changes a row. A lost fence or concurrent transition is a no-op and is counted as skipped rather than successful escalation.
+
+The P13 worker remains opt-in and disabled unless its existing runtime flag is enabled. No worker was activated.
+
+### PilotControlService allowlist ownership
+
+p13_pilot_allowlist has no organization/store foreign keys. Adding a store-scoped entry previously trusted the supplied orgId/storeId pair. The service now verifies the organization exists and, when storeId is present, verifies that store belongs to that organization before inserting. This prevents inconsistent system configuration from bypassing the canonical store→organization relationship.
+
+Focused tests were added for lease locking/fencing, stale-worker no-op behavior, platform-only manual escalation and allowlist store/org consistency. They are committed as source tests but have not been executed.
