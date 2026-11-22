@@ -331,3 +331,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Added a shared activation helper that writes secure storage, updates `activeOrgIdProvider`, invalidates the profile, and awaits the refreshed permission projection before proceeding.
 - Invalidated store/warehouse caches after registration writes and clarified the no-business dashboard CTA for create vs invite-join access.
 - CI remains deferred under the agreed Actions-minute budget; run all mobile/backend/security/format checks once after the implementation batch is complete.
+
+
+## 2026-11-22 — Organization onboarding RBAC seed reconciliation
+
+- Inspected `0069_organization_onboarding_permission.sql`, the OrganizationsController guard, and canonical RBAC seed data.
+- Supabase read-only SQL: `public._migration_log` confirms migration 0069 applied on 17 November 2026. Permission-role join confirms `identity:organizations:create` exists for BUYER, ADMIN, MERCHANT_OWNER, and SUPER_ADMIN.
+- Corrected the earlier finding: staging grants were already correct; only `rbac-seed.data.ts` was stale. Aligned PERMISSIONS and the four role grants with migration 0069 and added a regression assertion against the actual `ROLES` seed.
+- No database write, privilege change, deployment, or new migration was performed.

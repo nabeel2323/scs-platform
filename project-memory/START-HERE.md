@@ -193,3 +193,8 @@ A follow-up code review tightened Home discovery visibility, registration step g
 ## Registration active-organization correction — 22 November 2026
 
 Merchant registration now persists the organization created or joined to secure storage and updates `activeOrgIdProvider` before refreshing `profileProvider`. This ensures the subsequent store-write check uses the newly selected organization's permissions rather than stale permissions from the previous/no active organization. Store and warehouse caches are invalidated after creation. The follow-up remains unvalidated until the consolidated test phase.
+
+
+## RBAC seed reconciliation — 22 November 2026
+
+Correction to the earlier onboarding-permission note: staging is not missing `identity:organizations:create`. The connected database migration log confirms `0069_organization_onboarding_permission.sql` was applied on 17 November 2026, and read-only SQL confirms the permission is assigned to BUYER, ADMIN, MERCHANT_OWNER, and SUPER_ADMIN. The defect was canonical seed drift: `apps/api/src/common/database/rbac-seed.data.ts` omitted the permission and its role grants. The seed and a real-seed regression test are now aligned with migration 0069. No staging database mutation was needed.

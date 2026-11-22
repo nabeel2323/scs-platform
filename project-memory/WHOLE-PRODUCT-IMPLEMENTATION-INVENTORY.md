@@ -241,3 +241,11 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Store creation checks now use the newly active organization's grants rather than stale profile state.
 - Store/warehouse providers are invalidated after registration mutations.
 - Merchant dashboard onboarding text distinguishes organization creation from invitation-based joining.
+
+
+### Organization onboarding seed consistency — 22 November 2026
+
+- Staging `public._migration_log` confirms `0069_organization_onboarding_permission.sql` was applied on 17 November 2026.
+- Read-only SQL confirms `identity:organizations:create` is assigned to BUYER, ADMIN, MERCHANT_OWNER, and SUPER_ADMIN.
+- Canonical `rbac-seed.data.ts` now mirrors the migration's permission definition and role grants; `merchant-rbac.spec.ts` asserts the real seed matrix.
+- No staging database mutation or new migration was needed.

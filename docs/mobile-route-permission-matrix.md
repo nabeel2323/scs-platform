@@ -45,6 +45,6 @@ The API's `GET /v1/me` response already includes the active-organization `perms`
 
 ## Outstanding policy and validation work
 
-- `identity:organizations:create` is checked by the organization flow but was absent from the inspected permission seed/default grants. Do not silently grant it to BUYER/MERCHANT roles. Reconcile organization type and creator-role semantics, then add a migration/seed and tests.
+- `identity:organizations:create` is defined by migration `0069_organization_onboarding_permission.sql`, which staging records as applied on 17 November 2026. Read-only SQL confirms it is assigned to BUYER, ADMIN, MERCHANT_OWNER, and SUPER_ADMIN. The canonical `rbac-seed.data.ts` was out of sync; this commit aligns the seed and adds a regression test. No staging DDL or permission grant is required.
 - Full deep-link, active-organization switching, role-switching, and mutation regression tests remain in the consolidated validation campaign.
 - Baseline CI formatting already fails on nine changed PR files. Formatting and full validation are intentionally deferred until the implementation batch is complete, conserving the user's remaining GitHub Actions minutes.

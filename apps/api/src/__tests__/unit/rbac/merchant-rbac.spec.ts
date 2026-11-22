@@ -150,6 +150,19 @@ describe('PermissionsGuard — merchant/catalog write endpoints', () => {
 // ═══════════════════════════════════════════════════════════════════
 
 describe('PermissionsGuard — seeded role matrix', () => {
+  it('canonical seed mirrors migration 0069 organization-onboarding grants', () => {
+    const seeded = new Map(ROLES.map((role) => [role.key, role.permissions]));
+    const createPermission = 'identity:organizations:create';
+
+    expect(PERMISSIONS).toContain(createPermission);
+    for (const role of ['BUYER', 'ADMIN', 'MERCHANT_OWNER', 'SUPER_ADMIN']) {
+      expect(seeded.get(role)).toContain(createPermission);
+    }
+    for (const role of ['MODERATOR', 'MERCHANT_STAFF', 'FINANCE', 'DRIVER']) {
+      expect(seeded.get(role)).not.toContain(createPermission);
+    }
+  });
+
   it('BUYER can start organization onboarding but cannot administer an existing organization', () => {
     expect(roleCan('BUYER', 'identity:organizations:create')).toBe(true);
     expect(roleCan('ADMIN', 'identity:organizations:create')).toBe(true);

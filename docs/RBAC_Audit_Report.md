@@ -505,3 +505,8 @@ if (!secret && process.env['NODE_ENV'] === 'production') {
 ---
 
 *Report generated 2026-09-12, remediation completed 2026-09-12. 16 API controllers audited, 52 permission keys verified against seed, 4 client apps reviewed. All 13 gaps closed (10 resolved, 3 accepted risk). All TypeScript projects compile clean (`tsc --noEmit`); Flutter mobile analyzer clean.*
+
+
+## Organization onboarding permission reconciliation — 22 November 2026
+
+Migration `0069_organization_onboarding_permission.sql` is present in the repository and the connected staging database's `public._migration_log` records it as applied at `2026-11-17 16:07:23+00`. Read-only SQL confirmed `identity:organizations:create` exists and is assigned to BUYER, ADMIN, MERCHANT_OWNER, and SUPER_ADMIN. The canonical `rbac-seed.data.ts` did not mirror that migration. The seed is now aligned and a regression test asserts the exact role grants. No database write or new migration was performed.

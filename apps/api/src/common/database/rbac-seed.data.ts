@@ -67,7 +67,8 @@ export const PERMISSIONS: string[] = [
   'support:tickets:escalate',
   'support:disputes:resolve',
   'support:disputes:write',
-  // Identity — org management
+  // Identity — organization onboarding and management
+  'identity:organizations:create',
   'identity:organizations:write',
   // Ads
   'ads:campaigns:read',
@@ -170,6 +171,7 @@ export const ROLES: RoleDef[] = [
       'merchant:inventory:write',
       'merchant:pricing:read',
       'merchant:pricing:write',
+      'identity:organizations:create',
       'identity:organizations:write',
       'catalog:attributes:manage',
       'catalog:product-types:manage',
@@ -281,6 +283,7 @@ export const ROLES: RoleDef[] = [
       'merchant:inventory:write',
       'merchant:pricing:read',
       'merchant:pricing:write',
+      'identity:organizations:create',
       'identity:organizations:write',
       'fulfillment:shipments:read',
       'fulfillment:shipments:assign',
@@ -343,6 +346,7 @@ export const ROLES: RoleDef[] = [
       'orders:write',
       'orders:cancel',
       'merchant:stores:read',
+      'identity:organizations:create',
       'analytics:track',
     ],
   },

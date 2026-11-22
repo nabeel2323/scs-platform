@@ -100,7 +100,7 @@ Navigation and mutation affordances are filtered by permission: buyer Search/Car
 
 Focused tests cover permission parsing and route policy. Their execution, deep-link tests, active-organization switching, role switching, and mutation regression tests remain in the consolidated validation campaign.
 
-**RBAC follow-up:** `identity:organizations:create` is referenced by the mobile affordance but was absent from the inspected permission seed/default grants. Do not silently grant it to BUYER/MERCHANT roles. Reconcile organization type and creator-role policy before adding a migration/seed grant.
+**RBAC follow-up:** Migration 0069 already defines and grants `identity:organizations:create`; staging confirms it was applied on 17 November 2026 and assigned to BUYER, ADMIN, MERCHANT_OWNER, and SUPER_ADMIN. The canonical seed was stale and is now aligned with that existing policy. No new migration or staging grant is required.
 
 
 ### UX-011 review refinement
@@ -111,3 +111,8 @@ Follow-up review additionally hides Home search/catalog/store discovery sections
 ### Registration active-organization consistency
 
 The merchant registration wizard now persists the created/joined organization as active and reloads `GET /v1/me` before the store-write step. Store/warehouse caches are invalidated after creation. This closes the stale-active-organization permission check; integration validation remains pending.
+
+
+### RBAC seed drift correction — 22 November 2026
+
+Staging migration log and permission-role joins confirm migration 0069 is applied and the intended onboarding grants exist. The canonical seed omission is corrected in source and covered by a regression test. The previous open item about deciding whether BUYER should receive create permission is closed; the existing migration already records that decision.
