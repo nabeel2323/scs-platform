@@ -7,8 +7,9 @@ import '../../router/route_permissions.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
-/// Merchant category management — list/create/edit/delete categories scoped to
-/// the store. Mirrors the web /merchant/catalog categories tab.
+/// Merchant category directory. The API currently restricts category mutations
+/// to platform catalog administrators, so merchant users receive a read-only
+/// view until store-scoped category ownership is implemented.
 class CategoryManageScreen extends ConsumerWidget {
   const CategoryManageScreen({super.key});
 
@@ -57,7 +58,12 @@ class CategoryManageScreen extends ConsumerWidget {
     );
   }
 
-  Widget _list(BuildContext context, WidgetRef ref, String storeId, bool canManageCategories) {
+  Widget _list(
+    BuildContext context,
+    WidgetRef ref,
+    String storeId,
+    bool canManageCategories,
+  ) {
     final cats = ref.watch(storeCategoriesProvider(storeId));
     return cats.when(
       loading: () => const LoadingSpinner(),
