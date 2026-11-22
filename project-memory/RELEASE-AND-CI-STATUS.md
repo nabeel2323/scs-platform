@@ -572,3 +572,10 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Implementation commits use `[skip ci]`; no GitHub Actions run is expected for the exact source head. Do not describe the change as CI-verified or test-verified.
 - No deployment, Vercel preview validation, k6, staging release, database write, migration, grants/RLS change, worker activation or provider action was performed.
 - Reconcile the live branch head and combined statuses before treating this checkpoint as current; external Vercel build-rate-limit failures are not application test results.
+
+## 22 November 2026 — UX-040 / UX-041 Import Wizard implementation checkpoint
+
+- Source/test batch: Merchant Import Wizard store discovery retry/no-store handling and processing lifecycle/outcome correctness. Focused tests were added but not executed.
+- Commits use `[skip ci]`; no GitHub Actions run is expected for the exact source head. Do not describe this batch as test-verified or CI-verified.
+- No Vercel preview validation, deployment, staging release/write, database/migration/grant/RLS change, queue/worker activation or provider action was performed.
+- Reconcile the live branch head and combined statuses before making any verification claim.
