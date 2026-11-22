@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { fetchCart, updateCartItem, removeCartItem, clearCart, applyPromoCode, validateCart, CartValidationReport, Cart, CartItem } from '../../lib/buyer-api';
 import { formatMinor, ErrorBanner, LoadingSpinner } from '../../components/Shared';
+import { runCartMutation } from '../../lib/cart-actions';
 import {
   PageHeader, Card, Button, EmptyState,
   colors, typeScale, radii, shadows,
@@ -15,22 +16,27 @@ export default function CartPage() {
   const [error, setError] = useState('');
   const [promoCode, setPromoCode] = useState('');
   const [applyingPromo, setApplyingPromo] = useState(false);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState('');
 
   const [validationReport, setValidationReport] = useState<CartValidationReport | null>(null);
 
   const loadCart = async () => {
+    setLoadError('');
     try {
       // PHASE 11: Validate offers and re-price stale items
       const report = await validateCart();
       setCart(report.cart as Cart);
       setValidationReport(report);
     } catch {
-      // If validation fails, fall back to plain cart fetch
+      // If validation fails, fall back to plain cart fetch. Keep the last
+      // successfully loaded cart if both reads fail; never show a false empty cart.
       try {
         const c = await fetchCart();
         setCart(c);
+        setValidationReport(null);
       } catch {
-        setCart(null);
+        setLoadError('Unable to load your cart. Please check your connection and try again.');
       }
     } finally {
       setLoading(false);
@@ -44,23 +50,34 @@ export default function CartPage() {
     const moq = Math.max(1, item?.offer?.moq ?? item?.moq ?? 1);
     const step = Math.max(1, item?.offer?.orderIncrement ?? 1);
     const normalizedQty = qty <= moq ? moq : moq + Math.ceil((qty - moq) / step) * step;
-    if (!item || normalizedQty === item.quantity) return;
-    await updateCartItem(itemId, normalizedQty);
-    await loadCart();
+    if (!item || normalizedQty === item.quantity || pendingAction) return;
+    await runCartMutation(
+      `quantity:${itemId}`,
+      () => updateCartItem(itemId, normalizedQty),
+      loadCart,
+      setPendingAction,
+      setError,
+    );
   };
 
   const handleRemove = async (itemId: string) => {
-    await removeCartItem(itemId);
-    await loadCart();
+    if (pendingAction) return;
+    await runCartMutation(
+      `remove:${itemId}`,
+      () => removeCartItem(itemId),
+      loadCart,
+      setPendingAction,
+      setError,
+    );
   };
 
   const handleClear = async () => {
-    await clearCart();
-    await loadCart();
+    if (pendingAction) return;
+    await runCartMutation('clear', clearCart, loadCart, setPendingAction, setError);
   };
 
   const handleApplyPromo = async () => {
-    if (!promoCode.trim()) return;
+    if (!promoCode.trim() || pendingAction) return;
     setApplyingPromo(true);
     setError('');
     try {
@@ -101,6 +118,12 @@ export default function CartPage() {
       <div style={{ padding: '20px 24px 48px' }}>
 
       {error && <ErrorBanner message={error} />}
+      {loadError && (
+        <div role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 12, marginBottom: 16, border: `1px solid ${colors.err}`, borderRadius: radii.sm, color: colors.err }}>
+          <span>{loadError}</span>
+          <Button onClick={loadCart}>Retry</Button>
+        </div>
+      )}
 
       {/* PHASE 11: Cart validation warnings */}
       {validationReport && (validationReport.stale.length > 0 || validationReport.repriced.length > 0) && (
@@ -118,13 +141,13 @@ export default function CartPage() {
         </div>
       )}
 
-      {isEmpty ? (
+      {isEmpty && !loadError ? (
         <EmptyState
           title="Your cart is empty"
           description="Browse products and add items to your cart"
           action={<Link href="/search" style={{ display: 'inline-block', padding: '8px 20px', background: colors.brand[700], color: '#fff', borderRadius: radii.sm, textDecoration: 'none', ...typeScale.button }}>Browse Products</Link>}
         />
-      ) : (
+      ) : !cart ? null : (
         <>
           {/* Grouped by supplier */}
           {Array.from(grouped.entries()).map(([storeId, items], idx) => (
@@ -163,13 +186,30 @@ export default function CartPage() {
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button disabled={item.quantity <= Math.max(1, item.offer?.moq ?? item.moq ?? 1)} onClick={() => handleUpdateQty(item.id, item.quantity - Math.max(1, item.offer?.orderIncrement ?? 1))} style={{ ...qtyBtnStyle, opacity: item.quantity <= Math.max(1, item.offer?.moq ?? item.moq ?? 1) ? 0.45 : 1 }}>−</button>
-                    <span style={{ ...typeScale.body, fontWeight: 600, minWidth: 24, textAlign: 'center' }}>{item.quantity}</span>
-                    <button onClick={() => handleUpdateQty(item.id, item.quantity + Math.max(1, item.offer?.orderIncrement ?? 1))} style={qtyBtnStyle}>+</button>
+                    <button
+                      aria-label={`Decrease quantity for ${item.title || item.sku || 'item'}`}
+                      disabled={Boolean(pendingAction) || item.quantity <= Math.max(1, item.offer?.moq ?? item.moq ?? 1)}
+                      onClick={() => handleUpdateQty(item.id, item.quantity - Math.max(1, item.offer?.orderIncrement ?? 1))}
+                      style={{ ...qtyBtnStyle, opacity: pendingAction || item.quantity <= Math.max(1, item.offer?.moq ?? item.moq ?? 1) ? 0.45 : 1 }}
+                    >−</button>
+                    <span aria-live="polite" style={{ ...typeScale.body, fontWeight: 600, minWidth: 24, textAlign: 'center' }}>
+                      {pendingAction === `quantity:${item.id}` ? 'Updating…' : item.quantity}
+                    </span>
+                    <button
+                      aria-label={`Increase quantity for ${item.title || item.sku || 'item'}`}
+                      disabled={Boolean(pendingAction)}
+                      onClick={() => handleUpdateQty(item.id, item.quantity + Math.max(1, item.offer?.orderIncrement ?? 1))}
+                      style={{ ...qtyBtnStyle, opacity: pendingAction ? 0.45 : 1 }}
+                    >+</button>
                     <span style={{ ...typeScale.body, fontWeight: 600, color: colors.brand[700], minWidth: 80, textAlign: 'right' }}>
                       {formatMinor(item.lineTotalMinor, item.currency)}
                     </span>
-                    <button onClick={() => handleRemove(item.id)} style={removeBtnStyle}>✕</button>
+                    <button
+                      aria-label={`Remove ${item.title || item.sku || 'item'} from cart`}
+                      disabled={Boolean(pendingAction)}
+                      onClick={() => handleRemove(item.id)}
+                      style={{ ...removeBtnStyle, opacity: pendingAction ? 0.45 : 1 }}
+                    >{pendingAction === `remove:${item.id}` ? '…' : '✕'}</button>
                   </div>
                 </div>
               ))}
@@ -179,7 +219,7 @@ export default function CartPage() {
           {/* Promo code */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             <input type="text" placeholder="Promo code" value={promoCode} onChange={e => setPromoCode(e.target.value)} style={{ flex: 1, padding: '8px 12px', border: `1px solid ${colors.border}`, borderRadius: radii.sm, fontSize: typeScale.body.fontSize, fontFamily: 'inherit' }} />
-            <Button onClick={handleApplyPromo} disabled={applyingPromo}>
+            <Button onClick={handleApplyPromo} disabled={applyingPromo || Boolean(pendingAction)}>
               {applyingPromo ? 'Applying...' : 'Apply'}
             </Button>
           </div>
@@ -213,8 +253,10 @@ export default function CartPage() {
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between' }}>
-            <Button variant="danger" onClick={handleClear}>Clear Cart</Button>
-            <Link href="/checkout" style={{ padding: '10px 32px', ...typeScale.body, fontWeight: 600, background: colors.brand[700], color: '#fff', borderRadius: radii.md, textDecoration: 'none', display: 'inline-block' }}>
+            <Button variant="danger" onClick={handleClear} disabled={Boolean(pendingAction)}>
+              {pendingAction === 'clear' ? 'Clearing…' : 'Clear Cart'}
+            </Button>
+            <Link href="/checkout" aria-disabled={Boolean(pendingAction)} tabIndex={pendingAction ? -1 : 0} style={{ padding: '10px 32px', ...typeScale.body, fontWeight: 600, background: colors.brand[700], color: '#fff', borderRadius: radii.md, textDecoration: 'none', display: 'inline-block', opacity: pendingAction ? 0.55 : 1, pointerEvents: pendingAction ? 'none' : 'auto' }}>
               Proceed to Checkout
             </Link>
           </div>
