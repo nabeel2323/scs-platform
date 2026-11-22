@@ -3,7 +3,7 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source correction commit:** `40e6cf67cb98a1649b2aa171f523a300b5879fb7` — SettlementAdjustmentService organization resolution and fail-closed ownership; other grouped typecheck fixes include `b21b9f1`, `db6cac8`. Latest focused test correction commit: `9113c4aa31260034a6f53cb4b76f2ec04955d28c`. UX-093 remains the latest completed UX slice.  
+**Latest source implementation commit:** `bb2e4650534bae0b30bf112500db184c227ccba8` — UX-094 Mobile category directory permission alignment; supporting route/screen commits include `6741baf`, `6f06592`, `bd672f0`. Latest focused test commit: `7b293273f4aba14429ed226932123678a0892c55`. Latest completed UX slice: UX-094.  
 **Previous source increments:** UX-092 Store Profile source/test `bfb820e` / `90b2b6b`; UX-091 Merchant Orders source `da19ca1` / `9ecce8a` and focused tests `112bf00` / `b8c7b1c`  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
@@ -19,8 +19,8 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest code correction head | `9113c4aa31260034a6f53cb4b76f2ec04955d28c`; corrections are implemented but not typecheck/test verified |
-| Latest implementation/test | Typecheck correction batch through `9113c4aa31260034a6f53cb4b76f2ec04955d28c`; UX-093 focused tests remain `TESTING_PENDING` |
+| Latest implementation/test head | `7b293273f4aba14429ed226932123678a0892c55` (UX-094 route/helper tests added; not executed) |
+| Latest implementation/test | UX-094 category route/action alignment; focused tests added but not executed; API typecheck correction batch also remains unverified |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
 | Exact-head GitHub Actions | CI #1380 failed on parent SHA `de9eeafb3852822552c667d13ad1e0c27fa8d28f` at API typecheck; corrective head uses `[skip ci]`, no new run; NOT CI-VERIFIED |
@@ -696,7 +696,7 @@ Merchant active-store and product reads now preserve last-successful data throug
 - Focused ProviderContainer tests are in `mobile/test/organization_scope_invalidation_test.dart` for active-store org matching, organization-only invalidation boundaries, and session identity/user-read reset. Not executed.
 - Source commits include `b49424e`, `3f4a6a3`, `1f29e7c`, `cd04739`, `fc1f22a`, `b416041`; tests `a0f308c` / `d0d0b26`.
 - UX-087–UX-093 are IMPLEMENTED / TESTING_PENDING, not automated-test verified or CI verified. This is client context hygiene, not a replacement for server-side tenant authorization. No API, permission, schema, DB, migration, RLS, worker or staging changes.
-- Next: Mobile route permission and org-context transition audit, then remaining Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
+- Next: finish the Mobile route permission and org-context transition audit (including remaining action-level permission mismatches), then remaining Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
 
 
 ## API typecheck correction checkpoint — 23 November 2026
@@ -706,3 +706,12 @@ Merchant active-store and product reads now preserve last-successful data throug
 - Source/test correction commits: `0c6ad31cbb7635bddb702a2fe85006eb7aee6db5`, `caf8088d113ccb14808fb150365b234031cd790e`, `b21b9f1df445cb89360eed625e83a6f64cf918be`, `db6cac84259993f12cbdbf845079613c001bb4e8`, `40e6cf67cb98a1649b2aa171f523a300b5879fb7`, `9113c4aa31260034a6f53cb4b76f2ec04955d28c`.
 - No tests or typecheck were executed after these corrections. The new code head is therefore **IMPLEMENTED / NOT VERIFIED**; no CI pass is claimed. The commits use `[skip ci]` under the Actions-minute budget. Comprehensive verification remains deferred to Phase 3.
 - PR #138 remains OPEN/DRAFT/UNMERGED to `develop`. No staging deployment/write, shared database mutation, migration, grants/default-ACL change, RLS enablement, worker activation, provider call or release action occurred.
+
+
+## UX-094 — Mobile merchant category permission/contract alignment — 23 November 2026
+
+- Source audit confirmed `CatalogController` category create/update/delete operations require `catalog:categories:write` **and** platform role ADMIN/MODERATOR. The Mobile router's merchant-role gate excludes those platform roles from `/merchant/*`, while the merchant category screen previously displayed New/Edit/Delete controls to merchant owners/staff. Those controls could only fail at the API boundary.
+- The merchant category directory now requires `catalog:categories:read`, the Home/Dashboard entry uses the same read permission, and merchant users see a read-only list with no mutation controls. A pure policy helper mirrors the API's ADMIN/MODERATOR + write-permission condition. No API role guard or permission grant was weakened.
+- Focused route/helper tests were added in `mobile/test/route_permissions_test.dart`; not executed. Commits: `6741baf6f7d47c12ddc79d3ca1f4bbd3f110a39f`, `6f0659299c39952b0c8190a4a8dd520ccd3e3db9`, `bb2e4650534bae0b30bf112500db184c227ccba8`, `7b293273f4aba14429ed226932123678a0892c55`, and explanatory source comment `bd672f0b93de31d6bc669bb7785eeb70a345c302`.
+- Client alignment is IMPLEMENTED / TESTING_PENDING. Actual merchant-owned category CRUD remains BLOCKED pending a product/API ownership decision: either implement store-scoped category ownership and membership authorization, or move category mutation to a dedicated platform-admin surface. Do not expose write controls until that decision and backend contract exist.
+- No API, RBAC seed, role grant, schema, database, migration, RLS, worker, staging or deployment behavior changed.
