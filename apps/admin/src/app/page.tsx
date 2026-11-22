@@ -220,42 +220,42 @@ export default function AdminHomePage() {
             <KpiCard
               icon={<IconUsers />}
               label="Total Users"
-              value={kpisLoading || kpisError ? '—' : String(kpis?.users.total ?? 0)}
+              value={kpisLoading && !kpis ? '—' : String(kpis?.users.total ?? '—')}
               accent={colors.brand[700]}
               tint={colors.brand[50]}
             />
             <KpiCard
               icon={<IconShield />}
               label="Verified Merchants"
-              value={kpisLoading || kpisError ? '—' : String(kpis?.merchants.verified ?? 0)}
+              value={kpisLoading && !kpis ? '—' : String(kpis?.merchants.verified ?? '—')}
               accent={colors.ok}
               tint={colors.okBg}
             />
             <KpiCard
               icon={<IconPackage />}
               label="Pending Merchants"
-              value={kpisLoading || kpisError ? '—' : String(kpis?.merchants.pending ?? 0)}
+              value={kpisLoading && !kpis ? '—' : String(kpis?.merchants.pending ?? '—')}
               accent={colors.warn}
               tint={colors.warnBg}
             />
             <KpiCard
               icon={<IconPackage />}
               label="Total Orders"
-              value={kpisLoading || kpisError ? '—' : String(kpis?.orders.total ?? 0)}
+              value={kpisLoading && !kpis ? '—' : String(kpis?.orders.total ?? '—')}
               accent={colors.info}
               tint={colors.infoBg}
             />
             <KpiCard
               icon={<IconDollar />}
               label="Revenue"
-              value={kpisLoading || kpisError ? '—' : `${fmt(kpis?.revenue.totalMinor ?? 0)} SAR`}
+              value={kpisLoading && !kpis ? '—' : kpis ? `${fmt(kpis.revenue.totalMinor)} SAR` : '—'}
               accent="#7c3aed"
               tint="#f3efff"
             />
             <KpiCard
               icon={<IconActivity />}
               label="Completion Rate"
-              value={kpisLoading || kpisError ? '—' : `${kpis?.orders.completionRate ?? 0}%`}
+              value={kpisLoading && !kpis ? '—' : kpis ? `${kpis.orders.completionRate}%` : '—'}
               accent="#047857"
               tint={colors.okBg}
             />
@@ -321,7 +321,13 @@ export default function AdminHomePage() {
                 View all →
               </Link>
             </div>
-            {orgUpdatesLoading ? (
+            {orgUpdatesError && (
+              <div role="alert" style={{ padding: '12px 22px', color: colors.err, ...typeScale.bodySm }}>
+                <span>{orgUpdatesError}</span>{' '}
+                <button type="button" onClick={() => void loadOrgUpdates()}>Retry organization updates</button>
+              </div>
+            )}
+            {orgUpdatesLoading && updateReqs.length === 0 ? (
             <div
               style={{
                 padding: '28px 22px',
@@ -332,12 +338,7 @@ export default function AdminHomePage() {
             >
                 Loading organization update requests…
               </div>
-            ) : orgUpdatesError ? (
-              <div role="alert" style={{ padding: '28px 22px', color: colors.err, ...typeScale.bodySm }}>
-                <div>{orgUpdatesError}</div>
-                <button type="button" onClick={() => void loadOrgUpdates()} style={{ marginTop: 8 }}>Retry organization updates</button>
-              </div>
-            ) : updateReqs.length === 0 ? (
+            ) : orgUpdatesError && updateReqs.length === 0 ? null : updateReqs.length === 0 ? (
               <div
                 style={{
                   padding: '28px 22px',
@@ -505,14 +506,15 @@ export default function AdminHomePage() {
                       View all →
                     </Link>
                   </div>
-                  {importsLoading ? (
-                    <p style={{ color: colors.muted }}>Loading imports…</p>
-                  ) : importsError ? (
+                  {importsError && (
                     <p role="alert" style={{ color: colors.err, ...typeScale.bodySm }}>
                       {importsError}{' '}
                       <button type="button" onClick={() => void loadImports()}>Retry imports</button>
                     </p>
-                  ) : recentImports.length === 0 ? (
+                  )}
+                  {importsLoading && recentImports.length === 0 ? (
+                    <p style={{ color: colors.muted }}>Loading imports…</p>
+                  ) : importsError && recentImports.length === 0 ? null : recentImports.length === 0 ? (
                     <p style={{ color: colors.muted }}>No catalog imports yet.</p>
                   ) : (
                     recentImports.map((item) => (
@@ -589,14 +591,15 @@ export default function AdminHomePage() {
                       Review all →
                     </Link>
                   </div>
-                  {requestsLoading ? (
-                    <p style={{ color: colors.muted }}>Loading requests…</p>
-                  ) : requestsError ? (
+                  {requestsError && (
                     <p role="alert" style={{ color: colors.err, ...typeScale.bodySm }}>
                       {requestsError}{' '}
                       <button type="button" onClick={() => void loadRequests()}>Retry requests</button>
                     </p>
-                  ) : pendingCatalogRequests.length === 0 ? (
+                  )}
+                  {requestsLoading && pendingCatalogRequests.length === 0 ? (
+                    <p style={{ color: colors.muted }}>Loading requests…</p>
+                  ) : requestsError && pendingCatalogRequests.length === 0 ? null : pendingCatalogRequests.length === 0 ? (
                     <p style={{ color: colors.muted }}>No pending catalog requests.</p>
                   ) : (
                     pendingCatalogRequests.slice(0, 5).map((request) => (
