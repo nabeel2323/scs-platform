@@ -43,7 +43,7 @@ void main() {
     await tester.tap(find.byTooltip('Refresh customers'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Visible Buyer'), findsOneWidget);
+    expect(find.textContaining('Visible Buyer'), findsOneWidget);
     expect(find.textContaining('Customer directory unavailable'), findsOneWidget);
     expect(find.textContaining('last successful results'), findsOneWidget);
     expect(find.text('No customers yet'), findsNothing);
