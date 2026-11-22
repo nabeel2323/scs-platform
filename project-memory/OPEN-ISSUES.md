@@ -418,3 +418,7 @@ UX-034 makes Merchant Organization verification, update-request, store, warehous
 UX-035 corrects the Merchant Orders initial store-directory failure path, adds queue retry/loading feedback, and suppresses the false empty-order state after failed reads. It clears stale order/store data when no accessible store remains. Focused tests are added but not executed.
 
 UX-036 makes Merchant Offers store discovery, offer-list, product-directory, analytics and trend failures explicit and retryable. Failed analytics no longer reports zero sales in the table or CSV, and failed trend reads no longer claim there were no sales. Focused tests are added but not executed. Continue UX-010 audit; comprehensive validation remains deferred.
+
+## UX-037 — Merchant Inventory movement-history read recovery — 22 November 2026
+
+The Inventory movement-history dialog previously swallowed API errors and displayed the same empty state used for a successful response with no movements. It now distinguishes read failure, exposes Retry and uses a small tested read helper. Focused helper tests are added but not executed. Continue UX-010 audit across inventory variant lookup, imports and other remaining workflows.

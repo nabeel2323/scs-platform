@@ -751,3 +751,9 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Product directory failures are visible and retryable; offer creation is disabled until products are available.
 - Analytics and trend failures are surfaced separately; unavailable sales data no longer appears as zero in the table/CSV or as “No sales in this range.” Both have retry.
 - Added `apps/web/src/__tests__/merchant-offers-recovery.test.tsx`. Not executed. No API/permission change.
+
+## 2026-11-22 — UX-037 Merchant Inventory movement-history recovery
+
+- Replaced the silent catch in `openHistory` with an explicit history-read result and error state. Failed reads now expose Retry and cannot be mistaken for “No movements recorded yet.”
+- Added `apps/web/src/lib/inventory-history.ts` and `apps/web/src/__tests__/inventory-history-recovery.test.ts` to test successful and failed reads separately.
+- Tests not executed; no API, permission, schema or database change.

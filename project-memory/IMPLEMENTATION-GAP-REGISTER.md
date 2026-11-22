@@ -433,3 +433,11 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - Failed analytics no longer silently becomes zero orders/units/revenue in the table or CSV; unavailable values are shown blank in CSV and as an em dash in the table. Trend failures have Retry and no longer render “No sales in this range.”
 - Successful empty responses remain distinct from failed reads. No API, permission, schema or DB behavior changed.
 - Added `merchant-offers-recovery.test.tsx`. Not executed.
+
+## UX-037 — Merchant Inventory movement-history read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- The stock movement-history dialog swallowed read failures and cleared movements, then rendered “No movements recorded yet,” conflating an unavailable history with a successful empty history.
+- Extracted the history read into `apps/web/src/lib/inventory-history.ts`, returning an explicit error alongside movements. The dialog now shows the error and a Retry action; only a successful empty response renders the empty-history message.
+- Added `inventory-history-recovery.test.ts` for success/empty versus failed-read distinction. Not executed. No API, permission, schema or DB change.

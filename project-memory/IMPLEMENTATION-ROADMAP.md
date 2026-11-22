@@ -355,3 +355,9 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Merchant Orders now exposes store-directory and order-list failures with Retry, shows loading state and suppresses “No orders yet” until a successful empty response. A missing accessible store clears stale store/order data.
 - Merchant Offers now exposes store, offers, products, analytics and trend read failures with appropriate retry paths. Product selection/offer creation are disabled while products are unavailable; failed analytics no longer becomes zero sales in the UI or CSV.
 - Focused tests added for Orders and Offers read recovery. Not run. Continue UX-010 across remaining merchant inventory/imports, Admin and Mobile workflows; Phase 3 remains the consolidated test campaign.
+
+## 2026-11-22 — UX-037 Merchant Inventory movement-history recovery
+
+- The stock movement-history dialog now distinguishes failed reads from a successful empty history and exposes Retry.
+- Extracted `readInventoryHistory` into a small helper with focused success/failure tests. Not run.
+- No API/permission/schema/DB change. Continue the remaining Merchant Inventory variant, import and workflow audit.

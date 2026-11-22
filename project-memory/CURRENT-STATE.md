@@ -3,7 +3,7 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest implementation commit:** `e0bbe603979cbd774db77f3615749fbdf1050607` — UX-036 merchant offers analytics/read recovery; latest focused test commit `6e4af337e5aee758545622b4d12373d878279ca4`  
+**Latest implementation/test commit:** `be40978bf90ec479f13a8f852145aecee4ce9df6` — UX-037 inventory movement-history read recovery and helper tests  
 **Previous source increment:** `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — Merchant Customers recovery (UX-031)  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commit that follows is documentation-only.
 
@@ -20,13 +20,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
 | Live branch head | Resolve from the live GitHub ref at session start; this checkpoint is documentation and does not pin its resulting SHA |
-| Latest implementation | `e0bbe603979cbd774db77f3615749fbdf1050607` — UX-036 offer analytics/read recovery; test commit `6e4af337e5aee758545622b4d12373d878279ca4` |
+| Latest implementation/test | `be40978bf90ec479f13a8f852145aecee4ce9df6` — UX-037 inventory movement-history recovery |
 | Previous source implementation | `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — UX-031 Merchant Customers read recovery |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for `6e4af337e5aee758545622b4d12373d878279ca4`; implementation/test commits used `[skip ci]`; NOT CI-VERIFIED |
+| Exact-head GitHub Actions | No run for `be40978bf90ec479f13a8f852145aecee4ce9df6`; implementation/test commits used `[skip ci]`; NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
 | Latest inspected Vercel contexts | Web FAILURE; Admin FAILURE (external build-rate-limit page); not application test results |
-| Focused Web tests | UX-030–036 added; not executed |
+| Focused Web tests | UX-030–037 added; not executed |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
 ## Current remediation status
@@ -56,7 +56,7 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 ## Immediate next actions
 
-1. Continue UX-010 source re-audit across remaining Admin, Web and Mobile screens. UX-033/034 close the Merchant Returns and Organization recovery gaps; UX-035/036 now cover Merchant Orders and Offers store/list/analytics read recovery. Continue the same contract, permission, ownership and loading/empty/error/retry audit across inventory, imports and remaining merchant/admin/mobile workflows.
+1. Continue UX-010 source re-audit across remaining Admin, Web and Mobile screens. UX-033–036 close Merchant Returns, Organization, Orders and Offers recovery gaps; UX-037 makes inventory movement-history failure distinct from an empty history. Continue the same contract, permission, ownership and loading/empty/error/retry audit across inventory variants, imports and remaining merchant/admin/mobile workflows.
 2. Continue integration completion for buyer/merchant/admin workflows, including remaining cross-client order, returns, fulfillment and commercial lifecycle gaps. UX-015–UX-029 are implemented in source; their focused regression tests have not been executed.
 3. Keep G-001 PARTIAL pending independent security review. Keep G-002 IN PROGRESS pending protected live API/migration identity evidence, refreshed catalog audit, 114-versus-116 physical relation reconciliation, complete operation ownership review and an approved transaction-context/RLS design.
 4. Preserve the implementation-first sequence: do not run the comprehensive test suite after each small change. Add targeted regression coverage when needed; execute the coordinated API/PostgreSQL/migration/Web/Admin/Flutter/concurrency/performance campaign only after implementation and integration are complete.
