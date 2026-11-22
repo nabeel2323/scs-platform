@@ -78,6 +78,7 @@ class _MerchantCustomersScreenState
           Expanded(
             child: customers.when(
               skipLoadingOnRefresh: true,
+              skipLoadingOnReload: true,
               skipError: true,
               loading: () => const LoadingSpinner(),
               error: (e, _) => EmptyState(
