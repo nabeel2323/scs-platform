@@ -498,8 +498,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           RadioGroup<String>(
             groupValue: _paymentMethod,
             onChanged: (value) {
-              if (!_submitting && value != null) {
-                setState(() => _paymentMethod = value);
+              if (!_submitting && value != null && value != _paymentMethod) {
+                setState(() {
+                  _paymentMethod = value;
+                  // The checkout payload changed. Keep the existing key for
+                  // retries of an identical payload, but mint a fresh key when
+                  // the buyer changes the payment method on the Review step.
+                  _idempotencyKey = const Uuid().v4();
+                });
               }
             },
             child: const Column(children: [
