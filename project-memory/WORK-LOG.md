@@ -847,3 +847,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added a dedicated buyer store-products provider with the existing `status: 'ACTIVE'` constraint, then added explicit refresh/pull-to-refresh, stale-data messaging, retry and true-empty-state handling to both screens.
 - Added four focused Flutter widget scenarios for initial failure/retry and failed refresh after a successful store list/catalogue.
 - Tests were not run, per the implementation-first plan. No API/permission/schema/database/migration/staging/worker/provider integration changes.
+
+
+## 2026-11-23 — UX-079 Mobile Buyer Order History recovery
+
+- Re-audited `mobile/lib/screens/orders/orders_list_screen.dart`. The refresh action only invalidated the provider and pull-to-refresh returned immediately; refreshes replaced the visible list, and a failed refresh had no stale-data context.
+- Added awaited provider refresh, skip-loading/skip-error handling, stale-data messaging and retry while retaining the active status filter. Initial read failure remains distinct from a true empty history.
+- Added three focused Flutter widget scenarios. Not run under the implementation-first test cadence. No order/payment/fulfillment/API/permission/database/migration/staging behavior changed.
