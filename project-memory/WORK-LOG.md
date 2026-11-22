@@ -862,3 +862,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added client serialization without changing the backend contract. Added request-generation checks so delayed older queries/filter/page responses cannot overwrite the current search, invalidated in-flight requests as soon as the text changes, and canceled pending debounce when another action starts a search.
 - Added explicit Refresh search, same-query stale-result preservation and protection against old-query rows/false empty states after a different query fails.
 - Added ApiService query serialization and widget out-of-order response tests. Not run under the implementation-first cadence. No backend/database/permission/staging/provider changes.
+
+
+## 2026-11-23 — UX-081 Mobile Product Detail stable reads and recovery
+
+- Source audit found the Product Detail screen constructed a new `fetchProduct(widget.productId)` Future inline in build. Auxiliary variant/offer reads call `setState`, which rebuilt the screen and caused the FutureBuilder to issue another product-detail request. Main read failures had no retry/refresh, and variant/offer/review failures were swallowed.
+- Added an ID-keyed auto-disposed product detail provider, explicit refresh/pull-to-refresh, stale product preservation, retryable initial errors, auxiliary read error/retry states, and request-version guards for matrix/offer loads when the route reuses the State for another product ID.
+- Added Flutter widget tests for stale data, initial retry and avoiding redundant product fetches. Not run under the implementation-first cadence. No API/permission/cart/order/database/migration/staging behavior changed.
