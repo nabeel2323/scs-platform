@@ -3,7 +3,7 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source/documentation baseline before this state refresh:** `a39a312801a14d694e25d71c498dd83262c60119` (the current-state refresh commit itself advances the branch; resolve its resulting SHA from GitHub)
+**Latest source/documentation baseline before this state refresh:** `991597f643b76d0cc7fd09e58e2fa1bc54fe2f43` (the current-state refresh commit itself advances the branch; resolve its resulting SHA from GitHub)
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,11 +18,11 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ------------------------------------------------------------------------ |
 | Repository           | nabeel2323/scs-platform                                                  |
 | Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | `a39a312801a14d694e25d71c498dd83262c60119` before this state refresh; resulting state-refresh SHA must be resolved live |
-| Latest commit        | `docs(project-memory): record G-002 worker map [skip ci]`                |
+| Live branch head     | `991597f643b76d0cc7fd09e58e2fa1bc54fe2f43` before this state refresh; resulting state-refresh SHA must be resolved live |
+| Latest commit        | `docs(project-memory): record G-002 ownership classification [skip ci]` |
 | PR #138              | Open; draft; not merged                                                  |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
-| Latest exact-head CI | No Actions run for source commits `733320e...` and `a39a312...`; subsequent docs commits use `[skip ci]`; current head NOT CI-VERIFIED |
+| Latest exact-head CI | No Actions run for current docs-only head; combined status contains only Vercel preview failures pointing to external build-rate limit; NOT CI-VERIFIED |
 | PR #142 CI           | #44953735602 — passed all executable jobs on `dddff20c...`; disposable PostgreSQL identity test included |
 | PR #138 CI           | Historical #44954371615 passed all executable jobs on `741a09f...`; not transferable to current head |
 
@@ -31,7 +31,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Area                                 | Status                   | Meaning                                                                                                                                                                                                             |
 | ------------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | G-001 — merchant offer authorization | **PARTIAL**              | Merchant role gates, scope-first offer confidentiality and ACTIVE-store buyer visibility are implemented with focused regression tests. Exact-head CI, remaining acceptance evidence and independent review remain. |
-| G-002 — database access/RLS          | **IN PROGRESS**          | Read-only source/schema work exists. Actual staging API/migration identities, protected staging audit, per-table access predicates and reviewed least-privilege/RLS design remain.                                  |
+| G-002 — database access/RLS          | **IN PROGRESS**          | Operation map now covers 26 service files plus supporting worker/system paths; preliminary schema ownership candidates are documented. Actual staging API/migration identities, protected catalog audit, exact operation predicates and reviewed least-privilege/RLS design remain.                                  |
 | Phases 0–5                           | **IN PROGRESS**          | See the authoritative progress tracker for phase and finding details.                                                                                                                                               |
 | Phase 6                              | **NOT STARTED**          | Consolidated full verification and release go/no-go campaign has not begun.                                                                                                                                         |
 | PR #138                              | **DRAFT — DO NOT MERGE** | Not release authorization.                                                                                                                                                                                          |
@@ -270,3 +270,8 @@ PR #138 source head caba922e866635fad51e549e095a186f9d9df6cf reports SUCCESS for
 ## G-002 operation map source slices — 22 November 2026
 
 A preliminary direct-Drizzle operation map now covers 19 core API services plus the generic outbox, carrier worker and P13 operations-worker/alert paths. It records observed read/insert/update/delete operations and separately identifies raw-SQL touchpoints. See [G-002-DATABASE-OPERATION-MAP-2026-11-22.md](../docs/remediation/G-002-DATABASE-OPERATION-MAP-2026-11-22.md). The programme gap register and work log were updated. This does not complete DB-003: remaining services, webhook/CLI/migration paths, exact SQL predicates, FK ownership and the 114-versus-116 catalog discrepancy remain open. No tests, CI, staging/database changes, migration, grants, RLS, deployment or worker activation occurred.
+
+
+## G-002 operation and ownership checkpoint — 22 November 2026
+
+The operation map now includes 26 service files plus supporting outbox, carrier, tracking, operations-control and worker paths. A separate schema review records candidate ownership paths across identity, organization/store membership, catalog, inventory/pricing, buyer/order, shipment/driver, payments/refunds/returns, disputes, notifications, carrier credentials, audit/outbox and system tables. See [G-002-DATABASE-OPERATION-MAP-2026-11-22.md](../docs/remediation/G-002-DATABASE-OPERATION-MAP-2026-11-22.md) and [G-002-TABLE-OWNERSHIP-AND-PREDICATE-CANDIDATES-2026-11-22.md](../docs/remediation/G-002-TABLE-OWNERSHIP-AND-PREDICATE-CANDIDATES-2026-11-22.md). Both are preliminary source evidence, not an approved policy. Exact FK/catalog verification, remaining service/CLI/migration paths, actual runtime identities and the 114-versus-116 discrepancy remain open. Latest source/docs commits use [skip ci]; no Actions run is associated with the current head. Vercel preview statuses currently point to an external build-rate-limit page, not application test results. No staging/database change, migration, grant, RLS, deployment or worker activation occurred.
