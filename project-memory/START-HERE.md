@@ -75,13 +75,20 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN/DRAFT/UNMERGED against `develop`. The implementation/test checkpoint before documentation synchronization was `fe508b0d30c791fb7597ec7f1c95d6b6968461b4`; source change `df5a171762a5f6a5b365a13f491a975d4c6e9aa8` implements UX-088 Mobile Merchant Inventory recovery, and focused test commit `fe508b0d30c791fb7597ec7f1c95d6b6968461b4` adds its widget coverage. UX-087 Merchant Offer Detail recovery is also present, with focused test commit `910466470d28c7d1eec08c80db47a74b6727f3bc`.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN/DRAFT/UNMERGED against `develop`. The latest implementation/test checkpoint before the current documentation synchronization is `3f3b0f6b4d610b24242c44fc75006c509bc7abd7`.
 
-The Admin recovery work UX-046–UX-058 remains implemented with focused tests pending execution. Mobile buyer and merchant recovery UX-078–UX-088 is implemented with focused Flutter/API-client tests pending the consolidated Phase 3 campaign. UX-087 covers stale-safe offer/analytics refresh and unavailable-metrics handling. UX-088 covers active-store, inventory-page and warehouse-directory refresh/error recovery while preserving last successful data. Neither changes API contracts, permissions, stock/offer mutations, schema or database behavior.
+The current Mobile implementation continuation now covers UX-078–UX-090:
+- UX-078–UX-086: Buyer Store/Orders/Search/Product Detail/Notifications/Home/Checkout and Merchant Dashboard/Catalog recovery.
+- UX-087: Merchant Offer Detail stale-safe offer/analytics refresh and unavailable-metrics handling.
+- UX-088: Merchant Inventory active-store, inventory-page and warehouse-directory refresh/retry while preserving last-successful data.
+- UX-089: Merchant Pricing list/detail/tier refresh and recovery, including a truthful unavailable tier count on failed initial tier reads.
+- UX-090: Merchant Customers stale-safe directory/statistics, retry and awaited refresh while preserving search/sort state.
 
-The current implementation-first next action is to continue the source-first audit of remaining Mobile merchant operational screens (pricing, customers, orders and store/profile workflows), then complete the remaining Web/Admin route and action permission mapping. Do not repeat UX-078–UX-088 without new source evidence. G-001 remains PARTIAL pending independent security review; G-002 remains IN PROGRESS pending protected runtime identity/catalog evidence and reviewed access design. Phase 3 remains the consolidated full testing campaign; no focused tests in UX-078–UX-088 are claimed as executed.
+Focused tests were added across these slices but have not been executed. They remain TESTING_PENDING for the consolidated Phase 3 campaign. Admin recovery UX-046–UX-058 also remains implemented with focused tests pending execution. No API, permission, offer lifecycle, pricing terms, stock mutation, warehouse transfer, customer/order, schema or database behavior changed in UX-087–UX-090.
 
-All commits in this continuation use `[skip ci]`. The exact-head GitHub Actions lookup returned no run; Vercel Admin was PENDING and Vercel Web showed an external build-rate-limit failure on the implementation/test checkpoint. These are not application test results. PR #138 remains draft and is not release authorization.
+**Next implementation:** continue the source-first audit of Mobile Merchant Orders and store/profile route transitions, then complete the remaining Web/Admin route and action permission mapping. Do not repeat UX-078–UX-090 without new source evidence. G-001 remains PARTIAL pending independent security review; G-002 remains IN PROGRESS pending protected runtime identity/catalog evidence and reviewed access design. Phase 3 remains the consolidated full testing campaign.
+
+All implementation/test commits use `[skip ci]`. The exact-head GitHub Actions lookup returned no run for `3f3b0f6`; Vercel Web/Admin both showed external build-rate-limit failures. These are not application test results. PR #138 remains draft and is not release authorization.
 
 ## Safety reminder
 
