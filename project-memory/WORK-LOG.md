@@ -814,3 +814,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Audit Log reads now use request-version guards so an older filter response cannot overwrite a newer one. Cleanup invalidates outstanding requests, and the error banner exposes Retry audit log while preserving the last successful rows.
 - Added `admin-roles-recovery.test.tsx` and `admin-audit-race.test.tsx` for retry and response-order behavior. Tests not executed.
 - No API, permission, schema, database or migration change. Commits use `[skip ci]`; no deployment or staging action.
+
+## 2026-11-22 — UX-050–UX-053 Admin catalog and analytics recovery
+
+- UX-050 Category Detail: linked product-type, direct/descendant product and product-type attribute-schema reads now have explicit retryable errors and request-version guards. The Attributes tab loads its own product-type dependency; schema aggregation fails as a whole rather than showing a partial union as complete.
+- UX-051 Product Type Detail: Products tab errors are now retryable and no longer become a successful “No products” state; requests are guarded against stale/unmounted completion.
+- UX-052 Catalog Import Center: import-history reads have their own retryable error, request-version guard and successful-empty-only presentation; failed refreshes retain the last successful rows.
+- UX-053 Analytics: event/activity reads are independently generation-guarded, retryable and cleanup-safe; older date/limit results cannot overwrite newer data.
+- Added focused tests `admin-category-detail-recovery.test.tsx`, `admin-product-type-products-recovery.test.tsx`, `admin-catalog-import-recovery.test.tsx`, and `admin-analytics-race.test.tsx`. Tests not executed.
+- No API, permission, schema, database or migration change. Commits use `[skip ci]`; no deployment or staging action.
