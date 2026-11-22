@@ -82,7 +82,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    expect(find.text('Error'), findsOneWidget);
+    expect(find.text('Could not load inventory'), findsOneWidget);
     expect(find.text('No inventory'), findsNothing);
 
     await tester.tap(find.byTooltip('Refresh'));
