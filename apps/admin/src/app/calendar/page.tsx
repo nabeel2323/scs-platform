@@ -7,7 +7,7 @@
  * Allows authorized admins to configure the business calendar used for
  * escalation SLA deadline calculation.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { adminRequest } from '../../lib/api';
 import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
 import { PageHeader, radii } from '@scs/ui-kit';
@@ -60,6 +60,7 @@ export default function CalendarAdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const requestVersion = useRef(0);
 
   // Holiday form
   const [newHolidayDate, setNewHolidayDate] = useState('');
@@ -67,28 +68,42 @@ export default function CalendarAdminPage() {
 
   const load = useCallback(async () => {
     if (!hasAccess) { setLoading(false); return; }
+    const requestId = ++requestVersion.current;
+    setLoading(true);
+    setError('');
     try {
       const cals = await adminRequest<CalendarConfig[]>('admin/business-calendars');
+      if (requestId !== requestVersion.current) return;
       setCalendars(cals);
       const def = cals.find(c => c.isDefault && c.enabled);
+      setSelectedCal(def ?? null);
       if (def) {
-        setSelectedCal(def);
         const [hols, aud] = await Promise.all([
           adminRequest<Holiday[]>(`admin/business-calendars/${def.id}/holidays`),
           adminRequest<AuditEntry[]>(`admin/business-calendars/${def.id}/audit`),
         ]);
-        setHolidays(hols);
-        setAudit(aud);
+        if (requestId === requestVersion.current) {
+          setHolidays(hols);
+          setAudit(aud);
+        }
+      } else {
+        setHolidays([]);
+        setAudit([]);
       }
-    } catch (e: any) {
-      setError(e.message);
+    } catch (err) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load business calendar');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestVersion.current) setLoading(false);
     }
   }, [hasAccess]);
 
   useEffect(() => { setReady(true); }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   const addHoliday = async () => {
     if (!canWrite || !selectedCal || !newHolidayDate) return;
@@ -127,12 +142,12 @@ export default function CalendarAdminPage() {
     <div style={{ padding: '24px 28px' }}>
       <PageHeader title="Business Calendar" subtitle="Configure working days, hours, and holidays for escalation SLA calculation" />
 
-      {error && <div style={{ color: '#ef4444', marginBottom: 16, fontSize: 13, padding: '8px 12px', background: 'rgba(239,68,68,0.1)', borderRadius: radii.md }}>{error}</div>}
+      {error && <div role="alert" style={{ color: '#ef4444', marginBottom: 16, fontSize: 13, padding: '8px 12px', background: 'rgba(239,68,68,0.1)', borderRadius: radii.md }}>{error}{' '}<button type="button" onClick={() => void load()}>Retry calendar</button></div>}
       {success && <div style={{ color: '#22c55e', marginBottom: 16, fontSize: 13, padding: '8px 12px', background: 'rgba(34,197,94,0.1)', borderRadius: radii.md }}>{success}</div>}
 
       {loading ? (
         <div style={{ color: 'rgba(255,255,255,0.5)', padding: 40, textAlign: 'center' }}>Loading calendar configuration…</div>
-      ) : !selectedCal ? (
+      ) : error && !selectedCal ? null : !selectedCal ? (
         <div style={{ color: '#f59e0b', padding: 40, textAlign: 'center' }}>No business calendar configured. Contact system administrator.</div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
@@ -200,7 +215,7 @@ export default function CalendarAdminPage() {
             )}
 
             {/* Holiday list */}
-            {holidays.length === 0 ? (
+            {error ? null : holidays.length === 0 ? (
               <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>No holidays configured.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -228,7 +243,7 @@ export default function CalendarAdminPage() {
           {/* Audit Log */}
           <div style={{ gridColumn: '1 / -1', border: '1px solid rgba(255,255,255,0.12)', borderRadius: radii.lg, padding: 20 }}>
             <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#fff' }}>Configuration Audit Log</h2>
-            {audit.length === 0 ? (
+            {error ? null : audit.length === 0 ? (
               <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>No audit entries.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
