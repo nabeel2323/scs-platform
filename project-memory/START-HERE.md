@@ -421,3 +421,14 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
 - Next: continue Mobile buyer workflow audit and then remaining Web/Admin route audit, implementing only source-confirmed contract-backed gaps.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
+
+
+## Latest UX continuation checkpoint — 23 November 2026 (UX-085)
+
+- Implemented Mobile Merchant Dashboard identity/store recovery: profile and active storefront reads preserve last-successful data during refresh/reload failures; stale notices and retry; initial errors remain retryable. Explicit dashboard refresh and pull-to-refresh await profile, active-store and KPI reads independently.
+- Existing KPI-specific stale/error recovery remains unchanged; dashboard hub list now supports pull-to-refresh even with short content.
+- Added Flutter widget coverage for simultaneous profile/store refresh failures with stale content preservation. Test has not been executed and remains pending Phase 3.
+- Source commit: `39deb8b`; focused test commit `3781af6`. Both use `[skip ci]`.
+- PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
+- Next: continue Mobile merchant operational screens, then remaining Web/Admin routes. Implement only source-confirmed contract-backed gaps.
+- No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
