@@ -302,6 +302,8 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
       ),
       body: orders.when(
         skipLoadingOnRefresh: true,
+
+        skipLoadingOnReload: true,
         skipError: true,
         data: (list) {
           final pending = list
