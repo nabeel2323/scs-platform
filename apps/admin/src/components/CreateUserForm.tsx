@@ -10,11 +10,9 @@
  * - Requires admin:users:write permission
  */
 
-import { useEffect, useState } from 'react';
-import { createUser, type CreateUserRequest } from '../lib/api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createUser, type CreateUserRequest, fetchAdminOrganizations, type AdminOrg, fetchRoles, type RoleInfo } from '../lib/api';
 import { useRequirePerms } from '../hooks/useRequirePerms';
-import { fetchAdminOrganizations, type AdminOrg } from '../lib/api';
-import { fetchRoles, type RoleInfo } from '../lib/api';
 import { ErrorNotice } from './RecordFields';
 import styles from './management.module.css';
 
@@ -38,27 +36,69 @@ export function CreateUserForm({ onCancel, onDone }: CreateUserFormProps) {
 
   const [orgs, setOrgs] = useState<AdminOrg[]>([]);
   const [roles, setRoles] = useState<RoleInfo[]>([]);
+  const [orgsLoading, setOrgsLoading] = useState(true);
+  const [rolesLoading, setRolesLoading] = useState(true);
+  const [orgsError, setOrgsError] = useState('');
+  const [rolesError, setRolesError] = useState('');
+  const orgsRequestVersion = useRef(0);
+  const rolesRequestVersion = useRef(0);
 
-  useEffect(() => {
-    fetchAdminOrganizations().then(setOrgs).catch(() => setOrgs([]));
-    fetchRoles().then(setRoles).catch(() => setRoles([]));
+  const loadOrganizations = useCallback(async () => {
+    const requestId = ++orgsRequestVersion.current;
+    setOrgsLoading(true);
+    setOrgsError('');
+    try {
+      const rows = await fetchAdminOrganizations();
+      if (requestId === orgsRequestVersion.current) setOrgs(rows);
+    } catch (err) {
+      if (requestId === orgsRequestVersion.current) {
+        setOrgsError(err instanceof Error ? err.message : 'Unable to load organizations');
+      }
+    } finally {
+      if (requestId === orgsRequestVersion.current) setOrgsLoading(false);
+    }
   }, []);
 
-  if (!hasAccess) return null;
+  const loadRoles = useCallback(async () => {
+    const requestId = ++rolesRequestVersion.current;
+    setRolesLoading(true);
+    setRolesError('');
+    try {
+      const rows = await fetchRoles();
+      if (requestId === rolesRequestVersion.current) setRoles(rows);
+    } catch (err) {
+      if (requestId === rolesRequestVersion.current) {
+        setRolesError(err instanceof Error ? err.message : 'Unable to load roles');
+      }
+    } finally {
+      if (requestId === rolesRequestVersion.current) setRolesLoading(false);
+    }
+  }, []);
 
-  // Pre-load organizations and roles
-  // These run once on mount via useEffect-like pattern
-  // (React 18 + Next.js App Router: fetch in body is fine for initial load)
+  useEffect(() => {
+    void loadOrganizations();
+    void loadRoles();
+    return () => {
+      orgsRequestVersion.current += 1;
+      rolesRequestVersion.current += 1;
+    };
+  }, [loadOrganizations, loadRoles]);
+
+  if (!hasAccess) return null;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError('');
+    if (Boolean(orgId) !== Boolean(roleId)) {
+      setError('Select both an organization and a role, or leave both unselected.');
+      return;
+    }
     setBusy(true);
     try {
       const dto: CreateUserRequest = {
-        fullName,
-        email,
-        phone: phone || undefined,
+        fullName: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim() || undefined,
         locale,
         status: status as 'ACTIVE' | 'SUSPENDED' | 'INACTIVE',
         orgId: orgId || undefined,
@@ -90,8 +130,8 @@ export function CreateUserForm({ onCancel, onDone }: CreateUserFormProps) {
           <input required type="email" maxLength={254} value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label>Phone</label>
-          <input required maxLength={20} value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 555-0100" />
+          <label>Phone (optional)</label>
+          <input type="tel" maxLength={20} value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 555-0100" />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <label>Locale</label>
@@ -109,15 +149,17 @@ export function CreateUserForm({ onCancel, onDone }: CreateUserFormProps) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <label>Organization</label>
-            <select value={orgId} onChange={e => setOrgId(e.target.value)}>
-              <option value="">None — unassigned user</option>
+            <ErrorNotice message={orgsError} retry={() => void loadOrganizations()} />
+            <select value={orgId} disabled={orgsLoading || Boolean(orgsError)} onChange={e => { setOrgId(e.target.value); setRoleId(''); }}>
+              <option value="">{orgsLoading ? 'Loading organizations…' : orgsError ? 'Retry organization lookup above' : 'None — unassigned user'}</option>
               {orgs.map(org => <option key={org.id} value={org.id}>{org.name} ({org.type})</option>)}
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <label>Role</label>
-            <select value={roleId} onChange={e => setRoleId(e.target.value)}>
-              <option value="">None</option>
+            <ErrorNotice message={rolesError} retry={() => void loadRoles()} />
+            <select value={roleId} disabled={!orgId || rolesLoading || Boolean(rolesError)} onChange={e => setRoleId(e.target.value)}>
+              <option value="">{rolesLoading ? 'Loading roles…' : rolesError ? 'Retry role lookup above' : 'Select a role'}</option>
               {roles.map(role => <option key={role.id} value={role.id}>{role.key} — {role.name}</option>)}
             </select>
             {roleId && roles.find(r => r.id === roleId) && (
@@ -128,8 +170,7 @@ export function CreateUserForm({ onCancel, onDone }: CreateUserFormProps) {
           </div>
         </div>
         <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>
-          Leaving both Organization and Role unselected creates a user without organization membership.
-          A membership can be added later from the user detail page.
+          Select both an organization and a role to create the membership, or leave both blank to create an unassigned user. A membership can be added later from the user detail page.
         </p>
       </div>
 
@@ -146,7 +187,7 @@ export function CreateUserForm({ onCancel, onDone }: CreateUserFormProps) {
 
       <div className={styles['actions']} style={{ marginTop: 24 }}>
         <button type="button" disabled={busy} onClick={onCancel}>Cancel</button>
-        <button type="submit" disabled={busy || !fullName || !email}>Create User</button>
+        <button type="submit" disabled={busy || !fullName.trim() || !email.trim() || (Boolean(orgId) !== Boolean(roleId))}>Create User</button>
       </div>
     </form>
   );
