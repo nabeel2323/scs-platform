@@ -6,6 +6,7 @@ import { fetchProfile, fetchMyStores, Store, UserProfile } from '../../lib/api';
 import { pickStore, rememberStoreId } from '../../lib/merchant-store';
 import { LoadingSpinner, StatusBadge, formatMinor } from '../../components/Shared';
 import { useMerchantRealtime } from '../../lib/useMerchantRealtime';
+import { useAuth } from '../../components/AuthProvider';
 import type { NewOrderEvent } from '../../lib/realtime';
 import {
   PageHeader, Card,
@@ -13,19 +14,21 @@ import {
 } from '@scs/ui-kit';
 
 const CARDS = [
-  { href: '/merchant/store', title: 'Store Profile', desc: 'Name, description, currency, address & warehouses', icon: '🏬' },
-  { href: '/merchant/warehouses', title: 'Warehouses', desc: 'Manage warehouse locations & contacts', icon: '📦' },
-  { href: '/merchant/catalog', title: 'Catalog', desc: 'Products, variants, media & categories', icon: '📦' },
-  { href: '/merchant/orders', title: 'Orders', desc: 'Incoming orders — accept & fulfil', icon: '🧾' },
-  { href: '/merchant/customers', title: 'Customers', desc: 'Buyers, revenue & order stats', icon: '👥' },
-  { href: '/merchant/inventory', title: 'Inventory', desc: 'Stock levels per warehouse & adjustments', icon: '📊' },
-  { href: '/merchant/pricing', title: 'Pricing', desc: 'Price lists & volume tiers', icon: '🏷️' },
-  { href: '/merchant/import', title: 'Import', desc: 'Bulk product import jobs', icon: '⬆️' },
-  { href: '/merchant/requests', title: 'Catalog Requests', desc: 'Request new categories, brands or attributes', icon: '📋' },
-  { href: '/merchant/organization', title: 'Organization', desc: 'Business details & members', icon: '🏢' },
+  { href: '/merchant/store', title: 'Store Profile', desc: 'Name, description, currency, address & warehouses', icon: '🏬', permission: 'merchant:stores:read' },
+  { href: '/merchant/warehouses', title: 'Warehouses', desc: 'Manage warehouse locations & contacts', icon: '📦', permission: 'merchant:stores:read' },
+  { href: '/merchant/catalog', title: 'Catalog', desc: 'Products, variants, media & categories', icon: '📦', permission: 'catalog:products:read' },
+  { href: '/merchant/orders', title: 'Orders', desc: 'Incoming orders — accept & fulfil', icon: '🧾', permission: 'merchant:orders:read' },
+  { href: '/merchant/customers', title: 'Customers', desc: 'Buyers, revenue & order stats', icon: '👥', permission: 'merchant:orders:read' },
+  { href: '/merchant/inventory', title: 'Inventory', desc: 'Stock levels per warehouse & adjustments', icon: '📊', permission: 'merchant:inventory:read' },
+  { href: '/merchant/pricing', title: 'Pricing', desc: 'Price lists & volume tiers', icon: '🏷️', permission: 'merchant:pricing:read' },
+  { href: '/merchant/import', title: 'Import', desc: 'Bulk product import jobs', icon: '⬆️', permission: 'catalog:products:read' },
+  { href: '/merchant/requests', title: 'Catalog Requests', desc: 'Request new categories, brands or attributes', icon: '📋', permission: 'catalog:offers:write' },
+  { href: '/merchant/organization', title: 'Organization', desc: 'Business details & members', icon: '🏢', permission: 'merchant:stores:read' },
 ];
 
 export default function MerchantDashboardPage() {
+  const { user } = useAuth();
+  const visibleCards = CARDS.filter((card) => user?.perms?.includes(card.permission));
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stores, setStores] = useState<Store[]>([]);
   const [activeId, setActiveId] = useState('');
@@ -157,7 +160,7 @@ export default function MerchantDashboardPage() {
             <StatusBadge status={store.verificationStatus} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
-            {CARDS.map(c => (
+            {visibleCards.map(c => (
               <Link key={c.href} href={c.href} style={card}>
                 <div style={{ fontSize: 28, marginBottom: 10 }}>{c.icon}</div>
                 <div style={{ ...typeScale.h4, color: colors.brand[700], marginBottom: 4 }}>{c.title}</div>
