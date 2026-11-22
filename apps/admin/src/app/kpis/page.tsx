@@ -59,7 +59,7 @@ export default function KpiDashboardPage() {
   const maxFunnel = kpis ? Math.max(kpis.activationFunnel.registered, 1) : 1;
   const periodLabel = kpis
     ? `${new Date(kpis.period.from).toLocaleDateString()} — ${new Date(kpis.period.to).toLocaleDateString()}`
-    : 'Loading period...';
+    : error ? 'Period unavailable' : 'Loading period...';
 
   const inputStyle: React.CSSProperties = {
     padding: '6px 10px', border: '1px solid rgba(255,255,255,0.2)',
