@@ -170,7 +170,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
     if (store == null) return;
 
     try {
-      await ref.refresh(storeWarehousesProvider(store.id).future);
+      await ref.refresh(storeWarehousesProvider(store.id).future).then<void>((_) {});
     } catch (_) {
       // Warehouse reads report their own retry/error state in the form.
     }
