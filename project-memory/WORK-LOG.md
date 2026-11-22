@@ -425,3 +425,14 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Added financial ownership candidates for commission reversals, settlement adjustments/approvals, reconciliation runs/discrepancies and business calendar/holiday/audit rows.
 - Flagged business calendars as unresolved configuration scope: schema comments describe tenant/global calendars but the inspected declaration has no direct org_id.
 - No tests, CI, DB query/write, migration, grants, RLS, staging/deployment, provider call or worker activation occurred.
+
+
+## 2026-11-22 — API-003 canonical merchant read-permission alignment
+
+- Audited every permission decorator in the 25 controller files listed by the API route matrix against the canonical PERMISSIONS seed and built-in role grants.
+- Found the unseeded permission key merchant:products:read on five CatalogController read routes (merchant moderation history and store import list/detail/chunks/errors) and the store-member list route. No built-in role can satisfy a permission absent from the canonical seed.
+- Corrected CatalogController reads to the existing catalog:products:read permission while preserving assertStoreInOrg/assertStoreMember or assertProductEditableByMerchant checks.
+- Corrected StoreMembershipController member-list access to the existing merchant:stores:read permission and granted that already-defined key to MERCHANT_STAFF as well as MERCHANT_OWNER. Membership-manager checks still gate eligible-user and mutation routes; all mutations continue to require merchant:products:write.
+- Added focused API tests for the catalog route decorators, PermissionsGuard behavior and role-seed alignment, plus store-member list permission/guard alignment.
+- Updated docs/api-route-permission-matrix.md and added API-003 to the programme gap register. No new permission key, database migration or grant was added.
+- Tests were added but not executed; no CI run was triggered. No staging/database mutation, migration, deployment, worker activation or provider call occurred.
