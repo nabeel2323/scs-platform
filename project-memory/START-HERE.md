@@ -75,7 +75,11 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 22 November 2026 confirms branch `remediation/phase-0-1-tenant-security` with latest implementation/test commit `be40978bf90ec479f13a8f852145aecee4ce9df6` (UX-037 inventory movement history recovery). Resolve the documentation HEAD from the live branch ref at session start. PR #138 remains open/draft/unmerged to `develop`. All new implementation/test commits use `[skip ci]`; focused tests are added but not executed. Vercel preview failures are external build-rate-limit results, not application test results. UX-030–UX-037 are implemented at source level; continue UX-010 cross-screen audit and workflow integration. Comprehensive tests remain deferred until implementation/integration are complete.
+Live GitHub reconciliation on 22 November 2026 confirms branch `remediation/phase-0-1-tenant-security`, PR #138 open/draft/unmerged to `develop`. Latest source implementation commit: `7c9720821cae074415a3d3d8d1f1a178bb8db8c2`; latest focused test commit: `f18f133b5631129d1b9fa3c84555921e5b9d32cc`. Latest project-memory/progress synchronization commit: `640f52d2a2dbeb5e5276c3d90ffa0a6d52cfdad9`; refresh the live ref after the next documentation update.
+
+UX-046 Admin User Management is implemented: optional phone, independent organization/role lookup retry, org/role pair validation at UI and service boundaries, profile editing, membership management, confirmed status changes, and accurate per-role permission display. UX-047 Merchant Store Detail now presents locale, popularity-badge visibility, logo/cover previews and address. Focused Admin/API tests were added but not executed. All commits use `[skip ci]`; Vercel Web/Admin failures remain external build-rate-limit statuses, not application test results.
+
+Continue UX-010 across remaining Admin routes and then Mobile workflows. Do not repeat UX-030–UX-047. Keep comprehensive testing deferred until implementation/integration are complete. G-001 remains PARTIAL and G-002 IN PROGRESS. Preserve all merge/deployment/staging/shared-database/grant/RLS/worker restrictions.
 
 ## Safety reminder
 
