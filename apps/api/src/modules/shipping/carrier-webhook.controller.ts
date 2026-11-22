@@ -227,12 +227,30 @@ export class CarrierWebhookController {
       });
     } catch (err: any) {
       if (err?.code === '23505') {
-        // Duplicate — return idempotent 200
-        this.logger.log(`Duplicate webhook from ${providerKey}: ${externalDeliveryId}`);
-        return res.status(HttpStatus.OK).json({
-          received: true,
-          duplicate: true,
+        // Idempotent duplicate. If the first delivery is still pending, make
+        // sure a retry is queued rather than silently losing the event.
+        const existing = await this.db.db.query.carrierWebhookEvents.findFirst({
+          where: and(
+            eq(carrierWebhookEvents.credentialId, credential.id),
+            eq(carrierWebhookEvents.externalDeliveryId, externalDeliveryId),
+          ),
         });
+        this.logger.log(`Duplicate webhook from ${providerKey}: ${externalDeliveryId}`);
+        if (existing && !existing.processed) {
+          await this.markWebhookPendingAndEnqueue(
+            existing.id,
+            providerKey,
+            externalDeliveryId,
+            credential.orgId,
+            existing.processingError || 'Duplicate delivery requested retry',
+          );
+          return res.status(HttpStatus.OK).json({
+            received: true,
+            duplicate: true,
+            pending: true,
+          });
+        }
+        return res.status(HttpStatus.OK).json({ received: true, duplicate: true });
       }
       throw err;
     }
@@ -323,6 +341,7 @@ export class CarrierWebhookController {
     error: string,
   ): Promise<void> {
     const safeError = error.slice(0, 2000);
+    this.logger.warn(`Webhook ${webhookEventId} pending retry: ${safeError}`);
     try {
       await this.db.db.update(carrierWebhookEvents)
         .set({ processed: false, processingError: safeError })
@@ -332,20 +351,30 @@ export class CarrierWebhookController {
     }
 
     try {
-      await this.db.db.insert(outboxEvents).values({
-        id: randomUUID(),
-        eventType: 'shipping.carrier.webhook.retry',
-        aggregateId: webhookEventId,
-        payload: {
-          providerKey,
-          externalDeliveryId,
-          webhookEventId,
-          error: safeError.slice(0, 500),
-          source: 'webhook_async_retry',
-        },
-        status: 'PENDING',
-        organizationId,
+      const pendingRetry = await this.db.db.query.outboxEvents.findFirst({
+        where: and(
+          eq(outboxEvents.aggregateId, webhookEventId),
+          eq(outboxEvents.eventType, 'shipping.carrier.webhook.retry'),
+          eq(outboxEvents.status, 'PENDING'),
+        ),
+        columns: { id: true },
       });
+      if (!pendingRetry) {
+        await this.db.db.insert(outboxEvents).values({
+          id: randomUUID(),
+          eventType: 'shipping.carrier.webhook.retry',
+          aggregateId: webhookEventId,
+          payload: {
+            providerKey,
+            externalDeliveryId,
+            webhookEventId,
+            error: safeError.slice(0, 500),
+            source: 'webhook_async_retry',
+          },
+          status: 'PENDING',
+          organizationId,
+        });
+      }
     } catch (outboxError: any) {
       this.logger.error(`Failed to insert webhook retry outbox event: ${outboxError?.message}`);
     }
