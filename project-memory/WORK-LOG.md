@@ -396,3 +396,12 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Confirmed cross-module access paths: catalog projections read store/warehouse/pricing/inventory/offer/taxonomy data; order lifecycle touches orders, shipment, inventory, financial and outbox rows; payments and returns cross-reference financial/order/shipping/inventory records.
 - Kept the evidence explicitly preliminary: direct source-symbol patterns are not a runtime call graph, do not establish exact tenant predicates, and do not cover all workers, webhooks, CLI/raw-SQL or database objects.
 - Updated DB-003 in the programme gap register. No application code, tests, CI, live database query/write, migration, grants, RLS, staging, deployment, provider call or worker activation occurred.
+
+
+## 2026-11-22 — G-002 supporting service and worker operation map
+
+- Extended the G-002 source map with cart, promotions, notifications, analytics, disputes, reviews, generic outbox, carrier worker, P13 monitor, worker lease, ops alert, auto-complete worker and return-expiration worker paths.
+- Recorded schema-backed Drizzle operations and separately identified raw-SQL touchpoints such as `worker_leases`, `ops_alerts`, `orders` and `return_requests`. The raw SQL list is explicitly not treated as a complete statement-level access map.
+- Documented the separate ownership concerns for outbox consumer eligibility, worker/system identity, order/return delegated transitions, user-private notification/device rows, analytics privacy, and dispute/conversation participant ownership.
+- DB-003 remains IN PROGRESS: remaining module services, webhook/CLI/migration paths, exact SQL statement predicates, full FK ownership, non-Drizzle physical relations and the 114-vs-116 discrepancy are still open.
+- No tests, CI, live DB query/write, migration, grants, RLS, staging/deployment, provider call or worker activation occurred.
