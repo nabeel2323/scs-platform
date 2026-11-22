@@ -488,6 +488,6 @@ export class ReturnsController {
     @Body() body: { notes: string },
   ) {
     if (!body.notes) throw new BadRequestException('Resolution notes are required');
-    return this.reconciliation.resolveDiscrepancy(id, user.sub, body.notes, user.activeOrg);
+    return this.reconciliation.resolveDiscrepancy(id, user.sub, body.notes, this.finScope(user));
   }
 }

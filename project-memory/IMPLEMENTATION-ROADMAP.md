@@ -177,3 +177,13 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Added caller-context checks to organization-scoped store/customer reads.
 - Added merchant/pricing tenant-scope regression specs; not run.
 - No tests, CI, database connection/query/write, migration, grant/RLS change, staging/deployment, worker activation or provider call occurred.
+
+
+## 2026-11-22 — G-002 method-level predicate batch 4
+
+- Implemented return-inspection inventory scoping by order store and warehouse join.
+- Hardened settlement adjustment target ownership and returnRequestId/subOrderId relationship checks; locked transitions and detail reads verify the actual target organization.
+- Corrected reconciliation discrepancy resolution to use financialOrgScope and repeat orgId in the mutation predicate.
+- Completed source review of dispute participant and review subject/order ownership boundaries.
+- Added returns-inspection-inventory-scope.spec.ts, settlement-adjustment-tenant-scope.spec.ts and reconciliation-tenant-scope.spec.ts. Tests were not run.
+- Next: carrier/shipping method-level review, then worker/outbox/bootstrap/system. No tests/CI, DB, migration, grant/RLS, staging/deployment or worker action occurred.

@@ -543,15 +543,26 @@ export class ReconciliationService {
     });
     if (!disc) throw new NotFoundException('Discrepancy not found');
 
-    await this.db.db.update(reconciliationDiscrepancies)
+    const updateConditions: any[] = [eq(reconciliationDiscrepancies.id, discrepancyId)];
+    if (orgId) {
+      updateConditions.push(eq(reconciliationDiscrepancies.orgId, orgId));
+    }
+    const resolvedAt = new Date();
+    const updated = await this.db.db
+      .update(reconciliationDiscrepancies)
       .set({
         resolved: true,
-        resolvedAt: new Date(),
+        resolvedAt,
         resolvedBy,
         resolutionNotes: notes,
       } as any)
-      .where(eq(reconciliationDiscrepancies.id, discrepancyId));
+      .where(and(...updateConditions))
+      .returning({ id: reconciliationDiscrepancies.id });
 
-    return { ...disc, resolved: true, resolvedAt: new Date(), resolvedBy, resolutionNotes: notes };
+    if (updated.length === 0) {
+      throw new NotFoundException('Discrepancy not found');
+    }
+
+    return { ...disc, resolved: true, resolvedAt, resolvedBy, resolutionNotes: notes };
   }
 }

@@ -535,6 +535,11 @@ export class SettlementAdjustmentService {
     });
     if (!adj) throw new NotFoundException('Settlement adjustment not found');
 
+    const actualOrgId = await this.resolveSubOrderOrganization(adj.subOrderId);
+    if (actualOrgId !== adj.orgId || (orgId && actualOrgId !== orgId)) {
+      throw new NotFoundException('Settlement adjustment not found');
+    }
+
     const approvals = await this.db.db.query.settlementAdjustmentApprovals.findMany({
       where: eq(settlementAdjustmentApprovals.adjustmentId, adjustmentId),
     });

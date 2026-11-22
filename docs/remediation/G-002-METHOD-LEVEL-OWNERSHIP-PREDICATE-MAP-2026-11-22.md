@@ -161,3 +161,60 @@ The membership role matrix remains: MEMBER cannot manage membership; ADMIN canno
 - Merchant ID-based store/warehouse helpers and StoreMembershipService mutation methods still rely on the HTTP controller to supply authorization preflight; classify context-free internal callers separately before designing RLS.
 - Shared tenant-scope helpers still use singleton DatabaseService rather than the caller's active transaction. A later request transaction design must close preflight/write concurrency windows without breaking nested service transactions.
 - No tests or CI were run for this batch. No database query/write, migration, grant, RLS change, staging action, deployment, worker activation or provider call occurred.
+
+
+## Returns, Disputes, Reviews and Financial Controls — method-level batch 4 — 22 November 2026
+
+### ReturnsService
+
+| Method family | Tables read/written | Ownership predicate and context |
+|---|---|---|
+| createReturnRequest | orders, payment_records, shipments, order_items, return_requests, return_request_items, return_request_events, outbox_events | Buyer must own the order; order must be DELIVERED/COMPLETED, payment eligible, return window open, each requested line must belong to the sub-order, cumulative returned quantity and refund cap enforced. Active return per sub-order is protected by the unique constraint. |
+| transitionReturn / getReturnRequest | return_requests, orders, return_request_items, return_request_events, store_members | Buyer-only transitions verify buyerId; merchant transitions resolve sub-order → store and require activeOrg/store membership; privileged-only system/admin transitions require isTenantPrivileged. Detail reads allow buyer, active store member or privileged role. |
+| listReturnsForBuyer / listReturnsForStore / listAllReturns | return_requests, orders, stores | Buyer list is filtered by JWT subject. Store list resolves store organization and ACTIVE store membership. Global list is behind admin:returns:read and is platform oversight. |
+| inspectReturn / restoreInventory | return_requests, return_request_items, orders, order_items, inventory_items, warehouses, stock_movements, return_request_events, outbox_events | Inspection now resolves the return sub-order's store and joins inventory_items to warehouses filtered by warehouses.store_id before matching canonical variant IDs. This prevents restoring stock for the same shared variant in another merchant's warehouse. |
+| resolveEscalation / expire/refund system transitions | return_requests, return_request_events, refunds, payment_records, settlement_records, commission_reversals, settlement_adjustments, outbox_events | Escalation resolution and platform/system transitions require privileged caller context. Refund and settlement work is linked by sub-order/return IDs and performed through the existing transaction/outbox flow. |
+
+### DisputesService
+
+| Method family | Tables read/written | Ownership predicate and context |
+|---|---|---|
+| createDispute | orders, store_members, disputes, dispute_events, outbox_events | Raised-by identity must be buyer or ACTIVE member of the order store; respondent must be the other order party; order must be DELIVERED and within 72 hours; existing OPEN dispute blocks duplicates. |
+| listDisputes / getDispute / getDisputeEvents | disputes, dispute_events | List filters raisedBy or againstId to caller subject. Detail/event reads require participant or privileged moderator; event query is reached only after dispute authorization. |
+| submitEvidence / submitResponse / resolveDispute | disputes, dispute_events, payments/refunds, outbox_events | Evidence requires participant; response requires respondent or privileged moderator; resolution requires privileged platform caller and prevents resolving RESOLVED/CLOSED disputes twice. Refund path uses P12 idempotency and links refund to dispute. |
+| createOrGetConversation / getConversation / getMessages / sendMessage / markMessagesRead | orders, store_members, conversations, messages | Conversation creation validates buyer↔ACTIVE store member pairing; all read/write message operations verify participant identity; mark-read updates only incoming unread messages. |
+
+### ReviewsService
+
+| Method family | Tables read/written | Ownership predicate and context |
+|---|---|---|
+| createReview | orders, order_items, product_variants, reviews, trust_snapshots, outbox_events | Reviewer must be the order buyer; order must be DELIVERED/COMPLETED; STORE subject must equal order.storeId; PRODUCT subject must be represented by a purchased variant; unique order/reviewer/subject constraint prevents duplicates. |
+| getReviewsByOrder | orders, reviews, stores, store_members | Buyer or active store member (verified through activeOrg and store membership), or privileged caller. |
+| getReviewsBySubject / getReview / getTrustSnapshot | reviews, trust_snapshots | Marketplace review/trust data is exposed through authenticated read routes and is not tenant-private; order-linked review listing remains scoped separately. |
+| recomputeTrust | reviews, trust_snapshots | Aggregate and upsert are scoped to subjectId + subjectType; invoked after validated review creation. |
+
+### BusinessCalendarService, CommissionReversalService, SettlementAdjustmentService and ReconciliationService
+
+| Service/method family | Tables read/written | Ownership predicate and context |
+|---|---|---|
+| BusinessCalendarService calendar/holiday/audit methods | business_calendars, business_calendar_holidays, business_calendar_audit | Global platform calendar configuration. Controller routes require admin:returns:read or admin:returns:write; not merchant-owned tenant data. |
+| CommissionReversalService listReversals / processCommissionReversal | commission_reversals, return_requests, orders, order_financial_breakdown, settlement_records, stores, outbox_events | Admin list is passed ReturnsController.finScope(user). Processing derives org from return → sub-order → store when not supplied and writes through caller transaction when provided. |
+| SettlementAdjustmentService createAdjustment / lockAdjustment / getAdjustment | settlement_adjustments, settlement_adjustment_approvals, orders, stores, return_requests | New adjustment creation now always derives actual org from sub-order → store and rejects a supplied orgId mismatch. Optional returnRequestId must belong to the same subOrderId. Locked transitions and detail reads verify the stored orgId still equals the actual target order's store organization. |
+| SettlementAdjustmentService submit/approve/reject/post/list | settlement_adjustments, settlement_adjustment_approvals, settlement_records, orders, stores, outbox_events | Controller uses financialOrgScope for every endpoint. Row lock includes org filter for non-platform callers; approval role, duplicate approver, approval hash, creator separation and FX posting checks remain enforced. |
+| ReconciliationService execute/list/get/resolve | reconciliation_runs, reconciliation_discrepancies, return_requests, refunds, orders, stores, commission_reversals, settlement_records, order_financial_breakdown, settlement_adjustments, settlement_adjustment_approvals | Controller uses financialOrgScope for list/get/run. Discrepancy resolution now also uses financialOrgScope (previously passed user.activeOrg directly) and repeats orgId in the UPDATE predicate, not only the pre-read. |
+
+### Batch 4 security corrections
+
+1. **Cross-store inventory restoration:** ReturnsService.inspectReturn previously loaded all inventory_items with an unconditional predicate and selected the first row matching a canonical variant. It could therefore restore a return into another merchant's warehouse. The lookup now joins warehouses and filters to the return order's store before matching variants.
+2. **Settlement adjustment target IDOR:** createAdjustment previously trusted the supplied orgId without verifying that subOrderId belonged to that organization's store. It now derives the authoritative organization from the target order/store and rejects mismatches; optional returnRequestId must reference the same sub-order. Locked transitions and detail reads verify the adjustment tenant label against the actual target store.
+3. **Reconciliation discrepancy scope bypass:** resolveDiscrepancy was the only P13 financial controller endpoint passing user.activeOrg directly instead of finScope. It now uses financialOrgScope, which fails closed for non-platform finance callers without an active organization. The service repeats the tenant predicate in the UPDATE itself and requires a returned row.
+
+Added focused tests: returns-inspection-inventory-scope.spec.ts, settlement-adjustment-tenant-scope.spec.ts and reconciliation-tenant-scope.spec.ts. Tests were committed but not run.
+
+### Review conclusions and remaining constraints
+
+- Disputes participant checks and Reviews order-subject checks were source-reviewed; no additional tenant-boundary code change was required in this batch.
+- Business calendar is a platform-global control surface protected by admin permissions, not tenant-owned business data.
+- Financial services retain optional orgId parameters for trusted platform/global callers. Every HTTP financial route must continue to use financialOrgScope; new routes must not pass user.activeOrg directly.
+- Return inspection now chooses inventory within the correct store, but when a store has multiple warehouses the current model does not capture the exact fulfillment warehouse on order_items; warehouse selection remains a same-store choice, not exact source-warehouse restoration.
+- No tests or CI were run. No database connection/query/write, migration, grant, RLS change, staging action, deployment, worker activation or provider call occurred.

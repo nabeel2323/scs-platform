@@ -1387,3 +1387,14 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Added merchant-service-tenant-scope.spec.ts and pricing-service-tenant-scope.spec.ts for foreign/inactive membership and cross-store relationship denials. Tests were not run.
 - No tests, Actions, database connections/queries, migrations, grants, RLS, staging/deployment or worker/provider actions were performed.
 - Remaining method-level families: Returns/Disputes/Reviews; carrier/shipping; worker/outbox/bootstrap/system. Pricing caller-context propagation and controller-preflight concurrency windows remain explicit follow-up design work.
+
+
+## G-002 method-level ownership predicate batch 4 — Returns, Disputes, Reviews and Financial Controls — 22 November 2026
+
+- ReturnsService inspection no longer searches all inventory globally by canonical variant. It resolves the return order's store and joins inventory_items to warehouses filtered by that store before restoration.
+- SettlementAdjustmentService now derives target org from sub-order → store even when orgId is supplied, rejects cross-org subOrderId, validates optional returnRequestId belongs to the same sub-order, and revalidates tenant identity on locked transitions and detail reads.
+- ReturnsController discrepancy resolution now uses financialOrgScope rather than passing user.activeOrg directly. ReconciliationService repeats the org predicate in the UPDATE and verifies a row was updated.
+- Reviewed DisputesService participant boundaries and ReviewsService order/buyer/subject predicates; no additional code change was required in this batch. BusinessCalendarService is global platform configuration behind admin permission guards.
+- Added returns-inspection-inventory-scope.spec.ts, settlement-adjustment-tenant-scope.spec.ts and reconciliation-tenant-scope.spec.ts. Tests were not run.
+- No tests, Actions, DB connection/query/write, migrations, grants, RLS, staging/deployment, worker activation or provider calls occurred.
+- Remaining method-level families: carrier/shipping; worker/outbox/bootstrap/system. Exact transaction-context propagation and protected live identity/catalog evidence remain open.

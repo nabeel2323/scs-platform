@@ -503,3 +503,12 @@ The current-state handover metadata was reconciled to the latest documentation h
 Completed source mapping and implementation for PricingService, MerchantService and StoreMembershipService. Fixed cross-store price-tier relationships at the PricingService boundary; inactive organization members can no longer list/download merchant documents or enumerate organization verification requests; document uploads validate the caller's active organization, current organization membership and optional store ownership/membership. Organization-scoped store/customer reads now receive caller context from MerchantController.
 
 Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-tenant-scope.spec.ts; they are committed but not run. See the G-002 method-level predicate map. Next method-level batch: Returns/Disputes/Reviews. Then carrier/shipping and worker/outbox/bootstrap/system. Full testing remains deferred to the consolidated phase.
+
+
+## 2026-11-22 — G-002 method-level predicate batch 4
+
+- Scoped return inspection inventory lookup to the warehouses of the return order's store, preventing canonical variants from restoring stock into another merchant's warehouse.
+- Settlement adjustment creation now derives actual org from sub-order → store, rejects supplied org mismatch, validates returnRequestId belongs to the same sub-order, and rechecks target-org consistency in locked transitions/detail reads.
+- Reconciliation discrepancy resolution now uses financialOrgScope and repeats the org predicate in the UPDATE statement.
+- Reviewed DisputesService participant checks and ReviewsService order/buyer/subject checks; no additional code change was required. BusinessCalendarService is platform-global admin-controlled configuration.
+- Added three focused unit specs; tests not run. No CI, database connection/query/write, migration, grant/RLS, staging, deployment, worker or provider action occurred.

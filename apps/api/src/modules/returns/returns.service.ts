@@ -32,7 +32,7 @@ import {
   assertStoreMember, isTenantPrivileged,
 } from '../../common/tenant-scope';
 import { PaymentsService } from '../payments/payments.service';
-import { stores } from '../merchant/merchant.schema';
+import { stores, warehouses } from '../merchant/merchant.schema';
 import { PilotControlService } from '../operations/pilot-control.service';
 import { recordOpsCounter } from '../operations/ops-counters';
 import { BusinessCalendarService } from './business-calendar.service';
@@ -533,16 +533,38 @@ export class ReturnsService {
       where: eq(returnRequestItems.returnRequestId, ret.id),
     });
 
-    // Resolve inventory items for each line
+    // Resolve the owning store before looking up inventory. Variants are
+    // canonical/shared across merchants, so variantId alone is not an
+    // ownership predicate for inventory restoration.
+    const order = await this.db.db.query.orders.findFirst({
+      where: eq(orders.id, ret.subOrderId),
+      columns: { storeId: true },
+    });
+    if (!order?.storeId) {
+      throw new NotFoundException('Return order store not found');
+    }
+
     const orderItemsList = await this.db.db.query.orderItems.findMany({
       where: eq(orderItems.orderId, ret.subOrderId),
     });
     const orderItemById = new Map(orderItemsList.map(i => [i.id, i]));
+    const variantIds = [...new Set(orderItemsList.map(i => i.variantId))];
 
-    // Find the inventory items (by variant → warehouse)
-    const invItems = await this.db.db.query.inventoryItems.findMany({
-      where: sql`1=1`,  // load all; filter below
-    });
+    // Restrict inventory candidates to warehouses owned by the return's store.
+    // The same canonical variant may have stock rows in many merchant stores.
+    const invItems = variantIds.length === 0
+      ? []
+      : await this.db.db
+          .select({
+            id: inventoryItems.id,
+            variantId: inventoryItems.variantId,
+          })
+          .from(inventoryItems)
+          .innerJoin(warehouses, eq(inventoryItems.warehouseId, warehouses.id))
+          .where(and(
+            eq(warehouses.storeId, order.storeId),
+            inArray(inventoryItems.variantId, variantIds),
+          ));
 
     await this.db.db.transaction(async (tx) => {
       // Flip status

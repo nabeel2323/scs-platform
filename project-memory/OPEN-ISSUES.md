@@ -250,3 +250,8 @@ Legacy M5/M6 UAT scripts and both JavaScript migration harnesses now fail closed
 Implemented the Pricing/Merchant/Store Membership source batch. PricingService now verifies variant → product → store equality with the owning price list for tier creation, update, removal and resolution. Merchant document listing/download and organization verification listing now require current ACTIVE organization membership; upload requires caller activeOrg equality and validates the optional store's org and ACTIVE store membership. Organization-scoped store/customer reads receive caller context and revalidate membership.
 
 Added focused merchant/pricing tenant-scope specs, not run. The method-level map and gap register are synchronized. Next: Returns/Disputes/Reviews, then carrier/shipping, then worker/outbox/bootstrap/system. No tests/CI, live DB, migration, grant/RLS, staging, deployment or worker action occurred.
+
+
+## G-002 method-level predicate batch 4 — 22 November 2026
+
+Returns/Disputes/Reviews and financial-control services are now mapped. Fixed cross-store inventory restoration in return inspection; settlement adjustment target org/return-request relationships; and the reconciliation discrepancy endpoint's missing financialOrgScope call plus missing tenant predicate on the UPDATE. Focused tests were added but not run. Next: carrier/shipping, then worker/outbox/bootstrap/system. No tests/CI or live DB/staging actions occurred.
