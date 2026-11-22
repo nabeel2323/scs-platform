@@ -70,7 +70,7 @@ describe('resolveShipmentForCredential', () => {
     };
 
     await expect(
-      resolveShipmentForCredential(db as any, { orgId: 'org-a' }, 'aramex', 'external-a'),
+      resolveShipmentForCredential(db as any, { orgId: 'org-a', providerKey: 'aramex' }, 'aramex', 'external-a'),
     ).resolves.toEqual({ status: 'AMBIGUOUS' });
   });
 
