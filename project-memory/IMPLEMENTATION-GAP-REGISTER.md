@@ -631,3 +631,8 @@ Source-confirmed gap closed in implementation: buyer order history did not prese
 ## UX-080 — Mobile Search facets and request ordering — 23 November 2026
 
 Source-confirmed gaps closed in implementation: selected attribute facet values were not sent to the existing API `attrFilters` parameter, and overlapping search requests could complete out of order. Mobile now serializes the supported filter contract, guards requests by generation and search key, preserves matching results during refresh, and avoids showing old-query results as current. Focused API-client and widget tests are added but remain TESTING_PENDING. No backend route/SQL/database change.
+
+
+## UX-081 — Mobile Product Detail stable reads — 23 November 2026
+
+Source-confirmed gap closed in implementation: the Product Detail inline FutureBuilder recreated the main product request on each stateful rebuild; initial product failure lacked retry/refresh; auxiliary variant/offer/review failures were hidden. A stable product-ID provider, stale-data-safe refresh, retryable initial and auxiliary reads, and route-reuse request guards are implemented. Focused Flutter tests are added but remain TESTING_PENDING. No backend/API route/database behavior changed.
