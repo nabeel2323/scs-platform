@@ -732,3 +732,8 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added the missing `rolesError` effect dependency so role loading is lint-correct while the explicit error guard prevents automatic retry loops.
 - Corrected the warehouse summary to avoid showing an empty table when the initial warehouse read fails; warehouse count is unavailable while the read is in error.
 - Commit: `36c11c8be3c22cbdb79bd341d4a798f28dde30b6`. No tests run; `[skip ci]` preserved Actions minutes.
+
+## 2026-11-22 — UX-034 stale-data preservation refinement
+
+- Merchant Organization now keeps previously loaded document and member rows visible alongside retryable errors after a failed refresh. Metrics no longer present a failed document read as a confirmed zero, and warehouse loading/error states avoid rendering an empty table as successful data.
+- Commit: `3a8c5767ffd2a8e852ef0f7bcbe042da35dfa812`. No tests run; `[skip ci]` preserved Actions minutes.

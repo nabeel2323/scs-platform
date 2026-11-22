@@ -1500,3 +1500,9 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Added `rolesError` to the role-loader effect dependency list; the explicit error guard prevents automatic retry loops while keeping the effect dependency-complete.
 - The warehouse summary no longer renders an empty table when the initial read fails, and its count is not presented as a confirmed zero.
 - Commit `36c11c8be3c22cbdb79bd341d4a798f28dde30b6`. Not tested; exact-head Actions not run.
+
+## UX-034 stale-data preservation refinement — 22 November 2026
+
+- Member and document read failures now display their retryable error while retaining any last successful rows. Document counts show unavailable rather than zero when the read has failed.
+- Warehouse count/empty presentation no longer implies a confirmed empty table when its read fails.
+- Commit `3a8c5767ffd2a8e852ef0f7bcbe042da35dfa812`. Not tested; exact-head Actions not run.
