@@ -146,21 +146,35 @@ export default function MerchantOrdersPage() {
       .catch(() => { /* labels degrade to buyer IDs */ });
   };
 
+  const loadStoresAndOrders = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const list = await fetchMyStores();
+      setStores(list);
+      const selectedStore = pickStore(list);
+      if (!selectedStore) {
+        setNoStore(true);
+        setLoading(false);
+        return;
+      }
+      setNoStore(false);
+      setStoreId(selectedStore.id);
+      setStoreName(selectedStore.displayName);
+      await load(selectedStore.id);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load stores');
+      setLoading(false);
+    }
+  };
+
+  const retryLoad = () => storeId ? load(storeId) : loadStoresAndOrders();
+
   useEffect(() => {
-    (async () => {
-      // Buyer labels resolve best-effort: a directory failure only degrades
-      // rows to "Buyer {id}" — it must not break the orders load.
-      loadBuyers();
-      try {
-        const list = await fetchMyStores();
-        setStores(list);
-        const s = pickStore(list);
-        if (!s) { setNoStore(true); setLoading(false); return; }
-        setStoreId(s.id);
-        setStoreName(s.displayName);
-        await load(s.id);
-      } catch { setLoading(false); }
-    })();
+    // Buyer labels resolve best-effort: a directory failure only degrades
+    // rows to "Buyer {id}" — it must not break the orders load.
+    loadBuyers();
+    void loadStoresAndOrders();
   }, []);
 
   // Gap 2: reload the queue the instant a new order lands for any of this
@@ -345,7 +359,8 @@ export default function MerchantOrdersPage() {
       />
       <div style={{ padding: '20px 24px 48px' }}>
 
-      {error && <ErrorBanner message={error} />}
+      {error && <ErrorBanner message={error} onRetry={retryLoad} />}
+      {loading && <LoadingSpinner />}
       {fulfillmentError && <ErrorBanner message={fulfillmentError} />}
 
       {stores.length > 1 && (
@@ -594,7 +609,7 @@ export default function MerchantOrdersPage() {
         </div>
       )}
 
-      {!noStore && orders.length === 0 && <EmptyState title="No orders yet" description="Orders from buyers will appear here." />}
+      {!loading && !error && !noStore && orders.length === 0 && <EmptyState title="No orders yet" description="Orders from buyers will appear here." />}
       {!noStore && orders.length > 0 && filteredOrders.length === 0 && (
         <EmptyState
           title="No orders match your filters"
