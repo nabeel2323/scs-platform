@@ -54,7 +54,7 @@ void main() {
     expect(find.textContaining('Variant variant-'), findsOneWidget);
     expect(find.textContaining('Available: 8'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Refresh'));
+    await tester.tap(find.byTooltip('Refresh inventory'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Variant variant-'), findsOneWidget);
