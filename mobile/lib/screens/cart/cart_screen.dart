@@ -19,6 +19,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   bool _removingPromo = false;
   bool _clearing = false;
   bool _itemActionBusy = false;
+  String? _busyItemId;
   int _cartMutationRevision = 0;
 
   bool get _cartActionsDisabled =>
@@ -32,7 +33,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
   Future<void> _setQty(CartItem item, int qty) async {
     if (_cartActionsDisabled) return;
-    setState(() => _itemActionBusy = true);
+    setState(() {
+      _itemActionBusy = true;
+      _busyItemId = item.id;
+    });
     try {
       await ref.read(apiServiceProvider).updateCartItem(item.id, qty);
       ref.invalidate(cartProvider);
@@ -46,13 +50,19 @@ class _CartScreenState extends ConsumerState<CartScreen> {
             .showSnackBar(SnackBar(content: Text(ApiService.errorMessage(e))));
       }
     } finally {
-      if (mounted) setState(() => _itemActionBusy = false);
+      if (mounted) setState(() {
+        _itemActionBusy = false;
+        _busyItemId = null;
+      });
     }
   }
 
   Future<void> _removeItem(CartItem item) async {
     if (_cartActionsDisabled) return;
-    setState(() => _itemActionBusy = true);
+    setState(() {
+      _itemActionBusy = true;
+      _busyItemId = item.id;
+    });
     try {
       await ref.read(apiServiceProvider).removeCartItem(item.id);
       ref.invalidate(cartProvider);
@@ -62,7 +72,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
             .showSnackBar(SnackBar(content: Text(ApiService.errorMessage(e))));
       }
     } finally {
-      if (mounted) setState(() => _itemActionBusy = false);
+      if (mounted) setState(() {
+        _itemActionBusy = false;
+        _busyItemId = null;
+      });
     }
   }
 
@@ -127,7 +140,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   Widget _cartLine(CartItem item) {
     final floor = _floorFor(item);
     final actionsDisabled = _cartActionsDisabled;
-    final itemBusy = _itemActionBusy;
+    final itemBusy = _busyItemId == item.id;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Padding(

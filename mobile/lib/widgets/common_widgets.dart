@@ -317,7 +317,7 @@ class _QuantityStepperState extends State<QuantityStepper> {
     return Column(mainAxisSize: MainAxisSize.min, children: [
       Row(mainAxisSize: MainAxisSize.min, children: [
         IconButton(
-          onPressed: widget.value <= widget.minQty
+          onPressed: !widget.enabled || widget.value <= widget.minQty
               ? null
               : () {
                   _commit((widget.value - widget.step).toString());
@@ -332,6 +332,7 @@ class _QuantityStepperState extends State<QuantityStepper> {
             controller: _ctrl,
             textAlign: TextAlign.center,
             keyboardType: TextInputType.number,
+            enabled: widget.enabled,
             onSubmitted: _commit,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             decoration: const InputDecoration(
