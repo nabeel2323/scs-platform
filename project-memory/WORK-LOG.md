@@ -839,3 +839,11 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added request-version protection and effect cleanup invalidation, role-aware read guards, alert semantics and successful-empty-only rows/counts. Attribute Group detail no longer says no attributes are defined when the shared attribute read failed.
 - Added `admin-attribute-groups-recovery.test.tsx` and `admin-attributes-recovery.test.tsx`. Tests not executed.
 - No API, permission, schema, database or migration change. Commits use `[skip ci]`; no deployment or staging action.
+
+
+## 2026-11-23 — UX-078 Mobile Buyer Store Directory and Store Detail
+
+- Re-audited the buyer-facing Store Directory and Store Detail screens. The directory only exposed initial-load retry by invalidation and lost the last successful list on refresh; Store Detail used an untracked FutureBuilder with no retry or refresh and could not preserve a previous catalogue.
+- Added a dedicated buyer store-products provider with the existing `status: 'ACTIVE'` constraint, then added explicit refresh/pull-to-refresh, stale-data messaging, retry and true-empty-state handling to both screens.
+- Added four focused Flutter widget scenarios for initial failure/retry and failed refresh after a successful store list/catalogue.
+- Tests were not run, per the implementation-first plan. No API/permission/schema/database/migration/staging/worker/provider integration changes.
