@@ -169,6 +169,23 @@ describe('RealtimeGateway — join authorization', () => {
     expect(res).toEqual({ event: 'joined', data: { rooms: [] } });
   });
 
+  it('denies merchant store rooms without merchant:orders:read', async () => {
+    const { gateway } = createGateway();
+    const client = mockSocket({
+      data: {
+        userId: ids.user,
+        role: 'MERCHANT_OWNER',
+        activeOrg: ids.org,
+        perms: ['merchant:stores:read'],
+      },
+    });
+    const result = await gateway.handleJoin(client, {
+      rooms: [`org:${ids.store}`, `order:${ids.order}`],
+    });
+    expect(result.data.rooms).toEqual([]);
+    expect(client.join).not.toHaveBeenCalled();
+  });
+
   it('denies store and order rooms for a foreign active organization or missing membership', async () => {
     const foreign = createGateway();
     foreign.query.stores.findFirst.mockResolvedValue({ id: ids.store, orgId: ids.otherOrg });
