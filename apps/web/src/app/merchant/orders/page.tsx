@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import {
   fetchOrders,
@@ -90,6 +90,10 @@ function BuyerLine({ order, buyers }: {
 
 export default function MerchantOrdersPage() {
   const { user } = useAuth();
+  const activeOrgId = user?.activeOrgId ?? null;
+  const storeScopeRequestRef = useRef(0);
+  const ordersRequestRef = useRef(0);
+  const buyersRequestRef = useRef(0);
   const canWriteOrders = user?.perms?.includes('merchant:orders:write') === true;
   const canAssignDrivers = user?.perms?.includes('fulfillment:shipments:assign') === true;
   const [orders, setOrders] = useState<SubOrder[]>([]);
@@ -122,18 +126,22 @@ export default function MerchantOrdersPage() {
   const [dateTo, setDateTo] = useState('');
 
   const load = async (sid: string) => {
+    const requestId = ++ordersRequestRef.current;
     setLoading(true);
     setError('');
     try {
       const data = await fetchOrders({ storeId: sid });
+      if (requestId !== ordersRequestRef.current) return;
       setOrders(data as SubOrder[]);
       setError('');
     } catch (err: any) {
-      // An empty queue and an unreadable queue are different answers to a
-      // merchant about to stop watching the screen.
-      setError(err.message || 'Could not load orders for this store');
+      if (requestId === ordersRequestRef.current) {
+        // An empty queue and an unreadable queue are different answers to a
+        // merchant about to stop watching the screen.
+        setError(err.message || 'Could not load orders for this store');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === ordersRequestRef.current) setLoading(false);
     }
   };
 
@@ -141,8 +149,10 @@ export default function MerchantOrdersPage() {
   // Extracted so a new order can refresh it: a first-time buyer only appears
   // once they have an order, so callers must bust the cache before re-reading.
   const loadBuyers = () => {
+    const requestId = ++buyersRequestRef.current;
     fetchMerchantCustomersCached()
       .then((list) => {
+        if (requestId !== buyersRequestRef.current) return;
         const map: Record<string, { buyerName: string | null; buyerPhone: string | null }> = {};
         for (const c of list) {
           map[c.buyerId] = { buyerName: c.buyerName, buyerPhone: c.buyerPhone };
@@ -153,10 +163,12 @@ export default function MerchantOrdersPage() {
   };
 
   const loadStoresAndOrders = async () => {
+    const requestId = ++storeScopeRequestRef.current;
     setLoading(true);
     setError('');
     try {
       const list = await fetchMyStores();
+      if (requestId !== storeScopeRequestRef.current) return;
       setStores(list);
       const selectedStore = pickStore(list);
       if (!selectedStore) {
@@ -172,28 +184,51 @@ export default function MerchantOrdersPage() {
       setStoreName(selectedStore.displayName);
       await load(selectedStore.id);
     } catch (err: any) {
-      setError(err.message || 'Failed to load stores');
-      setLoading(false);
+      if (requestId === storeScopeRequestRef.current) {
+        setError(err.message || 'Failed to load stores');
+        setLoading(false);
+      }
     }
   };
 
   const retryLoad = () => storeId ? load(storeId) : loadStoresAndOrders();
 
-  // The initial store resolution is intentionally retried through the same
-  // entry point; API authorization remains responsible for store ownership.
-  // This one-time bootstrap intentionally uses the latest component-local loaders.
+  // Reload the entire store/order/buyer projection when the active
+  // organization changes. Request generations prevent old-org responses from
+  // overwriting the new organization's queue or buyer labels.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    // Buyer labels resolve best-effort: a directory failure only degrades
-    // rows to "Buyer {id}" — it must not break the orders load.
+    storeScopeRequestRef.current += 1;
+    ordersRequestRef.current += 1;
+    buyersRequestRef.current += 1;
+    setLoading(true);
+    setError('');
+    setStores([]);
+    setStoreId('');
+    setStoreName('');
+    setOrders([]);
+    setBuyers({});
+    setNoStore(false);
+    setRejectId('');
+    setCancelId('');
+    setAssignId('');
+    setFulfillmentError('');
+    clearMerchantCustomersCache();
     loadBuyers();
     void loadStoresAndOrders();
-  }, []);
+
+    return () => {
+      storeScopeRequestRef.current += 1;
+      ordersRequestRef.current += 1;
+      buyersRequestRef.current += 1;
+    };
+  }, [activeOrgId]);
 
   // Gap 2: reload the queue the instant a new order lands for any of this
   // merchant's stores, and refresh the buyer directory (busting its 60s cache)
   // so a first-time buyer's name resolves on the newly-arrived row.
   useMerchantRealtime(() => {
+    if (!storeId) return;
     clearMerchantCustomersCache();
     loadBuyers();
     load(storeId);
