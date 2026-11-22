@@ -393,3 +393,7 @@ Completed the Admin Users/Merchants source audit slice. User creation now suppor
 ## UX-048 / UX-049 — Admin Roles and Audit Log — 22 November 2026
 
 Completed the Admin Roles/Audit Log source audit slice. Roles now has a retryable error state and request-version/unmount protection. Audit Log query requests are generation-guarded so stale filter responses cannot replace current results; its error state has an explicit retry action and successful prior rows remain visible during refresh failures. Focused tests were added but not executed. Continue UX-010 across remaining Admin routes and Mobile workflows; keep comprehensive testing deferred until implementation/integration are complete.
+
+## UX-050–UX-053 — Admin Catalog and Analytics — 22 November 2026
+
+Completed the next Admin source-audit slice. Category Detail's product-type, product and attribute-schema reads are retryable and generation-guarded; Attributes loads its own product-type dependency and refuses to present partial schema aggregation as complete. Product Type Detail no longer shows an empty Products tab after a failed read. Catalog Import Center now separates history-read errors from action errors and only renders a true empty history after successful reads. Analytics event/activity queries are independently generation-guarded and retryable. Focused tests were added but not executed. Continue UX-010 across remaining Admin operational/catalog routes and then Mobile; full validation remains deferred until implementation/integration are complete.
