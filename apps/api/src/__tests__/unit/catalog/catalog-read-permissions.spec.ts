@@ -15,7 +15,9 @@ const merchantReadMethods = [
   'getImportErrors',
 ] as const;
 
-function contextFor(handler: Function, perms: string[]): ExecutionContext {
+type Handler = (...args: never[]) => unknown;
+
+function contextFor(handler: Handler, perms: string[]): ExecutionContext {
   return {
     getHandler: () => handler,
     getClass: () => CatalogController,
