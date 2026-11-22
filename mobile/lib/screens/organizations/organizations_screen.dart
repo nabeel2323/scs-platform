@@ -162,7 +162,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
               final content = list.isEmpty
                   ? const EmptyState(
                       title: 'No organizations',
-                      description: 'No organizations are available to this account')
+                      description: canCreate ? 'Create one to get started' : 'No organizations are available to this account')
                   : RefreshIndicator(
                       onRefresh: () async {
                         try {

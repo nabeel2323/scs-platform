@@ -1700,3 +1700,13 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - The last successful organization list remains visible during refresh and after refresh failure, with stale-data messaging and Retry. Initial failures remain actionable errors rather than successful empty states.
 - Added `organizations_read_recovery_test.dart` for stale-list preservation and initial failure/retry.
 - Organization switching, token replacement, active-organization selection, creation and membership semantics are unchanged. No API, permission, database, migration, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-075 — Mobile Organization Detail independent stale-read recovery — 22 November 2026
+
+- Organization Detail now exposes a Refresh action for both organization metadata and member list, while retaining the two reads as independent data states.
+- Each tab preserves its last successful result during refresh and after refresh failure, with a tab-specific warning and Retry. A failed metadata read does not suppress a successfully loaded member list, and vice versa.
+- Initial failures continue to use the existing retryable error states.
+- Added `org_detail_read_recovery_test.dart` for independent stale metadata/member preservation.
+- Restored the Organizations list's permission-aware empty-state copy for users who can create an organization.
+- Organization switching, membership changes, invitations, roles and access-control behavior are unchanged. No API, permission, database, migration, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.

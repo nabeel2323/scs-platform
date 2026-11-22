@@ -23,6 +23,14 @@ class OrgDetailScreen extends ConsumerWidget {
         appBar: AppBar(
           title: const Text('Organization'),
           actions: [
+            IconButton(
+              tooltip: 'Refresh organization',
+              icon: const Icon(Icons.refresh),
+              onPressed: () {
+                ref.invalidate(orgDetailProvider(orgId));
+                ref.invalidate(orgMembersProvider(orgId));
+              },
+            ),
             if (org != null && canWrite)
               IconButton(
                   icon: const Icon(Icons.edit_outlined),
@@ -44,7 +52,10 @@ class OrgDetailScreen extends ConsumerWidget {
           BuildContext context, WidgetRef ref, AsyncValue<Organization> org,
           bool canWrite) =>
       org.when(
-        data: (o) => ListView(padding: const EdgeInsets.all(16), children: [
+        skipLoadingOnRefresh: true,
+        skipError: true,
+        data: (o) {
+          final content = ListView(padding: const EdgeInsets.all(16), children: [
           _field('Name', o.name),
           _field('Type', o.type),
           _field('Country', o.country),
@@ -78,7 +89,23 @@ class OrgDetailScreen extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(vertical: 14)),
             ),
           ),
-        ]),
+        ]);
+          if (!org.isRefreshing && !org.hasError) return content;
+          return Column(children: [
+            if (org.isRefreshing)
+              const Padding(
+                padding: EdgeInsets.all(8),
+                child: Text('Refreshing organization details… showing the last successful result.',
+                    style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+              ),
+            if (org.hasError)
+              _readWarning(
+                'Could not refresh organization details: ${ApiService.errorMessage(org.error!)}. Showing the last successful result.',
+                () => ref.invalidate(orgDetailProvider(orgId)),
+              ),
+            Expanded(child: content),
+          ]);
+        },
         loading: () => const LoadingSpinner(),
         error: (e, _) => EmptyState(
           title: 'Error',
@@ -90,7 +117,20 @@ class OrgDetailScreen extends ConsumerWidget {
   Widget _membersTab(BuildContext context, WidgetRef ref,
           AsyncValue<List<OrgMember>> members, bool canWrite) =>
       members.when(
+        skipLoadingOnRefresh: true,
+        skipError: true,
         data: (list) => Column(children: [
+          if (members.isRefreshing)
+            const Padding(
+              padding: EdgeInsets.all(8),
+              child: Text('Refreshing organization members… showing the last successful list.',
+                  style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+            ),
+          if (members.hasError)
+            _readWarning(
+              'Could not refresh organization members: ${ApiService.errorMessage(members.error!)}. Showing the last successful list.',
+              () => ref.invalidate(orgMembersProvider(orgId)),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
             child: Row(children: [
@@ -158,6 +198,24 @@ class OrgDetailScreen extends ConsumerWidget {
           description: ApiService.errorMessage(e),
           onAction: () => ref.invalidate(orgMembersProvider(orgId)),
         ),
+      );
+
+  Widget _readWarning(String message, VoidCallback onRetry) => Container(
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: TaifTokens.err.withValues(alpha: 0.06),
+          border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Text(message,
+                style: const TextStyle(fontSize: 11, color: TaifTokens.err)),
+          ),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ]),
       );
 
   Widget _field(String label, String value) => Padding(
