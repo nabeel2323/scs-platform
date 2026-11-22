@@ -193,6 +193,8 @@ export default function WarehousesPage() {
     );
   }
 
+  if (!store) return <LoadingSpinner />;
+
   return (
     <>
       <style>{`
