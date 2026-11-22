@@ -26,6 +26,28 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   StreamSubscription<OrderStatusEvent>? _sub;
   bool _busy = false;
 
+  bool _returnLoading = false;
+  bool _returnBusy = false;
+  bool _showReturnForm = false;
+  String _returnLoadError = '';
+  String _returnError = '';
+  String _returnReason = '';
+  String _returnDescription = '';
+  String _returnTrackingNumber = '';
+  List<ReturnRequest> _returnRequests = [];
+  final Map<String, int> _returnQuantities = {};
+
+  static const _returnReasons = <String, String>{
+    'PRODUCT_NOT_AS_DESCRIBED': 'Item defective, damaged or not as described',
+    'CUSTOMER_REQUEST': 'No longer needed',
+    'OTHER': 'Other',
+  };
+
+  static const _activeReturnStatuses = {
+    'REQUESTED', 'MERCHANT_APPROVED', 'BUYER_SHIPPED', 'RECEIVED',
+    'INSPECTED', 'REFUND_PENDING', 'REFUND_FAILED', 'ESCALATED',
+  };
+
   /// M7.3-A: statuses where the buyer can confirm delivery.
   static const _confirmableDelivery = {'DELIVERED'};
 
@@ -107,6 +129,327 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+
+  Future<void> _loadReturns() async {
+    if (mounted) {
+      setState(() { _returnLoading = true; _returnLoadError = ''; });
+    }
+    try {
+      final returns = await ref.read(apiServiceProvider).fetchMyReturns();
+      if (!mounted) return;
+      setState(() {
+        _returnRequests = returns.where((item) => item.subOrderId == widget.orderId).toList();
+        _returnLoading = false;
+        _returnLoadError = '';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _returnLoading = false;
+        _returnLoadError = ApiService.errorMessage(e);
+      });
+    }
+  }
+
+  Future<void> _submitReturn(SubOrder order) async {
+    if (_returnBusy || ref.read(profileProvider).valueOrNull?.id != order.buyerId) return;
+    if (!_returnReasons.containsKey(_returnReason)) {
+      setState(() => _returnError = 'Please select a return reason.');
+      return;
+    }
+    final lines = order.items
+        .where((item) => (_returnQuantities[item.id] ?? 0) > 0)
+        .map((item) => {
+              'orderItemId': item.id,
+              'quantity': _returnQuantities[item.id]!,
+            }).toList();
+    if (lines.isEmpty) {
+      setState(() => _returnError = 'Select at least one item to return.');
+      return;
+    }
+
+    setState(() { _returnBusy = true; _returnError = ''; });
+    try {
+      final created = await ref.read(apiServiceProvider).createReturn(
+        subOrderId: order.id,
+        reason: _returnReason,
+        description: _returnDescription.trim().isEmpty ? null : _returnDescription.trim(),
+        lines: lines,
+      );
+      if (!mounted) return;
+      setState(() {
+        _returnRequests = [created, ..._returnRequests.where((item) => item.id != created.id)];
+        _showReturnForm = false;
+        _returnReason = '';
+        _returnDescription = '';
+        _returnQuantities.clear();
+        _returnError = '';
+      });
+      await _loadReturns();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Return request submitted')),
+        );
+      }
+    } catch (e) {
+      // A timeout can happen after commit; reconcile with the caller-scoped list
+      // instead of blindly repeating a non-idempotent create request.
+      try {
+        final latest = await ref.read(apiServiceProvider).fetchMyReturns();
+        final existing = latest.where((item) =>
+          item.subOrderId == order.id && _activeReturnStatuses.contains(item.status)).toList();
+        if (existing.isNotEmpty && mounted) {
+          setState(() {
+            _returnRequests = latest.where((item) => item.subOrderId == widget.orderId).toList();
+            _showReturnForm = false;
+            _returnError = '';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('A return request is already recorded for this order'),
+          ));
+          return;
+        }
+      } catch (_) {
+        // Keep the original create error if reconciliation also fails.
+      }
+      if (mounted) setState(() => _returnError = ApiService.errorMessage(e));
+    } finally {
+      if (mounted) setState(() => _returnBusy = false);
+    }
+  }
+
+  Future<void> _cancelReturn(ReturnRequest request) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel return request?'),
+        content: const Text('The return request will be cancelled.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Keep request')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Cancel return')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _returnBusy) return;
+    setState(() { _returnBusy = true; _returnError = ''; });
+    try {
+      final updated = await ref.read(apiServiceProvider).cancelReturn(request.id);
+      if (!mounted) return;
+      setState(() {
+        _returnRequests = _returnRequests.map((item) => item.id == updated.id ? updated : item).toList();
+      });
+      await _loadReturns();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Return request cancelled')),
+      );
+    } catch (e) {
+      if (mounted) setState(() => _returnError = ApiService.errorMessage(e));
+    } finally {
+      if (mounted) setState(() => _returnBusy = false);
+    }
+  }
+
+  Future<void> _markReturnShipped(ReturnRequest request) async {
+    if (_returnBusy) return;
+    setState(() { _returnBusy = true; _returnError = ''; });
+    try {
+      final updated = await ref.read(apiServiceProvider).markReturnShipped(
+        request.id,
+        trackingNumber: _returnTrackingNumber.trim().isEmpty ? null : _returnTrackingNumber.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _returnTrackingNumber = '';
+        _returnRequests = _returnRequests.map((item) => item.id == updated.id ? updated : item).toList();
+      });
+      await _loadReturns();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Return handover recorded')),
+      );
+    } catch (e) {
+      if (mounted) setState(() => _returnError = ApiService.errorMessage(e));
+    } finally {
+      if (mounted) setState(() => _returnBusy = false);
+    }
+  }
+
+  Widget _buyerReturnSection(SubOrder order) {
+    if (!['DELIVERED', 'COMPLETED'].contains(order.status)) return const SizedBox.shrink();
+    if (_returnLoading) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: 16),
+        child: Row(children: [
+          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+          SizedBox(width: 10),
+          Text('Loading return requests…', style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+        ]),
+      );
+    }
+    if (_returnLoadError.isNotEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(_returnLoadError, style: const TextStyle(color: TaifTokens.err, fontSize: 12)),
+          TextButton.icon(
+            onPressed: _returnBusy ? null : _loadReturns,
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Retry return requests'),
+          ),
+        ]),
+      );
+    }
+
+    final requests = [..._returnRequests]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    ReturnRequest? active;
+    for (final request in requests) {
+      if (_activeReturnStatuses.contains(request.status)) { active = request; break; }
+    }
+
+    if (active != null) {
+      final canCancel = ['REQUESTED', 'MERCHANT_APPROVED'].contains(active.status);
+      final canShip = active.status == 'MERCHANT_APPROVED';
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: TaifTokens.line),
+          borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Return request', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Text('Status: ${active.status.replaceAll('_', ' ')}',
+              style: const TextStyle(fontSize: 13, color: TaifTokens.brandPrimary)),
+          Text('Reason: ${_returnReasons[active.reason] ?? active.reason}',
+              style: const TextStyle(fontSize: 12, color: TaifTokens.muted)),
+          if (active.shippingTrackingNumber != null && active.shippingTrackingNumber!.isNotEmpty)
+            Text('Tracking: ${active.shippingTrackingNumber}',
+                style: const TextStyle(fontSize: 12, color: TaifTokens.muted)),
+          if (_returnError.isNotEmpty)
+            Padding(padding: const EdgeInsets.only(top: 8),
+              child: Text(_returnError, style: const TextStyle(color: TaifTokens.err, fontSize: 12))),
+          if (canShip) ...[
+            const SizedBox(height: 8),
+            TextFormField(
+              initialValue: _returnTrackingNumber,
+              decoration: const InputDecoration(
+                labelText: 'Return tracking number (optional)',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (value) => _returnTrackingNumber = value,
+            ),
+          ],
+          if (canCancel || canShip) ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              if (canCancel)
+                OutlinedButton(
+                  onPressed: _returnBusy ? null : () => _cancelReturn(active!),
+                  child: const Text('Cancel return'),
+                ),
+              if (canShip)
+                FilledButton(
+                  onPressed: _returnBusy ? null : () => _markReturnShipped(active!),
+                  child: Text(_returnBusy ? 'Saving…' : 'Mark return shipped'),
+                ),
+            ]),
+          ],
+        ]),
+      );
+    }
+
+    final latest = requests.isEmpty ? null : requests.first;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: TaifTokens.line),
+        borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Returns', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+        if (latest != null) ...[
+          const SizedBox(height: 4),
+          Text('Previous request: ${latest.status.replaceAll('_', ' ')}',
+              style: const TextStyle(fontSize: 12, color: TaifTokens.muted)),
+        ],
+        if (_showReturnForm) ...[
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _returnReason.isEmpty ? null : _returnReason,
+            decoration: const InputDecoration(labelText: 'Reason', border: OutlineInputBorder(), isDense: true),
+            items: _returnReasons.entries.map((entry) => DropdownMenuItem<String>(
+              value: entry.key, child: Text(entry.value),
+            )).toList(),
+            onChanged: _returnBusy ? null : (value) => setState(() => _returnReason = value ?? ''),
+          ),
+          const SizedBox(height: 10),
+          const Text('Quantity per item', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          for (final item in order.items)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(children: [
+                Expanded(child: Text(
+                  '${item.title.isEmpty ? item.sku : item.title} (max ${item.quantity})',
+                  style: const TextStyle(fontSize: 12),
+                )),
+                SizedBox(
+                  width: 76,
+                  child: TextFormField(
+                    key: ValueKey('return-quantity-${item.id}'),
+                    initialValue: (_returnQuantities[item.id] ?? 0).toString(),
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(), isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    ),
+                    onChanged: (text) {
+                      final parsed = int.tryParse(text) ?? 0;
+                      setState(() => _returnQuantities[item.id] = parsed.clamp(0, item.quantity).toInt());
+                    },
+                  ),
+                ),
+              ]),
+            ),
+          const SizedBox(height: 8),
+          TextFormField(
+            initialValue: _returnDescription,
+            maxLines: 2,
+            decoration: const InputDecoration(labelText: 'Description (optional)', border: OutlineInputBorder(), isDense: true),
+            onChanged: (value) => _returnDescription = value,
+          ),
+          if (_returnError.isNotEmpty)
+            Padding(padding: const EdgeInsets.only(top: 8),
+              child: Text(_returnError, style: const TextStyle(fontSize: 12, color: TaifTokens.err))),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, children: [
+            FilledButton(
+              onPressed: _returnBusy ? null : () => _submitReturn(order),
+              child: Text(_returnBusy ? 'Submitting…' : 'Submit return'),
+            ),
+            TextButton(
+              onPressed: _returnBusy ? null : () => setState(() { _showReturnForm = false; _returnError = ''; }),
+              child: const Text('Back'),
+            ),
+          ]),
+        ] else
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _returnBusy ? null : () => setState(() { _showReturnForm = true; _returnError = ''; }),
+              icon: const Icon(Icons.assignment_return_outlined, size: 18),
+              label: const Text('Request a return'),
+            ),
+          ),
+      ]),
+    );
   }
 
   /// §25: a vertical timeline of what ACTUALLY happened, oldest → newest. Only
@@ -211,6 +554,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       _orderFuture = order;
       _historyFuture = history;
     }
+    unawaited(_loadReturns());
     // M7.1: load tracking once the order arrives (we need masterOrderId).
     _orderFuture.then((o) {
       if (!mounted) return;
@@ -229,7 +573,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final permissions = ref.watch(profileProvider).valueOrNull?.perms ?? const <String>[];
+    final profile = ref.watch(profileProvider).valueOrNull;
+    final permissions = profile?.perms ?? const <String>[];
     final canWrite = permissions.contains('orders:write');
     final canCancel = permissions.contains('orders:cancel');
     return Scaffold(
@@ -419,6 +764,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                       _row('Total', formatMinor(o.totalMinor, o.currency),
                           bold: true),
                       const SizedBox(height: 16),
+                      if (profile?.id == o.buyerId) _buyerReturnSection(o),
                       // §4.3 row 162: buyer cancel, guarded to the statuses the
                       // API allows and behind a confirm dialog.
                       if (_cancellable.contains(o.status) && canCancel) ...[

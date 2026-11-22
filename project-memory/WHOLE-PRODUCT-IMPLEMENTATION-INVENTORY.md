@@ -355,3 +355,22 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Selected existing variant IDs are passed to the merchant-offer create API. The offer-creation marker is reset when canonical selection changes.
 - Uploaded Product Studio media is now attached to merchant-owned products through product-media records during save. Existing media URLs are re-read and deduplicated before inserts so retries after partial failure are safe.
 - Added unit tests for canonical target selection and media deduplication/empty selection. Not executed.
+
+
+## 22 November 2026 — UX-027 Product Studio offer retry reconciliation
+
+The live branch advanced after the prior inventory checkpoint with three focused Product Studio fixes: store/product/variant-scoped retry markers, pre-create reconciliation against existing store offers after a possibly lost create response, and safe handling of nullable existing-offer prices. The changes prevent same-session retries from blindly recreating an offer when the first write committed, and surface a conflict when the existing offer has different commercial terms. The focused helper tests are present but not executed. This is a client-side reconciliation path; it does not establish a server-side atomic idempotency guarantee for concurrent clients.
+
+## 22 November 2026 — UX-028 mobile buyer return lifecycle parity
+
+The cross-client source audit found a concrete workflow discrepancy: `apps/web/src/app/orders/[id]/page.tsx` and `apps/web/src/lib/buyer-api.ts` exposed buyer return creation and lifecycle operations, backed by `apps/api/src/modules/returns/returns.controller.ts` and `ReturnsService`; Flutter's `OrderDetailScreen` and `ApiService` had no equivalent.
+
+Implemented in this batch:
+
+- `mobile/lib/screens/orders/order_detail_screen.dart` now renders a buyer-owned return section on DELIVERED/COMPLETED sub-orders, with the same PRODUCT_NOT_AS_DESCRIBED, CUSTOMER_REQUEST and OTHER reason vocabulary and bounded per-item quantity inputs used by Web.
+- Existing REQUESTED / MERCHANT_APPROVED / later states are surfaced; the buyer can cancel only in REQUESTED or MERCHANT_APPROVED and can mark shipped only in MERCHANT_APPROVED, matching the service transition map.
+- `mobile/lib/services/api_service.dart` now wraps the existing buyer return list/detail/create/cancel/shipped routes. `mobile/lib/models/models.dart` parses both list responses (without item/event relations) and detail/mutation responses (with relations).
+- The create flow reconciles a failed/uncertain response by refreshing the caller-scoped list; it does not blindly repeat a write. API owner, payment, return-window, active-request and cumulative-quantity rules remain server-enforced.
+- Added `mobile/test/returns_api_test.dart` for DTO parsing and endpoint/body contracts. Tests are pending the consolidated Phase 3 campaign; source implementation is not yet test-verified.
+
+No database, API contract, route permission, worker, staging or deployment changes were made.

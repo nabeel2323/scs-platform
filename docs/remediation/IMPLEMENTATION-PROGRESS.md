@@ -1431,3 +1431,10 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - PricingController.getProductPricing resolves the variant's store and passes it into PricingService.listTiersByVariant.
 - listTiersByVariant now rejects calls without storeId and joins priceLists with a storeId predicate for both cross-list reads and a specific price-list read. getProductPricing passes its storeId through the internal call.
 - Added a focused unit test for missing-store fail-closed behavior and the owning-store SQL predicate. Not executed.
+
+
+## UX-027 retry-safety and UX-028 buyer return parity — 22 November 2026
+
+- UX-027 source completion now includes target-scoped create retry markers and pre-retry existing-offer reconciliation; nullable current-offer pricing is handled safely. The change does not claim server-side atomic idempotency.
+- UX-028 closes the source-confirmed buyer-return parity gap in Flutter using the existing API lifecycle. Mobile supports owner-scoped request creation on DELIVERED/COMPLETED orders, status display, cancellation and shipped handover.
+- Focused tests: Product Studio helper tests and `mobile/test/returns_api_test.dart`. Not executed; comprehensive test execution remains scheduled for Phase 3.

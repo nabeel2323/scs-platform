@@ -664,3 +664,22 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added unit tests for canonical product target precedence and media dedupe/empty no-op. Not executed.
 - Source baseline: `0ebce8be9abd89f8370e208698123c9786ae72e6`; docs sync follows separately.
 - No DB, migration, deployment, worker activation, grants/RLS or provider calls.
+
+
+## 2026-11-22 — UX-027 Product Studio offer retry-safety continuation
+
+- Added store/product/variant-scoped Product Studio offer retry keys so changing seller or variant does not reuse a prior target's save marker.
+- Before create retry, the client reads existing store offers and compares product/variant, currency, nullable lead time, warehouse, base price and MOQ. A matching existing offer is reconciled as the result of a possibly-lost response; conflicting terms route the merchant to the Offers surface.
+- Existing nullable legacy prices are typed and compared safely; null never coerces to the desired price.
+- Focused helper tests added for target scoping, reconciliation and nullable prices. Not executed. This improves client retry safety but is not server-side atomic idempotency across concurrent clients.
+- Source commits: `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad8315d1f3662db4f2ac8528db0c7bb0`, `9ce77fe3076adeafd58c26cb898bb1c5722d3baf`.
+
+## 2026-11-22 — UX-028 mobile buyer return lifecycle parity
+
+- Re-audited the buyer order-detail contract across API, Web and Flutter. Web already supports return creation; the API already exposes caller-scoped list/detail/create/cancel/shipped endpoints with ownership, payment, delivery-window, active-request and cumulative-quantity checks. Flutter had no buyer return methods or UI.
+- Added Flutter `ReturnRequest`/item/event DTOs and `ApiService` wrappers for the existing buyer return endpoints.
+- Added a buyer-only return section to mobile OrderDetail, available for owned DELIVERED/COMPLETED sub-orders. It mirrors the Web reason vocabulary and per-line quantity inputs, displays active return state, and offers cancellation and shipped transitions only when the service permits them.
+- Uncertain create responses are reconciled by reading the buyer's request list; no blind retry is issued.
+- Added `mobile/test/returns_api_test.dart` for parsing and request contract coverage. Not executed; comprehensive tests remain consolidated for Phase 3.
+- Source parent before implementation: `9ce77fe3076adeafd58c26cb898bb1c5722d3baf`. PR #138 remains open/draft/unmerged.
+- No API/schema/migration/RLS/grant, shared DB, staging, deployment, worker or provider changes.

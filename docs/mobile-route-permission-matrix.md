@@ -18,7 +18,7 @@ The API's `GET /v1/me` response already includes the active-organization `perms`
 | Store list/detail | `merchant:stores:read` | Save/favorite remains user-scoped |
 | Product detail | `catalog:products:read` | Add to Cart: `orders:write` |
 | Cart and checkout | `orders:write` | Cart mutation endpoints enforce `orders:write`; checkout and order creation also enforce `orders:write` |
-| Orders list/detail | `orders:read` | Cancel: `orders:cancel`; delivery confirmation/reorder: `orders:write` |
+| Orders list/detail | `orders:read` | Cancel: `orders:cancel`; delivery confirmation/reorder: `orders:write`; buyer return create/cancel/ship remains authenticated and sub-order-owner scoped by the API |
 | Notifications | Authenticated self-service | Device-token endpoints are caller-scoped |
 | Merchant registration | Authenticated onboarding exception | Organization creation: `identity:organizations:create`; store creation: `merchant:stores:write` |
 | Merchant dashboard | `merchant:stores:read` | Child destinations filtered individually |
@@ -59,3 +59,8 @@ The API cart controller now enforces `orders:write` on every mutation endpoint (
 
 Added a dedicated merchant pricing entry from the mobile dashboard, protected by merchant:pricing:read. The new list/detail screens use the existing store-scoped pricing API to create/update price lists and add/update/delete quantity tiers. Tier rows now include product title and variant SKU from a read-only API enrichment. Offer creation can attach an existing price list; offer details link back to the linked list. Write affordances are gated by merchant:pricing:write and the API remains authoritative for store/list/variant ownership.
 
+
+
+## Buyer return lifecycle parity — 22 November 2026
+
+Buyer returns remain within the authenticated Orders detail route (`orders:read`); no separate mobile route or new permission key was introduced. The return controls render only for the authenticated buyer's own DELIVERED/COMPLETED sub-order. The API verifies ownership and enforces payment/return-window eligibility, one active return per sub-order, cumulative item quantities and allowed lifecycle transitions. Buyer cancellation is exposed in REQUESTED/MERCHANT_APPROVED; shipped confirmation is exposed in MERCHANT_APPROVED. Focused API/model tests are added but not executed.

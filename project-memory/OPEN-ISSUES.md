@@ -374,3 +374,10 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Existing canonical product selection now reuses the canonical ID and cannot mutate shared identity/specifications/media from the merchant workflow. Variant selection is propagated to the offer API.
 - Uploaded media is now attached to merchant-owned products with retry-safe URL deduplication; canonical media is untouched. Focused tests added, not executed.
 - Comprehensive test campaign remains deferred.
+
+
+## UX-027 / UX-028 current UX continuation — 22 November 2026
+
+- UX-027's latest Product Studio source work scopes retry identity to store/product/variant and reconciles existing store offers after uncertain creates; nullable existing prices are handled safely. Helper tests are added but not executed.
+- UX-028 mobile buyer returns parity has been implemented in source: Flutter now uses existing buyer return endpoints and mirrors Web reason/quantity collection plus buyer cancel/ship transitions. Model/API tests are added but not executed.
+- Continue the UX-010 cross-screen audit and integration mapping. The whole-product test campaign remains deferred until the implementation batch is complete.

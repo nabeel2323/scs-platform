@@ -622,6 +622,89 @@ class OrderItem {
       lineTotalMinor: j['lineTotalMinor'] as int? ?? 0);
 }
 
+
+/** Buyer return request from the existing P13 lifecycle endpoints. */
+class ReturnRequest {
+  final String id, subOrderId, status, reason, createdAt, updatedAt;
+  final String? description, shippingTrackingNumber, shippingNotes;
+  final int requestedRefundMinor;
+  final List<ReturnRequestItem> items;
+  final List<ReturnRequestEvent> events;
+
+  ReturnRequest({
+    required this.id, required this.subOrderId, required this.status,
+    required this.reason, required this.createdAt, required this.updatedAt,
+    this.description, this.shippingTrackingNumber, this.shippingNotes,
+    this.requestedRefundMinor = 0, this.items = const [], this.events = const [],
+  });
+
+  factory ReturnRequest.fromJson(Map<String, dynamic> j) => ReturnRequest(
+    id: (j['id'] ?? '').toString(),
+    subOrderId: (j['subOrderId'] ?? '').toString(),
+    status: (j['status'] ?? '').toString(),
+    reason: (j['reason'] ?? '').toString(),
+    createdAt: (j['createdAt'] ?? '').toString(),
+    updatedAt: (j['updatedAt'] ?? '').toString(),
+    description: j['description'] as String?,
+    shippingTrackingNumber: j['shippingTrackingNumber'] as String?,
+    shippingNotes: j['shippingNotes'] as String?,
+    requestedRefundMinor: j['requestedRefundMinor'] is num
+        ? (j['requestedRefundMinor'] as num).toInt()
+        : int.tryParse(j['requestedRefundMinor']?.toString() ?? '') ?? 0,
+    items: (j['items'] as List? ?? [])
+        .map((e) => ReturnRequestItem.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList(),
+    events: (j['events'] as List? ?? [])
+        .map((e) => ReturnRequestEvent.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList(),
+  );
+}
+
+class ReturnRequestItem {
+  final String id, returnRequestId, orderItemId;
+  final int quantity;
+  final String? condition, inventoryItemId;
+
+  ReturnRequestItem({
+    required this.id, required this.returnRequestId, required this.orderItemId,
+    required this.quantity, this.condition, this.inventoryItemId,
+  });
+
+  factory ReturnRequestItem.fromJson(Map<String, dynamic> j) => ReturnRequestItem(
+    id: (j['id'] ?? '').toString(),
+    returnRequestId: (j['returnRequestId'] ?? '').toString(),
+    orderItemId: (j['orderItemId'] ?? '').toString(),
+    quantity: j['quantity'] is num
+        ? (j['quantity'] as num).toInt()
+        : int.tryParse(j['quantity']?.toString() ?? '') ?? 0,
+    condition: j['condition'] as String?,
+    inventoryItemId: j['inventoryItemId'] as String?,
+  );
+}
+
+class ReturnRequestEvent {
+  final String id, returnRequestId, eventType, toStatus, actorType, createdAt;
+  final String? fromStatus, actorId, notes;
+
+  ReturnRequestEvent({
+    required this.id, required this.returnRequestId, required this.eventType,
+    required this.toStatus, required this.actorType, required this.createdAt,
+    this.fromStatus, this.actorId, this.notes,
+  });
+
+  factory ReturnRequestEvent.fromJson(Map<String, dynamic> j) => ReturnRequestEvent(
+    id: (j['id'] ?? '').toString(),
+    returnRequestId: (j['returnRequestId'] ?? '').toString(),
+    eventType: (j['eventType'] ?? '').toString(),
+    fromStatus: j['fromStatus'] as String?,
+    toStatus: (j['toStatus'] ?? '').toString(),
+    actorId: j['actorId'] as String?,
+    actorType: (j['actorType'] ?? '').toString(),
+    notes: j['notes'] as String?,
+    createdAt: (j['createdAt'] ?? '').toString(),
+  );
+}
+
 class StatusHistoryEntry {
   final String id, orderId, toStatus, actorType, createdAt;
   final String? fromStatus, changedBy, reason;

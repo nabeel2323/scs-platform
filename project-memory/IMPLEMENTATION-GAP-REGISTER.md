@@ -336,3 +336,19 @@ Deferred/remaining:
 - Product Studio now creates product-media records for uploaded/linked media during final save using the existing `fetchProductMedia` and `addMedia` API contracts.
 - Before insertion it re-reads the product's media and skips already-persisted URLs. A retry after partial failure therefore does not create duplicate media records.
 - Media is persisted only for merchant-owned products; canonical product media remains untouched. Added unit coverage for deduplication and empty-media no-op. Tests not executed.
+
+
+## UX-027 retry-safety continuation — 22 November 2026
+
+The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad8315d1f3662db4f2ac8528db0c7bb0` and `9ce77fe3076adeafd58c26cb898bb1c5722d3baf` complete the documented Product Studio retry-safety increment: retry identity is store/product/variant scoped, uncertain create responses are reconciled with existing store offers, and a nullable legacy price cannot falsely match a desired priced offer. These source changes have focused unit coverage, not executed. This is a client retry-reconciliation safeguard, not a claim of server-side atomic idempotency across concurrent clients.
+
+
+## UX-028 — Mobile buyer return lifecycle parity — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- Source audit confirmed the buyer order-detail flow on Web could create a P13 return, while Flutter exposed no return action or buyer return API methods.
+- Flutter now exposes the same three reason values and order-item quantity selection, but only to the authenticated buyer who owns the loaded sub-order and only for DELIVERED/COMPLETED orders.
+- The mobile client uses existing `GET /v1/returns/my`, `GET /v1/returns/:id`, `POST /v1/returns`, `POST /v1/returns/:id/cancel` and `POST /v1/returns/:id/shipped` contracts. It displays active return status and supports buyer cancel and shipped transitions at the states already allowed by the service.
+- Create timeouts reconcile through the buyer-scoped return list before any further action; the UI never blindly retries a possibly committed create. The API remains authoritative for ownership, payment/return-window eligibility, one-active-request and cumulative item quantities.
+- Added model/API contract tests in `mobile/test/returns_api_test.dart`. They have not been executed. No new route, permission key, API behavior, schema or migration was introduced.

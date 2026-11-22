@@ -741,6 +741,50 @@ class ApiService {
       ReorderResult.fromJson(
           (await _dio.post('/v1/orders/master/$masterOrderId/reorder')).data);
 
+
+  // ── Buyer Returns (P13) ─────────────────────────────────────
+  /// Lists only the authenticated buyer's return requests; the server scopes
+  /// the query to the JWT subject.
+  Future<List<ReturnRequest>> fetchMyReturns({String? status}) async =>
+      (await _dio.get('/v1/returns/my',
+        queryParameters: status == null ? null : {'status': status}))
+          .data
+          .map<ReturnRequest>((e) =>
+              ReturnRequest.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+
+  Future<ReturnRequest> fetchReturn(String returnId) async =>
+      ReturnRequest.fromJson((await _dio.get('/v1/returns/$returnId')).data);
+
+  Future<ReturnRequest> createReturn({
+    required String subOrderId,
+    required String reason,
+    required List<Map<String, dynamic>> lines,
+    String? description,
+    List<String>? evidenceUrls,
+  }) async =>
+      ReturnRequest.fromJson((await _dio.post('/v1/returns', data: {
+        'subOrderId': subOrderId,
+        'reason': reason,
+        'lines': lines,
+        if (description != null && description.isNotEmpty) 'description': description,
+        if (evidenceUrls != null && evidenceUrls.isNotEmpty) 'evidenceUrls': evidenceUrls,
+      })).data);
+
+  Future<ReturnRequest> cancelReturn(String returnId) async =>
+      ReturnRequest.fromJson((await _dio.post('/v1/returns/$returnId/cancel')).data);
+
+  Future<ReturnRequest> markReturnShipped(
+    String returnId, {
+    String? trackingNumber,
+    String? notes,
+  }) async =>
+      ReturnRequest.fromJson((await _dio.post('/v1/returns/$returnId/shipped', data: {
+        if (trackingNumber != null && trackingNumber.isNotEmpty)
+          'trackingNumber': trackingNumber,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      })).data);
+
   // ── Notifications ─────────────────────────────────────────
   Future<List<AppNotification>> fetchNotifications(
           {int limit = 50, int offset = 0}) async =>

@@ -303,3 +303,16 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Corrected existing-canonical-product selection to reuse the selected canonical product rather than create a duplicate. Merchant workflow does not mutate shared identity, specifications, variants or media; those steps are read-only. Existing selected variant is passed to the offer create contract.
 - Product Studio now attaches uploaded/linked media to merchant-owned products during save, with a pre-insert media read and URL deduplication to make partial retries safe.
 - Added helper tests for canonical target precedence and media deduplication; not run. Continue UX-010 audit.
+
+
+## 2026-11-22 — UX-027 Product Studio offer retry-safety continuation
+
+- Scoped offer retry markers by store/product/variant; changing any dimension establishes a distinct target.
+- Reconciled existing store offers before retrying a create after an uncertain response, comparing commercial terms and preventing the ordinary sequential retry from creating a duplicate. Nullable legacy prices safely do not match.
+- Focused helper coverage added; tests remain unexecuted. This is not a server-side atomic idempotency guarantee for concurrent clients.
+
+## 2026-11-22 — UX-028 mobile buyer return lifecycle parity
+
+- Closed the source-level buyer returns parity gap between Web and Flutter using only the existing P13 contracts. Mobile now supports buyer-owned return creation, active-state visibility, cancellation and shipped confirmation.
+- API authorization and lifecycle remain unchanged: the server owns buyer checks, payment/delivery/return-window eligibility, one-active-request and cumulative return quantities. No new RBAC permission or route was added.
+- Added focused Flutter model/API contract tests; not executed. Continue UX-010 source re-audit and the remaining integration work; keep the consolidated test campaign at Phase 3.
