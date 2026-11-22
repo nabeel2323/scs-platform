@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   fetchKpis,
@@ -38,15 +38,23 @@ export default function AdminHomePage() {
   const [kpis, setKpis] = useState<KpiResponse | null>(null);
   const [updateReqs, setUpdateReqs] = useState<AdminOrgUpdateRequest[]>([]);
   const [kpisLoading, setKpisLoading] = useState(true);
+  const [kpisError, setKpisError] = useState('');
   const [orgUpdatesLoading, setOrgUpdatesLoading] = useState(true);
+  const [orgUpdatesError, setOrgUpdatesError] = useState('');
   const { hasAccess: canReadKpis } = useRequirePerms(['admin:kpis:read']);
   const { hasAccess: canReadOrgUpdates } = useRequirePerms(['admin:users:read']);
   const { hasAccess: canManageImports } = useRequirePerms(['catalog:imports:manage']);
   const { hasAccess: canManageRequests } = useRequirePerms(['catalog:requests:manage']);
   const [recentImports, setRecentImports] = useState<CatalogImport[]>([]);
   const [pendingCatalogRequests, setPendingCatalogRequests] = useState<AdminCatalogRequest[]>([]);
-  const [operationsLoading, setOperationsLoading] = useState(true);
-  const [operationsError, setOperationsError] = useState('');
+  const [importsLoading, setImportsLoading] = useState(true);
+  const [importsError, setImportsError] = useState('');
+  const [requestsLoading, setRequestsLoading] = useState(true);
+  const [requestsError, setRequestsError] = useState('');
+  const kpisRequestRef = useRef(0);
+  const orgUpdatesRequestRef = useRef(0);
+  const importsRequestRef = useRef(0);
+  const requestsRequestRef = useRef(0);
   // Effect-initialized like the Buyer home page: the server and the first
   // client render both emit no clock, so a wall-clock or timezone difference
   // between the two passes can no longer produce mismatched text at the root.
@@ -56,71 +64,113 @@ export default function AdminHomePage() {
     setNow(new Date());
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    if (canReadKpis) {
-      setKpisLoading(true);
-      fetchKpis()
-        .then((data) => { if (active) setKpis(data); })
-        .catch(() => {})
-        .finally(() => { if (active) setKpisLoading(false); });
-    } else {
+  const loadKpis = useCallback(async () => {
+    if (!canReadKpis) {
       setKpis(null);
       setKpisLoading(false);
+      setKpisError('');
+      return;
     }
-    if (canReadOrgUpdates) {
-      setOrgUpdatesLoading(true);
-      fetchAdminOrgUpdateRequests('PENDING')
-        .then((rows) => { if (active) setUpdateReqs(rows); })
-        .catch(() => {})
-        .finally(() => { if (active) setOrgUpdatesLoading(false); });
-    } else {
+    const requestId = ++kpisRequestRef.current;
+    setKpisLoading(true);
+    setKpisError('');
+    try {
+      const data = await fetchKpis();
+      if (requestId === kpisRequestRef.current) setKpis(data);
+    } catch (err: unknown) {
+      if (requestId === kpisRequestRef.current) {
+        setKpisError(err instanceof Error ? err.message : 'Unable to load dashboard KPIs');
+      }
+    } finally {
+      if (requestId === kpisRequestRef.current) setKpisLoading(false);
+    }
+  }, [canReadKpis]);
+
+  const loadOrgUpdates = useCallback(async () => {
+    if (!canReadOrgUpdates) {
       setUpdateReqs([]);
       setOrgUpdatesLoading(false);
+      setOrgUpdatesError('');
+      return;
     }
-    return () => { active = false; };
-  }, [canReadKpis, canReadOrgUpdates]);
+    const requestId = ++orgUpdatesRequestRef.current;
+    setOrgUpdatesLoading(true);
+    setOrgUpdatesError('');
+    try {
+      const rows = await fetchAdminOrgUpdateRequests('PENDING');
+      if (requestId === orgUpdatesRequestRef.current) setUpdateReqs(rows);
+    } catch (err: unknown) {
+      if (requestId === orgUpdatesRequestRef.current) {
+        setOrgUpdatesError(err instanceof Error ? err.message : 'Unable to load organization updates');
+      }
+    } finally {
+      if (requestId === orgUpdatesRequestRef.current) setOrgUpdatesLoading(false);
+    }
+  }, [canReadOrgUpdates]);
+
+  const loadImports = useCallback(async () => {
+    if (!canManageImports) {
+      setRecentImports([]);
+      setImportsLoading(false);
+      setImportsError('');
+      return;
+    }
+    const requestId = ++importsRequestRef.current;
+    setImportsLoading(true);
+    setImportsError('');
+    try {
+      const rows = await fetchCatalogImports({ limit: 5 });
+      if (requestId === importsRequestRef.current) setRecentImports(rows);
+    } catch (err: unknown) {
+      if (requestId === importsRequestRef.current) {
+        setImportsError(err instanceof Error ? err.message : 'Unable to load catalog imports');
+      }
+    } finally {
+      if (requestId === importsRequestRef.current) setImportsLoading(false);
+    }
+  }, [canManageImports]);
+
+  const loadRequests = useCallback(async () => {
+    if (!canManageRequests) {
+      setPendingCatalogRequests([]);
+      setRequestsLoading(false);
+      setRequestsError('');
+      return;
+    }
+    const requestId = ++requestsRequestRef.current;
+    setRequestsLoading(true);
+    setRequestsError('');
+    try {
+      const rows = await fetchAdminCatalogRequests({ status: 'PENDING' });
+      if (requestId === requestsRequestRef.current) setPendingCatalogRequests(rows);
+    } catch (err: unknown) {
+      if (requestId === requestsRequestRef.current) {
+        setRequestsError(err instanceof Error ? err.message : 'Unable to load catalog requests');
+      }
+    } finally {
+      if (requestId === requestsRequestRef.current) setRequestsLoading(false);
+    }
+  }, [canManageRequests]);
 
   useEffect(() => {
-    let active = true;
-    const tasks: Promise<void>[] = [];
-    setOperationsLoading(true);
-    setOperationsError('');
-    if (canManageImports) {
-      tasks.push(
-        fetchCatalogImports({ limit: 5 })
-          .then((rows) => {
-            if (active) setRecentImports(rows);
-          })
-          .catch((error) => {
-            if (active)
-              setOperationsError(
-                error instanceof Error ? error.message : 'Unable to load catalog imports',
-              );
-          }),
-      );
-    }
-    if (canManageRequests) {
-      tasks.push(
-        fetchAdminCatalogRequests({ status: 'PENDING' })
-          .then((rows) => {
-            if (active) setPendingCatalogRequests(rows);
-          })
-          .catch((error) => {
-            if (active)
-              setOperationsError(
-                error instanceof Error ? error.message : 'Unable to load catalog requests',
-              );
-          }),
-      );
-    }
-    Promise.all(tasks).finally(() => {
-      if (active) setOperationsLoading(false);
-    });
-    return () => {
-      active = false;
-    };
-  }, [canManageImports, canManageRequests]);
+    void loadKpis();
+    return () => { kpisRequestRef.current += 1; };
+  }, [loadKpis]);
+
+  useEffect(() => {
+    void loadOrgUpdates();
+    return () => { orgUpdatesRequestRef.current += 1; };
+  }, [loadOrgUpdates]);
+
+  useEffect(() => {
+    void loadImports();
+    return () => { importsRequestRef.current += 1; };
+  }, [loadImports]);
+
+  useEffect(() => {
+    void loadRequests();
+    return () => { requestsRequestRef.current += 1; };
+  }, [loadRequests]);
 
   const fmt = (n: number) => (n / 100).toLocaleString(undefined, { minimumFractionDigits: 2 });
 
@@ -170,46 +220,52 @@ export default function AdminHomePage() {
             <KpiCard
               icon={<IconUsers />}
               label="Total Users"
-              value={kpisLoading ? '—' : String(kpis?.users.total ?? 0)}
+              value={kpisLoading || kpisError ? '—' : String(kpis?.users.total ?? 0)}
               accent={colors.brand[700]}
               tint={colors.brand[50]}
             />
             <KpiCard
               icon={<IconShield />}
               label="Verified Merchants"
-              value={kpisLoading ? '—' : String(kpis?.merchants.verified ?? 0)}
+              value={kpisLoading || kpisError ? '—' : String(kpis?.merchants.verified ?? 0)}
               accent={colors.ok}
               tint={colors.okBg}
             />
             <KpiCard
               icon={<IconPackage />}
               label="Pending Merchants"
-              value={kpisLoading ? '—' : String(kpis?.merchants.pending ?? 0)}
+              value={kpisLoading || kpisError ? '—' : String(kpis?.merchants.pending ?? 0)}
               accent={colors.warn}
               tint={colors.warnBg}
             />
             <KpiCard
               icon={<IconPackage />}
               label="Total Orders"
-              value={kpisLoading ? '—' : String(kpis?.orders.total ?? 0)}
+              value={kpisLoading || kpisError ? '—' : String(kpis?.orders.total ?? 0)}
               accent={colors.info}
               tint={colors.infoBg}
             />
             <KpiCard
               icon={<IconDollar />}
               label="Revenue"
-              value={kpisLoading ? '—' : `${fmt(kpis?.revenue.totalMinor ?? 0)} SAR`}
+              value={kpisLoading || kpisError ? '—' : `${fmt(kpis?.revenue.totalMinor ?? 0)} SAR`}
               accent="#7c3aed"
               tint="#f3efff"
             />
             <KpiCard
               icon={<IconActivity />}
               label="Completion Rate"
-              value={kpisLoading ? '—' : `${kpis?.orders.completionRate ?? 0}%`}
+              value={kpisLoading || kpisError ? '—' : `${kpis?.orders.completionRate ?? 0}%`}
               accent="#047857"
               tint={colors.okBg}
             />
           </div>
+          {kpisError && (
+            <div role="alert" style={{ marginTop: 12, color: colors.err, ...typeScale.bodySm }}>
+              <span>{kpisError}</span>{' '}
+              <button type="button" onClick={() => void loadKpis()}>Retry KPIs</button>
+            </div>
+          )}
         )}
 
         {/* Pending Organization Updates Widget */}
@@ -250,7 +306,7 @@ export default function AdminHomePage() {
                     borderRadius: radii.full,
                   }}
                 >
-                  {orgUpdatesLoading ? '…' : updateReqs.length}
+                  {orgUpdatesLoading ? '…' : orgUpdatesError ? '!' : updateReqs.length}
                 </span>
               </div>
               <Link
@@ -275,6 +331,11 @@ export default function AdminHomePage() {
               }}
             >
                 Loading organization update requests…
+              </div>
+            ) : orgUpdatesError ? (
+              <div role="alert" style={{ padding: '28px 22px', color: colors.err, ...typeScale.bodySm }}>
+                <div>{orgUpdatesError}</div>
+                <button type="button" onClick={() => void loadOrgUpdates()} style={{ marginTop: 8 }}>Retry organization updates</button>
               </div>
             ) : updateReqs.length === 0 ? (
               <div
@@ -403,11 +464,6 @@ export default function AdminHomePage() {
         {(canManageImports || canManageRequests) && (
           <>
             <SectionTitle>Catalog Operations</SectionTitle>
-            {operationsError && (
-              <p role="alert" style={{ color: '#b91c1c', ...typeScale.bodySm }}>
-                {operationsError}
-              </p>
-            )}
             <div
               style={{
                 display: 'grid',
@@ -449,8 +505,13 @@ export default function AdminHomePage() {
                       View all →
                     </Link>
                   </div>
-                  {operationsLoading ? (
+                  {importsLoading ? (
                     <p style={{ color: colors.muted }}>Loading imports…</p>
+                  ) : importsError ? (
+                    <p role="alert" style={{ color: colors.err, ...typeScale.bodySm }}>
+                      {importsError}{' '}
+                      <button type="button" onClick={() => void loadImports()}>Retry imports</button>
+                    </p>
                   ) : recentImports.length === 0 ? (
                     <p style={{ color: colors.muted }}>No catalog imports yet.</p>
                   ) : (
@@ -528,8 +589,13 @@ export default function AdminHomePage() {
                       Review all →
                     </Link>
                   </div>
-                  {operationsLoading ? (
+                  {requestsLoading ? (
                     <p style={{ color: colors.muted }}>Loading requests…</p>
+                  ) : requestsError ? (
+                    <p role="alert" style={{ color: colors.err, ...typeScale.bodySm }}>
+                      {requestsError}{' '}
+                      <button type="button" onClick={() => void loadRequests()}>Retry requests</button>
+                    </p>
                   ) : pendingCatalogRequests.length === 0 ? (
                     <p style={{ color: colors.muted }}>No pending catalog requests.</p>
                   ) : (
