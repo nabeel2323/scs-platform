@@ -1,5 +1,5 @@
 ﻿import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { AdminService } from '../../../modules/admin/admin.service';
 
 function buildTxMock(createdUser: any) {
@@ -98,6 +98,18 @@ describe('AdminService.createUser', () => {
   it('throws NotFoundException when role is missing', async () => {
     mocks.findFirstRole.mockResolvedValue(undefined);
     await expect(service.createUser({ ...baseDto, roleId: 'role-missing' }, 'admin-1')).rejects.toThrow(NotFoundException);
+  });
+
+  it('rejects an organization without a role instead of silently creating an unassigned user', async () => {
+    await expect(service.createUser({ ...baseDto, roleId: undefined }, 'admin-1')).rejects.toThrow(BadRequestException);
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.audit.record).not.toHaveBeenCalled();
+  });
+
+  it('rejects a role without an organization instead of silently dropping the role', async () => {
+    await expect(service.createUser({ ...baseDto, orgId: undefined }, 'admin-1')).rejects.toThrow(BadRequestException);
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.audit.record).not.toHaveBeenCalled();
   });
 
   it('creates user without membership when orgId/roleId omitted', async () => {
