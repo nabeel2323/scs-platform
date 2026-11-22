@@ -35,7 +35,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
   String _currency = 'SAR';
   String _locale = 'ar';
 
-  bool _initialized = false;
+  String? _initializedStoreId;
   bool _saving = false;
   String? _error;
 
@@ -49,8 +49,8 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
   }
 
   void _populate(Store store) {
-    if (_initialized) return;
-    _initialized = true;
+    if (_initializedStoreId == store.id) return;
+    _initializedStoreId = store.id;
     _displayNameCtrl.text = store.displayName;
     _descriptionCtrl.text = store.description ?? '';
     _timezoneCtrl.text = store.timezone ?? '';
@@ -156,27 +156,99 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
     final storeAsync = ref.watch(activeStoreProvider);
     final canWrite = ref.watch(profileProvider).valueOrNull?.hasPermission('merchant:stores:write') ?? false;
     return Scaffold(
-      appBar: AppBar(title: const Text('Store Profile')),
+      appBar: AppBar(
+        title: const Text('Store Profile'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh store profile',
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              ref.invalidate(activeStoreProvider);
+              ref.invalidate(myStoresProvider);
+            },
+          ),
+        ],
+      ),
       body: storeAsync.when(
+        skipLoadingOnRefresh: true,
+        skipError: true,
         loading: () => const LoadingSpinner(),
         error: (e, _) => EmptyState(
             title: 'Error',
             description: ApiService.errorMessage(e),
             onAction: () => ref.invalidate(myStoresProvider)),
         data: (store) {
+          final expectedOrgId = ref.watch(activeOrgIdProvider) ??
+              ref.watch(profileProvider).valueOrNull?.activeOrgId;
+          if (store != null && expectedOrgId != null && store.orgId != expectedOrgId) {
+            if (storeAsync.hasError) {
+              return EmptyState(
+                title: 'Unable to load active store',
+                description: ApiService.errorMessage(storeAsync.error!),
+                onAction: () {
+                  ref.invalidate(activeStoreProvider);
+                  ref.invalidate(myStoresProvider);
+                },
+              );
+            }
+            return const LoadingSpinner();
+          }
           if (store == null) {
-            return const EmptyState(
-                title: 'No store',
-                description:
-                    'Your organization has no storefront yet. Complete merchant registration first.',
-                icon: Icons.storefront_outlined);
+            final empty = const EmptyState(
+              title: 'No store',
+              description: 'Your organization has no storefront yet. Complete merchant registration first.',
+              icon: Icons.storefront_outlined,
+            );
+            if (!storeAsync.hasError && !storeAsync.isRefreshing) return empty;
+            return Column(children: [
+              if (storeAsync.hasError)
+                _storeReadWarning(storeAsync.error!, ref),
+              Expanded(child: empty),
+            ]);
           }
           _populate(store);
-          return _form(store, canWrite);
+          final content = _form(store, canWrite);
+          if (!storeAsync.isRefreshing && !storeAsync.hasError) return content;
+          return Column(children: [
+            if (storeAsync.isRefreshing)
+              const Padding(
+                padding: EdgeInsets.all(8),
+                child: Text('Refreshing store profile… showing the last successful details.',
+                    style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+              ),
+            if (storeAsync.hasError) _storeReadWarning(storeAsync.error!, ref),
+            Expanded(child: content),
+          ]);
         },
       ),
     );
   }
+
+  Widget _storeReadWarning(Object error, WidgetRef ref) => Container(
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: TaifTokens.err.withValues(alpha: 0.06),
+          border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Text(
+              'Could not refresh store profile: ${ApiService.errorMessage(error)}. Showing the last successfully loaded details.',
+              style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              ref.invalidate(activeStoreProvider);
+              ref.invalidate(myStoresProvider);
+            },
+            child: const Text('Retry'),
+          ),
+        ]),
+      );
 
   Widget _form(Store store, bool canWrite) =>
       ListView(padding: const EdgeInsets.all(16), children: [

@@ -1718,3 +1718,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Initial profile failures continue to use the existing retryable error state; profile edit form state is not reset by a same-screen refresh.
 - Added `profile_read_recovery_test.dart` for stale profile preservation after refresh failure.
 - Profile editing, OTP linking, authentication/session handling and sign-out behavior are unchanged. No API, permission, database, migration, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-077 — Mobile Store Profile refresh and active-organization safety — 22 November 2026
+
+- Store Profile now exposes an explicit Refresh action and retains the last successful same-organization store details during refresh and after a failed refresh, with Retry.
+- The form initialization is now keyed by store ID, so switching to a different store cannot leave the previous store's values in the editor.
+- A cached store whose organization ID does not match the active organization is not presented as the active store while the new organization lookup is pending or failing.
+- Added `store_profile_read_recovery_test.dart` for stale store detail preservation after refresh failure.
+- Store editing, warehouse creation, currency/locale selection and permissions are unchanged. No API, database, migration, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
