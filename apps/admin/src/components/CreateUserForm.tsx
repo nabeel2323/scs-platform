@@ -122,20 +122,20 @@ export function CreateUserForm({ onCancel, onDone }: CreateUserFormProps) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label>Full Name <span style={{ color: '#ef4444' }}>*</span></label>
-          <input required maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Jane Doe" />
+          <label htmlFor="create-user-full-name">Full Name <span style={{ color: '#ef4444' }}>*</span></label>
+          <input id="create-user-full-name" required maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Jane Doe" />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label>Email <span style={{ color: '#ef4444' }}>*</span></label>
-          <input required type="email" maxLength={254} value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" />
+          <label htmlFor="create-user-email">Email <span style={{ color: '#ef4444' }}>*</span></label>
+          <input id="create-user-email" required type="email" maxLength={254} value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label>Phone (optional)</label>
-          <input type="tel" maxLength={20} value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 555-0100" />
+          <label htmlFor="create-user-phone">Phone (optional)</label>
+          <input id="create-user-phone" type="tel" maxLength={20} value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 555-0100" />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label>Locale</label>
-          <select value={locale} onChange={e => setLocale(e.target.value)}>
+          <label htmlFor="create-user-locale">Locale</label>
+          <select id="create-user-locale" value={locale} onChange={e => setLocale(e.target.value)}>
             <option value="en">English</option>
             <option value="ar">العربية</option>
             <option value="fr">Français</option>
@@ -148,17 +148,17 @@ export function CreateUserForm({ onCancel, onDone }: CreateUserFormProps) {
         <h4 style={{ marginBottom: 12, fontSize: 14, fontWeight: 600, color: '#64748b' }}>Initial Organization Membership (optional)</h4>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label>Organization</label>
+            <label htmlFor="create-user-organization">Organization</label>
             <ErrorNotice message={orgsError} retry={() => void loadOrganizations()} />
-            <select value={orgId} disabled={orgsLoading || Boolean(orgsError)} onChange={e => { setOrgId(e.target.value); setRoleId(''); }}>
+            <select id="create-user-organization" value={orgId} disabled={orgsLoading || Boolean(orgsError)} onChange={e => { setOrgId(e.target.value); setRoleId(''); }}>
               <option value="">{orgsLoading ? 'Loading organizations…' : orgsError ? 'Retry organization lookup above' : 'None — unassigned user'}</option>
               {orgs.map(org => <option key={org.id} value={org.id}>{org.name} ({org.type})</option>)}
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label>Role</label>
+            <label htmlFor="create-user-role">Role</label>
             <ErrorNotice message={rolesError} retry={() => void loadRoles()} />
-            <select value={roleId} disabled={!orgId || rolesLoading || Boolean(rolesError)} onChange={e => setRoleId(e.target.value)}>
+            <select id="create-user-role" value={roleId} disabled={!orgId || rolesLoading || Boolean(rolesError)} onChange={e => setRoleId(e.target.value)}>
               <option value="">{rolesLoading ? 'Loading roles…' : rolesError ? 'Retry role lookup above' : 'Select a role'}</option>
               {roles.map(role => <option key={role.id} value={role.id}>{role.key} — {role.name}</option>)}
             </select>
@@ -176,8 +176,8 @@ export function CreateUserForm({ onCancel, onDone }: CreateUserFormProps) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 20 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label>Initial Account Status</label>
-          <select value={status} onChange={e => setStatus(e.target.value as 'ACTIVE' | 'SUSPENDED' | 'INACTIVE')}>
+          <label htmlFor="create-user-status">Initial Account Status</label>
+          <select id="create-user-status" value={status} onChange={e => setStatus(e.target.value as 'ACTIVE' | 'SUSPENDED' | 'INACTIVE')}>
             <option value="ACTIVE">Active</option>
             <option value="SUSPENDED">Suspended</option>
             <option value="INACTIVE">Inactive</option>
