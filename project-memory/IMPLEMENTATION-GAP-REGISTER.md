@@ -677,3 +677,19 @@ Source-confirmed gaps closed in implementation: product pull-to-refresh invalida
 - Active-store refresh now precedes inventory/warehouse refresh; failed store refreshes retain the last successful store. Inventory and warehouse reads have independent retry/error states.
 - Failed inventory refreshes preserve the last successful page; empty inventory remains pull-to-refreshable and appears only after a successful response. Warehouse lookup failures are explicit and explain that transfer actions depend on a successfully loaded directory.
 - Added Flutter widget coverage for stale inventory preservation, warehouse retry and initial store lookup recovery. Source commit: `df5a171762a5f6a5b365a13f491a975d4c6e9aa8`; test commit: `fe508b0d30c791fb7597ec7f1c95d6b6968461b4`. Not executed. No API, permission, stock mutation, warehouse transfer, database or migration behavior changed.
+
+## UX-089 — Mobile Merchant Pricing list and detail recovery — 23 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- Pricing list and Price List Detail now preserve last-successful price-list/tier data through refresh failures, expose retryable initial errors and await explicit/pull-to-refresh operations.
+- Store, price-list, detail and tier reads remain independent. A failed initial tier read is shown as unavailable rather than a fabricated zero tier count; successful empty list/tier states remain scrollable and refreshable.
+- Four focused Flutter widget scenarios were added. Source commits: `9b0393a`, `3b76bf4`, `0fd2622`, `fd3b94b`; test commits: `2f112e9`, `a03c23f`. Not executed. No pricing API, commercial, permission, database or migration behavior changed.
+
+## UX-090 — Mobile Merchant Customers read recovery — 23 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- Customer directory now preserves last-successful rows and derived statistics during refresh failures, supports awaited explicit/pull-to-refresh, exposes retryable initial errors and distinguishes successful empty/no-match states from failures.
+- Search and sort behavior and the existing customer API contract are unchanged.
+- Focused Flutter widget tests cover stale data/statistics and initial failure/retry. Source commit: `b279c263`; test commit: `3f3b0f6`. Not executed. No API, permission, order, financial, database or migration behavior changed.
