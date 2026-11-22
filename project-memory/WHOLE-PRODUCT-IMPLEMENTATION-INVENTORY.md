@@ -402,3 +402,9 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - The API route remains protected by `merchant:orders:read` and requires `storeId`; return mutations continue to require `merchant:orders:write`. No server permission or ownership logic changed.
 - `apps/web/src/app/merchant/organization/page.tsx` now surfaces retryable failures for verification history, update-request history, store information, warehouses, roles and members. Existing auxiliary data is retained during failed refreshes; verified-organization update submission is blocked when pending-request state is unknown.
 - Focused tests: `merchant-returns-recovery.test.tsx`, `merchant-return-detail-recovery.test.tsx`, `merchant-organization-recovery.test.tsx`. Not executed.
+
+## 22 November 2026 — UX-035 / UX-036 Merchant Orders and Offers
+
+- `apps/web/src/app/merchant/orders/page.tsx` now exposes store-directory and order-list read failures with Retry, shows queue loading, and suppresses the false empty-order state until a successful empty response. If no accessible store remains, stale store/order selection is cleared. Buyer-name enrichment remains best-effort by design and falls back to buyer IDs.
+- `apps/web/src/app/merchant/offers/page.tsx` now exposes retryable store, offers-list, product-directory, analytics and trend failures. Product selection/offer creation are disabled while the product directory is unavailable. Failed analytics no longer appears as zero orders/units/revenue in the table or CSV; trend failures no longer appear as an empty sales range.
+- Focused tests: `merchant-orders-recovery.test.tsx` and `merchant-offers-recovery.test.tsx`. Not executed. No API, permission, schema, DB or migration change.

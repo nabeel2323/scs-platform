@@ -1506,3 +1506,16 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Member and document read failures now display their retryable error while retaining any last successful rows. Document counts show unavailable rather than zero when the read has failed.
 - Warehouse count/empty presentation no longer implies a confirmed empty table when its read fails.
 - Commit `3a8c5767ffd2a8e852ef0f7bcbe042da35dfa812`. Not tested; exact-head Actions not run.
+
+## UX-035 — Merchant Orders store and queue read recovery — 22 November 2026
+
+- Initial store discovery failure no longer disappears and cannot lead to a false “No orders yet” message.
+- Added retryable store/order reads and visible queue loading. Retry reloads the selected store; if no accessible store remains, stale order/store selection is cleared.
+- Added `merchant-orders-recovery.test.tsx`. Not run; API permissions and transitions unchanged.
+
+## UX-036 — Merchant Offers list and analytics recovery — 22 November 2026
+
+- Added explicit store-discovery loading/error/retry and no-store state; failed offer-list reads no longer show a successful empty list.
+- Product-directory failure is visible/retryable and blocks offer creation until products are available.
+- Analytics/trend errors have independent retry paths. Failed analytics no longer becomes zero sales in the table/CSV; trend failure no longer becomes “No sales in this range.”
+- Added `merchant-offers-recovery.test.tsx`. Not run; no API/permission/schema/DB change.
