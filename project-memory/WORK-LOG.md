@@ -869,3 +869,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source audit found the Product Detail screen constructed a new `fetchProduct(widget.productId)` Future inline in build. Auxiliary variant/offer reads call `setState`, which rebuilt the screen and caused the FutureBuilder to issue another product-detail request. Main read failures had no retry/refresh, and variant/offer/review failures were swallowed.
 - Added an ID-keyed auto-disposed product detail provider, explicit refresh/pull-to-refresh, stale product preservation, retryable initial errors, auxiliary read error/retry states, and request-version guards for matrix/offer loads when the route reuses the State for another product ID.
 - Added Flutter widget tests for stale data, initial retry and avoiding redundant product fetches. Not run under the implementation-first cadence. No API/permission/cart/order/database/migration/staging behavior changed.
+
+
+## 2026-11-23 — UX-082 Mobile Notifications recovery
+
+- Re-audited `mobile/lib/screens/notifications/notifications_screen.dart`. Realtime events invalidated the provider but refresh discarded the visible list; individual mark-read had no catch/error feedback; initial read errors had retry but no explicit refresh or stale-data behavior.
+- Added stale-safe refresh and pull-to-refresh, retry/true-empty handling, per-row in-flight state and caught individual mark-read failures. Extracted Mark All Read into a guarded action with success/failure feedback.
+- Added three focused Flutter widget scenarios. Not run under the implementation-first cadence. No realtime/API/database/migration/staging behavior changed.
