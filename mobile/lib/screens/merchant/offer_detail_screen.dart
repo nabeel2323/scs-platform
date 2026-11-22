@@ -325,6 +325,23 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
             break;
           }
         }
+        if (analytics == null) {
+          return _sectionCard(
+            title: 'PERFORMANCE',
+            icon: Icons.analytics_outlined,
+            children: [
+              const Text(
+                'No performance record was returned for this offer. Sales are not assumed to be zero.',
+                style: TextStyle(fontSize: 13, color: TaifTokens.muted),
+              ),
+              TextButton.icon(
+                onPressed: () => ref.invalidate(merchantOfferAnalyticsProvider),
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Retry performance'),
+              ),
+            ],
+          );
+        }
         final card = _analyticsCard(offer, analytics);
         if (!analyticsAsync.isRefreshing && !analyticsAsync.hasError) {
           return card;
@@ -409,6 +426,8 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
         const SizedBox(height: 12),
         // Chart
         trendAsync.when(
+          skipLoadingOnRefresh: true,
+          skipError: true,
           loading: () => const SizedBox(
             height: 160,
             child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
@@ -431,11 +450,32 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
               ),
             ],
           ),
-          data: (points) => TrendChart(
-            points: points,
-            metric: _trendMetric,
-            currency: offer.currency,
-          ),
+          data: (points) {
+            final chart = TrendChart(
+              points: points,
+              metric: _trendMetric,
+              currency: offer.currency,
+            );
+            if (!trendAsync.isRefreshing && !trendAsync.hasError) {
+              return chart;
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _readNotice(
+                  trendAsync.isRefreshing
+                      ? 'Refreshing trend… showing the last successful chart.'
+                      : 'Could not refresh trend: ${ApiService.errorMessage(trendAsync.error!)}. Showing the last successful chart.',
+                  () => ref.invalidate(merchantOfferTrendProvider((
+                    offerId: offer.id,
+                    granularity: _trendGranularity,
+                    days: _trendDays,
+                  ))),
+                ),
+                chart,
+              ],
+            );
+          },
         ),
       ],
     );
