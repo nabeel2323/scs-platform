@@ -75,7 +75,7 @@ export default function ImportHistoryPage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const storeRequestRef = useRef(0);
   const jobsRequestRef = useRef(0);
-  const jobsInFlightRef = useRef(false);
+  const jobsInFlightRef = useRef<number | null>(null);
 
   const resolveStore = useCallback(async () => {
     const requestId = ++storeRequestRef.current;
@@ -113,9 +113,9 @@ export default function ImportHistoryPage() {
   }, [resolveStore]);
 
   const loadJobs = useCallback(async (silent = false) => {
-    if (!storeId || jobsInFlightRef.current) return;
-    jobsInFlightRef.current = true;
+    if (!storeId || jobsInFlightRef.current !== null) return;
     const requestId = ++jobsRequestRef.current;
+    jobsInFlightRef.current = requestId;
     if (!silent) {
       setLoading(true);
       setJobsReadError(null);
@@ -134,7 +134,7 @@ export default function ImportHistoryPage() {
       }
     } finally {
       if (requestId === jobsRequestRef.current && !silent) setLoading(false);
-      jobsInFlightRef.current = false;
+      if (jobsInFlightRef.current === requestId) jobsInFlightRef.current = null;
     }
   }, [storeId]);
 
@@ -144,6 +144,7 @@ export default function ImportHistoryPage() {
     void loadJobs();
     return () => {
       jobsRequestRef.current += 1;
+      jobsInFlightRef.current = null;
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = null;
     };
