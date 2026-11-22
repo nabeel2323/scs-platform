@@ -6,6 +6,7 @@ import { authFetch } from '../../../lib/auth';
 import { fetchMyStores } from '../../../lib/api';
 import { pickStore } from '../../../lib/merchant-store';
 import { PageHeader } from '@scs/ui-kit';
+import { getImportJobOutcome } from '../../../lib/import-job-outcome';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 
@@ -33,6 +34,8 @@ interface ImportJob {
   status: string;
   errors: unknown[] | null;
   stats: Record<string, number> | null;
+  totalRows?: number;
+  processedRows?: number;
 }
 
 /** Parse a single CSV line, handling quoted fields and escaped quotes. */
@@ -132,9 +135,25 @@ export default function ImportWizardPage() {
   // Step 5: Progress
   const [importJob, setImportJob] = useState<ImportJob | null>(null);
   const [progress, setProgress] = useState(0);
+  const [pollError, setPollError] = useState<string | null>(null);
+  const [importOutcome, setImportOutcome] = useState<'success' | 'failure' | 'cancelled' | 'pending' | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollGenerationRef = useRef(0);
+  const pollInFlightRef = useRef(false);
+  const pollNowRef = useRef<(() => void) | null>(null);
 
   // Step 6: Review
   const [importStats, setImportStats] = useState<{ created: number; updated: number; skipped: number; errors: number } | null>(null);
+
+  const stopImportPolling = useCallback(() => {
+    pollGenerationRef.current += 1;
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    pollTimerRef.current = null;
+    pollInFlightRef.current = false;
+    pollNowRef.current = null;
+  }, []);
+
+  useEffect(() => () => stopImportPolling(), [stopImportPolling]);
 
   const resolveStore = useCallback(async () => {
     const requestId = ++storeRequestRef.current;
@@ -429,62 +448,82 @@ export default function ImportWizardPage() {
     }
   };
 
-  /** Step 3 → Step 4: trigger processing (rows already staged/uploaded). */
+  /** Step 3 → Step 4: trigger processing, then poll its authoritative state. */
   const handleStartImport = async () => {
     if (!importJob) return;
+    stopImportPolling();
     setLoading(true);
     setError(null);
+    setPollError(null);
+    setImportOutcome(null);
     const jobId = importJob.id;
 
-    const finalize = (job: any, cancelled = false) => {
+    const finalize = (job: ImportJob) => {
+      stopImportPolling();
       setImportJob(job);
+      const outcome = getImportJobOutcome(job.status);
+      setImportOutcome(outcome);
       setImportStats({
         created: job.stats?.created ?? 0,
         updated: job.stats?.updated ?? 0,
         skipped: job.stats?.skipped ?? 0,
         errors: job.stats?.errors ?? 0,
       });
-      if (cancelled) setError('Import cancelled.');
-      else if (job.status === 'FAILED') setError('Import completed with errors.');
+      if (outcome === 'cancelled') setError('Import cancelled.');
+      else if (outcome === 'failure') setError('Import failed. Review the error report for details.');
+      else setError(null);
+      setPollError(null);
       setStep(5);
     };
-
-    // Poll job lifecycle. R5: the backend PROCESSING state (not IMPORTING).
-    const pollInterval = setInterval(async () => {
-      try {
-        const res = await authFetch(`${API_URL}/v1/imports/${jobId}`);
-        if (!res.ok) return;
-        const job = await res.json();
-        setImportJob(job);
-        if (job.status === 'PROCESSING') {
-          const total = job.totalRows || job.stats?.total || 0;
-          const done = job.processedRows ?? job.stats?.processed ?? 0;
-          setProgress(total ? Math.round((done / total) * 100) : 0);
-        } else if (job.status === 'COMPLETED' || job.status === 'FAILED') {
-          clearInterval(pollInterval);
-          setProgress(job.status === 'COMPLETED' ? 100 : 0);
-          finalize(job);
-        } else if (job.status === 'CANCELLED') {
-          clearInterval(pollInterval);
-          finalize(job, true);
-        }
-      } catch {
-        // Polling error — ignore and retry
-      }
-    }, 1500);
 
     try {
       const processRes = await authFetch(`${API_URL}/v1/imports/${jobId}/process`, { method: 'POST' });
       if (!processRes.ok) {
-        clearInterval(pollInterval);
         const b = await processRes.json().catch(() => null);
         throw new Error(b?.detail || b?.message || `Import processing failed: ${processRes.status}`);
       }
-      // Processing is synchronous server-side; the poll will settle the terminal state.
+
+      // Start polling only after the process request succeeds. This prevents a
+      // fast terminal poll from being overwritten by a later setStep(4).
       setStep(4);
-    } catch (e) {
-      clearInterval(pollInterval);
-      setError(`${e}`);
+      const generation = ++pollGenerationRef.current;
+      const poll = async () => {
+        if (generation !== pollGenerationRef.current || pollInFlightRef.current) return;
+        pollInFlightRef.current = true;
+        try {
+          const res = await authFetch(`${API_URL}/v1/imports/${jobId}`);
+          if (!res.ok) throw new Error(`Import status refresh failed: ${res.status}`);
+          const job = (await res.json()) as ImportJob;
+          if (generation !== pollGenerationRef.current) return;
+
+          setImportJob(job);
+          setPollError(null);
+          if (job.status === 'PROCESSING') {
+            const total = job.totalRows || job.stats?.total || 0;
+            const done = job.processedRows ?? job.stats?.processed ?? 0;
+            setProgress(total ? Math.round((done / total) * 100) : 0);
+          } else {
+            const outcome = getImportJobOutcome(job.status);
+            if (outcome !== 'pending') {
+              setProgress(outcome === 'success' ? 100 : 0);
+              finalize(job);
+            }
+          }
+        } catch (err: unknown) {
+          if (generation === pollGenerationRef.current) {
+            setPollError(err instanceof Error ? err.message : 'Unable to refresh import status');
+          }
+        } finally {
+          if (generation === pollGenerationRef.current) pollInFlightRef.current = false;
+        }
+      };
+
+      pollNowRef.current = () => { void poll(); };
+      void poll();
+      pollTimerRef.current = setInterval(() => { void poll(); }, 1500);
+    } catch (err: unknown) {
+      stopImportPolling();
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -882,6 +921,14 @@ export default function ImportWizardPage() {
                 Job ID: {importJob.id.substring(0, 8)}... · Status: {importJob.status}
               </div>
             )}
+            {pollError && (
+              <div role="alert" style={{ marginTop: 16, padding: 12, backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, color: '#B3372F', fontSize: 13 }}>
+                <div>{pollError}</div>
+                <button type="button" onClick={() => pollNowRef.current?.()} style={{ marginTop: 8 }}>
+                  Retry status
+                </button>
+              </div>
+            )}
 
             {importJob && (importJob.status === 'PROCESSING' || importJob.status === 'READY' || importJob.status === 'IMPORTING') && (
               <div style={{ marginTop: 20 }}>
@@ -900,36 +947,43 @@ export default function ImportWizardPage() {
       {/* Step 6: Review */}
       {step === 5 && (
         <div>
-          {importStats ? (
-            <>
-              <div style={{ padding: 24, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, textAlign: 'center', marginBottom: 24 }}>
-                <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
-                <div style={{ fontWeight: 600, fontSize: 18 }}>Import Complete!</div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
-                {[
-                  { label: 'Created', value: importStats.created, color: '#1B7A4B' },
-                  { label: 'Updated', value: importStats.updated, color: '#1D5FA8' },
-                  { label: 'Skipped', value: importStats.skipped, color: '#B45309' },
-                  { label: 'Errors', value: importStats.errors, color: '#B3372F' },
-                ].map(s => (
-                  <div key={s.label} style={{ padding: 16, backgroundColor: '#F9FAFB', borderRadius: 8, textAlign: 'center' }}>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: s.color }}>{s.value}</div>
-                    <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{s.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ padding: '12px 16px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 13, color: '#92400E', marginBottom: 24 }}>
-                💡 All imported products are created as <strong>DRAFT</strong>. Go to your catalog to review and publish them.
-              </div>
-            </>
+          {importOutcome === 'success' ? (
+            <div style={{ padding: 24, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
+              <div style={{ fontWeight: 600, fontSize: 18 }}>Import Complete!</div>
+            </div>
+          ) : importOutcome === 'cancelled' ? (
+            <div style={{ padding: 24, backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>⏸️</div>
+              <div style={{ fontWeight: 600, fontSize: 18, color: '#92400E' }}>Import Cancelled</div>
+            </div>
           ) : (
-            <div style={{ padding: 24, backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, textAlign: 'center' }}>
+            <div style={{ padding: 24, backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, textAlign: 'center', marginBottom: 24 }}>
               <div style={{ fontSize: 40, marginBottom: 8 }}>❌</div>
               <div style={{ fontWeight: 600, fontSize: 18, color: '#B3372F' }}>Import Failed</div>
               <div style={{ fontSize: 13, color: '#666', marginTop: 8 }}>{error || 'An unexpected error occurred.'}</div>
+            </div>
+          )}
+
+          {importStats && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+              {[
+                { label: 'Created', value: importStats.created, color: '#1B7A4B' },
+                { label: 'Updated', value: importStats.updated, color: '#1D5FA8' },
+                { label: 'Skipped', value: importStats.skipped, color: '#B45309' },
+                { label: 'Errors', value: importStats.errors, color: '#B3372F' },
+              ].map((stat) => (
+                <div key={stat.label} style={{ padding: 16, backgroundColor: '#F9FAFB', borderRadius: 8, textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: stat.color }}>{stat.value}</div>
+                  <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{stat.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {importOutcome === 'success' && (
+            <div style={{ padding: '12px 16px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 13, color: '#92400E', marginBottom: 24 }}>
+              💡 All imported products are created as <strong>DRAFT</strong>. Go to your catalog to review and publish them.
             </div>
           )}
 
@@ -941,7 +995,19 @@ export default function ImportWizardPage() {
               Go to Catalog
             </button>
             <button
-              onClick={() => { setStep(0); setFile(null); setImportJob(null); setImportStats(null); setProgress(0); setValidationErrors([]); setPreviewData(null); }}
+              onClick={() => {
+                stopImportPolling();
+                setStep(0);
+                setFile(null);
+                setImportJob(null);
+                setImportStats(null);
+                setImportOutcome(null);
+                setPollError(null);
+                setProgress(0);
+                setValidationErrors([]);
+                setPreviewData(null);
+                setError(null);
+              }}
               style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, backgroundColor: '#F3F4F6', border: 'none', cursor: 'pointer' }}
             >
               Import Another File
