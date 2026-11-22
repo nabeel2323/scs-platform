@@ -3,7 +3,7 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `b416041861f23ae8d428f5f3799f329d5566f0cc` — UX-093 new-login active-org reset; supporting cache invalidation and active-store org-filter commits include `b49424e`, `3f4a6a3`, `1f29e7c`, `cd04739`, `fc1f22a`. Latest focused test commit: `d0d0b2642d7a001cd3253d043edb9279a74824aa`  
+**Latest source correction commit:** `40e6cf67cb98a1649b2aa171f523a300b5879fb7` — SettlementAdjustmentService organization resolution and fail-closed ownership; other grouped typecheck fixes include `b21b9f1`, `db6cac8`. Latest focused test correction commit: `9113c4aa31260034a6f53cb4b76f2ec04955d28c`. UX-093 remains the latest completed UX slice.  
 **Previous source increments:** UX-092 Store Profile source/test `bfb820e` / `90b2b6b`; UX-091 Merchant Orders source `da19ca1` / `9ecce8a` and focused tests `112bf00` / `b8c7b1c`  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
@@ -19,13 +19,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Last verified implementation/test head | `d0d0b2642d7a001cd3253d043edb9279a74824aa` (documentation synchronization follows; resolve the live head at session start) |
-| Latest implementation/test | `d0d0b2642d7a001cd3253d043edb9279a74824aa` — UX-093 active-store organization scoping tests |
+| Latest code correction head | `9113c4aa31260034a6f53cb4b76f2ec04955d28c`; corrections are implemented but not typecheck/test verified |
+| Latest implementation/test | Typecheck correction batch through `9113c4aa31260034a6f53cb4b76f2ec04955d28c`; UX-093 focused tests remain `TESTING_PENDING` |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for implementation/test head `d0d0b2642d7a001cd3253d043edb9279a74824aa`; commits use `[skip ci]`; NOT CI-VERIFIED |
+| Exact-head GitHub Actions | CI #1380 failed on parent SHA `de9eeafb3852822552c667d13ad1e0c27fa8d28f` at API typecheck; corrective head uses `[skip ci]`, no new run; NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest inspected Vercel contexts | At `4be4f0d`: Admin FAILURE and Web FAILURE with external build-rate-limit destination; not application test results |
+| Latest inspected Vercel contexts | At `de9eeafb`: Admin FAILURE and Web FAILURE with external build-rate-limit destination; not application test results |
 | Focused client tests | Admin UX-030–058 and Mobile UX-078–093 added; not executed |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
@@ -697,3 +697,12 @@ Merchant active-store and product reads now preserve last-successful data throug
 - Source commits include `b49424e`, `3f4a6a3`, `1f29e7c`, `cd04739`, `fc1f22a`, `b416041`; tests `a0f308c` / `d0d0b26`.
 - UX-087–UX-093 are IMPLEMENTED / TESTING_PENDING, not automated-test verified or CI verified. This is client context hygiene, not a replacement for server-side tenant authorization. No API, permission, schema, DB, migration, RLS, worker or staging changes.
 - Next: Mobile route permission and org-context transition audit, then remaining Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
+
+
+## API typecheck correction checkpoint — 23 November 2026
+
+- Live PR #138 head before this correction batch was `de9eeafb3852822552c667d13ad1e0c27fa8d28f`. GitHub Actions run [#1380](https://github.com/nabeel2323/scs-platform/actions/runs/45081889002) failed in `Lint & Typecheck` at API TypeScript checking. API lint passed and Mobile analysis/tests passed; unit/coverage, Web/Admin tests, boundary lint, migration, contracts, container, integration and build jobs were skipped after the typecheck failure. Vercel Web/Admin statuses pointed to the external build-rate-limit page and are not application test results.
+- Corrected the 17 reported TypeScript diagnostics in one grouped source/test batch: P13 integration tests now pass explicit platform escalation authority; the return-expiration worker outcome union includes `fence_lost`; Admin order-item product labels join through the variant's product relationship (the order-item schema has no `productId`); the Admin test fixture matches the order-item schema and has a typed history array; the catalog tenant-scope mock matches the helper's `Promise<void>` contract; and SettlementAdjustmentService now resolves sub-order organization through order → store and fails closed when ownership cannot be resolved.
+- Source/test correction commits: `0c6ad31cbb7635bddb702a2fe85006eb7aee6db5`, `caf8088d113ccb14808fb150365b234031cd790e`, `b21b9f1df445cb89360eed625e83a6f64cf918be`, `db6cac84259993f12cbdbf845079613c001bb4e8`, `40e6cf67cb98a1649b2aa171f523a300b5879fb7`, `9113c4aa31260034a6f53cb4b76f2ec04955d28c`.
+- No tests or typecheck were executed after these corrections. The new code head is therefore **IMPLEMENTED / NOT VERIFIED**; no CI pass is claimed. The commits use `[skip ci]` under the Actions-minute budget. Comprehensive verification remains deferred to Phase 3.
+- PR #138 remains OPEN/DRAFT/UNMERGED to `develop`. No staging deployment/write, shared database mutation, migration, grants/default-ACL change, RLS enablement, worker activation, provider call or release action occurred.
