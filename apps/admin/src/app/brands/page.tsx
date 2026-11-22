@@ -49,20 +49,27 @@ function BrandsPageContent() {
   const [actionError, setActionError] = useState('');
   const searchRef = useRef<ReturnType<typeof setTimeout>>();
 
+  const requestVersion = useRef(0);
   const reload = useCallback(async () => {
+    const requestId = ++requestVersion.current;
     setLoading(true);
     setError('');
     try {
       const data = await fetchAdminBrandsEnriched(statusFilter !== 'active');
-      setBrands(data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load brands');
+      if (requestId === requestVersion.current) setBrands(data);
+    } catch (err) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load brands');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestVersion.current) setLoading(false);
     }
   }, [statusFilter]);
 
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    void reload();
+    return () => { requestVersion.current += 1; };
+  }, [reload]);
 
   // Debounced search
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -100,7 +107,7 @@ function BrandsPageContent() {
       </div>
 
       <div style={css.content}>
-        {error && <div style={css.error}>{error}</div>}
+        {error && <div role="alert" style={css.error}>{error}{' '}<button type="button" onClick={() => void reload()}>Retry brands</button></div>}
         {actionError && <div style={css.error}>{actionError}</div>}
 
         {/* Toolbar */}
@@ -148,7 +155,7 @@ function BrandsPageContent() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={9} style={{ ...css.td, textAlign: 'center', color: '#5b6b74' }}>Loading brands…</td></tr>
-              ) : filtered.length === 0 ? (
+              ) : error && brands.length === 0 ? null : filtered.length === 0 ? (
                 <tr><td colSpan={9} style={{ ...css.td, textAlign: 'center', color: '#5b6b74' }}>No brands found</td></tr>
               ) : (
                 filtered.map(b => (
