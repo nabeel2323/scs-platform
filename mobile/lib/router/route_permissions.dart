@@ -74,8 +74,11 @@ RoutePermissionRule? permissionRuleForRoute(Uri uri) {
   if (path == '/merchant/pricing' || path.startsWith('/merchant/pricing/')) {
     return const RoutePermissionRule(allOf: ['merchant:pricing:read']);
   }
-  if (path == '/merchant/offers' || path.startsWith('/merchant/offers/')) {
+  if (path == '/merchant/offers/new') {
     return const RoutePermissionRule(allOf: ['catalog:offers:write']);
+  }
+  if (path == '/merchant/offers' || path.startsWith('/merchant/offers/')) {
+    return const RoutePermissionRule(allOf: ['merchant:stores:read']);
   }
   if (path == '/merchant/inventory') {
     return const RoutePermissionRule(allOf: ['merchant:inventory:read']);
