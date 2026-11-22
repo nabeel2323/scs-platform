@@ -917,3 +917,17 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Inventory rows remain visible when a refresh fails, including the last successful page; successful empty inventory remains pull-to-refreshable and distinct from a failed read. Warehouse lookup failures now explain that transfers are unavailable until the directory can be loaded.
 - Added focused Flutter widget coverage for inventory stale-data preservation, retryable warehouse lookup failure, and initial store lookup recovery to a true empty inventory state.
 - Source commit: `df5a171762a5f6a5b365a13f491a975d4c6e9aa8`; focused test commit: `fe508b0d30c791fb7597ec7f1c95d6b6968461b4`. Tests not executed; they remain pending Phase 3. No API, permission, stock mutation, warehouse transfer, database or migration behavior changed.
+
+## 2026-11-23 — UX-089 Mobile Merchant Pricing read recovery
+
+- Re-audited the Mobile Pricing list and Price List Detail screens. The list/detail reads discarded last-successful values during refresh, list refresh did not await completion, the empty list/tier states were not pull-to-refreshable, and an initial tier failure was rendered as a zero tier count.
+- Added stale-safe store/list/detail/tier refresh states, explicit retry for initial failures, awaited refresh actions, scrollable empty states, and an unavailable tier-count marker until a successful tier read. Price-list and tier reads remain independent.
+- Added four focused Flutter widget scenarios covering stale price-list preservation, initial list failure/retry, stale tier preservation, and initial tier failure without a fabricated zero count.
+- Source commits: list `9b0393a45b1ece770a8c977ab0abbd56d4127c58`; detail `3b76bf46518917b8bbcfc9ffb38a31a5e484ef54`; tier-count correction `0fd26220518f35e355c5260808f522f403bf57a7`; duplicate-refresh correction `fd3b94bd4bb4cb10028bc69c7dc7b40632f1de36`. Test/dependency commits: `2f112e97496e3056c8be1d4ac0f8c1b4f2b85fd3` and `a03c23fe9b7f59135f5c2ec27bf0b3b85faa7c59`. Tests not executed; remain pending Phase 3. No pricing API, commercial terms, permission, database or migration behavior changed.
+
+## 2026-11-23 — UX-090 Mobile Merchant Customers read recovery
+
+- Merchant Customers now awaits explicit and pull-to-refresh requests, preserves the last successful customer list/statistics during failed refreshes, exposes retryable initial errors and keeps successful empty/no-filter-match states distinct from failed reads.
+- Search and sort state remain local and unchanged; customer/revenue/order statistics are still derived from the currently filtered list.
+- Added focused Flutter widget coverage for stale customer/statistics preservation and initial failure/retry to a true empty state.
+- Source commit: `b279c263da4e2f8b1153d0d4b19516fd76c46dca`; focused test commit: `3f3b0f6b4d610b24242c44fc75006c509bc7abd7`. Test not executed; remains pending Phase 3. No API, permission, customer, order, financial, database or migration behavior changed.
