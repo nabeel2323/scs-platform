@@ -124,7 +124,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     String? phone,
     String? email,
   }) async {
-    await ref.read(authStorageProvider).saveTokens(
+    final authStorage = ref.read(authStorageProvider);
+    // A different account must never inherit the previous account's persisted
+    // active organization. The new token starts without a selected org.
+    await authStorage.clearActiveOrgId();
+    await authStorage.saveTokens(
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         expiresAt: DateTime.now().add(AuthStorage.tokenLifetime));
