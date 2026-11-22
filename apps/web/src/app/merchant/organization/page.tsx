@@ -718,16 +718,15 @@ export default function MerchantOrganizationPage() {
                 Manage warehouses →
               </Link>
             </div>
-            {warehousesLoading ? (
+            {warehousesError && (
+              <ErrorBanner
+                message={warehousesError}
+                onRetry={() => activeStore && void loadWarehouses(activeStore.id)}
+              />
+            )}
+            {warehousesLoading && warehouses.length === 0 ? (
               <LoadingSpinner />
-            ) : warehousesError ? (
-              <div style={{ padding: '12px 0' }}>
-                <ErrorBanner
-                  message={warehousesError}
-                  onRetry={() => activeStore && void loadWarehouses(activeStore.id)}
-                />
-              </div>
-            ) : warehouses.length === 0 ? (
+            ) : warehouses.length === 0 && !warehousesError ? (
               <div style={{ textAlign: 'center', padding: '20px 0', color: '#5b6b74', fontSize: 13 }}>
                 No warehouses configured. <Link href="/merchant/warehouses" style={{ color: '#1e6178' }}>Add one</Link>
               </div>
@@ -763,12 +762,13 @@ export default function MerchantOrganizationPage() {
           {(updateRequestsError || updateRequests.length > 0) && (
             <div style={{ ...card, marginTop: 20 }}>
               <h2 style={sectionTitle}>Update Requests</h2>
-              {updateRequestsError ? (
+              {updateRequestsError && (
                 <ErrorBanner
                   message={updateRequestsError}
                   onRetry={() => org && void loadUpdateRequests(org.id)}
                 />
-              ) : (
+              )}
+              {updateRequests.length > 0 && (
               <div style={tableWrap}>
                 <table style={table}>
                   <thead><tr style={theadRow}>
