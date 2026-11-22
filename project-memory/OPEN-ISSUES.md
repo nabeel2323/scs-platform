@@ -430,3 +430,7 @@ The remaining Merchant Inventory and Import History audit found two concrete rea
 ## UX-040 / UX-041 — Merchant Import Wizard — 22 November 2026
 
 The remaining Merchant Import Wizard audit found swallowed store-directory errors and a process/poll lifecycle race. A failed store lookup was indistinguishable from no store and had no retry. The polling interval could race the process response, ignore status-read errors indefinitely, survive component unmount, and display FAILED jobs as successful completion. Both items are implemented with focused tests added but not executed. They remain TESTING_PENDING for the consolidated test campaign. No API, permission, schema, database, queue or worker behavior changed.
+
+## UX-042 — Merchant Warehouses — 22 November 2026
+
+The Merchant Warehouses page conflated failed store lookup with no store and failed warehouse-list reads with a successful empty directory. Both reads now have explicit loading/error/retry handling; the warehouse empty state appears only after a successful empty response. A focused test was added but not executed. UX-042 remains TESTING_PENDING for the consolidated test campaign. No API, permission, schema or database behavior changed.
