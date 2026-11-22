@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { adminRequest } from '../../../lib/api';
 import { useRequirePerms, AccessDenied } from '../../../hooks/useRequirePerms';
 import { radii } from '@scs/ui-kit';
+import { AdminEmptyState, AdminErrorState, AdminLoadingSkeleton } from '../../../components/detail';
 
 interface ReturnDetail {
   id: string;
@@ -70,12 +71,20 @@ function ReturnDetailContent({ id }: { id: string }) {
 
   const showResolveForm = searchParams?.get('resolve') === '1';
 
-  const load = useCallback(() => {
-    if (!hasAccess) { setLoading(false); return; }
+  const load = useCallback(async () => {
+    if (!hasAccess) { setLoading(false); return null; }
     setLoading(true);
-    adminRequest<ReturnDetail>(`admin/returns/${encodeURIComponent(id)}`)
-      .then((data) => { setRet(data); setLoading(false); })
-      .catch((e) => { setError(e.message); setLoading(false); });
+    setError('');
+    try {
+      const data = await adminRequest<ReturnDetail>(`admin/returns/${encodeURIComponent(id)}`);
+      setRet(data);
+      return data;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load return');
+      return null;
+    } finally {
+      setLoading(false);
+    }
   }, [id, hasAccess]);
 
   useEffect(() => { setReady(true); }, []);
@@ -110,9 +119,9 @@ function ReturnDetailContent({ id }: { id: string }) {
 
   if (!ready) return <div style={{ padding: '24px 28px', color: 'rgba(255,255,255,0.5)' }}>Loading…</div>;
   if (!hasAccess) return <div style={{ padding: '24px 28px' }}><AccessDenied requiredPerms={['admin:returns:read']} missingPerms={missingPerms} /></div>;
-  if (loading) return <div style={{ padding: '24px 28px', color: 'rgba(255,255,255,0.5)' }}>Loading return details…</div>;
-  if (error) return <div style={{ padding: '24px 28px', color: '#ef4444' }}>{error}</div>;
-  if (!ret) return <div style={{ padding: '24px 28px', color: 'rgba(255,255,255,0.5)' }}>Return not found.</div>;
+  if (loading) return <div style={{ padding: '24px 28px' }}><AdminLoadingSkeleton kvRows={7} /></div>;
+  if (error) return <div style={{ padding: '24px 28px' }}><AdminErrorState title="Unable to load return" message={error} onRetry={load} /></div>;
+  if (!ret) return <div style={{ padding: '24px 28px' }}><AdminEmptyState title="Return not found" description="This return may have been removed or is no longer available." /></div>;
 
   const isEscalated = ret.status === 'ESCALATED';
   const isOverdue = isEscalated && ret.escalationDeadline && new Date(ret.escalationDeadline) < new Date();

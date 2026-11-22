@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { adminRequest } from '../../lib/api';
 import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
 import { PageHeader, colors, radii } from '@scs/ui-kit';
+import { AdminErrorState } from '../../components/detail';
 
 interface ReturnRow {
   id: string;
@@ -40,21 +41,35 @@ export default function AdminReturnsPage() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const requestVersion = useRef(0);
 
   const load = useCallback(() => {
     if (!hasAccess) { setLoading(false); return; }
+    const requestId = ++requestVersion.current;
     setLoading(true);
+    setError('');
     const sp = new URLSearchParams();
     if (statusFilter) sp.set('status', statusFilter);
     const qs = sp.toString();
     adminRequest<ReturnRow[]>(`admin/returns${qs ? `?${qs}` : ''}`)
-      .then((data) => setReturns(data))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (requestId === requestVersion.current) setReturns(data);
+      })
+      .catch((e) => {
+        if (requestId === requestVersion.current) {
+          setError(e instanceof Error ? e.message : 'Failed to load returns');
+        }
+      })
+      .finally(() => {
+        if (requestId === requestVersion.current) setLoading(false);
+      });
   }, [statusFilter, hasAccess]);
 
   useEffect(() => { setReady(true); }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   if (!ready) {
     return <div style={{ padding: '24px 28px', color: 'rgba(255,255,255,0.5)' }}>Loading…</div>;
@@ -96,9 +111,9 @@ export default function AdminReturnsPage() {
         </select>
       </div>
 
-      {error && <div style={{ color: '#ef4444', marginBottom: 16, fontSize: 13 }}>{error}</div>}
-
-      {loading ? (
+      {error ? (
+        <AdminErrorState title="Unable to load returns" message={error} onRetry={load} />
+      ) : loading ? (
         <div style={{ color: 'rgba(255,255,255,0.5)', padding: 40, textAlign: 'center' }}>Loading…</div>
       ) : returns.length === 0 ? (
         <div style={{ color: 'rgba(255,255,255,0.5)', padding: 40, textAlign: 'center' }}>

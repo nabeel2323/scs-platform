@@ -16,6 +16,8 @@ import ManagementPage, { rowClickOpensDetail } from '../components/ManagementPag
 import ProductDetails, { ProductModerationActions } from '../components/ProductDetails';
 import UsersPage from '../app/users/page';
 import DisputeDetailPage from '../app/disputes/[id]/page';
+import AdminReturnsPage from '../app/returns/page';
+import ReturnDetailPage from '../app/returns/[id]/page';
 import AttributeDetailPage from '../app/attributes/[id]/page';
 import AdminPaymentsPage from '../app/payments/page';
 import AdminSettlementsPage from '../app/settlements/page';
@@ -95,6 +97,53 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+});
+
+
+describe('Admin return oversight recovery', () => {
+  const returnFixture = {
+    id: 'return-1',
+    subOrderId: 'order-1',
+    buyerId: 'buyer-1',
+    status: 'ESCALATED',
+    reason: 'Damaged item',
+    requestedRefundMinor: 12500,
+    actualRefundMinor: null,
+    createdAt: '2026-11-20T10:00:00.000Z',
+    escalatedAt: '2026-11-21T10:00:00.000Z',
+    escalationDeadline: '2026-11-24T10:00:00.000Z',
+    responsibilityCategory: null,
+    resolvedBy: null,
+    resolvedAt: null,
+  };
+
+  it('shows a retryable error for the return queue and recovers on retry', async () => {
+    vi.mocked(adminRequest)
+      .mockRejectedValueOnce(new Error('Connection failed'))
+      .mockResolvedValueOnce([]);
+
+    render(<AdminReturnsPage />);
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByText('Connection failed')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(screen.getByText('No return requests found.')).toBeTruthy());
+    expect(adminRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows a retryable detail error and clears it after a successful reload', async () => {
+    vi.mocked(adminRequest)
+      .mockRejectedValueOnce(new Error('Temporary read failure'))
+      .mockResolvedValueOnce(returnFixture);
+
+    render(<ReturnDetailPage />);
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByText('Temporary read failure')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(screen.getByText(/Return #return-1/)).toBeTruthy());
+    expect(adminRequest).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('URL-backed table query', () => {
