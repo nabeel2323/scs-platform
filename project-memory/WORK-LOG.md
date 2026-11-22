@@ -876,3 +876,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Re-audited `mobile/lib/screens/notifications/notifications_screen.dart`. Realtime events invalidated the provider but refresh discarded the visible list; individual mark-read had no catch/error feedback; initial read errors had retry but no explicit refresh or stale-data behavior.
 - Added stale-safe refresh and pull-to-refresh, retry/true-empty handling, per-row in-flight state and caught individual mark-read failures. Extracted Mark All Read into a guarded action with success/failure feedback.
 - Added three focused Flutter widget scenarios. Not run under the implementation-first cadence. No realtime/API/database/migration/staging behavior changed.
+
+
+## 2026-11-23 — UX-083 Mobile Home discovery recovery
+
+- Source audit found Categories and Suppliers used `maybeWhen(... orElse: SizedBox.shrink())`, Popular Products hid its error state, and the Home refresh callback invalidated five providers but returned before any refresh completed. The unread badge also coerced loading/error to zero.
+- Added independent loading/error/retry and stale-data handling to Categories, Popular Products and Suppliers; made pull-to-refresh await each independent read and added an explicit refresh action. The unread badge remains unknown instead of fabricating zero.
+- Added three focused Flutter widget scenarios. Not run under implementation-first cadence. No API/permission/role/database/migration/staging behavior changed.
