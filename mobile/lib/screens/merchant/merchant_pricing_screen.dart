@@ -64,6 +64,8 @@ class MerchantPricingScreen extends ConsumerWidget {
           : null,
       body: storeAsync.when(
         skipLoadingOnRefresh: true,
+
+        skipLoadingOnReload: true,
         skipError: true,
         loading: () => const LoadingSpinner(),
         error: (e, _) => AppErrorState(
@@ -82,6 +84,8 @@ class MerchantPricingScreen extends ConsumerWidget {
 
           final listContent = listsAsync.when(
             skipLoadingOnRefresh: true,
+
+            skipLoadingOnReload: true,
             skipError: true,
             loading: () => const LoadingSpinner(),
             error: (e, _) => AppErrorState(
