@@ -28,6 +28,10 @@ export default function MerchantLayout({ children }: { children: React.ReactNode
   const { user, loading: authLoading } = useAuth();
   const [checked, setChecked] = useState(false);
   const visibleNav = filterMerchantNavigation(user?.perms ?? []);
+  // A merchant page owns organization-scoped local state and in-flight work.
+  // Remount the shell subtree whenever the active organization or effective
+  // permission projection changes so stale data/forms cannot survive a switch.
+  const accessScopeKey = `${user?.activeOrgId ?? 'none'}:${user?.role ?? 'none'}:${(user?.perms ?? []).slice().sort().join(',')}`;
 
   useEffect(() => {
     setChecked(false);
