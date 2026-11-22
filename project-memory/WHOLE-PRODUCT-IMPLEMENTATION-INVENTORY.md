@@ -457,3 +457,9 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - Dedicated User Detail now exposes the existing audited profile update and membership assign/remove APIs, and status controls confirm suspension/deactivation. Role permissions are derived from each membership role's detail endpoint; the page no longer mistakes the global permission catalog for user-effective permissions.
 - Merchant Store Detail now presents locale, popularity-badge visibility, logo and cover previews, and structured address from the existing store detail response.
 - Focused tests added in `admin-create-user-recovery.test.tsx`, `admin-user-role-permissions.test.tsx`, `admin-merchant-detail.test.tsx` and API `admin-user-creation.spec.ts`; not executed. UX-046/047 are IMPLEMENTED / TESTING_PENDING. No new API routes, permissions, schema, migration or database behavior.
+
+## 22 November 2026 — Admin Roles/Audit Log UX-048 / UX-049 re-audit
+
+- Roles list has independent retry and request-version/unmount protection.
+- Audit Log filter reads are guarded against stale response overwrite, cleanup invalidates pending requests, and the error banner exposes retry while last successful rows remain visible.
+- Focused tests added in `admin-roles-recovery.test.tsx` and `admin-audit-race.test.tsx`; not executed. UX-048/049 are IMPLEMENTED / TESTING_PENDING. No API, permission, schema or database change.
