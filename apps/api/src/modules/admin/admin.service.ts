@@ -64,7 +64,7 @@ export class AdminService {
         variantTitle: productVariants.title,
       })
       .from(orderItems)
-      .leftJoin(products, eq(orderItems.productId, products.id))
+      .leftJoin(products, eq(productVariants.productId, products.id))
       .leftJoin(productVariants, eq(orderItems.variantId, productVariants.id))
       .where(eq(orderItems.orderId, orderId));
 
