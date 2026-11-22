@@ -35,10 +35,6 @@ import {
   fetchPermissions,
   fetchAdminOrganizationDetail,
   fetchAdminOrderDetail,
-  fetchCategoryContents,
-  fetchRoleDetail,
-  fetchProductTypeSchema,
-  fetchAttributes,
   moderateAdminProduct,
   fetchAdminPayments,
   fetchPaymentVerificationQueue,
@@ -158,7 +154,7 @@ describe('Admin detail read retry coverage', () => {
     render(<OrderDetailPage />);
     expect(await screen.findByText('Order read unavailable')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    await screen.findByText(/ORD-1001/);
+    await screen.findByText('Order #dispute-1');
     expect(fetchAdminOrderDetail).toHaveBeenCalledTimes(2);
   });
 

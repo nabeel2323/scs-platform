@@ -113,7 +113,7 @@ function RoleDetailContent({ id }: { id: string }) {
           ) : (
             <>
               <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>
-                Select the permissions this role should grant. Changes are saved immediately and audited.
+                Select the permissions this role should grant, then save. Changes are audited.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
                 {allPermissions.map(permKey => {

@@ -196,7 +196,10 @@ function OfferDetailContent({ id }: { id: string }) {
             description="Stock levels for this offer's variant across warehouses."
           >
             {invLoading && <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading inventory data…</div>}
-            {!invLoading && !inventory && (
+            {!invLoading && inventoryError && (
+              <AdminErrorState title="Unable to load inventory" message={inventoryError} onRetry={loadInventory} />
+            )}
+            {!invLoading && !inventoryError && !inventory && (
               <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>
                 {variantId ? 'No inventory data available for this variant.' : 'This offer is not linked to a specific variant.'}
               </div>
