@@ -1555,3 +1555,8 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - UX-056 implemented: Brand list exposes retry, guards stale responses and suppresses empty state after failed reads.
 - UX-057 implemented: Business Calendar reads use request-version guards and retry; failed reads no longer appear as no configured calendar or empty holiday/audit lists.
 - Focused tests added for all four slices but not executed; status remains IMPLEMENTED / TESTING_PENDING for Phase 3. No API, permission, schema, migration or DB changes.
+
+## UX-058 — Admin Attribute directory recovery — 22 November 2026
+
+- Implemented request-version guards and cleanup invalidation for Attribute Groups and Attribute Definitions. Failed reads expose accessible retryable errors and do not render successful-empty counts/rows. Filter requests in Attribute Definitions cannot overwrite newer results.
+- Focused tests added for both pages but not executed; status remains IMPLEMENTED / TESTING_PENDING for Phase 3. No API, permission, schema, migration or DB changes.
