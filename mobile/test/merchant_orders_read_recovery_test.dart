@@ -94,4 +94,34 @@ void main() {
 
     expect(find.text('No orders'), findsOneWidget);
   });
+
+  testWidgets('empty order history remains pull-to-refreshable', (tester) async {
+    var calls = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          activeStoreProvider.overrideWith((ref) async => _store()),
+          merchantOrdersProvider.overrideWith((ref) async {
+            await ref.watch(activeStoreProvider.future);
+            calls++;
+            if (calls == 1) return <SubOrder>[];
+            throw Exception('Orders service unavailable');
+          }),
+          profileProvider.overrideWith(
+            (ref) async => throw Exception('Profile unavailable'),
+          ),
+        ],
+        child: const MaterialApp(home: MerchantOrdersScreen()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    expect(find.text('No orders'), findsOneWidget);
+
+    await tester.drag(find.byType(ListView), const Offset(0, 420));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No orders'), findsOneWidget);
+    expect(find.textContaining('Orders service unavailable'), findsOneWidget);
+  });
 }
