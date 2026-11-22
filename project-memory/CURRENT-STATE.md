@@ -3,7 +3,7 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source/documentation baseline before this state refresh:** `ff8b780beb3460ae84dd6236b4b0526875b3bab4` (the current-state refresh commit itself advances the branch; resolve its resulting SHA from GitHub)
+**Latest source/documentation baseline before this state refresh:** `5aed6deee8c45b641c3d443dc6713bdd03b726a1` (the current-state refresh commit itself advances the branch; resolve its resulting SHA from GitHub)
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,11 +18,11 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ------------------------------------------------------------------------ |
 | Repository           | nabeel2323/scs-platform                                                  |
 | Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | `ff8b780beb3460ae84dd6236b4b0526875b3bab4` before this state refresh; resulting state-refresh SHA must be resolved live |
-| Latest commit        | `docs(security): map controller principal and permission handoffs [skip ci]` |
+| Live branch head     | `5aed6deee8c45b641c3d443dc6713bdd03b726a1` before this state refresh; resulting state-refresh SHA must be resolved live |
+| Latest commit        | `docs(project-memory): record API-003 CI and release state [skip ci]` |
 | PR #138              | Open; draft; not merged                                                  |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
-| Latest exact-head CI | No Actions run for current docs-only head; combined status contains only Vercel preview failures pointing to external build-rate limit; NOT CI-VERIFIED |
+| Latest exact-head CI | No Actions run for source/docs head `5aed6de...`; combined status contains only Vercel preview failures pointing to external build-rate limit; NOT CI-VERIFIED |
 | PR #142 CI           | #44953735602 — passed all executable jobs on `dddff20c...`; disposable PostgreSQL identity test included |
 | PR #138 CI           | Historical #44954371615 passed all executable jobs on `741a09f...`; not transferable to current head |
 
@@ -280,3 +280,8 @@ The operation map now includes 26 service files plus supporting outbox, carrier,
 ## API-003 RBAC seed alignment checkpoint — 22 November 2026
 
 A static audit of the 28 controller files enumerated in docs/api-route-permission-matrix.md found one permission key absent from the canonical PERMISSIONS seed and every built-in role: merchant:products:read. Five CatalogController read routes and StoreMembershipController member listing used it and were therefore inaccessible to seeded users. CatalogController now uses catalog:products:read with its existing store/org membership checks. StoreMembershipController now uses merchant:stores:read, and MERCHANT_STAFF receives that already-existing key; MERCHANT_OWNER retains its existing grant. All member mutations still require merchant:products:write and service-level manager/target-role checks. Focused tests were added but not executed. API-003 is IMPLEMENTED / NOT VERIFIED; no new permission key, migration, staging change or database grant was added.
+
+
+## Live PR reconciliation — 22 November 2026
+
+At the time of this refresh, PR #138 is open/draft/unmerged from remediation/phase-0-1-tenant-security to develop. The latest inspected source/docs head before this state refresh is 5aed6deee8c45b641c3d443dc6713bdd03b726a1. Exact-head Actions lookup returned no workflow runs; Vercel Admin/Web statuses point to the external build-rate-limit page and are not application CI results. PR #142 remains open/draft/unmerged at dddff20c170737dc4694008bb807b2b90e177f77; its earlier CI #1293 success is disposable-PostgreSQL evidence only. No merge, deployment, protected staging action, shared database change, migration, grant, RLS activation or worker activation occurred.
