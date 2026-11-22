@@ -1398,3 +1398,16 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Added returns-inspection-inventory-scope.spec.ts, settlement-adjustment-tenant-scope.spec.ts and reconciliation-tenant-scope.spec.ts. Tests were not run.
 - No tests, Actions, DB connection/query/write, migrations, grants, RLS, staging/deployment, worker activation or provider calls occurred.
 - Remaining method-level families: carrier/shipping; worker/outbox/bootstrap/system. Exact transaction-context propagation and protected live identity/catalog evidence remain open.
+
+
+## G-002 method-level ownership predicate batch 5 — Carrier, Shipping, Webhook and Outbox — 22 November 2026
+
+- Added shared assertActiveOrgMembership and applied it to shipping store CRUD, carrier credential/config management, shipment list/detail/action routes and carrier recovery routes.
+- CarrierConfigurationsService.resolveForStore now verifies store→org and linked credential→same org/active status before returning a store override or org default.
+- Removed Aramex's arbitrary cross-tenant active-credential fallback. Store-bound tracking, rate, batch and location operations resolve through store→org→configuration→active credential; unscoped address validation uses only the PLATFORM organization's credential.
+- Updated shipment tracking callers in ShipmentOperationsController, ShippingCarrierWorker, CarrierTrackingPoller and CarrierReconciliationService to pass storeId.
+- Added outbox event store/org metadata and worker-side store→org validation before carrier create/cancel/label/track side effects. Webhook retry rejects inactive credentials and verifies credential org against the shipment store.
+- Direct shipment mutations repeat shipmentId + storeId.
+- Added shipping-tenant-context.spec.ts and updated shipping-carrier-worker-label.spec.ts. Tests not run.
+- No CI, database, migration, grant/RLS, staging, deployment, worker activation or carrier/provider call occurred.
+- Remaining method-level families: worker/outbox/bootstrap/system and final raw DB object reconciliation. Protected live identity/catalog evidence and request transaction-context proof remain open.

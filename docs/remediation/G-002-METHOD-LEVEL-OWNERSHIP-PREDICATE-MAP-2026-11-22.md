@@ -218,3 +218,64 @@ Added focused tests: returns-inspection-inventory-scope.spec.ts, settlement-adju
 - Financial services retain optional orgId parameters for trusted platform/global callers. Every HTTP financial route must continue to use financialOrgScope; new routes must not pass user.activeOrg directly.
 - Return inspection now chooses inventory within the correct store, but when a store has multiple warehouses the current model does not capture the exact fulfillment warehouse on order_items; warehouse selection remains a same-store choice, not exact source-warehouse restoration.
 - No tests or CI were run. No database connection/query/write, migration, grant, RLS change, staging action, deployment, worker activation or provider call occurred.
+
+
+## Carrier, Shipping, Webhook and Outbox Worker predicates — method-level batch 5 — 22 November 2026
+
+### ShippingService and shipment operations
+
+| Method family | Tables/read-write surfaces | Ownership predicate and context |
+|---|---|---|
+| ShippingService store-scoped methods (create/list/get/update/deactivate shipping methods; delivery zones; zone-method links) | stores, shipping_methods, delivery_zones, delivery_zone_methods | Store-backed operations use assertStoreInOrg. It now requires activeOrg equality and a current ACTIVE organization_members row for non-platform callers; privileged platform roles bypass this membership lookup. |
+| ShippingService getShippingEstimate / provider metadata | shipping_methods, delivery_zones, carrier providers | Estimate and provider metadata are read surfaces; merchant-owned CRUD is separately store-scoped. |
+| ShipmentOperationsController createCarrierShipment / cancelShipment / requestLabel / getLabels / getTracking / listShipments / getShipmentDetail | shipments, stores, shipment_labels, shipment_events, outbox_events, carrier provider APIs | Shipment detail/action checks resolve shipment → store → org. Non-platform callers must have activeOrg equality and ACTIVE organization membership. List queries restrict to stores in activeOrg. Direct shipment updates repeat shipmentId + storeId. Carrier create/label outbox rows now carry organizationId and storeId; tracking calls pass shipment.storeId to the provider. |
+| CarrierAdminController recoverShipment / getRecoveryQueue | shipments, stores, shipment_events, carrier recovery provider/reconciliation | Non-platform recovery paths require an active organization and ACTIVE membership; shipment recovery mutation repeats shipmentId + storeId. Queue reads are restricted to stores in the active organization. |
+
+### CarrierCredentialsService and CarrierConfigurationsService
+
+| Method family | Tables | Ownership predicate and context |
+|---|---|---|
+| CarrierCredentialsService listForOrg / getById / create / deactivate | carrier_credentials, organization_members | Non-platform org access now calls assertActiveOrgMembership; platform roles bypass. Create/deactivate remain restricted by the service's platform-admin write policy. |
+| CarrierCredentialsService decryptCredentials / decryptWebhookSecret / findCredentialId | carrier_credentials | Internal provider resolution uses active credentials; webhook-secret decryption now returns null for an inactive credential. The webhook controller also selects active credentials before HMAC validation. |
+| CarrierConfigurationsService list/get/create/update/deactivate | carrier_configurations, carrier_credentials, stores, organization_members | HTTP organization access requires current ACTIVE organization membership. Create validates store→org and credential→org. |
+| CarrierConfigurationsService resolveForStore | stores, carrier_configurations, carrier_credentials | First verifies the store belongs to the supplied org. Store-specific config takes precedence; org-wide default is considered only after store validation. A selected config is returned only if its linked credential is active and belongs to the same org. Invalid/mismatched config fails closed; it does not fall through to another tenant credential. |
+
+### Webhook ingress and routing
+
+| Component | Tables/operations | Ownership predicate and context |
+|---|---|---|
+| CarrierWebhookController | carrier_credentials, carrier_webhook_events, shipments, shipment_events, outbox_events; HMAC/body-size validation | Unauthenticated carrier ingress is authenticated by a per-credential webhook token plus HMAC secret and replay/body-size controls. Only active credentials are eligible; webhook-secret decryption rechecks isActive. Legacy provider-only ingress is accepted only when the provider has exactly one active credential; ambiguity is rejected rather than selecting an arbitrary tenant. |
+| CarrierWebhookRouting.resolveShipmentForCredential | stores, shipments | Candidate stores are limited to credential.orgId; shipment lookup is then constrained by provider/reference. Multiple matches are treated as ambiguous and not silently assigned to a tenant. |
+| Webhook retry worker | carrier_webhook_events, carrier_credentials, stores, shipments | Retry refuses missing/inactive credentials and validates the resolved shipment store's org against credential.orgId before marking the event processed. |
+
+### ShippingCarrierWorker, CarrierTrackingPoller and CarrierReconciliationService
+
+| Component | Tables/operations | Ownership predicate and context |
+|---|---|---|
+| ShippingCarrierWorker claim/lease/process | outbox_events, shipments, stores, shipment_labels, carrier_webhook_events, carrier_credentials; external carrier APIs | This is a global system worker, not a tenant HTTP request. Before create/cancel/label/track side effects it resolves shipment.storeId→stores.orgId and checks any outbox storeId/organizationId metadata. A mismatch is non-retryable and prevents provider side effects. Webhook retry additionally checks credential active/org identity. |
+| CarrierTrackingPoller | shipments, stores; provider tracking API | Global poller claims eligible shipments but now passes each shipment's store_id to getTrackingInfo so provider credentials resolve from that store's org configuration. |
+| CarrierReconciliationService | shipments, stores, shipment_events, outbox_events; provider tracking/recovery API | Global system reconciliation scans recovery candidates. Both ORM and raw-SQL tracking paths now pass the shipment's storeId/store_id to the provider; retry events are later checked against the resolved shipment store. |
+| AramexProvider.resolveCredentials / resolveCredentialsById | stores, carrier_configurations, carrier_credentials | Resolve store→org→store-specific config or org default→credential. The credential must be active, Aramex providerKey, and owned by the same org. Missing store/config/credential is a terminal failure; no arbitrary active merchant credential fallback remains. |
+| AramexProvider getTrackingInfo / trackShipmentsBatch / calculateRate / locationRequest | carrier provider API | Tracking, batch tracking, rating and location lookups require store context and use that store's org credential. All current internal tracking call sites now pass storeId. |
+| AramexProvider validateAddress without store context | organizations, carrier_credentials | Unscoped/global address-reference lookup may use only an active credential owned by a PLATFORM organization. If none exists, it fails closed rather than borrowing a merchant credential. |
+| CarrierCredentialCryptoService / WebhookSecurityService | encryption/decryption and signature verification | No direct DB ownership operations; they are invoked only after the credential/store boundary is resolved. |
+
+### Batch 5 security corrections
+
+1. **Stale activeOrg claim:** added assertActiveOrgMembership(db, caller, orgId), requiring an ACTIVE organization_members row for non-platform users. Applied to shipping store CRUD, carrier credential/config management, shipment operations and carrier recovery endpoints.
+2. **Carrier configuration cross-tenant resolution:** resolveForStore now validates store→org and credential→org/active status before returning a store override or org default.
+3. **Aramex arbitrary-credential fallback:** removed resolveAnyCredential selection across all tenants. Store-bound operations resolve only the owning store's configured active credential. Credential lookup repeats orgId, providerKey and isActive predicates. Unscoped address/reference validation is restricted to the PLATFORM organization's credential.
+4. **Provider tracking context:** extended the provider tracking contract with storeId and updated ShipmentOperationsController, ShippingCarrierWorker, CarrierTrackingPoller and CarrierReconciliationService to pass the owning store context.
+5. **Outbox event tenant binding:** ShippingCarrierWorker now verifies optional event store/org metadata against shipment→store→org before external create/cancel/label/track calls; mismatches are non-retryable. Shipment create/label outbox rows now carry organizationId/storeId.
+6. **Inactive webhook credential:** webhook-secret decryption and retry processing reject inactive credentials.
+7. **Mutation predicates:** shipment create/cancel/label/recovery writes repeat shipmentId + storeId rather than relying only on a prior read.
+
+Added shipping-tenant-context.spec.ts and updated shipping-carrier-worker-label.spec.ts to cover ACTIVE org membership, config/credential org matching, no Aramex cross-tenant fallback, required tracking context, outbox tenant mismatch and worker store lookup. Tests were committed but not run.
+
+### Remaining shipping/worker caveats
+
+- Aramex global address validation without a store now requires an active PLATFORM credential. If none is provisioned, the operation intentionally fails closed; no merchant credential is substituted.
+- Aramex calculateRate and trackShipmentsBatch now require storeId. No in-repository call sites for these methods were found during this source slice; external/direct consumers must supply store context before use.
+- Shipment operation scope is organization-level (active org membership) where the current API permissions are org-level; this batch did not silently redefine store-member policy.
+- CarrierTrackingPoller, CarrierReconciliationService and ShippingCarrierWorker are background/global system components. Their timers/worker loops were not started or activated.
+- No tests/CI, DB query/connection, migration, grant/RLS, staging action, deployment or carrier/provider call occurred.

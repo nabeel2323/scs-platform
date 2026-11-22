@@ -255,3 +255,8 @@ Added focused merchant/pricing tenant-scope specs, not run. The method-level map
 ## G-002 method-level predicate batch 4 — 22 November 2026
 
 Returns/Disputes/Reviews and financial-control services are now mapped. Fixed cross-store inventory restoration in return inspection; settlement adjustment target org/return-request relationships; and the reconciliation discrepancy endpoint's missing financialOrgScope call plus missing tenant predicate on the UPDATE. Focused tests were added but not run. Next: carrier/shipping, then worker/outbox/bootstrap/system. No tests/CI or live DB/staging actions occurred.
+
+
+## G-002 method-level predicate batch 5 — 22 November 2026
+
+Carrier/shipping review found and fixed an Aramex credential fallback that could select an arbitrary active credential across organizations. Store-bound tracking/rating/location calls now require store context and resolve only the store's org configuration; unscoped address validation is restricted to PLATFORM credentials. Carrier configuration resolution verifies store and linked credential organization. Shipping/carrier management now checks ACTIVE organization membership; shipment operations and outbox worker verify store/org context; webhook retry requires an active credential. Tests added/updated but not run. Next: worker/outbox/bootstrap/system method-level predicates and protected DB evidence. No worker activation or provider call occurred.

@@ -512,3 +512,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Reconciliation discrepancy resolution now uses financialOrgScope and repeats the org predicate in the UPDATE statement.
 - Reviewed DisputesService participant checks and ReviewsService order/buyer/subject checks; no additional code change was required. BusinessCalendarService is platform-global admin-controlled configuration.
 - Added three focused unit specs; tests not run. No CI, database connection/query/write, migration, grant/RLS, staging, deployment, worker or provider action occurred.
+
+
+## 2026-11-22 — G-002 method-level predicate batch 5
+
+- Added assertActiveOrgMembership and applied it to shipping store CRUD, carrier credential/config management, shipment operations and carrier recovery.
+- CarrierConfigurationsService.resolveForStore now validates store→org and credential→org/active before returning store or org defaults.
+- Removed Aramex resolveAnyCredential cross-tenant fallback. Store-bound operations require store context and use the store's configured active credential; global address validation is PLATFORM-credential-only.
+- Updated tracking callers (ShipmentOperationsController, ShippingCarrierWorker, CarrierTrackingPoller, CarrierReconciliationService) to pass storeId.
+- Worker validates outbox store/org metadata against shipment→store→org before provider side effects; webhook retry checks active credential/org. Shipment writes repeat id + store predicates and outbox events carry tenant metadata.
+- Added shipping-tenant-context.spec.ts and updated shipping-carrier-worker-label.spec.ts. Tests not run; no CI, DB, migration, grants/RLS, staging, deployment, worker activation or carrier/provider calls.

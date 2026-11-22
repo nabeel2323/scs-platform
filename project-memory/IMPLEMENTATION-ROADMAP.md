@@ -187,3 +187,12 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Completed source review of dispute participant and review subject/order ownership boundaries.
 - Added returns-inspection-inventory-scope.spec.ts, settlement-adjustment-tenant-scope.spec.ts and reconciliation-tenant-scope.spec.ts. Tests were not run.
 - Next: carrier/shipping method-level review, then worker/outbox/bootstrap/system. No tests/CI, DB, migration, grant/RLS, staging/deployment or worker action occurred.
+
+
+## 2026-11-22 — G-002 method-level predicate batch 5
+
+- Implemented ACTIVE organization membership checks for shipping and carrier administration.
+- Hardened carrier configuration resolution and removed Aramex cross-tenant credential fallback. Store-bound provider operations now use store-specific/org-default active credentials; platform-only credentials are used for unscoped address validation.
+- Passed store context through tracking controller, worker, poller and reconciliation paths; validated outbox tenant metadata before external carrier side effects.
+- Added shipping tenant-context regression coverage and updated worker label fixture. Tests not run.
+- Next: worker/outbox/bootstrap/system source predicates and final raw DB object evidence. No tests/CI, DB, migration, grants/RLS, staging/deployment, worker activation or provider calls occurred.
