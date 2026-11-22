@@ -76,10 +76,11 @@ class PriceListDetailScreen extends ConsumerWidget {
         skipLoadingOnReload: true,
         skipError: true,
         loading: () => const LoadingSpinner(),
-        error: (e, _) => AppErrorState(
+        error: (e, _) => EmptyState(
           title: 'Could not load price list',
-          message: ApiService.errorMessage(e),
-          onRetry: () => ref.invalidate(priceListDetailProvider(priceListId)),
+          description: ApiService.errorMessage(e),
+          actionLabel: 'Retry price list',
+          onAction: () => ref.invalidate(priceListDetailProvider(priceListId)),
         ),
         data: (list) {
           final tierCount = tiersAsync.valueOrNull?.length.toString() ?? '—';
