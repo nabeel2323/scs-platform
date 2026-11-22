@@ -69,7 +69,7 @@ export default function AttributeGroupsPage() {
     <div className={styles['shell']}>
       <header className={styles['header']}>
         <h1>Attribute Groups</h1>
-        <p>{groups.length} group{groups.length !== 1 ? 's' : ''} — organize attributes into logical sections for product type builders</p>
+        <p>{error ? 'Group and attribute counts unavailable' : `${groups.length} group${groups.length !== 1 ? 's' : ''} — organize attributes into logical sections for product type builders`}</p>
       </header>
 
       <div className={styles['content']}>
@@ -82,7 +82,7 @@ export default function AttributeGroupsPage() {
         {loading ? <SkeletonTable rows={4} cols={5} /> : (
           <div className={styles['tableWrap']}>
             <table>
-              <caption style={{ textAlign: 'left', padding: 12 }}>Attribute Groups — {groups.length} results</caption>
+              <caption style={{ textAlign: 'left', padding: 12 }}>Attribute Groups — {error ? 'unavailable' : `${groups.length} results`}</caption>
               <thead>
                 <tr>
                   <th scope="col">Name</th>
@@ -243,7 +243,7 @@ function GroupDetail({ group, attributes }: { group: AttributeGroup; attributes:
             </span>
           ))}
         </div>
-      ) : (
+      ) : error ? null : (
         <p style={{ fontSize: 13, color: '#5b6b74' }}>No attributes defined yet.</p>
       )}
     </div>
