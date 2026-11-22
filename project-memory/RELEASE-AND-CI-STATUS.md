@@ -760,3 +760,14 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Last observed Vercel statuses on source/test checkpoint `4be4f0d`: Admin FAILURE and Web FAILURE to the external provider build-rate-limit page. Those statuses are not attached to the current documentation head and are not application test results.
 - No tests or CI pass are claimed. Focused tests UX-087–UX-093 are added but unexecuted; consolidated Phase 3 campaign remains NOT STARTED.
 - No merge, deployment, staging release/write, shared database change, migration, grant/default-ACL change, RLS enablement, worker activation or provider operation occurred.
+
+## CI remediation checkpoint — 23 November 2026
+
+The first complete workflow on the earlier source/documentation checkpoint exposed Mobile compile/analyzer errors and one Admin JSX parse error. The following corrections have now been committed on this branch:
+
+- Replaced unsupported `AppErrorState` references with the existing `EmptyState` component and retry contract.
+- Corrected WidgetRef cache invalidation calls, provider reload helper tests, conditional JSX fragment structure, and the Mobile router's stray semicolon.
+- Corrected scope/argument issues in Cart promo controls, Merchant Catalog product actions and Search add-to-cart permission.
+- Corrected Merchant Dashboard widget nesting, Store Detail trailing brace, Order Detail nullable return/currency handling, and Offer Detail router import.
+- Replaced unsupported test finders and consumed awaited Riverpod refresh results to clear `unused_result` analyzer warnings.
+- Exact validation is intentionally pending the next full workflow; do not mark these fixes verified until the resulting jobs complete.
