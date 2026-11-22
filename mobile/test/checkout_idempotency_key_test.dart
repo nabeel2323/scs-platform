@@ -52,7 +52,6 @@ void main() {
           storeId: any(named: 'storeId'),
           subtotalMinor: any(named: 'subtotalMinor'),
           city: any(named: 'city'),
-          postalCode: any(named: 'postalCode'),
         )).thenAnswer((_) async => {
           'storeId': 'store-1',
           'deliveryAvailable': false,
@@ -82,7 +81,6 @@ void main() {
           deliveryAddress: any(named: 'deliveryAddress'),
           notes: any(named: 'notes'),
           idempotencyKey: any(named: 'idempotencyKey'),
-          fulfillmentMethod: any(named: 'fulfillmentMethod'),
           shippingSelections: any(named: 'shippingSelections'),
           paymentMethod: any(named: 'paymentMethod'),
         )).thenAnswer((invocation) async {
