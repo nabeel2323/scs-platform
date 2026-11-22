@@ -1494,3 +1494,9 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Role loading exposes retry and does not loop automatically after a failure.
 - Focused test: `merchant-organization-recovery.test.tsx`. Not run.
 - No API, permission, route, schema or database change.
+
+## UX-034 follow-up refinement — 22 November 2026
+
+- Added `rolesError` to the role-loader effect dependency list; the explicit error guard prevents automatic retry loops while keeping the effect dependency-complete.
+- The warehouse summary no longer renders an empty table when the initial read fails, and its count is not presented as a confirmed zero.
+- Commit `36c11c8be3c22cbdb79bd341d4a798f28dde30b6`. Not tested; exact-head Actions not run.

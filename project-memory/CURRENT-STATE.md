@@ -3,7 +3,7 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest implementation batch commit:** `a86ef5522ef7f5921e3a13ff3efa991eeddd4c35` — UX-033/034 Merchant Web implementation and focused test additions  
+**Latest implementation refinement commit:** `36c11c8be3c22cbdb79bd341d4a798f28dde30b6` — organization auxiliary-read state refinement following UX-034  
 **Previous source increment:** `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — Merchant Customers recovery (UX-031)  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commit that follows is documentation-only.
 
@@ -20,10 +20,10 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
 | Live branch head | Resolve from the live GitHub ref at session start; this checkpoint is documentation and does not pin its resulting SHA |
-| Latest implementation batch | `a86ef5522ef7f5921e3a13ff3efa991eeddd4c35` — UX-033/034 Merchant Web implementation and focused test additions |
+| Latest implementation refinement | `36c11c8be3c22cbdb79bd341d4a798f28dde30b6` — UX-034 organization auxiliary-read refinement |
 | Previous source implementation | `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — UX-031 Merchant Customers read recovery |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for `a86ef5522ef7f5921e3a13ff3efa991eeddd4c35` because commits used `[skip ci]`; NOT CI-VERIFIED |
+| Exact-head GitHub Actions | No run for `36c11c8be3c22cbdb79bd341d4a798f28dde30b6`; implementation commits used `[skip ci]`; NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
 | Latest inspected Vercel contexts | Web FAILURE; Admin FAILURE (external build-rate-limit page); not application test results |
 | Focused Web tests | UX-030–034 added; not executed |

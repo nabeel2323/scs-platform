@@ -3,8 +3,8 @@
 **Checkpoint:** 22 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest implementation batch:** `a86ef5522ef7f5921e3a13ff3efa991eeddd4c35` — UX-033/034 Merchant Web implementation and focused test additions; all implementation/test commits used `[skip ci]`.
-**Exact-head checks:** no GitHub Actions run is attached to the implementation batch. Re-fetch current Vercel statuses against the live PR head; earlier Web/Admin rate-limit failures were external provider failures, not application test results.  
+**Latest implementation refinement:** `36c11c8be3c22cbdb79bd341d4a798f28dde30b6` — UX-034 organization auxiliary-read state refinement; implementation/test commits used `[skip ci]`.
+**Exact-head checks:** no GitHub Actions run is attached to the current head. The live combined status reports Vercel Web and Admin failures at the external build-rate-limit page; these are not application test results.  
 Documentation-only handoff commits also use `[skip ci]`; fetch the live branch ref for the current documentation HEAD. The latest inspected exact-head preview statuses both reported external build-rate-limit FAILURE. These are preview-provider statuses, not application test results. Focused Web tests have not been executed.
 
 ## Previous CI run at the 21 November checkpoint (historical)
