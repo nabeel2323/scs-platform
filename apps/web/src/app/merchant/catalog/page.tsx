@@ -8,6 +8,7 @@ import {
   Product, Category,
 } from '../../../lib/buyer-api';
 import { fetchMyStores } from '../../../lib/api';
+import { useAuth } from '../../../components/AuthProvider';
 import { pickStore } from '../../../lib/merchant-store';
 import { LoadingSpinner, ErrorBanner, EmptyState, ProductCardImage } from '../../../components/Shared';
 import { PageHeader } from '@scs/ui-kit';
@@ -16,6 +17,9 @@ type Tab = 'products' | 'categories';
 const PAGE_SIZE = 20;
 
 export default function MerchantCatalogPage() {
+  const { user } = useAuth();
+  const canWriteProducts = user?.perms?.includes('merchant:products:write') === true;
+  const canRequestCatalogChanges = user?.perms?.includes('catalog:offers:write') === true;
   const [storeId, setStoreId] = useState('');
   const [storeName, setStoreName] = useState('');
   const [noStore, setNoStore] = useState(false);
@@ -104,6 +108,7 @@ export default function MerchantCatalogPage() {
   }, [search, statusFilter, categoryFilter, storeId, loadProducts]);
 
   const handleDeleteProduct = async (id: string, title: string) => {
+    if (!canWriteProducts) return;
     if (!window.confirm(`Delete product "${title}"? This cannot be undone.`)) return;
     setError('');
     try {
@@ -132,6 +137,7 @@ export default function MerchantCatalogPage() {
   };
 
   const handleBulkAction = async (action: 'delete' | 'archive' | 'draft') => {
+    if (!canWriteProducts) return;
     if (selected.size === 0) return;
     const label = action === 'delete' ? 'delete' : action === 'archive' ? 'archive' : 'set to draft';
     if (!window.confirm(`${label.charAt(0).toUpperCase() + label.slice(1)} ${selected.size} selected product(s)?`)) return;
@@ -149,6 +155,7 @@ export default function MerchantCatalogPage() {
   };
 
   const handleExport = async () => {
+    if (!canWriteProducts) return;
     setError('');
     try {
       const csv = await exportProductsCsv(storeId);
@@ -196,13 +203,13 @@ export default function MerchantCatalogPage() {
           subtitle={`${storeName ? `${storeName} — ` : ''}${total} products · ${categories.length} categories`}
           actions={
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {tab === 'products' && storeId && (
+              {tab === 'products' && storeId && canWriteProducts && (
                 <>
                   <button onClick={handleExport} style={headerBtn}>Export CSV</button>
                   <Link href={`/merchant/product-studio`} style={{ padding: '8px 16px', background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>+ Product Studio</Link>
                 </>
               )}
-              {tab === 'categories' && (
+              {tab === 'categories' && canRequestCatalogChanges && (
                 <Link href="/merchant/requests" style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>Request New Category</Link>
               )}
             </div>
@@ -245,7 +252,7 @@ export default function MerchantCatalogPage() {
           </div>
 
           {/* Bulk action bar */}
-          {selected.size > 0 && (
+          {canWriteProducts && selected.size > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', marginBottom: 12, background: '#eef4f7', border: '1px solid #c5d8e0', borderRadius: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#0f3340' }}>{selected.size} selected</span>
               <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
@@ -267,22 +274,22 @@ export default function MerchantCatalogPage() {
                 <table style={table}>
                   <thead>
                     <tr style={theadRow}>
-                      <th style={{ ...th, width: 36 }}>
+                      {canWriteProducts && <th style={{ ...th, width: 36 }}>
                         <input type="checkbox" checked={products.length > 0 && selected.size === products.length} onChange={toggleSelectAll} />
-                      </th>
+                      </th>}
                       <th style={th}>Product</th>
                       <th style={th}>Status</th>
                       <th style={th}>Created</th>
-                      <th style={th}>Actions</th>
+                      {canWriteProducts && <th style={th}>Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {products.map(p => {
                       return (
                         <tr key={p.id} className="tbl-row" style={tbodyRow}>
-                          <td style={td}>
+                          {canWriteProducts && <td style={td}>
                             <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} />
-                          </td>
+                          </td>}
                           <td style={td}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                               <ProductCardImage
@@ -303,14 +310,14 @@ export default function MerchantCatalogPage() {
                             </span>
                           </td>
                           <td style={td}>{new Date(p.createdAt).toLocaleDateString()}</td>
-                          <td style={td}>
+                          {canWriteProducts && <td style={td}>
                             <div style={{ display: 'flex', gap: 6 }}>
                               <Link href={`/merchant/product-studio/${p.id}/edit`}>
                                 <button type="button" style={{ ...ghostBtn, fontSize: 12, padding: '4px 10px' }}>Edit</button>
                               </Link>
                               <button onClick={() => handleDeleteProduct(p.id, p.title)} style={deleteBtn}>Delete</button>
                             </div>
-                          </td>
+                          </td>}
                         </tr>
                       );
                     })}
