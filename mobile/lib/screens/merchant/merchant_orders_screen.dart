@@ -417,10 +417,11 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
           );
         },
         loading: () => const LoadingSpinner(),
-        error: (e, _) => AppErrorState(
+        error: (e, _) => EmptyState(
           title: 'Could not load orders',
-          message: ApiService.errorMessage(e),
-          onRetry: _refreshOrders,
+          description: ApiService.errorMessage(e),
+          actionLabel: 'Retry orders',
+          onAction: _refreshOrders,
         ),
       ),
     );
