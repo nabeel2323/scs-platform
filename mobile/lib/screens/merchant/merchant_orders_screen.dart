@@ -266,70 +266,118 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
         success: 'Driver assigned');
   }
 
+  Future<void> _refreshOrders() async {
+    try {
+      await ref.refresh(activeStoreProvider.future);
+    } catch (_) {
+      // Keep the last successful store/order context; the provider exposes the
+      // read failure without replacing previously loaded rows.
+      return;
+    }
+    try {
+      // The order provider depends on activeStoreProvider and is recomputed by
+      // that refresh. Await the resulting read instead of issuing a duplicate.
+      await ref.read(merchantOrdersProvider.future);
+    } catch (_) {
+      // The AsyncValue below retains the last successful order queue.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final orders = ref.watch(merchantOrdersProvider);
-    final canWrite = ref.watch(profileProvider).valueOrNull?.hasPermission('merchant:orders:write') ?? false;
+    final canWrite = ref.watch(profileProvider).valueOrNull
+            ?.hasPermission('merchant:orders:write') ??
+        false;
     return Scaffold(
-        appBar: AppBar(title: const Text('Merchant Orders'), actions: [
+      appBar: AppBar(
+        title: const Text('Merchant Orders'),
+        actions: [
           IconButton(
-              tooltip: 'Refresh',
-              icon: const Icon(Icons.refresh),
-              onPressed: () => ref.invalidate(merchantOrdersProvider)),
-        ]),
-        body: orders.when(
-          skipLoadingOnRefresh: true,
-          skipError: true,
-          data: (list) {
-            final pending = list
-                .where((o) =>
-                    o.status == 'SUBMITTED' ||
-                    o.status == 'PENDING_CONFIRMATION')
-                .toList();
-            final active = list
-                .where((o) => ![
-                      'SUBMITTED',
-                      'PENDING_CONFIRMATION',
-                      'COMPLETED',
-                      'CANCELLED',
-                      'REJECTED'
-                    ].contains(o.status))
-                .toList();
-            final done = list
-                .where((o) =>
-                    ['COMPLETED', 'CANCELLED', 'REJECTED'].contains(o.status))
-                .toList();
-            final content = list.isEmpty
-                ? const EmptyState(
-                    title: 'No orders',
-                    description: 'Orders from buyers will appear here',
-                    icon: Icons.receipt_long_outlined)
-                : ListView(children: [
-                    if (pending.isNotEmpty) ...[
-                      _section('Pending (${pending.length})', TaifTokens.warn),
-                      ...pending.map((order) => _pendingCard(order, canWrite))
-                    ],
-                    if (active.isNotEmpty) ...[
-                      _section('Active (${active.length})', TaifTokens.info),
-                      ...active.map((order) => _activeCard(order, canWrite))
-                    ],
-                    if (done.isNotEmpty) ...[
-                      _section('Completed (${done.length})', TaifTokens.muted),
-                      ...done.map(_doneCard)
-                    ],
-                  ]);
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh),
+            onPressed: _refreshOrders,
+          ),
+        ],
+      ),
+      body: orders.when(
+        skipLoadingOnRefresh: true,
+        skipError: true,
+        data: (list) {
+          final pending = list
+              .where((o) =>
+                  o.status == 'SUBMITTED' ||
+                  o.status == 'PENDING_CONFIRMATION')
+              .toList();
+          final active = list
+              .where((o) => ![
+                    'SUBMITTED',
+                    'PENDING_CONFIRMATION',
+                    'COMPLETED',
+                    'CANCELLED',
+                    'REJECTED'
+                  ].contains(o.status))
+              .toList();
+          final done = list
+              .where((o) =>
+                  ['COMPLETED', 'CANCELLED', 'REJECTED'].contains(o.status))
+              .toList();
 
-            if (!orders.isRefreshing && !orders.hasError) return content;
-            return Column(children: [
+          final content = RefreshIndicator(
+            onRefresh: _refreshOrders,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: list.isEmpty
+                  ? const [
+                      SizedBox(
+                        height: 280,
+                        child: EmptyState(
+                          title: 'No orders',
+                          description: 'Orders from buyers will appear here',
+                          icon: Icons.receipt_long_outlined,
+                        ),
+                      ),
+                    ]
+                  : [
+                      if (pending.isNotEmpty) ...[
+                        _section('Pending (${pending.length})', TaifTokens.warn),
+                        ...pending.map((order) => _pendingCard(order, canWrite)),
+                      ],
+                      if (active.isNotEmpty) ...[
+                        _section('Active (${active.length})', TaifTokens.info),
+                        ...active.map((order) => _activeCard(order, canWrite)),
+                      ],
+                      if (done.isNotEmpty) ...[
+                        _section('Completed (${done.length})', TaifTokens.muted),
+                        ...done.map(_doneCard),
+                      ],
+                    ],
+            ),
+          );
+
+          if (!orders.isRefreshing && !orders.hasError) return content;
+          return Column(
+            children: [
               if (orders.isRefreshing)
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(children: [
-                    SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
-                    SizedBox(width: 8),
-                    Text('Refreshing orders… showing the last successful results.',
-                        style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
-                  ]),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Refreshing orders… showing the last successful results.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: TaifTokens.muted,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               if (orders.hasError)
                 Padding(
@@ -338,32 +386,42 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: TaifTokens.err.withValues(alpha: 0.06),
-                      border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: TaifTokens.err.withValues(alpha: 0.3),
+                      ),
                       borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
                     ),
-                    child: Row(children: [
-                      Expanded(
-                        child: Text(
-                          'Could not refresh orders: ${ApiService.errorMessage(orders.error!)}. Showing the last successfully loaded results.',
-                          style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Could not refresh orders: ${ApiService.errorMessage(orders.error!)}. Showing the last successfully loaded results.',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: TaifTokens.err,
+                            ),
+                          ),
                         ),
-                      ),
-                      TextButton(
-                        onPressed: () => ref.invalidate(merchantOrdersProvider),
-                        child: const Text('Retry'),
-                      ),
-                    ]),
+                        TextButton(
+                          onPressed: _refreshOrders,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               Expanded(child: content),
-            ]);
-          },
-          loading: () => const LoadingSpinner(),
-          error: (e, _) => EmptyState(
-              title: 'Error',
-              description: ApiService.errorMessage(e),
-              onAction: () => ref.invalidate(merchantOrdersProvider)),
-        ));
+            ],
+          );
+        },
+        loading: () => const LoadingSpinner(),
+        error: (e, _) => AppErrorState(
+          title: 'Could not load orders',
+          message: ApiService.errorMessage(e),
+          onRetry: _refreshOrders,
+        ),
+      ),
+    );
   }
 
   Widget _section(String title, Color color) => Padding(
