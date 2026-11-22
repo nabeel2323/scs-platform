@@ -174,6 +174,8 @@ export default function MerchantOrdersPage() {
 
   // The initial store resolution is intentionally retried through the same
   // entry point; API authorization remains responsible for store ownership.
+  // This one-time bootstrap intentionally uses the latest component-local loaders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     // Buyer labels resolve best-effort: a directory failure only degrades
     // rows to "Buyer {id}" — it must not break the orders load.
