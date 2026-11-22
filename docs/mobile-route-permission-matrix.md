@@ -53,3 +53,9 @@ The API's `GET /v1/me` response already includes the active-organization `perms`
 ## Cart API permission parity — 22 November 2026
 
 The API cart controller now enforces `orders:write` on every mutation endpoint (item add/update/remove, clear, validate/reprice, and promo apply/remove). Authenticated `GET /cart` remains a self-scoped read. Focused controller metadata and guard tests are added; execution remains in the consolidated Phase 3 campaign.
+
+
+## Merchant mobile pricing surface — 22 November 2026
+
+Added a dedicated merchant pricing entry from the mobile dashboard, protected by merchant:pricing:read. The new list/detail screens use the existing store-scoped pricing API to create/update price lists and add/update/delete quantity tiers. Tier rows now include product title and variant SKU from a read-only API enrichment. Offer creation can attach an existing price list; offer details link back to the linked list. Write affordances are gated by merchant:pricing:write and the API remains authoritative for store/list/variant ownership.
+

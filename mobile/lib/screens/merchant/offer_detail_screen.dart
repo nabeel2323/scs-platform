@@ -216,7 +216,14 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
           if (offer.warehouseId != null)
             _row('Warehouse', offer.warehouseId!.substring(0, 8)),
           if (offer.priceListId != null)
-            _row('Price List', offer.priceListId!.substring(0, 8)),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.price_change_outlined, color: TaifTokens.info),
+              title: const Text('Manage linked price list'),
+              subtitle: Text(offer.priceListId!.substring(0, 8)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/merchant/pricing/${offer.priceListId}'),
+            ),
           if (offer.externalRef != null)
             _row('External Ref', offer.externalRef!),
         ],

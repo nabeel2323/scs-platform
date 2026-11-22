@@ -1137,6 +1137,7 @@ class ApiService {
     int moq = 1,
     int? orderIncrement,
     int? leadTimeDays,
+    String? priceListId,
   }) async {
     final d = <String, dynamic>{
       'storeId': storeId,
@@ -1148,6 +1149,7 @@ class ApiService {
     if (variantId != null) d['variantId'] = variantId;
     if (basePriceMinor != null) d['basePriceMinor'] = basePriceMinor;
     if (leadTimeDays != null) d['leadTimeDays'] = leadTimeDays;
+    if (priceListId != null) d['priceListId'] = priceListId;
     return MerchantOffer.fromJson(
         (await _dio.post('/v1/merchant/offers', data: d)).data);
   }
@@ -1217,14 +1219,88 @@ class ApiService {
   Future<List<PriceList>> fetchStorePriceLists(String storeId) async =>
       (await _dio.get('/v1/stores/$storeId/price-lists'))
           .data
-          .map<PriceList>((e) => PriceList.fromJson(e))
+          .map<PriceList>((e) => PriceList.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
+
+  Future<PriceList> fetchPriceList(String listId) async =>
+      PriceList.fromJson(Map<String, dynamic>.from((await _dio.get('/v1/price-lists/$listId')).data as Map));
+
+  Future<PriceList> createPriceList({
+    required String storeId,
+    required String name,
+    required String currency,
+    String channel = 'B2B',
+    String audience = 'PUBLIC',
+    int priority = 0,
+  }) async =>
+      PriceList.fromJson(Map<String, dynamic>.from(
+        (await _dio.post('/v1/price-lists', data: {
+          'storeId': storeId,
+          'name': name,
+          'currency': currency,
+          'channel': channel,
+          'audience': audience,
+          'priority': priority,
+        })).data as Map,
+      ));
+
+  Future<PriceList> updatePriceList(String listId, {
+    String? name,
+    bool? isActive,
+    int? priority,
+  }) async {
+    final data = <String, dynamic>{};
+    if (name != null) data['name'] = name;
+    if (isActive != null) data['isActive'] = isActive;
+    if (priority != null) data['priority'] = priority;
+    return PriceList.fromJson(Map<String, dynamic>.from(
+      (await _dio.patch('/v1/price-lists/$listId', data: data)).data as Map,
+    ));
+  }
 
   Future<List<PriceTier>> fetchPriceListTiers(String listId) async =>
       (await _dio.get('/v1/price-lists/$listId/tiers'))
           .data
-          .map<PriceTier>((e) => PriceTier.fromJson(e))
+          .map<PriceTier>((e) => PriceTier.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
+
+  Future<PriceTier> createPriceTier(String listId, {
+    required String variantId,
+    required int minQty,
+    int? maxQty,
+    required int unitPriceMinor,
+  }) async =>
+      PriceTier.fromJson(Map<String, dynamic>.from(
+        (await _dio.post('/v1/price-lists/$listId/tiers', data: {
+          'variantId': variantId,
+          'minQty': minQty,
+          if (maxQty != null) 'maxQty': maxQty,
+          'unitPriceMinor': unitPriceMinor,
+        })).data as Map,
+      ));
+
+  Future<PriceTier> updatePriceTier(String tierId, {
+    int? minQty,
+    int? maxQty,
+    int? unitPriceMinor,
+    bool clearMaxQty = false,
+  }) async {
+    final data = <String, dynamic>{};
+    if (minQty != null) data['minQty'] = minQty;
+    if (clearMaxQty) {
+      data['maxQty'] = null;
+    } else if (maxQty != null) {
+      data['maxQty'] = maxQty;
+    }
+    if (unitPriceMinor != null) data['unitPriceMinor'] = unitPriceMinor;
+    return PriceTier.fromJson(Map<String, dynamic>.from(
+      (await _dio.patch('/v1/tiers/$tierId', data: data)).data as Map,
+    ));
+  }
+
+  Future<void> deletePriceTier(String tierId) async {
+    await _dio.delete('/v1/tiers/$tierId');
+  }
 
   // ── Canonical Catalog Search (Existing Product Selector) ────
   /// Free-text search across canonical products (store_id IS NULL).

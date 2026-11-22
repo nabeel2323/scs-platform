@@ -292,6 +292,23 @@ final storeInventoryProvider =
       .fetchStoreInventory(args.storeId, offset: args.page * 20);
 });
 
+// ── Merchant Pricing ────────────────────────────────────────
+
+/// Price lists for the active merchant store.
+final merchantPriceListsProvider = FutureProvider<List<PriceList>>((ref) async {
+  final store = await ref.watch(activeStoreProvider.future);
+  if (store == null) return <PriceList>[];
+  return ref.watch(apiServiceProvider).fetchStorePriceLists(store.id);
+});
+
+final priceListDetailProvider =
+    FutureProvider.family<PriceList, String>((ref, id) =>
+        ref.watch(apiServiceProvider).fetchPriceList(id));
+
+final priceListTiersProvider =
+    FutureProvider.family<List<PriceTier>, String>((ref, id) =>
+        ref.watch(apiServiceProvider).fetchPriceListTiers(id));
+
 // ── Merchant Offers (pricing / lifecycle management) ────────
 
 /// All offers for the active store. Auto-scoped via [activeStoreProvider].

@@ -40,6 +40,7 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
   final _priceCtrl = TextEditingController();
   final _compareAtCtrl = TextEditingController();
   String _currency = 'SAR';
+  String? _selectedPriceListId;
 
   // Step 4 — terms
   final _moqCtrl = TextEditingController(text: '1');
@@ -80,7 +81,7 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
       case 1:
         return true; // variant is optional
       case 2:
-        return double.tryParse(_priceCtrl.text) != null;
+        return _selectedPriceListId != null || double.tryParse(_priceCtrl.text) != null;
       case 3:
         final moq = int.tryParse(_moqCtrl.text);
         final incrementText = _orderIncrementCtrl.text.trim();
@@ -527,6 +528,7 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
   // ── Step 3: Pricing ─────────────────────────────────────────────
 
   Widget _stepPricing(Store store) {
+    final priceListsAsync = ref.watch(merchantPriceListsProvider);
     final currencyMismatch =
         store.currency.isNotEmpty && store.currency != _currency;
     return ListView(padding: const EdgeInsets.all(16), children: [
@@ -588,6 +590,46 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
           if (v != null) setState(() => _currency = v);
         },
       ),
+      const SizedBox(height: 20),
+      const Text('Price List (optional)',
+          style: TextStyle(fontSize: 13, color: TaifTokens.muted)),
+      const SizedBox(height: 6),
+      priceListsAsync.when(
+        loading: () => const LinearProgressIndicator(),
+        error: (e, _) => Text(
+          'Price lists unavailable: ${ApiService.errorMessage(e)}',
+          style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+        ),
+        data: (lists) => DropdownButtonFormField<String?>(
+          initialValue: _selectedPriceListId,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.price_change_outlined),
+          ),
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('Use base price only'),
+            ),
+            ...lists.where((list) => list.isActive).map((list) => DropdownMenuItem<String?>(
+              value: list.id,
+              child: Text('${list.name} · ${list.currency}'),
+            )),
+          ],
+          onChanged: _selectedVariantId == null ? null : (id) {
+            final selected = lists.where((list) => list.id == id).toList();
+            setState(() {
+              _selectedPriceListId = id;
+              if (selected.isNotEmpty) _currency = selected.first.currency;
+            });
+          },
+        ),
+      ),
+      const SizedBox(height: 8),
+      const Text(
+        'Select a variant in the previous step before attaching a price list. Matching quantity tiers for that variant provide the offer pricing.',
+        style: TextStyle(fontSize: 12, color: TaifTokens.muted),
+      ),
     ]);
   }
 
@@ -625,6 +667,8 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
   // ── Step 5: Review ──────────────────────────────────────────────
 
   Widget _stepReview(Store store) {
+    final selectedPriceLists = ref.watch(merchantPriceListsProvider).valueOrNull ?? <PriceList>[];
+    final selectedPriceList = selectedPriceLists.where((list) => list.id == _selectedPriceListId).toList();
     final price = double.tryParse(_priceCtrl.text);
     final compareAt = double.tryParse(_compareAtCtrl.text);
     final moq = int.tryParse(_moqCtrl.text) ?? 1;
@@ -647,7 +691,9 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
       const SizedBox(height: 12),
       _reviewSection('PRICING', [
         _reviewRow('Base Price',
-            priceMinor != null ? formatMinor(priceMinor, _currency) : '—'),
+            priceMinor != null ? formatMinor(priceMinor, _currency) : (_selectedPriceListId != null ? 'Price list tiers' : '—')),
+        if (selectedPriceList.isNotEmpty)
+          _reviewRow('Price List', selectedPriceList.first.name),
         if (compareMinor != null && compareMinor > 0)
           _reviewRow('Compare-at', formatMinor(compareMinor, _currency)),
         _reviewRow('Currency', _currency),
@@ -782,6 +828,7 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
             moq: moq,
             orderIncrement: orderIncrement,
             leadTimeDays: lead,
+            priceListId: _selectedPriceListId,
           );
       // Invalidate the offers list so the new offer appears.
       ref.invalidate(merchantOffersProvider);

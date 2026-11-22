@@ -1037,21 +1037,33 @@ class MerchantKpis {
 
 /// Price list row returned by GET /v1/stores/:id/price-lists.
 class PriceList {
-  final String id, storeId, name, currency;
+  final String id, storeId, name, currency, channel, audience;
   final bool isActive;
+  final int priority;
+  final String? validFrom, validUntil;
   PriceList({
     required this.id,
     required this.storeId,
     required this.name,
     this.currency = 'SAR',
+    this.channel = 'B2B',
+    this.audience = 'PUBLIC',
     this.isActive = true,
+    this.priority = 0,
+    this.validFrom,
+    this.validUntil,
   });
   factory PriceList.fromJson(Map<String, dynamic> j) => PriceList(
         id: j['id'] ?? '',
         storeId: j['storeId'] ?? '',
         name: j['name'] ?? '',
         currency: j['currency'] ?? 'SAR',
-        isActive: j['isActive'] ?? true,
+        channel: j['channel'] ?? 'B2B',
+        audience: j['audience'] ?? 'PUBLIC',
+        isActive: j['isActive'] as bool? ?? true,
+        priority: (j['priority'] as num?)?.toInt() ?? 0,
+        validFrom: j['validFrom']?.toString(),
+        validUntil: j['validUntil']?.toString(),
       );
 }
 
@@ -1060,6 +1072,7 @@ class PriceTier {
   final String id, priceListId, variantId;
   final int minQty, unitPriceMinor;
   final int? maxQty;
+  final String? variantSku, variantTitle, productTitle;
   PriceTier({
     required this.id,
     required this.priceListId,
@@ -1067,14 +1080,20 @@ class PriceTier {
     this.minQty = 1,
     this.maxQty,
     required this.unitPriceMinor,
+    this.variantSku,
+    this.variantTitle,
+    this.productTitle,
   });
   factory PriceTier.fromJson(Map<String, dynamic> j) => PriceTier(
         id: j['id'] ?? '',
         priceListId: j['priceListId'] ?? '',
         variantId: j['variantId'] ?? '',
-        minQty: j['minQty'] as int? ?? 1,
-        maxQty: j['maxQty'] as int?,
-        unitPriceMinor: j['unitPriceMinor'] as int? ?? 0,
+        minQty: (j['minQty'] as num?)?.toInt() ?? 1,
+        maxQty: (j['maxQty'] as num?)?.toInt(),
+        unitPriceMinor: (j['unitPriceMinor'] as num?)?.toInt() ?? int.tryParse(j['unitPriceMinor']?.toString() ?? '') ?? 0,
+        variantSku: j['variantSku'] as String?,
+        variantTitle: j['variantTitle'] as String?,
+        productTitle: j['productTitle'] as String?,
       );
 }
 

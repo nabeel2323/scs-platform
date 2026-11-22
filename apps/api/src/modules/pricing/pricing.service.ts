@@ -8,7 +8,7 @@ import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { priceLists, priceTiers } from './pricing.schema';
 import { productVariants, products } from '../catalog/catalog.schema';
-import { eq, and, desc, lte } from 'drizzle-orm';
+import { eq, and, desc, lte, asc } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**
@@ -132,10 +132,23 @@ export class PricingService {
   }
 
   async listTiersByPriceList(priceListId: string) {
-    return this.db.db.query.priceTiers.findMany({
-      where: eq(priceTiers.priceListId, priceListId),
-      orderBy: [priceTiers.variantId, priceTiers.minQty],
-    });
+    return this.db.db
+      .select({
+        id: priceTiers.id,
+        priceListId: priceTiers.priceListId,
+        variantId: priceTiers.variantId,
+        minQty: priceTiers.minQty,
+        maxQty: priceTiers.maxQty,
+        unitPriceMinor: priceTiers.unitPriceMinor,
+        variantSku: productVariants.sku,
+        variantTitle: productVariants.title,
+        productTitle: products.title,
+      })
+      .from(priceTiers)
+      .innerJoin(productVariants, eq(priceTiers.variantId, productVariants.id))
+      .innerJoin(products, eq(productVariants.productId, products.id))
+      .where(eq(priceTiers.priceListId, priceListId))
+      .orderBy(asc(products.title), asc(productVariants.sku), asc(priceTiers.minQty));
   }
 
   async listTiersByVariant(variantId: string, priceListId?: string) {

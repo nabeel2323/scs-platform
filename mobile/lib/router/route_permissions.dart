@@ -69,6 +69,9 @@ RoutePermissionRule? permissionRuleForRoute(Uri uri) {
   if (path == '/merchant/customers') {
     return const RoutePermissionRule(allOf: ['merchant:orders:read']);
   }
+  if (path == '/merchant/pricing' || path.startsWith('/merchant/pricing/')) {
+    return const RoutePermissionRule(allOf: ['merchant:pricing:read']);
+  }
   if (path == '/merchant/offers' || path.startsWith('/merchant/offers/')) {
     return const RoutePermissionRule(allOf: ['catalog:offers:write']);
   }

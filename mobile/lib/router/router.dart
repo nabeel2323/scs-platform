@@ -27,6 +27,8 @@ import '../screens/merchant/product_edit_screen.dart';
 import '../screens/merchant/category_manage_screen.dart';
 import '../screens/merchant/merchant_customers_screen.dart';
 import '../screens/merchant/merchant_offers_screen.dart';
+import '../screens/merchant/merchant_pricing_screen.dart';
+import '../screens/merchant/price_list_detail_screen.dart';
 import '../screens/merchant/offer_detail_screen.dart';
 import '../screens/merchant/offer_create_screen.dart';
 import '../screens/merchant/inventory_screen.dart';
@@ -159,6 +161,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/merchant/offers',
           builder: (_, __) => const MerchantOffersScreen()),
+      GoRoute(
+          path: '/merchant/pricing',
+          builder: (_, __) => const MerchantPricingScreen()),
+      GoRoute(
+          path: '/merchant/pricing/:id',
+          builder: (_, state) =>
+              PriceListDetailScreen(priceListId: state.pathParameters['id']!)),
       GoRoute(
           path: '/merchant/offers/new',
           builder: (_, __) => const OfferCreateScreen()),

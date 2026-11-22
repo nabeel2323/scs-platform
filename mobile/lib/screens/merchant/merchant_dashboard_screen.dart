@@ -144,6 +144,9 @@ class MerchantDashboardScreen extends ConsumerWidget {
             if (profile.hasPermission('catalog:offers:write'))
               _card(context, 'Offers', Icons.local_offer, '/merchant/offers',
                 TaifTokens.brandAccent),
+            if (profile.hasPermission('merchant:pricing:read'))
+              _card(context, 'Pricing', Icons.price_change, '/merchant/pricing',
+                TaifTokens.info),
             _card(context, 'Organization', Icons.business, '/organizations',
                 const Color(0xFF0891B2)),
           ],

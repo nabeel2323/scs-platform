@@ -218,3 +218,6 @@ Deferred/remaining:
 - Worker/system source review does not substitute for live API/migration role identity evidence or protected catalog inspection.
 - Transaction-context propagation, shared singleton helper transaction windows and RLS policy design remain architecture review items; no global interceptor/RLS/grant was implemented.
 - Consolidated test/CI/release gate remains open.
+
+
+| UX-012 | Mobile merchant pricing management and offer linkage | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Merchant mobile had only read-only price-list/tier fetch methods and no pricing route or dashboard entry; offer creation omitted the API-supported priceListId field. Added list/tier CRUD screens, route permission, dashboard entry, price-list selection during offer creation, and linked-price-list navigation from offer detail. |
