@@ -36,6 +36,7 @@ const MERCHANT_ROUTE_RULES: ReadonlyArray<readonly [string, string]> = [
   ['/merchant/deliveries', 'fulfillment:shipments:read'],
   ['/merchant/inventory', 'merchant:inventory:read'],
   ['/merchant/pricing', 'merchant:pricing:read'],
+  ['/merchant/offers/new', 'catalog:offers:write'],
   ['/merchant/offers', 'merchant:stores:read'],
   ['/merchant/customers', 'merchant:orders:read'],
   ['/merchant/store', 'merchant:stores:read'],
