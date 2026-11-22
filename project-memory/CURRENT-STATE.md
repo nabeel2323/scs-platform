@@ -3,7 +3,7 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `eaf65eaf` — remount merchant route subtree on active organization/permission changes. Web source increments also include merchant route/action permission alignment, request-version-protected store/order/catalog reads, and server-side G-036 realtime room authorization (`a9df486`, `7010a0e`, `eaf65eaf`). Latest focused test commits: Web route matrix `7fce2ef`; API realtime room authorization `df1964a1`. Latest completed client slices: UX-094 Mobile category permission alignment and UX-095 Web merchant route/action permission alignment.  
+**Latest source implementation commit:** `eaf65eaf80eb8144f2a6fc23215c0886f118685b` — remount merchant route subtree on active organization/permission changes. Web source increments also include merchant route/action permission alignment, request-version-protected store/order/catalog reads, and server-side G-036 realtime room authorization (`a9df4861518e8c4269bad9dab3ccba5b7dac1be7`, `7010a0ea0aaba746a80286a0c1e3ca62ce281093`, `eaf65eaf80eb8144f2a6fc23215c0886f118685b`). Latest focused test commits: Web route matrix `7fce2ef1f49745410d579d8bd5be98cb7d3aee28`; API realtime room authorization `df1964a1e1aa962cb1aad5fda1107b160966c3b1`. Latest completed client slices: UX-094 Mobile category permission alignment and UX-095 Web merchant route/action permission alignment.  
 **Latest live branch head:** `89561501099a75f02d344eef97a373d861413c5a` (documentation comment after the implementation batch).  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
@@ -726,3 +726,14 @@ Merchant active-store and product reads now preserve last-successful data throug
 - G-036 implements server-side Socket.IO store/order room authorization. Store rooms require `merchant:orders:read` and active store membership in the active organization; order rooms require buyer ownership, merchant membership, assigned-driver shipment or platform-staff read permission. Focused API gateway tests are added but not executed.
 - No merge, deployment, protected staging operation, shared database change, migration, grant/default-ACL change, RLS enablement, worker activation or staging business transaction was performed.
 - **Next:** complete the Mobile route-permission and organization-context transition audit (following UX-094), then finish the remaining Admin route/action permission mapping. Keep Phase 3 comprehensive testing deferred.
+
+
+## Latest continuation checkpoint — 23 November 2026 (UX-095 / G-036)
+
+- Live repository branch head: `89561501099a75f02d344eef97a373d861413c5a`.
+- PR #138 is OPEN, DRAFT, UNMERGED to `develop`; no merge or deployment is authorized.
+- Exact-head GitHub Actions lookup returned no workflow run. Combined status reports Vercel Web FAILURE and Vercel Admin FAILURE at the external build-rate-limit destination. These are not application test results. Implementation commits use `[skip ci]`; focused tests are added but not executed.
+- UX-095: Web merchant route/navigation/dashboard permission mapping and action-level guards are implemented. The merchant workspace remounts on active organization, role or permission changes; key page reads clear or guard stale responses. Focused Web tests are pending.
+- G-036: Socket.IO store/order room joins are now authorized by permission and tenant ownership, buyer ownership, assigned-driver shipment or platform-staff read permission. Focused gateway tests are pending.
+- No shared database mutation, migration, grants/default-ACL change, RLS enablement, staging write, worker activation or deployment occurred.
+- **Next:** complete the Mobile route-permission and organization-context transition audit, then finish remaining Admin route/action permission mapping. Phase 3 remains the consolidated full test campaign.
