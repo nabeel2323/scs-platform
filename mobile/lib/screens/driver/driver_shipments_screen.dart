@@ -93,14 +93,9 @@ class _DriverShipmentsScreenState extends ConsumerState<DriverShipmentsScreen> {
         ],
       ),
       body: shipments.when(
+        skipLoadingOnRefresh: true,
+        skipError: true,
         data: (list) {
-          if (list.isEmpty) {
-            return const EmptyState(
-              title: 'No shipments',
-              description: 'Assigned shipments will appear here',
-              icon: Icons.local_shipping_outlined,
-            );
-          }
           // Group by status for clarity.
           final active = list
               .where((s) =>
@@ -110,24 +105,75 @@ class _DriverShipmentsScreenState extends ConsumerState<DriverShipmentsScreen> {
               .toList();
           final done = list.where((s) => s.status == 'DELIVERED').toList();
 
-          return RefreshIndicator(
-            onRefresh: () async => ref.invalidate(driverShipmentsProvider),
-            child: ListView(
-              children: [
-                if (active.isNotEmpty) ...[
-                  _sectionHeader('Active (${active.length})', TaifTokens.info),
-                  ...active.map((shipment) => _shipmentCard(shipment, canPickup, canDeliver)),
-                ],
-                if (done.isNotEmpty) ...[
-                  _sectionHeader('Delivered (${done.length})', TaifTokens.ok),
-                  ...done.map((shipment) => _shipmentCard(shipment, canPickup, canDeliver)),
-                ],
-                // If there are other statuses not shown above.
-                if (active.isEmpty && done.isEmpty) ...list.map((shipment) => _shipmentCard(shipment, canPickup, canDeliver)),
-                const SizedBox(height: 24),
-              ],
-            ),
-          );
+          final content = list.isEmpty
+              ? const EmptyState(
+                  title: 'No shipments',
+                  description: 'Assigned shipments will appear here',
+                  icon: Icons.local_shipping_outlined,
+                )
+              : RefreshIndicator(
+                  onRefresh: () async {
+                    try {
+                      await ref.refresh(driverShipmentsProvider.future);
+                    } catch (_) {
+                      // The provider's AsyncValue exposes the error and keeps
+                      // its previous successful value for this screen.
+                    }
+                  },
+                  child: ListView(
+                    children: [
+                      if (active.isNotEmpty) ...[
+                        _sectionHeader('Active (${active.length})', TaifTokens.info),
+                        ...active.map((shipment) => _shipmentCard(shipment, canPickup, canDeliver)),
+                      ],
+                      if (done.isNotEmpty) ...[
+                        _sectionHeader('Delivered (${done.length})', TaifTokens.ok),
+                        ...done.map((shipment) => _shipmentCard(shipment, canPickup, canDeliver)),
+                      ],
+                      if (active.isEmpty && done.isEmpty) ...list.map((shipment) => _shipmentCard(shipment, canPickup, canDeliver)),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                );
+
+          if (!shipments.isRefreshing && !shipments.hasError) return content;
+          return Column(children: [
+            if (shipments.isRefreshing)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(children: [
+                  SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(width: 8),
+                  Text('Refreshing shipments… showing the last successful results.',
+                      style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+                ]),
+              ),
+            if (shipments.hasError)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: TaifTokens.err.withValues(alpha: 0.06),
+                    border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+                    borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+                  ),
+                  child: Row(children: [
+                    Expanded(
+                      child: Text(
+                        'Could not refresh shipments: ${ApiService.errorMessage(shipments.error!)}. Showing the last successfully loaded results.',
+                        style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => ref.invalidate(driverShipmentsProvider),
+                      child: const Text('Retry'),
+                    ),
+                  ]),
+                ),
+              ),
+            Expanded(child: content),
+          ]);
         },
         loading: () => const LoadingSpinner(),
         error: (e, _) => EmptyState(

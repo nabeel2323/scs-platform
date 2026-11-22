@@ -1647,3 +1647,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - A failed refresh displays a clear retry banner and identifies the visible list as the last successful result. An initial failure still uses the existing error/retry state and cannot become a false successful empty state.
 - Added `merchant_orders_read_recovery_test.dart` for stale-list preservation and initial failure/retry.
 - No merchant order transitions, permissions, API calls, inventory reservation, fulfillment or other business behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-069 — Mobile Driver Shipments stale-read recovery — 22 November 2026
+
+- Driver Shipments now retains the last successful shipment list during manual refresh and after refresh failures, with explicit stale-data messaging and Retry.
+- Pull-to-refresh now awaits the refreshed provider result instead of completing immediately after invalidation; failures remain visible through the provider state while the last successful shipment list is retained.
+- Initial read failures continue to show the existing retryable error state; no empty-shipment state is presented as a successful result after a failed first read.
+- Added `driver_shipments_read_recovery_test.dart` for same-session stale-list preservation and initial failure/retry.
+- No pickup, delivery, shipment status transition, permissions, API, schema, migration, database, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
