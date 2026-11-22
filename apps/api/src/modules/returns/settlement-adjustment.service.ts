@@ -536,7 +536,7 @@ export class SettlementAdjustmentService {
     if (!adj) throw new NotFoundException('Settlement adjustment not found');
 
     const actualOrgId = await this.resolveSubOrderOrganization(adj.subOrderId);
-    if (actualOrgId !== adj.orgId || (orgId && actualOrgId !== orgId)) {
+    if (!actualOrgId || actualOrgId !== adj.orgId || (orgId && actualOrgId !== orgId)) {
       throw new NotFoundException('Settlement adjustment not found');
     }
 
@@ -577,6 +577,21 @@ export class SettlementAdjustmentService {
   // ═══════════════════════════════════════════════════════════════
   // INTERNAL HELPERS
   // ═══════════════════════════════════════════════════════════════
+
+  /** Resolve the authoritative organization through sub-order → store ownership. */
+  private async resolveSubOrderOrganization(subOrderId: string): Promise<string | null> {
+    const order = await this.db.db.query.orders.findFirst({
+      where: eq(orders.id, subOrderId),
+      columns: { storeId: true },
+    });
+    if (!order?.storeId) return null;
+
+    const store = await this.db.db.query.stores.findFirst({
+      where: eq(stores.id, order.storeId),
+      columns: { orgId: true },
+    });
+    return store?.orgId ?? null;
+  }
 
   /** Lock an adjustment row FOR UPDATE and return it. Optionally scope by org. */
   private async lockAdjustment(tx: any, adjustmentId: string, orgId?: string | null) {
