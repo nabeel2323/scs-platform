@@ -1735,3 +1735,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Buyer Store Detail now uses a dedicated store-keyed, auto-disposed provider for its catalogue, preserving the existing buyer-only ACTIVE product filter. It exposes explicit refresh, pull-to-refresh, retryable initial errors and same-store stale catalogue preservation; an unavailable first read cannot become a false "No products" state.
 - Added `store_buyer_read_recovery_test.dart` for store-list and store-catalogue stale-data preservation, initial failure/retry and successful empty states.
 - No API, permission, product visibility, store lifecycle, cart mutation, database, migration, staging or provider behavior changed. The existing `fetchStoreProducts(..., status: 'ACTIVE')` contract remains authoritative. Flutter tests are pending the consolidated Phase 3 campaign.
+
+
+## UX-079 — Mobile Buyer Order History read recovery — 23 November 2026
+
+- Buyer Order History now keeps the last successful order list visible during refresh and after refresh failure. The selected status filter remains applied to that last successful list, and a stale-data notice with Retry makes the failed refresh explicit.
+- Added explicit Refresh orders and a pull-to-refresh action that awaits the provider result. Initial failures remain retryable and cannot render as a successful empty order history.
+- Added `buyer_orders_read_recovery_test.dart` for stale order preservation, initial failure/retry and filter-aware empty-state behavior after refresh failure.
+- No order state transition, cancellation, payment, fulfillment, API, permission, database, migration, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
