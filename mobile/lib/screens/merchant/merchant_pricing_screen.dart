@@ -20,7 +20,9 @@ class MerchantPricingScreen extends ConsumerWidget {
     }
     if (store == null) return;
     try {
-      await ref.refresh(merchantPriceListsProvider.future);
+      // Refreshing activeStoreProvider invalidates its dependent price-list
+      // provider; read its resulting Future instead of issuing a second fetch.
+      await ref.read(merchantPriceListsProvider.future);
     } catch (_) {
       // The price-list AsyncValue owns its independent error/stale state.
     }
