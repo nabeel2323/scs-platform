@@ -43,7 +43,7 @@ void main() {
 
     await tester.pumpAndSettle();
     expect(find.textContaining('Visible Seller'), findsOneWidget);
-    expect(find.text('Order #order-1'), findsOneWidget);
+    expect(find.text('Order #order-12'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Refresh orders'));
     await tester.pumpAndSettle();
