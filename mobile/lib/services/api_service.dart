@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -315,7 +316,8 @@ class ApiService {
       String? storeId,
       int? limit,
       int? offset,
-      bool hasOffers = false}) async {
+      bool hasOffers = false,
+      Map<String, List<String>>? attributeFilters}) async {
     final p = <String, dynamic>{};
     if (q != null) p['q'] = q;
     if (categoryId != null) p['categoryId'] = categoryId;
@@ -324,6 +326,9 @@ class ApiService {
     if (limit != null) p['limit'] = limit;
     if (offset != null) p['offset'] = offset;
     if (hasOffers) p['hasOffers'] = 'true';
+    if (attributeFilters != null && attributeFilters.isNotEmpty) {
+      p['attrFilters'] = jsonEncode(attributeFilters);
+    }
     return SearchResult.fromJson(
         (await _dio.get('/v1/search', queryParameters: p)).data);
   }
