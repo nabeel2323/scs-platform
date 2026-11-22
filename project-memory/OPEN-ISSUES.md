@@ -535,3 +535,11 @@ Organization switching now invalidates merchant/store-scoped client caches in bo
 The API TypeScript diagnostics exposed by CI #1380 have source/test corrections committed on PR #138. The fixes cover explicit P13 escalation authority in integration tests, the worker's fenced-lease outcome union, the Admin order-item product join, two test fixture typings/contracts, and authoritative order → store organization resolution for settlement adjustments. This work is **IMPLEMENTED / NOT VERIFIED**: no typecheck or tests were run after the correction batch, and the current head has no CI run because the commits use `[skip ci]`. Keep the consolidated Phase 3 validation gate. Do not treat CI #1380 as passing or as verification of the corrective commits.
 
 **Next implementation:** continue the Mobile route permission and organization-context transition audit, then complete remaining Web/Admin route/action permission mapping.
+
+## UX-094 — Mobile category directory/API permission mismatch — 23 November 2026
+
+The merchant category directory is now read-only for merchant roles and requires `catalog:categories:read`; the Home/Dashboard entry uses the same permission. New/Edit/Delete controls are hidden because the API currently restricts category mutations to ADMIN/MODERATOR with `catalog:categories:write`, while the router excludes those roles from the merchant route. Focused policy tests were added but not executed. Client alignment is IMPLEMENTED / TESTING_PENDING.
+
+**Still blocked:** choose whether merchant-owned categories should be supported with store-scoped ownership + active membership enforcement in the API, or whether category CRUD belongs exclusively on a platform-admin route. Do not weaken API role guards or restore merchant write controls before that decision.
+
+**Next implementation:** finish the Mobile route permission and org-context transition audit, then Web/Admin route/action permission mapping.
