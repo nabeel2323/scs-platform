@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `bb2e4650534bae0b30bf112500db184c227ccba8` — UX-094 Mobile category directory permission alignment; supporting route/screen commits include `6741baf`, `6f06592`, `bd672f0`. Latest focused test commit: `76b9b15dc1db37c67841d405b4a232f4731fc986`. Latest completed UX slice: UX-094.  
-**Previous source increments:** UX-092 Store Profile source/test `bfb820e` / `90b2b6b`; UX-091 Merchant Orders source `da19ca1` / `9ecce8a` and focused tests `112bf00` / `b8c7b1c`  
+**Latest source implementation commit:** `eaf65eaf` — remount merchant route subtree on active organization/permission changes. Web source increments also include merchant route/action permission alignment, request-version-protected store/order/catalog reads, and server-side G-036 realtime room authorization (`a9df486`, `7010a0e`, `eaf65eaf`). Latest focused test commits: Web route matrix `7fce2ef`; API realtime room authorization `df1964a1`. Latest completed client slices: UX-094 Mobile category permission alignment and UX-095 Web merchant route/action permission alignment.  
+**Latest live branch head:** `89561501099a75f02d344eef97a373d861413c5a` (documentation comment after the implementation batch).  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,14 +19,14 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation/test head | `76b9b15dc1db37c67841d405b4a232f4731fc986` (UX-094 merchant route matrix test added; not executed) |
-| Latest implementation/test | UX-094 category route/action alignment; focused tests added but not executed; API typecheck correction batch also remains unverified |
+| Latest live branch head | `89561501099a75f02d344eef97a373d861413c5a` (PR #138 head; not CI-verified) |
+| Latest implementation/test | UX-095 Web merchant route/action alignment and G-036 realtime room authorization; focused tests added but not executed |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | CI #1380 failed on parent SHA `de9eeafb3852822552c667d13ad1e0c27fa8d28f` at API typecheck; corrective head uses `[skip ci]`, no new run; NOT CI-VERIFIED |
+| Exact-head GitHub Actions | No workflow run for exact head `89561501099a75f02d344eef97a373d861413c5a`; commits use `[skip ci]`; NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest inspected Vercel contexts | At `de9eeafb`: Admin FAILURE and Web FAILURE with external build-rate-limit destination; not application test results |
-| Focused client tests | Admin UX-030–058 and Mobile UX-078–094 added; not executed |
+| Latest inspected Vercel contexts | At `89561501`: Vercel Web FAILURE and Admin FAILURE at the external build-rate-limit destination; not application test results |
+| Focused client tests | Admin UX-030–058, Mobile UX-078–094 and Web UX-095 focused tests added/updated; not executed |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
 ## Current remediation status
@@ -35,6 +35,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | ------------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | G-001 — merchant offer authorization | **PARTIAL**              | Merchant role gates, scope-first offer confidentiality and ACTIVE-store buyer visibility are implemented with focused regression tests. Exact-head CI, remaining acceptance evidence and independent review remain. |
 | G-002 — database access/RLS          | **IN PROGRESS**          | Source mapping covers all 53 API service/worker/provider candidates and 28 module controllers, with DB-operation paths and actor contexts documented. Protected live identities/catalog evidence, complete physical relation reconciliation, exact operation ownership review and approved transaction-context/RLS design remain. Actual staging API/migration identities, protected catalog audit, exact operation predicates and reviewed least-privilege/RLS design remain.                                  |
+| G-036 — realtime room authorization | **IN PROGRESS** | Store/order Socket.IO room joins now require permission and tenant ownership, buyer ownership, assigned shipment or platform-staff authorization. Focused API tests are added but not executed; exact-head CI and independent review remain pending. |
 | Phases 0–5                           | **IN PROGRESS**          | See the authoritative progress tracker for phase and finding details.                                                                                                                                               |
 | Phase 6                              | **NOT STARTED**          | Consolidated full verification and release go/no-go campaign has not begun.                                                                                                                                         |
 | PR #138                              | **DRAFT — DO NOT MERGE** | Not release authorization.                                                                                                                                                                                          |
@@ -715,3 +716,13 @@ Merchant active-store and product reads now preserve last-successful data throug
 - Focused route/helper tests were added in `mobile/test/route_permissions_test.dart`; not executed. Commits: `6741baf6f7d47c12ddc79d3ca1f4bbd3f110a39f`, `6f0659299c39952b0c8190a4a8dd520ccd3e3db9`, `bb2e4650534bae0b30bf112500db184c227ccba8`, `7b293273f4aba14429ed226932123678a0892c55`, route-matrix test `76b9b15dc1db37c67841d405b4a232f4731fc986`, and explanatory source comment `bd672f0b93de31d6bc669bb7785eeb70a345c302`.
 - Client alignment is IMPLEMENTED / TESTING_PENDING. Actual merchant-owned category CRUD remains BLOCKED pending a product/API ownership decision: either implement store-scoped category ownership and membership authorization, or move category mutation to a dedicated platform-admin surface. Do not expose write controls until that decision and backend contract exist.
 - No API, RBAC seed, role grant, schema, database, migration, RLS, worker, staging or deployment behavior changed.
+
+
+## Latest continuation checkpoint — 23 November 2026 (UX-095 / G-036)
+
+- Live branch head: `89561501099a75f02d344eef97a373d861413c5a`; PR #138 is OPEN, DRAFT, UNMERGED to `develop`.
+- Exact-head workflow lookup returned no GitHub Actions run. Combined status contains Vercel Web FAILURE and Vercel Admin FAILURE at the external build-rate-limit destination. These are not application test results. All implementation commits in this batch use `[skip ci]`; tests have not been executed.
+- UX-095 implements the Web merchant navigation/direct-route permission map, permission-filtered dashboard cards, write-gated catalog/order/return/store/warehouse/organization actions, and active-organization/permission-scope remount plus stale-response protection.
+- G-036 implements server-side Socket.IO store/order room authorization. Store rooms require `merchant:orders:read` and active store membership in the active organization; order rooms require buyer ownership, merchant membership, assigned-driver shipment or platform-staff read permission. Focused API gateway tests are added but not executed.
+- No merge, deployment, protected staging operation, shared database change, migration, grant/default-ACL change, RLS enablement, worker activation or staging business transaction was performed.
+- **Next:** complete the Mobile route-permission and organization-context transition audit (following UX-094), then finish the remaining Admin route/action permission mapping. Keep Phase 3 comprehensive testing deferred.
