@@ -790,3 +790,14 @@ The second workflow passed Flutter analysis but reported 24 widget-test failures
 - Adjusted Customer, Pricing and Store Profile recovery tests to match rendered content and scrollable form sections.
 - Corrected the remaining broad function metadata annotation in the API permission tests.
 The next workflow is the verification gate for these corrections; results are not yet known.
+
+## Fourth CI checkpoint — remaining widget and typecheck corrections — 23 November 2026
+
+The third workflow passed Flutter analysis and API lint, and ran 257 Mobile tests: 254 passed and 3 failed. The remaining failures were:
+- Merchant Customers stale list assertion after the refresh error changed the list's scroll position.
+- Checkout idempotency did not rotate the key when the payment method changed.
+- Home category tile still overflowed vertically.
+
+Corrections now preserve the customer AsyncValue during reload and scroll the refreshed list into view; fingerprint the complete logical checkout payload (address, notes, shipping choices, payment method and cart lines) so retries reuse a key but payload changes rotate it; and reduce Home category tile content to fit its constrained height.
+
+The same workflow also exposed two Admin TypeScript errors: an attribute-group detail component referenced an unpassed error state, and merchant image fields were not narrowed from unknown before rendering. Both are corrected. The next full workflow is required to verify this state; no pass is claimed yet.
