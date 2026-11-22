@@ -5,7 +5,7 @@
 **Branch:** remediation/phase-0-1-tenant-security  
 **Latest implementation/test commit:** `bac13a1bbe48a1aac6456a24e545ebf28cabdc7d` — UX-038 Merchant Inventory variant-directory recovery; UX-039 Import History recovery is included in the same source/test batch  
 **Previous source increments:** `01b3ee89723ac5b8ffbb1dfe8c7b017fe60bebc4` — inventory variant read recovery; `495bbec73627bb7ebff04940adc91963f0f27522` — Import History recovery  
-**Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commit that follows is documentation-only.
+**Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
 
