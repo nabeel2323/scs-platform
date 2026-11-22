@@ -1547,3 +1547,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - UX-052 implemented: Catalog Import Center separates history read failures from action errors, retries history reads, preserves last successful rows and suppresses false empty history.
 - UX-053 implemented: Analytics event/activity reads use independent request generations, cleanup invalidation and direct retry controls; stale filter results are ignored.
 - Focused tests added for each slice but not executed; all remain IMPLEMENTED / TESTING_PENDING for Phase 3. No API, permission, schema, migration or DB changes.
+
+## UX-054–UX-057 — Admin finance, brand and calendar recovery — 22 November 2026
+
+- UX-054 implemented: Commission Oversight status-filter reads are generation-guarded and retryable; failed reads no longer display a false empty result.
+- UX-055 implemented: Offer KPI/Trend filters use request-version guards and cleanup invalidation; direct retry actions are available; failed initial reads no longer display zero metrics or false no-sales states.
+- UX-056 implemented: Brand list exposes retry, guards stale responses and suppresses empty state after failed reads.
+- UX-057 implemented: Business Calendar reads use request-version guards and retry; failed reads no longer appear as no configured calendar or empty holiday/audit lists.
+- Focused tests added for all four slices but not executed; status remains IMPLEMENTED / TESTING_PENDING for Phase 3. No API, permission, schema, migration or DB changes.
