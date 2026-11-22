@@ -400,3 +400,14 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
 - Next: continue buyer-facing Mobile workflow audit and then remaining Web/Admin route audit; implement only source-confirmed contract-backed gaps.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
+
+
+## Latest UX continuation checkpoint — 23 November 2026 (UX-083)
+
+- Implemented Mobile Home discovery recovery for Categories, Popular Products and Suppliers: visible initial loading/errors, retry, stale-data preservation and per-section refresh recovery. Home pull-to-refresh now awaits all independent reads; explicit Refresh home action added.
+- Unread notification badge no longer fabricates a zero count when the unread-count provider is loading or failed.
+- Added Flutter widget tests for stale category preservation, initial failure/retry and unread-count failure behavior. Tests have not been executed and remain pending Phase 3.
+- Source commit: `326e35b`; focused tests: `d317129`. Both use `[skip ci]`.
+- PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
+- Next: continue remaining Mobile buyer workflow reads/actions and then Web/Admin route audit, implementing only source-confirmed contract-backed gaps.
+- No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
