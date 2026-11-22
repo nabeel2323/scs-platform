@@ -21,7 +21,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Branch | `remediation/phase-0-1-tenant-security` |
 | Live branch head | Resolve from the live GitHub ref at session start; this checkpoint is documentation and does not pin its resulting SHA |
 | Latest implementation/test | `f67d70f225b799606f5ed1c2a8af4fa61a1bde06` — UX-049 Audit Log ordering/retry test |
-| Previous source implementation | `57df8ab2048058a802422191b2e2c6b46f8eeb13` — UX-037 inventory movement-history recovery |
+| Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
 | Exact-head GitHub Actions | No run for source/test commits `784948d0b5b63f35b4f3b0666a29db9e277dc2a0` / `f67d70f225b799606f5ed1c2a8af4fa61a1bde06`; commits use `[skip ci]`; NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
