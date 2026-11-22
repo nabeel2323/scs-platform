@@ -823,3 +823,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - UX-053 Analytics: event/activity reads are independently generation-guarded, retryable and cleanup-safe; older date/limit results cannot overwrite newer data.
 - Added focused tests `admin-category-detail-recovery.test.tsx`, `admin-product-type-products-recovery.test.tsx`, `admin-catalog-import-recovery.test.tsx`, and `admin-analytics-race.test.tsx`. Tests not executed.
 - No API, permission, schema, database or migration change. Commits use `[skip ci]`; no deployment or staging action.
+
+## 2026-11-22 — UX-054–UX-057 Admin finance, brand and calendar recovery
+
+- UX-054 Commission Oversight now guards status-filter reads, exposes Retry commission reversals and suppresses the false empty state on failure.
+- UX-055 Offer KPI and Trend pages now guard overlapping filters, invalidate stale/unmounted requests, expose direct retry actions and suppress false no-sales results after failed initial reads. KPI values use an unavailable placeholder instead of fabricated zero; Trend period label distinguishes unavailable data.
+- UX-056 Brand Management now exposes retry, request-version protection and successful-empty-only rendering after a failed directory read.
+- UX-057 Business Calendar reads now have request-version/unmount protection and Retry calendar; a failed calendar read no longer reports that no calendar is configured, and dependent holiday/audit empty states are suppressed on read failure.
+- Added focused tests `admin-commission-recovery.test.tsx`, `admin-offer-kpis-recovery.test.tsx`, `admin-offer-trend-recovery.test.tsx`, `admin-brands-recovery.test.tsx`, and `admin-calendar-recovery.test.tsx`. Tests not executed.
+- No API, permission, schema, database or migration changes. Commits use `[skip ci]`; no deployment or staging action.
