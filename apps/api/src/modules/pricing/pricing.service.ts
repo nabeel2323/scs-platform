@@ -151,7 +151,7 @@ export class PricingService {
       .orderBy(asc(products.title), asc(productVariants.sku), asc(priceTiers.minQty));
   }
 
-  async listTiersByVariant(variantId: string, priceListId?: string) {
+  async listTiersByVariant(variantId: string, priceListId?: string, storeId?: string) {
     if (priceListId) {
       return this.db.db.query.priceTiers.findMany({
         where: and(
@@ -161,10 +161,27 @@ export class PricingService {
         orderBy: [priceTiers.minQty],
       });
     }
-    return this.db.db.query.priceTiers.findMany({
-      where: eq(priceTiers.variantId, variantId),
-      orderBy: [priceTiers.priceListId, priceTiers.minQty],
-    });
+
+    if (!storeId) {
+      throw new BadRequestException('storeId is required when listing variant tiers across price lists');
+    }
+
+    return this.db.db
+      .select({
+        id: priceTiers.id,
+        priceListId: priceTiers.priceListId,
+        variantId: priceTiers.variantId,
+        minQty: priceTiers.minQty,
+        maxQty: priceTiers.maxQty,
+        unitPriceMinor: priceTiers.unitPriceMinor,
+      })
+      .from(priceTiers)
+      .innerJoin(priceLists, eq(priceTiers.priceListId, priceLists.id))
+      .where(and(
+        eq(priceTiers.variantId, variantId),
+        eq(priceLists.storeId, storeId),
+      ))
+      .orderBy(desc(priceLists.priority), asc(priceTiers.minQty));
   }
 
   async updateTier(id: string, input: UpdateTierInput) {

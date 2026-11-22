@@ -115,7 +115,7 @@ export class PricingController {
     if (storeId) {
       return this.pricingService.getProductPricing(variantId, storeId);
     }
-    return this.pricingService.listTiersByVariant(variantId);
+    return this.pricingService.listTiersByVariant(variantId, undefined, variantStoreId);
   }
 
   @Patch('tiers/:id')
