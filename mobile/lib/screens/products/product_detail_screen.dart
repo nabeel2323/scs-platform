@@ -614,7 +614,10 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             padding: EdgeInsets.symmetric(vertical: 16),
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (_, __) => const SizedBox.shrink(),
+          error: (e, _) => _inlineReadNotice(
+              'Seller reviews unavailable: ${ApiService.errorMessage(e)}',
+              () => ref.invalidate(storeReviewsProvider(p.storeId)),
+            ),
         ),
       ],
     );
