@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import {
   AttributeGroup, AttributeDefinition,
   fetchAttributeGroups, createAttributeGroup, fetchAttributes,
@@ -21,12 +21,15 @@ export default function AttributeGroupsPage() {
   const [attrs, setAttrs] = useState<AttributeDefinition[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
 
   // Dialogs
   const [creating, setCreating] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<AttributeGroup | null>(null);
 
   const load = useCallback(async () => {
+    if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
     setError(null);
     try {
@@ -34,16 +37,23 @@ export default function AttributeGroupsPage() {
         fetchAttributeGroups(),
         fetchAttributes(),
       ]);
-      setGroups(groupData);
-      setAttrs(attrData);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load data');
+      if (requestId === requestVersion.current) {
+        setGroups(groupData);
+        setAttrs(attrData);
+      }
+    } catch (err: unknown) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load data');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestVersion.current) setLoading(false);
     }
-  }, []);
+  }, [ready, hasAccess]);
 
-  useEffect(() => { if (ready && hasAccess) load(); }, [ready, hasAccess, load]);
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   // Count attributes per group (via metadata or simple heuristic)
   const attrCountByGroup = useCallback((groupId: string) => {
@@ -68,7 +78,7 @@ export default function AttributeGroupsPage() {
           <button type="button" onClick={() => setCreating(true)}>Create group</button>
         </div>
 
-        {error && <div className={styles['error']}>{error} <button type="button" onClick={load} style={{ marginLeft: 8 }}>Retry</button></div>}
+        {error && <div role="alert" className={styles['error']}>{error} <button type="button" onClick={() => void load()} style={{ marginLeft: 8 }}>Retry</button></div>}
         {loading ? <SkeletonTable rows={4} cols={5} /> : (
           <div className={styles['tableWrap']}>
             <table>
@@ -100,7 +110,7 @@ export default function AttributeGroupsPage() {
                     </td>
                   </tr>
                 ))}
-                {!groups.length && <tr><td colSpan={5}>No attribute groups found.</td></tr>}
+                {!loading && !error && !groups.length && <tr><td colSpan={5}>No attribute groups found.</td></tr>}
               </tbody>
             </table>
           </div>
