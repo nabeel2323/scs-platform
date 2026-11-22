@@ -1525,3 +1525,10 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Stock movement-history read failures now remain visible and retryable; the dialog does not present a failed request as a successful empty history.
 - Extracted `readInventoryHistory` into `apps/web/src/lib/inventory-history.ts`; added `inventory-history-recovery.test.ts` for successful and failed responses.
 - Tests not executed. No API, permission, schema or DB changes.
+
+## UX-046 / UX-047 — Admin Users and Merchants UX completion — 22 November 2026
+
+- UX-046 implemented: Admin User creation matches the optional-phone contract; organization and role lookups are independently retryable; initial membership requires both org and role or neither, with the same invariant enforced at the AdminService boundary. Dedicated User Detail exposes the existing audited profile-update endpoint, membership assignment/removal, confirmed status actions, and role-configured permissions rather than the global permission catalog.
+- UX-047 implemented: Merchant Store Detail now displays locale, popularity-badge visibility, logo/cover previews and address from the existing store detail endpoint.
+- Focused tests added: Admin create-user recovery, user role-permission/profile/membership display, merchant detail presentation, and API user-creation partial-membership rejection. Tests have not been executed; status remains IMPLEMENTED / TESTING_PENDING for the consolidated Phase 3 campaign.
+- No new API routes, permission keys, schema, migrations, database changes, staging writes, grant/RLS changes, deployment or worker activation.
