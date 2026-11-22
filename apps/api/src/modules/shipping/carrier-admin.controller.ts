@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Patch, Param, Body, Query, UseGuards, HttpCode,
-  Logger, NotFoundException,
+  Logger, NotFoundException, ForbiddenException,
 } from '@nestjs/common';
 import { eq, and, or, isNull, inArray } from 'drizzle-orm';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -293,7 +293,10 @@ export class CarrierAdminController {
     // M7.2.4-A Phase 7: For non-privileged callers, scope to their org's stores.
     // Resolve the caller's store IDs and filter shipments by those stores.
     let orgStoreIds: string[] | null = null;
-    if (!isTenantPrivileged(caller) && user.activeOrg) {
+    if (!isTenantPrivileged(caller)) {
+      if (!user.activeOrg) {
+        throw new ForbiddenException('An active organization is required to view the recovery queue');
+      }
       const storeRows = await this.db.db.query.stores.findMany({
         where: eq(stores.orgId, user.activeOrg),
         columns: { id: true },

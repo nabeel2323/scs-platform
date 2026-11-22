@@ -29,6 +29,31 @@ describe('resolveShipmentForCredential', () => {
     expect(compiled.params).toContain('store-b');
   });
 
+
+  it('rejects a credential whose provider does not match the event provider', async () => {
+    const storesFindMany = vi.fn();
+    const shipmentsFindMany = vi.fn();
+    const db = {
+      db: {
+        query: {
+          stores: { findMany: storesFindMany },
+          shipments: { findMany: shipmentsFindMany },
+        },
+      },
+    };
+
+    await expect(
+      resolveShipmentForCredential(
+        db as any,
+        { orgId: 'org-a', providerKey: 'dhl' },
+        'aramex',
+        'external-a',
+      ),
+    ).rejects.toThrow('Webhook credential provider does not match event provider');
+    expect(storesFindMany).not.toHaveBeenCalled();
+    expect(shipmentsFindMany).not.toHaveBeenCalled();
+  });
+
   it('returns AMBIGUOUS instead of selecting the first of multiple matches', async () => {
     const storesFindMany = vi.fn().mockResolvedValue([{ id: 'store-a' }]);
     const shipmentsFindMany = vi.fn().mockResolvedValue([
