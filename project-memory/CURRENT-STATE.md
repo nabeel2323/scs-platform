@@ -3,7 +3,7 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Current branch head after project-memory updates:** `4adf87a07e8156e04ca008b6d236770704603eda`
+**Latest verified pre-refresh branch head:** `f3401f2826cd1bc6423f3269b278f7f049d7b528` (the current-state refresh commit itself advances the branch; resolve its resulting SHA from GitHub)
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,13 +18,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ------------------------------------------------------------------------ |
 | Repository           | nabeel2323/scs-platform                                                  |
 | Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | `7be3e2da3a26ab565f6c5dd391a9bba486d3bcae`                               |
-| Latest commit        | `docs(security): add G-002 database access architecture design`          |
+| Live branch head     | `f3401f2826cd1bc6423f3269b278f7f049d7b528` before this state refresh; resulting state-refresh SHA must be resolved live |
+| Latest commit        | `docs(project-memory): link G-002 operation map [skip ci]`                |
 | PR #138              | Open; draft; not merged                                                  |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
-| Latest exact-head CI | No workflow run or status contexts for `7be3e2d...`; NOT CI-VERIFIED     |
-| PR #142 CI           | #44948310469 — success on `6567eb3b...`; new PostgreSQL SQL test pending |
-| PR #138 CI           | All 10 executable jobs passed; k6 and staging release skipped            |
+| Latest exact-head CI | No Actions run for source commit `733320e...`; subsequent docs commits use `[skip ci]`; current head NOT CI-VERIFIED |
+| PR #142 CI           | #44953735602 — passed all executable jobs on `dddff20c...`; disposable PostgreSQL identity test included |
+| PR #138 CI           | Historical #44954371615 passed all executable jobs on `741a09f...`; not transferable to current head |
 
 ## Current remediation status
 
@@ -53,11 +53,11 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 ## Immediate next actions
 
-1. Complete and record PR #142's real-PostgreSQL login/effective-role integration test on its exact head.
-2. Expand the G-002 table inventory into a complete operation/ownership matrix, including HTTP, worker, webhook, audit and bootstrap paths.
-3. Design and test a transaction-bound Drizzle context before writing or enabling any RLS policies. Use transaction-local context only; never set tenant identity at pooled-session scope.
-4. Obtain independent G-001 security review and record findings/disposition. Keep G-001 PARTIAL until this is complete.
-5. Keep PR #138 and PR #142 draft. Do not merge, deploy, alter shared grants/default ACLs, apply migration 0070 or enable RLS without the required independent review and explicit authorization.
+1. Continue DB-003 with the remaining service/controller/worker/webhook/CLI/raw-SQL operation paths; map each operation to the exact table, principal context and direct/indirect FK owner.
+2. Reconcile the 114-versus-116 relation count only from a refreshed protected read-only catalog snapshot; do not infer a current count from the historical audit.
+3. Complete the Admin/Web/Mobile route-to-client callsite mapping and resolve UX-008 only after the required location/privacy/product scope decision.
+4. Preserve the implementation-first sequence: finish implementation and integration before the consolidated Phase 3 test campaign. The new G-002 operation map is source-only and NOT test-verified.
+5. Keep G-001 PARTIAL pending independent review; keep G-002 IN PROGRESS pending actual API/migration runtime identity, protected catalog audit, complete operation/ownership map and reviewed transaction-context design.
 
 ## Safety reminder
 
@@ -265,3 +265,8 @@ A 53-file API module service/worker/provider source inventory and shared middlew
 ## Latest verified build status — 22 November 2026
 
 PR #138 source head caba922e866635fad51e549e095a186f9d9df6cf reports SUCCESS for Vercel Admin and Vercel Web. No GitHub Actions run is attached to that exact head; full tests remain deferred to Phase 3.
+
+
+## G-002 operation map source slice — 22 November 2026
+
+A preliminary direct-Drizzle operation map now covers 13 core API services and records observed reads/inserts/updates/deletes for their imported schema tables: [G-002-DATABASE-OPERATION-MAP-2026-11-22.md](../docs/remediation/G-002-DATABASE-OPERATION-MAP-2026-11-22.md). The programme gap register and work log were updated. This does not complete DB-003: worker, webhook, CLI, raw-SQL and remaining service paths, exact tenant predicates, FK ownership and the 114-versus-116 catalog discrepancy remain open. No tests, CI, staging/database changes, migration, grants, RLS, deployment or worker activation occurred.
