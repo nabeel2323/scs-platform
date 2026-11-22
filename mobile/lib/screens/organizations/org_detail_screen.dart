@@ -423,7 +423,7 @@ class OrgDetailScreen extends ConsumerWidget {
         );
         ref.read(apiClientProvider).setAccessToken(res.accessToken);
         ref.read(activeOrgIdProvider.notifier).state = targetOrgId;
-        invalidateOrganizationScopedProviders(ref.container);
+        invalidateOrganizationScopedProviders(ref);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Organization switched')));
