@@ -53,6 +53,7 @@ void main() {
           profileProvider.overrideWith((ref) async => _profile()),
           activeStoreProvider.overrideWith((ref) async => _store()),
           merchantPriceListsProvider.overrideWith((ref) async {
+            await ref.watch(activeStoreProvider.future);
             calls++;
             if (calls == 1) return [_list()];
             throw Exception('Price list service unavailable');
@@ -83,6 +84,7 @@ void main() {
           profileProvider.overrideWith((ref) async => _profile()),
           activeStoreProvider.overrideWith((ref) async => _store()),
           merchantPriceListsProvider.overrideWith((ref) async {
+            await ref.watch(activeStoreProvider.future);
             calls++;
             if (calls == 1) throw Exception('Price list service unavailable');
             return <PriceList>[];
