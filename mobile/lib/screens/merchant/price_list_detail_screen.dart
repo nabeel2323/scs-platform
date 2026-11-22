@@ -260,7 +260,7 @@ class PriceListDetailScreen extends ConsumerWidget {
                       ),
                     ),
                     Text(
-                      '${tierCount == '—' ? '—' : tierCount} tiers',
+                      '$tierCount tiers',
                       style: const TextStyle(
                         fontSize: 12,
                         color: TaifTokens.muted,
