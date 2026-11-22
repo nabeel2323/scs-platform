@@ -621,3 +621,9 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Source/test batch: Category Detail auxiliary read recovery, Product Type Detail Products retry, Catalog Import history read recovery and Analytics request-ordering/retry.
 - Focused tests were added but not executed. Commits use `[skip ci]`; no GitHub Actions run is expected for the exact source head. Do not claim test or CI verification.
 - No deployment, preview validation, staging write, database/migration/grant/RLS change, worker activation or provider action was performed.
+
+## 22 November 2026 — UX-054–UX-057 Admin finance/brand/calendar implementation checkpoint
+
+- Source/test batch: Commission Oversight, Offer KPI/Trend, Brand Management and Business Calendar read recovery.
+- Focused tests were added but not executed. Commits use `[skip ci]`; no GitHub Actions run is expected for the exact source head. Do not claim test or CI verification.
+- No deployment, preview validation, staging write, database/migration/grant/RLS change, worker activation or provider action was performed.
