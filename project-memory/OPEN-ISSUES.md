@@ -434,3 +434,7 @@ The remaining Merchant Import Wizard audit found swallowed store-directory error
 ## UX-042 — Merchant Warehouses — 22 November 2026
 
 The Merchant Warehouses page conflated failed store lookup with no store and failed warehouse-list reads with a successful empty directory. Both reads now have explicit loading/error/retry handling; the warehouse empty state appears only after a successful empty response. A focused test was added but not executed. UX-042 remains TESTING_PENDING for the consolidated test campaign. No API, permission, schema or database behavior changed.
+
+## UX-043 — Admin Dashboard — 22 November 2026
+
+Admin Dashboard KPI and organization-update reads previously swallowed failures, and Catalog Imports/Requests shared one error state. The dashboard now has independent retryable reads, suppresses false empty states, shows KPI values as unavailable instead of zero after failed reads, and retains last successful data during failed refreshes. Focused test added but not executed. UX-043 remains TESTING_PENDING for the consolidated campaign. No API or permission change.
