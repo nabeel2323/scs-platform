@@ -72,6 +72,8 @@ class PriceListDetailScreen extends ConsumerWidget {
           : null,
       body: listAsync.when(
         skipLoadingOnRefresh: true,
+
+        skipLoadingOnReload: true,
         skipError: true,
         loading: () => const LoadingSpinner(),
         error: (e, _) => AppErrorState(
@@ -120,6 +122,8 @@ class PriceListDetailScreen extends ConsumerWidget {
 
           final tierContent = tiersAsync.when(
             skipLoadingOnRefresh: true,
+
+            skipLoadingOnReload: true,
             skipError: true,
             loading: () => const LoadingSpinner(),
             error: (e, _) => AppErrorState(
