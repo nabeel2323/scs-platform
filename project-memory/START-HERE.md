@@ -455,3 +455,12 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
 - Next: continue remaining merchant operational screens and then Web/Admin routes; implement only source-confirmed contract-backed gaps.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
+
+
+## Latest continuation checkpoint — 23 November 2026
+
+- Live branch head: `89561501099a75f02d344eef97a373d861413c5a`; PR #138 is OPEN / DRAFT / UNMERGED to `develop`.
+- No GitHub Actions run exists for the exact head. Vercel Web/Admin combined statuses are external build-rate-limit failures, not application test results. Focused tests are added but not executed.
+- UX-095 Web merchant route/action permission alignment and G-036 realtime store/order room authorization are implemented in source. See [CURRENT-STATE.md](./CURRENT-STATE.md), [WORK-LOG.md](./WORK-LOG.md), [G-036 plan section](../docs/remediation/IMPLEMENTATION-PLAN.md) and [progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md).
+- No merge, deployment, staging operation, shared database change, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
+- **Next task:** finish the Mobile route-permission and organization-context transition audit following UX-094, then complete remaining Admin route/action permission mapping. Comprehensive testing remains deferred to the dedicated testing phase.
