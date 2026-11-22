@@ -61,6 +61,50 @@ It is not an exhaustive FK catalog. The final authority for deployed constraints
 | 0062_phase3_1_hardening.sql | reconciliation_runs.superseded_by | reconciliation_runs.id | Run version lineage |
 | 0071_auto_complete_claim_leases.sql | No FK added; orders claim timestamp/worker columns only | — | Claim owner is worker ID, not user or tenant identity |
 
+## Earlier core schema migration relationships
+
+| Migration | Table/column | Target | Ownership implication |
+|---|---|---|---|
+| 0001_identity.sql | role_permissions.role_id / permission_id | roles.id / permissions.id ON DELETE CASCADE | Global RBAC join; platform governance only |
+| 0001_identity.sql | organization_members.org_id / user_id / role_id | organizations.id / users.id ON DELETE CASCADE / roles.id | Membership edge; enforce org, user, role and ACTIVE status |
+| 0001_identity.sql | sessions.user_id / replaced_by | users.id ON DELETE CASCADE / sessions.id | User-private session and session-chain scope |
+| 0003_merchant.sql | stores.org_id | organizations.id ON DELETE CASCADE | Store belongs to organization |
+| 0003_merchant.sql | warehouses.store_id | stores.id ON DELETE CASCADE | Warehouse inherits store/org scope |
+| 0003_merchant.sql | business_documents.org_id / store_id | organizations.id / stores.id ON DELETE CASCADE | Verify optional store belongs to the same org; uploader/reviewer are actors |
+| 0003_merchant.sql | verification_requests.store_id / org_id | stores.id / organizations.id ON DELETE CASCADE | Both owner columns must agree; reviewer is attribution |
+| 0004_catalog.sql | categories.store_id / parent_id | stores.id ON DELETE CASCADE / categories.id ON DELETE SET NULL | Store-scoped category or platform category; recursive parent must preserve scope |
+| 0004_catalog.sql | products.store_id / category_id / brand_id | stores.id ON DELETE CASCADE / categories.id ON DELETE SET NULL / brands.id ON DELETE SET NULL | Product store owner; category/brand are references, not tenant ownership |
+| 0004_catalog.sql | product_variants.product_id | products.id ON DELETE CASCADE | Variant inherits product/store scope |
+| 0004_catalog.sql | product_media.product_id / variant_id | products.id / product_variants.id ON DELETE CASCADE | Media inherits product/variant scope |
+| 0004_catalog.sql | import_jobs.store_id / created_by | stores.id ON DELETE CASCADE / users.id | Store-owned import job; created_by is attribution |
+| 0005_inventory.sql | inventory_items.variant_id / warehouse_id | product_variants.id / warehouses.id ON DELETE CASCADE | Inventory row must connect a variant to a warehouse in the same permitted store scope |
+| 0005_inventory.sql | stock_movements.inventory_item_id / performed_by | inventory_items.id ON DELETE CASCADE / users.id | Movement inherits inventory item/warehouse; performer is attribution |
+| 0009_cart.sql | carts.user_id / promotion_id | users.id ON DELETE CASCADE / promotions.id | Cart is buyer-private; promotion is a reference |
+| 0009_cart.sql | cart_items.cart_id / store_id / variant_id | carts.id ON DELETE CASCADE / stores.id / product_variants.id | Cart owner plus store/variant consistency; no composite FK enforces same-store relationships |
+| 0010_orders.sql | master_orders.buyer_id | users.id | Buyer-owned order aggregate |
+| 0010_orders.sql | orders.master_order_id / store_id / buyer_id / promotion_id | master_orders.id / stores.id / users.id / promotions.id | Multi-party order; buyer and store participants both matter |
+| 0010_orders.sql | order_items.order_id / variant_id | orders.id / product_variants.id | Order child; variant must be consistent with the order's store/offer snapshot |
+| 0010_orders.sql | order_financial_breakdown.order_id | orders.id | Financial child inherits order access with restricted actions/columns |
+| 0010_orders.sql | order_status_history.order_id / changed_by | orders.id / users.id | Order child; changed_by is attribution |
+| 0023_attributes.sql | attribute_options.attribute_id | attribute_definitions.id ON DELETE CASCADE | Global taxonomy child |
+| 0026_merchant_offers.sql | merchant_offers.store_id / product_id / variant_id | stores.id / products.id / product_variants.id ON DELETE CASCADE | Offer store owner plus product compatibility |
+| 0026_merchant_offers.sql | merchant_offers.price_list_id / warehouse_id | price_lists.id ON DELETE SET NULL / warehouses.id ON DELETE SET NULL | Referenced pricing/warehouse must belong to same store; no composite FK |
+| 0026_merchant_offers.sql | merchant_offers.created_by / reviewed_by | users.id | Actor attribution |
+| 0040_shipments.sql | shipments.order_id / store_id / assigned_driver_id | orders.id / stores.id / users.id | Order/store owner plus explicit assigned-driver access; verify store matches order |
+| 0040_shipments.sql | shipment_events.shipment_id / actor_user_id | shipments.id / users.id | Event inherits shipment; actor is attribution |
+| 0041_shipping.sql | shipping_methods.store_id / delivery_zones.store_id | stores.id | Store-scoped shipping configuration |
+| 0041_shipping.sql | delivery_zone_methods.zone_id / shipping_method_id | delivery_zones.id / shipping_methods.id | Both parents must belong to same store; no composite FK |
+| 0041_shipping.sql | shipment_labels.shipment_id / delivery_proofs.shipment_id | shipments.id | Child rows inherit shipment/order/store/driver scope |
+| 0041_shipping.sql | driver_profiles.user_id / org_id | users.id / organizations.id | Driver identity plus organization; assignment is a separate store edge |
+| 0041_shipping.sql | driver_store_assignments.driver_profile_id / store_id | driver_profiles.id / stores.id | Verify driver organization matches store organization; no composite FK |
+| 0041_shipping.sql | carrier_webhook_events.shipment_id | shipments.id | Provider callback inherits shipment when resolved; unauthenticated payload fields are not ownership |
+
+### Important no-composite-FK observations
+
+- Several relationships are individually FK-backed but their cross-column consistency is not: verification_requests.store_id/org_id, business_documents.store_id/org_id, cart_items.store_id/variant_id, inventory_items.variant_id/warehouse_id, merchant_offers store/price-list/warehouse/product/variant, orders master-order/store/buyer, settlement_records order/payment/store, carrier_configurations org/credential/store, delivery_zone_methods zone/method, and driver_store_assignments driver/store.
+- RLS policies on a child table must not merely test one FK parent if the service contract requires multiple parents to agree. Either the write path must enforce the invariant atomically and tests must prove it, or the database needs a reviewed constraint strategy.
+- The migration parser can encounter CHECK expressions that mention a users table or string values; only explicit column REFERENCES clauses are counted as FKs in this crosswalk. Do not treat CHECK text or comments as relationships.
+
 ## Important columns with no organization FK
 
 Migration 0062 adds nullable org_id columns to reconciliation_runs, settlement_adjustments, commission_reversals and reconciliation_discrepancies, but does **not** add foreign keys to organizations. Those columns are application-maintained tenant-scope metadata. Before relying on them in RLS, prove that every writer derives the value from the canonical order/store/return parent and that it cannot disagree with that parent.
