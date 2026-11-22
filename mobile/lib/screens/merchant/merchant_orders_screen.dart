@@ -268,7 +268,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
 
   Future<void> _refreshOrders() async {
     try {
-      await ref.refresh(activeStoreProvider.future);
+      await ref.refresh(activeStoreProvider.future).then<void>((_) {});
     } catch (_) {
       // Keep the last successful store/order context; the provider exposes the
       // read failure without replacing previously loaded rows.
