@@ -1622,3 +1622,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Added explicit Refresh inventory, loading feedback, retryable errors and preservation of the last successful inventory values after a same-variant refresh failure. Failed refreshes no longer discard the last successful stock summary.
 - Added `admin-offer-detail-inventory-recovery.test.tsx` for successful inventory load followed by failed refresh with stale-data preservation.
 - No inventory, stock, offer, API, permission, schema, migration, database, staging or provider behavior changed. Tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-066 — Admin Variant Detail read recovery — 22 November 2026
+
+- Added request-generation and unmount protection to the Variant Detail read; an older variant response cannot overwrite the currently selected ID or update state after unmount.
+- The page now tracks the ID associated with its last successful response, retains same-variant details during refresh/failure, and never presents a previous variant as the selected variant after an ID change.
+- Added explicit Refresh/Retry and refreshing feedback. Variant read errors and deactivate/reactivate/delete action errors now have separate UI channels.
+- Added `admin-variant-detail-recovery.test.tsx` for stale-data preservation after a failed refresh.
+- No variant business actions, API, permission, schema, migration, database, staging or provider behavior changed. Tests remain pending the consolidated Phase 3 campaign.

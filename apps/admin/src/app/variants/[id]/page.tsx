@@ -7,7 +7,7 @@
  * Shows variant configuration with Edit, Deactivate/Reactivate, Delete actions.
  * Fixes latent defect: backend GET /v1/admin/variants/:id now exists.
  */
-import { Suspense, useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { adminRequest, AdminApiError, type AdminRecord } from '../../../lib/api';
@@ -33,27 +33,42 @@ function VariantDetailContent({ id }: { id: string }) {
   const [variant, setVariant] = useState<AdminRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [loadedVariantId, setLoadedVariantId] = useState<string | null>(null);
+  const hasCurrentVariant = loadedVariantId === id && variant !== null;
+  const requestVersion = useRef(0);
   const [activeTab, setActiveTab] = useState('configuration');
   const [actionLoading, setActionLoading] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const loadVariant = useCallback(async () => {
+    if (!hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
     setError('');
     try {
       const data = await adminRequest<AdminRecord>(`admin/variants/${encodeURIComponent(id)}`);
-      setVariant(data);
+      if (requestId === requestVersion.current) {
+        setVariant(data);
+        setLoadedVariantId(id);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load variant');
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load variant');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestVersion.current) setLoading(false);
     }
-  }, [id]);
+  }, [id, hasAccess]);
 
   useEffect(() => setReady(true), []);
   useEffect(() => {
-    if (!ready || !hasAccess) return;
-    loadVariant();
+    if (!ready || !hasAccess) {
+      if (ready) setLoading(false);
+      return;
+    }
+    void loadVariant();
+    return () => { requestVersion.current += 1; };
   }, [id, ready, hasAccess, loadVariant]);
 
   // Deactivate/Reactivate handler
@@ -63,6 +78,7 @@ function VariantDetailContent({ id }: { id: string }) {
     const isActive = variant['isActive'] as boolean;
     const action = isActive ? 'deactivate' : 'reactivate';
     setActionLoading(action);
+    setActionError('');
     try {
       await adminRequest(`admin/products/${encodeURIComponent(productId)}/variants/${encodeURIComponent(id)}`, {
         method: 'PATCH',
@@ -71,7 +87,7 @@ function VariantDetailContent({ id }: { id: string }) {
       });
       await loadVariant();
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to ${action} variant`);
+      setActionError(err instanceof Error ? err.message : `Failed to ${action} variant`);
     } finally {
       setActionLoading('');
     }
@@ -82,6 +98,7 @@ function VariantDetailContent({ id }: { id: string }) {
     if (!variant) return;
     const productId = variant['productId'] as string;
     setActionLoading('delete');
+    setActionError('');
     try {
       // Use bulk endpoint for delete
       await adminRequest(`admin/products/${encodeURIComponent(productId)}/variants/bulk`, {
@@ -91,7 +108,7 @@ function VariantDetailContent({ id }: { id: string }) {
       });
       router.push(`/products/${productId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete variant');
+      setActionError(err instanceof Error ? err.message : 'Failed to delete variant');
       setActionLoading('');
       setShowDeleteConfirm(false);
     }
@@ -99,9 +116,9 @@ function VariantDetailContent({ id }: { id: string }) {
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied.</div>;
-  if (loading) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error && !variant) return <AdminErrorState title="Unable to load variant" message={error} onRetry={loadVariant} />;
-  if (!variant) return null;
+  if (loading && !hasCurrentVariant) return <AdminLoadingSkeleton kvRows={6} />;
+  if (error && !hasCurrentVariant) return <AdminErrorState title="Unable to load variant" message={error} onRetry={loadVariant} />;
+  if (!variant || !hasCurrentVariant) return null;
 
   const productId = variant['productId'] as string;
   const sku = variant['sku'] as string | null;
@@ -180,6 +197,14 @@ function VariantDetailContent({ id }: { id: string }) {
         entityId={id}
         actions={
           <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => void loadVariant()}
+              disabled={loading}
+              style={{ padding: '8px 12px', background: '#fff', color: '#1e6178', borderRadius: 6, fontSize: 13, fontWeight: 500, border: '1px solid #1e6178', cursor: loading ? 'wait' : 'pointer' }}
+            >
+              {loading ? 'Refreshing…' : 'Refresh'}
+            </button>
             <Link
               href={`/variants/${id}/edit`}
               style={{
@@ -217,16 +242,14 @@ function VariantDetailContent({ id }: { id: string }) {
         }
       />
 
+      {loading && hasCurrentVariant && <div role="status" style={{ margin: '0 32px 12px', color: '#64748b', fontSize: 12 }}>Refreshing variant… showing the last successful details.</div>}
       {error && (
-        <div style={{
-          margin: '0 32px 16px', padding: '12px 16px',
-          background: '#fef2f2', border: '1px solid #fecaca',
-          borderRadius: 8, color: '#991b1b', fontSize: 13,
-        }}>
-          {error}
-          <button onClick={() => setError('')} style={{ marginLeft: 12, background: 'none', border: 'none', color: '#991b1b', cursor: 'pointer' }}>×</button>
+        <div role="alert" style={{ margin: '0 32px 16px', padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#991b1b', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <span>{error}{hasCurrentVariant ? ' Showing the last successfully loaded variant.' : ''}</span>
+          <button onClick={() => void loadVariant()} style={{ background: 'none', border: 'none', color: '#991b1b', cursor: 'pointer' }}>Retry variant</button>
         </div>
       )}
+      {actionError && <div role="alert" style={{ margin: '0 32px 16px', padding: 12, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#991b1b', fontSize: 13 }}>{actionError}</div>}
 
       <AdminDetailTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
 
