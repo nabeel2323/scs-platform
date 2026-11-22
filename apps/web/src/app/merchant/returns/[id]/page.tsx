@@ -24,6 +24,7 @@ export default function MerchantReturnDetailPage() {
   const params = useParams();
   const { user, loading: authLoading } = useAuth();
   const returnId = params['id'] as string;
+  const canWriteOrders = user?.perms?.includes('merchant:orders:write') === true;
   const [ret, setRet] = useState<ReturnRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -45,6 +46,7 @@ export default function MerchantReturnDetailPage() {
   useEffect(() => { if (user) load(); }, [user, returnId]);
 
   const doAction = async (fn: () => Promise<ReturnRequest>) => {
+    if (!canWriteOrders) return;
     setActionLoading(true);
     setActionError('');
     try {
@@ -122,7 +124,7 @@ export default function MerchantReturnDetailPage() {
       </div>
 
       {/* Merchant Actions */}
-      {(canApprove || canReceive || canInspect) && (
+      {canWriteOrders && (canApprove || canReceive || canInspect) && (
         <div style={{ padding: 16, border: `1px solid ${colors.border}`, borderRadius: radii.lg, marginBottom: 16 }}>
           <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>Actions</h3>
           {actionError && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 8 }}>{actionError}</div>}
