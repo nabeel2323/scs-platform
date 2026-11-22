@@ -29,7 +29,6 @@ import {
   typeScale,
   shadows,
   radii,
-  transitions,
 } from '@scs/ui-kit';
 
 /* ── Dashboard Page ──────────────────────────────────────── */
