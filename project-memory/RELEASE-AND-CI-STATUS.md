@@ -649,3 +649,11 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Source commits: buyer order history `0bdc925`, theme/empty-state cleanup `35ef98a`, collection syntax correction `fe218e8`; focused tests `c8924b1` with label assertion correction `b7bae42`.
 - All commits use `[skip ci]`. Flutter widget tests have not been executed. No exact-head Actions test result is claimed.
 - PR #138 remains open/draft/unmerged to `develop`. No staging deployment/write, shared database mutation, migration, grants/default-ACL change, RLS activation, worker activation or provider call occurred.
+
+
+## UX-080 verification boundary — 23 November 2026
+
+- Source commits: ApiService `69f1351`; Search request/facet lifecycle `c2e6ca8`; failed-query empty-state correction `bce5cb2`; matching-result refresh preservation `db83dd0`.
+- Focused tests: ApiService attrFilters serialization `8a4bf1f`; out-of-order search widget test `0b8fdfb`.
+- All commits use `[skip ci]`. No Flutter or ApiService tests were executed; no exact-head CI result is claimed.
+- PR #138 remains open/draft/unmerged to `develop`. No backend, database, migration, staging, grant/RLS, worker or provider action occurred.
