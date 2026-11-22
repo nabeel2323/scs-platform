@@ -75,6 +75,7 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
                 onPressed: () => context.push('/merchant/catalog/new'),
                 icon: const Icon(Icons.add),
                 label: const Text('New Product'),
+                backgroundColor: TaifTokens.brandPrimary,
               ),
         orElse: () => null,
       ),
@@ -131,11 +132,14 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
   }
 
   Future<void> _refreshCatalog(String? storeId) async {
-    await Future.wait<void>([
-      _refreshRead(ref.refresh(activeStoreProvider.future)),
-      if (storeId != null)
-        _refreshRead(ref.refresh(storeProductsProvider(storeId).future)),
-    ]);
+    await _refreshRead(ref.refresh(activeStoreProvider.future));
+    final currentStoreId =
+        ref.read(activeStoreProvider).valueOrNull?.id ?? storeId;
+    if (currentStoreId != null) {
+      await _refreshRead(
+        ref.refresh(storeProductsProvider(currentStoreId).future),
+      );
+    }
   }
 
   Future<void> _refreshProducts(String storeId) async {
