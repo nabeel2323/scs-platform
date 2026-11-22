@@ -58,7 +58,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('120.00 SAR'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Refresh'));
+    await tester.tap(find.byTooltip('Refresh merchant dashboard'));
     await tester.pumpAndSettle();
 
     expect(find.text('120.00 SAR'), findsOneWidget);
