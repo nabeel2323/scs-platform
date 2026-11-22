@@ -401,3 +401,8 @@ The Web Notifications, Favorites, Saved Suppliers and Profile Sessions pages pre
 ## UX-031 — Merchant Customers read recovery — 22 November 2026
 
 Merchant Customers previously swallowed list-read failures and could show a false empty directory. Source commit `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` adds a retryable error and preserves previously loaded customers on refresh failure. Focused tests are added but not executed. Continue the remaining UX-010 Web/Merchant screen and permission-affordance audit.
+
+
+## UX-032 — Merchant Deliveries read recovery — 22 November 2026
+
+Merchant Deliveries previously had no retry action and could show “No deliveries yet” after a failed list read. Source commit `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81` adds retry and keeps the empty state distinct from read failure. Focused test added but not executed. Continue the UX-010 Merchant/Web audit.

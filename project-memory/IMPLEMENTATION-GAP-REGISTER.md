@@ -384,3 +384,13 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - Added a distinct read-error state with Retry. Failed refreshes preserve the last successful customer rows; only a successful empty response renders the empty-directory state.
 - Added focused tests for initial read failure/retry and stale-data preservation after a failed refresh. Tests have not been executed.
 - No API, permission, route, schema, migration or database change.
+
+
+## UX-032 — Web Merchant Deliveries read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- Source inspection found the Merchant Deliveries queue displayed an error message but offered no retry; when no rows were loaded it could also render “No deliveries yet” beside a failed request.
+- Reused the existing shared `ErrorBanner` with Retry and suppressed the empty queue state while a read error is active. The existing load routine retains the last successful rows if a refresh fails.
+- Added a focused Web test for initial failure/retry. Not executed.
+- No API, permission, route, schema, migration or database change.

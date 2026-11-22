@@ -389,3 +389,8 @@ Source audit of the Web buyer account surfaces found that Notifications, Favorit
 ## 22 November 2026 — UX-031 Merchant Customers read recovery
 
 The Merchant Customers page previously swallowed initial and refresh failures and showed an empty directory as though the read had succeeded. It now surfaces a retryable read error, preserves the last successful rows when a refresh fails, and renders “No customers yet” only after a successful empty response. Focused tests added; not executed.
+
+
+## 22 November 2026 — UX-032 Merchant Deliveries read recovery
+
+The Merchant Deliveries queue now offers Retry on list-read failure and does not present “No deliveries yet” after a failed request. Existing rows remain available if a later refresh fails. Focused test added; not executed.

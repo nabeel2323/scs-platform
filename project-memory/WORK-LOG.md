@@ -709,3 +709,11 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added retryable read-error feedback and retained the last successful customer list when a refresh fails.
 - Added `apps/web/src/__tests__/merchant-customer-recovery.test.tsx` for initial failure/retry and failed-refresh stale-data preservation. Not executed.
 - Source implementation commit: `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8`; `[skip ci]` used to conserve Actions minutes. No API or permission change.
+
+
+## 2026-11-22 — UX-032 Web Merchant Deliveries recovery
+
+- Added retryable read-error feedback to the Merchant Deliveries queue and suppressed the false empty-queue message when the API request fails.
+- Preserved existing rows across failed refreshes (the existing load path already leaves the prior data intact).
+- Added `apps/web/src/__tests__/merchant-deliveries-recovery.test.tsx`; not executed.
+- Source implementation commit: `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81`; `[skip ci]` used under the Actions-minute budget. No API or permission change.

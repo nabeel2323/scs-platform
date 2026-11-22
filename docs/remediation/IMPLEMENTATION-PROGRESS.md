@@ -1470,3 +1470,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Failed realtime/manual refresh preserves the last successfully loaded customer rows while surfacing the error.
 - Added `apps/web/src/__tests__/merchant-customer-recovery.test.tsx` for initial failure/retry and stale-data preservation. Not executed; comprehensive testing remains Phase 3.
 - No API, schema, DB, permission, route or migration change.
+
+
+## UX-032 — Web Merchant Deliveries read recovery — 22 November 2026
+
+- Source commit `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81` adds a retry action to the Merchant Deliveries list read error and prevents a failed read from being represented as “No deliveries yet.”
+- The existing loader retains the last successful rows when a refresh fails; the error banner remains visible for recovery.
+- Added `apps/web/src/__tests__/merchant-deliveries-recovery.test.tsx`. Not executed; comprehensive testing remains Phase 3.
+- No API, schema, DB, permission, route or migration change.

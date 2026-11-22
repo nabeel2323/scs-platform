@@ -3,8 +3,8 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — `fix(web): recover merchant customer directory reads [skip ci]`  
-**Previous source increment:** `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` — Web buyer self-service recovery (UX-030)  
+**Latest source implementation commit:** `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81` — `fix(web): add merchant delivery queue retry recovery [skip ci]`  
+**Previous source increment:** `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — Merchant Customers recovery (UX-031)  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commit that follows is documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,12 +19,12 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest source implementation | `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — UX-031 Merchant Customers read recovery |
-| Previous source implementation | `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` — UX-030 buyer self-service recovery |
-| Latest documentation head before this checkpoint update | `0ac5142cc8959d973e77a738a8fc3df05cfe4e05` |
+| Latest source implementation | `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81` — UX-032 Merchant Deliveries read recovery |
+| Previous source implementation | `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — UX-031 Merchant Customers read recovery |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for latest source SHA; NOT CI-VERIFIED |
-| Focused Web tests | Added for UX-030/031; not executed |
+| Exact-head GitHub Actions | No run for `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81`; NOT CI-VERIFIED |
+| Exact-head Vercel contexts | Web FAILURE; Admin FAILURE (external build-rate-limit page); not application test results |
+| Focused Web tests | UX-030–032 added; not executed |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
 ## Current remediation status
@@ -515,3 +515,13 @@ UX-031 is implemented in source commit `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8
 - Added `apps/web/src/__tests__/merchant-customer-recovery.test.tsx` for initial failure/retry and stale-data preservation. Not executed.
 - No API, permission, route, schema, migration, DB, staging or worker change.
 - Next: continue the UX-010 Web/Merchant audit, prioritizing route-level permission affordances and other read/action recovery gaps.
+
+
+## Latest implementation checkpoint — UX-032 — 22 November 2026
+
+UX-032 is implemented in source commit `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81`: the Web Merchant Deliveries queue now offers retry on read failure and no longer presents “No deliveries yet” when the request failed. Existing rows are retained when a refresh fails. A focused Web regression test covers initial failure/retry. The test has not been executed.
+
+- Affected surface: `apps/web/src/app/merchant/deliveries/page.tsx`. The error banner now exposes Retry; the empty queue is shown only after a successful empty response. The load path already retains existing rows on failed refresh.
+- Added `apps/web/src/__tests__/merchant-deliveries-recovery.test.tsx`. Not executed.
+- No API, permission, route, schema, migration, DB, staging or worker change.
+- Next: continue UX-010 Web/Merchant screen and route/action permission audit; inspect merchant returns and organization auxiliary reads for similar failure-state gaps.

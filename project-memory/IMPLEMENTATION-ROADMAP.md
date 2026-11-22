@@ -336,3 +336,9 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 
 - Merchant Customers now distinguishes failed reads from a successful empty list, provides Retry, and preserves the last successful list after a failed manual/realtime refresh.
 - Focused tests added but not executed. Continue UX-010 Web/Merchant audit; comprehensive tests remain Phase 3.
+
+
+## 2026-11-22 — UX-032 Merchant Deliveries recovery
+
+- Merchant Deliveries now exposes Retry on read failure and does not show a successful empty queue while the read has failed. Existing rows are preserved on refresh failure.
+- Focused test added; not executed. Continue UX-010 Merchant/Web screen and permission audit; comprehensive tests remain Phase 3.

@@ -3,7 +3,7 @@
 **Checkpoint:** 22 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source implementation commit:** `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — `fix(web): recover merchant customer directory reads [skip ci]` (the project-memory sync is a documentation-only child commit).
+**Latest source implementation commit:** `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81` — `fix(web): add merchant delivery queue retry recovery [skip ci]` (the project-memory sync is a documentation-only child commit).
 **Exact source-SHA checks:** no Actions run is attached to `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` because the implementation commit used `[skip ci]`; Vercel Web and Admin both reported external build-rate-limit failures.  
 **Latest documentation head:** `dd224b4fbcaac11b9bdefefd5196d3ad9af4ea12`; no Actions run is attached. Vercel Admin is PENDING and Web is FAILURE at the external build-rate-limit page. These are preview-provider statuses, not application test results. Focused Web tests have not been executed.
 
@@ -556,4 +556,12 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Source commit: `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8`; parent `0ac5142cc8959d973e77a738a8fc3df05cfe4e05`.
 - Merchant Customers no longer converts a failed directory read into “No customers yet”; it shows a retryable error and retains the last successful rows when refresh fails.
 - Focused tests added in `apps/web/src/__tests__/merchant-customer-recovery.test.tsx`; not executed. Exact-head Actions lookup must be checked live; source commit used `[skip ci]`.
+- PR #138 remains open/draft/unmerged. No API/DB/permission/schema/deployment/staging/worker change.
+
+
+## UX-032 exact source checkpoint — 22 November 2026
+
+- Source commit: `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81`; parent `1f93f9f2cb2596a98bfdcc3c95fc337f50bac28f`.
+- Merchant Deliveries now exposes retry on list-read failure and does not render a successful empty-queue state after a failed request. Existing rows remain visible if a later refresh fails.
+- Focused test added in `apps/web/src/__tests__/merchant-deliveries-recovery.test.tsx`; not executed. Exact-head Actions lookup returned no run because of `[skip ci]`; Vercel Web/Admin both report external build-rate-limit failures.
 - PR #138 remains open/draft/unmerged. No API/DB/permission/schema/deployment/staging/worker change.
