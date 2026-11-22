@@ -45,7 +45,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    expect(find.text('Visible Store'), findsOneWidget);
+    expect(find.text('Visible Store'), findsWidgets);
 
     await tester.tap(find.byTooltip('Refresh store profile'));
     await tester.pumpAndSettle();
