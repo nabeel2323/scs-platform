@@ -420,3 +420,9 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - Merchant Inventory variant lookup previously swallowed each individual `fetchProductVariants` failure and returned a partial list as if complete. The source now treats the directory read as one complete operation, exposes an explicit retry on failure, and ignores stale requests. Focused helper tests cover paginated success, true empty results and partial failure; not executed.
 - Merchant Import History previously swallowed store lookup errors, could remain in an indefinite loading state when no store resolved, and conflated failed import reads with a successful empty history. Store discovery and job reads now have explicit retry/error/no-store states. Polling is limited to active jobs and avoids overlapping reads. Focused component tests added; not executed.
 - UX-038 and UX-039 are IMPLEMENTED in source and TESTING_PENDING. No API, permission, schema or database behavior changed.
+
+## 22 November 2026 — Merchant Import Wizard UX-040 / UX-041 re-audit
+
+- Store discovery now distinguishes loading, failed lookup (with retry) and a successful empty store directory (with onboarding route). The import action remains unavailable until a store resolves.
+- Import processing now starts polling after the process request succeeds, prevents overlapping/stale status reads, cleans up polling on unmount, surfaces status-read failures with retry, and distinguishes COMPLETED from FAILED/CANCELLED results. Failed jobs no longer render the successful completion banner.
+- Focused store-recovery and outcome-classification tests were added but not executed. UX-040/UX-041 are IMPLEMENTED / TESTING_PENDING. No API, permission, schema, database, queue or worker behavior changed.
