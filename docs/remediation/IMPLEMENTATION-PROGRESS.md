@@ -1539,3 +1539,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - UX-049 implemented: Audit Log query responses are generation-guarded; older filter responses cannot overwrite newer results. Pending requests are invalidated during cleanup, errors expose Retry audit log, and last successful rows remain visible during refresh/failure.
 - Focused tests added for role lookup retry, audit query response ordering and audit retry. Tests have not been executed; status remains IMPLEMENTED / TESTING_PENDING for Phase 3.
 - No API routes, permission keys, schema, migrations or database changes.
+
+## UX-050–UX-053 — Admin Catalog and Analytics recovery — 22 November 2026
+
+- UX-050 implemented: Category Detail product-type, product and attribute-schema reads expose retryable errors and request-version guards. Attributes resolves linked product types directly and only publishes a complete schema union.
+- UX-051 implemented: Product Type Detail Products tab exposes a retryable failure and successful-empty-only state with request cleanup protection.
+- UX-052 implemented: Catalog Import Center separates history read failures from action errors, retries history reads, preserves last successful rows and suppresses false empty history.
+- UX-053 implemented: Analytics event/activity reads use independent request generations, cleanup invalidation and direct retry controls; stale filter results are ignored.
+- Focused tests added for each slice but not executed; all remain IMPLEMENTED / TESTING_PENDING for Phase 3. No API, permission, schema, migration or DB changes.
