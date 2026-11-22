@@ -17,9 +17,9 @@ describe('Product Studio progress navigation', () => {
     const review = screen.getByRole('button', { name: /Review/ });
     const identity = screen.getByRole('button', { name: /Identity/ });
 
-    expect(media).toBeEnabled();
-    expect(review).toBeDisabled();
-    expect(identity).toBeEnabled();
+    expect((media as HTMLButtonElement).disabled).toBe(false);
+    expect((review as HTMLButtonElement).disabled).toBe(true);
+    expect((identity as HTMLButtonElement).disabled).toBe(false);
 
     fireEvent.click(media);
     expect(onStepClick).toHaveBeenCalledWith('media');
