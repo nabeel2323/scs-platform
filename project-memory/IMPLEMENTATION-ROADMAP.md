@@ -401,3 +401,7 @@ Completed the next Admin source-audit slice. Category Detail's product-type, pro
 ## UX-054–UX-057 — Admin finance, brands and calendar — 22 November 2026
 
 Completed the next Admin source-audit slice. Commission Oversight status-filter reads are generation-guarded and retryable; failed reads no longer appear empty. Offer KPI/Trend filters are generation-guarded, retryable and no longer display fabricated zero/empty sales after failed initial reads. Brand Management has retryable reads and suppresses false empty results. Business Calendar has request lifecycle protection, retry and error-aware empty-state suppression across calendar/holiday/audit data. Focused tests were added but not executed. Continue UX-010 across remaining Admin operational workflows and then Mobile; comprehensive validation remains deferred until implementation/integration are complete.
+
+## UX-058 — Admin Attribute Groups and Definitions — 22 November 2026
+
+Completed the Admin attribute directory recovery slice. Attribute Groups and Attribute Definitions now use request-version guards and cleanup invalidation, expose accessible retryable errors and suppress empty result rows/counts after failed reads. Attribute Definitions filter responses cannot overwrite newer selections. Focused tests were added but not executed. Continue UX-010 across remaining Admin operational workflows and then Mobile; full testing remains deferred until implementation/integration are complete.
