@@ -7,7 +7,7 @@
  * Route: /audit
  * API: GET /v1/admin/audit-logs
  */
-import { Suspense, useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { fetchAuditLogs, type AuditLog } from '../../lib/api';
 import { useRequirePerms } from '../../hooks/useRequirePerms';
@@ -53,6 +53,7 @@ function AuditContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [total, setTotal] = useState(0);
+  const requestVersion = useRef(0);
 
   // Filters
   const [filterAction, setFilterAction] = useState('');
@@ -66,29 +67,36 @@ function AuditContent() {
 
   useEffect(() => setReady(true), []);
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
     setError('');
-    fetchAuditLogs({
-      action: filterAction || undefined,
-      resource: filterResource || undefined,
-      actorId: filterActor || undefined,
-      limit,
-      offset,
-    })
-      .then(result => {
+    try {
+      const result = await fetchAuditLogs({
+        action: filterAction || undefined,
+        resource: filterResource || undefined,
+        actorId: filterActor || undefined,
+        limit,
+        offset,
+      });
+      if (requestId === requestVersion.current) {
         setLogs(result.data);
         setTotal(result.total);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
+      }
+    } catch (err: unknown) {
+      if (requestId === requestVersion.current) {
         setError(err instanceof Error ? err.message : 'Failed to load audit logs');
-        setLoading(false);
-      });
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
   }, [ready, hasAccess, filterAction, filterResource, filterActor, limit, offset]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={8} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: admin:audit:read</div>;
@@ -135,7 +143,12 @@ function AuditContent() {
         </button>
       </div>
 
-      {error && <div style={{ padding: 16, color: '#991b1b', fontSize: 13, background: '#fef2f2', borderRadius: 6, marginBottom: 16 }}>{error}</div>}
+      {error && (
+        <div role="alert" style={{ padding: 16, color: '#991b1b', fontSize: 13, background: '#fef2f2', borderRadius: 6, marginBottom: 16 }}>
+          <span>{error}</span>{' '}
+          <button type="button" onClick={() => void load()}>Retry audit log</button>
+        </div>
+      )}
 
       {loading && <div style={{ padding: 24, color: '#6b7280', fontSize: 13 }}>Loading audit logs…</div>}
 
