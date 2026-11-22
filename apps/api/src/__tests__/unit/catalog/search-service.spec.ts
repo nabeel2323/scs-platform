@@ -214,7 +214,6 @@ describe('SearchService — active offer filter', () => {
       variants: { id: 'variant-a', productId: 'product-a' },
       products: [{
         id: 'product-a',
-        storeId: 'store-a',
         categoryId: 'category-a',
         brandId: 'brand-a',
         status: 'ACTIVE',
