@@ -359,3 +359,13 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed; external Vercel preview limits are not application test evidence.
 - Next: continue UX-010 source audit through remaining buyer-facing Mobile screens and remaining Web/Admin routes; implement only source-confirmed, contract-backed gaps. Keep Phase 3 consolidated testing deferred until implementation/integration completion.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
+
+
+## Latest UX continuation checkpoint — 23 November 2026 (UX-079)
+
+- Implemented Mobile Buyer Order History read recovery: explicit refresh/pull-to-refresh, awaited provider refresh, last-successful list preservation, stale-data retry messaging and truthful initial error/empty states. Existing client-side order status filters remain applied to the retained list.
+- Added three focused Flutter widget scenarios in `mobile/test/buyer_orders_read_recovery_test.dart`. Tests have not been executed and remain pending the consolidated Phase 3 campaign.
+- Source commits: `0bdc925`, theme/empty-state cleanup `35ef98a`, collection syntax correction `fe218e8`, and assertion correction `b7bae42`. All use `[skip ci]`.
+- PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
+- Next: continue the buyer-facing Mobile source audit, especially Search request ordering and stale-result context, then remaining Web/Admin routes. Keep comprehensive testing deferred until implementation/integration completion.
+- No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
