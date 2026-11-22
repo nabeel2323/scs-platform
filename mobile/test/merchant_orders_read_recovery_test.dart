@@ -23,6 +23,17 @@ SubOrder _order() => SubOrder(
       itemCount: 1,
     );
 
+Store _store() => Store(
+      id: 'store-1',
+      orgId: 'org-1',
+      slug: 'visible-store',
+      displayName: 'Visible Store',
+      currency: 'SAR',
+      status: 'ACTIVE',
+      verificationStatus: 'VERIFIED',
+      createdAt: '2026-11-22T10:00:00.000Z',
+    );
+
 void main() {
   testWidgets('keeps the last successful orders visible after a refresh failure',
       (tester) async {
@@ -30,7 +41,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          activeStoreProvider.overrideWith((ref) async => _store()),
           merchantOrdersProvider.overrideWith((ref) async {
+            await ref.watch(activeStoreProvider.future);
             calls++;
             if (calls == 1) return [_order()];
             throw Exception('Orders service unavailable');
@@ -59,7 +72,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          activeStoreProvider.overrideWith((ref) async => _store()),
           merchantOrdersProvider.overrideWith((ref) async {
+            await ref.watch(activeStoreProvider.future);
             calls++;
             if (calls == 1) throw Exception('Orders service unavailable');
             return <SubOrder>[];
