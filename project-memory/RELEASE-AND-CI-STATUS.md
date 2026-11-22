@@ -823,3 +823,13 @@ The next full workflow is required to verify these changes.
 - Source/test correction commits: `0c6ad31cbb7635bddb702a2fe85006eb7aee6db5`, `caf8088d113ccb14808fb150365b234031cd790e`, `b21b9f1df445cb89360eed625e83a6f64cf918be`, `db6cac84259993f12cbdbf845079613c001bb4e8`, `40e6cf67cb98a1649b2aa171f523a300b5879fb7`, `9113c4aa31260034a6f53cb4b76f2ec04955d28c`.
 - No tests or typecheck were executed after these corrections. The new code head is therefore **IMPLEMENTED / NOT VERIFIED**; no CI pass is claimed. The commits use `[skip ci]` under the Actions-minute budget. Comprehensive verification remains deferred to Phase 3.
 - PR #138 remains OPEN/DRAFT/UNMERGED to `develop`. No staging deployment/write, shared database mutation, migration, grants/default-ACL change, RLS enablement, worker activation, provider call or release action occurred.
+
+
+## UX-094 route matrix and latest PR-head reconciliation — 23 November 2026
+
+- PR #138 current head: `76b9b15dc1db37c67841d405b4a232f4731fc986`; PR remains OPEN/DRAFT/UNMERGED to `develop`.
+- GitHub Actions workflow lookup returned no run for this exact head. Commits use `[skip ci]`; no Mobile route tests, Flutter analysis, API typecheck or full CI verification are claimed.
+- Combined status reports Vercel Admin FAILURE and Vercel Web FAILURE, both pointing to the external provider build-rate-limit page. These are not application test results.
+- UX-094 includes a 13-route merchant deep-link permission matrix plus category read-only policy/helper coverage. Tests are present but not executed. The category API remains ADMIN/MODERATOR-only for writes; no backend permission change was made.
+- The prior CI #1380 API typecheck failure on `de9eeafb3852822552c667d13ad1e0c27fa8d28f` remains historical failure evidence. Corrective API changes exist on this branch but are not CI-verified.
+- No merge, deployment, staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
