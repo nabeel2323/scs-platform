@@ -144,6 +144,10 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
   const merchantA = randomUUID();
   const buyerA = randomUUID();
   const orgA = randomUUID();
+  const platformEscalationAuthority = (sub: string, activeOrg: string) => ({
+    kind: 'platform' as const,
+    caller: { sub, role: 'ADMIN', activeOrg },
+  });
   const storeA = randomUUID();
   const warehouseA = randomUUID();
   const variantA = randomUUID();
@@ -808,7 +812,7 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     expect(ret.status).toBe('REQUESTED');
 
     // 2. Escalate (simulates worker detecting SLA expiry)
-    const escalated = await returnsService.escalateReturn(ret.id);
+    const escalated = await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
     expect(escalated!.status).toBe('ESCALATED');
 
     // 3. Verify deadline persistence
@@ -862,7 +866,7 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
       reason: 'CUSTOMER_REQUEST',
       lines: [{ orderItemId, quantity: 1 }],
     }, buyerCaller);
-    await returnsService.escalateReturn(ret.id);
+    await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
 
     const resolved = await returnsService.resolveEscalation(
       ret.id, 'REJECT', 'BUYER_REMORSE', adminCaller, 'Not eligible',
@@ -885,7 +889,7 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
       reason: 'CUSTOMER_REQUEST',
       lines: [{ orderItemId, quantity: 1 }],
     }, buyerCaller);
-    await returnsService.escalateReturn(ret.id);
+    await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
 
     const resolved = await returnsService.resolveEscalation(
       ret.id, 'CANCEL', null, adminCaller, 'Cancelled by admin',
@@ -910,7 +914,7 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     }, buyerCaller);
 
     // Escalate it
-    await returnsService.escalateReturn(ret.id);
+    await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
 
     // Try creating a second return for the same sub-order — should fail
     await expect(
@@ -937,7 +941,7 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
       reason: 'PRODUCT_NOT_AS_DESCRIBED',
       lines: [{ orderItemId, quantity: 1 }],
     }, buyerCaller);
-    await returnsService.escalateReturn(ret.id);
+    await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
 
     await expect(
       returnsService.resolveEscalation(
@@ -986,7 +990,7 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
     // Fire 3 concurrent escalation attempts
     const attempts = await Promise.allSettled(
-      Array.from({ length: 3 }, () => returnsService.escalateReturn(ret.id)),
+      Array.from({ length: 3 }, () => returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA))),
     );
 
     const succeeded = attempts.filter(
@@ -1035,7 +1039,7 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
       reason: 'PRODUCT_NOT_AS_DESCRIBED',
       lines: [{ orderItemId, quantity: 1 }],
     }, buyerCaller);
-    await returnsService.escalateReturn(ret.id);
+    await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
 
     // Fire 3 concurrent resolution attempts
     const attempts = await Promise.allSettled(
@@ -1071,9 +1075,9 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     }, buyerCaller);
 
     // First escalation
-    await returnsService.escalateReturn(ret.id);
+    await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
     // Second escalation — should be idempotent (status !== REQUESTED, returns undefined)
-    const second = await returnsService.escalateReturn(ret.id);
+    const second = await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
     // The method returns undefined when already processed (early return)
     expect(second).toBeUndefined();
 
@@ -1104,7 +1108,7 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
       reason: 'PRODUCT_NOT_AS_DESCRIBED',
       lines: [{ orderItemId, quantity: 1 }],
     }, buyerCaller);
-    await returnsService.escalateReturn(ret.id);
+    await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
 
     // Merchant approves even though return is escalated
     const approved = await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
