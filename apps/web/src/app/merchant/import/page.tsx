@@ -140,6 +140,7 @@ export default function ImportWizardPage() {
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollGenerationRef = useRef(0);
   const pollInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
   const pollNowRef = useRef<(() => void) | null>(null);
 
   // Step 6: Review
@@ -153,7 +154,13 @@ export default function ImportWizardPage() {
     pollNowRef.current = null;
   }, []);
 
-  useEffect(() => () => stopImportPolling(), [stopImportPolling]);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopImportPolling();
+    };
+  }, [stopImportPolling]);
 
   const resolveStore = useCallback(async () => {
     const requestId = ++storeRequestRef.current;
@@ -483,18 +490,19 @@ export default function ImportWizardPage() {
         throw new Error(b?.detail || b?.message || `Import processing failed: ${processRes.status}`);
       }
 
+      if (!mountedRef.current) return;
       // Start polling only after the process request succeeds. This prevents a
       // fast terminal poll from being overwritten by a later setStep(4).
       setStep(4);
       const generation = ++pollGenerationRef.current;
       const poll = async () => {
-        if (generation !== pollGenerationRef.current || pollInFlightRef.current) return;
+        if (!mountedRef.current || generation !== pollGenerationRef.current || pollInFlightRef.current) return;
         pollInFlightRef.current = true;
         try {
           const res = await authFetch(`${API_URL}/v1/imports/${jobId}`);
           if (!res.ok) throw new Error(`Import status refresh failed: ${res.status}`);
           const job = (await res.json()) as ImportJob;
-          if (generation !== pollGenerationRef.current) return;
+          if (!mountedRef.current || generation !== pollGenerationRef.current) return;
 
           setImportJob(job);
           setPollError(null);
@@ -510,11 +518,11 @@ export default function ImportWizardPage() {
             }
           }
         } catch (err: unknown) {
-          if (generation === pollGenerationRef.current) {
+          if (mountedRef.current && generation === pollGenerationRef.current) {
             setPollError(err instanceof Error ? err.message : 'Unable to refresh import status');
           }
         } finally {
-          if (generation === pollGenerationRef.current) pollInFlightRef.current = false;
+          if (mountedRef.current && generation === pollGenerationRef.current) pollInFlightRef.current = false;
         }
       };
 
@@ -523,9 +531,9 @@ export default function ImportWizardPage() {
       pollTimerRef.current = setInterval(() => { void poll(); }, 1500);
     } catch (err: unknown) {
       stopImportPolling();
-      setError(err instanceof Error ? err.message : String(err));
+      if (mountedRef.current) setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   };
 
