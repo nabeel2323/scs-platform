@@ -3,10 +3,10 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 const { fetchKpis } = vi.hoisted(() => ({ fetchKpis: vi.fn() }));
 
-vi.mock('../../lib/api', () => ({
+vi.mock('../lib/api', () => ({
   fetchKpis: (...args: unknown[]) => fetchKpis(...args),
 }));
-vi.mock('../../hooks/useRequirePerms', () => ({
+vi.mock('../hooks/useRequirePerms', () => ({
   useRequirePerms: () => ({ hasAccess: true, missingPerms: [] }),
 }));
 vi.mock('@scs/ui-kit', () => ({
