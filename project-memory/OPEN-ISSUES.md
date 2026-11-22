@@ -446,3 +446,11 @@ The dedicated KPI Dashboard silently swallowed read failures, offered no retry a
 ## UX-045 — Admin Organizations — 22 November 2026
 
 The Organizations page previously coupled the directory and update-request queue through one `Promise.all`; a single failure blocked both and could render false empty states. These reads are now independent with retryable errors, request-version guards and successful-empty-only rendering. Focused test added but not executed. UX-045 remains TESTING_PENDING for the consolidated campaign. No API or permission change.
+
+## UX-046 — Admin User Management — 22 November 2026
+
+The Admin User workflows had several correctness and discoverability gaps: phone was incorrectly required, organization/role lookup failures were hidden, partial initial memberships were silently ignored by the service, the dedicated detail route lacked profile and membership controls, and the permissions tab misrepresented the global catalog as user-effective permissions. These are now corrected using existing endpoints plus a service-level org/role-pair invariant. Focused Admin/API tests were added but not executed. UX-046 remains TESTING_PENDING for the consolidated Phase 3 campaign; no schema, migration or new permission change.
+
+## UX-047 — Admin Merchant Store Detail — 22 November 2026
+
+The existing store detail response included branding, address, locale and popularity-badge visibility, but the Admin detail view did not present most of those fields. The detail page now displays them using the existing endpoint. A focused test was added but not executed. UX-047 remains TESTING_PENDING; no API/permission/schema/database change.
