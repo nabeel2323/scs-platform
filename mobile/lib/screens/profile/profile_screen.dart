@@ -124,6 +124,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       appBar: AppBar(
         title: const Text('My Profile'),
         actions: [
+          IconButton(
+            tooltip: 'Refresh profile',
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.invalidate(profileProvider),
+          ),
           if (!_editing)
             IconButton(
               icon: const Icon(Icons.edit),
@@ -134,9 +139,43 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ],
       ),
       body: profile.when(
+        skipLoadingOnRefresh: true,
+        skipError: true,
         data: (p) {
           if (!_editing) _initControllers(p);
-          return _editing ? _editForm(p) : _viewMode(p);
+          final content = _editing ? _editForm(p) : _viewMode(p);
+          if (!profile.isRefreshing && !profile.hasError) return content;
+          return Column(children: [
+            if (profile.isRefreshing)
+              const Padding(
+                padding: EdgeInsets.all(8),
+                child: Text('Refreshing profile… showing the last successful details.',
+                    style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+              ),
+            if (profile.hasError)
+              Container(
+                margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: TaifTokens.err.withValues(alpha: 0.06),
+                  border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+                  borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+                ),
+                child: Row(children: [
+                  Expanded(
+                    child: Text(
+                      'Could not refresh profile: ${ApiService.errorMessage(profile.error!)}. Showing the last successfully loaded details.',
+                      style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => ref.invalidate(profileProvider),
+                    child: const Text('Retry'),
+                  ),
+                ]),
+              ),
+            Expanded(child: content),
+          ]);
         },
         loading: () => const LoadingSpinner(),
         error: (e, _) => EmptyState(

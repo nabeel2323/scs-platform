@@ -1710,3 +1710,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Added `org_detail_read_recovery_test.dart` for independent stale metadata/member preservation.
 - Restored the Organizations list's permission-aware empty-state copy for users who can create an organization.
 - Organization switching, membership changes, invitations, roles and access-control behavior are unchanged. No API, permission, database, migration, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-076 — Mobile Profile stale-read recovery — 22 November 2026
+
+- Profile now exposes an explicit Refresh action and retains the last successful profile while refreshing or after a refresh failure, with a retryable warning.
+- Initial profile failures continue to use the existing retryable error state; profile edit form state is not reset by a same-screen refresh.
+- Added `profile_read_recovery_test.dart` for stale profile preservation after refresh failure.
+- Profile editing, OTP linking, authentication/session handling and sign-out behavior are unchanged. No API, permission, database, migration, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
