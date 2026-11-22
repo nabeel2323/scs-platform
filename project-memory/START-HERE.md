@@ -411,3 +411,13 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
 - Next: continue remaining Mobile buyer workflow reads/actions and then Web/Admin route audit, implementing only source-confirmed contract-backed gaps.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
+
+
+## Latest UX continuation checkpoint — 23 November 2026 (UX-084)
+
+- Implemented Mobile Checkout idempotency-key payload alignment. Identical retries reuse the same key; changing payment method on the Review step now rotates the key so a different checkout payload cannot reuse the old request identity.
+- Added `mobile/test/checkout_idempotency_key_test.dart` covering two identical failed retries followed by a payment-method change and a successful submission. Test has not been executed and remains pending Phase 3.
+- Source commit: `8b4e033`; focused test commit `6adaa06` with mock-signature correction `515c8f8`. All use `[skip ci]`.
+- PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
+- Next: continue Mobile buyer workflow audit and then remaining Web/Admin route audit, implementing only source-confirmed contract-backed gaps.
+- No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
