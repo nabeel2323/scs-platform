@@ -638,3 +638,8 @@ Categories, Popular Products and Suppliers now expose initial loading/errors/ret
 ## Mobile Checkout UX-084 — 23 November 2026
 
 Checkout idempotency keys now follow payload identity: identical retry attempts reuse the same key, while changing payment method on Review mints a new key. A Flutter widget regression test covers this lifecycle but has not been executed; it remains pending Phase 3. No backend checkout contract, order/payment state, database or migration behavior changed.
+
+
+## Mobile Merchant Dashboard UX-085 — 23 November 2026
+
+Merchant profile and active-store reads now preserve last-successful data during refresh/reload failure, with retryable stale notices and explicit initial errors. Dashboard refresh/pull-to-refresh awaits independent profile, store and KPI reads; KPI-level recovery remains. A focused Flutter widget test was added but not executed; it remains pending Phase 3. No organization/store lifecycle, permission, API, database or migration behavior changed.
