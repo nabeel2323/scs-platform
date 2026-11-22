@@ -1,10 +1,10 @@
 # SCS Platform — Current State
 
-**Checkpoint date:** 22 November 2026  
+**Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `c5b110fc41324251d24284809664c993b9212827` — UX-058 Attribute Definitions read recovery; latest focused test commit is `0bc00fa68f541ff74e86c68e0e1a70af20720d6d`  
-**Previous source increments:** `241080e83a3fc083fc6bccc58b941b38ed526ca3` — Business Calendar recovery; `b59ff088d086da59cc865e8a5ba61f3e04eb5815` — Attribute Groups recovery  
+**Latest source implementation commit:** `df5a171762a5f6a5b365a13f491a975d4c6e9aa8` — UX-088 Mobile Merchant Inventory recovery; latest focused test commit is `fe508b0d30c791fb7597ec7f1c95d6b6968461b4`  
+**Previous source increments:** UX-087 Mobile Merchant Offer Detail recovery is present; focused test commit `910466470d28c7d1eec08c80db47a74b6727f3bc`; UX-086 Mobile Merchant Catalog recovery source `4ef8813` / `7723fb7` and focused test `5484e8f`  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,14 +19,14 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Live branch head | Resolve from the live GitHub ref at session start; this checkpoint is documentation and does not pin its resulting SHA |
-| Latest implementation/test | `0bc00fa68f541ff74e86c68e0e1a70af20720d6d` — UX-058 Attribute Definitions recovery test |
+| Last verified implementation/test head | `fe508b0d30c791fb7597ec7f1c95d6b6968461b4` (documentation synchronization follows; resolve the live head at session start) |
+| Latest implementation/test | `fe508b0d30c791fb7597ec7f1c95d6b6968461b4` — UX-088 Merchant Inventory recovery tests |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for source/test commits `c5b110fc41324251d24284809664c993b9212827` / `0bc00fa68f541ff74e86c68e0e1a70af20720d6d`; commits use `[skip ci]`; NOT CI-VERIFIED |
+| Exact-head GitHub Actions | No run for implementation/test head `fe508b0d30c791fb7597ec7f1c95d6b6968461b4`; commits use `[skip ci]`; NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest inspected Vercel contexts | Web FAILURE; Admin FAILURE (external build-rate-limit page); not application test results |
-| Focused Web/Admin tests | UX-030–058 added; not executed |
+| Latest inspected Vercel contexts | At `fe508b0`: Admin PENDING; Web FAILURE with external build-rate-limit destination; not application test results |
+| Focused client tests | Admin UX-030–058 and Mobile UX-078–088 added; not executed |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
 ## Current remediation status
@@ -648,3 +648,12 @@ Merchant profile and active-store reads now preserve last-successful data during
 ## Mobile Merchant Catalog UX-086 — 23 November 2026
 
 Merchant active-store and product reads now preserve last-successful data through refresh/reload failures, with retryable stale notices and truthful initial error/empty states. Explicit refresh awaits active-store resolution then the current store's product list; pull-to-refresh awaits product refresh. Search/status filters and permission gates are unchanged. Focused Flutter tests were added but not executed; they remain pending Phase 3. No catalog API/product visibility/database/migration behavior changed.
+
+
+## Mobile Merchant Offer Detail and Inventory continuation — 23 November 2026
+
+- UX-087 Offer Detail: the screen preserves last-successful offer and analytics through refresh failures, supports retry on initial offer failure, refreshes offer/analytics/trend independently and does not represent failed analytics as zero sales. Focused widget tests are in `mobile/test/merchant_offer_detail_read_recovery_test.dart` (commit `910466470d28c7d1eec08c80db47a74b6727f3bc`); not executed.
+- UX-088 Inventory: active-store refresh precedes store inventory/warehouse reads; store and inventory stale values remain visible on refresh failure; warehouse lookup has independent error/retry; empty inventory supports pull-to-refresh and is only shown after a successful response. Source commit `df5a171762a5f6a5b365a13f491a975d4c6e9aa8`; focused tests `fe508b0d30c791fb7597ec7f1c95d6b6968461b4`; not executed.
+- Both items are IMPLEMENTED / TESTING_PENDING, not automated-test verified or CI verified. No API, permission, offer lifecycle, stock mutation, warehouse transfer, schema, database or migration behavior changed.
+- Next implementation: source-first audit of remaining Mobile merchant operational screens, then remaining Web/Admin route/action permission mapping. Comprehensive tests remain deferred to Phase 3.
+- PR #138 remains OPEN/DRAFT/UNMERGED to `develop`. The implementation/test commits use `[skip ci]`; no Actions run was returned for the exact implementation/test head. Vercel Admin PENDING and Web external rate-limit FAILURE are not application test results.
