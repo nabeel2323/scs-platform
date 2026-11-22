@@ -654,3 +654,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added `apps/web/src/__tests__/product-studio-progress.test.tsx` and an existing-product update failure case in `product-studio-flow.test.ts`. Not executed.
 - Source baseline: `49b28054855fa3e18ade7e17aca0395124713a6f`; docs sync follows separately.
 - No database, migration, deployment, worker activation, grants/RLS or provider calls.
+
+
+## 2026-11-22 — UX-026 / UX-027 Product Studio canonical and media integrity
+
+- Product Studio now prefers `useExistingProductId` over a stale wizard product ID, reuses the canonical product and skips product/attribute/variant/media mutations for shared catalog data. Existing canonical identity/specification/media steps are read-only.
+- Existing selected variant is passed as `variantId` to the merchant-offer create request. Offer idempotency state resets when canonical selection changes.
+- Added `persistProductStudioMedia` to attach uploaded/linked media to merchant-owned products via `addMedia`, after re-reading existing media URLs to skip duplicates on retries. Canonical media is not touched.
+- Added unit tests for canonical product target precedence and media dedupe/empty no-op. Not executed.
+- Source baseline: `0ebce8be9abd89f8370e208698123c9786ae72e6`; docs sync follows separately.
+- No DB, migration, deployment, worker activation, grants/RLS or provider calls.

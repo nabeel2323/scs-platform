@@ -236,6 +236,8 @@ Deferred/remaining:
 | UX-023 | Admin product detail merchant-offer read recovery | P2 | IMPLEMENTED IN SOURCE — NOT TESTED | ProductDetails fetched merchant offers once without retry and displayed a plain error above an empty-state table. Added request-version guarded reload, loading skeleton, explicit retryable error and true-empty state. |
 | UX-024 | Admin financial list read/action error separation | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Payments, settlements, reconciliation and settlement-adjustment list reads had no retry; read and action errors shared state, sometimes hiding financial context or presenting failed reads as empty. Added separate load/detail/action errors, retry controls, stale-request protection and recovery tests. |
 | UX-025 | Product Studio existing-product updates and canonical identifiers | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Product Studio created a product only once and later saves did not update edits made after navigating back. The create payload also omitted supported GTIN/EAN/MPN/productTypeId fields. Added updateProduct with optimistic updatedAt, identifier/product-type persistence on create/update, and save identity validation. |
+| UX-027 | Product Studio uploaded media persistence and retry idempotency | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Product Studio uploaded media objects to storage but did not create product-media records, leaving uploaded images unattached. Added final-save media persistence with existing-media recheck so retries after partial failure do not duplicate records. |
+| UX-026 | Product Studio canonical product reuse and ownership boundary | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Selecting an existing canonical product still entered the create path, risking duplicate products; the selected variant was not attached to the offer and shared identity/specification/media could be edited from the merchant workflow. Added canonical-ID precedence, product/variant reuse, variant-scoped offers and read-only shared catalog steps. |
 
 
 ## UX-015 — Product Studio save and step-transition integrity — 22 November 2026
@@ -320,3 +322,17 @@ Deferred/remaining:
 - The wizard stores the product `updatedAt` returned by create/update and sends it on later PATCH requests to preserve the API's optimistic-concurrency contract.
 - Create/update payloads now include product type and canonical GTIN/EAN/MPN fields supported by the API contract. The save routine validates store and title even when invoked from final Review.
 - Added a focused transition regression case for failed updates of an already-created product. Tests have not been executed.
+
+
+## UX-026 — Product Studio canonical product reuse and ownership boundary — 22 November 2026
+
+- Selecting an existing canonical product now takes precedence over any stale wizard product ID. The merchant workflow reuses that canonical product rather than creating a duplicate or PATCHing shared catalog data.
+- Shared identity, specification and media steps are read-only for canonical products. Existing product selection resets stale wizard-owned product/variant/media state. The selected existing variant is passed to the merchant-offer create request when one is chosen; product-level offers remain supported when no variant is selected.
+- The hook clears the offer-creation retry marker when the selected canonical product changes, preventing a prior target's idempotency marker from suppressing a new offer.
+- Added unit coverage for canonical target precedence. Tests not executed.
+
+## UX-027 — Product Studio uploaded media persistence and retry idempotency — 22 November 2026
+
+- Product Studio now creates product-media records for uploaded/linked media during final save using the existing `fetchProductMedia` and `addMedia` API contracts.
+- Before insertion it re-reads the product's media and skips already-persisted URLs. A retry after partial failure therefore does not create duplicate media records.
+- Media is persisted only for merchant-owned products; canonical product media remains untouched. Added unit coverage for deduplication and empty-media no-op. Tests not executed.

@@ -296,3 +296,10 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Product Studio now updates previously created products on subsequent saves, carries the optimistic-lock `updatedAt` value and persists supported product type and canonical identifiers.
 - The progress stepper can no longer jump over required sequential steps or bypass the Offer-step save guard; it is disabled during persistence.
 - Added focused tests for stepper navigation and failed update transition. Not run. Continue UX-010 source audit.
+
+
+## 2026-11-22 — UX-026 / UX-027 Product Studio canonical reuse and media persistence
+
+- Corrected existing-canonical-product selection to reuse the selected canonical product rather than create a duplicate. Merchant workflow does not mutate shared identity, specifications, variants or media; those steps are read-only. Existing selected variant is passed to the offer create contract.
+- Product Studio now attaches uploaded/linked media to merchant-owned products during save, with a pre-insert media read and URL deduplication to make partial retries safe.
+- Added helper tests for canonical target precedence and media deduplication; not run. Continue UX-010 audit.

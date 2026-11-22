@@ -347,3 +347,11 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Existing Product Studio products are now updated on subsequent saves rather than silently skipping identity edits. The product's `updatedAt` is retained and sent for optimistic locking.
 - Create/update payloads include the supported productTypeId, GTIN, EAN and MPN fields. Store/title are validated in the save routine as well as the step transition helper.
 - Added a progress-indicator widget test and an existing-product update-failure regression case. Tests not executed.
+
+
+## 22 November 2026 — Product Studio canonical reuse and media persistence (UX-026 / UX-027)
+
+- Existing canonical product selection now wins over stale wizard product IDs. Product Studio reuses the shared product, does not create or update it, and skips canonical attribute/variant/media writes. Shared identity/specification/media steps are read-only in this path.
+- Selected existing variant IDs are passed to the merchant-offer create API. The offer-creation marker is reset when canonical selection changes.
+- Uploaded Product Studio media is now attached to merchant-owned products through product-media records during save. Existing media URLs are re-read and deduplicated before inserts so retries after partial failure are safe.
+- Added unit tests for canonical target selection and media deduplication/empty selection. Not executed.

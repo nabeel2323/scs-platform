@@ -462,3 +462,12 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Subsequent saves now PATCH an existing product instead of only creating once. The returned product `updatedAt` is carried forward and supplied for optimistic concurrency. Create/update now persist supported product type and GTIN/EAN/MPN fields.
 - Added progress-indicator and existing-product update-failure regression coverage. Not executed.
 - Source baseline before docs sync: `49b28054855fa3e18ade7e17aca0395124713a6f`; docs commit advances branch. PR #138 remains open/draft/unmerged.
+
+
+## Product Studio canonical reuse/media UX-026 / UX-027 checkpoint — 22 November 2026
+
+- Selecting an existing canonical product now reuses that product ID (it takes precedence over stale wizard product IDs) and never creates/updates shared catalog identity, specifications, variants or media from the merchant-offer workflow. Those steps are read-only for this path.
+- Selected existing variant IDs are now passed to the offer API. Changing the selected canonical product resets the offer retry marker.
+- Product Studio uploaded media is now attached to merchant-owned products using `fetchProductMedia` + `addMedia`, with URL recheck/deduplication for safe retries after partial failure. Canonical product media is untouched.
+- Added focused helper tests for canonical target precedence and media dedupe/no-op. Not executed.
+- Source baseline before docs sync: `0ebce8be9abd89f8370e208698123c9786ae72e6`; docs commit advances branch. PR #138 remains open/draft/unmerged.

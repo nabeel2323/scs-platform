@@ -367,3 +367,10 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Existing Product Studio products now receive PATCH updates on later saves, using optimistic-lock `updatedAt`; create/update payloads persist productTypeId and GTIN/EAN/MPN. Save validates store/title.
 - Progress navigation is sequential and uses the same save guard; no direct jump can bypass Offer-step persistence.
 - Focused tests added, not executed. Full test campaign remains deferred.
+
+
+## UX-026 / UX-027 Product Studio canonical and media integrity — 22 November 2026
+
+- Existing canonical product selection now reuses the canonical ID and cannot mutate shared identity/specifications/media from the merchant workflow. Variant selection is propagated to the offer API.
+- Uploaded media is now attached to merchant-owned products with retry-safe URL deduplication; canonical media is untouched. Focused tests added, not executed.
+- Comprehensive test campaign remains deferred.
