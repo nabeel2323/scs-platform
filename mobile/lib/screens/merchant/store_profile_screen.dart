@@ -151,6 +151,31 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
     cityCtrl.dispose();
   }
 
+  Future<void> _refreshStoreProfile() async {
+    try {
+      await ref.refresh(myStoresProvider.future);
+    } catch (_) {
+      // activeStoreProvider retains its last successful value when possible.
+      return;
+    }
+
+    Store? store;
+    try {
+      // activeStoreProvider depends on myStoresProvider; await its recomputed
+      // value rather than forcing a second store-directory request.
+      store = await ref.read(activeStoreProvider.future);
+    } catch (_) {
+      return;
+    }
+    if (store == null) return;
+
+    try {
+      await ref.refresh(storeWarehousesProvider(store.id).future);
+    } catch (_) {
+      // Warehouse reads report their own retry/error state in the form.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final storeAsync = ref.watch(activeStoreProvider);
@@ -162,21 +187,20 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
           IconButton(
             tooltip: 'Refresh store profile',
             icon: const Icon(Icons.refresh),
-            onPressed: () {
-              ref.invalidate(activeStoreProvider);
-              ref.invalidate(myStoresProvider);
-            },
+            onPressed: _refreshStoreProfile,
           ),
         ],
       ),
       body: storeAsync.when(
         skipLoadingOnRefresh: true,
+        skipLoadingOnReload: true,
         skipError: true,
         loading: () => const LoadingSpinner(),
         error: (e, _) => EmptyState(
-            title: 'Error',
+            title: 'Could not load store profile',
             description: ApiService.errorMessage(e),
-            onAction: () => ref.invalidate(myStoresProvider)),
+            actionLabel: 'Retry store profile',
+            onAction: _refreshStoreProfile),
         data: (store) {
           final expectedOrgId = ref.watch(activeOrgIdProvider) ??
               ref.watch(profileProvider).valueOrNull?.activeOrgId;
@@ -241,17 +265,18 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
             ),
           ),
           TextButton(
-            onPressed: () {
-              ref.invalidate(activeStoreProvider);
-              ref.invalidate(myStoresProvider);
-            },
+            onPressed: _refreshStoreProfile,
             child: const Text('Retry'),
           ),
         ]),
       );
 
-  Widget _form(Store store, bool canWrite) =>
-      ListView(padding: const EdgeInsets.all(16), children: [
+  Widget _form(Store store, bool canWrite) => RefreshIndicator(
+      onRefresh: _refreshStoreProfile,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
         if (_error != null) ...[
           ErrorBanner(message: _error!),
           const SizedBox(height: 12),
@@ -299,7 +324,9 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
         if (!canWrite) const Text('Read-only: store changes require merchant:stores:write', style: TextStyle(color: TaifTokens.muted, fontSize: 12)),
         const SizedBox(height: 32),
         _warehousesSection(store, canWrite),
-      ]);
+        ],
+      ),
+    );
 
   Widget _warehousesSection(Store store, bool canWrite) {
     final whs = ref.watch(storeWarehousesProvider(store.id));
@@ -315,28 +342,71 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
       ]),
       const SizedBox(height: 4),
       whs.when(
+        skipLoadingOnRefresh: true,
+        skipLoadingOnReload: true,
+        skipError: true,
         loading: () => const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: LoadingSpinner()),
-        error: (e, _) => ErrorBanner(message: ApiService.errorMessage(e)),
-        data: (list) => list.isEmpty
-            ? const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('No warehouses yet.',
-                    style: TextStyle(color: TaifTokens.muted, fontSize: 13)))
-            : Column(
-                children: list
-                    .map((w) => Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                            leading: const Icon(Icons.warehouse,
-                                color: TaifTokens.brandPrimary),
-                            title: Text((w['name'] ?? 'Warehouse').toString(),
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: LoadingSpinner(),
+        ),
+        error: (e, _) => ErrorBanner(
+          message: 'Could not load warehouses: ${ApiService.errorMessage(e)}',
+          onRetry: () => ref.invalidate(storeWarehousesProvider(store.id)),
+        ),
+        data: (list) {
+          final content = list.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'No warehouses yet.',
+                    style: TextStyle(color: TaifTokens.muted, fontSize: 13),
+                  ),
+                )
+              : Column(
+                  children: list
+                      .map((w) => Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              leading: const Icon(
+                                Icons.warehouse,
+                                color: TaifTokens.brandPrimary,
+                              ),
+                              title: Text(
+                                (w['name'] ?? 'Warehouse').toString(),
                                 style: const TextStyle(
-                                    fontWeight: FontWeight.w600)),
-                            subtitle: Text(_warehouseSubtitle(w)))))
-                    .toList(),
-              ),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              subtitle: Text(_warehouseSubtitle(w)),
+                            ),
+                          ))
+                      .toList(),
+                );
+
+          if (!whs.isRefreshing && !whs.hasError) return content;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (whs.isRefreshing)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    'Refreshing warehouses… showing the last successful list.',
+                    style: TextStyle(fontSize: 12, color: TaifTokens.muted),
+                  ),
+                ),
+              if (whs.hasError)
+                ErrorBanner(
+                  message:
+                      'Could not refresh warehouses: ${ApiService.errorMessage(whs.error!)}. Showing the last successful list.',
+                  onRetry: () =>
+                      ref.invalidate(storeWarehousesProvider(store.id)),
+                ),
+              content,
+            ],
+          );
+        },
       ),
     ]);
   }
