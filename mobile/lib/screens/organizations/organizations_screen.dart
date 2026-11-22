@@ -69,7 +69,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
       );
       ref.read(apiClientProvider).setAccessToken(res.accessToken);
       ref.read(activeOrgIdProvider.notifier).state = orgId;
-      invalidateOrganizationScopedProviders(ref.container);
+      invalidateOrganizationScopedProviders(ref);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Organization switched')),
