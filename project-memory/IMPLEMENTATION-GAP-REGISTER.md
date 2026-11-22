@@ -641,3 +641,8 @@ Source-confirmed gap closed in implementation: the Product Detail inline FutureB
 ## UX-082 — Mobile Notifications recovery — 23 November 2026
 
 Source-confirmed gaps closed in implementation: notification refresh/realtime invalidation discarded the last successful inbox; individual mark-read failures escaped without user feedback. The screen now preserves stale data through refresh failure, exposes retry/refresh, distinguishes initial error from empty inbox, and guards individual/Mark All Read actions with progress and feedback. Focused Flutter tests are added but remain TESTING_PENDING. Realtime and notification API contracts unchanged.
+
+
+## UX-083 — Mobile Home discovery recovery — 23 November 2026
+
+Source-confirmed gaps closed in implementation: Home discovery sections silently disappeared on initial read errors, refresh returned before providers completed, and unread-count failure was represented as zero. Categories, Popular Products and Suppliers now have explicit loading/error/retry and stale-data handling; home refresh awaits independent reads; unread count remains unknown until successfully loaded. Focused Flutter tests are added but remain TESTING_PENDING. No API/permission/role/database behavior changed.
