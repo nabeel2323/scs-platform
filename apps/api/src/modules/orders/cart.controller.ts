@@ -4,10 +4,11 @@ import {
 } from '@nestjs/common';
 import { CartService, AddCartItemInput } from './cart.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser, JwtPayload } from '../../common/guards/current-user.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
 
 @Controller('cart')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class CartController {
   constructor(private readonly cartService: CartService) {}
 
@@ -17,6 +18,7 @@ export class CartController {
   }
 
   @Post('items')
+  @RequirePermission('orders:write')
   async addItem(
     @CurrentUser() user: JwtPayload,
     @Body() input: AddCartItemInput,
@@ -25,6 +27,7 @@ export class CartController {
   }
 
   @Patch('items/:itemId')
+  @RequirePermission('orders:write')
   async updateItem(
     @CurrentUser() user: JwtPayload,
     @Param('itemId') itemId: string,
@@ -34,6 +37,7 @@ export class CartController {
   }
 
   @Delete('items/:itemId')
+  @RequirePermission('orders:write')
   async removeItem(
     @CurrentUser() user: JwtPayload,
     @Param('itemId') itemId: string,
@@ -42,22 +46,26 @@ export class CartController {
   }
 
   @Delete()
+  @RequirePermission('orders:write')
   async clearCart(@CurrentUser() user: JwtPayload) {
     return this.cartService.clearCart(user.sub);
   }
 
   /** PHASE 11: Validate offers in cart; re-price stale items. */
   @Post('validate')
+  @RequirePermission('orders:write')
   async validateCart(@CurrentUser() user: JwtPayload) {
     return this.cartService.validateCart(user.sub);
   }
 
   @Delete('promo')
+  @RequirePermission('orders:write')
   async removePromo(@CurrentUser() user: JwtPayload) {
     return this.cartService.removePromoCode(user.sub);
   }
 
   @Post('promo')
+  @RequirePermission('orders:write')
   async applyPromo(
     @CurrentUser() user: JwtPayload,
     @Body() body: { promoCode?: string; code?: string; promotionId?: string },

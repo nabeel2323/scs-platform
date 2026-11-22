@@ -17,7 +17,7 @@ The API's `GET /v1/me` response already includes the active-organization `perms`
 | Search | `catalog:products:read` | Add to Cart: `orders:write` |
 | Store list/detail | `merchant:stores:read` | Save/favorite remains user-scoped |
 | Product detail | `catalog:products:read` | Add to Cart: `orders:write` |
-| Cart and checkout | `orders:write` | API also enforces `orders:write` |
+| Cart and checkout | `orders:write` | Cart mutation endpoints enforce `orders:write`; checkout and order creation also enforce `orders:write` |
 | Orders list/detail | `orders:read` | Cancel: `orders:cancel`; delivery confirmation/reorder: `orders:write` |
 | Notifications | Authenticated self-service | Device-token endpoints are caller-scoped |
 | Merchant registration | Authenticated onboarding exception | Organization creation: `identity:organizations:create`; store creation: `merchant:stores:write` |
@@ -48,3 +48,8 @@ The API's `GET /v1/me` response already includes the active-organization `perms`
 - `identity:organizations:create` is defined by migration `0069_organization_onboarding_permission.sql`, which staging records as applied on 17 November 2026. Read-only SQL confirms it is assigned to BUYER, ADMIN, MERCHANT_OWNER, and SUPER_ADMIN. The canonical `rbac-seed.data.ts` was out of sync; this commit aligns the seed and adds a regression test. No staging DDL or permission grant is required.
 - Full deep-link, active-organization switching, role-switching, and mutation regression tests remain in the consolidated validation campaign.
 - Baseline CI formatting already fails on nine changed PR files. Formatting and full validation are intentionally deferred until the implementation batch is complete, conserving the user's remaining GitHub Actions minutes.
+
+
+## Cart API permission parity — 22 November 2026
+
+The API cart controller now enforces `orders:write` on every mutation endpoint (item add/update/remove, clear, validate/reprice, and promo apply/remove). Authenticated `GET /cart` remains a self-scoped read. Focused controller metadata and guard tests are added; execution remains in the consolidated Phase 3 campaign.

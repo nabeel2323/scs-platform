@@ -209,3 +209,12 @@ Correction to the earlier onboarding-permission note: staging is not missing `id
 - Updated the Admin route matrix and UX-003/UX-006 classifications. UX-006 mobile permission affordances are now classified IMPLEMENTED / NOT VERIFIED rather than pending.
 - This group is committed as one `[skip ci]` commit to conserve the user's remaining GitHub Actions minutes. No permission grants, backend policies, database, staging, migrations, worker activation, deployment, merge or release action changed.
 - Next implementation focus: finish MAP-001 API route-to-contract/client-consumer mapping and worker/provider activation ownership; then consolidate remaining integration work before Phase 3 testing.
+
+
+## Cart API permission parity — 22 November 2026
+
+- Source review found that `CartController` had JWT authentication and user-scoped service methods but did not enforce `orders:write` on mutations, unlike the mobile route policy and order checkout API.
+- Added `PermissionsGuard` after `JwtAuthGuard` and `orders:write` metadata to add/update/remove/clear, validate/reprice and promo apply/remove. `GET /cart` remains an authenticated self-scoped read.
+- Added a focused test for method permission metadata, guard registration, deny/allow behavior and the read-only cart exception. Execution is deferred to the consolidated Phase 3 campaign.
+- Updated the API route matrix, mobile permission matrix and programme gap register. No role grant, database, migration, staging, deployment or worker change was needed.
+- MAP-001 now has its first controller-level route/client/permission matrix. Exact call-site mapping, physical relation reconciliation and worker/provider activation mapping remain outstanding.

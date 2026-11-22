@@ -349,3 +349,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Added `apps/admin/src/__tests__/dashboard-permissions.test.tsx` covering unauthorized request suppression and permitted access for both dashboard data groups and commission reversals.
 - Updated Admin route matrix and UX-003/UX-006 classifications. UX-006 is IMPLEMENTED / NOT VERIFIED; full role/deep-link/action testing remains Phase 3.
 - Validation intentionally deferred; no Actions workflow was triggered by this grouped `[skip ci]` commit. No backend permission, role grant, DB, staging, migration, worker, deployment or release behavior changed.
+
+
+## 2026-11-22 — Cart API permission parity and route inventory
+
+- Reconciled the current PR #138 branch after the Admin read-gate batch. Inspected all 28 API module controller files and added `docs/api-route-permission-matrix.md` mapping route families, primary client surfaces and permission boundaries.
+- Found `GET /offers/nearby` in `PromotionsController`; corrected the earlier inventory assumption that no route existed. The service currently ignores coordinates/radius and returns active promotions by date/limit; no matching wrapper was found in the inspected web/mobile API clients and Home/Search entry pages. UX-008 remains pending a product/location decision.
+- Found CartController mutations had only JWT auth and no `orders:write` permission. Added the canonical permission guard to all cart mutations while retaining authenticated self-scoped GET. Added controller metadata/guard tests.
+- Updated MAP-001 and API-001 documentation. Validation is intentionally deferred; no GitHub Actions run, database change, migration, role grant, staging write, worker activation, deployment or release action occurred.
