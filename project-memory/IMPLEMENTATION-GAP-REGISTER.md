@@ -544,3 +544,35 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - Audit Log filter changes can issue overlapping requests. Responses were applied without request identity checks, so an older filter response could overwrite a newer result. The error banner had no direct retry action, although the page Refresh control could repeat the read.
 - Added request-version guards for result, total, error and loading updates, including invalidation on effect cleanup/unmount. The error banner now exposes an explicit Retry audit log action. Last successful rows remain visible while a refresh is in progress or fails.
 - Added `admin-audit-race.test.tsx` for out-of-order responses and failed-read retry. Tests have not been executed. No API, permission, schema or database change.
+
+## UX-050 — Admin Category Detail auxiliary read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- Category Detail swallowed failures from linked product-type, direct/descendant product and per-product-type attribute-schema reads. Those failures could render incomplete/empty panels as though the data were successfully empty; the Attributes tab could also be opened before its linked product-type list had been loaded.
+- Added independent loading/error/retry states and request-version guards for the auxiliary reads. The Attributes tab now loads its linked product types itself and treats schema collection as a complete operation; a partial schema response is not presented as a complete attribute union. Empty states are rendered only after successful reads.
+- Added `admin-category-detail-recovery.test.tsx` for failed product read, empty-state suppression and retry. Test not executed. No API, permission, schema or database change.
+
+## UX-051 — Admin Product Type Detail product read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- Product Type Detail swallowed failures from its Products tab request and displayed “No products” as though the read had succeeded.
+- Added a distinct retryable product-read error state, successful-empty-only rendering, request-version protection and cleanup on tab change/unmount. Last successful rows remain available during a failed refresh.
+- Added `admin-product-type-products-recovery.test.tsx`. Test not executed. No API, permission, schema or database change.
+
+## UX-052 — Admin Catalog Import history read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- Catalog Import Center used the generic action error for import-list failures, offered only Dismiss, and still rendered “No imports yet” after a failed history read. Concurrent refreshes had no request identity guard.
+- Added a separate import-history error state, explicit Retry imports action, successful-empty-only rendering, stale-row preservation and request-version/unmount protection. Upload/execute/report errors remain separate action feedback.
+- Added `admin-catalog-import-recovery.test.tsx`. Test not executed. No API, permission, schema or database change.
+
+## UX-053 — Admin Analytics request ordering and recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- Analytics date-range and activity-limit changes could overlap, and older responses could overwrite newer results. Error messages had no direct retry action.
+- Added independent request-version guards for event counts and activity, cleanup invalidation on tab/filter changes and unmount, explicit Retry events/Retry activity actions, and non-mutating event sorting. Failed refreshes retain last successful data.
+- Added `admin-analytics-race.test.tsx` for out-of-order date-range results and retry. Test not executed. No API, permission, schema or database change.
