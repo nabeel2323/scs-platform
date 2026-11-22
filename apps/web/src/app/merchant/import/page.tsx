@@ -471,10 +471,10 @@ export default function ImportWizardPage() {
       const outcome = getImportJobOutcome(job.status);
       setImportOutcome(outcome);
       setImportStats({
-        created: job.stats?.created ?? 0,
-        updated: job.stats?.updated ?? 0,
-        skipped: job.stats?.skipped ?? 0,
-        errors: job.stats?.errors ?? 0,
+        created: job.stats?.['created'] ?? 0,
+        updated: job.stats?.['updated'] ?? 0,
+        skipped: job.stats?.['skipped'] ?? 0,
+        errors: job.stats?.['errors'] ?? 0,
       });
       if (outcome === 'cancelled') setError('Import cancelled.');
       else if (outcome === 'failure') setError('Import failed. Review the error report for details.');
