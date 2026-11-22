@@ -1796,3 +1796,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - The store hub list is always-scrollable so pull-to-refresh works even when content is shorter than the viewport. Existing KPI-level recovery remains intact.
 - Added Flutter widget coverage for simultaneous profile/store refresh failures with stale identity and storefront preservation. Test remains pending Phase 3.
 - No organization/store lifecycle, permission, API, database, migration, staging or provider behavior changed.
+
+
+## UX-086 — Mobile Merchant Catalog read recovery — 23 November 2026
+
+- Active-store and merchant-product reads now preserve last-successful data through refresh/reload failure, with visible stale-data notices and retry. Initial failures remain errors rather than successful empty catalogues.
+- Explicit Refresh catalog now awaits the active-store refresh, then refreshes products for the current resolved store. Pull-to-refresh awaits the product provider instead of invalidating and returning immediately.
+- Existing product search/status filters and create/delete permission gates remain unchanged; successful empty and filtered-no-match states remain distinct.
+- Added Flutter widget coverage for stale product preservation, initial failure/retry and true-empty catalogue state. Tests remain pending Phase 3.
+- No catalog API, product visibility, permission, database, migration, staging or provider behavior changed.
