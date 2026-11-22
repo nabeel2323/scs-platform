@@ -4,6 +4,7 @@ import { StorageService } from '../../common/storage/storage.service';
 import { RedisService } from '../../common/redis/redis.service';
 import { timeQuery, recordCacheHit, recordCacheMiss } from '../../common/query-metrics';
 import { products, productVariants, brands, categories } from './catalog.schema';
+import { merchantOffers } from './catalog.offer.schema';
 import { searchQueries } from './search.schema';
 import { attributeDefinitions, productTypeAttributes, productAttributeValues, productTypes } from './catalog.taxonomy.schema';
 import { eq, and, isNull, or, sql, desc, asc, inArray } from 'drizzle-orm';
@@ -47,6 +48,13 @@ export class SearchService {
       if (options?.storeId) conditions.push(eq(products.storeId, options.storeId));
       if (options?.categoryId) conditions.push(eq(products.categoryId, options.categoryId));
       if (options?.brandId) conditions.push(eq(products.brandId, options.brandId));
+      if (options?.hasOffers) {
+        conditions.push(sql`EXISTS (
+          SELECT 1 FROM merchant_offers mo
+          WHERE mo.product_id = ${products.id}
+            AND mo.status = 'ACTIVE'
+        )`);
+      }
 
       // PHASE 6: attribute filter via EXISTS subquery
       const attrSql = this.buildAttributeFilterSql(options?.attributeFilters);
@@ -163,9 +171,19 @@ export class SearchService {
       // otherwise scanning the SKU of a DRAFT or SUSPENDED listing exposes it to
       // any buyer who happens to have its code.
       if (product && !product['deletedAt'] && (product['status'] === 'ACTIVE')) {
-        // A5-2 residual: use the same explicit projection as the other two
-        // paths so no client can depend on `matchedVariant` being present.
-        return {
+        const hasMatchingOffer = !options?.hasOffers || Boolean(
+          await this.db.db.query.merchantOffers.findFirst({
+            where: and(
+              eq(merchantOffers.productId, product.id),
+              eq(merchantOffers.status, 'ACTIVE'),
+            ),
+            columns: { id: true },
+          }),
+        );
+        if (hasMatchingOffer) {
+          // A5-2 residual: use the same explicit projection as the other two
+          // paths so no client can depend on matchedVariant being present.
+          return {
           items: await enrichProductCards(this.db.db, [
             {
               id: product.id,
@@ -190,7 +208,8 @@ export class SearchService {
           total: 1,
           matchType: 'exact',
           query,
-        };
+          };
+        }
       }
     }
 
@@ -222,6 +241,13 @@ export class SearchService {
       if (options?.priceMax != null) priceSql = sql`${priceSql} AND mo.base_price_minor <= ${options.priceMax}`;
       priceSql = sql`${priceSql})`;
       extraFilters.push(priceSql);
+    }
+    if (options?.hasOffers) {
+      extraFilters.push(sql`AND EXISTS (
+        SELECT 1 FROM merchant_offers mo
+        WHERE mo.product_id = p.id
+          AND mo.status = 'ACTIVE'
+      )`);
     }
     if (options?.availability === 'inStock') {
       extraFilters.push(sql`AND EXISTS (
@@ -535,6 +561,8 @@ export interface SearchOptions {
   priceMax?: number;
   /** P9: availability filter. */
   availability?: 'inStock';
+  /** Restrict results to products with at least one ACTIVE merchant offer. */
+  hasOffers?: boolean;
   /** P9: sort order. */
   sort?: 'price_asc' | 'price_desc' | 'newest' | 'name';
 }

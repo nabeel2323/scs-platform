@@ -223,3 +223,5 @@ Deferred/remaining:
 | UX-012 | Mobile merchant pricing management and offer linkage | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Merchant mobile had only read-only price-list/tier fetch methods and no pricing route or dashboard entry; offer creation omitted the API-supported priceListId field. Added list/tier CRUD screens, route permission, dashboard entry, price-list selection during offer creation, and linked-price-list navigation from offer detail. |
 
 | UX-013 | Admin order detail product/variant labels | P2 | IMPLEMENTED IN SOURCE — NOT TESTED | Admin order detail previously showed product and variant UUIDs only. AdminService now joins product/variant labels and the Admin UI displays product title, variant title and SKU with UUID fallback. Route permission remains admin:orders:read. |
+
+| UX-014 | Buyer search offers-only filter | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Search result cards already displayed active offer counts and lowest offer price, but there was no server-backed offers-only filter. Added hasOffers=true to API search, with the predicate applied to empty, full-text and exact-SKU paths; added web and mobile filters. |

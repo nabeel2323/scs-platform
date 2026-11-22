@@ -314,7 +314,8 @@ class ApiService {
       String? brandId,
       String? storeId,
       int? limit,
-      int? offset}) async {
+      int? offset,
+      bool hasOffers = false}) async {
     final p = <String, dynamic>{};
     if (q != null) p['q'] = q;
     if (categoryId != null) p['categoryId'] = categoryId;
@@ -322,6 +323,7 @@ class ApiService {
     if (storeId != null) p['storeId'] = storeId;
     if (limit != null) p['limit'] = limit;
     if (offset != null) p['offset'] = offset;
+    if (hasOffers) p['hasOffers'] = 'true';
     return SearchResult.fromJson(
         (await _dio.get('/v1/search', queryParameters: p)).data);
   }

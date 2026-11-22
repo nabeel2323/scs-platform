@@ -17,6 +17,7 @@ function makeMockDb(opts: {
   products?: Row[];
   productCount?: number;
   variants?: Row | null;
+  activeOffer?: Row | null;
   categories?: Row[];
   brands?: Row[];
   capturedWhere?: unknown[];
@@ -35,6 +36,9 @@ function makeMockDb(opts: {
         productVariants: {
           findFirst: async () => opts.variants ?? null,
           findMany: async () => [],
+        },
+        merchantOffers: {
+          findFirst: async () => opts.activeOffer ?? null,
         },
         categories: {
           findMany: async () => opts.categories ?? [],
@@ -166,5 +170,51 @@ describe('SearchService — publication boundary', () => {
       const query = new PgDialect().sqlToQuery(statement as any);
       expect(query.sql).toContain("p.status = 'ACTIVE'");
     }
+  });
+});
+
+
+describe('SearchService — active offer filter', () => {
+  it('adds an ACTIVE merchant-offer predicate to empty-query result and count scopes', async () => {
+    const capturedWhere: unknown[] = [];
+    const svc = makeHarness({ products: [], capturedWhere });
+
+    await svc.search('', { hasOffers: true });
+
+    expect(capturedWhere.length).toBeGreaterThanOrEqual(2);
+    for (const where of capturedWhere) {
+      const query = new PgDialect().sqlToQuery(where as any);
+      expect(query.sql).toContain('merchant_offers');
+      expect(query.sql).toContain("mo.status = 'ACTIVE'");
+    }
+  });
+
+  it('adds an ACTIVE merchant-offer predicate to full-text result and count SQL', async () => {
+    const executedSql: unknown[] = [];
+    const svc = makeHarness({ executedSql });
+
+    await svc.search('laptop', { hasOffers: true });
+
+    expect(executedSql).toHaveLength(2);
+    for (const statement of executedSql) {
+      const query = new PgDialect().sqlToQuery(statement as any);
+      expect(query.sql).toContain('merchant_offers');
+      expect(query.sql).toContain("mo.status = 'ACTIVE'");
+    }
+  });
+
+  it('does not let the SKU fast path bypass the active-offer filter', async () => {
+    const executedSql: unknown[] = [];
+    const svc = makeHarness({
+      variants: { id: 'variant-a', productId: 'product-a' },
+      products: [{ id: 'product-a', status: 'ACTIVE', deletedAt: null }],
+      activeOffer: null,
+      executedSql,
+    });
+
+    const result = await svc.search('SKU-PRIVATE', { hasOffers: true });
+
+    expect(result.items).toEqual([]);
+    expect(executedSql).toHaveLength(2);
   });
 });

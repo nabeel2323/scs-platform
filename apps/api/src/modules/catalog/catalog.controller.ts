@@ -868,6 +868,7 @@ export class CatalogController {
     @Query('priceMax') priceMaxRaw?: string,
     @Query('availability') availability?: string,
     @Query('sort') sort?: string,
+    @Query('hasOffers') hasOffersRaw?: string,
   ) {
     let attributeFilters: Record<string, string[]> | undefined;
     if (attrFiltersRaw) {
@@ -911,6 +912,11 @@ export class CatalogController {
       sortValue = sort as SortValue;
     }
 
+    if (hasOffersRaw != null && hasOffersRaw !== '' && !['true', 'false'].includes(hasOffersRaw)) {
+      throw new BadRequestException('hasOffers must be true or false');
+    }
+    const hasOffers = hasOffersRaw === 'true';
+
     return this.searchService.search(q, {
       storeId,
       categoryId,
@@ -922,6 +928,7 @@ export class CatalogController {
       priceMax,
       availability: availability === 'inStock' ? 'inStock' : undefined,
       sort: sortValue,
+      hasOffers,
     });
   }
 

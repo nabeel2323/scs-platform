@@ -45,6 +45,7 @@ function SearchPageContent() {
   const [priceMax, setPriceMax] = useState(searchParams.get('pmax') || '');
   const [verifiedOnly, setVerifiedOnly] = useState(searchParams.get('verified') === '1');
   const [inStockOnly, setInStockOnly] = useState(searchParams.get('instock') === '1');
+  const [offersOnly, setOffersOnly] = useState(searchParams.get('offers') === '1');
 
   // PHASE COS-13: compare list
   const compareList = useCompareList();
@@ -83,6 +84,7 @@ function SearchPageContent() {
     if (priceMax) params.set('pmax', priceMax);
     if (verifiedOnly) params.set('verified', '1');
     if (inStockOnly) params.set('instock', '1');
+    if (offersOnly) params.set('offers', '1');
     const qs = params.toString();
     router.replace(`/search${qs ? `?${qs}` : ''}`, { scroll: false });
   }, [query, selectedCategories, selectedBrand, sort, page, limit, priceMin, priceMax, verifiedOnly, inStockOnly, router]);
@@ -117,6 +119,7 @@ function SearchPageContent() {
         priceMin: !hasPriceError && priceMin && !isNaN(minNum) ? minNum : undefined,
         priceMax: !hasPriceError && priceMax && !isNaN(maxNum) ? maxNum : undefined,
         availability: inStockOnly ? 'inStock' as const : undefined,
+        hasOffers: offersOnly || undefined,
         sort: serverSort,
       });
       setResults(res.items || []);
@@ -129,7 +132,7 @@ function SearchPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [query, selectedCategories, selectedBrand, page, limit, selectedAttrFilters, priceMin, priceMax, inStockOnly, sort]);
+  }, [query, selectedCategories, selectedBrand, page, limit, selectedAttrFilters, priceMin, priceMax, inStockOnly, offersOnly, sort]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -174,6 +177,7 @@ function SearchPageContent() {
     !!priceMax,
     verifiedOnly,
     inStockOnly,
+    offersOnly,
   ].filter(Boolean).length;
 
   // Client-side filtering (multi-category + verified only — P9 price/availability/sort are server-side)
@@ -435,6 +439,15 @@ function SearchPageContent() {
               </label>
             </div>
 
+            {/* Active merchant offers */}
+            <div className="sr-filter-section">
+              <h4 style={{ ...typeScale.caption, fontWeight: 700, color: colors.brand[700], marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Offers</h4>
+              <label className="sr-checkbox">
+                <input type="checkbox" checked={offersOnly} onChange={e => { setOffersOnly(e.target.checked); resetPage(); }} style={{ accentColor: colors.brand[700] }} />
+                <span>Active merchant offers only</span>
+              </label>
+            </div>
+
             {/* Dynamic attribute facets (PHASE 6) */}
             {facets.length > 0 && facets.map(facet => (
               <div key={facet.code} style={{ marginBottom: 16 }}>
@@ -467,7 +480,7 @@ function SearchPageContent() {
 
             {/* Clear filters */}
             {(activeFilterCount > 0 || Object.keys(selectedAttrFilters).length > 0) && (
-              <button onClick={() => { setSelectedCategories([]); setSelectedBrand(''); setPriceMin(''); setPriceMax(''); setVerifiedOnly(false); setInStockOnly(false); setSelectedAttrFilters({}); resetPage(); }}
+              <button onClick={() => { setSelectedCategories([]); setSelectedBrand(''); setPriceMin(''); setPriceMax(''); setVerifiedOnly(false); setInStockOnly(false); setOffersOnly(false); setSelectedAttrFilters({}); resetPage(); }}
                 style={{ width: '100%', padding: '8px 12px', fontSize: 12, fontWeight: 600, background: colors.errBg, color: colors.err, border: `1px solid ${colors.err}`, borderRadius: radii.sm, cursor: 'pointer', marginTop: 12 }}>
                 Clear All Filters ({activeFilterCount})
               </button>

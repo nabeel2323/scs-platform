@@ -256,3 +256,10 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Merchant mobile now has a dedicated Pricing dashboard entry, store-scoped price-list CRUD (create/update/activate), quantity-tier CRUD and product/variant selection. Offer creation can attach a price list and verifies that a tier covers the selected variant and MOQ; offer details link back to the list. See mobile/lib/screens/merchant/merchant_pricing_screen.dart and price_list_detail_screen.dart.
 - Admin order detail previously rendered productId and variantId as truncated UUIDs. AdminService now joins product title, variant title and SKU; Admin UI displays these values with ID fallback. Buyer and merchant mobile/web order detail already render item title/SKU as strings; no JSON/attribute serialization path was found in the inspected detail screens.
 - Focused tests added; not run. This addendum is source inspection, not a visual/device test.
+
+
+## 22 November 2026 — offers-only search filter
+
+- Added a server-backed hasOffers=true search filter that restricts results to products with at least one ACTIVE merchant offer. The predicate is applied consistently to empty-query, full-text/trigram and exact SKU/barcode paths.
+- Added an Offers-only filter to web search (URL-persisted) and the mobile search filter sheet. Product cards continue to show active offer count and lowest offer price; cart line price remains the effective server-resolved item price.
+- Added SearchService regression tests for empty query, full-text query and exact-SKU fast-path filtering. Not executed.

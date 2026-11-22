@@ -22,6 +22,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   String? _selectedCategory;
   String? _selectedBrand;
   String? _searchError;
+  bool _offersOnly = false;
 
   /// PHASE COS-15: dynamic attribute facet filters
   final Map<String, String> _attrFilters = {};
@@ -61,7 +62,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           categoryId: _selectedCategory,
           brandId: _selectedBrand,
           limit: _pageSize,
-          offset: offset);
+          offset: offset,
+          hasOffers: _offersOnly);
       if (!mounted) return;
       setState(() {
         _facets = result.facets;
@@ -122,8 +124,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       isScrollControlled: true,
       builder: (_) => _FilterSheet(
         selectedBrand: _selectedBrand,
-        onApply: (brandId) {
-          setState(() => _selectedBrand = brandId);
+        offersOnly: _offersOnly,
+        onApply: (brandId, offersOnly) {
+          setState(() {
+            _selectedBrand = brandId;
+            _offersOnly = offersOnly;
+          });
           _search(_ctrl.text);
         },
       ),
@@ -352,15 +358,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 /// deliberately omitted rather than rendered as controls that silently do
 /// nothing (BG-3, docs/production/BACKEND-EXTENSION-SPEC.md).
 class _FilterSheet extends ConsumerStatefulWidget {
-  const _FilterSheet({required this.selectedBrand, required this.onApply});
+  const _FilterSheet({required this.selectedBrand, required this.offersOnly, required this.onApply});
   final String? selectedBrand;
-  final ValueChanged<String?> onApply;
+  final bool offersOnly;
+  final void Function(String?, bool) onApply;
   @override
   ConsumerState<_FilterSheet> createState() => _FilterSheetState();
 }
 
 class _FilterSheetState extends ConsumerState<_FilterSheet> {
   late String? _brand = widget.selectedBrand;
+  late bool _offersOnly = widget.offersOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -383,6 +391,15 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
             ]),
             const Divider(height: 1),
             const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Active merchant offers only',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              subtitle: const Text('Only show products with an active offer'),
+              value: _offersOnly,
+              onChanged: (value) => setState(() => _offersOnly = value),
+            ),
+            const SizedBox(height: 8),
             const Text('Brand',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
             const SizedBox(height: 10),
@@ -432,7 +449,7 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
             Row(children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => setState(() => _brand = null),
+                  onPressed: () => setState(() { _brand = null; _offersOnly = false; }),
                   child: const Text('Clear'),
                 ),
               ),
@@ -440,7 +457,7 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
-                    widget.onApply(_brand);
+                    widget.onApply(_brand, _offersOnly);
                     Navigator.pop(context);
                   },
                   child: const Text('Apply'),

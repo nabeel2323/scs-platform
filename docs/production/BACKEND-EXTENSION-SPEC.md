@@ -270,3 +270,8 @@ these controls. This spec only unlocks the enhanced versions.
 - No change to the FTS/trigram ranking algorithm beyond adding the `sort` options.
 - Variant-level *quantity* stock aggregation (warehouse sums) is a separate, heavier feature;
   `inStock` here intentionally maps to the existing `products.is_available` flag only.
+
+
+## Active-offer search filter — 22 November 2026
+
+The buyer search endpoint now accepts hasOffers=true. The filter applies to empty-query, full-text/trigram and exact-SKU paths, and only matches products with at least one ACTIVE merchant offer. Web and mobile search surfaces expose an Offers-only filter and persist it in the web search URL. Price, stock, verified-seller and sort controls remain separate; this change does not pretend unsupported mobile filters work.
