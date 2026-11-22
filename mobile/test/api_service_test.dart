@@ -297,6 +297,36 @@ void main() {
     });
   });
 
+  group('Search endpoints', () {
+    test('search serializes selected attribute facet filters', () async {
+      when(() => dio.get('/v1/search',
+              queryParameters: any(named: 'queryParameters')))
+          .thenAnswer((_) async => Response(
+                data: {
+                  'items': [],
+                  'total': 0,
+                  'query': 'laptop',
+                  'facets': [],
+                },
+                requestOptions: RequestOptions(path: '/v1/search'),
+                statusCode: 200,
+              ));
+
+      final result = await api.search(
+        q: 'laptop',
+        attributeFilters: {
+          'ram-gb': ['16'],
+        },
+      );
+
+      expect(result.total, 0);
+      verify(() => dio.get('/v1/search', queryParameters: {
+            'q': 'laptop',
+            'attrFilters': '{"ram-gb":["16"]}',
+          })).called(1);
+    });
+  });
+
   group('Cart promotion endpoints', () {
     test('removePromo calls DELETE /v1/cart/promo', () async {
       when(() => dio.delete('/v1/cart/promo')).thenAnswer((_) async => Response(
