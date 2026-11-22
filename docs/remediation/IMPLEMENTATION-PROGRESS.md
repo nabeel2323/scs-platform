@@ -1787,3 +1787,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Payment-method changes on the Review step now mint a new checkout idempotency key because the request payload has changed. Retries of an identical payload continue to reuse the same key, preserving the existing network-timeout duplicate-prevention contract.
 - Added a Flutter widget regression test that simulates two failed identical submissions followed by a payment-method change and successful submission; it asserts the first two keys match and the changed-payload key differs.
 - No checkout API contract, backend idempotency behavior, order/payment state, database, migration, staging or provider behavior changed. Test remains pending Phase 3.
+
+
+## UX-085 — Mobile Merchant Dashboard identity/store recovery — 23 November 2026
+
+- Merchant Dashboard profile and active-store reads now preserve the last successful identity/store through refresh/reload failures, with visible stale-data notices and retry. Initial errors remain retryable.
+- Explicit dashboard refresh and pull-to-refresh now await profile, active-store and KPI refreshes independently; one failing read does not prevent the others from completing.
+- The store hub list is always-scrollable so pull-to-refresh works even when content is shorter than the viewport. Existing KPI-level recovery remains intact.
+- Added Flutter widget coverage for simultaneous profile/store refresh failures with stale identity and storefront preservation. Test remains pending Phase 3.
+- No organization/store lifecycle, permission, API, database, migration, staging or provider behavior changed.
