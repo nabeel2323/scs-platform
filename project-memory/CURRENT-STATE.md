@@ -19,7 +19,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Live branch head | `b6b6ffcfcdfc5fdc7bb1a84870af24ff0746d277` — project-memory handoff commit |
+| Live branch head | Resolve from the live GitHub ref at session start; this checkpoint is documentation and does not pin its resulting SHA |
 | Latest source implementation | `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81` — UX-032 Merchant Deliveries read recovery |
 | Previous source implementation | `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — UX-031 Merchant Customers read recovery |
 | PR #138 | Open; draft; not merged; base `develop` |

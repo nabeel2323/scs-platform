@@ -75,7 +75,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 22 November 2026 confirms branch `remediation/phase-0-1-tenant-security` at documentation head `b6b6ffcfcdfc5fdc7bb1a84870af24ff0746d277`, with latest source implementation `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81`. PR #138 remains open/draft/unmerged to `develop`. No GitHub Actions run is attached to either exact SHA. Vercel Web and Admin contexts both report external build-rate-limit failures on the latest documentation head; these are not application test results. UX-030–UX-032 are implemented in source, with focused Web tests added but not executed. Continue UX-010 cross-screen audit and workflow integration; comprehensive tests remain deferred until implementation/integration are complete.
+Live GitHub reconciliation on 22 November 2026 confirms branch `remediation/phase-0-1-tenant-security` with latest source implementation `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81`; resolve the current documentation HEAD from the live branch ref at session start. PR #138 remains open/draft/unmerged to `develop`. No GitHub Actions run is attached to either exact SHA. Vercel Web and Admin contexts both report external build-rate-limit failures on the latest documentation head; these are not application test results. UX-030–UX-032 are implemented in source, with focused Web tests added but not executed. Continue UX-010 cross-screen audit and workflow integration; comprehensive tests remain deferred until implementation/integration are complete.
 
 ## Safety reminder
 
