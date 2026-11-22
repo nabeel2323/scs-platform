@@ -44,10 +44,11 @@ describe('merchant route permission policy', () => {
     expect(visible.map((item) => item.href)).toEqual([
       '/merchant',
       '/merchant/orders',
+      '/merchant/offers',
       '/merchant/customers',
       '/merchant/store',
       '/merchant/warehouses',
-      '/merchant/offers',
+      '/merchant/returns',
       '/merchant/organization',
     ]);
   });
