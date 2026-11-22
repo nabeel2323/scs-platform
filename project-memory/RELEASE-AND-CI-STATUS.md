@@ -609,3 +609,9 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Source/test batch: Admin User creation recovery and membership-pair validation, User Detail profile/membership/status controls, role-permission projection correction, and Merchant Store Detail presentation. Focused tests were added but not executed.
 - Source/test/documentation commits use `[skip ci]`; no GitHub Actions run is expected for the exact source head. Do not describe this batch as test-verified or CI-verified. Vercel preview failures are external build-rate-limit statuses, not application test results.
 - No deployment, preview validation, staging release/write, database/migration/grant/RLS change, worker activation or provider action was performed.
+
+## 22 November 2026 — UX-048 / UX-049 Admin Roles and Audit Log implementation checkpoint
+
+- Source/test batch: Roles list retry/request lifecycle and Audit Log stale-response prevention/retry. Focused tests were added but not executed.
+- Commits use `[skip ci]`; no GitHub Actions run is expected for the exact source head. Do not describe this batch as test-verified or CI-verified.
+- No deployment, Vercel preview validation, staging write, database/migration/grant/RLS change or worker/provider action was performed.
