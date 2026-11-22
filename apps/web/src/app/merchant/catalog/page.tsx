@@ -337,7 +337,7 @@ export default function MerchantCatalogPage() {
       ) : (
         <>
           <div style={{ padding: '12px 16px', marginBottom: 16, background: '#e0f2fe', border: '1px solid #bae6fd', borderRadius: 8, fontSize: 13, color: '#16232b' }}>
-            <strong>Platform Categories</strong> — Categories are managed centrally by the platform. You can select these when creating products. If you need a category that doesn&apos;t exist, use the <Link href="/merchant/requests" style={{ color: '#0369a1', fontWeight: 600 }}>Request New Category</Link> form.
+            <strong>Platform Categories</strong> — Categories are managed centrally by the platform. You can select these when creating products. {canRequestCatalogChanges ? <>If you need a category that doesn&apos;t exist, use the <Link href="/merchant/requests" style={{ color: '#0369a1', fontWeight: 600 }}>Request New Category</Link> form.</> : 'Contact your organization owner if you need a new category.'}
           </div>
 
           {cLoading ? <LoadingSpinner /> : categories.length === 0 ? (
