@@ -42,6 +42,8 @@ void main() {
 
     await tester.tap(find.byTooltip('Refresh customers'));
     await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
+    await tester.pumpAndSettle();
 
     expect(find.textContaining('Visible Buyer'), findsOneWidget);
     expect(find.textContaining('Customer directory unavailable'), findsOneWidget);
