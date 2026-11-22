@@ -186,6 +186,7 @@ describe('SearchService — active offer filter', () => {
       const query = new PgDialect().sqlToQuery(where as any);
       expect(query.sql).toContain('merchant_offers');
       expect(query.sql).toContain("mo.status = 'ACTIVE'");
+      expect(query.sql).toContain('mo.is_available = true');
     }
   });
 

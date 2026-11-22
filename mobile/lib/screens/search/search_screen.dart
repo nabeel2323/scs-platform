@@ -178,7 +178,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       });
     });
     final activeFilters =
-        (_selectedBrand != null ? 1 : 0) + _attrFilters.length;
+        (_selectedBrand != null ? 1 : 0) + (_offersOnly ? 1 : 0) + _attrFilters.length;
     final hasMore = !_searching && _items.length < _total;
     return Scaffold(
         appBar: AppBar(

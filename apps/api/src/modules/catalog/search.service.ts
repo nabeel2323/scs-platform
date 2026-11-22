@@ -53,6 +53,7 @@ export class SearchService {
           SELECT 1 FROM merchant_offers mo
           WHERE mo.product_id = ${products.id}
             AND mo.status = 'ACTIVE'
+            AND mo.is_available = true
         )`);
       }
 
@@ -176,6 +177,7 @@ export class SearchService {
             where: and(
               eq(merchantOffers.productId, product.id),
               eq(merchantOffers.status, 'ACTIVE'),
+              eq(merchantOffers.isAvailable, true),
             ),
             columns: { id: true },
           }),
@@ -247,6 +249,7 @@ export class SearchService {
         SELECT 1 FROM merchant_offers mo
         WHERE mo.product_id = p.id
           AND mo.status = 'ACTIVE'
+          AND mo.is_available = true
       )`);
     }
     if (options?.availability === 'inStock') {

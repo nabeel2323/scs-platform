@@ -87,7 +87,7 @@ function SearchPageContent() {
     if (offersOnly) params.set('offers', '1');
     const qs = params.toString();
     router.replace(`/search${qs ? `?${qs}` : ''}`, { scroll: false });
-  }, [query, selectedCategories, selectedBrand, sort, page, limit, priceMin, priceMax, verifiedOnly, inStockOnly, router]);
+  }, [query, selectedCategories, selectedBrand, sort, page, limit, priceMin, priceMax, verifiedOnly, inStockOnly, offersOnly, router]);
 
   const doSearch = useCallback(async () => {
     setLoading(true);
