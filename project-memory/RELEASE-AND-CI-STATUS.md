@@ -341,3 +341,12 @@ The latest source baseline for this status update is d8f9941e9f517c93b9fbcb22bae
 ## Latest Vercel status refresh — 22 November 2026
 
 On exact PR #138 source head caba922e866635fad51e549e095a186f9d9df6cf, both Vercel – scs-platform-admin and Vercel – scs-platform-web report SUCCESS. Exact-head GitHub Actions workflow lookup returns no run because the grouped commit uses [skip ci]. This does not substitute for the consolidated unit/integration/E2E campaign, which remains deferred.
+
+
+## G-002 source mapping checkpoint — 22 November 2026
+
+- PR #138 is open/draft/unmerged. Exact current head at the start of this checkpoint was 30b61cbaaeccdd88993fae0bf1f71aa19f4f416e; subsequent docs-only commits continue to use [skip ci].
+- Exact-head Actions lookup returned no workflow run. Combined statuses contained only Vercel Admin/Web failures pointing to the external build-rate-limit page. This is not an application CI result; the current head remains NOT CI-VERIFIED.
+- Added a preliminary database operation map covering 26 service files plus supporting worker/system paths, and a schema-backed table ownership/predicate-candidate matrix. See the two G-002 documents linked from START-HERE.
+- No test or CI run was triggered. No staging release, shared database query/write, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment occurred.
+- The final full verification campaign remains deferred until implementation is ready, consistent with the Actions-minute conservation decision.
