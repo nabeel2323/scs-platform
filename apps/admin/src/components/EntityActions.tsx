@@ -30,7 +30,10 @@ export function UserStatusActions({ record, onDone }: { record: AdminRecord; onD
   if (!hasAccess) return null;
   return <div><div className={styles['actions']}>
     {['ACTIVE', 'SUSPENDED', 'INACTIVE'].filter(status => status !== record['status']).map(status => <button key={status} type="button" disabled={action.busy}
-      onClick={() => action.run(`admin/users/${record.id}`, 'PATCH', { status })}>{status === 'ACTIVE' ? 'Activate' : status === 'SUSPENDED' ? 'Suspend' : 'Deactivate'}</button>)}
+      onClick={() => {
+        if (status !== 'ACTIVE' && !window.confirm(`Confirm ${status === 'SUSPENDED' ? 'suspending' : 'deactivating'} this user? Their access will be affected.`)) return;
+        action.run(`admin/users/${record.id}`, 'PATCH', { status });
+      }}>{status === 'ACTIVE' ? 'Activate' : status === 'SUSPENDED' ? 'Suspend' : 'Deactivate'}</button>)}
   </div><ErrorNotice message={action.error} /></div>;
 }
 
