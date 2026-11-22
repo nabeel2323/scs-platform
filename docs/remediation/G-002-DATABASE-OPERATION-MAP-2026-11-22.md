@@ -184,3 +184,45 @@ This section classifies the raw SQL statements inspected in the worker/system pa
 ## Explicit non-actions
 
 No request transaction interceptor, AsyncLocalStorage context, session-level tenant setting, RLS policy, migration, grant/default-ACL change, shared database query/write, staging action, deployment, provider call or worker activation was performed. This source map is not authorization to perform any of those actions.
+
+
+## Additional catalog, search, bootstrap and policy service map — source slice 7
+
+The following remaining service files were inspected at source head 06c5f25f1e0a967129ddae8b94b33e060f2e9691. The operation labels retain the R/I/U/D convention used above. A helper/provider entry marked "no direct DB access" is not thereby exempt from request/worker context review when it is invoked by a scoped operation.
+
+| Source path | Tables and observed operations |
+|---|---|
+| apps/api/src/modules/catalog-import/excel-resolver.service.ts | brands R; categories R; attribute_groups R; attribute_definitions R; attribute_options R; product_types R; products R; product_variants R |
+| apps/api/src/modules/catalog-import/template-generator.service.ts | brands R; categories R; attribute_groups R; attribute_definitions R; attribute_options R; product_types R; product_type_attributes R; products R; product_attribute_values R; product_variants R; variant_attribute_values R; product_sources R |
+| apps/api/src/modules/catalog/import-validation.service.ts | categories R; brands R; attribute_definitions R |
+| apps/api/src/modules/catalog/product-governance.service.ts | products R/U; product_moderation R/I; merchant_offers R/U; product_offer_review_state R/I/U |
+| apps/api/src/modules/catalog/search.service.ts | products R; product_variants R; categories R; brands R; merchant_offers R (raw SQL subqueries); product_attribute_values R (raw SQL predicates); product_types R; product_type_attributes R; attribute_definitions R; search_queries I |
+| apps/api/src/modules/operations/pilot-control.service.ts | feature_flags R/I/U (typed and raw SQL paths); p13_pilot_allowlist R/I/U (typed and raw SQL paths) |
+| apps/api/src/modules/system/bootstrap.service.ts | bootstrap_authorizations R/I/U; users R/I; roles R; organizations R/I; organization_members I; transaction-scoped PostgreSQL advisory lock |
+
+The following remaining files were inspected and contain no direct database calls in the current implementation:
+
+| Source path | Observed responsibility |
+|---|---|
+| apps/api/src/modules/catalog-import/excel-parser.service.ts | Workbook parsing and row extraction |
+| apps/api/src/modules/catalog-import/excel-planner.service.ts | Import plan construction |
+| apps/api/src/modules/catalog-import/excel-validator.service.ts | Workbook and row validation |
+| apps/api/src/modules/catalog/conditional-rules.service.ts | Attribute conditional-rule evaluation |
+| apps/api/src/modules/catalog/merchant-xlsx-parser.service.ts | Merchant workbook parsing |
+| apps/api/src/modules/notifications/otp-delivery.service.ts | OTP provider orchestration and external delivery; no direct DB access |
+| apps/api/src/modules/notifications/provider-registry.service.ts | Provider registration and channel resolution |
+| apps/api/src/modules/shipping/carrier-credential-crypto.service.ts | Carrier credential encryption/decryption |
+| apps/api/src/modules/shipping/webhook-security.service.ts | Carrier webhook signature/token verification |
+
+### Ownership and context implications
+
+- Excel resolution and template generation read platform taxonomy plus product/variant examples. The import actor and intended catalog scope must be established by the calling controller/executor; these reads must not be interpreted as proof that every merchant may enumerate all product data.
+- ProductGovernanceService crosses product publication/moderation and merchant-offer review state. Product ownership, moderation authority and offer-store ownership are distinct predicates; a product's store ownership must not be inferred from an offer row alone.
+- Search combines public product discovery with active-offer price subqueries and attribute predicates. Raw SQL fragments must receive the same scoped database handle as Drizzle query-builder operations. Search-query insertion is a separate user-attributed write.
+- PilotControlService is a platform/operator control surface. feature_flags and p13_pilot_allowlist are system configuration, not ordinary tenant-owned business rows; their read/write capability must remain isolated from merchant request context.
+- BootstrapService is a one-time global provisioning path. It consumes bootstrap_authorizations and creates the first user/platform organization/membership under a transaction-scoped advisory lock. It requires an explicit bootstrap actor and must not inherit an ordinary buyer/merchant tenant context.
+- OTP, provider registry, credential-crypto and webhook-security helpers have no direct DB calls, but their outbound provider and signature-verification boundaries remain part of the worker/provider inventory.
+
+### Service-file coverage reconciliation
+
+The source-tree candidate set contains 53 service/worker/poller/dispatcher/executor files. All 53 have now been inspected: 44 contain direct DB operations already represented in this map, and 9 are database-independent helpers/providers listed above. This closes the service-file inspection slice only. It does not close route-to-operation mapping, CLI/bootstrap mapping, exact ownership-predicate validation, raw DB-object inventory, or the protected 114-versus-116 relation reconciliation.

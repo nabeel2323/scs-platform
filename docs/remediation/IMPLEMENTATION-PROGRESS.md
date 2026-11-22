@@ -1324,3 +1324,15 @@ A static comparison of method-level permission decorators across the 28 API cont
 ## G-002 migration FK crosswalk update — 22 November 2026
 
 The migration crosswalk now includes core schema relationships from migrations 0001, 0003, 0004, 0005, 0009, 0010, 0023, 0026, 0040, 0041, 0034, 0043, 0054, 0058–0063, 0070 and 0071. It records deferred FKs, non-FK org_id scope metadata, system tables without actor/tenant FKs, and cross-parent consistency gaps not protected by composite constraints. This is static migration evidence, not a refreshed staging catalog or complete 114/116 relation audit. Exact current constraints still require protected read-only verification.
+
+
+## G-002 service and CLI access-path continuation — 22 November 2026
+
+- Reconciled the API source tree at 06c5f25f1e0a967129ddae8b94b33e060f2e9691: all 53 service/worker/poller/dispatcher/executor candidates were inspected. The operation map now records 44 DB-operation-bearing paths and identifies 9 database-independent parser/rule/provider/crypto helpers.
+- Added docs/remediation/G-002-CLI-AND-BOOTSTRAP-ACCESS-MAP-2026-11-22.md. It maps the API runtime pool and dev/test auto-migration/seed path, the DATABASE_URL migration runner and local Docker runner, migration identity/lock helpers, RBAC/catalog/demo seeds, bootstrap token issuance/completion, staging provisioning, read-only DB audit, destructive reset tools and legacy M5/M6 UAT/migration harnesses.
+- Hardened apps/api/scripts/create-admin-user.ts: explicit development/test and local-host guard, caller-supplied credentials, transaction-bound organization/user/membership creation, no fixed or logged password.
+- Hardened apps/api/infra/drizzle/reset-pg.ts: explicit environment, exact database name, typed destructive confirmation, local-host restriction for development/test, separate staging approval, and connected-database identity match. Not executed.
+- Hardened apps/api/scripts/m6-env-check.ts: local API/Redis host validation, explicit UAT opt-in and caller-supplied credentials; OTP and raw verification response are not logged.
+- Source inspection confirms application OTP logging redaction is already present in IdentityService/OtpDeliveryService and covered by otp-redaction and otp-security-remediation tests. This does not prove historical or current staging logs are clean; runtime log verification remains pending.
+- No unit/integration/migration/client tests were run, no Actions workflow was triggered, and no staging/shared DB command or provider/worker action was executed.
+- Remaining G-002 blockers: exact controller/route-to-operation predicates, legacy UAT script guard/retirement, uniform staging bootstrap target confirmation, live API/migration identity and protected 114-versus-116 catalog evidence. Do not implement request-scoped transaction propagation or RLS activation until those proof gates are complete.

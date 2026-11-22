@@ -51,3 +51,39 @@ The source audit reviewed all 53 TypeScript service/worker/provider files under 
 ## Current decision
 
 Do not add a global request transaction interceptor, enable RLS, alter role grants/default ACLs, apply migrations 0070/0071, change DATABASE_URL, or activate workers as part of this preliminary inventory. The next implementation task is to complete the operation/ownership and runtime access-path proof, then implement the scoped context behind a feature-controlled, fail-closed boundary with dedicated tests.
+
+
+## Standalone migration, seed, bootstrap and operator access paths — 22 November 2026
+
+This map complements the API service/worker inventory. These tools connect directly to PostgreSQL or invoke psql and therefore do not automatically inherit HTTP request identity, permission guards or a tenant-scoped Drizzle transaction.
+
+| Path | Observed database behavior | Context and safety classification |
+|---|---|---|
+| apps/api/infra/drizzle/migrate-pg.ts | Dedicated pg Pool; reads _migration_log, creates it when applying, acquires a session advisory lock, executes each SQL migration and inserts its ledger row in the same transaction; emits non-secret migration-role identity diagnostics | Migration principal, not API runtime principal. DATABASE_URL must be separately verified. |
+| apps/api/infra/drizzle/migrate.ts | Local Docker psql runner against fixed scs-postgres/scs_platform; reads migration ledger and applies each file plus ledger row atomically with ON_ERROR_STOP; skips pg_partman-dependent files with a warning | Local development migration path. Not equivalent to the remote DATABASE_URL runner. |
+| apps/api/infra/drizzle/migration-identity.ts and migration-lock.ts | Read-only role identity query and session advisory lock/unlock helpers on a supplied PoolClient | Inherit the caller's migration connection; not independent runtime roles. |
+| apps/api/src/common/database/database.service.ts | API Pool identity diagnostic; in development/test creates a separate bootstrap Pool, applies pending migrations and runs canonical RBAC seed; then creates the Drizzle runtime handle | Development/test startup has migration/seed writes. Deployed environments rely on the external startup/deployment command. |
+| apps/api/infra/drizzle/seed-pg.ts and apps/api/src/scripts/seed.ts | Raw SQL reads/inserts into permissions, roles and role_permissions; seed-pg wraps RBAC writes in a transaction and is idempotent; src/scripts/seed.ts is a legacy psql-based path | Platform-wide RBAC seed actor. Not a tenant request. |
+| apps/api/infra/drizzle/seed-catalog.ts | Raw PoolClient reads/inserts/updates across organizations, users, stores, warehouses, taxonomy, product types, product attributes, products, variants and optional demo merchant offers | Platform catalog seed; demo profile adds merchant-offer data. Treat as privileged seed path. |
+| apps/api/src/scripts/demo-data.ts | psql-based inserts across demo users, organizations, memberships, stores, warehouses, catalog, offers/pricing, inventory, orders, notifications, audit and outbox | Has development/test and explicit opt-in checks plus production-like URL heuristics. Mutating test fixture path; never run against shared staging. |
+| apps/api/src/scripts/bootstrap-issue-token.ts | Direct PostgreSQL transaction; checks active SUPER_ADMIN and unexpired authorizations, optionally revokes old tokens, inserts bootstrap_authorizations and audit_logs under an advisory transaction lock | Explicit SCS_ENVIRONMENT/SCS_OPERATOR; production requires --confirm-production. Plaintext token is returned once, digest is stored. |
+| apps/api/src/modules/system/bootstrap.service.ts | Transaction-scoped advisory lock; consumes authorization and creates the initial user, platform organization and SUPER_ADMIN membership | One-time system/bootstrap actor; distinct from normal authenticated request identity. |
+| apps/api/bootstrap-staging-platform.ts, bootstrap-staging-merchant.ts, bootstrap-staging-store.ts, bootstrap-staging-staff.ts, bootstrap-staging-rbac.ts | Direct Client/Pool SQL creates platform/merchant users, organizations, memberships, stores, warehouses and/or RBAC rows; SSL CA is required by the staging bootstrap entry points | Privileged manual staging writes. Do not execute without a separately approved staging procedure; these scripts do not carry ordinary API tenant context. |
+| apps/api/scripts/audit-db-access.ts | Begins a READ ONLY transaction and inspects PostgreSQL roles, grants, default ACLs, schemas, functions, sequences and memberships | Read-only operator audit; no mutation observed. |
+| apps/api/infra/drizzle/reset-pg.ts | Deletes the analytics pg_partman config row and drops every public table in a transaction | Destructive reset. It now requires an explicit environment, exact database name, typed confirmation, local host for development/test, and separate staging approval. Not executed. |
+| apps/api/infra/drizzle/reset.ts | Drops public tables and custom enum types in the fixed local Docker database | Destructive local-only reset path. |
+| apps/api/scripts/create-admin-user.ts | Creates a local platform organization/user/SUPER_ADMIN membership | Hardened in this implementation group: local DB only, explicit development/test and confirmation, caller-supplied credentials, one transaction, no password logging. |
+| apps/api/infra/catalog-import-cli.ts | Parses/validates workbook input and generates templates; no direct DB query found | File-processing CLI; database access is delegated only if a future caller injects a DB-backed service. |
+
+### Legacy M5/M6 UAT and migration harnesses
+
+The following manually invoked utilities contain direct PostgreSQL/Redis/API access and are not part of the production runtime: m5-roundtrip-check.ts, m5-uat-run.ts, m5-uat-verification.ts, m6-clean.ts, m6-diag.ts, m6-env-check.ts, m6-fix-cart-constraint.ts, m6-get-otp.ts, m6-restore-admin.ts, m6-uat-run.ts, m6.1-inventory-concurrency.ts, m6.1-security-regression.ts, b1-migration-test.js and p311-migration-verify.js. Several use fixed local development credentials or direct SQL writes; m5 scripts also allow DATABASE_URL override. They were not executed. Before any future use, standardize local-only environment/confirmation guards and remove fixed credentials from scripts that authenticate to the API. The M6 environment check was hardened in this implementation group: it now requires explicit development/test opt-in and caller-supplied credentials, validates local API/Redis hosts, and never prints the OTP or raw OTP verification response.
+
+### Outstanding CLI/access-path work
+
+- Apply a consistent local-only safety guard or retire the remaining legacy M5/M6 and migration harness scripts; do not run them against staging/shared databases.
+- Add explicit target-environment confirmation to all staging bootstrap scripts before they are used again.
+- Map any external Render startup command and deployment secret source to the exact migration and seed identity; source-level DATABASE_URL names alone do not prove deployed role identity.
+- Reconcile every script's schema writes with migration ownership and RLS design. A migration/seed/service-role bypass must remain a separate, least-privilege capability.
+
+No CLI, migration, seed, reset, bootstrap, provider, staging or shared database command was executed while preparing this inventory.
