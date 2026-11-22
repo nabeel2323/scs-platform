@@ -627,3 +627,9 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Source/test batch: Commission Oversight, Offer KPI/Trend, Brand Management and Business Calendar read recovery.
 - Focused tests were added but not executed. Commits use `[skip ci]`; no GitHub Actions run is expected for the exact source head. Do not claim test or CI verification.
 - No deployment, preview validation, staging write, database/migration/grant/RLS change, worker activation or provider action was performed.
+
+## 22 November 2026 — UX-058 Admin Attribute directory implementation checkpoint
+
+- Source/test batch: Attribute Groups and Attribute Definitions request lifecycle, retry and false-empty-state suppression.
+- Focused tests were added but not executed. Commits use `[skip ci]`; no GitHub Actions run is expected for the exact source head. Do not claim test or CI verification.
+- No deployment, preview validation, staging write, database/migration/grant/RLS change, worker activation or provider action was performed.
