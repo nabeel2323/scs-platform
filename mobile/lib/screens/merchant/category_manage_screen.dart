@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
+import '../../router/route_permissions.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -14,23 +15,28 @@ class CategoryManageScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final storeAsync = ref.watch(activeStoreProvider);
+    final profile = ref.watch(profileProvider).valueOrNull;
+    final canManageCategories = profile != null &&
+        canManageMerchantCategories(profile.role, profile.perms);
     return Scaffold(
       appBar: AppBar(title: const Text('Categories'), actions: [
         IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.invalidate(myStoresProvider)),
       ]),
-      floatingActionButton: storeAsync.maybeWhen(
-        data: (store) => store == null
-            ? null
-            : FloatingActionButton.extended(
-                onPressed: () => _showDialog(context, ref, store.id, null),
-                icon: const Icon(Icons.add),
-                label: const Text('New Category'),
-                backgroundColor: TaifTokens.brandPrimary,
-              ),
-        orElse: () => null,
-      ),
+      floatingActionButton: !canManageCategories
+          ? null
+          : storeAsync.maybeWhen(
+              data: (store) => store == null
+                  ? null
+                  : FloatingActionButton.extended(
+                      onPressed: () => _showDialog(context, ref, store.id, null),
+                      icon: const Icon(Icons.add),
+                      label: const Text('New Category'),
+                      backgroundColor: TaifTokens.brandPrimary,
+                    ),
+              orElse: () => null,
+            ),
       body: storeAsync.when(
         loading: () => const LoadingSpinner(),
         error: (e, _) => EmptyState(
@@ -45,13 +51,13 @@ class CategoryManageScreen extends ConsumerWidget {
                     'Your organization has no storefront yet. Complete merchant registration first.',
                 icon: Icons.storefront_outlined);
           }
-          return _list(context, ref, store.id);
+          return _list(context, ref, store.id, canManageCategories);
         },
       ),
     );
   }
 
-  Widget _list(BuildContext context, WidgetRef ref, String storeId) {
+  Widget _list(BuildContext context, WidgetRef ref, String storeId, bool canManageCategories) {
     final cats = ref.watch(storeCategoriesProvider(storeId));
     return cats.when(
       loading: () => const LoadingSpinner(),
@@ -62,7 +68,9 @@ class CategoryManageScreen extends ConsumerWidget {
       data: (list) => list.isEmpty
           ? const EmptyState(
               title: 'No categories',
-              description: 'Tap "New Category" to create one.',
+              description: canManageCategories
+                  ? 'Tap "New Category" to create one.'
+                  : 'Categories are managed by platform catalog administrators.',
               icon: Icons.category_outlined)
           : ListView.builder(
               padding: const EdgeInsets.all(12),
@@ -78,18 +86,20 @@ class CategoryManageScreen extends ConsumerWidget {
                     subtitle: c.nameAr != null && c.nameAr!.isNotEmpty
                         ? Text(c.nameAr!)
                         : null,
-                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                      IconButton(
-                          icon: const Icon(Icons.edit_outlined,
-                              color: TaifTokens.brandPrimary),
-                          onPressed: () =>
-                              _showDialog(context, ref, storeId, c)),
-                      IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              color: TaifTokens.err),
-                          onPressed: () =>
-                              _confirmDelete(context, ref, storeId, c)),
-                    ]),
+                    trailing: canManageCategories
+                        ? Row(mainAxisSize: MainAxisSize.min, children: [
+                            IconButton(
+                                icon: const Icon(Icons.edit_outlined,
+                                    color: TaifTokens.brandPrimary),
+                                onPressed: () =>
+                                    _showDialog(context, ref, storeId, c)),
+                            IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    color: TaifTokens.err),
+                                onPressed: () =>
+                                    _confirmDelete(context, ref, storeId, c)),
+                          ])
+                        : null,
                   ),
                 );
               },
