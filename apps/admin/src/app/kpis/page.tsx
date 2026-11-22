@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchKpis, KpiResponse } from '../../lib/api';
 import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 import {
@@ -18,18 +18,31 @@ export default function KpiDashboardPage() {
 
   const [kpis, setKpis] = useState<KpiResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const requestVersion = useRef(0);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
-  const load = (f?: string, t?: string) => {
+  const load = useCallback(async (f?: string, t?: string) => {
+    const requestId = ++requestVersion.current;
     setLoading(true);
-    fetchKpis(f || undefined, t || undefined)
-      .then(setKpis)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  };
+    setError('');
+    try {
+      const data = await fetchKpis(f || undefined, t || undefined);
+      if (requestId === requestVersion.current) setKpis(data);
+    } catch (err: unknown) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load KPIs');
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   const fmt = (n: number) =>
     (n / 100).toLocaleString(undefined, { minimumFractionDigits: 2 });
@@ -72,7 +85,7 @@ export default function KpiDashboardPage() {
             <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={inputStyle} />
             <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: typeScale.bodySm.fontSize }}>to</span>
             <input type="date" value={to} onChange={e => setTo(e.target.value)} style={inputStyle} />
-            <button onClick={() => load(from, to)} style={{
+            <button onClick={() => void load(from, to)} style={{
               padding: '6px 16px', fontSize: typeScale.bodySm.fontSize, fontWeight: 600,
               background: 'rgba(255,255,255,0.15)', color: '#fff',
               border: '1px solid rgba(255,255,255,0.25)', borderRadius: radii.sm, cursor: 'pointer',
@@ -84,12 +97,19 @@ export default function KpiDashboardPage() {
 
       {/* ── Content ───────────────────────────────────────── */}
       <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 80, color: colors.muted, ...typeScale.body }}>Loading KPIs...</div>
+        {error && (
+          <div role="alert" style={{ padding: 14, marginBottom: 20, background: colors.errBg, color: colors.err, borderRadius: radii.sm, ...typeScale.bodySm }}>
+            <span>{error}</span>{' '}
+            <button type="button" onClick={() => void load(from, to)}>Retry KPIs</button>
+          </div>
+        )}
+        {loading && !kpis ? (
+          <div role="status" style={{ textAlign: 'center', padding: 80, color: colors.muted, ...typeScale.body }}>Loading KPIs...</div>
         ) : !kpis ? (
-          <div style={{ textAlign: 'center', padding: 80, color: colors.err, ...typeScale.body }}>Failed to load KPIs</div>
+          <div style={{ textAlign: 'center', padding: 80, color: colors.muted, ...typeScale.body }}>KPI data is unavailable.</div>
         ) : (
           <>
+            {loading && <p role="status" style={{ color: colors.muted, ...typeScale.caption }}>Refreshing KPI data…</p>}
             {/* Revenue & Orders */}
             <SectionTitle>Revenue &amp; Orders</SectionTitle>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 18, marginBottom: 36 }}>
