@@ -7,7 +7,7 @@
  * Route: /analytics
  * APIs: GET /v1/analytics/events?from=&to=  GET /v1/analytics/activity?limit=
  */
-import { Suspense, useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { fetchAnalyticsEvents, fetchAnalyticsActivity, type AnalyticsEventCount, type AnalyticsActivityEntry } from '../../lib/api';
 import { useRequirePerms } from '../../hooks/useRequirePerms';
 import {
@@ -36,29 +36,51 @@ function AnalyticsContent() {
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState('');
   const [activityLimit, setActivityLimit] = useState(50);
+  const eventsRequestVersion = useRef(0);
+  const activityRequestVersion = useRef(0);
 
   useEffect(() => setReady(true), []);
 
-  const loadEvents = useCallback(() => {
+  const loadEvents = useCallback(async () => {
+    const requestId = ++eventsRequestVersion.current;
     setEventsLoading(true);
     setEventsError('');
-    fetchAnalyticsEvents(fromDate, toDate)
-      .then((data: AnalyticsEventCount[]) => { setEvents(data); setEventsLoading(false); })
-      .catch((err: unknown) => { setEventsError(err instanceof Error ? err.message : 'Failed to load events'); setEventsLoading(false); });
+    try {
+      const data: AnalyticsEventCount[] = await fetchAnalyticsEvents(fromDate, toDate);
+      if (requestId === eventsRequestVersion.current) setEvents(data);
+    } catch (err: unknown) {
+      if (requestId === eventsRequestVersion.current) {
+        setEventsError(err instanceof Error ? err.message : 'Failed to load events');
+      }
+    } finally {
+      if (requestId === eventsRequestVersion.current) setEventsLoading(false);
+    }
   }, [fromDate, toDate]);
 
-  const loadActivity = useCallback(() => {
+  const loadActivity = useCallback(async () => {
+    const requestId = ++activityRequestVersion.current;
     setActivityLoading(true);
     setActivityError('');
-    fetchAnalyticsActivity(activityLimit)
-      .then((data: AnalyticsActivityEntry[]) => { setActivity(data); setActivityLoading(false); })
-      .catch((err: unknown) => { setActivityError(err instanceof Error ? err.message : 'Failed to load activity'); setActivityLoading(false); });
+    try {
+      const data: AnalyticsActivityEntry[] = await fetchAnalyticsActivity(activityLimit);
+      if (requestId === activityRequestVersion.current) setActivity(data);
+    } catch (err: unknown) {
+      if (requestId === activityRequestVersion.current) {
+        setActivityError(err instanceof Error ? err.message : 'Failed to load activity');
+      }
+    } finally {
+      if (requestId === activityRequestVersion.current) setActivityLoading(false);
+    }
   }, [activityLimit]);
 
   useEffect(() => {
     if (!ready || !hasAccess) return;
-    if (activeView === 'events') loadEvents();
-    else loadActivity();
+    if (activeView === 'events') void loadEvents();
+    else void loadActivity();
+    return () => {
+      eventsRequestVersion.current += 1;
+      activityRequestVersion.current += 1;
+    };
   }, [ready, hasAccess, activeView, loadEvents, loadActivity]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
@@ -122,7 +144,7 @@ function AnalyticsContent() {
           </div>
 
           {eventsLoading && <div style={{ padding: 24, color: '#6b7280', fontSize: 13 }}>Loading event counts…</div>}
-          {eventsError && <div style={{ padding: 16, color: '#991b1b', fontSize: 13, background: '#fef2f2', borderRadius: 6 }}>{eventsError}</div>}
+          {eventsError && <div role="alert" style={{ padding: 16, color: '#991b1b', fontSize: 13, background: '#fef2f2', borderRadius: 6 }}>{eventsError}{' '}<button type="button" onClick={() => void loadEvents()}>Retry events</button></div>}
 
           {!eventsLoading && !eventsError && events.length === 0 && (
             <div style={{ padding: 24, color: '#6b7280', fontSize: 13, textAlign: 'center' }}>No events found for this date range.</div>
@@ -131,7 +153,7 @@ function AnalyticsContent() {
           {events.length > 0 && (
             <AdminDetailSection title="Event Breakdown">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {events.sort((a, b) => b.count - a.count).map((ev, idx) => (
+                {[...events].sort((a, b) => b.count - a.count).map((ev, idx) => (
                   <div key={ev.eventType} style={{
                     padding: '10px 16px',
                     display: 'flex',
@@ -176,7 +198,7 @@ function AnalyticsContent() {
           </div>
 
           {activityLoading && <div style={{ padding: 24, color: '#6b7280', fontSize: 13 }}>Loading activity…</div>}
-          {activityError && <div style={{ padding: 16, color: '#991b1b', fontSize: 13, background: '#fef2f2', borderRadius: 6 }}>{activityError}</div>}
+          {activityError && <div role="alert" style={{ padding: 16, color: '#991b1b', fontSize: 13, background: '#fef2f2', borderRadius: 6 }}>{activityError}{' '}<button type="button" onClick={() => void loadActivity()}>Retry activity</button></div>}
 
           {!activityLoading && !activityError && activity.length === 0 && (
             <div style={{ padding: 24, color: '#6b7280', fontSize: 13, textAlign: 'center' }}>No activity recorded.</div>
