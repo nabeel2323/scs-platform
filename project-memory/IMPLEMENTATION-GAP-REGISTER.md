@@ -528,3 +528,19 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - The existing store detail API already returned logo/cover URLs, address, locale and the popularity-badge visibility setting, but the detail page omitted most of that operational context.
 - The overview now displays locale and popularity-badge visibility, a dedicated branding section with logo/cover previews, and a structured store-address section. The technical tab now labels the identifier as Store ID and includes organization/store identifiers.
 - Added `admin-merchant-detail.test.tsx` against the existing `GET /admin/merchants/:id` contract. Test has not been executed. No API, permission, schema, migration or database change.
+
+## UX-048 — Admin Roles List retry and request lifecycle — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- The Roles list displayed a terminal error with no retry action and did not guard the read against stale completions/unmount.
+- Added a reusable load callback, Retry action through the existing detail error component, and request-version protection. Tests have not been executed.
+- Added `admin-roles-recovery.test.tsx`. No API, permission, schema or database change.
+
+## UX-049 — Admin Audit Log query ordering and recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- Audit Log filter changes can issue overlapping requests. Responses were applied without request identity checks, so an older filter response could overwrite a newer result. The error banner had no direct retry action, although the page Refresh control could repeat the read.
+- Added request-version guards for result, total, error and loading updates, including invalidation on effect cleanup/unmount. The error banner now exposes an explicit Retry audit log action. Last successful rows remain visible while a refresh is in progress or fails.
+- Added `admin-audit-race.test.tsx` for out-of-order responses and failed-read retry. Tests have not been executed. No API, permission, schema or database change.
