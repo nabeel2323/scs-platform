@@ -6,7 +6,7 @@
  * Route: /organizations/[id]
  * Shows organization identity, stores, warehouses, documents, and members.
  */
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { fetchAdminOrganizationDetail, type AdminOrgDetail } from '../../../lib/api';
 import { useRequirePerms } from '../../../hooks/useRequirePerms';
@@ -34,20 +34,36 @@ function OrgDetailContent({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
+  const requestVersion = useRef(0);
 
   useEffect(() => setReady(true), []);
-  useEffect(() => {
+
+  const load = useCallback(async () => {
     if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
-    fetchAdminOrganizationDetail(id)
-      .then(data => { setOrg(data); setLoading(false); })
-      .catch(err => { setError(err instanceof Error ? err.message : 'Failed to load organization'); setLoading(false); });
+    setError('');
+    try {
+      const data = await fetchAdminOrganizationDetail(id);
+      if (requestId === requestVersion.current) setOrg(data);
+    } catch (err) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load organization');
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
   }, [id, ready, hasAccess]);
+
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={8} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: admin:users:read</div>;
   if (loading) return <AdminLoadingSkeleton kvRows={8} />;
-  if (error) return <AdminErrorState title="Unable to load organization" message={error} />;
+  if (error) return <AdminErrorState title="Unable to load organization" message={error} onRetry={load} />;
   if (!org) return null;
 
   const tabs = [

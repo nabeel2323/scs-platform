@@ -6,7 +6,7 @@
  * Route: /merchants/[id]
  * Shows merchant identity, verification status, and related data.
  */
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { adminRequest, type AdminRecord } from '../../../lib/api';
 import { useRequirePerms } from '../../../hooks/useRequirePerms';
@@ -31,20 +31,36 @@ function MerchantDetailContent({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
+  const requestVersion = useRef(0);
 
   useEffect(() => setReady(true), []);
-  useEffect(() => {
+
+  const load = useCallback(async () => {
     if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
-    adminRequest<AdminRecord>(`admin/merchants/${encodeURIComponent(id)}`)
-      .then(data => { setMerchant(data); setLoading(false); })
-      .catch(err => { setError(err instanceof Error ? err.message : 'Failed to load merchant'); setLoading(false); });
+    setError('');
+    try {
+      const data = await adminRequest<AdminRecord>(`admin/merchants/${encodeURIComponent(id)}`);
+      if (requestId === requestVersion.current) setMerchant(data);
+    } catch (err) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load merchant');
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
   }, [id, ready, hasAccess]);
+
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: admin:merchants:read</div>;
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error) return <AdminErrorState title="Unable to load merchant" message={error} />;
+  if (error) return <AdminErrorState title="Unable to load merchant" message={error} onRetry={load} />;
   if (!merchant) return null;
 
   const displayName = String(merchant['displayName'] || merchant['name'] || 'Merchant');

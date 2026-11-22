@@ -6,7 +6,7 @@
  * Route: /users/[id]
  * Shows user identity, contact info, status, and organization memberships.
  */
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { fetchAdminUserDetail, type AdminUserDetail } from '../../../lib/api';
 import { fetchPermissions, type PermissionCatalog } from '../../../lib/api';
@@ -33,32 +33,64 @@ function UserDetailContent({ id }: { id: string }) {
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<AdminUserDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [userError, setUserError] = useState('');
+  const [permissionsError, setPermissionsError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const [permissions, setPermissions] = useState<PermissionCatalog | null>(null);
   const [permsLoading, setPermsLoading] = useState(false);
+  const userRequestVersion = useRef(0);
+  const permissionsRequestVersion = useRef(0);
 
   useEffect(() => setReady(true), []);
-  useEffect(() => {
+
+  const loadUser = useCallback(async () => {
     if (!ready || !hasAccess) return;
+    const requestId = ++userRequestVersion.current;
     setLoading(true);
-    fetchAdminUserDetail(id)
-      .then(data => { setUser(data); setLoading(false); })
-      .catch(err => { setError(err instanceof Error ? err.message : 'Failed to load user'); setLoading(false); });
+    setUserError('');
+    try {
+      const data = await fetchAdminUserDetail(id);
+      if (requestId === userRequestVersion.current) setUser(data);
+    } catch (err) {
+      if (requestId === userRequestVersion.current) {
+        setUserError(err instanceof Error ? err.message : 'Failed to load user');
+      }
+    } finally {
+      if (requestId === userRequestVersion.current) setLoading(false);
+    }
   }, [id, ready, hasAccess]);
 
   useEffect(() => {
+    void loadUser();
+    return () => { userRequestVersion.current += 1; };
+  }, [loadUser]);
+
+  const loadPermissions = useCallback(async () => {
     if (!ready || !hasAccess || !user) return;
+    const requestId = ++permissionsRequestVersion.current;
     setPermsLoading(true);
-    fetchPermissions()
-      .then(data => { setPermissions(data); setPermsLoading(false); })
-      .catch(err => { setError(err instanceof Error ? err.message : 'Failed to load permissions'); setPermsLoading(false); });
+    setPermissionsError('');
+    try {
+      const data = await fetchPermissions();
+      if (requestId === permissionsRequestVersion.current) setPermissions(data);
+    } catch (err) {
+      if (requestId === permissionsRequestVersion.current) {
+        setPermissionsError(err instanceof Error ? err.message : 'Failed to load permissions');
+      }
+    } finally {
+      if (requestId === permissionsRequestVersion.current) setPermsLoading(false);
+    }
   }, [user, ready, hasAccess]);
+
+  useEffect(() => {
+    void loadPermissions();
+    return () => { permissionsRequestVersion.current += 1; };
+  }, [loadPermissions]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: admin:users:read</div>;
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error) return <AdminErrorState title="Unable to load user" message={error} />;
+  if (userError) return <AdminErrorState title="Unable to load user" message={userError} onRetry={loadUser} />;
   if (!user) return null;
 
   const tabs = [
@@ -139,7 +171,9 @@ function UserDetailContent({ id }: { id: string }) {
 
         {activeTab === 'permissions' && (
           <AdminDetailSection title="Effective Permissions">
-            {permsLoading ? <AdminLoadingSkeleton kvRows={4} /> : (
+            {permsLoading ? <AdminLoadingSkeleton kvRows={4} /> : permissionsError ? (
+              <AdminErrorState title="Unable to load permissions" message={permissionsError} onRetry={loadPermissions} />
+            ) : (
               permissions ? (
                 <>
                   <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>

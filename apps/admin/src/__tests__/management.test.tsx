@@ -17,6 +17,9 @@ import ProductDetails, { ProductModerationActions } from '../components/ProductD
 import UsersPage from '../app/users/page';
 import DisputeDetailPage from '../app/disputes/[id]/page';
 import AdminReturnsPage from '../app/returns/page';
+import UserDetailPage from '../app/users/[id]/page';
+import MerchantDetailPage from '../app/merchants/[id]/page';
+import OrganizationDetailPage from '../app/organizations/[id]/page';
 import ReturnDetailPage from '../app/returns/[id]/page';
 import AttributeDetailPage from '../app/attributes/[id]/page';
 import AdminPaymentsPage from '../app/payments/page';
@@ -26,6 +29,9 @@ import SettlementAdjustmentsPage from '../app/settlement-adjustments/page';
 import {
   adminRequest,
   fetchDisputeEvents,
+  fetchAdminUserDetail,
+  fetchPermissions,
+  fetchAdminOrganizationDetail,
   moderateAdminProduct,
   fetchAdminPayments,
   fetchPaymentVerificationQueue,
@@ -50,6 +56,9 @@ vi.mock('next/navigation', () => ({
 vi.mock('../lib/api', () => ({
   adminRequest: vi.fn(),
   fetchDisputeEvents: vi.fn(),
+  fetchAdminUserDetail: vi.fn(),
+  fetchPermissions: vi.fn(),
+  fetchAdminOrganizationDetail: vi.fn(),
   moderateAdminProduct: vi.fn(),
   fetchAdminPayments: vi.fn(),
   fetchPaymentVerificationQueue: vi.fn(),
@@ -101,6 +110,73 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+
+
+describe('Admin identity and organization detail read recovery', () => {
+  it('retries a failed user detail read without losing the permission catalogue', async () => {
+    vi.mocked(fetchAdminUserDetail)
+      .mockRejectedValueOnce(new Error('User read unavailable'))
+      .mockResolvedValueOnce({
+        id: 'dispute-1',
+        fullName: 'Test User',
+        status: 'ACTIVE',
+        organizations: [],
+        phone: null,
+        email: 'test@example.com',
+        emailVerifiedAt: null,
+        locale: 'en',
+        createdAt: '2026-11-20T10:00:00.000Z',
+        updatedAt: '2026-11-20T10:00:00.000Z',
+      } as never);
+    vi.mocked(fetchPermissions).mockResolvedValue({ domains: [], total: 0 } as never);
+
+    render(<UserDetailPage />);
+    expect(await screen.findByText('User read unavailable')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText('Test User');
+    expect(fetchAdminUserDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a failed merchant detail read', async () => {
+    vi.mocked(adminRequest)
+      .mockRejectedValueOnce(new Error('Merchant read unavailable'))
+      .mockResolvedValueOnce({ id: 'dispute-1', displayName: 'Acme Store', status: 'ACTIVE' });
+
+    render(<MerchantDetailPage />);
+    expect(await screen.findByText('Merchant read unavailable')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText('Acme Store');
+    expect(adminRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a failed organization detail read', async () => {
+    vi.mocked(fetchAdminOrganizationDetail)
+      .mockRejectedValueOnce(new Error('Organization read unavailable'))
+      .mockResolvedValueOnce({
+        id: 'dispute-1',
+        name: 'Taif Organization',
+        legalName: null,
+        type: 'COMPANY',
+        country: 'NL',
+        taxId: null,
+        verificationStatus: 'VERIFIED',
+        isActive: true,
+        inviteCode: null,
+        createdAt: '2026-11-20T10:00:00.000Z',
+        updatedAt: '2026-11-20T10:00:00.000Z',
+        stores: [],
+        warehouses: [],
+        members: [],
+        documents: [],
+      } as never);
+
+    render(<OrganizationDetailPage />);
+    expect(await screen.findByText('Organization read unavailable')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText('Taif Organization');
+    expect(fetchAdminOrganizationDetail).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe('Admin return oversight recovery', () => {
   const returnFixture = {
