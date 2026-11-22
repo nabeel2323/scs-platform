@@ -2,7 +2,7 @@
 
 **Audit date:** 22 November 2026  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Source checkpoint:** `dd2ce1792179eda29cf2007d98854c65f8cdf71f`  
+**Source checkpoint:** `5eb195433dd0bbf09b96a3495e9ca2e6fb7fe597`  
 **Scope:** all 28 NestJS module controller files under `apps/api/src/modules/**`.
 
 ## Evidence and interpretation

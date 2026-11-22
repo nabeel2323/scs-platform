@@ -20,6 +20,7 @@ vi.mock('@scs/ui-kit', () => {
   const Icon = () => null;
   return {
     PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
+    Card: () => null,
     KpiCard: ({ label, value }: { label: string; value: string }) => (
       <div data-testid="kpi-card"><span>{label}</span><span>{value}</span></div>
     ),

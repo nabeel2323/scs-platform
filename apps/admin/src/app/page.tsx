@@ -159,117 +159,113 @@ export default function AdminHomePage() {
       <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
         {/* KPI Row */}
         {canReadKpis && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-            gap: 18,
-            marginBottom: 40,
-          }}
-        >
-          <KpiCard
-            icon={<IconUsers />}
-            label="Total Users"
-            value={kpisLoading ? '—' : String(kpis?.users.total ?? 0)}
-            accent={colors.brand[700]}
-            tint={colors.brand[50]}
-          />
-          <KpiCard
-            icon={<IconShield />}
-            label="Verified Merchants"
-            value={kpisLoading ? '—' : String(kpis?.merchants.verified ?? 0)}
-            accent={colors.ok}
-            tint={colors.okBg}
-          />
-          <KpiCard
-            icon={<IconPackage />}
-            label="Pending Merchants"
-            value={kpisLoading ? '—' : String(kpis?.merchants.pending ?? 0)}
-            accent={colors.warn}
-            tint={colors.warnBg}
-          />
-          <KpiCard
-            icon={<IconPackage />}
-            label="Total Orders"
-            value={kpisLoading ? '—' : String(kpis?.orders.total ?? 0)}
-            accent={colors.info}
-            tint={colors.infoBg}
-          />
-          <KpiCard
-            icon={<IconDollar />}
-            label="Revenue"
-            value={kpisLoading ? '—' : `${fmt(kpis?.revenue.totalMinor ?? 0)} SAR`}
-            accent="#7c3aed"
-            tint="#f3efff"
-          />
-          <KpiCard
-            icon={<IconActivity />}
-            label="Completion Rate"
-            value={loading ? '—' : `${kpis?.orders.completionRate ?? 0}%`}
-            accent="#047857"
-            tint={colors.okBg}
-          />
-        </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+              gap: 18,
+              marginBottom: 40,
+            }}
+          >
+            <KpiCard
+              icon={<IconUsers />}
+              label="Total Users"
+              value={kpisLoading ? '—' : String(kpis?.users.total ?? 0)}
+              accent={colors.brand[700]}
+              tint={colors.brand[50]}
+            />
+            <KpiCard
+              icon={<IconShield />}
+              label="Verified Merchants"
+              value={kpisLoading ? '—' : String(kpis?.merchants.verified ?? 0)}
+              accent={colors.ok}
+              tint={colors.okBg}
+            />
+            <KpiCard
+              icon={<IconPackage />}
+              label="Pending Merchants"
+              value={kpisLoading ? '—' : String(kpis?.merchants.pending ?? 0)}
+              accent={colors.warn}
+              tint={colors.warnBg}
+            />
+            <KpiCard
+              icon={<IconPackage />}
+              label="Total Orders"
+              value={kpisLoading ? '—' : String(kpis?.orders.total ?? 0)}
+              accent={colors.info}
+              tint={colors.infoBg}
+            />
+            <KpiCard
+              icon={<IconDollar />}
+              label="Revenue"
+              value={kpisLoading ? '—' : `${fmt(kpis?.revenue.totalMinor ?? 0)} SAR`}
+              accent="#7c3aed"
+              tint="#f3efff"
+            />
+            <KpiCard
+              icon={<IconActivity />}
+              label="Completion Rate"
+              value={kpisLoading ? '—' : `${kpis?.orders.completionRate ?? 0}%`}
+              accent="#047857"
+              tint={colors.okBg}
+            />
+          </div>
         )}
 
         {/* Pending Organization Updates Widget */}
         {canReadOrgUpdates && (
-        <div
-          style={{
-            background: colors.surface,
-            borderRadius: radii.md,
-            border: `1px solid ${colors.border}`,
-            boxShadow: shadows.md,
-            marginBottom: 40,
-            overflow: 'hidden',
-          }}
-        >
           <div
             style={{
-              padding: '16px 22px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              borderBottom: `1px solid ${colors.border}`,
+              background: colors.surface,
+              borderRadius: radii.md,
+              border: `1px solid ${colors.border}`,
+              boxShadow: shadows.md,
+              marginBottom: 40,
+              overflow: 'hidden',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ color: colors.brand[500], display: 'flex' }}>
-                <IconRefresh size={18} />
-              </span>
-              <h2 style={{ ...typeScale.h4, color: colors.brand[700], margin: 0 }}>
-                Pending Organization Updates
-              </h2>
-              <span
-                style={{
-                  background: updateReqs.length > 0 ? colors.warnBg : colors.bgSubtle,
-                  color: updateReqs.length > 0 ? colors.warn : colors.muted,
-                  ...typeScale.caption,
-                  fontWeight: 600,
-                  padding: '2px 8px',
-                  borderRadius: radii.full,
-                }}
-              >
-                {orgUpdatesLoading ? '…' : updateReqs.length}
-              </span>
-            </div>
-            <Link
-              href="/organizations"
+            <div
               style={{
-                ...typeScale.bodySm,
-                color: colors.brand[500],
-                textDecoration: 'none',
-                fontWeight: 500,
+                padding: '16px 22px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderBottom: `1px solid ${colors.border}`,
               }}
             >
-              View all →
-            </Link>
-          </div>
-          {orgUpdatesLoading ? (
-            <div style={{ padding: '28px 22px', textAlign: 'center', color: colors.muted, ...typeScale.body }}>
-              Loading organization update requests…
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ color: colors.brand[500], display: 'flex' }}>
+                  <IconRefresh size={18} />
+                </span>
+                <h2 style={{ ...typeScale.h4, color: colors.brand[700], margin: 0 }}>
+                  Pending Organization Updates
+                </h2>
+                <span
+                  style={{
+                    background: updateReqs.length > 0 ? colors.warnBg : colors.bgSubtle,
+                    color: updateReqs.length > 0 ? colors.warn : colors.muted,
+                    ...typeScale.caption,
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: radii.full,
+                  }}
+                >
+                  {orgUpdatesLoading ? '…' : updateReqs.length}
+                </span>
+              </div>
+              <Link
+                href="/organizations"
+                style={{
+                  ...typeScale.bodySm,
+                  color: colors.brand[500],
+                  textDecoration: 'none',
+                  fontWeight: 500,
+                }}
+              >
+                View all →
+              </Link>
             </div>
-          ) : updateReqs.length === 0 ? (
+            {orgUpdatesLoading ? (
             <div
               style={{
                 padding: '28px 22px',
@@ -278,119 +274,130 @@ export default function AdminHomePage() {
                 ...typeScale.body,
               }}
             >
-              No pending update requests
-            </div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', ...typeScale.body }}>
-              <thead>
-                <tr
-                  style={{
-                    background: colors.bgSubtle,
-                    borderBottom: `1px solid ${colors.border}`,
-                  }}
-                >
-                  <th
+                Loading organization update requests…
+              </div>
+            ) : updateReqs.length === 0 ? (
+              <div
+                style={{
+                  padding: '28px 22px',
+                  textAlign: 'center',
+                  color: colors.muted,
+                  ...typeScale.body,
+                }}
+              >
+                No pending update requests
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', ...typeScale.body }}>
+                <thead>
+                  <tr
                     style={{
-                      textAlign: 'left',
-                      padding: '10px 18px',
-                      ...typeScale.label,
-                      color: colors.muted,
-                      letterSpacing: '0.5px',
+                      background: colors.bgSubtle,
+                      borderBottom: `1px solid ${colors.border}`,
                     }}
                   >
-                    Organization
-                  </th>
-                  <th
-                    style={{
-                      textAlign: 'left',
-                      padding: '10px 18px',
-                      ...typeScale.label,
-                      color: colors.muted,
-                      letterSpacing: '0.5px',
-                    }}
-                  >
-                    Proposed Changes
-                  </th>
-                  <th
-                    style={{
-                      textAlign: 'left',
-                      padding: '10px 18px',
-                      ...typeScale.label,
-                      color: colors.muted,
-                      letterSpacing: '0.5px',
-                    }}
-                  >
-                    Submitted
-                  </th>
-                  <th
-                    style={{
-                      textAlign: 'right',
-                      padding: '10px 18px',
-                      ...typeScale.label,
-                      color: colors.muted,
-                      letterSpacing: '0.5px',
-                    }}
-                  >
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {updateReqs.slice(0, 5).map((req) => {
-                  const changes = Object.entries(req.payload || {})
-                    .filter(([, v]) => v)
-                    .map(([k, v]) => `${k}: ${v}`)
-                    .join(', ');
-                  return (
-                    <tr key={req.id} style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
-                      <td
-                        style={{ padding: '12px 18px', color: colors.brand[700], fontWeight: 500 }}
-                      >
-                        {req.orgName || 'Unknown'}
-                      </td>
-                      <td
-                        style={{
-                          padding: '12px 18px',
-                          color: colors.muted,
-                          ...typeScale.bodySm,
-                          maxWidth: 300,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {changes || '—'}
-                      </td>
-                      <td
-                        style={{ padding: '12px 18px', color: colors.muted, ...typeScale.bodySm }}
-                      >
-                        {new Date(req.createdAt).toLocaleDateString()}
-                      </td>
-                      <td style={{ padding: '12px 18px', textAlign: 'right' }}>
-                        <Link
-                          href="/organizations"
+                    <th
+                      style={{
+                        textAlign: 'left',
+                        padding: '10px 18px',
+                        ...typeScale.label,
+                        color: colors.muted,
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      Organization
+                    </th>
+                    <th
+                      style={{
+                        textAlign: 'left',
+                        padding: '10px 18px',
+                        ...typeScale.label,
+                        color: colors.muted,
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      Proposed Changes
+                    </th>
+                    <th
+                      style={{
+                        textAlign: 'left',
+                        padding: '10px 18px',
+                        ...typeScale.label,
+                        color: colors.muted,
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      Submitted
+                    </th>
+                    <th
+                      style={{
+                        textAlign: 'right',
+                        padding: '10px 18px',
+                        ...typeScale.label,
+                        color: colors.muted,
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {updateReqs.slice(0, 5).map((req) => {
+                    const changes = Object.entries(req.payload || {})
+                      .filter(([, v]) => v)
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join(', ');
+                    return (
+                      <tr key={req.id} style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                        <td
+                          style={{ padding: '12px 18px', color: colors.brand[700], fontWeight: 500 }}
+                        >
+                          {req.orgName || 'Unknown'}
+                        </td>
+                        <td
                           style={{
-                            display: 'inline-block',
-                            padding: '4px 12px',
-                            ...typeScale.caption,
-                            fontWeight: 600,
-                            background: colors.brand[50],
-                            color: colors.brand[700],
-                            border: `1px solid ${colors.brand[300]}`,
-                            borderRadius: radii.sm,
-                            textDecoration: 'none',
+                            padding: '12px 18px',
+                            color: colors.muted,
+                            ...typeScale.bodySm,
+                            maxWidth: 300,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
                           }}
                         >
-                          Review
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
+                          {changes || '—'}
+                        </td>
+                        <td
+                          style={{ padding: '12px 18px', color: colors.muted, ...typeScale.bodySm }}
+                        >
+                          {new Date(req.createdAt).toLocaleDateString()}
+                        </td>
+                        <td style={{ padding: '12px 18px', textAlign: 'right' }}>
+                          <Link
+                            href="/organizations"
+                            style={{
+                              display: 'inline-block',
+                              padding: '4px 12px',
+                              ...typeScale.caption,
+                              fontWeight: 600,
+                              background: colors.brand[50],
+                              color: colors.brand[700],
+                              border: `1px solid ${colors.brand[300]}`,
+                              borderRadius: radii.sm,
+                              textDecoration: 'none',
+                            }}
+                          >
+                            Review
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
         )}
 
         {(canManageImports || canManageRequests) && (

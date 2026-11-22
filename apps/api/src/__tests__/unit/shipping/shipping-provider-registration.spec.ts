@@ -8,7 +8,7 @@ describe('ShippingService provider registration', () => {
   it('registers Aramex as non-default while retaining manual-driver as default', () => {
     const registry = new ShippingProviderRegistry();
     const manual = new ManualDeliveryProvider();
-    const aramex = { key: 'aramex', name: 'Aramex' } as AramexProvider;
+    const aramex = { key: 'aramex', name: 'Aramex' } as unknown as AramexProvider;
     const service = new ShippingService({} as any, registry, manual, aramex);
 
     service.onModuleInit();
