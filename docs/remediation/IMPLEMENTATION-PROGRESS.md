@@ -1805,3 +1805,13 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Existing product search/status filters and create/delete permission gates remain unchanged; successful empty and filtered-no-match states remain distinct.
 - Added Flutter widget coverage for stale product preservation, initial failure/retry and true-empty catalogue state. Tests remain pending Phase 3.
 - No catalog API, product visibility, permission, database, migration, staging or provider behavior changed.
+
+## Mobile workflow implementation continuation — UX-087 / UX-088 — 23 November 2026
+
+This is programme-level UX implementation evidence; it does not change the status or acceptance criteria of any G-001–G-035 audit finding.
+
+- **UX-087 — Mobile Merchant Offer Detail:** implemented stale-safe offer and analytics refresh, retryable initial offer failure, independent offer/analytics/trend refresh, and unavailable-metrics handling rather than treating failed analytics as zero. Focused Flutter widget tests were added in `mobile/test/merchant_offer_detail_read_recovery_test.dart`; not executed.
+- **UX-088 — Mobile Merchant Inventory:** implemented stale-safe active-store and inventory refresh, independent warehouse-directory retry/error handling, retained inventory rows on failed refresh, and pull-to-refresh for successful empty inventory. Focused Flutter widget tests were added in `mobile/test/merchant_inventory_read_recovery_test.dart`; not executed.
+- Source commit: `df5a171762a5f6a5b365a13f491a975d4c6e9aa8`; focused inventory test commit: `fe508b0d30c791fb7597ec7f1c95d6b6968461b4`. The offer-detail focused test commit is `910466470d28c7d1eec08c80db47a74b6727f3bc`.
+- Both deliverables are **IMPLEMENTED / TESTING_PENDING**, not test-verified or CI-verified. They introduce no API, permission, schema, migration, database, staging or worker changes.
+- Continue Mobile merchant operational source audit, then remaining Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
