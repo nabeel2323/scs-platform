@@ -1336,3 +1336,14 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Source inspection confirms application OTP logging redaction is already present in IdentityService/OtpDeliveryService and covered by otp-redaction and otp-security-remediation tests. This does not prove historical or current staging logs are clean; runtime log verification remains pending.
 - No unit/integration/migration/client tests were run, no Actions workflow was triggered, and no staging/shared DB command or provider/worker action was executed.
 - Remaining G-002 blockers: exact controller/route-to-operation predicates, legacy UAT script guard/retirement, uniform staging bootstrap target confirmation, live API/migration identity and protected 114-versus-116 catalog evidence. Do not implement request-scoped transaction propagation or RLS activation until those proof gates are complete.
+
+
+## G-002 controller callsite mapping and webhook tenant-routing fix — 22 November 2026
+
+- Added docs/remediation/G-002-CONTROLLER-TO-SERVICE-CALL-MAP-2026-11-22.md covering all 28 module controllers, controller method→service method callsites, four direct-DB controllers, six controllers using shared tenant-scope helpers, and the shipment/provider/bootstrap/operator context boundaries.
+- Confirmed the four direct DatabaseService controller paths: StoreMembershipController (stores/store_members), CarrierAdminController (shipments/stores), CarrierWebhookController (carrier_credentials/carrier_webhook_events/shipments/outbox_events), and ShipmentOperationsController (shipments/stores/orders/shipment_events/shipment_labels/outbox_events).
+- Mapped common tenant-scope helpers to stores, store_members, products, product_variants, warehouses, inventory_items and order/master-order ownership. These helpers use the singleton DatabaseService rather than the caller's active transaction.
+- Found a multi-tenant ambiguity in the legacy providerKey-only carrier webhook route: findFirst could select an arbitrary active credential if multiple organizations configured the same provider. Changed the legacy path to inspect at most two active credentials and return 401 when more than one exists; exactly-one legacy behavior and exact token route remain supported.
+- Added focused controller tests for ambiguous legacy route rejection, single-credential compatibility and exact provider/token lookup. Tests were not run.
+- Updated the G-002 operation map and DB-003 register. Remaining work: physical DB-object inventory, method-level ownership predicate validation, legacy UAT script guard/retirement, staging bootstrap target guard, live runtime identity and protected 114-versus-116 catalog evidence.
+- No webhook was invoked, no worker/provider action occurred, no database query/write or migration was executed, no staging/deployment action occurred, and no test/CI run was triggered.

@@ -134,20 +134,36 @@ export class CarrierWebhookController {
     // 3. Find the active credential for this provider
     //    If webhookToken is provided (B1.7), use it for exact tenant routing.
     //    Otherwise fall back to provider-key-only lookup (legacy single-org).
-    const credential = webhookToken
-      ? await this.db.db.query.carrierCredentials.findFirst({
-          where: and(
-            eq(carrierCredentials.providerKey, providerKey),
-            eq(carrierCredentials.webhookToken, webhookToken),
-            eq(carrierCredentials.isActive, true),
-          ),
-        })
-      : await this.db.db.query.carrierCredentials.findFirst({
-          where: and(
-            eq(carrierCredentials.providerKey, providerKey),
-            eq(carrierCredentials.isActive, true),
-          ),
+    let credential: any = null;
+    if (webhookToken) {
+      credential = await this.db.db.query.carrierCredentials.findFirst({
+        where: and(
+          eq(carrierCredentials.providerKey, providerKey),
+          eq(carrierCredentials.webhookToken, webhookToken),
+          eq(carrierCredentials.isActive, true),
+        ),
+      });
+    } else {
+      // The legacy provider-key-only route is safe only when exactly one
+      // active credential exists. Never let findFirst silently choose a
+      // tenant when multiple organizations configure the same provider.
+      const candidates = await this.db.db.query.carrierCredentials.findMany({
+        where: and(
+          eq(carrierCredentials.providerKey, providerKey),
+          eq(carrierCredentials.isActive, true),
+        ),
+        limit: 2,
+      });
+      if (candidates.length > 1) {
+        this.logger.warn(
+          `Legacy webhook route rejected for ${providerKey}: multiple active credentials require a tenant-specific webhook token`,
+        );
+        return res.status(HttpStatus.UNAUTHORIZED).json({
+          error: 'A tenant-specific webhook token is required for this provider',
         });
+      }
+      credential = candidates[0] ?? null;
+    }
 
     if (!credential) {
       this.logger.warn(`Webhook received for unknown provider: ${providerKey}`);

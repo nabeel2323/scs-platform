@@ -226,3 +226,23 @@ The following remaining files were inspected and contain no direct database call
 ### Service-file coverage reconciliation
 
 The source-tree candidate set contains 53 service/worker/poller/dispatcher/executor files. All 53 have now been inspected: 44 contain direct DB operations already represented in this map, and 9 are database-independent helpers/providers listed above. This closes the service-file inspection slice only. It does not close route-to-operation mapping, CLI/bootstrap mapping, exact ownership-predicate validation, raw DB-object inventory, or the protected 114-versus-116 relation reconciliation.
+
+
+## Direct controller database access and shared scope helpers — source slice 8
+
+Static inspection of all 28 module controllers found four that issue direct DatabaseService query-builder operations:
+
+| Controller | Direct table operations | Boundary |
+|---|---|---|
+| StoreMembershipController | stores R; store_members R | Store resolution checks activeOrg; listMembers additionally requires ACTIVE store membership before calling StoreMembershipService. |
+| CarrierAdminController | shipments R/U; stores R | Recovery resolves shipment→store→org; recovery queue resolves activeOrg store IDs and filters shipments; platform roles bypass tenant filter. |
+| CarrierWebhookController | carrier_credentials R; carrier_webhook_events I/U; shipments R; outbox_events I | No JWT. Provider credential plus HMAC is the actor boundary; payload org/store IDs are not trusted. Legacy provider-only lookup is now ambiguous-safe. |
+| ShipmentOperationsController | shipments R/U; stores R; orders R; shipment_events R/I; shipment_labels R; outbox_events R/I | JWT and method permission; shipment→store→org scope; list filters non-privileged callers to activeOrg stores; create/label queue operations use transactions. |
+
+Six controllers pass DatabaseService to common tenant-scope helpers rather than querying directly: CatalogController, CatalogOfferController, CatalogRequestsController, MerchantController, PricingController and PaymentsController. The helper-to-table map and exact predicates are recorded in [G-002-CONTROLLER-TO-SERVICE-CALL-MAP-2026-11-22.md](./G-002-CONTROLLER-TO-SERVICE-CALL-MAP-2026-11-22.md). The helpers read stores, store_members, products, product_variants, warehouses, inventory_items and order/master-order parent relationships. They currently use the singleton DatabaseService and are not passed the caller's active transaction.
+
+The complete controller method→service callsite inventory is recorded in [G-002-CONTROLLER-TO-SERVICE-CALL-MAP-2026-11-22.md](./G-002-CONTROLLER-TO-SERVICE-CALL-MAP-2026-11-22.md). The route permission matrix remains authoritative for route paths/guards/permissions; the service operation map remains authoritative for service-to-table operations.
+
+### Carrier webhook ambiguity hardening
+
+The legacy /webhooks/carrier/:providerKey route previously used findFirst on active carrier_credentials and could silently select one organization's credential when multiple organizations configured the same provider. It now fetches at most two active credentials and rejects the provider-only route with 401 when the result is ambiguous. Exactly one active credential remains backward-compatible; the providerKey+webhookToken route retains exact credential lookup. Focused tests were added but not executed.
