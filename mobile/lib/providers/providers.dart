@@ -59,6 +59,8 @@ final activeOrgIdProvider = StateProvider<String?>((ref) => null);
 void resetIdentityProviders(WidgetRef ref) {
   ref.read(currentUserPhoneProvider.notifier).state = '';
   ref.read(currentUserEmailProvider.notifier).state = null;
+  ref.read(activeOrgIdProvider.notifier).state = null;
+  invalidateAuthenticatedSessionProviders(ref.container);
 }
 
 /// Restores the authentication session from secure storage on cold start.
@@ -360,3 +362,47 @@ final merchantOfferTrendProvider = FutureProvider.family<List<OfferTrendPoint>,
         days: args.days,
       );
 });
+
+/// Drop all cached reads whose result is scoped to the active organization.
+/// Call only after the replacement organization token has been persisted and
+/// installed in ApiClient. Public catalogue and user-level buyer cart/order
+/// data are deliberately excluded from this narrower operation.
+void invalidateOrganizationScopedProviders(ProviderContainer container) {
+  container.invalidate(profileProvider);
+  container.invalidate(myOrganizationsProvider);
+  container.invalidate(myStoresProvider);
+  container.invalidate(activeStoreProvider);
+  container.invalidate(merchantOrdersProvider);
+  container.invalidate(merchantKpisProvider);
+  container.invalidate(storeProductsProvider);
+  container.invalidate(storeCategoriesProvider);
+  container.invalidate(productVariantsProvider);
+  container.invalidate(productMediaProvider);
+  container.invalidate(productDetailProvider);
+  container.invalidate(merchantCustomersProvider);
+  container.invalidate(storeWarehousesProvider);
+  container.invalidate(warehouseInventoryProvider);
+  container.invalidate(storeInventoryProvider);
+  container.invalidate(merchantPriceListsProvider);
+  container.invalidate(priceListDetailProvider);
+  container.invalidate(priceListTiersProvider);
+  container.invalidate(merchantOffersProvider);
+  container.invalidate(merchantOfferDetailProvider);
+  container.invalidate(merchantOfferAnalyticsProvider);
+  container.invalidate(merchantOfferTrendProvider);
+}
+
+/// Clear authenticated caches at a user-session boundary (logout or a new
+/// login). This includes organization-scoped data plus user-specific buyer,
+/// notification, organization-detail and driver reads.
+void invalidateAuthenticatedSessionProviders(ProviderContainer container) {
+  invalidateOrganizationScopedProviders(container);
+  container.invalidate(orgDetailProvider);
+  container.invalidate(orgMembersProvider);
+  container.invalidate(ordersProvider);
+  container.invalidate(cartProvider);
+  container.invalidate(cartValidationProvider);
+  container.invalidate(notificationsProvider);
+  container.invalidate(unreadCountProvider);
+  container.invalidate(driverShipmentsProvider);
+}
