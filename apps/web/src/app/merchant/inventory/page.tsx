@@ -25,6 +25,7 @@ import {
 import { fetchMyStores } from '../../../lib/api';
 import { pickStore } from '../../../lib/merchant-store';
 import { readInventoryHistory } from '../../../lib/inventory-history';
+import { fetchMerchantInventoryVariants } from '../../../lib/merchant-inventory-variants';
 import { LoadingSpinner, ErrorBanner, EmptyState } from '../../../components/Shared';
 import { PageHeader, Breadcrumb } from '@scs/ui-kit';
 import { useAuth } from '../../../components/AuthProvider';
@@ -66,6 +67,7 @@ function InventoryPageContent() {
   const [variantSearch, setVariantSearch] = useState('');
   const [showVariantDrop, setShowVariantDrop] = useState(false);
   const variantDropRef = useRef<HTMLDivElement>(null);
+  const variantsRequestRef = useRef(0);
   const [variantsLoaded, setVariantsLoaded] = useState(false);
   const [variantsError, setVariantsError] = useState('');
 
@@ -195,42 +197,34 @@ function InventoryPageContent() {
     })();
   }, [authLoading, user, canReadInventory, loadInventory, loadVariantInventory, variantFilter]);
 
-  // Batch-fetch variant details via two-phase load: products → variants per product
-  useEffect(() => {
+  const loadVariants = useCallback(async () => {
     if (!storeId || !canReadInventory) return;
+    const requestId = ++variantsRequestRef.current;
     setVariantsLoaded(false);
     setVariantsError('');
-    (async () => {
-      try {
-        const products: any[] = [];
-        let offset = 0;
-        while (true) {
-          const env = await fetchStoreProducts(storeId, { limit: 50, offset });
-          products.push(...(env.items as any[]));
-          if (products.length >= env.total || env.items.length === 0) break;
-          offset += 50;
-        }
-        if (products.length === 0) {
-          setAllVariants([]);
-          setVariantMap({});
-          setVariantsLoaded(true);
-          return;
-        }
-        const variantArrays = await Promise.all(
-          products.map((p) => fetchProductVariants(p.id).catch(() => [])),
-        );
-        const variants = variantArrays.flat();
-        setAllVariants(variants);
-        const map: Record<string, ProductVariant> = {};
-        for (const v of variants) map[v.id] = v;
-        setVariantMap(map);
-        setVariantsLoaded(true);
-      } catch (err: any) {
-        setVariantsError(err.message || 'Failed to load variants');
-        setVariantsLoaded(true);
-      }
-    })();
-  }, [storeId]);
+    setAllVariants([]);
+    setVariantMap({});
+    try {
+      const variants = await fetchMerchantInventoryVariants(storeId);
+      if (requestId !== variantsRequestRef.current) return;
+      setAllVariants(variants);
+      const map: Record<string, ProductVariant> = {};
+      for (const variant of variants) map[variant.id] = variant;
+      setVariantMap(map);
+    } catch (err: unknown) {
+      if (requestId !== variantsRequestRef.current) return;
+      setVariantsError(err instanceof Error ? err.message : 'Failed to load variants');
+    } finally {
+      if (requestId === variantsRequestRef.current) setVariantsLoaded(true);
+    }
+  }, [storeId, canReadInventory]);
+
+  useEffect(() => {
+    void loadVariants();
+    return () => {
+      variantsRequestRef.current += 1;
+    };
+  }, [loadVariants]);
 
   // Close variant dropdown on outside click
   useEffect(() => {
@@ -1085,8 +1079,11 @@ function InventoryPageContent() {
                       </div>
                     )}
                     {variantsError && (
-                      <div style={{ fontSize: 11, color: '#991b1b', padding: '4px 0' }}>
-                        {variantsError}
+                      <div role="alert" style={{ fontSize: 11, color: '#991b1b', padding: '4px 0' }}>
+                        <div>{variantsError}</div>
+                        <button type="button" onClick={() => void loadVariants()} style={editBtn}>
+                          Retry variants
+                        </button>
                       </div>
                     )}
                     {variantsLoaded && !variantsError && allVariants.length === 0 && (
