@@ -2,7 +2,7 @@
 
 > **Mandatory entry point for every new ChatGPT conversation about this repository.**
 >
-> Last reconciled: 22 November 2026  
+> Last reconciled: 23 November 2026  
 > Repository: [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 > Current work branch: `remediation/phase-0-1-tenant-security`
 
@@ -75,11 +75,13 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 22 November 2026 confirms branch `remediation/phase-0-1-tenant-security`, PR #138 open/draft/unmerged to `develop`. Latest source implementation commit: `c5b110fc41324251d24284809664c993b9212827`; latest focused test commit: `0bc00fa68f541ff74e86c68e0e1a70af20720d6d`. Project-memory and remediation progress documents are synchronized through UX-058; refresh the live ref after the next documentation update.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN/DRAFT/UNMERGED against `develop`. The implementation/test checkpoint before documentation synchronization was `fe508b0d30c791fb7597ec7f1c95d6b6968461b4`; source change `df5a171762a5f6a5b365a13f491a975d4c6e9aa8` implements UX-088 Mobile Merchant Inventory recovery, and focused test commit `fe508b0d30c791fb7597ec7f1c95d6b6968461b4` adds its widget coverage. UX-087 Merchant Offer Detail recovery is also present, with focused test commit `910466470d28c7d1eec08c80db47a74b6727f3bc`.
 
-UX-046 Admin User Management is implemented: optional phone, independent organization/role lookup retry, org/role pair validation at UI and service boundaries, profile editing, membership management, confirmed status changes, and accurate per-role permission display. UX-047 Merchant Store Detail presents locale, popularity-badge visibility, logo/cover previews and address. UX-048 Roles List and UX-049 Audit Log have retryable, request-version-guarded reads. UX-050–UX-053 cover Category Detail, Product Type Detail, Catalog Import history and Analytics recovery. UX-054–UX-057 cover Commission Oversight, Offer KPI/Trend, Brand Management and Business Calendar. UX-058 covers Attribute Groups and Definitions retry, stale-response protection and successful-empty-only results. Focused Admin/API tests were added but not executed. All commits use `[skip ci]`; Vercel Web/Admin failures remain external build-rate-limit statuses, not application test results.
+The Admin recovery work UX-046–UX-058 remains implemented with focused tests pending execution. Mobile buyer and merchant recovery UX-078–UX-088 is implemented with focused Flutter/API-client tests pending the consolidated Phase 3 campaign. UX-087 covers stale-safe offer/analytics refresh and unavailable-metrics handling. UX-088 covers active-store, inventory-page and warehouse-directory refresh/error recovery while preserving last successful data. Neither changes API contracts, permissions, stock/offer mutations, schema or database behavior.
 
-Continue UX-010 across remaining Admin operational routes and supporting detail views, then Mobile workflows. Do not repeat UX-030–UX-058. Keep comprehensive testing deferred until implementation/integration are complete. G-001 remains PARTIAL and G-002 IN PROGRESS. Preserve all merge/deployment/staging/shared-database/grant/RLS/worker restrictions.
+The current implementation-first next action is to continue the source-first audit of remaining Mobile merchant operational screens (pricing, customers, orders and store/profile workflows), then complete the remaining Web/Admin route and action permission mapping. Do not repeat UX-078–UX-088 without new source evidence. G-001 remains PARTIAL pending independent security review; G-002 remains IN PROGRESS pending protected runtime identity/catalog evidence and reviewed access design. Phase 3 remains the consolidated full testing campaign; no focused tests in UX-078–UX-088 are claimed as executed.
+
+All commits in this continuation use `[skip ci]`. The exact-head GitHub Actions lookup returned no run; Vercel Admin was PENDING and Vercel Web showed an external build-rate-limit failure on the implementation/test checkpoint. These are not application test results. PR #138 remains draft and is not release authorization.
 
 ## Safety reminder
 
