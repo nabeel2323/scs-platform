@@ -85,6 +85,8 @@ class _InventoryBody extends ConsumerWidget {
       const Divider(height: 1),
       Expanded(
         child: inventory.when(
+          skipLoadingOnRefresh: true,
+          skipError: true,
           loading: () => const LoadingSpinner(),
           error: (e, _) => EmptyState(
               title: 'Error',
@@ -96,7 +98,7 @@ class _InventoryBody extends ConsumerWidget {
             final total = pag.total;
             const pageSize = 20;
             final totalPages = (total / pageSize).ceil();
-            return items.isEmpty
+            final content = items.isEmpty
                 ? const EmptyState(
                     title: 'No inventory',
                     description:
@@ -105,9 +107,16 @@ class _InventoryBody extends ConsumerWidget {
                 : Column(children: [
                     Expanded(
                       child: RefreshIndicator(
-                        onRefresh: () async => ref.invalidate(
-                            storeInventoryProvider(
-                                (storeId: storeId, page: page))),
+                        onRefresh: () async {
+                          try {
+                            await ref.refresh(storeInventoryProvider(
+                              (storeId: storeId, page: page),
+                            ).future);
+                          } catch (_) {
+                            // The AsyncValue below retains and labels the
+                            // last successful page when this refresh fails.
+                          }
+                        },
                         child: ListView.separated(
                           padding: const EdgeInsets.all(12),
                           itemCount: items.length,
@@ -159,6 +168,46 @@ class _InventoryBody extends ConsumerWidget {
                         ),
                       ),
                   ]);
+
+            if (!inventory.isRefreshing && !inventory.hasError) return content;
+            return Column(children: [
+              if (inventory.isRefreshing)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(children: [
+                    SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                    SizedBox(width: 8),
+                    Text('Refreshing inventory… showing the last successful page.',
+                        style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+                  ]),
+                ),
+              if (inventory.hasError)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: TaifTokens.err.withValues(alpha: 0.06),
+                      border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+                      borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+                    ),
+                    child: Row(children: [
+                      Expanded(
+                        child: Text(
+                          'Could not refresh inventory: ${ApiService.errorMessage(inventory.error!)}. Showing the last successfully loaded page.',
+                          style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => ref.invalidate(storeInventoryProvider((storeId: storeId, page: page))),
+                        child: const Text('Retry'),
+                      ),
+                    ]),
+                  ),
+                ),
+              Expanded(child: content),
+            ]);
+          },
           },
         ),
       ),

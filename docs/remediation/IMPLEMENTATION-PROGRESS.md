@@ -1665,3 +1665,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Status-history read failures are now visible with a retry action instead of silently appearing as an absent timeline.
 - Added `order_detail_read_recovery_test.dart` for initial load, failed refresh with stale order preservation and retry recovery.
 - No order/return/fulfillment business actions, API, permissions, schema, migration, database, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-071 — Mobile Merchant Inventory stale-page recovery — 22 November 2026
+
+- Merchant Inventory now keeps the last successful page visible during same-page refresh and after refresh failure, with explicit stale-data messaging and Retry.
+- Pull-to-refresh awaits the refreshed provider result; failures are surfaced through the provider state while the previous successful page remains available.
+- A page/store change still uses its own keyed provider result and cannot display a previous page as if it were the new page. Initial errors continue to use the retryable error state.
+- Added `inventory_read_recovery_test.dart` for stale-page preservation after refresh failure and initial failure/retry.
+- No stock adjustment, transfer, low-stock, export, API, permission, schema, migration, database, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
