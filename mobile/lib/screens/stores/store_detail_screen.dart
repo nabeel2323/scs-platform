@@ -8,7 +8,7 @@ import '../../widgets/common_widgets.dart';
 
 Future<void> _refreshStoreProducts(WidgetRef ref, String storeId) async {
   try {
-    await ref.refresh(buyerStoreProductsProvider(storeId).future);
+    await ref.refresh(buyerStoreProductsProvider(storeId).future).then<void>((_) {});
   } catch (_) {
     // Keep the previous successful catalogue visible; the provider carries
     // the refresh error for the stale-data notice and Retry action.
