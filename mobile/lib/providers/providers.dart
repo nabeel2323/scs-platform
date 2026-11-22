@@ -48,14 +48,13 @@ final currentUserPhoneProvider = StateProvider<String>((ref) => '');
 final currentUserEmailProvider = StateProvider<String?>((ref) => null);
 final activeOrgIdProvider = StateProvider<String?>((ref) => null);
 
-/// Clears the login-identity cache (S1.38.2).
+/// Clears in-memory login identity, active organization and authenticated
+/// read caches at a user-session boundary (S1.38.2).
 ///
-/// Both providers are written by `LoginScreen._completeLogin` so Home can show
-/// an identity before the profile fetch returns. They are deliberately *not*
-/// providers that recompute from storage, so nothing else resets them: without
-/// this call a signed-out device keeps showing the previous user's phone/email
-/// to whoever signs in next. Single helper on purpose — every logout or
-/// session-expiration path must drop phone and email together, never one.
+/// Phone/email are written by `LoginScreen._completeLogin` so Home can show an
+/// identity before the profile fetch returns. They are not derived from storage;
+/// every logout/session-expiration path must clear them together. New login also
+/// uses this helper before routing so no previous user's cached data survives.
 void resetIdentityProviders(ProviderContainer container) {
   container.read(currentUserPhoneProvider.notifier).state = '';
   container.read(currentUserEmailProvider.notifier).state = null;
