@@ -633,3 +633,8 @@ Notifications now preserve the last successful inbox through refresh/realtime fa
 ## Mobile Home UX-083 — 23 November 2026
 
 Categories, Popular Products and Suppliers now expose initial loading/errors/retry and preserve last-successful data through refresh failure. Home pull-to-refresh awaits independent provider refreshes, with explicit Refresh home action. Unread count errors/loading no longer appear as a fabricated zero notification badge. Focused Flutter widget tests were added but not executed; they remain pending Phase 3. No API, permissions, role gating, database or migration behavior changed.
+
+
+## Mobile Checkout UX-084 — 23 November 2026
+
+Checkout idempotency keys now follow payload identity: identical retry attempts reuse the same key, while changing payment method on Review mints a new key. A Flutter widget regression test covers this lifecycle but has not been executed; it remains pending Phase 3. No backend checkout contract, order/payment state, database or migration behavior changed.
