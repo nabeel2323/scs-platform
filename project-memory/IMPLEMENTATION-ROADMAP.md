@@ -377,3 +377,7 @@ Completed the Merchant Warehouses source re-audit. Store discovery now distingui
 ## UX-043 — Admin Dashboard — 22 November 2026
 
 Completed the Admin Dashboard read-recovery slice. KPIs, pending organization updates, Catalog Imports and Catalog Requests now have independent retry/error/loading handling and stale-response guards. Failed KPI reads no longer display zero defaults; failed lists no longer masquerade as empty; last successful data is retained during refresh errors. Focused test added but not executed. Continue UX-010 audit across remaining Admin and Mobile workflows; keep full testing deferred until implementation and integration are complete.
+
+## UX-044 — Admin KPI Dashboard — 22 November 2026
+
+Completed the dedicated Admin KPI Dashboard recovery slice. KPI reads now have retryable errors, request-version guards and stale-data preservation. Initial failures show unavailable values instead of zero defaults; failed date-range refreshes retain the last successful dataset. Focused test added but not executed. Continue UX-010 across remaining Admin workflows (next: Organizations list/update-request read separation), then Mobile.
