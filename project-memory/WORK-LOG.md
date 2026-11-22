@@ -890,3 +890,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source audit found the checkout screen retained the idempotency key minted on Review even when the buyer changed payment method before submitting. That changed the request payload while retaining the prior logical-request key.
 - Payment-method changes now mint a fresh key; retries without payload changes retain the same key. Existing server idempotency contract and checkout payload are unchanged.
 - Added a widget regression test covering two failed identical attempts followed by a payment-method change and a successful third attempt. Not run under implementation-first cadence.
+
+
+## 2026-11-23 — UX-085 Mobile Merchant Dashboard recovery
+
+- Source audit found the merchant dashboard refresh only invalidated profile, stores and KPIs and returned immediately; profile and active-store reads did not preserve last-successful values or expose stale refresh failures. KPI reads already had dedicated recovery.
+- Added skip-refresh/reload stale handling and retry for profile/store reads, independent awaited refresh for profile/active-store/KPIs, explicit refresh action and pull-to-refresh on the always-scrollable store hub.
+- Added a widget test for simultaneous profile/store refresh failures. Not run under implementation-first cadence. No org/store lifecycle/API/permission/database/migration/staging behavior changed.
