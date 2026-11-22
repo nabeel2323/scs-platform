@@ -1156,6 +1156,10 @@ export interface CreateProductInput {
   brandId?: string;
   condition?: string;
   images?: string[];
+  gtin?: string;
+  ean?: string;
+  mpn?: string;
+  productTypeId?: string;
 }
 
 export interface UpdateProductInput {

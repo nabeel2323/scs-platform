@@ -90,6 +90,29 @@ describe('continueProductStudioStep', () => {
     expect(goNext).not.toHaveBeenCalled();
   });
 
+
+  it('does not advance when an existing product update fails', async () => {
+    const saveProduct = vi.fn().mockResolvedValue(null);
+    const setError = vi.fn();
+    const goNext = vi.fn();
+
+    await expect(
+      continueProductStudioStep({
+        step: 'offer',
+        saving: false,
+        productId: 'product-a',
+        title: 'Updated laptop',
+        storeId: 'store-a',
+        saveProduct,
+        setError,
+        goNext,
+      }),
+    ).resolves.toBe(false);
+
+    expect(saveProduct).toHaveBeenCalledWith({ includeOffer: false });
+    expect(goNext).not.toHaveBeenCalled();
+  });
+
   it('does not create the product again after its ID has been persisted', async () => {
     const saveProduct = vi.fn();
     const goNext = vi.fn();

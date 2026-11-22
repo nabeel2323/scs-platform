@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ProductTypeSchemaDetail, fetchProductTypeSchema, fetchCategories, fetchBrandsAdmin,
-  Category, Brand, createProduct, upsertProductAttributeValues, createVariant,
+  Category, Brand, createProduct, updateProduct, upsertProductAttributeValues, createVariant,
   createMerchantOffer, presignMedia, addMedia, searchCanonicalProducts, Product,
   searchCanonicalCatalog, CanonicalProductSummary, fetchProductVariants, ProductVariant,
 } from '../lib/buyer-api';
@@ -53,8 +53,9 @@ export interface StudioState {
   warehouseId: string;
   // Step 5: Media
   mediaItems: Array<{ storageKey: string; url: string; altText: string; isPrimary: boolean }>;
-  // Created product ID (after first save)
+  // Created product ID and optimistic-lock timestamp (after first save)
   productId: string | null;
+  productUpdatedAt: string | null;
 }
 
 const INITIAL: StudioState = {
@@ -64,7 +65,7 @@ const INITIAL: StudioState = {
   selectedExistingVariantId: null,
   attributeValues: {}, variantDimensions: {}, enabledCombinations: new Set(),
   currency: 'SAR', basePriceMinor: 0, moq: 1, leadTimeDays: 3, warehouseId: '',
-  mediaItems: [], productId: null,
+  mediaItems: [], productId: null, productUpdatedAt: null,
 };
 
 export function useProductStudio() {
@@ -181,9 +182,15 @@ export function useProductStudio() {
     setError('');
     setSuccess('');
     try {
-      let productId = state.productId;
+      if (!state.storeId || !state.title.trim()) {
+        throw new Error('A store and product title are required before saving.');
+      }
 
-      // Step 1: Create product if needed
+      let productId = state.productId;
+      let productUpdatedAt = state.productUpdatedAt;
+
+      // Step 1: Create the product once, then update that same product on
+      // subsequent saves so edits made after navigating back are persisted.
       if (!productId) {
         const product = await createProduct({
           storeId: state.storeId,
@@ -195,9 +202,32 @@ export function useProductStudio() {
           categoryId: state.categoryId || undefined,
           brandId: state.brandId || undefined,
           condition: state.condition,
+          gtin: state.gtin || undefined,
+          ean: state.ean || undefined,
+          mpn: state.mpn || undefined,
+          productTypeId: state.productTypeId || undefined,
         });
         productId = product.id;
-        setState(prev => ({ ...prev, productId }));
+        productUpdatedAt = product.updatedAt ?? null;
+        setState(prev => ({ ...prev, productId, productUpdatedAt }));
+      } else {
+        const updatedProduct = await updateProduct(productId, {
+          title: state.title,
+          titleAr: state.titleAr || undefined,
+          slug: state.slug || undefined,
+          description: state.description || undefined,
+          descriptionAr: state.descriptionAr || undefined,
+          categoryId: state.categoryId || undefined,
+          brandId: state.brandId || undefined,
+          condition: state.condition,
+          gtin: state.gtin || null,
+          ean: state.ean || null,
+          mpn: state.mpn || null,
+          productTypeId: state.productTypeId || null,
+          updatedAt: productUpdatedAt || undefined,
+        });
+        productUpdatedAt = updatedProduct.updatedAt ?? productUpdatedAt;
+        setState(prev => ({ ...prev, productUpdatedAt }));
       }
 
       // Step 2: Save attribute values
@@ -271,7 +301,7 @@ export function useProductStudio() {
             : 'Product details saved. Continue to review to create the offer.',
       );
       // P7 Phase 5: reset dirty state after successful save
-      initialRef.current = JSON.stringify({ ...state, productId });
+      initialRef.current = JSON.stringify({ ...state, productId, productUpdatedAt });
       setIsDirty(false);
       return productId;
     } catch (e: unknown) {
