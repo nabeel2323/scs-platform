@@ -76,11 +76,47 @@ The following source files were also inspected. Schema-backed operations use the
 - Notifications and analytics contain user/org-associated rows but are not automatically safe for broad tenant reads. Device tokens and notification preferences are user-private; analytics requires event-level access and aggregation rules.
 - Disputes/conversations/messages inherit order-participant and conversation membership rules. A dispute's parent order and payment references are part of the ownership path; a generic org-only filter is insufficient.
 
+## Administrative, import, membership, webhook and reconciliation paths — source slice 3
+
+This slice extends the static map into platform-admin, import, membership, carrier ingress/tracking, reconciliation and durable operations-control paths.
+
+| Source path | Tables and observed operations |
+|---|---|
+| apps/api/src/modules/admin/admin.service.ts | orders R; order_items R; order_status_history R; stores R; warehouses R; business_documents R; users R/I/U; organizations R/U; organization_members R/I/U/D; organization_update_requests R/U; roles R; permissions R; role_permissions R/I/D; products R/U; product_media R; product_variants R; disputes R; dispute_events R. Product/taxonomy/governance work delegates to separately mapped services. |
+| apps/api/src/modules/catalog-import/catalog-import.service.ts | catalog_imports R/I/U; catalog_import_errors R/I/D; brands R; categories R; products R; product_variants R; product_sources R; attribute_definitions R; attribute_options R; product_types R. |
+| apps/api/src/modules/merchant/store-membership.service.ts | store_members R/I/U/D; stores R; organization_members R; users R. |
+| apps/api/src/modules/shipping/carrier-tracking-poller.ts | Raw SQL: shipments U with an inner SELECT ... FOR UPDATE SKIP LOCKED candidate claim and RETURNING *. Schema-backed shipments U and shipment_events I during polling. |
+| apps/api/src/modules/shipping/carrier-webhook.controller.ts | carrier_webhook_events I/U; carrier_credentials R; shipments R; outbox_events I. |
+| apps/api/src/modules/returns/reconciliation.service.ts | reconciliation_runs R/I/U; reconciliation_discrepancies R/I/U; settlement_adjustments R; settlement_adjustment_approvals R; commission_reversals R; return_requests R; refunds R; settlement_records R; order_financial_breakdown R. |
+| apps/api/src/modules/operations/ops-control.service.ts | Raw SQL: ops_controls R/I/U (upsert); ops_control_audit R. Schema-backed ops_control_audit I. The control upsert and append-only audit insert share a transaction; platform audit/alert writes are separate service calls. |
+
+### Explicit raw-SQL statements observed
+
+- Carrier tracking claim: updates eligible shipments rows, selecting a bounded batch with FOR UPDATE SKIP LOCKED, then returns claimed rows. This is a worker/system operation, not a request-scoped tenant query.
+- Operations pause read: reads ops_controls by control_key; a DB error is intentionally fail-closed by the caller.
+- Operations state read: reads ops_controls by control_key.
+- Operations state mutation: upserts ops_controls and inserts ops_control_audit in one Drizzle transaction. Platform audit and alert writes occur after that transaction as separate service calls.
+- Operations history read: reads ops_control_audit by control_key, ordered newest-first with a bounded limit.
+
+### Route and principal handoff observations
+
+- Admin routes in admin.controller.ts delegate to AdminService; the service performs cross-domain reads and selected user/organization/role mutations. This is a platform-governance principal, not a tenant-owned merchant request. Controller permission metadata and per-action checks remain part of the route matrix.
+- Catalog import routes in catalog-import.controller.ts delegate upload/list/detail/preview/execute/retry/error/report/template/export operations to CatalogImportService. Execution delegates to an import executor and downstream catalog/taxonomy services. Executor/planner transaction internals still need a dedicated source pass; uploadedBy alone is not a complete tenant/organization owner.
+- Store-membership routes delegate to StoreMembershipService. These are tenant administration paths: the membership row is owned through its parent store and organization; the user row is a referenced identity, not a tenant-owned child.
+- Carrier webhooks use provider signature/security checks and resolve tenant identity from the stored carrier credential and shipment relationship. The controller explicitly does not trust storeId/orgId supplied in webhook payload. Treat the provider credential as the authenticated system principal, and derive shipment/store/org ownership from persisted records.
+- CarrierTrackingPoller runs outside HTTP request context. Its shipment claim is a global worker query over eligible rows, after which each shipment must be handled under the owning store/org context when domain state is changed.
+- ReconciliationService accepts an optional orgId and applies it to run selection/creation and downstream checks. Null-org/global mode is a distinct platform/system scope and must not be conflated with a tenant request; confirm controller/worker callers and authorization before defining policies.
+
+### Database-independent provider/realtime paths
+
+- PaymentProviderRegistry, ProviderRegistryService, OtpDeliveryService, WebhookSecurityService and RealtimeGateway do not directly use DatabaseService in the inspected source. They may call DB-backed services or Redis, but are not themselves direct PostgreSQL access paths in this slice.
+- CarrierCredentialsService is DB-backed and is reached from shipping configuration/webhook code; its table carrier_credentials is read and written by that service. A full CRUD operation map for the credential lifecycle remains in the shipping-specific source pass.
+
 ## Still unmapped
 
-This slice does **not** complete DB-003. It does not yet enumerate all service/controller/worker/webhook/CLI paths, raw SQL, dynamic imports, database functions/triggers/views/sequences, partition children, extension-owned objects or all 99 Drizzle-exported tables. The access-path inventory remains authoritative for the worker, audit-middleware, bootstrap, runtime identity and nested-transaction blockers.
+This map does not complete DB-003. It now includes 26 service files plus supporting outbox/worker/monitor/lease/alert paths, but does not yet prove full coverage of every controller caller, all import-executor transaction internals, every shipping credential/retry/recovery path, migration/bootstrap/CLI scripts, dynamic imports, DB functions/triggers/views/sequences, partition children, extension-owned objects or all 99 Drizzle-exported tables. The bounded access-path inventory remains authoritative for shared DatabaseService behavior, asynchronous audit middleware, bootstrap, runtime identity and nested-transaction blockers.
 
-Next source slices should cover: cart/promotions/reviews/disputes/notifications/analytics/operations; carrier webhook and all worker/monitor/lease paths; bootstrap and migration scripts; then reconcile each service operation to controller route, principal/actor context, exact direct/indirect FK owner and read/write/delete predicates. The 114-versus-116 relation discrepancy still requires a refreshed protected read-only catalog snapshot.
+Next source slices should cover the remaining service files in catalog-import execution/planning, carrier credential lifecycle/retry/recovery, all API controller-to-service caller paths, migration/bootstrap scripts and any standalone CLI jobs; then reconcile each operation to principal/actor context, exact direct/indirect FK owner and read/write/delete predicates. The 114-versus-116 relation discrepancy still requires a refreshed protected read-only catalog snapshot.
 
 ## Explicit non-actions
 
