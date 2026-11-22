@@ -106,3 +106,8 @@ Focused tests cover permission parsing and route policy. Their execution, deep-l
 ### UX-011 review refinement
 
 Follow-up review additionally hides Home search/catalog/store discovery sections without the corresponding read permissions, disables all flat-variant and offer Add-to-Cart buttons without `orders:write`, guards merchant registration organization/store writes, and hides the merchant low-stock KPI destination without `merchant:inventory:read`. Consolidated test execution remains pending.
+
+
+### Registration active-organization consistency
+
+The merchant registration wizard now persists the created/joined organization as active and reloads `GET /v1/me` before the store-write step. Store/warehouse caches are invalidated after creation. This closes the stale-active-organization permission check; integration validation remains pending.

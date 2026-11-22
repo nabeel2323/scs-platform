@@ -188,3 +188,8 @@ The user reports that about 90% of the GitHub Actions minutes allowance is alrea
 ## Mobile permission review refinements — 22 November 2026
 
 A follow-up code review tightened Home discovery visibility, registration step guards, flat-variant/offer Add-to-Cart buttons, and the merchant low-stock KPI destination. The registration wizard now distinguishes organization creation from invitation-based joining and checks `merchant:stores:write` before store creation and verification submission. These refinements are grouped into one follow-up implementation commit; validation remains deferred to the consolidated phase.
+
+
+## Registration active-organization correction — 22 November 2026
+
+Merchant registration now persists the organization created or joined to secure storage and updates `activeOrgIdProvider` before refreshing `profileProvider`. This ensures the subsequent store-write check uses the newly selected organization's permissions rather than stale permissions from the previous/no active organization. Store and warehouse caches are invalidated after creation. The follow-up remains unvalidated until the consolidated test phase.

@@ -186,10 +186,27 @@ class _MerchantRegistrationScreenState
     setState(() => _documents.removeAt(idx));
   }
 
+  Future<void> _activateOrganization(String orgId) async {
+    await ref.read(authStorageProvider).setActiveOrgId(orgId);
+    ref.read(activeOrgIdProvider.notifier).state = orgId;
+    ref.invalidate(profileProvider);
+    await ref.read(profileProvider.future);
+  }
+
   Future<void> _handleNext() async {
     setState(() => _error = null);
     final api = ref.read(apiServiceProvider);
     final permissions = ref.read(profileProvider).valueOrNull?.perms ?? const <String>[];
+
+    if (_currentStep == 1 && _orgMode == 'create' && _createdOrgId != null) {
+      try {
+        await _activateOrganization(_createdOrgId!);
+        _goToStep(2);
+      } catch (e) {
+        setState(() => _error = 'Organization exists, but its active permissions could not be loaded: $e');
+      }
+      return;
+    }
 
     if (_currentStep == 1 && _orgMode == 'create' &&
         !permissions.contains('identity:organizations:create')) {
@@ -230,7 +247,7 @@ class _MerchantRegistrationScreenState
         setState(() => _submitting = true);
         try {
           final org = await api.joinOrganization(_inviteCodeCtrl.text.trim());
-          ref.invalidate(profileProvider);
+          await _activateOrganization(org.id);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -238,7 +255,9 @@ class _MerchantRegistrationScreenState
                 backgroundColor: TaifTokens.ok,
               ),
             );
-            context.go('/home');
+            ref.invalidate(activeStoreProvider);
+        ref.invalidate(myStoresProvider);
+        context.go('/home');
           }
         } catch (e) {
           setState(() => _error = 'Failed to join organization: $e');
@@ -264,6 +283,7 @@ class _MerchantRegistrationScreenState
           taxId: _taxIdCtrl.text.trim().isEmpty ? null : _taxIdCtrl.text.trim(),
         );
         setState(() => _createdOrgId = org.id);
+        await _activateOrganization(org.id);
         _goToStep(2);
       } catch (e) {
         setState(() => _error = 'Failed to create organization: $e');
@@ -295,6 +315,8 @@ class _MerchantRegistrationScreenState
               : null,
         );
         setState(() => _createdStoreId = store.id);
+        ref.invalidate(myStoresProvider);
+        ref.invalidate(activeStoreProvider);
 
         // Create warehouse if provided
         if (_warehouseNameCtrl.text.trim().isNotEmpty) {
@@ -308,6 +330,7 @@ class _MerchantRegistrationScreenState
                 ? null
                 : _managerNameCtrl.text.trim(),
           );
+          ref.invalidate(storeWarehousesProvider(store.id));
         }
         _goToStep(3);
       } catch (e) {

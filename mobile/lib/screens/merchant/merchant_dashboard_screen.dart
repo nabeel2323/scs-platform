@@ -46,10 +46,11 @@ class MerchantDashboardScreen extends ConsumerWidget {
             return _onboardCta(
               context,
               icon: Icons.store_outlined,
-              title: 'No business yet',
-              message:
-                  'Register your store to start managing products and orders.',
-              actionLabel: 'Register Your Store',
+              title: p.hasPermission('identity:organizations:create') ? 'No business yet' : 'No active business',
+              message: p.hasPermission('identity:organizations:create')
+                  ? 'Register your store to start managing products and orders.'
+                  : 'Use an invitation code to join an existing business before managing merchant tools.',
+              actionLabel: p.hasPermission('identity:organizations:create') ? 'Register Your Store' : 'Join an Organization',
             );
           }
           return storeAsync.when(

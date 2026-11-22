@@ -233,3 +233,11 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Merchant registration checks `identity:organizations:create` before organization creation, preserves invitation joining, and checks `merchant:stores:write` before store creation and verification submission.
 - Merchant low-stock KPI navigation is hidden without `merchant:inventory:read`.
 - Full Flutter and backend validation remains deferred to the single consolidated validation phase.
+
+
+### Registration organization-context consistency — 22 November 2026
+
+- Merchant registration now writes the created/joined organization ID to secure storage and `activeOrgIdProvider` before reloading the profile permission projection.
+- Store creation checks now use the newly active organization's grants rather than stale profile state.
+- Store/warehouse providers are invalidated after registration mutations.
+- Merchant dashboard onboarding text distinguishes organization creation from invitation-based joining.

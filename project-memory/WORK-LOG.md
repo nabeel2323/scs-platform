@@ -323,3 +323,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Closed those gaps in one grouped follow-up commit. The registration wizard now distinguishes create-organization permission from invitation-based joining and checks store-write before create/verification.
 - The merchant route builder already honors the `tab` query parameter; no duplicate router change was needed.
 - CI remains intentionally deferred. Finish the remaining permission audit, then perform one consolidated formatter, Flutter, backend, security, and CI validation run.
+
+
+## 2026-11-22 — Registration active-organization correction
+
+- Reviewed the mobile permission commit and found that the merchant registration wizard created/joined an organization without persisting it as the active organization. Its following store-write check could therefore inspect stale or empty permissions.
+- Added a shared activation helper that writes secure storage, updates `activeOrgIdProvider`, invalidates the profile, and awaits the refreshed permission projection before proceeding.
+- Invalidated store/warehouse caches after registration writes and clarified the no-business dashboard CTA for create vs invite-join access.
+- CI remains deferred under the agreed Actions-minute budget; run all mobile/backend/security/format checks once after the implementation batch is complete.
