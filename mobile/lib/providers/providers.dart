@@ -181,7 +181,15 @@ final myStoresProvider = FutureProvider<List<Store>>(
 
 /// The merchant's primary store (first of their org's stores), or null.
 final activeStoreProvider = FutureProvider<Store?>((ref) async {
+  final activeOrgId = ref.watch(activeOrgIdProvider);
   final stores = await ref.watch(myStoresProvider.future);
+  if (activeOrgId != null && activeOrgId.isNotEmpty) {
+    // Never fall back to the first cached store from a different organization.
+    for (final store in stores) {
+      if (store.orgId == activeOrgId) return store;
+    }
+    return null;
+  }
   return stores.isNotEmpty ? stores.first : null;
 });
 
