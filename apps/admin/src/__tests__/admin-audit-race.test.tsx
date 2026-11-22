@@ -32,7 +32,7 @@ describe('admin audit log query ordering', () => {
   afterEach(() => cleanup());
 
   it('ignores an older filter response that arrives after the newer result', async () => {
-    let resolveFirst!: (value: { data: typeof oldLog[]; total: number }) => void;
+    let resolveFirst!: (value: { data: Array<typeof oldLog>; total: number }) => void;
     const first = new Promise<{ data: typeof oldLog[]; total: number }>(resolve => { resolveFirst = resolve; });
     fetchAuditLogs.mockImplementationOnce(() => first).mockResolvedValueOnce({ data: [newLog], total: 1 });
 
