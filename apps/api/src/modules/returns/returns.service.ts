@@ -800,7 +800,10 @@ export class ReturnsService {
    * instead of EXPIRED. Computes and persists the admin review deadline.
    */
   async escalateReturn(returnId: string, authority: ReturnEscalationAuthority) {
-    if (authority.kind === 'platform' && !isTenantPrivileged(authority.caller)) {
+    if (!authority || (authority.kind !== 'platform' && authority.kind !== 'worker')) {
+      throw new ForbiddenException('An explicit platform or worker authority is required');
+    }
+    if (authority.kind === 'platform' && (!authority.caller || !isTenantPrivileged(authority.caller))) {
       throw new ForbiddenException('Only platform staff can escalate returns manually');
     }
     if (

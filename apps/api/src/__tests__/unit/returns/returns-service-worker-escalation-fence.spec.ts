@@ -68,6 +68,26 @@ describe('ReturnsService return-expiration worker fencing', () => {
     expect(h.outbox.publish).not.toHaveBeenCalled();
   });
 
+
+  it('fails closed for an unknown runtime authority kind', async () => {
+    const h = makeService();
+    await expect(
+      h.service.escalateReturn('return-a', { kind: 'unknown' } as any),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(h.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('allows an explicitly privileged platform caller without a worker lease', async () => {
+    const h = makeService();
+    await h.service.escalateReturn('return-a', {
+      kind: 'platform',
+      caller: { sub: 'admin-a', role: 'SUPER_ADMIN', activeOrg: null },
+    });
+
+    expect(h.txExecute).not.toHaveBeenCalled();
+    expect(h.outbox.publish).toHaveBeenCalledOnce();
+  });
+
   it('rejects direct platform escalation from a non-platform caller', async () => {
     const h = makeService();
     await expect(
