@@ -10,6 +10,33 @@ class PriceListDetailScreen extends ConsumerWidget {
   const PriceListDetailScreen({super.key, required this.priceListId});
   final String priceListId;
 
+  Future<void> _ignoreReadFailure<T>(Future<T> read) async {
+    try {
+      await read;
+    } catch (_) {
+      // The detail and tier providers surface their own independent failures.
+    }
+  }
+
+  Future<void> _refresh(WidgetRef ref) async {
+    await Future.wait<void>([
+      _ignoreReadFailure(
+        ref.refresh(priceListDetailProvider(priceListId).future),
+      ),
+      _ignoreReadFailure(
+        ref.refresh(priceListTiersProvider(priceListId).future),
+      ),
+    ]);
+  }
+
+  Future<void> _refreshTiers(WidgetRef ref) async {
+    try {
+      await ref.refresh(priceListTiersProvider(priceListId).future);
+    } catch (_) {
+      // Preserve the last successful tiers; the provider state shows the error.
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final listAsync = ref.watch(priceListDetailProvider(priceListId));
@@ -26,14 +53,13 @@ class PriceListDetailScreen extends ConsumerWidget {
             IconButton(
               tooltip: 'Edit price list',
               icon: const Icon(Icons.edit_outlined),
-              onPressed: () => _editList(context, ref, listAsync.valueOrNull!),
+              onPressed: () =>
+                  _editList(context, ref, listAsync.valueOrNull!),
             ),
           IconButton(
+            tooltip: 'Refresh price list',
             icon: const Icon(Icons.refresh),
-            onPressed: () {
-              ref.invalidate(priceListDetailProvider(priceListId));
-              ref.invalidate(priceListTiersProvider(priceListId));
-            },
+            onPressed: () => _refresh(ref),
           ),
         ],
       ),
@@ -45,107 +71,233 @@ class PriceListDetailScreen extends ConsumerWidget {
             )
           : null,
       body: listAsync.when(
+        skipLoadingOnRefresh: true,
+        skipError: true,
         loading: () => const LoadingSpinner(),
         error: (e, _) => AppErrorState(
           title: 'Could not load price list',
           message: ApiService.errorMessage(e),
+          onRetry: () => ref.invalidate(priceListDetailProvider(priceListId)),
         ),
-        data: (list) => Column(children: [
-          Card(
+        data: (list) {
+          final tierCount = tiersAsync.valueOrNull?.length.toString() ?? '—';
+          final header = Card(
             margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Expanded(child: Text(list.name,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
-                  Chip(label: Text(list.isActive ? 'Active' : 'Inactive')),
-                ]),
-                const SizedBox(height: 8),
-                Wrap(spacing: 8, runSpacing: 4, children: [
-                  _MetaChip(label: list.currency),
-                  _MetaChip(label: list.channel),
-                  _MetaChip(label: list.audience),
-                  _MetaChip(label: 'Priority ${list.priority}'),
-                ]),
-              ]),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Row(children: [
-              const Expanded(child: Text('QUANTITY TIERS',
-                  style: TextStyle(fontSize: 11, color: TaifTokens.muted, fontWeight: FontWeight.w700))),
-              Text('${tiersAsync.valueOrNull?.length ?? 0} tiers',
-                  style: const TextStyle(fontSize: 12, color: TaifTokens.muted)),
-            ]),
-          ),
-          Expanded(
-            child: tiersAsync.when(
-              loading: () => const LoadingSpinner(),
-              error: (e, _) => AppErrorState(
-                title: 'Could not load tiers',
-                message: ApiService.errorMessage(e),
-                onRetry: () => ref.invalidate(priceListTiersProvider(priceListId)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          list.name,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Chip(label: Text(list.isActive ? 'Active' : 'Inactive')),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      _MetaChip(label: list.currency),
+                      _MetaChip(label: list.channel),
+                      _MetaChip(label: list.audience),
+                      _MetaChip(label: 'Priority ${list.priority}'),
+                    ],
+                  ),
+                ],
               ),
-              data: (tiers) {
-                if (tiers.isEmpty) {
-                  return EmptyState(
-                    title: 'No quantity tiers',
-                    description: canWrite
-                        ? 'Add a tier for a product variant to enable quantity-based pricing.'
-                        : 'No tiers have been configured for this list.',
-                    icon: Icons.stacked_bar_chart,
-                    actionLabel: canWrite ? 'Add tier' : null,
-                    onAction: canWrite ? () => _addTier(context, ref, list) : null,
-                  );
-                }
-                return RefreshIndicator(
-                  onRefresh: () async => ref.invalidate(priceListTiersProvider(priceListId)),
-                  child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                    itemCount: tiers.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 6),
-                    itemBuilder: (context, index) {
-                      final tier = tiers[index];
-                      final variantName = tier.variantTitle?.isNotEmpty == true
-                          ? tier.variantTitle!
-                          : (tier.variantSku?.isNotEmpty == true
-                              ? tier.variantSku!
-                              : 'Variant ${tier.variantId.substring(0, tier.variantId.length < 8 ? tier.variantId.length : 8)}');
-                      final quantity = tier.maxQty == null
-                          ? 'Qty ≥ ${tier.minQty}'
-                          : 'Qty ${tier.minQty}–${tier.maxQty! - 1}';
-                      return Card(
-                        child: ListTile(
-                          title: Text(tier.productTitle?.isNotEmpty == true
-                              ? '${tier.productTitle} · ${variantName}'
-                              : variantName,
+            ),
+          );
+
+          final tierContent = tiersAsync.when(
+            skipLoadingOnRefresh: true,
+            skipError: true,
+            loading: () => const LoadingSpinner(),
+            error: (e, _) => AppErrorState(
+              title: 'Could not load tiers',
+              message: ApiService.errorMessage(e),
+              onRetry: () => ref.invalidate(priceListTiersProvider(priceListId)),
+            ),
+            data: (tiers) {
+              final tierList = tiers.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                      children: [
+                        SizedBox(
+                          height: 260,
+                          child: EmptyState(
+                            title: 'No quantity tiers',
+                            description: canWrite
+                                ? 'Add a tier for a product variant to enable quantity-based pricing.'
+                                : 'No tiers have been configured for this list.',
+                            icon: Icons.stacked_bar_chart,
+                            actionLabel: canWrite ? 'Add tier' : null,
+                            onAction: canWrite
+                                ? () => _addTier(context, ref, list)
+                                : null,
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                      itemCount: tiers.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 6),
+                      itemBuilder: (context, index) {
+                        final tier = tiers[index];
+                        final variantName =
+                            tier.variantTitle?.isNotEmpty == true
+                                ? tier.variantTitle!
+                                : (tier.variantSku?.isNotEmpty == true
+                                    ? tier.variantSku!
+                                    : 'Variant ${tier.variantId.substring(0, tier.variantId.length < 8 ? tier.variantId.length : 8)}');
+                        final quantity = tier.maxQty == null
+                            ? 'Qty ≥ ${tier.minQty}'
+                            : 'Qty ${tier.minQty}–${tier.maxQty! - 1}';
+                        return Card(
+                          child: ListTile(
+                            title: Text(
+                              tier.productTitle?.isNotEmpty == true
+                                  ? '${tier.productTitle} · ${variantName}'
+                                  : variantName,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text('${quantity} · ${formatMinor(tier.unitPriceMinor, list.currency)}'),
-                          trailing: canWrite
-                              ? PopupMenuButton<String>(
-                                  onSelected: (value) {
-                                    if (value == 'edit') _editTier(context, ref, tier, list.currency);
-                                    if (value == 'delete') _deleteTier(context, ref, tier);
-                                  },
-                                  itemBuilder: (_) => const [
-                                    PopupMenuItem(value: 'edit', child: Text('Edit tier')),
-                                    PopupMenuItem(value: 'delete', child: Text('Delete tier')),
-                                  ],
-                                )
-                              : null,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Text(
+                              '${quantity} · ${formatMinor(tier.unitPriceMinor, list.currency)}',
+                            ),
+                            trailing: canWrite
+                                ? PopupMenuButton<String>(
+                                    onSelected: (value) {
+                                      if (value == 'edit') {
+                                        _editTier(
+                                          context,
+                                          ref,
+                                          tier,
+                                          list.currency,
+                                        );
+                                      }
+                                      if (value == 'delete') {
+                                        _deleteTier(context, ref, tier);
+                                      }
+                                    },
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem(
+                                        value: 'edit',
+                                        child: Text('Edit tier'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Delete tier'),
+                                      ),
+                                    ],
+                                  )
+                                : null,
+                          ),
+                        );
+                      },
+                    );
+
+              final content = RefreshIndicator(
+                onRefresh: () => _refreshTiers(ref),
+                child: tierList,
+              );
+
+              if (!tiersAsync.isRefreshing && !tiersAsync.hasError) {
+                return content;
+              }
+
+              return Column(
+                children: [
+                  if (tiersAsync.isRefreshing)
+                    const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Text(
+                        'Refreshing quantity tiers… showing the last successful results.',
+                        style: TextStyle(fontSize: 12, color: TaifTokens.muted),
+                      ),
+                    ),
+                  if (tiersAsync.hasError)
+                    ErrorBanner(
+                      message:
+                          'Could not refresh tiers: ${ApiService.errorMessage(tiersAsync.error!)}. Showing the last successful results.',
+                      onRetry: () =>
+                          ref.invalidate(priceListTiersProvider(priceListId)),
+                    ),
+                  Expanded(child: content),
+                ],
+              );
+            },
+          );
+
+          final body = Column(
+            children: [
+              header,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'QUANTITY TIERS',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: TaifTokens.muted,
+                          fontWeight: FontWeight.w700,
                         ),
-                      );
-                    },
+                      ),
+                    ),
+                    Text(
+                      '${tierCount == '—' ? '—' : tierCount} tiers',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: TaifTokens.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(child: tierContent),
+            ],
+          );
+
+          if (!listAsync.isRefreshing && !listAsync.hasError) {
+            return body;
+          }
+
+          return Column(
+            children: [
+              if (listAsync.isRefreshing)
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    'Refreshing price list… showing the last successfully loaded details.',
+                    style: TextStyle(fontSize: 12, color: TaifTokens.muted),
                   ),
-                );
-              },
-            ),
-          ),
-        ]),
+                ),
+              if (listAsync.hasError)
+                ErrorBanner(
+                  message:
+                      'Could not refresh price list: ${ApiService.errorMessage(listAsync.error!)}. Showing the last successfully loaded details.',
+                  onRetry: () =>
+                      ref.invalidate(priceListDetailProvider(priceListId)),
+                ),
+              Expanded(child: body),
+            ],
+          );
+        },
       ),
     );
   }
