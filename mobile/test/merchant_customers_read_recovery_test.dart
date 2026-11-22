@@ -34,7 +34,9 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    expect(find.text('Visible Buyer'), findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Visible Buyer'), findsOneWidget);
     expect(find.text('Customers'), findsWidgets);
     expect(find.text('3'), findsWidgets);
 
