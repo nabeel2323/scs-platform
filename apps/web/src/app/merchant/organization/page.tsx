@@ -29,6 +29,8 @@ const DOC_TYPES = [
 
 export default function MerchantOrganizationPage() {
   const { user } = useAuth();
+  const activeOrgId = user?.activeOrgId ?? null;
+  const orgLoadRequestRef = useRef(0);
   const [org, setOrg] = useState<Organization | null>(null);
   const [noOrg, setNoOrg] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -110,32 +112,61 @@ export default function MerchantOrganizationPage() {
   }, []);
 
   const loadMembers = useCallback(async (orgId: string) => {
-    try { setMembers(await fetchOrgMembers(orgId)); setMembersError(''); }
-    catch (err: any) { setMembersError(err.message || 'Failed to load members'); }
+    const requestId = orgLoadRequestRef.current;
+    try {
+      const result = await fetchOrgMembers(orgId);
+      if (requestId !== orgLoadRequestRef.current) return;
+      setMembers(result);
+      setMembersError('');
+    } catch (err: any) {
+      if (requestId === orgLoadRequestRef.current) {
+        setMembersError(err.message || 'Failed to load members');
+      }
+    }
   }, []);
 
   const loadDocuments = useCallback(async (orgId: string) => {
+    const requestId = orgLoadRequestRef.current;
     setDocsLoading(true);
-    try { setDocuments(await fetchOrgDocuments(orgId)); setDocsError(''); }
-    catch (err: any) { setDocsError(err.message || 'Failed to load documents'); }
-    finally { setDocsLoading(false); }
+    try {
+      const result = await fetchOrgDocuments(orgId);
+      if (requestId !== orgLoadRequestRef.current) return;
+      setDocuments(result);
+      setDocsError('');
+    } catch (err: any) {
+      if (requestId === orgLoadRequestRef.current) {
+        setDocsError(err.message || 'Failed to load documents');
+      }
+    } finally {
+      if (requestId === orgLoadRequestRef.current) setDocsLoading(false);
+    }
   }, []);
 
   const loadVerifications = useCallback(async (orgId: string) => {
+    const requestId = orgLoadRequestRef.current;
     try {
-      setVerifications(await fetchOrgVerifications(orgId));
+      const result = await fetchOrgVerifications(orgId);
+      if (requestId !== orgLoadRequestRef.current) return;
+      setVerifications(result);
       setVerificationError('');
     } catch (err: any) {
-      setVerificationError(err.message || 'Failed to load verification history');
+      if (requestId === orgLoadRequestRef.current) {
+        setVerificationError(err.message || 'Failed to load verification history');
+      }
     }
   }, []);
 
   const loadUpdateRequests = useCallback(async (orgId: string) => {
+    const requestId = orgLoadRequestRef.current;
     try {
-      setUpdateRequests(await fetchOrgUpdateRequests(orgId));
+      const result = await fetchOrgUpdateRequests(orgId);
+      if (requestId !== orgLoadRequestRef.current) return;
+      setUpdateRequests(result);
       setUpdateRequestsError('');
     } catch (err: any) {
-      setUpdateRequestsError(err.message || 'Failed to load update requests');
+      if (requestId === orgLoadRequestRef.current) {
+        setUpdateRequestsError(err.message || 'Failed to load update requests');
+      }
     }
   }, []);
 
@@ -152,21 +183,28 @@ export default function MerchantOrganizationPage() {
   }, []);
 
   const loadWarehouses = useCallback(async (storeId: string) => {
+    const requestId = orgLoadRequestRef.current;
     setWarehousesLoading(true);
     try {
-      setWarehouses(await fetchWarehouses(storeId));
+      const result = await fetchWarehouses(storeId);
+      if (requestId !== orgLoadRequestRef.current) return;
+      setWarehouses(result);
       setWarehousesError('');
     } catch (err: any) {
-      setWarehousesError(err.message || 'Failed to load warehouses');
+      if (requestId === orgLoadRequestRef.current) {
+        setWarehousesError(err.message || 'Failed to load warehouses');
+      }
     } finally {
-      setWarehousesLoading(false);
+      if (requestId === orgLoadRequestRef.current) setWarehousesLoading(false);
     }
   }, []);
 
   const loadStoreInfo = useCallback(async () => {
+    const requestId = orgLoadRequestRef.current;
     setStoreInfoError('');
     try {
       const storeList = await fetchMyStores();
+      if (requestId !== orgLoadRequestRef.current) return;
       setStores(storeList);
       const first = storeList[0];
       if (!first) {
@@ -176,33 +214,75 @@ export default function MerchantOrganizationPage() {
         return;
       }
       const full = await fetchStore(first.id);
+      if (requestId !== orgLoadRequestRef.current) return;
       populateStore(full);
       await loadWarehouses(first.id);
     } catch (err: any) {
-      setStoreInfoError(err.message || 'Failed to load store information');
+      if (requestId === orgLoadRequestRef.current) {
+        setStoreInfoError(err.message || 'Failed to load store information');
+      }
     }
   }, [loadWarehouses, populateStore]);
 
   useEffect(() => {
+    const requestId = ++orgLoadRequestRef.current;
+    setLoading(true);
+    setNoOrg(false);
+    setError('');
+    setOrg(null);
+    setMembers([]);
+    setDocuments([]);
+    setVerifications([]);
+    setUpdateRequests([]);
+    setStores([]);
+    setActiveStore(null);
+    setWarehouses([]);
+    setMembersError('');
+    setDocsError('');
+    setVerificationError('');
+    setUpdateRequestsError('');
+    setStoreInfoError('');
+    setWarehousesError('');
+    setAddOpen(false);
+    setUploadOpen(false);
+    setRemoveTarget(null);
+    setRoles([]);
+    setRolesError('');
+
     (async () => {
       try {
         const profile = await fetchProfile();
+        if (requestId !== orgLoadRequestRef.current) return;
         let orgId = profile.activeOrgId;
         if (!orgId) orgId = profile.organizations?.[0]?.id ?? null;
-        if (!orgId) { setNoOrg(true); return; }
+        if (!orgId) {
+          setNoOrg(true);
+          return;
+        }
         const fromProfile = profile.organizations?.find(o => o.id === orgId);
         const full = fromProfile ? (fromProfile as Organization) : await fetchOrganization(orgId);
+        if (requestId !== orgLoadRequestRef.current) return;
         populate(full);
-        await loadMembers(full.id);
-        await loadDocuments(full.id);
-        await loadVerifications(full.id);
-        await loadUpdateRequests(full.id);
-        await loadStoreInfo();
+        await Promise.all([
+          loadMembers(full.id),
+          loadDocuments(full.id),
+          loadVerifications(full.id),
+          loadUpdateRequests(full.id),
+          loadStoreInfo(),
+        ]);
       } catch (err: any) {
-        setError(err.message || 'Failed to load organization');
-      } finally { setLoading(false); }
+        if (requestId === orgLoadRequestRef.current) {
+          setError(err.message || 'Failed to load organization');
+        }
+      } finally {
+        if (requestId === orgLoadRequestRef.current) setLoading(false);
+      }
     })();
-  }, [populate, loadMembers, loadDocuments, loadVerifications, loadUpdateRequests, loadStoreInfo]);
+
+    return () => {
+      if (requestId === orgLoadRequestRef.current) orgLoadRequestRef.current += 1;
+    };
+  }, [activeOrgId, populate, loadMembers, loadDocuments, loadVerifications, loadUpdateRequests, loadStoreInfo]);
 
   const loadRoles = useCallback(async () => {
     setRolesLoading(true);
