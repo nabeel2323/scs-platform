@@ -593,7 +593,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           Text('Reason: ${_returnReasons[active.reason] ?? active.reason}',
               style: const TextStyle(fontSize: 12, color: TaifTokens.muted)),
           TextButton.icon(
-            onPressed: () => _showReturnDetails(active, order.currency ?? 'SAR'),
+            onPressed: () => _showReturnDetails(active, order.currency ?? '—'),
             icon: const Icon(Icons.receipt_long_outlined, size: 16),
             label: const Text('View details and history'),
           ),
@@ -656,7 +656,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 ),
               ),
               TextButton(
-                onPressed: () => _showReturnDetails(latest, order.currency ?? 'SAR'),
+                onPressed: () => _showReturnDetails(latest, order.currency ?? '—'),
                 child: const Text('View details'),
               ),
             ],
