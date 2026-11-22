@@ -426,3 +426,7 @@ The Inventory movement-history dialog previously swallowed API errors and displa
 ## UX-038 / UX-039 — Merchant Inventory and Import History recovery — 22 November 2026
 
 The remaining Merchant Inventory and Import History audit found two concrete read-state defects. UX-038's per-product variant lookup silently converted failed variant requests into empty arrays, producing an incomplete picker without an error. UX-039's store lookup swallowed errors and import-job failures could render alongside or as a successful empty history. Both are now implemented with explicit retry/error handling, request guards and focused tests. The new tests have not been executed; both items remain TESTING_PENDING until the consolidated Phase 3 campaign. No API, permission, schema, database, staging, worker or deployment changes were made.
+
+## UX-040 / UX-041 — Merchant Import Wizard — 22 November 2026
+
+The remaining Merchant Import Wizard audit found swallowed store-directory errors and a process/poll lifecycle race. A failed store lookup was indistinguishable from no store and had no retry. The polling interval could race the process response, ignore status-read errors indefinitely, survive component unmount, and display FAILED jobs as successful completion. Both items are implemented with focused tests added but not executed. They remain TESTING_PENDING for the consolidated test campaign. No API, permission, schema, database, queue or worker behavior changed.
