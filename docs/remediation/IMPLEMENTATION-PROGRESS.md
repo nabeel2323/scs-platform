@@ -1453,3 +1453,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Detail sheet includes status, requested/actual refund, reason/description, tracking, inspection/merchant notes, returned item quantities/conditions and chronological lifecycle events. Detail-fetch errors expose a retry action.
 - Added optional DTO fields and focused assertions to `mobile/test/returns_api_test.dart`. Not executed; comprehensive regression remains Phase 3.
 - No API, schema, DB, route or permission changes.
+
+
+## UX-030 — Web buyer self-service read/action recovery — 22 November 2026
+
+- Source commit `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` adds explicit retryable read errors to Notifications, Favorites, Saved Suppliers and Profile Sessions. Failed reads no longer render as successful empty results.
+- Failed favorite/supplier remove actions are surfaced and preserve the row; pending remove buttons are disabled and labelled.
+- Notification mark-read/unread failure rolls back to the exact pre-action `readAt` and `status`, and shows an action error.
+- Added `apps/web/src/__tests__/buyer-self-service-recovery.test.tsx` covering all four read/retry paths and a failed favorite removal. Not executed; full test campaign remains Phase 3.
+- No API/schema/DB/permission/route/migration change.

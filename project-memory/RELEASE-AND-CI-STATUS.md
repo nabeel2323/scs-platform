@@ -3,8 +3,8 @@
 **Checkpoint:** 22 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source implementation commit:** `01681d2651d6bb0c384c30f1a04e0f111086af23` — `feat(mobile): add buyer return detail history [skip ci]` (the project-memory sync is a documentation-only child commit).
-**Exact-head GitHub Actions:** no workflow run is attached to `01681d2651d6bb0c384c30f1a04e0f111086af23` because the commit used `[skip ci]` under the implementation-first decision. The latest inspected preview statuses were pending, not successful; these are not application test results. Older Actions run #44963271498 on `06cd8fc1e56dc7ef64a141b97b594adc96ffbece` passed Flutter but failed changed-file Prettier; dependent API unit, PostgreSQL integration, Web/Admin, migration, build and smoke jobs were skipped.
+**Latest source implementation commit:** `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` — `fix(web): preserve self-service read failures and retries [skip ci]` (the project-memory sync is a documentation-only child commit).
+**Exact-head GitHub Actions:** no workflow run is attached to `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` because the implementation commit used `[skip ci]` under the implementation-first decision. Combined status contexts for this exact SHA show Vercel Web and Admin failure links to the external build-rate-limit page; these are preview-provider statuses, not application test results. Focused Web tests have not been executed.
 
 ## Previous CI run at the 21 November checkpoint (historical)
 
@@ -540,3 +540,11 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - UX-028 source commit: `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`; mobile return creation, item quantities, active-state visibility, buyer cancellation and shipped handover.
 - Focused Flutter tests are present/extended in `mobile/test/returns_api_test.dart`; not executed. Exact-head Actions lookup returned no run because of `[skip ci]`.
 - PR #138 remains open, draft and unmerged to `develop`. Continue UX-010 implementation/integration; retain G-001 PARTIAL and G-002 IN PROGRESS. No staging or shared DB action.
+
+
+## UX-030 exact source checkpoint — 22 November 2026
+
+- Source commit: `b310f4da3ccda31f7a8c815f1d99ed1977329ad6`. Five files changed: four Web pages and `apps/web/src/__tests__/buyer-self-service-recovery.test.tsx`.
+- Notifications, Favorites, Saved Suppliers and Profile Sessions now distinguish failed reads from successful empty results and expose retry. Favorite/supplier remove errors are surfaced without hiding rows. Notification optimistic read rollback restores the pre-action timestamp and status.
+- Focused tests were added but not run. Exact-head Actions lookup returned no run due to `[skip ci]`; Vercel Web/Admin contexts point to external build-rate-limit failures.
+- PR #138 remains open/draft/unmerged. No staging/deployment/database/worker operation.

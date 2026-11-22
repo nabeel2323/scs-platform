@@ -391,3 +391,8 @@ Flutter buyer-return parity is committed as `d7ffc3339db78f16e0f8a9aa7cb551ea28f
 ## UX-029 — mobile return detail/history parity — 22 November 2026
 
 Source gap: Web's buyer return-detail page presents refund, item, inspection/merchant-note and event-history details, while Flutter initially exposed only a summary. Implemented a retryable detail sheet within the existing Order Detail route using the current owner-authorized endpoint. Focused DTO assertions were added but not executed. No route or permission expansion is required.
+
+
+## UX-030 — Web buyer self-service recovery — 22 November 2026
+
+The Web Notifications, Favorites, Saved Suppliers and Profile Sessions pages previously hid some read failures or could misreport an empty result. Source implementation `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` adds retryable error states; removal failures remain visible and do not remove rows; notification optimistic-read rollback restores its original state. Focused tests are added but not executed. Continue remaining UX-010 Web/Merchant route audit; do not begin the consolidated test campaign until implementation/integration are complete.

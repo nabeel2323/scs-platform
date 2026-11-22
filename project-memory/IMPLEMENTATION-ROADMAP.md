@@ -323,3 +323,10 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Added full buyer return detail and lifecycle-event history to Flutter Order Detail via the existing buyer-authorized return-detail endpoint.
 - Detail includes status, requested/actual refund, reason/description, tracking, inspection and merchant notes, returned item quantities/conditions, and ordered lifecycle events. Read failures can be retried.
 - Extended DTO parsing and focused model/API tests; not executed. The existing route/permission model remains unchanged.
+
+
+## 2026-11-22 — UX-030 Web buyer self-service recovery
+
+- Added retryable read-failure handling to Notifications, Favorites, Saved Suppliers and Profile Sessions.
+- Prevented failed list reads from being presented as successful empty states. Surfaced failed favorite/supplier removals and preserved affected rows. Corrected notification optimistic rollback to restore the original state.
+- Added focused Web tests; not executed. Continue remaining UX-010 Web/Merchant route-to-contract and permission audit.

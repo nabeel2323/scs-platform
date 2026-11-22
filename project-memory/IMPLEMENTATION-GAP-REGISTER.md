@@ -363,3 +363,14 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - Flutter now opens a retryable detail sheet from active and most-recent terminal return summaries on the existing Order Detail screen. It displays status, reason/description, requested and actual refund, tracking, inspection condition/notes, merchant notes, item quantities/conditions and chronological event history.
 - Extended `ReturnRequest` parsing and focused assertions in `mobile/test/returns_api_test.dart`. Tests have not been executed.
 - No new API, route, permission, schema or database behavior was introduced. API ownership/detail authorization is unchanged.
+
+
+## UX-030 — Web buyer self-service read and action recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- Source inspection found Notifications, Favorites and Saved Suppliers silently swallowed initial read failures, then rendered the same empty state used for a successful empty response. Their remove/read mutations also swallowed errors.
+- Profile Sessions already retained an error message but offered no retry and could display the empty-session message after a failed initial read.
+- Implemented explicit retryable read errors on all four pages. A failed read no longer becomes a false empty result. Favorite/supplier remove failures are shown while preserving the row; action buttons show a pending state. Notification mark-read failure restores the original `readAt` and `status` after its optimistic update and surfaces the failure.
+- Added focused tests for read failure/retry across all four pages and failed favorite removal. Tests have not been executed.
+- No API, permission, route, schema, migration or database changes.

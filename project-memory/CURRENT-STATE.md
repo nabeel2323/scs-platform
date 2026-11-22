@@ -3,11 +3,10 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `01681d2651d6bb0c384c30f1a04e0f111086af23` — `feat(mobile): add buyer return detail history [skip ci]`
-**Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`.
-**Checkpoint note:** this project-memory synchronization is a documentation-only child commit of the source implementation; query the live branch ref for the resulting HEAD.
+**Latest source implementation commit:** `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` — `fix(web): preserve self-service read failures and retries [skip ci]`  
+**Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The documentation synchronization commit that follows is a child of this source commit.
 
-> This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI.
+> This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
 
 ## Repository and product
 
@@ -19,9 +18,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ------------------------------------------------------------------------ |
 | Repository           | nabeel2323/scs-platform                                                  |
 | Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | Source implementation `01681d2651d6bb0c384c30f1a04e0f111086af23`; this documentation checkpoint is a child commit and resulting HEAD must be resolved live |
-| Latest commit        | `feat(mobile): add buyer return detail history [skip ci]` (source commit; docs sync follows) |
-| PR #138              | Open; draft; not merged                                                  |
+| Live branch head     | Source implementation `b310f4da3ccda31f7a8c815f1d99ed1977329ad6`; documentation sync is a child commit |
+| Latest commit        | `fix(web): preserve self-service read failures and retries [skip ci]` |
+| PR #138              | Open; draft; not merged |
+| PR base              | `develop` |
+| Latest exact-head CI | No Actions run for `b310f4da3ccda31f7a8c815f1d99ed1977329ad6`; Vercel Web and Admin contexts fail at external build-rate-limit page; NOT CI-VERIFIED |
+| PR #142 CI           | Historical CI #44953735602 on `dddff20c...`; not transferable to current source |
+| PR #138 CI           | Historical CI #44954371615 on `741a09f...`; not transferable to current source |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
 | Latest exact-head CI | No Actions run for `01681d2651d6bb0c384c30f1a04e0f111086af23` because of `[skip ci]`; preview statuses at preceding source check were pending; NOT CI-VERIFIED |
 | PR #142 CI           | #44953735602 — passed all executable jobs on `dddff20c...`; disposable PostgreSQL identity test included |
@@ -492,3 +495,15 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Focused tests are present/extended in `mobile/test/returns_api_test.dart`; they have not been executed. No Actions run is attached to the source commit because of `[skip ci]`.
 - PR #138 remains open/draft/unmerged. Next: continue UX-010 cross-screen re-audit and remaining integration gaps; G-001 PARTIAL and G-002 IN PROGRESS.
 - No merge, deployment, staging, DB, grant/RLS, migration, worker or provider action.
+
+
+## Latest implementation checkpoint — UX-030 — 22 November 2026
+
+UX-030 is implemented in source commit `b310f4da3ccda31f7a8c815f1d99ed1977329ad6`: Web Notifications, Favorites, Saved Suppliers and Profile Sessions now preserve read failures as explicit retryable errors instead of silently presenting an empty result. Favorite/supplier remove failures are surfaced and their rows remain visible; pending remove buttons are disabled. Notification optimistic read failures restore the original `readAt` and `status` values and report the failed action. Focused Web regression tests were added in `apps/web/src/__tests__/buyer-self-service-recovery.test.tsx`; they have not been executed.
+
+- Related pages: `apps/web/src/app/notifications/page.tsx`, `favorites/page.tsx`, `saved-suppliers/page.tsx`, and `profile/sessions/page.tsx`.
+- A failed fetch is no longer interpreted as a successful empty list. Each affected page offers a retry; failed remove actions remain visible and report an error. Notification optimistic-read rollback restores the original state.
+- Focused regression coverage includes read-failure/retry for all four pages and a failed favorite removal; tests not executed.
+- Current source SHA `b310f4da3ccda31f7a8c815f1d99ed1977329ad6`; exact-SHA Actions lookup returned no workflow runs. Vercel Web/Admin statuses both point to external build-rate-limit failure.
+- Next: continue the remaining UX-010 Web/Merchant route-to-contract/permission audit and integration mapping. UX-007 support ticket and UX-008 nearby geospatial behavior remain blocked on explicit product/privacy decisions.
+- No merge, deployment, staging, DB, migration, grant/RLS or worker activation.

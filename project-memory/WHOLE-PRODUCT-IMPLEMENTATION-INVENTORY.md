@@ -379,3 +379,8 @@ No database, API contract, route permission, worker, staging or deployment chang
 ## 22 November 2026 — UX-029 mobile return detail/history parity
 
 Web's `apps/web/src/app/returns/[id]/page.tsx` displays complete buyer return details and the lifecycle-event timeline. Flutter's initial buyer-return parity work displayed only a summary, although the existing `GET /v1/returns/:id` already returns detail, item and event records after buyer ownership authorization. The mobile Order Detail now opens a retryable sheet containing refund values, notes, returned item quantities/conditions and chronological event history. No separate route, permission or API change was required. DTO parsing and focused tests were extended; not executed.
+
+
+## 22 November 2026 — Web buyer self-service recovery (UX-030)
+
+Source audit of the Web buyer account surfaces found that Notifications, Favorites and Saved Suppliers swallowed list-fetch errors and rendered empty states, making network/API failure indistinguishable from a genuinely empty list. Favorite/supplier removal failures were also swallowed. Profile Sessions showed an initial error but no retry and could still display “No active sessions” after a failed fetch. These states are now explicit and retryable. Removal failures remain visible and preserve the affected row. Notification optimistic read rollback now restores the original `readAt` and `status`. Focused tests added; not executed.

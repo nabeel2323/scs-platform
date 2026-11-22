@@ -692,3 +692,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added actual-refund and inspection/merchant-note fields to `ReturnRequest`; detail view includes status, reason/description, tracking, item quantities/conditions and chronological event history.
 - Updated `mobile/test/returns_api_test.dart` with DTO field assertions. Tests are not executed yet; consolidated regression remains Phase 3.
 - No API, permission, route, schema, migration, database, staging or worker change.
+
+
+## 2026-11-22 — UX-030 Web buyer self-service read recovery
+
+- Audited buyer Notifications, Favorites, Saved Suppliers and Profile Sessions. Three list pages silently swallowed read errors and could misreport an empty state; Sessions lacked a retry path and could show a false empty result after failure.
+- Added explicit retryable read-error states to all four pages. Failed favorite/supplier removals now surface action errors and preserve rows; buttons indicate pending removal.
+- Fixed notification optimistic-update rollback to restore the original `readAt` and `status`, not the already-mutated values, and display mutation failure.
+- Added `apps/web/src/__tests__/buyer-self-service-recovery.test.tsx` for all read/retry paths and failed favorite removal. Not executed.
+- Source implementation commit: `b310f4da3ccda31f7a8c815f1d99ed1977329ad6`; exact-head Actions not run due to `[skip ci]`. No API/DB/permission/route change.
