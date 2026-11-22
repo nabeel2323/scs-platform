@@ -931,3 +931,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Search and sort state remain local and unchanged; customer/revenue/order statistics are still derived from the currently filtered list.
 - Added focused Flutter widget coverage for stale customer/statistics preservation and initial failure/retry to a true empty state.
 - Source commit: `b279c263da4e2f8b1153d0d4b19516fd76c46dca`; focused test commit: `3f3b0f6b4d610b24242c44fc75006c509bc7abd7`. Test not executed; remains pending Phase 3. No API, permission, customer, order, financial, database or migration behavior changed.
+
+## 2026-11-23 — UX-091 Mobile Merchant Orders refresh lifecycle
+
+- Re-audited the Mobile Merchant Orders queue. It already retained the last successful order list on refresh failure, but the toolbar action only invalidated the order provider and did not await completion; the queue had no pull-to-refresh, and a successful empty order history was not scrollable.
+- Refresh now resolves the active store first and awaits the dependent order provider without issuing a duplicate fetch. The order list and successful empty state are wrapped in an always-scrollable RefreshIndicator; stale rows remain visible during refresh/reload failures.
+- Added a third Flutter widget scenario proving an empty order history remains pull-to-refreshable and continues to show its successful empty result plus a refresh failure notice.
+- Source commit: `da19ca12dea0974d2cf7c7e0f163d9d0bf695afc`; reload-preservation correction: `9ecce8a391814bec3a6deb6ed00e73e5296bd4c3`. Test commits: `112bf007d566c42d7fbfb81fe37a74ce0dfc7a90` and `b8c7b1ca75bba1128b7b271d6c5a7f7166c1f721`. Three focused Flutter widget scenarios are present but not executed; remain pending Phase 3. No order transition, fulfillment, stock reservation, API, permission, database or migration behavior changed.
