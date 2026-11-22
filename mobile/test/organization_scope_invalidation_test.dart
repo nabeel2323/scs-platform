@@ -22,19 +22,30 @@ UserProfile _profile() => UserProfile(
       createdAt: '2026-11-22T10:00:00.000Z',
     );
 
-class _RunInvalidation extends ConsumerWidget {
+class _RunInvalidation extends ConsumerStatefulWidget {
   final bool resetSession;
   const _RunInvalidation({this.resetSession = false});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (resetSession) {
-      resetIdentityProviders(ref);
-    } else {
-      invalidateOrganizationScopedProviders(ref);
-    }
-    return const SizedBox.shrink();
+  ConsumerState<_RunInvalidation> createState() => _RunInvalidationState();
+}
+
+class _RunInvalidationState extends ConsumerState<_RunInvalidation> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (widget.resetSession) {
+        resetIdentityProviders(ref);
+      } else {
+        invalidateOrganizationScopedProviders(ref);
+      }
+    });
   }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 void main() {
