@@ -21,7 +21,7 @@ vi.mock('../hooks/useRequirePerms', () => ({
   useRequirePerms: () => ({ hasAccess: true }),
 }));
 vi.mock('../components/detail', () => ({
-  AdminDetailHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
+  AdminDetailHeader: ({ title, actions }: { title: string; actions?: React.ReactNode }) => <header><h1>{title}</h1>{actions}</header>,
   AdminDetailTabs: ({ tabs, activeKey, onChange }: { tabs: { key: string; label: string }[]; activeKey: string; onChange: (key: string) => void }) => (
     <nav>{tabs.map(tab => <button key={tab.key} type="button" aria-pressed={activeKey === tab.key} onClick={() => onChange(tab.key)}>{tab.label}</button>)}</nav>
   ),
