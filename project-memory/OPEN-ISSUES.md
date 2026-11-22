@@ -498,3 +498,9 @@ Business Calendar read failures lacked retry and could be mistaken for no config
 ## UX-058 — Admin Attribute Groups and Definitions — 22 November 2026
 
 Attribute Groups/Definitions previously showed empty result states/counts after failed reads despite a visible error; Attribute Definitions also lacked stale-response protection across filters. Both pages now guard requests, expose accessible retryable errors and suppress false empty results. Focused tests added but not executed. UX-058 remains TESTING_PENDING; no API/permission/schema/database change.
+
+## UX-087 / UX-088 — Mobile Merchant Offer Detail and Inventory — 23 November 2026
+
+Both Mobile Merchant Offer Detail and Inventory read-recovery slices are implemented. Offer Detail preserves last-successful offer/analytics data, exposes retry and does not equate failed analytics with zero sales. Inventory preserves the active store and last successful inventory page, refreshes inventory/warehouse reads independently, and exposes retry for warehouse lookup failures. Focused Flutter tests were added for both areas but have not been executed; both remain TESTING_PENDING for the consolidated Phase 3 campaign. No API, permission, financial, offer lifecycle, stock mutation, warehouse transfer, database or migration behavior changed.
+
+**Next implementation:** continue the remaining Mobile merchant operational screens (pricing, customers, orders and store/profile workflows) with a source-first audit, then complete the outstanding Web/Admin route and action permission mapping. Do not reopen UX-078–UX-088 without new source evidence.
