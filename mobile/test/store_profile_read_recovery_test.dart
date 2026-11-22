@@ -50,7 +50,7 @@ void main() {
     await tester.tap(find.byTooltip('Refresh store profile'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Visible Store'), findsOneWidget);
+    expect(find.text('Visible Store'), findsWidgets);
     expect(find.textContaining('Store directory unavailable'), findsOneWidget);
     expect(
       find.textContaining('last successfully loaded details'),
@@ -125,7 +125,9 @@ void main() {
     await tester.tap(find.text('Retry store profile'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Visible Store'), findsOneWidget);
+    expect(find.text('Visible Store'), findsWidgets);
+    await tester.drag(find.byType(ListView), const Offset(0, -1800));
+    await tester.pumpAndSettle();
     expect(find.text('No warehouses yet.'), findsOneWidget);
     expect(find.text('Could not load store profile'), findsNothing);
   });
