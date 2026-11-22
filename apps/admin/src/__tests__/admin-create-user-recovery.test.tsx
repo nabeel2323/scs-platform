@@ -78,7 +78,7 @@ describe('admin create user form', () => {
     render(<CreateUserForm onCancel={vi.fn()} onDone={vi.fn()} />);
 
     fireEvent.change(await screen.findByLabelText('Organization'), { target: { value: 'org-1' } });
-    expect(screen.getByRole('button', { name: 'Create User' })).toBeDisabled();
+    expect((screen.getByRole('button', { name: 'Create User' }) as HTMLButtonElement).disabled).toBe(true);
     expect(createUser).not.toHaveBeenCalled();
   });
 });
