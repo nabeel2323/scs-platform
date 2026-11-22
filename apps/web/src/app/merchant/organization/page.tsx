@@ -307,6 +307,7 @@ export default function MerchantOrganizationPage() {
   };
 
   const handleLookup = async () => {
+    if (!canEditOrganization) return;
     if (!org || !lookupQuery.trim() || lookupQuery.trim().length < 3) return;
     setLookingUp(true);
     try {
@@ -402,7 +403,7 @@ export default function MerchantOrganizationPage() {
   };
 
   const canEditOrganization = user?.perms?.includes('identity:organizations:write') === true;
-  const canEditOrganizationStore = user?.perms?.includes('merchant:stores:write') === true;
+  const canEditStore = user?.perms?.includes('merchant:stores:write') === true;
 
   const fmtSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
