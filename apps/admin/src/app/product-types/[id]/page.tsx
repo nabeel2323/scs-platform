@@ -97,6 +97,8 @@ export default function ProductTypeBuilderPage() {
   // Products tab state
   const [ptProducts, setPtProducts] = useState<{ products: AdminRecord[]; totalCount: number; totalVariantCount: number }>({ products: [], totalCount: 0, totalVariantCount: 0 });
   const [ptProdLoading, setPtProdLoading] = useState(false);
+  const [ptProdError, setPtProdError] = useState('');
+  const ptProductsRequestVersion = useRef(0);
 
   // Dirty tracking
   const [dirty, setDirty] = useState(false);
@@ -146,23 +148,37 @@ export default function ProductTypeBuilderPage() {
 
   useEffect(() => { if (ready && hasAccess && id) load(); }, [ready, hasAccess, id, load]);
 
-  // Load products when the Products tab is activated
-  useEffect(() => {
-    if (activeTab !== 'products' || !id) return;
+  // Load products when the Products tab is activated.
+  const loadProducts = useCallback(async () => {
+    if (!id) return;
+    const requestId = ++ptProductsRequestVersion.current;
     setPtProdLoading(true);
-    adminRequest<{ products: AdminRecord[]; totalCount: number; totalVariantCount: number }>(
-      `product-types/products/${encodeURIComponent(id)}`,
-    )
-      .then(res => {
+    setPtProdError('');
+    try {
+      const result = await adminRequest<{ products: AdminRecord[]; totalCount: number; totalVariantCount: number }>(
+        `product-types/products/${encodeURIComponent(id)}`,
+      );
+      if (requestId === ptProductsRequestVersion.current) {
         setPtProducts({
-          products: res?.products ?? [],
-          totalCount: res?.totalCount ?? 0,
-          totalVariantCount: res?.totalVariantCount ?? 0,
+          products: result?.products ?? [],
+          totalCount: result?.totalCount ?? 0,
+          totalVariantCount: result?.totalVariantCount ?? 0,
         });
-        setPtProdLoading(false);
-      })
-      .catch(() => { setPtProdLoading(false); });
-  }, [activeTab, id]);
+      }
+    } catch (err) {
+      if (requestId === ptProductsRequestVersion.current) {
+        setPtProdError(err instanceof Error ? err.message : 'Failed to load product-type products');
+      }
+    } finally {
+      if (requestId === ptProductsRequestVersion.current) setPtProdLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (activeTab !== 'products') return;
+    void loadProducts();
+    return () => { ptProductsRequestVersion.current += 1; };
+  }, [activeTab, loadProducts]);
 
   // Handlers
   const handleAddAttribute = useCallback((attrId: string) => {
@@ -466,11 +482,12 @@ export default function ProductTypeBuilderPage() {
       {activeTab === 'products' && (
         <div style={{ padding: '0 32px 48px', display: 'flex', flexDirection: 'column', gap: 24 }}>
           <AdminDetailSection title={`Products (${ptProducts.totalCount}) · ${ptProducts.totalVariantCount} variants`}>
-            {ptProdLoading && <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading products…</div>}
-            {!ptProdLoading && ptProducts.products.length === 0 && (
+            {ptProdLoading && <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading products…</div>}
+            {!ptProdLoading && ptProdError && <AdminErrorState title="Unable to load product-type products" message={ptProdError} onRetry={loadProducts} />}
+            {!ptProdLoading && !ptProdError && ptProducts.products.length === 0 && (
               <AdminEmptyState title="No products" description="No canonical products use this Product Type yet." />
             )}
-            {ptProducts.products.length > 0 && (
+            {!ptProdLoading && !ptProdError && ptProducts.products.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {ptProducts.products.map(p => (
                   <Link
