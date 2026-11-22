@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-const { fetchMyStores, fetchWarehouses, createWarehouse, updateWarehouse, hasPerm } = vi.hoisted(() => ({
+const { fetchMyStores, fetchWarehouses, createWarehouse, updateWarehouse, auth } = vi.hoisted(() => ({
   fetchMyStores: vi.fn(),
   fetchWarehouses: vi.fn(),
   createWarehouse: vi.fn(),
   updateWarehouse: vi.fn(),
-  hasPerm: vi.fn(),
+  auth: { user: { perms: ['merchant:stores:write'] } },
 }));
 
 vi.mock('next/link', () => ({
@@ -20,7 +20,7 @@ vi.mock('../lib/api', () => ({
   createWarehouse: (...args: unknown[]) => createWarehouse(...args),
   updateWarehouse: (...args: unknown[]) => updateWarehouse(...args),
 }));
-vi.mock('../lib/auth', () => ({ hasPerm: (...args: unknown[]) => hasPerm(...args) }));
+vi.mock('../components/AuthProvider', () => ({ useAuth: () => auth }));
 vi.mock('@scs/ui-kit', () => ({
   PageHeader: ({ title, subtitle }: { title: string; subtitle?: string }) => (
     <header><h1>{title}</h1>{subtitle ? <p>{subtitle}</p> : null}</header>
@@ -46,8 +46,6 @@ describe('merchant warehouses read recovery', () => {
     fetchWarehouses.mockReset();
     createWarehouse.mockReset();
     updateWarehouse.mockReset();
-    hasPerm.mockReset();
-    hasPerm.mockReturnValue(true);
     fetchMyStores.mockResolvedValue(stores);
     fetchWarehouses.mockResolvedValue([]);
   });
@@ -80,6 +78,15 @@ describe('merchant warehouses read recovery', () => {
 
     expect(await screen.findByText('No warehouses yet. Click "Add Warehouse" to create one.')).toBeTruthy();
     expect(fetchWarehouses).toHaveBeenCalledTimes(2);
+  });
+
+  it('hides warehouse mutations when the active organization lacks store write permission', async () => {
+    auth.user.perms = [];
+
+    render(<WarehousesPage />);
+
+    expect(await screen.findByText('No warehouses yet.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Add Warehouse' })).toBeNull();
   });
 
   it('keeps a true no-store state separate from store lookup failure', async () => {
