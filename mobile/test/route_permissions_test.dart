@@ -73,6 +73,34 @@ void main() {
       );
     });
 
+    test('merchant operational deep links use canonical read/write grants', () {
+      const cases = <String, String>{
+        '/merchant/orders': 'merchant:orders:read',
+        '/merchant/store': 'merchant:stores:read',
+        '/merchant/catalog': 'catalog:products:read',
+        '/merchant/catalog/new': 'merchant:products:write',
+        '/merchant/catalog/product/product-1': 'merchant:products:write',
+        '/merchant/categories': 'catalog:categories:read',
+        '/merchant/customers': 'merchant:orders:read',
+        '/merchant/offers': 'catalog:offers:write',
+        '/merchant/offers/new': 'catalog:offers:write',
+        '/merchant/offers/offer-1': 'catalog:offers:write',
+        '/merchant/pricing': 'merchant:pricing:read',
+        '/merchant/pricing/list-1': 'merchant:pricing:read',
+        '/merchant/inventory': 'merchant:inventory:read',
+      };
+
+      for (final entry in cases.entries) {
+        final rule = permissionRuleForRoute(Uri.parse(entry.key));
+        expect(rule, isNotNull, reason: 'Missing route policy for ${entry.key}');
+        expect(
+          rule!.allows([entry.value]),
+          isTrue,
+          reason: 'Expected ${entry.value} to allow ${entry.key}',
+        );
+      }
+    });
+
     test('driver route requires shipment read access', () {
       expect(permissionRuleForRoute(Uri.parse('/driver/shipments'))?.allows(['fulfillment:shipments:read']), isTrue);
       expect(permissionRuleForRoute(Uri.parse('/driver/shipments'))?.allows(['orders:read']), isFalse);
