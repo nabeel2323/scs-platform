@@ -139,6 +139,29 @@ This map now includes 33 service files plus supporting outbox/worker/monitor/lea
 
 Next source slices should cover the remaining service files in catalog-import execution/planning, carrier credential lifecycle/retry/recovery, all API controller-to-service caller paths, migration/bootstrap scripts and any standalone CLI jobs; then reconcile each operation to principal/actor context, exact direct/indirect FK owner and read/write/delete predicates. The 114-versus-116 relation discrepancy still requires a refreshed protected read-only catalog snapshot.
 
+## Worker raw-SQL operation detail — source slice 5
+
+This section classifies the raw SQL statements inspected in the worker/system paths. These are deliberately separate from Drizzle symbol operations above.
+
+| Source path | Raw SQL operation | Actor/context and scope notes |
+|---|---|---|
+| apps/api/src/modules/operations/p13-monitor.service.ts | SELECT scans across return_requests JOIN orders LEFT JOIN stores; worker_leases; refunds JOIN orders/stores; commission_reversals; settlement_adjustments; outbox_events; ops_alerts. Also aggregate SELECT checks for over-reversed commission and over-refunded payments. | System monitor; read-only domain scans can cross tenants by design for operational detection. Alert creation/resolution is delegated to OpsAlertService and must retain org_id where available. Never run as a tenant HTTP principal. |
+| apps/api/src/modules/operations/worker-lease.service.ts | INSERT worker_leases ON CONFLICT DO NOTHING; conditional UPDATE acquire with epoch increment and RETURNING; fenced heartbeat/job-success/failure/release UPDATEs matching lease_key + holder_id + epoch; SELECT one/all leases; aggregate SELECT live holder counts; expiry UPDATE. | System worker identity. Fencing predicates are part of correctness; tenant RLS must not block global lease ownership or allow a tenant to mutate another worker's lease. |
+| apps/api/src/modules/operations/ops-alert.service.ts | INSERT ops_alerts with dedup key; UPDATE existing/deduped/suppressed/delivery/resolution state; SELECT alert rows/counts by ID, dedup key, condition or status. | System/operations context. org_id is optional metadata for scoped alert visibility, not proof every alert is tenant-owned. Delivery sink calls occur outside SQL and must not run inside an open DB transaction. |
+| apps/api/src/modules/orders/auto-complete.worker.ts | CTE selects one due DELIVERED order FOR UPDATE SKIP LOCKED, claims it by setting auto_complete_claimed_at/by; conditional UPDATE releases claim. | System worker claim is global; canonical transition delegates to OrdersService, which must receive explicit worker actor context and derive store/org ownership from the order. |
+| apps/api/src/modules/returns/return-expiration.worker.ts | Bounded UPDATE of due REQUESTED return_requests rows using an inner SELECT ... FOR UPDATE SKIP LOCKED; returns claimed IDs. | System worker claim is global; state transition delegates to ReturnsService. The worker's P13 opt-in gate/lease and the service's owning suborder/store context must both be preserved. |
+| apps/api/src/modules/shipping/shipping-carrier.worker.ts | Bounded UPDATE of PENDING outbox_events whose next_attempt_at is due and event_type has the carrier prefix; inner SELECT ... FOR UPDATE SKIP LOCKED; sets PROCESSING/locked_at/locked_by and returns event ownership fields including organization_id/store_id. | System carrier worker; only carrier event prefix is claimed. Event org/store values must be checked against aggregate shipment/store ownership before processing. |
+| apps/api/src/modules/shipping/carrier-tracking-poller.ts | Bounded UPDATE of eligible shipments; inner SELECT ... FOR UPDATE SKIP LOCKED; sets last_carrier_sync_at and returns claimed rows. | System tracking worker; global eligibility scan followed by per-shipment provider call and shipment/order transition under explicit owning-store context. |
+| apps/api/src/modules/shipping/carrier-reconciliation.service.ts | Two bounded shipment claim/update statements: carrier-create recovery states and carrier-cancel unknown/reconciliation-required states; inner SELECT ... FOR UPDATE SKIP LOCKED; marks recovery_status RECONCILING and schedules next_reconciliation_at. | System/admin recovery path. The source includes a separate admin-triggered recovery state; exact controller authorization, provider call boundary and per-store ownership must be retained. |
+
+### Consequences for the transaction-context design
+
+- Worker claims are global queue/lease operations, but subsequent business mutations are not globally authorized. The worker must switch from system claim context to an explicit event/order/shipment/return owner context before invoking domain state transitions.
+- P13Monitor's cross-tenant SELECTs are an intentional system-read capability. Do not solve them by giving the ordinary API runtime role unrestricted tenant bypass; isolate the required system capability and constrain it to the monitor/alert functions.
+- Worker leases, outbox locks and idempotency markers must remain atomic and fenced. A context wrapper must not split the claim predicate from the claim mutation or drop the epoch/holder predicates.
+- Provider network calls should occur outside DB transactions after durable claim/lease acquisition; persist outcomes in a separate bounded transaction with the correct system and tenant/event context.
+- RLS policies for system-owned rows need explicit system-role semantics; they must not treat a missing org_id as blanket permission for a user request.
+
 ## Explicit non-actions
 
 No request transaction interceptor, AsyncLocalStorage context, session-level tenant setting, RLS policy, migration, grant/default-ACL change, shared database query/write, staging action, deployment, provider call or worker activation was performed. This source map is not authorization to perform any of those actions.
