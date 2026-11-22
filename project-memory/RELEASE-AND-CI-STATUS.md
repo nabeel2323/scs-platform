@@ -3,8 +3,8 @@
 **Checkpoint:** 22 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source implementation commit:** `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf` — `feat(mobile): add buyer return lifecycle parity [skip ci]` (the project-memory sync is a documentation-only child commit).
-**Exact-head GitHub Actions:** no workflow run is attached to `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf` because the commit deliberately used `[skip ci]` under the implementation-first decision. At last check, Vercel Admin and Web contexts were PENDING; these preview statuses are not test results. The latest actual Actions run remains #44963271498 on older SHA `06cd8fc1e56dc7ef64a141b97b594adc96ffbece` and failed changed-file Prettier after Flutter passed; dependent API unit, PostgreSQL integration, Web/Admin, migration, build and smoke jobs were skipped.
+**Latest source implementation commit:** `01681d2651d6bb0c384c30f1a04e0f111086af23` — `feat(mobile): add buyer return detail history [skip ci]` (the project-memory sync is a documentation-only child commit).
+**Exact-head GitHub Actions:** no workflow run is attached to `01681d2651d6bb0c384c30f1a04e0f111086af23` because the commit used `[skip ci]` under the implementation-first decision. The latest inspected preview statuses were pending, not successful; these are not application test results. Older Actions run #44963271498 on `06cd8fc1e56dc7ef64a141b97b594adc96ffbece` passed Flutter but failed changed-file Prettier; dependent API unit, PostgreSQL integration, Web/Admin, migration, build and smoke jobs were skipped.
 
 ## Previous CI run at the 21 November checkpoint (historical)
 
@@ -532,3 +532,11 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Exact-SHA Actions lookup for `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf` returned no workflow runs. Combined Vercel Admin and Web statuses were PENDING at the time checked. This is NOT CI-VERIFIED.
 - PR #138 remains open, draft and unmerged to `develop`. No staging deployment, migration, shared database write, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
 - The following project-memory synchronization is documentation-only and also uses `[skip ci]`; verify the resulting branch SHA and statuses live before making any verification claim.
+
+
+## UX-029 exact source checkpoint — 22 November 2026
+
+- UX-029 source commit: `01681d2651d6bb0c384c30f1a04e0f111086af23`, parent `dc0f9a5b6e8513b70530f03da6fb71c29051d9e0`. Mobile return detail/history uses existing buyer-owner-authorized API; no new API/schema/route/permission.
+- UX-028 source commit: `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`; mobile return creation, item quantities, active-state visibility, buyer cancellation and shipped handover.
+- Focused Flutter tests are present/extended in `mobile/test/returns_api_test.dart`; not executed. Exact-head Actions lookup returned no run because of `[skip ci]`.
+- PR #138 remains open, draft and unmerged to `develop`. Continue UX-010 implementation/integration; retain G-001 PARTIAL and G-002 IN PROGRESS. No staging or shared DB action.

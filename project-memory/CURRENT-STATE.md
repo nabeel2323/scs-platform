@@ -3,7 +3,7 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf` — `feat(mobile): add buyer return lifecycle parity [skip ci]`
+**Latest source implementation commit:** `01681d2651d6bb0c384c30f1a04e0f111086af23` — `feat(mobile): add buyer return detail history [skip ci]`
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`.
 **Checkpoint note:** this project-memory synchronization is a documentation-only child commit of the source implementation; query the live branch ref for the resulting HEAD.
 
@@ -19,11 +19,11 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ------------------------------------------------------------------------ |
 | Repository           | nabeel2323/scs-platform                                                  |
 | Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | Source implementation `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`; this documentation checkpoint is a child commit and resulting HEAD must be resolved live |
-| Latest commit        | `feat(mobile): add buyer return lifecycle parity [skip ci]` (source commit; docs sync follows) |
+| Live branch head     | Source implementation `01681d2651d6bb0c384c30f1a04e0f111086af23`; this documentation checkpoint is a child commit and resulting HEAD must be resolved live |
+| Latest commit        | `feat(mobile): add buyer return detail history [skip ci]` (source commit; docs sync follows) |
 | PR #138              | Open; draft; not merged                                                  |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
-| Latest exact-head CI | No Actions run for `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf` because of `[skip ci]`; Vercel Admin and Web were PENDING at last check; NOT CI-VERIFIED |
+| Latest exact-head CI | No Actions run for `01681d2651d6bb0c384c30f1a04e0f111086af23` because of `[skip ci]`; preview statuses at preceding source check were pending; NOT CI-VERIFIED |
 | PR #142 CI           | #44953735602 — passed all executable jobs on `dddff20c...`; disposable PostgreSQL identity test included |
 | PR #138 CI           | Historical #44954371615 passed all executable jobs on `741a09f...`; not transferable to current head |
 
@@ -55,7 +55,7 @@ The complete finding register, phase dashboard and technical evidence live in [I
 ## Immediate next actions
 
 1. Continue UX-010 source re-audit across remaining Admin, Web and Mobile screens. Trace each visible screen/action against API contracts, active-organization permissions, object ownership, and loading/empty/error/retry behavior. Record only concrete gaps and implement safe related fixes in grouped commits.
-2. Continue integration completion for buyer/merchant/admin workflows, including remaining cross-client order, returns, fulfillment and commercial lifecycle gaps. UX-015–UX-028 are implemented in source; their focused regression tests have not been executed.
+2. Continue integration completion for buyer/merchant/admin workflows, including remaining cross-client order, returns, fulfillment and commercial lifecycle gaps. UX-015–UX-029 are implemented in source; their focused regression tests have not been executed.
 3. Keep G-001 PARTIAL pending independent security review. Keep G-002 IN PROGRESS pending protected live API/migration identity evidence, refreshed catalog audit, 114-versus-116 physical relation reconciliation, complete operation ownership review and an approved transaction-context/RLS design.
 4. Preserve the implementation-first sequence: do not run the comprehensive test suite after each small change. Add targeted regression coverage when needed; execute the coordinated API/PostgreSQL/migration/Web/Admin/Flutter/concurrency/performance campaign only after implementation and integration are complete.
 5. Preserve all merge/deployment/staging/shared-database/grant/RLS/worker restrictions.
@@ -482,3 +482,13 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Focused tests were added for Product Studio helper behavior and `mobile/test/returns_api_test.dart`; none were executed in this implementation batch. Exact-head Actions lookup for the source commit returned no workflow run; Vercel Admin/Web were PENDING at the time checked.
 - PR #138 remains open, draft and unmerged to `develop`. No merge, deployment, staging operation, database mutation, migration, grant/RLS change, worker activation or provider call occurred.
 - **Next:** continue UX-010 cross-screen source re-audit and remaining integration gaps, then move to the one consolidated test/fix campaign. G-001 remains PARTIAL; G-002 remains IN PROGRESS.
+
+
+## UX-029 continuation — 22 November 2026
+
+- Latest source implementation: `01681d2651d6bb0c384c30f1a04e0f111086af23`; parent `dc0f9a5b6e8513b70530f03da6fb71c29051d9e0`. A documentation-only checkpoint commit follows.
+- Added full mobile buyer return detail/history via the existing owner-authorized `GET /v1/returns/:id`: refund amounts, inspection/merchant notes, line quantities/conditions and chronological events. No new API, route, permission or schema.
+- UX-028 creation, active-state, cancellation and shipped handover parity remains in source commit `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`.
+- Focused tests are present/extended in `mobile/test/returns_api_test.dart`; they have not been executed. No Actions run is attached to the source commit because of `[skip ci]`.
+- PR #138 remains open/draft/unmerged. Next: continue UX-010 cross-screen re-audit and remaining integration gaps; G-001 PARTIAL and G-002 IN PROGRESS.
+- No merge, deployment, staging, DB, grant/RLS, migration, worker or provider action.
