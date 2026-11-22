@@ -1780,3 +1780,10 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - The notification badge no longer converts unread-count loading/error into a fabricated zero count; it remains unbadged until a successful count is available.
 - Added Flutter widget coverage for stale category preservation, initial category failure/retry and unread-count failure not displaying a false zero. Tests remain pending Phase 3.
 - No discovery API, permissions, role gating, database, migration, staging or provider behavior changed.
+
+
+## UX-084 — Mobile Checkout idempotency-key payload alignment — 23 November 2026
+
+- Payment-method changes on the Review step now mint a new checkout idempotency key because the request payload has changed. Retries of an identical payload continue to reuse the same key, preserving the existing network-timeout duplicate-prevention contract.
+- Added a Flutter widget regression test that simulates two failed identical submissions followed by a payment-method change and successful submission; it asserts the first two keys match and the changed-payload key differs.
+- No checkout API contract, backend idempotency behavior, order/payment state, database, migration, staging or provider behavior changed. Test remains pending Phase 3.
