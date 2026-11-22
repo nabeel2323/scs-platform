@@ -628,3 +628,8 @@ Product detail now uses a stable product-ID-keyed provider, avoiding a new produ
 ## Mobile Notifications UX-082 — 23 November 2026
 
 Notifications now preserve the last successful inbox through refresh/realtime failures, expose explicit refresh/pull-to-refresh and retry, and distinguish initial errors from an empty inbox. Individual mark-read has per-row progress and error feedback; Mark All Read is a guarded action with success/failure feedback. Three focused Flutter widget tests were added but not executed; they remain pending Phase 3. Realtime subscription and notification API contracts are unchanged.
+
+
+## Mobile Home UX-083 — 23 November 2026
+
+Categories, Popular Products and Suppliers now expose initial loading/errors/retry and preserve last-successful data through refresh failure. Home pull-to-refresh awaits independent provider refreshes, with explicit Refresh home action. Unread count errors/loading no longer appear as a fabricated zero notification badge. Focused Flutter widget tests were added but not executed; they remain pending Phase 3. No API, permissions, role gating, database or migration behavior changed.
