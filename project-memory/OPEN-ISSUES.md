@@ -462,3 +462,19 @@ The Roles list previously showed a terminal read error without a retry action an
 ## UX-049 — Admin Audit Log — 22 November 2026
 
 Audit Log filter requests could overlap and older responses could overwrite newer filter results. The page now guards all result/error/loading updates by request version, invalidates pending requests during cleanup and exposes Retry audit log on failures while retaining last successful rows. Focused race/retry test added but not executed. UX-049 remains TESTING_PENDING; no API or permission change.
+
+## UX-050 — Admin Category Detail — 22 November 2026
+
+Category Detail previously swallowed failures in linked product-type, products and attribute-schema reads, allowing partial/empty panels to masquerade as complete. The Attributes tab also depended on the Product Types tab having been visited first. These reads now have retryable independent error states and request guards; attribute aggregation is complete-or-error. Focused test added but not executed. UX-050 remains TESTING_PENDING.
+
+## UX-051 — Admin Product Type Detail — 22 November 2026
+
+Product Type Detail's Products tab swallowed failures and displayed “No products.” It now has a retryable error state, successful-empty-only presentation and request cleanup guards. Focused test added but not executed. UX-051 remains TESTING_PENDING.
+
+## UX-052 — Admin Catalog Import Center — 22 November 2026
+
+Catalog Import Center conflated failed history reads with an empty import history and offered Dismiss instead of retry. It now has a separate retryable history error, preserves last successful rows and guards stale responses. Focused test added but not executed. UX-052 remains TESTING_PENDING.
+
+## UX-053 — Admin Analytics — 22 November 2026
+
+Analytics date/limit requests could race and stale results could overwrite newer filters. Event/activity reads now have independent request-version guards, cleanup invalidation and direct retry actions. Focused test added but not executed. UX-053 remains TESTING_PENDING.
