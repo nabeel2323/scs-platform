@@ -119,6 +119,16 @@ final featuredProductsProvider = FutureProvider<SearchResult>(
 final storesProvider = FutureProvider<List<Store>>(
     (ref) => ref.watch(apiServiceProvider).fetchStores(limit: 50));
 
+// Buyer-facing store catalogue. Keep this separate from the merchant catalogue
+// provider: buyer discovery must only expose ACTIVE products.
+final buyerStoreProductsProvider =
+    FutureProvider.autoDispose.family<List<Product>, String>((ref, storeId) {
+  if (storeId.isEmpty) return Future.value(<Product>[]);
+  return ref
+      .watch(apiServiceProvider)
+      .fetchStoreProducts(storeId, status: 'ACTIVE');
+});
+
 /// Seller reviews for a store, keyed by storeId. The reviews API is
 /// store-scoped only (`GET /v1/stores/:id/reviews`), so the PDP surfaces the
 /// *seller's* reputation — the same source the web PDP uses. Shared by the
