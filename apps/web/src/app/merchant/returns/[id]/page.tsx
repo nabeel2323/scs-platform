@@ -35,9 +35,10 @@ export default function MerchantReturnDetailPage() {
 
   const load = () => {
     setLoading(true);
+    setError('');
     fetchReturn(returnId)
       .then(setRet)
-      .catch((e: any) => setError(e.message))
+      .catch((e: any) => setError(e.message || 'Failed to load return request'))
       .finally(() => setLoading(false));
   };
 
@@ -57,7 +58,14 @@ export default function MerchantReturnDetailPage() {
   };
 
   if (authLoading || loading) return <LoadingSpinner />;
-  if (error) return <div style={{ padding: 24, color: '#ef4444' }}>{error}</div>;
+  if (error) return (
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
+      <div style={{ color: '#ef4444', marginBottom: 12 }}>{error}</div>
+      <button onClick={load} style={{ padding: '8px 16px', borderRadius: radii.md, border: `1px solid ${colors.border}`, background: '#fff', cursor: 'pointer' }}>
+        Retry
+      </button>
+    </div>
+  );
   if (!ret) return null;
 
   const canApprove = ret.status === 'REQUESTED';
