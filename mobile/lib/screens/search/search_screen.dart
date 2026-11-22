@@ -349,6 +349,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ),
       );
     }
+    if (_searchError != null && _items.isEmpty) {
+      return const SizedBox.shrink();
+    }
     if (_items.isEmpty) {
       return const EmptyState(
         title: 'No products found',
