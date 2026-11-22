@@ -547,10 +547,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               if (!_submitting && value != null && value != _paymentMethod) {
                 setState(() {
                   _paymentMethod = value;
-                  // The checkout payload changed. Keep the existing key for
-                  // retries of an identical payload, but mint a fresh key when
-                  // the buyer changes the payment method on the Review step.
-                  _idempotencyKey = const Uuid().v4();
+                  // The request fingerprint is re-evaluated at submission;
+                  // changing payment method will rotate the key exactly once.
                 });
               }
             },
