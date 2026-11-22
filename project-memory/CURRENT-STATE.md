@@ -3,7 +3,7 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source/documentation baseline before this state refresh:** `2345c01946bd31cbc34d63940275af45c312eb98` (the current-state refresh commit itself advances the branch; resolve its resulting SHA from GitHub)
+**Latest source/documentation baseline before this state refresh:** `7031cafcd94300421cf314aa6ac3ba3d3ef59651` (this state refresh advances the branch; resolve the resulting SHA from GitHub)
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,11 +18,11 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ------------------------------------------------------------------------ |
 | Repository           | nabeel2323/scs-platform                                                  |
 | Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | `2345c01946bd31cbc34d63940275af45c312eb98` before this state refresh; resulting state-refresh SHA must be resolved live |
-| Latest commit        | `docs(remediation): reconcile current G-002 progress head [skip ci]` |
+| Live branch head     | `7031cafcd94300421cf314aa6ac3ba3d3ef59651` before this state refresh; resulting state-refresh SHA must be resolved live |
+| Latest commit        | `docs(project): checkpoint Admin dispute resolution workflow [skip ci]` |
 | PR #138              | Open; draft; not merged                                                  |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
-| Latest exact-head CI | No Actions run for source/docs head `2345c01...`; combined status contains only Vercel preview failures pointing to external build-rate limit; NOT CI-VERIFIED |
+| Latest exact-head CI | No Actions run for source/docs head `7031caf...`; Vercel Admin and Web statuses are both FAILURE due to preview-provider rate limit; NOT CI-VERIFIED |
 | PR #142 CI           | #44953735602 — passed all executable jobs on `dddff20c...`; disposable PostgreSQL identity test included |
 | PR #138 CI           | Historical #44954371615 passed all executable jobs on `741a09f...`; not transferable to current head |
 
@@ -31,7 +31,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Area                                 | Status                   | Meaning                                                                                                                                                                                                             |
 | ------------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | G-001 — merchant offer authorization | **PARTIAL**              | Merchant role gates, scope-first offer confidentiality and ACTIVE-store buyer visibility are implemented with focused regression tests. Exact-head CI, remaining acceptance evidence and independent review remain. |
-| G-002 — database access/RLS          | **IN PROGRESS**          | Operation map now covers 26 service files plus supporting worker/system paths; preliminary schema ownership candidates are documented. Actual staging API/migration identities, protected catalog audit, exact operation predicates and reviewed least-privilege/RLS design remain.                                  |
+| G-002 — database access/RLS          | **IN PROGRESS**          | Source mapping covers all 53 API service/worker/provider candidates and 28 module controllers, with DB-operation paths and actor contexts documented. Protected live identities/catalog evidence, complete physical relation reconciliation, exact operation ownership review and approved transaction-context/RLS design remain. Actual staging API/migration identities, protected catalog audit, exact operation predicates and reviewed least-privilege/RLS design remain.                                  |
 | Phases 0–5                           | **IN PROGRESS**          | See the authoritative progress tracker for phase and finding details.                                                                                                                                               |
 | Phase 6                              | **NOT STARTED**          | Consolidated full verification and release go/no-go campaign has not begun.                                                                                                                                         |
 | PR #138                              | **DRAFT — DO NOT MERGE** | Not release authorization.                                                                                                                                                                                          |
@@ -53,11 +53,11 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 ## Immediate next actions
 
-1. Continue DB-003 with the remaining service/controller/worker/webhook/CLI/raw-SQL operation paths; map each operation to the exact table, principal context and direct/indirect FK owner.
-2. Reconcile the 114-versus-116 relation count only from a refreshed protected read-only catalog snapshot; do not infer a current count from the historical audit.
-3. Complete the Admin/Web/Mobile route-to-client callsite mapping and resolve UX-008 only after the required location/privacy/product scope decision.
-4. Preserve the implementation-first sequence: finish implementation and integration before the consolidated Phase 3 test campaign. The new G-002 operation map is source-only and NOT test-verified.
-5. Keep G-001 PARTIAL pending independent review; keep G-002 IN PROGRESS pending actual API/migration runtime identity, protected catalog audit, complete operation/ownership map and reviewed transaction-context design.
+1. Continue UX-010 source re-audit across remaining Admin, Web and Mobile screens. Record only concrete contract-backed gaps; implement safe fixes in cohesive batches and synchronize the gap register, inventory and work log.
+2. Finish remaining integration and product workflow gaps before the consolidated test campaign. UX-015–UX-021 are implemented in source, but their focused tests have not been executed.
+3. Keep G-001 PARTIAL pending independent security review. Keep G-002 IN PROGRESS pending protected live API/migration identity evidence, refreshed catalog audit, 114-versus-116 physical relation reconciliation, complete operation ownership review and approved transaction-context/RLS design.
+4. Do not run the full test suite after each small change. Add focused regression coverage during implementation; run the comprehensive API/PostgreSQL/migration/Web/Admin/Mobile/concurrency/performance campaign after implementation and integration are complete.
+5. Preserve all merge/deployment/staging/shared-database/grant/RLS/worker restrictions.
 
 ## Safety reminder
 
@@ -422,3 +422,12 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Admin dispute detail now exposes a required resolution workflow for unresolved disputes, calling the existing protected `PATCH /v1/disputes/:id/resolve` endpoint. It disables empty/in-flight submission, shows error/progress/success feedback, reloads after resolution and displays the stored decision for resolved/closed cases.
 - Service-level platform-admin authorization and `support:disputes:resolve` permission remain in force. No unsupported refund fields were added to the UI.
 - Added a focused component test; not executed. Source baseline before docs sync: `e6c56d1c32a0e7d496db62e4ae69025d9e624ccd`; docs commit advances branch. PR #138 remains open/draft/unmerged.
+
+
+## Latest live continuation checkpoint — 22 November 2026
+
+- Live source/documentation head before this state refresh: `7031cafcd94300421cf314aa6ac3ba3d3ef59651`; PR #138 remains open/draft/unmerged to `develop`.
+- UX-015–UX-021 source batches: Product Studio save transition and variant retry safety; buyer web cart recovery; Admin returns retry and stale-filter protection; mobile cart mutation locking; Admin dispute/evidence retry; Admin user/merchant/organization detail retry; Admin dispute resolution UI. Corresponding focused tests are committed but not run.
+- Latest exact-head GitHub Actions: none. Vercel Admin/Web statuses are both rate-limit failures. Latest actual run #44963271498 tests older SHA `06cd8fc1e56dc7ef64a141b97b594adc96ffbece`: Flutter passed; changed-file Prettier failed; API unit, Web/Admin, integration/PostgreSQL, migration, contract, boundary, build, k6 and staging release jobs skipped.
+- Next: continue UX-010 source re-audit across remaining Admin/Web/Mobile screens, then integration completion, then one consolidated test/fix campaign. UX-007 support-ticket scope and UX-008 location/geospatial policy remain blocked on product decisions; generic OutboxDispatcher remains log-only pending an event-bus contract.
+- No merge/deploy/staging/shared DB writes/migrations/grants/RLS/worker activation/provider calls occurred.

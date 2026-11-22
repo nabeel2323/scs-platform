@@ -331,3 +331,12 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Admin dispute detail previously had no way to invoke the existing resolve API. Added a required resolution form, pending/error/success feedback and resolved-state display using the existing `PATCH /v1/disputes/:id/resolve` contract.
 - Service-level platform-admin authorization remains in place; UI does not introduce unsupported refund fields. Focused test added, not executed.
 - Continue remaining UX-010 audit; comprehensive test campaign remains deferred.
+
+
+## Live open-work checkpoint — 22 November 2026
+
+- PR #138 is open/draft/unmerged at `7031cafcd94300421cf314aa6ac3ba3d3ef59651` before the current memory refresh. No exact-head Actions run exists; Vercel Admin/Web are rate-limited failures. The last actual run #44963271498 on older `06cd8fc...` failed changed-file Prettier and skipped dependent tests/build/migration jobs.
+- UX-015–UX-021 are implemented in source with focused tests added but not executed. Continue UX-010 re-audit on remaining Admin/Web/Mobile screens and implement confirmed gaps; do not begin the comprehensive suite yet.
+- G-001 independent security review and G-002 protected live identity/catalog/operation ownership/transaction-context design remain open. Do not enable RLS or alter shared DB grants/ACLs.
+- UX-007 support-ticket scope and UX-008 geospatial/location policy remain blocked on product decisions. OutboxDispatcher remains log-only pending event-bus contract.
+- Phase 3 full test campaign and Phase 4 stabilization are still pending.

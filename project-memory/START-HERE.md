@@ -75,7 +75,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 22 November 2026 confirms branch `remediation/phase-0-1-tenant-security` at `7be3e2da3a26ab565f6c5dd391a9bba486d3bcae` after inventory documentation updates. The current documentation checkpoint has no associated workflow run or combined status and is NOT CI-VERIFIED. The earlier PR #138 source SHA `741a09f68721898a5bed6601bc3bc636867c78c2` passed exact-head CI #44954371615 across all executable jobs; k6 and protected staging release were skipped. PR #142 source SHA `dddff20c170737dc4694008bb807b2b90e177f77` passed CI #44953735602, including its disposable PostgreSQL identity test; k6 and protected staging release were skipped. Treat these as historical exact-SHA evidence only. PR #138 and PR #142 remain open/draft/unmerged. G-001 remains PARTIAL pending independent security review; G-002 remains IN PROGRESS pending actual staging identity evidence, refreshed protected audit and reviewed access design.
+Live GitHub reconciliation on 22 November 2026 confirms branch `remediation/phase-0-1-tenant-security` at `7031cafcd94300421cf314aa6ac3ba3d3ef59651` before this project-memory refresh. PR #138 is open/draft/unmerged to `develop` at the same head. No GitHub Actions workflow is attached to this exact head; Vercel Admin and Web statuses are both FAILURE because the preview provider is rate-limited for 24 hours. The latest actual Actions run is #44963271498 on older SHA `06cd8fc1e56dc7ef64a141b97b594adc96ffbece`: Mobile passed, changed-file Prettier failed, and dependent API/Web/Admin/PostgreSQL/migration/build/k6/staging jobs were skipped. Do not treat this as validation of current source.
 
 ## Safety reminder
 
@@ -284,3 +284,14 @@ G-002 bounded method-level source mapping now covers Orders/Payments/Inventory; 
 UX-012 is implemented in source: merchant mobile price-list/tier management and offer linkage. UX-013 is implemented in source: Admin order detail shows product/variant labels and SKU instead of only UUIDs. Focused tests were added but not executed; keep the consolidated testing phase at the end of implementation.
 
 **Next implementation task:** continue the UX-010 source re-audit across remaining Admin, Web and Mobile screens. Record only concrete, source-confirmed gaps and fix safe items in grouped commits. UX-007 support-ticket scope and UX-008 geospatial/location policy remain blocked on product decisions. The generic OutboxDispatcher remains a log-only sink until an event-bus contract is approved.
+
+
+## Latest continuation checkpoint — 22 November 2026 (supersedes older checkpoints above)
+
+- Live branch before this memory refresh: `remediation/phase-0-1-tenant-security` at `7031cafcd94300421cf314aa6ac3ba3d3ef59651`. PR #138 is open, draft, unmerged and targets `develop`.
+- Source implementation batches UX-015 through UX-021 are recorded in the gap register: Product Studio save-flow integrity; buyer web cart recovery; Admin returns read recovery; mobile cart mutation locking; Admin dispute/evidence retry; Admin user/merchant/organization detail retry; and the Admin dispute resolution workflow.
+- Focused web/Admin/Flutter regression tests were added alongside those changes but have not been executed. The user explicitly wants implementation and integration completed before the consolidated test campaign.
+- Exact-head Actions lookup: no workflow run. Combined Vercel Admin and Web statuses are failures due to “Deployment rate limited — retry in 24 hours.” Latest actual Actions run #44963271498 is on older SHA `06cd8fc1e56dc7ef64a141b97b594adc96ffbece`: Mobile passed; changed-file Prettier failed; API unit, Web/Admin, container, integration/PostgreSQL, migration, contract, boundary, k6, build and staging release jobs were skipped.
+- G-001 remains PARTIAL pending independent review. G-002 remains IN PROGRESS pending protected live API/migration identity/catalog evidence, full operation ownership review and approved transaction-context/RLS design. No RLS or shared DB change is authorized.
+- Next: continue UX-010 source re-audit across remaining Admin/Web/Mobile screens and implement only concrete, contract-backed gaps. Then complete integration, followed by one consolidated test/fix campaign.
+- No merge, deployment, staging/shared DB write, migration, grants/default ACL change, RLS enablement, worker activation or external provider call.

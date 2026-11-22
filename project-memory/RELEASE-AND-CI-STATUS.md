@@ -3,8 +3,8 @@
 **Checkpoint:** 22 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Last verified PR #138 source/CI baseline:** `caba922e866635fad51e549e095a186f9d9df6cf`  
-**Exact-head GitHub Actions:** no workflow run attached; the latest grouped source commits intentionally used `[skip ci]` to conserve Actions minutes. At source baseline caba922, Vercel Admin and Vercel Web statuses are SUCCESS. No GitHub Actions workflow run is attached to that exact head.
+**Latest source/documentation head before this refresh:** `7031cafcd94300421cf314aa6ac3ba3d3ef59651`  
+**Exact-head GitHub Actions:** no workflow run attached; the latest grouped source commits intentionally used `[skip ci]` to conserve Actions minutes. At source baseline `7031caf...`, no GitHub Actions workflow run is attached; Vercel Admin and Web statuses are both FAILURE due to preview-provider rate limiting. The latest actual Actions run is historical #44963271498 on `06cd8fc...` and failed changed-file Prettier.
 
 ## Previous CI run at the 21 November checkpoint (historical)
 
@@ -479,3 +479,13 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Source implementation commit: `e6c56d1c32a0e7d496db62e4ae69025d9e624ccd`; documentation sync follows separately.
 - PR #138 remains open, draft and unmerged to `develop`.
 - Focused Admin component test was added but not run. No GitHub Actions CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred as part of this change.
+
+
+## Latest live reconciliation — 22 November 2026
+
+- PR #138 head before this documentation refresh: `7031cafcd94300421cf314aa6ac3ba3d3ef59651`; open, draft, unmerged, base `develop`. The PR is mergeable according to GitHub metadata, but no merge is authorized.
+- Exact-head check-runs: none. Combined statuses: Vercel Admin FAILURE and Vercel Web FAILURE, both “Deployment rate limited — retry in 24 hours.” These are preview-provider failures, not application test results.
+- Latest actual Actions run [#44963271498](https://github.com/nabeel2323/scs-platform/actions/runs/44963271498) tested older SHA `06cd8fc1e56dc7ef64a141b97b594adc96ffbece` and concluded FAILURE. Mobile passed. Lint & Typecheck failed at `pnpm format:check:changed`. API unit/coverage, Web/Admin, container smoke, PostgreSQL integration, migration full apply, contract/codegen, boundary lint, k6, build and staging release were skipped.
+- UX-015–UX-021 changes have focused regression tests added but not executed. No exact-head application test evidence exists for these batches.
+- Next: finish implementation/integration; execute one consolidated formatter + API unit/coverage + PostgreSQL integration + migration + Web/Admin + Flutter + boundary/security + build + performance campaign, then stabilize failures and request independent review. Staging release remains a separate protected action.
+- No merge, deployment, staging/shared DB writes, migrations, grants/default ACL changes, RLS enablement, worker activation or provider calls occurred.
