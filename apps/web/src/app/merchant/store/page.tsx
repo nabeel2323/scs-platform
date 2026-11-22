@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { fetchMyStores, fetchStore, updateStore, createWarehouse, Store } from '../../../lib/api';
 import { useAuth } from '../../../components/AuthProvider';
@@ -14,6 +14,9 @@ const LOCALES = [['en', 'English'], ['ar', 'Arabic']] as const;
 
 export default function StoreProfilePage() {
   const { user } = useAuth();
+  const activeOrgId = user?.activeOrgId ?? null;
+  const storeLoadRequestRef = useRef(0);
+  const warehouseLoadRequestRef = useRef(0);
   const [store, setStore] = useState<Store | null>(null);
   const [noStore, setNoStore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -45,9 +48,13 @@ export default function StoreProfilePage() {
   const [whSaving, setWhSaving] = useState(false);
 
   const loadWarehouses = useCallback(async (sid: string) => {
+    const requestId = ++warehouseLoadRequestRef.current;
     try {
-      setWarehouses(await fetchStoreWarehouses(sid));
-    } catch { /* non-fatal */ }
+      const result = await fetchStoreWarehouses(sid);
+      if (requestId === warehouseLoadRequestRef.current) setWarehouses(result);
+    } catch {
+      if (requestId === warehouseLoadRequestRef.current) setWarehouses([]);
+    }
   }, []);
 
   const populate = useCallback((s: Store) => {
@@ -68,21 +75,40 @@ export default function StoreProfilePage() {
   }, []);
 
   useEffect(() => {
+    const requestId = ++storeLoadRequestRef.current;
+    setLoading(true);
+    setNoStore(false);
+    setError('');
+    setStore(null);
+    setWarehouses([]);
+
     (async () => {
       try {
         const stores = await fetchMyStores();
+        if (requestId !== storeLoadRequestRef.current) return;
         const first = pickStore(stores);
-        if (!first) { setNoStore(true); return; }
+        if (!first) {
+          setNoStore(true);
+          return;
+        }
         const full = await fetchStore(first.id);
+        if (requestId !== storeLoadRequestRef.current) return;
         populate(full);
         await loadWarehouses(first.id);
       } catch (err: any) {
-        setError(err.message || 'Failed to load store');
+        if (requestId === storeLoadRequestRef.current) {
+          setError(err.message || 'Failed to load store');
+        }
       } finally {
-        setLoading(false);
+        if (requestId === storeLoadRequestRef.current) setLoading(false);
       }
     })();
-  }, [populate, loadWarehouses]);
+
+    return () => {
+      storeLoadRequestRef.current += 1;
+      warehouseLoadRequestRef.current += 1;
+    };
+  }, [activeOrgId, populate, loadWarehouses]);
 
   const handleSave = async () => {
     if (!canEdit) return;
