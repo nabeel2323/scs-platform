@@ -379,3 +379,14 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
 - Next: continue the Mobile UX-010 source audit for remaining buyer discovery and product-detail flows, then re-audit remaining Web/Admin routes. Keep comprehensive testing deferred until implementation/integration completion.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
+
+
+## Latest UX continuation checkpoint — 23 November 2026 (UX-081)
+
+- Implemented Mobile Product Detail stable reads and recovery. Product detail now uses an ID-keyed provider instead of recreating a FutureBuilder request on every PDP rebuild; explicit refresh/pull-to-refresh preserves last-successful product data and initial failures are retryable.
+- Variant matrix, offer comparison and seller review failures now have visible retry states; matrix/offer request generations protect route reuse from late responses for a previous product.
+- Added Flutter widget tests for product stale-data preservation, initial failure/retry and stable main-product request count. Tests have not been executed and remain pending Phase 3.
+- Source commits: provider `57144ad`; product screen `420dae6`; seller-review retry `400b1ac`; focused tests `222a47f`. All use `[skip ci]`.
+- PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
+- Next: continue remaining buyer-facing Mobile screens and the Web/Admin route audit, implementing only source-confirmed contract-backed gaps.
+- No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
