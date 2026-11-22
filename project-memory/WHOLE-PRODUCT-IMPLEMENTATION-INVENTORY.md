@@ -479,3 +479,9 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - Brand Management: retryable list reads, request-version protection and successful-empty-only display.
 - Business Calendar: retryable calendar read, request-version/unmount protection and suppression of false no-calendar/holiday/audit empty states after failed reads.
 - Focused tests added for UX-054–UX-057 but not executed. No API, permission, schema, migration or database change.
+
+## 22 November 2026 — Attribute directory UX-058 re-audit
+
+- Attribute Groups and Definitions now guard asynchronous reads and stale filter responses, expose accessible retryable errors and render empty states/counts only after successful reads.
+- Attribute Group detail no longer reports no attributes defined when its shared attribute read failed.
+- Focused tests added in `admin-attribute-groups-recovery.test.tsx` and `admin-attributes-recovery.test.tsx`; not executed. UX-058 is IMPLEMENTED / TESTING_PENDING. No API, permission, schema, migration or database change.
