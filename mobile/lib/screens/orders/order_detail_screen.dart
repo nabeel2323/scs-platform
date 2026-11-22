@@ -23,6 +23,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   late Future<SubOrder> _orderFuture;
   late Future<List<StatusHistoryEntry>> _historyFuture;
   Future<TrackingInfo>? _trackingFuture;
+  SubOrder? _lastOrder;
+  int _loadVersion = 0;
   StreamSubscription<OrderStatusEvent>? _sub;
   bool _busy = false;
 
@@ -824,6 +826,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   }
 
   void _load() {
+    final requestId = ++_loadVersion;
     final api = ref.read(apiServiceProvider);
     final order = api.fetchOrder(widget.orderId);
     final history = api.fetchOrderHistory(widget.orderId);
@@ -837,17 +840,32 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       _historyFuture = history;
     }
     unawaited(_loadReturns());
-    // M7.1: load tracking once the order arrives (we need masterOrderId).
-    _orderFuture.then((o) {
-      if (!mounted) return;
+    // M7.1: load tracking once the latest order response arrives.
+    order.then((value) {
+      if (!mounted || requestId != _loadVersion) return;
       setState(() {
-        _trackingFuture = api.fetchTracking(o.masterOrderId);
+        _lastOrder = value;
+        _trackingFuture = api.fetchTracking(value.masterOrderId);
       });
     }).catchError((_) {});
   }
 
   @override
+  void didUpdateWidget(covariant OrderDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.orderId != widget.orderId) {
+      _lastOrder = null;
+      _returnRequests = [];
+      _trackingFuture = null;
+      _load();
+      _realtime.unwatchOrder(oldWidget.orderId);
+      _realtime.watchOrder(widget.orderId);
+    }
+  }
+
+  @override
   void dispose() {
+    _loadVersion += 1;
     _sub?.cancel();
     _realtime.unwatchOrder(widget.orderId);
     super.dispose();
@@ -860,22 +878,64 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     final canWrite = permissions.contains('orders:write');
     final canCancel = permissions.contains('orders:cancel');
     return Scaffold(
-        appBar: AppBar(title: Text('Order #${widget.orderId.substring(0, 8)}')),
+        appBar: AppBar(
+          title: Text('Order #${widget.orderId.substring(0, 8)}'),
+          actions: [
+            IconButton(
+              tooltip: 'Refresh order',
+              icon: const Icon(Icons.refresh),
+              onPressed: _load,
+            ),
+          ],
+        ),
         body: FutureBuilder<SubOrder>(
           future: _orderFuture,
           builder: (context, snap) {
-            if (snap.connectionState != ConnectionState.done) {
+            final o = snap.data ?? _lastOrder;
+            if (o == null && snap.connectionState != ConnectionState.done) {
               return const LoadingSpinner();
             }
-            if (snap.hasError) {
-              return EmptyState(title: 'Error', description: '${snap.error}');
+            if (o == null && snap.hasError) {
+              return EmptyState(
+                title: 'Could not load order',
+                description: ApiService.errorMessage(snap.error!),
+                onAction: _load,
+              );
             }
-            final o = snap.data!;
+            if (o == null) {
+              return EmptyState(
+                title: 'Order unavailable',
+                description: 'Order details could not be loaded.',
+                onAction: _load,
+              );
+            }
             return SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (snap.connectionState != ConnectionState.done)
+                        const LinearProgressIndicator(minHeight: 2),
+                      if (snap.hasError)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: TaifTokens.err.withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+                            border: Border.all(color: TaifTokens.err.withOpacity(0.3)),
+                          ),
+                          child: Row(children: [
+                            Expanded(
+                              child: Text(
+                                'Could not refresh order details: ${ApiService.errorMessage(snap.error!)}. Showing the last successfully loaded order.',
+                                style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+                              ),
+                            ),
+                            TextButton(onPressed: _load, child: const Text('Retry order')),
+                          ]),
+                        ),
                       Row(children: [
                         StatusBadge(o.status),
                         const Spacer(),
@@ -1185,6 +1245,20 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                       FutureBuilder<List<StatusHistoryEntry>>(
                         future: _historyFuture,
                         builder: (context, hSnap) {
+                          if (hSnap.hasError) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Row(children: [
+                                const Expanded(
+                                  child: Text(
+                                    'Status history is unavailable.',
+                                    style: TextStyle(fontSize: 12, color: TaifTokens.muted),
+                                  ),
+                                ),
+                                TextButton(onPressed: _load, child: const Text('Retry history')),
+                              ]),
+                            );
+                          }
                           if (hSnap.connectionState != ConnectionState.done) {
                             return const SizedBox.shrink();
                           }

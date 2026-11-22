@@ -1656,3 +1656,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Initial read failures continue to show the existing retryable error state; no empty-shipment state is presented as a successful result after a failed first read.
 - Added `driver_shipments_read_recovery_test.dart` for same-session stale-list preservation and initial failure/retry.
 - No pickup, delivery, shipment status transition, permissions, API, schema, migration, database, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-070 — Mobile Buyer Order Detail refresh recovery — 22 November 2026
+
+- Added an explicit order refresh action and request-generation protection for successive order loads. Responses from a prior load/order ID cannot replace the current order, and pending order responses are invalidated on dispose.
+- The detail screen now retains and displays the last successful order while refreshing; if a refresh fails, it shows a retryable warning and identifies the visible order as the last successful response. Initial failures now provide an actionable retry instead of a dead-end error state.
+- Status-history read failures are now visible with a retry action instead of silently appearing as an absent timeline.
+- Added `order_detail_read_recovery_test.dart` for initial load, failed refresh with stale order preservation and retry recovery.
+- No order/return/fulfillment business actions, API, permissions, schema, migration, database, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
