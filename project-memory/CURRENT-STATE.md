@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `df5a171762a5f6a5b365a13f491a975d4c6e9aa8` — UX-088 Mobile Merchant Inventory recovery; latest focused test commit is `fe508b0d30c791fb7597ec7f1c95d6b6968461b4`  
-**Previous source increments:** UX-087 Mobile Merchant Offer Detail recovery is present; focused test commit `910466470d28c7d1eec08c80db47a74b6727f3bc`; UX-086 Mobile Merchant Catalog recovery source `4ef8813` / `7723fb7` and focused test `5484e8f`  
+**Latest source implementation commit:** `b279c263da4e2f8b1153d0d4b19516fd76c46dca` — UX-090 Mobile Merchant Customers recovery; latest focused test commit is `3f3b0f6b4d610b24242c44fc75006c509bc7abd7`  
+**Previous source increments:** UX-089 Mobile Merchant Pricing list/detail recovery source `9b0393a`, `3b76bf4`, `0fd2622`, `fd3b94b`; focused tests `2f112e9` / `a03c23f`; UX-088 source `df5a171` and test `fe508b0`  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,14 +19,14 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Last verified implementation/test head | `fe508b0d30c791fb7597ec7f1c95d6b6968461b4` (documentation synchronization follows; resolve the live head at session start) |
-| Latest implementation/test | `fe508b0d30c791fb7597ec7f1c95d6b6968461b4` — UX-088 Merchant Inventory recovery tests |
+| Last verified implementation/test head | `3f3b0f6b4d610b24242c44fc75006c509bc7abd7` (documentation synchronization follows; resolve the live head at session start) |
+| Latest implementation/test | `3f3b0f6b4d610b24242c44fc75006c509bc7abd7` — UX-090 Merchant Customers recovery tests |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for implementation/test head `fe508b0d30c791fb7597ec7f1c95d6b6968461b4`; commits use `[skip ci]`; NOT CI-VERIFIED |
+| Exact-head GitHub Actions | No run for implementation/test head `3f3b0f6b4d610b24242c44fc75006c509bc7abd7`; commits use `[skip ci]`; NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest inspected Vercel contexts | At `fe508b0`: Admin PENDING; Web FAILURE with external build-rate-limit destination; not application test results |
-| Focused client tests | Admin UX-030–058 and Mobile UX-078–088 added; not executed |
+| Latest inspected Vercel contexts | At `3f3b0f6`: Admin FAILURE and Web FAILURE with external build-rate-limit destination; not application test results |
+| Focused client tests | Admin UX-030–058 and Mobile UX-078–090 added; not executed |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
 ## Current remediation status
@@ -657,3 +657,13 @@ Merchant active-store and product reads now preserve last-successful data throug
 - Both items are IMPLEMENTED / TESTING_PENDING, not automated-test verified or CI verified. No API, permission, offer lifecycle, stock mutation, warehouse transfer, schema, database or migration behavior changed.
 - Next implementation: source-first audit of remaining Mobile merchant operational screens, then remaining Web/Admin route/action permission mapping. Comprehensive tests remain deferred to Phase 3.
 - PR #138 remains OPEN/DRAFT/UNMERGED to `develop`. The implementation/test commits use `[skip ci]`; no Actions run was returned for the exact implementation/test head. Vercel Admin PENDING and Web external rate-limit FAILURE are not application test results.
+
+
+## Mobile Merchant Pricing and Customers continuation — 23 November 2026
+
+- **UX-089 Pricing:** list/detail/tier reads now preserve last-successful data on refresh failures, expose retryable initial errors, await refresh, keep empty states pull-to-refreshable and show an unavailable tier count until a successful tier read. Focused tests are in `mobile/test/merchant_pricing_read_recovery_test.dart`; not executed.
+- **UX-090 Customers:** the directory preserves last-successful customer rows and derived statistics during failed refresh, supports awaited explicit/pull-to-refresh and retryable initial errors, and distinguishes successful empty/no-match results. Search and sort behavior remain unchanged. Focused tests are in `mobile/test/merchant_customers_read_recovery_test.dart`; not executed.
+- Source commits: pricing list/detail `9b0393a` / `3b76bf4`, correctness follow-ups `0fd2622` / `fd3b94b`; customers `b279c263`. Focused test commits: pricing `2f112e9` / `a03c23f`; customers `3f3b0f6`.
+- UX-087–UX-090 are IMPLEMENTED / TESTING_PENDING, not automated-test verified or CI verified. No API, permission, pricing/stock mutation, customer/order, financial, schema, database or migration behavior changed.
+- Next: source-first audit of Mobile Merchant Orders and store/profile route transitions, then remaining Web/Admin route/action permission mapping. Comprehensive tests remain deferred to Phase 3.
+- PR #138 remains OPEN/DRAFT/UNMERGED to `develop`. No Actions run was returned for implementation/test head `3f3b0f6`; Vercel Web/Admin failures point to the external provider build-rate-limit page. No merge/deployment/staging/shared-database/migration/grant/RLS/worker changes occurred.
