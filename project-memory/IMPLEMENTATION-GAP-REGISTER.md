@@ -701,3 +701,11 @@ Source-confirmed gaps closed in implementation: product pull-to-refresh invalida
 - The merchant order queue already retained last-successful rows on refresh failure, but explicit refresh did not await the active-store/order dependency and no pull-to-refresh was available. A successful empty queue was not scrollable.
 - Refresh now awaits active-store resolution and the dependent order read without a duplicate request. The queue and successful empty state are always-scrollable and wrapped in RefreshIndicator; stale data/error messaging remains intact.
 - Three focused Flutter widget scenarios cover stale order preservation, initial error/retry and pull-to-refresh failure while the queue is successfully empty. Source commits: `da19ca1`, `9ecce8a`; test commits: `112bf00`, `b8c7b1c`. Not executed. No order transition, fulfillment, stock reservation, API, permission, database or migration behavior changed.
+
+## UX-092 — Mobile Merchant Store Profile and warehouse recovery — 23 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- Store Profile refresh now awaits the organization store-directory read and the dependent active-store value before refreshing the current store's warehouse directory. The profile form supports pull-to-refresh and preserves last-successful store details during refresh/reload failure.
+- Warehouse directory failures now have retry and stale-data handling; the successful empty state is shown only after a successful read.
+- Three focused Flutter widget scenarios cover stale store preservation, warehouse retry and initial store lookup recovery. Source commit: `bfb820e`; test commit: `90b2b6b`. Not executed. No store update, warehouse creation, permission, API, database or migration behavior changed.
