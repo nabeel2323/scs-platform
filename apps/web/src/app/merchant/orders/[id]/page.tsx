@@ -72,6 +72,7 @@ export default function MerchantOrderDetailPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const orderId = params['id'] as string;
+  const canWriteOrders = user?.perms?.includes('merchant:orders:write') === true;
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [history, setHistory] = useState<StatusHistoryEntry[]>([]);
@@ -180,6 +181,7 @@ export default function MerchantOrderDetailPage() {
   };
 
   const handleAccept = async () => {
+    if (!canWriteOrders) return;
     setBusy(true);
     setActionError('');
     try {
@@ -190,6 +192,7 @@ export default function MerchantOrderDetailPage() {
   };
 
   const handleReject = async () => {
+    if (!canWriteOrders) return;
     if (!rejectReason.trim()) return;
     setBusy(true);
     setActionError('');
@@ -203,6 +206,7 @@ export default function MerchantOrderDetailPage() {
   };
 
   const handleTransition = async (status: string) => {
+    if (!canWriteOrders) return;
     setBusy(true);
     setActionError('');
     try {
@@ -213,6 +217,7 @@ export default function MerchantOrderDetailPage() {
   };
 
   const handleCancel = async () => {
+    if (!canWriteOrders) return;
     if (!cancelReason.trim()) return;
     setBusy(true);
     setActionError('');
@@ -275,7 +280,7 @@ export default function MerchantOrderDetailPage() {
         )}
 
         {/* Merchant Actions */}
-        {(nextStatuses.length > 0 || canCancel || ['SUBMITTED', 'PENDING_CONFIRMATION'].includes(order.status)) && (
+        {canWriteOrders && (nextStatuses.length > 0 || canCancel || ['SUBMITTED', 'PENDING_CONFIRMATION'].includes(order.status)) && (
           <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 16, marginBottom: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Actions</div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
