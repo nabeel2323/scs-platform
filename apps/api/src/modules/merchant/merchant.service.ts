@@ -127,9 +127,47 @@ export class MerchantService {
     return store;
   }
 
+  async resolveStoreId(storeIdOrSlug: string): Promise<string> {
+    const store = await this.db.db.query.stores.findFirst({
+      where: isUuid(storeIdOrSlug)
+        ? eq(stores.id, storeIdOrSlug)
+        : eq(stores.slug, storeIdOrSlug),
+      columns: { id: true },
+    });
+    if (!store) throw new NotFoundException('Store not found');
+    return store.id;
+  }
+
   async getStoreBySlug(slug: string) {
     const store = await this.db.db.query.stores.findFirst({
       where: eq(stores.slug, slug),
+    });
+    if (!store) throw new NotFoundException('Store not found');
+    return store;
+  }
+
+  /**
+   * Buyer-facing storefront projection. Never return internal organization,
+   * verification, address or metadata fields from the public slug route.
+   */
+  async getPublicStoreBySlug(slug: string) {
+    const store = await this.db.db.query.stores.findFirst({
+      where: and(
+        eq(stores.slug, slug),
+        eq(stores.status, 'ACTIVE'),
+        eq(stores.verificationStatus, 'VERIFIED'),
+      ),
+      columns: {
+        id: true,
+        slug: true,
+        displayName: true,
+        description: true,
+        logoUrl: true,
+        coverUrl: true,
+        currency: true,
+        locale: true,
+        hidePopularityBadge: true,
+      },
     });
     if (!store) throw new NotFoundException('Store not found');
     return store;

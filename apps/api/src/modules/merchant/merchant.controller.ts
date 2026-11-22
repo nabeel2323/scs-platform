@@ -122,13 +122,17 @@ export class MerchantController {
   }
 
   @Get('stores/:id')
-  async getStore(@Param('id') id: string) {
-    return this.merchantService.getStore(id);
+  @UseGuards(PermissionsGuard, ActiveOrgGuard)
+  @RequirePermission('merchant:stores:read')
+  async getStore(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    const storeId = await this.merchantService.resolveStoreId(id);
+    await this.assertMerchantStoreAccess(user, storeId);
+    return this.merchantService.getStore(storeId);
   }
 
   @Get('stores/slug/:slug')
   async getStoreBySlug(@Param('slug') slug: string) {
-    return this.merchantService.getStoreBySlug(slug);
+    return this.merchantService.getPublicStoreBySlug(slug);
   }
 
   @Patch('stores/:id')
