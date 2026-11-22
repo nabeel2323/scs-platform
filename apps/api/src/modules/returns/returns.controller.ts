@@ -210,7 +210,7 @@ export class ReturnsController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:refunds:approve')
   async markRefunded(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    const caller: CallerContext = { sub: user.sub, role: 'ADMIN', activeOrg: user.activeOrg };
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.returns.transitionReturn(id, 'REFUNDED', caller);
   }
 
@@ -223,7 +223,7 @@ export class ReturnsController {
     @Param('id') id: string,
     @Body() body: { notes?: string },
   ) {
-    const caller: CallerContext = { sub: user.sub, role: 'ADMIN', activeOrg: user.activeOrg };
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.returns.transitionReturn(id, 'REFUND_FAILED', caller, body);
   }
 
@@ -245,7 +245,7 @@ export class ReturnsController {
     if (!body.action || !['APPROVE', 'REJECT', 'CANCEL'].includes(body.action)) {
       throw new BadRequestException('action must be APPROVE, REJECT, or CANCEL');
     }
-    const caller: CallerContext = { sub: user.sub, role: 'ADMIN', activeOrg: user.activeOrg };
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.returns.resolveEscalation(
       id, body.action, body.responsibilityCategory || null, caller, body.notes,
     );
