@@ -6,7 +6,7 @@
  * Requires admin:users:read
  */
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { fetchRoles, type RoleInfo } from '@/lib/api';
 import { useRequirePerms } from '@/hooks/useRequirePerms';
@@ -18,20 +18,35 @@ function RolesListContent() {
   const [roles, setRoles] = useState<RoleInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const requestVersion = useRef(0);
 
   useEffect(() => setReady(true), []);
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
-    fetchRoles()
-      .then(data => { setRoles(data); setLoading(false); })
-      .catch(err => { setError(err instanceof Error ? err.message : 'Failed to load roles'); setLoading(false); });
+    setError('');
+    try {
+      const data = await fetchRoles();
+      if (requestId === requestVersion.current) setRoles(data);
+    } catch (err) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load roles');
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
   }, [ready, hasAccess]);
+
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: admin:users:read</div>;
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error) return <AdminErrorState title="Unable to load roles" message={error} />;
+  if (error) return <AdminErrorState title="Unable to load roles" message={error} onRetry={load} />;
 
   return (
     <div style={{ padding: '32px 32px 48px' }}>
