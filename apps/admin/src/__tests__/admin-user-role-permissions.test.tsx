@@ -80,7 +80,7 @@ describe('admin user role permissions', () => {
     expect(await screen.findByRole('heading', { name: 'Jane Doe' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Role permissions' }));
 
-    expect(await screen.findByText('Role permissions unavailable')).toBeTruthy();
+    expect((await screen.findByRole('alert')).textContent).toContain('Role permissions unavailable');
     fireEvent.click(screen.getByRole('button', { name: 'Retry role permissions' }));
 
     expect(await screen.findByText('merchant:orders:read')).toBeTruthy();
