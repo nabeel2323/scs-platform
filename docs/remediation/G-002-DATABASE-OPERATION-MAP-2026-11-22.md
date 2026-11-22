@@ -271,3 +271,8 @@ See [G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md](./G-002-METHOD-LE
 - ReturnsService.escalateReturn now requires an explicit platform or worker authority. Platform callers are checked with isTenantPrivileged; worker callers must provide holder ID and epoch. The worker lease is locked and revalidated inside the transition transaction, and the lease predicate is repeated in the return UPDATE. Event/outbox writes occur only after the fenced transition succeeds.
 - PilotControlService.addAllowlistEntry validates that the organization exists and any supplied store belongs to that organization. p13_pilot_allowlist has no FK constraints, so this consistency is enforced at the service boundary.
 - These are source-level changes with focused regression tests added but not run. No RLS, transaction interceptor, DB grant, migration, staging action, worker activation or external provider call was performed.
+
+
+## Worker lease expiration is part of every ownership predicate — 22 November 2026
+
+The WorkerLeaseService previously matched only lease_key + holder_id + epoch for renewal, liveness and completion bookkeeping. An expired holder could therefore renew the same epoch before another process acquired it, or still appear live in read-only checks. Expiry is now included in renewAndFence, poll-success, poll-failure and release predicates; isLiveHolder also requires expiresAt to be in the future. Once the lease expires, the old holder must reacquire through tryAcquire, which increments the fencing epoch. Focused regression tests were added but not run.

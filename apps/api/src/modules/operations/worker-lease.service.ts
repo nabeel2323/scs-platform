@@ -164,15 +164,17 @@ export class WorkerLeaseService {
       WHERE lease_key = ${leaseKey}
         AND holder_id = ${this.holderId}
         AND epoch     = ${epoch}
+        AND expires_at > now()
       RETURNING lease_key
     `);
     return readRows<{ lease_key: string }>(result).length > 0;
   }
 
-  /** Heartbeat without a fencing check — used by read-only observability paths. */
+  /** Read-only ownership check; an expired row is never a live lease. */
   async isLiveHolder(epoch: number, leaseKey: string = P13_LEASE_KEY): Promise<boolean> {
     const record = await this.read(leaseKey);
-    return !!record && record.holderId === this.holderId && record.epoch === epoch;
+    return !!record && record.holderId === this.holderId && record.epoch === epoch &&
+      !!record.expiresAt && record.expiresAt.getTime() > Date.now();
   }
 
   /**
@@ -194,6 +196,7 @@ export class WorkerLeaseService {
       WHERE lease_key = ${leaseKey}
         AND holder_id = ${this.holderId}
         AND epoch     = ${epoch}
+        AND expires_at > now()
     `);
   }
 
@@ -215,6 +218,7 @@ export class WorkerLeaseService {
       WHERE lease_key = ${leaseKey}
         AND holder_id = ${this.holderId}
         AND epoch     = ${epoch}
+        AND expires_at > now()
       RETURNING poll_failures
     `);
     const rows = readRows<{ poll_failures: number }>(result);
@@ -238,6 +242,7 @@ export class WorkerLeaseService {
       WHERE lease_key = ${leaseKey}
         AND holder_id = ${this.holderId}
         AND epoch     = ${epoch}
+        AND expires_at > now()
       RETURNING lease_key
     `);
     return readRows<{ lease_key: string }>(result).length > 0;
