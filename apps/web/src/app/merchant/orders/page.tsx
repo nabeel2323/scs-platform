@@ -157,6 +157,9 @@ export default function MerchantOrdersPage() {
       const selectedStore = pickStore(list);
       if (!selectedStore) {
         setNoStore(true);
+        setStoreId('');
+        setStoreName('');
+        setOrders([]);
         setLoading(false);
         return;
       }
