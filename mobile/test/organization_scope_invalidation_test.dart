@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -21,6 +22,21 @@ UserProfile _profile() => UserProfile(
       createdAt: '2026-11-22T10:00:00.000Z',
     );
 
+class _RunInvalidation extends ConsumerWidget {
+  final bool resetSession;
+  const _RunInvalidation({this.resetSession = false});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (resetSession) {
+      resetIdentityProviders(ref);
+    } else {
+      invalidateOrganizationScopedProviders(ref);
+    }
+    return const SizedBox.shrink();
+  }
+}
+
 void main() {
   test('active store resolution never falls back across organizations',
       () async {
@@ -43,8 +59,8 @@ void main() {
     expect(missingStore, isNull);
   });
 
-  test('organization switch invalidates organization-scoped caches only',
-      () async {
+  testWidgets('organization switch invalidates org caches but retains buyer orders',
+      (tester) async {
     var profileReads = 0;
     var organizationReads = 0;
     var storeReads = 0;
@@ -87,26 +103,28 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    await Future.wait([
-      container.read(profileProvider.future),
-      container.read(myOrganizationsProvider.future),
-      container.read(myStoresProvider.future),
-      container.read(merchantOrdersProvider.future),
-      container.read(merchantCustomersProvider.future),
-      container.read(storeWarehousesProvider('store-1').future),
-      container.read(ordersProvider.future),
-    ]);
+    await container.read(profileProvider.future);
+    await container.read(myOrganizationsProvider.future);
+    await container.read(myStoresProvider.future);
+    await container.read(merchantOrdersProvider.future);
+    await container.read(merchantCustomersProvider.future);
+    await container.read(storeWarehousesProvider('store-1').future);
+    await container.read(ordersProvider.future);
 
-    invalidateOrganizationScopedProviders(container);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: _RunInvalidation()),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-    await Future.wait([
-      container.read(profileProvider.future),
-      container.read(myOrganizationsProvider.future),
-      container.read(myStoresProvider.future),
-      container.read(merchantOrdersProvider.future),
-      container.read(merchantCustomersProvider.future),
-      container.read(storeWarehousesProvider('store-1').future),
-    ]);
+    await container.read(profileProvider.future);
+    await container.read(myOrganizationsProvider.future);
+    await container.read(myStoresProvider.future);
+    await container.read(merchantOrdersProvider.future);
+    await container.read(merchantCustomersProvider.future);
+    await container.read(storeWarehousesProvider('store-1').future);
 
     expect(profileReads, 2);
     expect(organizationReads, 2);
@@ -115,10 +133,12 @@ void main() {
     expect(customerReads, 2);
     expect(warehouseReads, 2);
     expect(buyerOrderReads, 1);
+
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  test('session reset clears identities and invalidates user-level reads',
-      () async {
+  testWidgets('session reset clears identity and invalidates user-level reads',
+      (tester) async {
     var buyerOrderReads = 0;
     final container = ProviderContainer(
       overrides: [
@@ -135,7 +155,15 @@ void main() {
     container.read(activeOrgIdProvider.notifier).state = 'old-org';
     await container.read(ordersProvider.future);
 
-    resetIdentityProviders(container);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: _RunInvalidation(resetSession: true),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
 
     expect(container.read(currentUserPhoneProvider), '');
     expect(container.read(currentUserEmailProvider), isNull);
@@ -143,5 +171,7 @@ void main() {
 
     await container.read(ordersProvider.future);
     expect(buyerOrderReads, 2);
+
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }
