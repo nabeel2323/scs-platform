@@ -369,3 +369,7 @@ Completed the source implementation for the next Merchant Web re-audit slice. In
 ## UX-040 / UX-041 — Merchant Import Wizard — 22 November 2026
 
 Completed the Merchant Import Wizard source audit slice. Store discovery now has loading/error/retry/no-store states. Processing status polling starts after the process request succeeds, is generation-guarded and overlap-safe, is cancelled on unmount, exposes retry on read failure, and renders COMPLETED/FAILED/CANCELLED outcomes truthfully. Focused tests were added but not executed. Continue the UX-010 re-audit across remaining Merchant Inventory workflows, then Admin and Mobile. Keep the consolidated full test/fix campaign deferred until implementation and integration are complete.
+
+## UX-042 — Merchant Warehouses — 22 November 2026
+
+Completed the Merchant Warehouses source re-audit. Store discovery now distinguishes failed lookup from no store and exposes retry. Warehouse reads have their own loading/error/retry state, suppress false empty results, preserve prior rows after failed refreshes and ignore stale responses. Focused test added but not executed. Continue UX-010 source re-audit across remaining Admin and Mobile workflows; keep full testing deferred until implementation and integration are complete.
