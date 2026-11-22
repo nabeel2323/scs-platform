@@ -657,3 +657,11 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Focused tests: ApiService attrFilters serialization `8a4bf1f`; out-of-order search widget test `0b8fdfb`.
 - All commits use `[skip ci]`. No Flutter or ApiService tests were executed; no exact-head CI result is claimed.
 - PR #138 remains open/draft/unmerged to `develop`. No backend, database, migration, staging, grant/RLS, worker or provider action occurred.
+
+
+## UX-081 verification boundary — 23 November 2026
+
+- Source commits: product detail provider `57144ad`; stable Product Detail/retry implementation `420dae6`; seller-review retry `400b1ac`.
+- Focused Flutter tests: `mobile/test/product_detail_read_recovery_test.dart` at `222a47f`.
+- All commits use `[skip ci]`. No Flutter tests or exact-head CI jobs have been executed for this increment.
+- PR #138 remains open/draft/unmerged to `develop`. No backend route, permission, database, migration, staging, grant/RLS, worker or provider action occurred.
