@@ -7,6 +7,7 @@
  * Shows dispute information, parties, and resolution status.
  */
 import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
+import type { FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { adminRequest, type AdminRecord } from '../../../lib/api';
 import { fetchDisputeEvents, type DisputeEventRecord } from '../../../lib/api';
@@ -67,7 +68,7 @@ function DisputeDetailContent({ id }: { id: string }) {
     return () => { disputeRequestVersion.current += 1; };
   }, [loadDispute]);
 
-  const handleResolve = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleResolve = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const normalizedResolution = resolution.trim();
     if (!normalizedResolution || resolutionSubmitting) return;

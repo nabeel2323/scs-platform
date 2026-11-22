@@ -403,13 +403,21 @@ describe('accessible dialogs and row actions', () => {
 
 
   it('submits the required resolution through the protected dispute endpoint', async () => {
-    vi.mocked(adminRequest).mockResolvedValue({
+    const openDispute = {
       id: 'dispute-1',
       status: 'OPEN',
       reason: 'Damaged goods',
       amountMinor: 1000,
       currency: 'SAR',
-    });
+    };
+    vi.mocked(adminRequest)
+      .mockResolvedValueOnce(openDispute)
+      .mockResolvedValueOnce({ id: 'dispute-1' })
+      .mockResolvedValueOnce({
+        ...openDispute,
+        status: 'RESOLVED',
+        resolution: 'Refund the buyer after review.',
+      });
     render(<DisputeDetailPage />);
     await screen.findByText('Dispute #dispute-1');
 
@@ -426,7 +434,8 @@ describe('accessible dialogs and row actions', () => {
         }),
       );
     });
-    expect(screen.getByRole('status').textContent).toContain('Dispute resolution submitted.');
+    expect(await screen.findByText('Refund the buyer after review.')).toBeTruthy();
+    expect(screen.queryByRole('textbox', { name: 'Resolution' })).toBeNull();
   });
 
   it('shows a retryable error for the dispute detail and reloads successfully', async () => {
