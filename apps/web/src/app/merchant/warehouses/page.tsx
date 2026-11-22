@@ -3,12 +3,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { fetchMyStores, fetchWarehouses, createWarehouse, updateWarehouse, Store, Warehouse } from '../../../lib/api';
-import { hasPerm } from '../../../lib/auth';
+import { useAuth } from '../../../components/AuthProvider';
 import { pickStore } from '../../../lib/merchant-store';
 import { LoadingSpinner, ErrorBanner, EmptyState, StatusBadge, formatDate } from '../../../components/Shared';
 import { PageHeader } from '@scs/ui-kit';
 
 export default function WarehousesPage() {
+  const { user } = useAuth();
   const [store, setStore] = useState<Store | null>(null);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,7 +33,7 @@ export default function WarehousesPage() {
   const [managerPhone, setManagerPhone] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const canEdit = hasPerm('merchant:stores:write');
+  const canEdit = user?.perms?.includes('merchant:stores:write') === true;
 
   const loadWarehouses = useCallback(async (storeId: string) => {
     const requestId = ++warehouseRequestRef.current;
