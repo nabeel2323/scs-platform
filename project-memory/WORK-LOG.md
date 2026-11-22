@@ -387,3 +387,12 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Recorded the bounded source findings in docs/remediation/G-002-DATABASE-ACCESS-PATH-INVENTORY-2026-11-22.md: singleton Drizzle handle; typed and raw execute(sql...) operations; multiple existing nested service transactions; asynchronous post-response audit writes; worker/monitor/bootstrap DB access outside HTTP request context; and raw PoolClient limited to DatabaseService startup identity and development/test migrations/seeding within the reviewed application path.
 - No global transaction interceptor or AsyncLocalStorage adapter was added because the architecture requires complete operation-path, nested-transaction, audit and worker-context proof first.
 - No live staging DB query, migration, role/grant change, RLS enablement, worker activation, deployment or test run occurred.
+
+
+## 2026-11-22 — G-002 database operation map, source slice 1
+
+- Inspected 13 core API service files on the remediation branch: IdentityService, MerchantService, CatalogService, CatalogOfferService, CatalogRequestsService, CatalogTaxonomyService, PricingService, InventoryService, OrdersService, PaymentsService, ReturnsService, ShippingService and AuditService.
+- Added `docs/remediation/G-002-DATABASE-OPERATION-MAP-2026-11-22.md` with direct Drizzle read/insert/update/delete observations for the schema symbols used by those services.
+- Confirmed cross-module access paths: catalog projections read store/warehouse/pricing/inventory/offer/taxonomy data; order lifecycle touches orders, shipment, inventory, financial and outbox rows; payments and returns cross-reference financial/order/shipping/inventory records.
+- Kept the evidence explicitly preliminary: direct source-symbol patterns are not a runtime call graph, do not establish exact tenant predicates, and do not cover all workers, webhooks, CLI/raw-SQL or database objects.
+- Updated DB-003 in the programme gap register. No application code, tests, CI, live database query/write, migration, grants, RLS, staging, deployment, provider call or worker activation occurred.
