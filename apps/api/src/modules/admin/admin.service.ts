@@ -687,6 +687,10 @@ export class AdminService {
   // ── User Creation ──────────────────────────────────────────────
 
   async createUser(dto: CreateUserDto, actorId: string) {
+    if (Boolean(dto.orgId) !== Boolean(dto.roleId)) {
+      throw new BadRequestException('Organization and role must be provided together');
+    }
+
     // Check for duplicate email
     const existingEmail = await this.db.db.query.users.findFirst({
       where: eq(users.email, dto.email),
