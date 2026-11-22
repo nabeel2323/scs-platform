@@ -399,3 +399,11 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Source baseline before docs sync: `cfea06ea07e9a140672f3f741815ebf745354e1d`; this documentation commit advances the branch. PR #138 remains open/draft/unmerged.
 - Latest source-head Vercel Admin and Web statuses are both rate-limited failures, not application test results. No GitHub Actions CI run was attached to the source SHA.
 - No database, migration, deployment, worker activation, grants/RLS or provider actions occurred.
+
+
+## Admin dispute UX-019 checkpoint — 22 November 2026
+
+- Dispute detail now exposes a retryable shared error state and request-version protection. Events/Evidence has independent request sequencing, clears stale rows before loading and exposes retry on failure.
+- Added focused Admin tests for detail read recovery and evidence timeline retry. Not executed.
+- Source baseline before docs sync: `344c4b1300a20b2ec33dfc264d975aff27c4da57`; documentation commit advances branch. PR #138 remains open/draft/unmerged.
+- No DB, migration, deployment, worker activation, grants/RLS or provider action occurred.

@@ -247,3 +247,10 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Added per-row busy feedback and optional enabled state to QuantityStepper; both +/- buttons and direct text input are disabled while busy.
 - Failed quantity writes reset the local stepper from provider-backed cart data. Focused Flutter widget tests added but not run.
 - Continue remaining UX-010 source audit and integration; consolidated test campaign remains deferred.
+
+
+## 2026-11-22 — UX-019 Admin dispute read recovery
+
+- Added retryable dispute detail and Events/Evidence errors, with separate request-version guards to ignore obsolete route/tab responses.
+- The evidence timeline clears stale rows before a new fetch and cannot be repopulated by an obsolete request after leaving the tab.
+- Added focused tests for both retry paths; not run. Continue remaining UX-010 source audit; comprehensive testing remains deferred.

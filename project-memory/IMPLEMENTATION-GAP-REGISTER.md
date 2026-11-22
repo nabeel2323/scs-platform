@@ -229,6 +229,7 @@ Deferred/remaining:
 | UX-016 | Buyer cart mutation feedback and recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Cart quantity/remove/clear handlers previously allowed rejected requests to escape without user feedback or pending-state protection; failed validation and fallback reads could be rendered as an empty cart. Added a shared mutation wrapper, action locking, accessible pending labels, error display and retry while preserving the last loaded cart. |
 | UX-017 | Admin returns queue/detail read recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Admin return list/detail pages used plain, non-retryable error text; the list could show a stale empty state after failure and overlapping filter requests could overwrite newer results. Added standardized retryable error/loading/empty states, request-version protection and focused recovery tests. |
 | UX-018 | Mobile cart line-action concurrency and quantity recovery | P2 | IMPLEMENTED IN SOURCE — NOT TESTED | Mobile cart quantity/remove actions could be triggered repeatedly while requests were pending; the quantity stepper remained editable during mutations and a rejected optimistic text entry could remain visible. Added a shared item-action lock, per-row busy feedback, disabled quantity editor and failure reset. |
+| UX-019 | Admin dispute and evidence timeline read recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Dispute detail and Events/Evidence tabs used non-retryable errors; stale requests could update the screen after a tab or route change. Added retryable shared error states, request-version protection and focused recovery tests. |
 
 
 ## UX-015 — Product Studio save and step-transition integrity — 22 November 2026
@@ -260,3 +261,10 @@ Deferred/remaining:
 - QuantityStepper now accepts an optional enabled flag (default remains enabled for existing callers) and disables both increment/decrement controls and direct text entry when the cart is busy.
 - A failed quantity mutation invalidates cart data and recreates the stepper from the last provider value so an optimistic text entry is not left looking accepted.
 - Added Flutter widget tests for disabled and default-enabled QuantityStepper behavior. Tests have not been executed.
+
+
+## UX-019 — Admin dispute and evidence timeline read recovery — 22 November 2026
+
+- Dispute detail reads now use an awaitable retry callback, clear prior errors, and ignore obsolete responses after route/permission changes or unmounts.
+- Events/Evidence reads now have their own request-version guard, clear stale timeline entries before a new request, and expose the shared retryable error state. Obsolete requests cannot repopulate the timeline after leaving the tab.
+- Added focused Admin tests for detail retry and Events/Evidence retry. Tests have not been executed.

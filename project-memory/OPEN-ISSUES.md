@@ -310,3 +310,10 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Mobile cart quantity/remove requests could overlap and the quantity stepper stayed editable during pending writes. Failed quantity writes could leave optimistic text in the field.
 - Added shared mutation locking, busy-row feedback, disabled quantity editor and provider-backed reset on failure. Added Flutter widget tests, not executed.
 - Continue remaining Admin/Web/Mobile source audit; full test campaign remains deferred.
+
+
+## UX-019 Admin dispute and evidence timeline recovery — 22 November 2026
+
+- Dispute detail and Events/Evidence read failures previously had no retry controls, and obsolete requests could update the view after navigation.
+- Added shared retryable error states, request-version guards and stale evidence clearing. Focused tests added, not executed.
+- Continue remaining UX-010 Admin/Web/Mobile source audit and integration; full test campaign remains deferred.

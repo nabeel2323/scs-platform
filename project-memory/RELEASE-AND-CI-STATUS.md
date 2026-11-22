@@ -457,3 +457,11 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - PR #138 remains open, draft and unmerged to `develop`.
 - No GitHub Actions CI run was attached to the source SHA. Vercel Admin and Web combined statuses both failed with “Deployment rate limited — retry in 24 hours”; these are preview-provider failures, not test results.
 - Focused Flutter widget tests were added but not run. No staging/database/migration/deployment/worker/grant/RLS/provider action occurred.
+
+
+## Exact source checkpoint — UX-019 Admin dispute recovery — 22 November 2026
+
+- Source implementation commit: `344c4b1300a20b2ec33dfc264d975aff27c4da57`; documentation sync follows separately.
+- PR #138 remains open, draft and unmerged to `develop`.
+- No GitHub Actions CI run was triggered for the source commit. Vercel Admin/Web preview failures are rate-limited provider statuses, not application test results.
+- Focused Admin tests were added but not run. No staging/database/migration/deployment/worker/grant/RLS/provider action occurred.

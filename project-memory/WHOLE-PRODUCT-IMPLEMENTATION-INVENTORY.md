@@ -294,3 +294,10 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Added a shared cart-action lock, row-specific progress indicator and disabled item/promo/clear controls while a mutation is active. QuantityStepper now supports an optional enabled flag that disables both buttons and text entry.
 - Failed quantity updates invalidate cart data and recreate the stepper from provider state to avoid displaying an unaccepted optimistic value.
 - Added Flutter widget tests for disabled and default-enabled QuantityStepper behavior. Not executed; no device/CI validation.
+
+
+## 22 November 2026 — Admin dispute timeline recovery (UX-019)
+
+- Dispute detail errors previously had no retry action; Events/Evidence errors were rendered as plain text with no recovery. Async reads were not guarded against stale responses after route/tab changes.
+- Added retryable shared error states and request-version guards for both dispute detail and events. The events list is cleared at the start of a new request so old evidence is not shown alongside a failed refresh.
+- Added focused tests for detail and events retry behavior. Not executed; no browser/CI validation.

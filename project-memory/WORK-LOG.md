@@ -583,3 +583,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added `mobile/test/cart_quantity_stepper_test.dart` for disabled and default-enabled behavior. Not executed.
 - Source baseline: `cfea06ea07e9a140672f3f741815ebf745354e1d`; documentation sync follows separately.
 - No DB, migration, deployment, worker activation, grants/RLS or provider actions.
+
+
+## 2026-11-22 — UX-019 Admin dispute and evidence recovery
+
+- Added `loadDispute` retry with request-version protection and a shared AdminErrorState. Detail reads clear prior errors and ignore stale completions.
+- Added independent Events/Evidence request sequencing, clears old event rows before a fresh load, and exposes retry after failures.
+- Added tests in `apps/admin/src/__tests__/management.test.tsx` for dispute detail retry and evidence timeline retry. Not executed.
+- Source baseline: `344c4b1300a20b2ec33dfc264d975aff27c4da57`; docs sync follows separately.
+- No DB, migration, deployment, worker activation, grants/RLS or provider calls.
