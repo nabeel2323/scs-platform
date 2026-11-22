@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { authFetch } from '../../../lib/auth';
 import { fetchMyStores } from '../../../lib/api';
@@ -102,12 +102,16 @@ export default function ImportWizardPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Auto-resolve store
+  // Store discovery
   const [storeName, setStoreName] = useState('');
+  const [storeId, setStoreId] = useState('');
+  const [storeLoading, setStoreLoading] = useState(true);
+  const [storeError, setStoreError] = useState<string | null>(null);
+  const [noStore, setNoStore] = useState(false);
+  const storeRequestRef = useRef(0);
 
   // Step 1: Upload
   const [file, setFile] = useState<File | null>(null);
-  const [storeId, setStoreId] = useState('');
 
   // Step 2: Column mapping
   const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
@@ -132,19 +136,39 @@ export default function ImportWizardPage() {
   // Step 6: Review
   const [importStats, setImportStats] = useState<{ created: number; updated: number; skipped: number; errors: number } | null>(null);
 
-  // Auto-resolve store on mount
-  useEffect(() => {
-    (async () => {
-      try {
-        const stores = await fetchMyStores();
-        const s = pickStore(stores);
-        if (s) {
-          setStoreId(s.id);
-          setStoreName(s.displayName);
-        }
-      } catch { /* handled during upload */ }
-    })();
+  const resolveStore = useCallback(async () => {
+    const requestId = ++storeRequestRef.current;
+    setStoreLoading(true);
+    setStoreError(null);
+    setNoStore(false);
+    try {
+      const stores = await fetchMyStores();
+      if (requestId !== storeRequestRef.current) return;
+      const store = pickStore(stores);
+      if (!store) {
+        setStoreId('');
+        setStoreName('');
+        setNoStore(true);
+        return;
+      }
+      setStoreId(store.id);
+      setStoreName(store.displayName);
+    } catch (err: unknown) {
+      if (requestId !== storeRequestRef.current) return;
+      setStoreId('');
+      setStoreName('');
+      setStoreError(err instanceof Error ? err.message : 'Failed to load stores');
+    } finally {
+      if (requestId === storeRequestRef.current) setStoreLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void resolveStore();
+    return () => {
+      storeRequestRef.current += 1;
+    };
+  }, [resolveStore]);
 
   /** Download a CSV template with TARGET_COLUMNS headers and 2 example rows. */
   const downloadTemplate = () => {
@@ -544,15 +568,26 @@ export default function ImportWizardPage() {
         <div>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Store</label>
-            {storeName ? (
+            {storeLoading ? (
+              <div role="status" style={{ padding: '8px 12px', border: '1px solid #D1D5DB', borderRadius: 4, fontSize: 13, color: '#666', backgroundColor: '#F9FAFB' }}>
+                Loading your store...
+              </div>
+            ) : storeError ? (
+              <div role="alert" style={{ padding: '8px 12px', border: '1px solid #FECACA', borderRadius: 4, fontSize: 13, color: '#B3372F', backgroundColor: '#FEF2F2' }}>
+                <div>{storeError}</div>
+                <button type="button" onClick={() => void resolveStore()} style={{ marginTop: 8 }}>
+                  Retry store lookup
+                </button>
+              </div>
+            ) : storeName ? (
               <div style={{ padding: '8px 12px', border: '1px solid #D1D5DB', borderRadius: 4, fontSize: 14, backgroundColor: '#F9FAFB', color: '#0f3340', fontWeight: 600 }}>
                 {storeName}
               </div>
-            ) : (
+            ) : noStore ? (
               <div style={{ padding: '8px 12px', border: '1px solid #FECACA', borderRadius: 4, fontSize: 13, color: '#B3372F', backgroundColor: '#FEF2F2' }}>
-                No store found — please onboard a store first.
+                No store found. <a href="/merchant/onboard" style={{ color: '#174A5B', textDecoration: 'underline' }}>Onboard a store</a> before importing.
               </div>
-            )}
+            ) : null}
           </div>
 
           <div
@@ -584,11 +619,11 @@ export default function ImportWizardPage() {
             </button>
             <button
               onClick={goToMapping}
-              disabled={!file || !storeId || loading}
+              disabled={!file || !storeId || storeLoading || loading}
               style={{
                 padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600,
-                backgroundColor: file && storeId ? '#174A5B' : '#D1D5DB', color: 'white', border: 'none',
-                cursor: file && storeId ? 'pointer' : 'not-allowed',
+                backgroundColor: file && storeId && !storeLoading ? '#174A5B' : '#D1D5DB', color: 'white', border: 'none',
+                cursor: file && storeId && !storeLoading ? 'pointer' : 'not-allowed',
               }}
             >
               {loading ? 'Preparing…' : 'Next: Map Columns →'}
