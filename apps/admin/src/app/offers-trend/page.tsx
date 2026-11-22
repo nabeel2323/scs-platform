@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import {
   fetchAdminOfferTrend, OfferTrendResponse, OfferTrendBucket,
@@ -30,7 +30,9 @@ export default function OffersTrendPage() {
   const [status, setStatus] = useState('');
   const [metric, setMetric] = useState<'revenue' | 'units' | 'orders'>('revenue');
 
+  const requestVersion = useRef(0);
   const load = useCallback(async () => {
+    const requestId = ++requestVersion.current;
     setLoading(true);
     setError('');
     try {
@@ -41,15 +43,20 @@ export default function OffersTrendPage() {
         status: status || undefined,
         topStores: 10,
       });
-      setData(res);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load trend');
+      if (requestId === requestVersion.current) setData(res);
+    } catch (err: unknown) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load trend');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestVersion.current) setLoading(false);
     }
   }, [granularity, days, storeId, status]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   // PHASE 19 (CI fix): `useMemo` hooks MUST be called before the early-return
   // below so React's Rules-of-Hooks are satisfied on every render. The
@@ -78,7 +85,7 @@ export default function OffersTrendPage() {
 
   const periodLabel = data
     ? `${new Date(data.from).toLocaleDateString()} — ${new Date(data.to).toLocaleDateString()} · ${data.granularity}`
-    : 'Loading period…';
+    : error ? 'Period unavailable' : loading ? 'Loading period…' : 'No period data';
 
   // PHASE 20: client-side CSV export of the currently-visible trend series and
   // store leaderboard. Two files rather than one so a spreadsheet can open
@@ -155,7 +162,7 @@ export default function OffersTrendPage() {
 
       {error && (
         <div role="alert" style={{ padding: 12, background: colors.errBg, color: colors.err, borderRadius: radii.sm, marginBottom: 16 }}>
-          {error}
+          <span>{error}</span>{' '}<button type="button" onClick={() => void load()}>Retry offer trend</button>
         </div>
       )}
 
@@ -202,7 +209,7 @@ export default function OffersTrendPage() {
         </div>
         {loading ? (
           <div style={{ padding: 24, color: colors.muted }}>Loading…</div>
-        ) : !data || data.topStores.length === 0 ? (
+        ) : error && !data ? null : !data || data.topStores.length === 0 ? (
           <div style={{ padding: 24, color: colors.muted }}>No offer-backed sales in this window.</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
