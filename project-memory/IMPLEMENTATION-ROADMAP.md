@@ -381,3 +381,7 @@ Completed the Admin Dashboard read-recovery slice. KPIs, pending organization up
 ## UX-044 — Admin KPI Dashboard — 22 November 2026
 
 Completed the dedicated Admin KPI Dashboard recovery slice. KPI reads now have retryable errors, request-version guards and stale-data preservation. Initial failures show unavailable values instead of zero defaults; failed date-range refreshes retain the last successful dataset. Focused test added but not executed. Continue UX-010 across remaining Admin workflows (next: Organizations list/update-request read separation), then Mobile.
+
+## UX-045 — Admin Organizations — 22 November 2026
+
+Completed the Admin Organizations read-recovery slice. Organization directory and update-request queue now load independently, each with its own retry/error/loading state and request-version guard. A failure in one endpoint no longer blocks the other list or renders a false empty state; last successful rows remain visible during failed refreshes. Focused test added but not executed. Continue UX-010 across remaining Admin users/merchants workflows, then Mobile.
