@@ -295,3 +295,12 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - G-001 remains PARTIAL pending independent review. G-002 remains IN PROGRESS pending protected live API/migration identity/catalog evidence, full operation ownership review and approved transaction-context/RLS design. No RLS or shared DB change is authorized.
 - Next: continue UX-010 source re-audit across remaining Admin/Web/Mobile screens and implement only concrete, contract-backed gaps. Then complete integration, followed by one consolidated test/fix campaign.
 - No merge, deployment, staging/shared DB write, migration, grants/default ACL change, RLS enablement, worker activation or external provider call.
+
+## Latest continuation checkpoint — 22 November 2026 (UX-038 / UX-039)
+
+- Repository: `nabeel2323/scs-platform`; work branch: `remediation/phase-0-1-tenant-security`; PR #138 remains open, draft, unmerged and targets `develop`. PR #142 remains a separate open/draft runtime-identity diagnostic PR.
+- Implemented UX-038 Merchant Inventory variant-directory completeness/retry and UX-039 Merchant Import History store/job read recovery. Focused tests were added for pagination, partial variant failures, store lookup retry, failed import reads and no-store behavior. They have not been executed.
+- Latest source implementation commit: `bac13a1bbe48a1aac6456a24e545ebf28cabdc7d`. The subsequent commits synchronize this checkpoint's project-memory documents; resolve the live documentation HEAD from GitHub at session start.
+- Exact-head Actions lookup for the source commit returned no workflow run. Combined statuses show only Web/Admin Vercel failures pointing to the provider build-rate-limit page; these are not application test results. All new implementation/test/documentation commits use `[skip ci]` under the Actions-minute constraint.
+- Continue UX-010 re-audit across the Merchant Import wizard, remaining inventory workflows, and remaining Admin/Mobile screens. Implement only concrete contract-backed gaps. Comprehensive testing remains deferred until implementation and integration are complete.
+- No merge/deployment, staging/shared database write, migration, grants/default-ACL change, RLS enablement, worker activation, provider call or release authorization occurred.
