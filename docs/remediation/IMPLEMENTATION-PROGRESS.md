@@ -1835,3 +1835,13 @@ This is programme-level UX implementation evidence; it does not change G-001–G
 - Source commits: `da19ca1`, `9ecce8a`; test commits: `112bf00`, `b8c7b1c`.
 - Status: **IMPLEMENTED / TESTING_PENDING**, not test-verified or CI-verified. No API, permission, order transition, stock, fulfillment, schema, migration, database, staging or worker behavior changed.
 - Continue Mobile Store Profile and route-transition audit, then remaining Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
+
+## Mobile merchant Store Profile continuation — UX-092 — 23 November 2026
+
+This is programme-level UX implementation evidence; it does not change G-001–G-035 audit finding status.
+
+- **UX-092 — Mobile Store Profile:** refresh now awaits the organization store-directory read, dependent active-store value and current warehouse directory. The full form supports pull-to-refresh; store and warehouse reads preserve last-successful values and expose retry. Successful empty warehouse state is distinct from failure.
+- Added three focused Flutter widget scenarios in `mobile/test/store_profile_read_recovery_test.dart` for stale store preservation, warehouse retry and initial store lookup recovery. Not executed.
+- Source commit: `bfb820e`; focused test commit: `90b2b6b`.
+- Status: **IMPLEMENTED / TESTING_PENDING**, not test-verified or CI-verified. No store update, warehouse creation, API, permission, schema, migration, database, staging or worker behavior changed.
+- Continue remaining Mobile merchant route-transition/source audit, then remaining Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
