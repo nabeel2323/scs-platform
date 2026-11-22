@@ -460,7 +460,7 @@ export class StoreMembershipService {
 
     // Filter out existing members
     const eligibleIds = orgMembers
-      .filter(m => !existingIds.has(m.userId))
+      .filter(m => m.status === 'ACTIVE' && !existingIds.has(m.userId))
       .map(m => m.userId);
 
     if (eligibleIds.length === 0) return [];
