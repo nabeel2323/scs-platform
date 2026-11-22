@@ -13,9 +13,18 @@ export async function fetchMerchantInventoryVariants(storeId: string): Promise<P
 
   while (true) {
     const page = await fetchStoreProducts(storeId, { limit: 50, offset });
-    products.push(...page.items);
+    const pageProducts = page.items.filter(
+      (item): item is { id: string } =>
+        typeof item === 'object' &&
+        item !== null &&
+        'id' in item &&
+        typeof item.id === 'string',
+    );
+    products.push(...pageProducts);
 
-    if (products.length >= page.total || page.items.length === 0) break;
+    if (products.length >= page.total || page.items.length === 0 || pageProducts.length === 0) {
+      break;
+    }
     offset += page.items.length;
   }
 
