@@ -14,7 +14,10 @@ import {
   ParseUUIDPipe,
   ForbiddenException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
+import { and, eq } from 'drizzle-orm';
+import { productVariants } from './catalog.schema';
 import {
   CatalogService,
   CreateCategoryInput,
@@ -493,6 +496,21 @@ export class CatalogController {
     @Param('variantId') variantId: string,
   ) {
     await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+
+    // The product path segment is part of the authorization boundary. Do not
+    // let a merchant who owns product A read attribute values for product B's
+    // variant by supplying B's variant UUID alongside A's product UUID.
+    const variant = await this.db.db.query.productVariants.findFirst({
+      where: and(
+        eq(productVariants.id, variantId),
+        eq(productVariants.productId, productId),
+      ),
+      columns: { id: true },
+    });
+    if (!variant) {
+      throw new NotFoundException('Variant not found for this product');
+    }
+
     return this.taxonomyService.getVariantAttributeValues(variantId);
   }
 
