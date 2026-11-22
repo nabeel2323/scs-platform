@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { UPDATE_REQUEST_STATUS_LABELS } from '@scs/contracts';
 import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
@@ -36,8 +36,13 @@ export default function OrganizationsPage() {
 
   const [ready, setReady] = useState(false);
   const [orgs, setOrgs] = useState<AdminOrg[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [orgsLoading, setOrgsLoading] = useState(true);
+  const [orgsError, setOrgsError] = useState<string | null>(null);
+  const [requestsLoading, setRequestsLoading] = useState(true);
+  const [requestsError, setRequestsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const orgsRequestRef = useRef(0);
+  const requestsRequestRef = useRef(0);
   const [success, setSuccess] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [confirmTarget, setConfirmTarget] = useState<{ org: AdminOrg; next: boolean } | null>(null);
@@ -55,26 +60,48 @@ export default function OrganizationsPage() {
 
   useEffect(() => setReady(true), []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const loadOrganizations = useCallback(async () => {
+    const requestId = ++orgsRequestRef.current;
+    setOrgsLoading(true);
+    setOrgsError(null);
     try {
-      const [orgRows, reqRows] = await Promise.all([
-        fetchAdminOrganizations(),
-        fetchAdminOrgUpdateRequests(),
-      ]);
-      setOrgs(orgRows);
-      setUpdateReqs(reqRows);
+      const rows = await fetchAdminOrganizations();
+      if (requestId === orgsRequestRef.current) setOrgs(rows);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load organizations');
+      if (requestId === orgsRequestRef.current) {
+        setOrgsError(err instanceof Error ? err.message : 'Failed to load organizations');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === orgsRequestRef.current) setOrgsLoading(false);
+    }
+  }, []);
+
+  const loadUpdateRequests = useCallback(async () => {
+    const requestId = ++requestsRequestRef.current;
+    setRequestsLoading(true);
+    setRequestsError(null);
+    try {
+      const rows = await fetchAdminOrgUpdateRequests();
+      if (requestId === requestsRequestRef.current) setUpdateReqs(rows);
+    } catch (err: unknown) {
+      if (requestId === requestsRequestRef.current) {
+        setRequestsError(err instanceof Error ? err.message : 'Failed to load organization update requests');
+      }
+    } finally {
+      if (requestId === requestsRequestRef.current) setRequestsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (ready && hasAccess) void load();
-  }, [ready, hasAccess, load]);
+    if (ready && hasAccess) {
+      void loadOrganizations();
+      void loadUpdateRequests();
+    }
+    return () => {
+      orgsRequestRef.current += 1;
+      requestsRequestRef.current += 1;
+    };
+  }, [ready, hasAccess, loadOrganizations, loadUpdateRequests]);
 
   async function confirmToggle() {
     if (!confirmTarget) return;
@@ -143,8 +170,14 @@ export default function OrganizationsPage() {
 
       <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
         {error && (
-          <div style={{ padding: '10px 16px', background: colors.errBg, color: colors.err, borderRadius: radii.sm, marginBottom: 16, fontSize: typeScale.body.fontSize }}>
+          <div role="alert" style={{ padding: '10px 16px', background: colors.errBg, color: colors.err, borderRadius: radii.sm, marginBottom: 16, fontSize: typeScale.body.fontSize }}>
             {error}
+          </div>
+        )}
+        {orgsError && (
+          <div role="alert" style={{ padding: '10px 16px', background: colors.errBg, color: colors.err, borderRadius: radii.sm, marginBottom: 16, fontSize: typeScale.body.fontSize }}>
+            <span>{orgsError}</span>{' '}
+            <button type="button" onClick={() => void loadOrganizations()}>Retry organizations</button>
           </div>
         )}
         {success && <p role="status" style={{ padding: 16, background: colors.okBg, color: colors.ok, borderRadius: radii.sm, fontSize: typeScale.body.fontSize }}>{success}</p>}
@@ -158,12 +191,12 @@ export default function OrganizationsPage() {
             aria-label="Search organizations"
             style={{ flex: 1, maxWidth: 360, padding: '8px 12px', border: `1px solid ${colors.border}`, borderRadius: radii.sm, fontSize: typeScale.body.fontSize, fontFamily: 'inherit' }}
           />
-          <Button variant="secondary" onClick={() => void load()}>Refresh</Button>
+          <Button variant="secondary" onClick={() => { void loadOrganizations(); void loadUpdateRequests(); }}>Refresh</Button>
         </div>
 
-        {loading ? (
+        {orgsLoading && orgs.length === 0 ? (
           <p style={{ color: colors.muted }}>Loading organizations…</p>
-        ) : filtered.length === 0 ? (
+        ) : orgsError && orgs.length === 0 ? null : filtered.length === 0 ? (
           <p style={{ color: colors.muted, fontSize: typeScale.body.fontSize }}>No organizations found.</p>
         ) : (
           <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radii.md, overflow: 'hidden' }}>
@@ -262,7 +295,15 @@ export default function OrganizationsPage() {
             </div>
           </div>
       
-          {visibleReqs.length === 0 ? (
+          {requestsError && (
+            <div role="alert" style={{ padding: '10px 16px', background: colors.errBg, color: colors.err, borderRadius: radii.sm, marginBottom: 12, fontSize: typeScale.body.fontSize }}>
+              <span>{requestsError}</span>{' '}
+              <button type="button" onClick={() => void loadUpdateRequests()}>Retry update requests</button>
+            </div>
+          )}
+          {requestsLoading && updateReqs.length === 0 ? (
+            <p style={{ color: colors.muted, fontSize: 13 }}>Loading update requests…</p>
+          ) : requestsError && updateReqs.length === 0 ? null : visibleReqs.length === 0 ? (
             <p style={{ color: '#8a9ba5', fontSize: 14 }}>No update requests{reqFilter === 'PENDING' ? ' pending review' : ''}.</p>
           ) : (
             <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
