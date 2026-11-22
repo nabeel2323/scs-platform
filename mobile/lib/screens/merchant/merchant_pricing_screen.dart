@@ -190,14 +190,10 @@ class _PriceListCreateDialogState extends State<_PriceListCreateDialog> {
               onChanged: (value) { if (value != null) setState(() => _channel = value); },
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _audience,
-              decoration: const InputDecoration(labelText: 'Audience'),
-              items: const [
-                DropdownMenuItem(value: 'PUBLIC', child: Text('Public')),
-                DropdownMenuItem(value: 'SEGMENT', child: Text('Segment')),
-              ],
-              onChanged: (value) { if (value != null) setState(() => _audience = value); },
+            const ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text('Audience'),
+              subtitle: Text('Public'),
             ),
             const SizedBox(height: 12),
             TextField(controller: _priority, keyboardType: TextInputType.number,
