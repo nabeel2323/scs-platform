@@ -3,7 +3,13 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { hasMerchantAccess, isAuthenticated } from '../../lib/auth';
+import { isAuthenticated, isMerchantRole } from '../../lib/auth';
+import { useAuth } from '../../components/AuthProvider';
+import {
+  canAccessMerchantRoute,
+  filterMerchantNavigation,
+  MERCHANT_OPEN_PATHS,
+} from '../../lib/merchant-route-permissions';
 import { colors, typeScale, transitions } from '@scs/ui-kit';
 
 /**
@@ -15,60 +21,53 @@ import { colors, typeScale, transitions } from '@scs/ui-kit';
  * user can become a merchant.
  */
 
-/** Paths that any authenticated user may access without merchant role. */
-const OPEN_PATHS = ['/merchant/register', '/merchant/onboard', '/merchant/success'];
-
-/** Sub-navigation items for the merchant segment. */
-const MERCHANT_NAV = [
-  { href: '/merchant', label: 'Dashboard', exact: true },
-  { href: '/merchant/catalog', label: 'Catalog' },
-  { href: '/merchant/orders', label: 'Orders' },
-  { href: '/merchant/deliveries', label: 'Deliveries' },
-  { href: '/merchant/inventory', label: 'Inventory' },
-  { href: '/merchant/pricing', label: 'Pricing' },
-  { href: '/merchant/offers', label: 'Offers' },
-  { href: '/merchant/customers', label: 'Customers' },
-  { href: '/merchant/store', label: 'Store' },
-  { href: '/merchant/warehouses', label: 'Warehouses' },
-  { href: '/merchant/import', label: 'Import' },
-  { href: '/merchant/promotions', label: 'Promotions' },
-  { href: '/merchant/returns', label: 'Returns' },
-  { href: '/merchant/organization', label: 'Organization' },
-];
 
 export default function MerchantLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [checked, setChecked] = useState(false);
+  const visibleNav = filterMerchantNavigation(user?.perms ?? []);
 
   useEffect(() => {
-    // Allow open paths (register, onboard, success) without role check
-    const isOpen = OPEN_PATHS.some((p) => pathname.startsWith(p));
-    if (isOpen) {
-      setChecked(true);
-      return;
-    }
+    setChecked(false);
+    if (authLoading) return;
 
-    // Require authentication
+    // Every merchant-group route, including registration/onboarding, requires
+    // an authenticated session. Open paths bypass only the merchant-role gate.
     if (!isAuthenticated()) {
       router.replace('/auth/login');
       return;
     }
 
-    // Require merchant role
-    if (!hasMerchantAccess()) {
+    const isOpen = MERCHANT_OPEN_PATHS.some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`),
+    );
+    if (isOpen) {
+      setChecked(true);
+      return;
+    }
+
+    if (!isMerchantRole(user?.role)) {
       router.replace('/search');
       return;
     }
 
+    if (!canAccessMerchantRoute(pathname, user?.perms ?? [])) {
+      router.replace('/merchant');
+      return;
+    }
+
     setChecked(true);
-  }, [pathname, router]);
+  }, [pathname, router, authLoading, user]);
 
   // Show nothing while checking to avoid a flash of forbidden content
   if (!checked) return null;
 
   // Hide sub-nav on open paths (register, onboard, success)
-  const isOpenPath = OPEN_PATHS.some((p) => pathname.startsWith(p));
+  const isOpenPath = MERCHANT_OPEN_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
 
   return (
     <>
@@ -81,7 +80,7 @@ export default function MerchantLayout({ children }: { children: React.ReactNode
           display: 'flex',
           gap: 0,
         }}>
-          {MERCHANT_NAV.map(item => {
+          {visibleNav.map(item => {
             const isActive = item.exact
               ? pathname === item.href
               : pathname.startsWith(item.href);
