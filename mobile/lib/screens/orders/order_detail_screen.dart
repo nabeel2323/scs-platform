@@ -44,6 +44,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   };
 
   Future<void> _confirmCancel(SubOrder o) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('orders:cancel') != true) return;
     final reason = await showDialog<String>(
       context: context,
       builder: (ctx) => SimpleDialog(
@@ -88,6 +89,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
 
   /// M7.3-A: buyer confirms delivery → DELIVERED → COMPLETED.
   Future<void> _confirmDelivery(SubOrder o) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('orders:write') != true) return;
     setState(() => _busy = true);
     try {
       await ref.read(apiServiceProvider).confirmDelivery(o.id);
@@ -227,6 +229,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final permissions = ref.watch(profileProvider).valueOrNull?.perms ?? const <String>[];
+    final canWrite = permissions.contains('orders:write');
+    final canCancel = permissions.contains('orders:cancel');
     return Scaffold(
         appBar: AppBar(title: Text('Order #${widget.orderId.substring(0, 8)}')),
         body: FutureBuilder<SubOrder>(
@@ -299,7 +304,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                         ),
                       ],
                       // M7.3-A: confirm delivery prompt when DELIVERED
-                      if (_confirmableDelivery.contains(o.status)) ...[
+                      if (_confirmableDelivery.contains(o.status) && canWrite) ...[
                         const SizedBox(height: 12),
                         Container(
                           width: double.infinity,
@@ -416,7 +421,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                       const SizedBox(height: 16),
                       // §4.3 row 162: buyer cancel, guarded to the statuses the
                       // API allows and behind a confirm dialog.
-                      if (_cancellable.contains(o.status)) ...[
+                      if (_cancellable.contains(o.status) && canCancel) ...[
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
@@ -433,7 +438,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                         const SizedBox(height: 16),
                       ],
                       // Reorder button for completed/delivered orders
-                      if (['DELIVERED', 'COMPLETED'].contains(o.status))
+                      if (['DELIVERED', 'COMPLETED'].contains(o.status) && canWrite)
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(

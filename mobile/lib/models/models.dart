@@ -722,6 +722,7 @@ class UserProfile {
   final String id, status, createdAt;
   final String? phone, email, fullName, locale, activeOrgId, role;
   final List<OrgMembership> organizations;
+  final List<String> perms;
   UserProfile({
     required this.id,
     required this.status,
@@ -733,6 +734,7 @@ class UserProfile {
     this.activeOrgId,
     this.role,
     this.organizations = const [],
+    this.perms = const [],
   });
   factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
         id: j['id'] ?? '',
@@ -744,10 +746,18 @@ class UserProfile {
         locale: j['locale'],
         activeOrgId: j['activeOrgId'],
         role: j['role'] as String?,
+        perms: (j['perms'] as List? ?? const <dynamic>[])
+            .map((permission) => permission.toString())
+            .where((permission) => permission.isNotEmpty)
+            .toList(growable: false),
         organizations: (j['organizations'] as List? ?? [])
             .map((e) => OrgMembership.fromJson(e))
             .toList(),
       );
+
+  bool hasPermission(String permission) => perms.contains(permission);
+  bool hasAnyPermission(Iterable<String> permissions) => permissions.any(perms.contains);
+  bool hasAllPermissions(Iterable<String> permissions) => permissions.every(perms.contains);
 }
 
 /// Response from account link/unlink endpoints (S1.35 Phase 1).

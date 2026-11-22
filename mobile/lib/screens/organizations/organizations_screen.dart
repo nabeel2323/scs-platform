@@ -29,6 +29,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
   }
 
   Future<void> _createOrg() async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('identity:organizations:create') != true) return;
     if (_nameCtrl.text.isEmpty || _countryCtrl.text.isEmpty) return;
     setState(() => _creating = true);
     try {
@@ -89,18 +90,14 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
   Widget build(BuildContext context) {
     final orgs = ref.watch(myOrganizationsProvider);
     final activeOrg = ref.watch(activeOrgIdProvider);
+    final canCreate = ref.watch(profileProvider).valueOrNull?.hasPermission('identity:organizations:create') ?? false;
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Organizations'),
-        actions: [
-          IconButton(
-            icon: Icon(_showCreate ? Icons.close : Icons.add),
-            onPressed: () => setState(() => _showCreate = !_showCreate),
-          ),
-        ],
+        actions: canCreate ? [IconButton(icon: Icon(_showCreate ? Icons.close : Icons.add), onPressed: () => setState(() => _showCreate = !_showCreate))] : const [],
       ),
       body: Column(children: [
-        if (_showCreate)
+        if (_showCreate && canCreate)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -151,7 +148,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
             data: (list) => list.isEmpty
                 ? const EmptyState(
                     title: 'No organizations',
-                    description: 'Create one to get started')
+                    description: canCreate ? 'Create one to get started' : 'No organizations are available to this account')
                 : RefreshIndicator(
                     onRefresh: () async =>
                         ref.invalidate(myOrganizationsProvider),

@@ -207,3 +207,20 @@ The Admin sidebar has 32 destinations grouped by operational domain: Overview, P
 Completed a source-level review of all 56 `apps/admin/src/app/**/page.tsx` files, the root `AuthGuard`, `useRequirePerms`, generic `ManagementPage`, and `managementTables` permission configuration. The complete route/action map is maintained in [Admin Route and Action Permission Matrix](../docs/admin-route-permission-matrix.md). Two UI action-gating gaps were found and corrected: calendar holiday add/remove and escalated-return resolution now require `admin:returns:write`, matching existing API guards. Focused Admin component tests were added. This is not a claim that every API endpoint, role combination, or deep-link workflow has completed Phase 3 verification.
 
 The next mapping priority is the 32 mobile screens/routes and their granular permission/action affordances; then finish web route-to-API and worker/provider operation ownership mapping.
+
+
+## Mobile authorization inventory — 22 November 2026
+
+| Surface | Permission behavior added | Validation state |
+|---|---|---|
+| Profile model | Parse `GET /v1/me.perms`; exact/any/all helpers | Tests added; execution pending |
+| Router/deep links | Active-org route policy; Access Restricted page; refresh on profile/org change | Tests added; execution pending |
+| Buyer shell/Home | Search, Cart, Orders, merchant/driver launchers filtered by grants | Implementation added |
+| Merchant shell/dashboard | Dashboard, orders, catalog, inventory and child destinations filtered | Implementation added |
+| Organization screens | Create/edit/add/remove member actions require organization permissions | Implementation added |
+| Driver shipments | Pickup and delivery require their specific shipment permissions | Implementation added |
+| Buyer order detail | Cancel, delivery confirmation and reorder require order permissions | Implementation added |
+| Merchant order/inventory/catalog/store | Mutating actions gated by merchant write/delete permissions | Implementation added |
+| Product/search/home cart actions | Add to Cart requires `orders:write` | Implementation added |
+
+API guards remain authoritative. Client-side checks improve navigation and affordances but do not replace backend authorization. Full validation is deferred to the consolidated final phase to conserve Actions minutes.

@@ -69,7 +69,7 @@ class MerchantDashboardScreen extends ConsumerWidget {
                   actionLabel: 'Create Your Store',
                 );
               }
-              return _hub(context, ref, store);
+              return _hub(context, ref, store, p);
             },
           );
         },
@@ -77,7 +77,7 @@ class MerchantDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _hub(BuildContext context, WidgetRef ref, Store store) =>
+  Widget _hub(BuildContext context, WidgetRef ref, Store store, UserProfile profile) =>
       ListView(padding: const EdgeInsets.all(16), children: [
         Container(
           padding: const EdgeInsets.all(16),
@@ -102,7 +102,7 @@ class MerchantDashboardScreen extends ConsumerWidget {
           ]),
         ),
         const SizedBox(height: 20),
-        _kpis(context, ref),
+        if (profile.hasPermission('merchant:orders:read')) _kpis(context, ref),
         const SizedBox(height: 20),
         GridView.count(
           crossAxisCount: 2,
@@ -112,23 +112,30 @@ class MerchantDashboardScreen extends ConsumerWidget {
           crossAxisSpacing: 12,
           childAspectRatio: 1.2,
           children: [
-            _card(context, 'Store Profile', Icons.storefront, '/merchant/store',
+            if (profile.hasPermission('merchant:stores:read'))
+              _card(context, 'Store Profile', Icons.storefront, '/merchant/store',
                 TaifTokens.brandPrimary),
-            _card(context, 'Catalog', Icons.inventory_2, '/merchant/catalog',
+            if (profile.hasPermission('catalog:products:read'))
+              _card(context, 'Catalog', Icons.inventory_2, '/merchant/catalog',
                 TaifTokens.info,
                 onTap: () => _open(context, 'catalog', '/merchant/catalog')),
-            _card(context, 'Inventory', Icons.bar_chart, '/merchant/inventory',
+            if (profile.hasPermission('merchant:inventory:read'))
+              _card(context, 'Inventory', Icons.bar_chart, '/merchant/inventory',
                 const Color(0xFF059669),
                 onTap: () =>
                     _open(context, 'inventory', '/merchant/inventory')),
-            _card(context, 'Categories', Icons.category, '/merchant/categories',
+            if (profile.hasPermission('catalog:categories:write'))
+              _card(context, 'Categories', Icons.category, '/merchant/categories',
                 TaifTokens.warn),
-            _card(context, 'Orders', Icons.receipt_long, '/merchant/orders',
+            if (profile.hasPermission('merchant:orders:read'))
+              _card(context, 'Orders', Icons.receipt_long, '/merchant/orders',
                 const Color(0xFF7C3AED),
                 onTap: () => _open(context, 'orders', '/merchant/orders')),
-            _card(context, 'Customers', Icons.people, '/merchant/customers',
+            if (profile.hasPermission('merchant:orders:read'))
+              _card(context, 'Customers', Icons.people, '/merchant/customers',
                 TaifTokens.ok),
-            _card(context, 'Offers', Icons.local_offer, '/merchant/offers',
+            if (profile.hasPermission('catalog:offers:write'))
+              _card(context, 'Offers', Icons.local_offer, '/merchant/offers',
                 TaifTokens.brandAccent),
             _card(context, 'Organization', Icons.business, '/organizations',
                 const Color(0xFF0891B2)),

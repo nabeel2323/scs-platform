@@ -16,13 +16,14 @@ class OrgDetailScreen extends ConsumerWidget {
     final orgAsync = ref.watch(orgDetailProvider(orgId));
     final members = ref.watch(orgMembersProvider(orgId));
     final org = orgAsync.valueOrNull;
+    final canWrite = ref.watch(profileProvider).valueOrNull?.hasPermission('identity:organizations:write') ?? false;
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Organization'),
           actions: [
-            if (org != null)
+            if (org != null && canWrite)
               IconButton(
                   icon: const Icon(Icons.edit_outlined),
                   tooltip: 'Edit',
@@ -32,15 +33,16 @@ class OrgDetailScreen extends ConsumerWidget {
               const TabBar(tabs: [Tab(text: 'Details'), Tab(text: 'Members')]),
         ),
         body: TabBarView(children: [
-          _detailsTab(context, ref, orgAsync),
-          _membersTab(context, ref, members),
+          _detailsTab(context, ref, orgAsync, canWrite),
+          _membersTab(context, ref, members, canWrite),
         ]),
       ),
     );
   }
 
   Widget _detailsTab(
-          BuildContext context, WidgetRef ref, AsyncValue<Organization> org) =>
+          BuildContext context, WidgetRef ref, AsyncValue<Organization> org,
+          bool canWrite) =>
       org.when(
         data: (o) => ListView(padding: const EdgeInsets.all(16), children: [
           _field('Name', o.name),
@@ -50,10 +52,11 @@ class OrgDetailScreen extends ConsumerWidget {
           _field('Tax ID', o.taxId ?? '—'),
           if (o.inviteCode != null && o.inviteCode!.isNotEmpty)
             _field('Invite Code', o.inviteCode!),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
+          if (canWrite) const SizedBox(height: 16),
+          if (canWrite)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
               onPressed: () => _showEditDialog(context, ref, o),
               icon: const Icon(Icons.edit),
               label: const Text('Edit Organization'),
@@ -85,7 +88,7 @@ class OrgDetailScreen extends ConsumerWidget {
       );
 
   Widget _membersTab(BuildContext context, WidgetRef ref,
-          AsyncValue<List<OrgMember>> members) =>
+          AsyncValue<List<OrgMember>> members, bool canWrite) =>
       members.when(
         data: (list) => Column(children: [
           Padding(
@@ -95,10 +98,11 @@ class OrgDetailScreen extends ConsumerWidget {
                   style:
                       const TextStyle(color: TaifTokens.muted, fontSize: 13)),
               const Spacer(),
-              TextButton.icon(
-                  onPressed: () => _showAddMemberDialog(context, ref),
-                  icon: const Icon(Icons.person_add_alt, size: 18),
-                  label: const Text('Add Member')),
+              if (canWrite)
+                TextButton.icon(
+                    onPressed: () => _showAddMemberDialog(context, ref),
+                    icon: const Icon(Icons.person_add_alt, size: 18),
+                    label: const Text('Add Member')),
             ]),
           ),
           Expanded(
@@ -106,8 +110,8 @@ class OrgDetailScreen extends ConsumerWidget {
                 ? EmptyState(
                     title: 'No members',
                     description: 'Add members to collaborate',
-                    onAction: () => _showAddMemberDialog(context, ref),
-                    actionLabel: 'Add Member')
+                    onAction: canWrite ? () => _showAddMemberDialog(context, ref) : null,
+                    actionLabel: canWrite ? 'Add Member' : null)
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                     itemCount: list.length,
@@ -134,7 +138,8 @@ class OrgDetailScreen extends ConsumerWidget {
                             Chip(
                                 label: Text(m.roleId,
                                     style: const TextStyle(fontSize: 11))),
-                            IconButton(
+                            if (canWrite)
+                              IconButton(
                                 icon: const Icon(Icons.remove_circle_outline,
                                     color: TaifTokens.err),
                                 tooltip: 'Remove',
@@ -169,6 +174,7 @@ class OrgDetailScreen extends ConsumerWidget {
 
   Future<void> _showEditDialog(
       BuildContext context, WidgetRef ref, Organization o) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('identity:organizations:write') != true) return;
     final nameCtrl = TextEditingController(text: o.name);
     final legalCtrl = TextEditingController(text: o.legalName ?? '');
     final taxCtrl = TextEditingController(text: o.taxId ?? '');
@@ -234,6 +240,7 @@ class OrgDetailScreen extends ConsumerWidget {
   }
 
   Future<void> _showAddMemberDialog(BuildContext context, WidgetRef ref) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('identity:organizations:write') != true) return;
     final userIdCtrl = TextEditingController();
     final roleIdCtrl = TextEditingController();
     final ok = await showDialog<bool>(
@@ -292,6 +299,7 @@ class OrgDetailScreen extends ConsumerWidget {
 
   Future<void> _confirmRemoveMember(
       BuildContext context, WidgetRef ref, OrgMember m) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('identity:organizations:write') != true) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

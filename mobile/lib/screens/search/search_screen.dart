@@ -86,6 +86,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Future<void> _addToCart(Product p) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('orders:write') != true) return;
     // Canonical products (no storeId) require an explicit offer/seller
     // selection — the backend will reject a bare add. Navigate to the PDP
     // where the buyer can pick a merchant offer.
@@ -157,6 +158,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canAddToCart = ref.watch(profileProvider).valueOrNull?.hasPermission('orders:write') ?? false;
     final cats = ref.watch(categoriesProvider);
     // Home → Search category hand-off. The shell keeps this branch alive, so
     // initState does not re-run on a tab switch; listening here applies the
@@ -305,7 +307,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             return ProductCard(
                 product: p,
                 onTap: () => context.push('/products/${p.id}'),
-                onAddToCart: () => _addToCart(p));
+                onAddToCart: canAddToCart ? () => _addToCart(p) : null);
           },
         ),
       ),

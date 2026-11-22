@@ -92,6 +92,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   Future<void> _add(BuildContext context, WidgetRef ref, Product p,
       {String? variantId, String? offerId, int? quantity}) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('orders:write') != true) return;
     try {
       await ref
           .read(apiServiceProvider)
@@ -169,6 +170,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canAddToCart = ref.watch(profileProvider).valueOrNull?.hasPermission('orders:write') ?? false;
     return Scaffold(
       appBar: AppBar(title: const Text('Product')),
       body: FutureBuilder<Product>(
@@ -266,23 +268,20 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                 _buildReviews(p),
                 // ── Add to Cart ──
                 const SizedBox(height: 24),
-                SizedBox(
+                if (canAddToCart)
+                  SizedBox(
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton.icon(
-                        icon: const Icon(Icons.add_shopping_cart),
-                        onPressed: (hasMatrix &&
-                                (resolved == null || !resolved.inStock))
-                            ? null
-                            : () => _add(context, ref, p,
-                                variantId: resolved?.variantId),
-                        label: Text(!hasMatrix
-                            ? 'Add to Cart'
-                            : resolved == null
-                                ? 'Select options'
-                                : resolved.inStock
-                                    ? 'Add to Cart'
-                                    : 'Out of stock'))),
+                      icon: const Icon(Icons.add_shopping_cart),
+                      onPressed: (hasMatrix && (resolved == null || !resolved.inStock))
+                          ? null
+                          : () => _add(context, ref, p, variantId: resolved?.variantId),
+                      label: Text(!hasMatrix ? 'Add to Cart' : resolved == null ? 'Select options' : resolved.inStock ? 'Add to Cart' : 'Out of stock'),
+                    ),
+                  )
+                else
+                  const Text('Adding items to cart requires orders:write.', style: TextStyle(color: TaifTokens.muted, fontSize: 12)),
                 const SizedBox(height: 16),
               ],
             ),

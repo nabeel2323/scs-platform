@@ -1,43 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
+import '../../models/models.dart';
+import '../../providers/providers.dart';
 import '../profile/profile_screen.dart';
 import 'inventory_screen.dart';
 import 'merchant_catalog_screen.dart';
 import 'merchant_dashboard_screen.dart';
 import 'merchant_orders_screen.dart';
 
-/// The five merchant console tabs. Declaration order == NavigationBar order ==
-/// IndexedStack child order, so [MerchantTab.index] is the stack index.
 enum MerchantTab { dashboard, orders, catalog, inventory, account }
 
-/// Merchant console shell (audit row 64 / spec §4.5 — the merchant tab-shell
-/// deferred from the buyer navigation pass). A single `/merchant` route hosts an
-/// [IndexedStack] of the five management screens under a [NavigationBar], so a
-/// merchant moves between Dashboard / Orders / Catalog / Inventory / Account
-/// without re-pushing routes or losing each tab's scroll + filter state.
-///
-/// Deliberately an internal IndexedStack, NOT a go_router StatefulShellRoute:
-/// the merchant area is entered by *pushing* `/merchant` on top of the buyer
-/// shell, and nesting a second stateful shell inside the first is fragile and
-/// cannot be UI-verified here. Each child keeps its own Scaffold + AppBar (so
-/// the title tracks the active tab); this shell supplies only the bottom bar.
-/// Sections that are not tabs (store profile, categories, customers, product
-/// editor, registration) still push full-screen from the dashboard grid.
-///
-/// Caveat: like the buyer IndexedStack shell, all five tabs build eagerly on
-/// mount, so their store-scoped providers (orders, catalog, inventory, KPIs)
-/// fire together the first time the console opens. That is acceptable for a
-/// merchant console — the data is related and Riverpod caches it — but it is
-/// not lazy.
-class MerchantShellScreen extends StatefulWidget {
-  const MerchantShellScreen(
-      {super.key, this.initialTab = MerchantTab.dashboard});
-
+class MerchantShellScreen extends ConsumerStatefulWidget {
+  const MerchantShellScreen({super.key, this.initialTab = MerchantTab.dashboard});
   final MerchantTab initialTab;
 
-  /// Maps a `/merchant?tab=<key>` deep-link value to a tab; unknown or absent
-  /// keys fall back to the dashboard. Lets the buyer Home launchers and any
-  /// notification deep link open a specific tab without adding new routes.
   static MerchantTab tabFromKey(String? key) => switch (key) {
         'orders' => MerchantTab.orders,
         'catalog' => MerchantTab.catalog,
@@ -47,67 +24,58 @@ class MerchantShellScreen extends StatefulWidget {
       };
 
   @override
-  State<MerchantShellScreen> createState() => _MerchantShellScreenState();
+  ConsumerState<MerchantShellScreen> createState() => _MerchantShellScreenState();
 }
 
-class _MerchantShellScreenState extends State<MerchantShellScreen> {
-  late int _index = widget.initialTab.index;
+class _MerchantShellScreenState extends ConsumerState<MerchantShellScreen> {
+  late MerchantTab _selectedTab = widget.initialTab;
 
-  void _select(int i) {
-    if (i != _index) setState(() => _index = i);
-  }
+  List<MerchantTab> _visibleTabs(UserProfile profile) => [
+        if (profile.hasPermission('merchant:stores:read')) MerchantTab.dashboard,
+        if (profile.hasPermission('merchant:orders:read')) MerchantTab.orders,
+        if (profile.hasPermission('catalog:products:read')) MerchantTab.catalog,
+        if (profile.hasPermission('merchant:inventory:read')) MerchantTab.inventory,
+        MerchantTab.account,
+      ];
+
+  NavigationDestination _destination(MerchantTab tab) => switch (tab) {
+        MerchantTab.dashboard => const NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Dashboard'),
+        MerchantTab.orders => const NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Orders'),
+        MerchantTab.catalog => const NavigationDestination(icon: Icon(Icons.inventory_2_outlined), selectedIcon: Icon(Icons.inventory_2), label: 'Catalog'),
+        MerchantTab.inventory => const NavigationDestination(icon: Icon(Icons.warehouse_outlined), selectedIcon: Icon(Icons.warehouse), label: 'Inventory'),
+        MerchantTab.account => const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Account'),
+      };
+
+  Widget _screen(MerchantTab tab, List<MerchantTab> visibleTabs) => switch (tab) {
+        MerchantTab.dashboard => MerchantDashboardScreen(
+            onOpenSection: (key) {
+              final target = MerchantShellScreen.tabFromKey(key);
+              if (visibleTabs.contains(target)) setState(() => _selectedTab = target);
+            },
+          ),
+        MerchantTab.orders => const MerchantOrdersScreen(),
+        MerchantTab.catalog => const MerchantCatalogScreen(),
+        MerchantTab.inventory => const InventoryScreen(),
+        MerchantTab.account => const ProfileScreen(hideMerchantEntry: true),
+      };
 
   @override
   Widget build(BuildContext context) {
+    final profile = ref.watch(profileProvider).valueOrNull;
+    if (profile == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final tabs = _visibleTabs(profile);
+    final selectedTab = tabs.contains(_selectedTab) ? _selectedTab : tabs.first;
+    final selectedIndex = tabs.indexOf(selectedTab);
     return Scaffold(
-      body: IndexedStack(
-        index: _index,
-        children: [
-          // The dashboard switches tabs (Catalog / Inventory / Orders) through
-          // this callback instead of pushing standalone routes.
-          MerchantDashboardScreen(
-              onOpenSection: (key) =>
-                  _select(MerchantShellScreen.tabFromKey(key).index)),
-          const MerchantOrdersScreen(),
-          const MerchantCatalogScreen(),
-          const InventoryScreen(),
-          // Reuse the buyer Account screen, minus its "Merchant Dashboard"
-          // entry, which would otherwise recursively push this same shell.
-          const ProfileScreen(hideMerchantEntry: true),
-        ],
-      ),
+      body: IndexedStack(index: selectedIndex, children: tabs.map((tab) => _screen(tab, tabs)).toList()),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: _select,
+        selectedIndex: selectedIndex,
+        onDestinationSelected: (index) => setState(() => _selectedTab = tabs[index]),
         backgroundColor: TaifTokens.surface,
         indicatorColor: TaifTokens.brandPrimary.withValues(alpha: 0.12),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long),
-            label: 'Orders',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.inventory_2_outlined),
-            selectedIcon: Icon(Icons.inventory_2),
-            label: 'Catalog',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.warehouse_outlined),
-            selectedIcon: Icon(Icons.warehouse),
-            label: 'Inventory',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Account',
-          ),
-        ],
+        destinations: tabs.map(_destination).toList(),
       ),
     );
   }

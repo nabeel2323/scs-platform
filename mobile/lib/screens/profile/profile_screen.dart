@@ -302,14 +302,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ),
         if (!widget.hideMerchantEntry &&
-            (p.role == 'MERCHANT_OWNER' || p.role == 'MERCHANT_STAFF'))
+            (p.role == 'MERCHANT_OWNER' || p.role == 'MERCHANT_STAFF') &&
+            p.hasAnyPermission([
+              'merchant:stores:read',
+              'merchant:orders:read',
+              'catalog:products:read',
+              'merchant:inventory:read',
+            ]))
           Card(
             child: ListTile(
               leading:
                   const Icon(Icons.storefront, color: TaifTokens.brandPrimary),
               title: const Text('Merchant Dashboard'),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('/merchant'),
+              onTap: () => context.push(
+                p.hasPermission('merchant:stores:read')
+                    ? '/merchant'
+                    : p.hasPermission('merchant:orders:read')
+                        ? '/merchant?tab=orders'
+                        : p.hasPermission('catalog:products:read')
+                            ? '/merchant?tab=catalog'
+                            : '/merchant?tab=inventory',
+              ),
             ),
           ),
         const SizedBox(height: 24),

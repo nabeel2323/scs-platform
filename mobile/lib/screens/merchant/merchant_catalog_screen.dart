@@ -37,13 +37,18 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
   @override
   Widget build(BuildContext context) {
     final storeAsync = ref.watch(activeStoreProvider);
+    final profile = ref.watch(profileProvider).valueOrNull;
+    final canCreate = profile?.hasPermission('merchant:products:write') ?? false;
+    final canDelete = profile?.hasPermission('catalog:products:delete') ?? false;
+    final canManageOffers = profile?.hasPermission('catalog:offers:write') ?? false;
+    final canManageCategories = profile?.hasPermission('catalog:categories:write') ?? false;
     return Scaffold(
       appBar: AppBar(title: const Text('Catalog'), actions: [
-        IconButton(
+        if (canManageOffers) IconButton(
             icon: const Icon(Icons.local_offer_outlined),
             tooltip: 'Offers',
             onPressed: () => context.push('/merchant/offers')),
-        IconButton(
+        if (canManageCategories) IconButton(
             icon: const Icon(Icons.category),
             tooltip: 'Categories',
             onPressed: () => context.push('/merchant/categories')),
@@ -52,7 +57,7 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
             onPressed: () => ref.invalidate(myStoresProvider)),
       ]),
       floatingActionButton: storeAsync.maybeWhen(
-        data: (store) => store == null
+        data: (store) => store == null || !canCreate
             ? null
             : FloatingActionButton.extended(
                 onPressed: () => context.push('/merchant/catalog/new'),
@@ -76,13 +81,13 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
                     'Your organization has no storefront yet. Complete merchant registration first.',
                 icon: Icons.storefront_outlined);
           }
-          return _productList(context, store.id);
+          return _productList(context, store.id, canCreate, canDelete);
         },
       ),
     );
   }
 
-  Widget _productList(BuildContext context, String storeId) {
+  Widget _productList(BuildContext context, String storeId, bool canEdit, bool canDelete) {
     final products = ref.watch(storeProductsProvider(storeId));
     return products.when(
       loading: () => const LoadingSpinner(),
@@ -330,12 +335,12 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
               // Actions
               Column(
                 children: [
-                  IconButton(
+                  if (canEdit) IconButton(
                       icon: const Icon(Icons.edit_outlined,
                           color: TaifTokens.brandPrimary, size: 20),
                       onPressed: () =>
                           context.push('/merchant/catalog/product/${p.id}')),
-                  IconButton(
+                  if (canDelete) IconButton(
                       icon: const Icon(Icons.delete_outline,
                           color: TaifTokens.err, size: 20),
                       onPressed: () =>
@@ -351,6 +356,7 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
 
   Future<void> _confirmDelete(
       BuildContext context, WidgetRef ref, String storeId, Product p) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('catalog:products:delete') != true) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

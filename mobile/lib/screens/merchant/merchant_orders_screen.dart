@@ -32,6 +32,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
   /// Runs a merchant action with busy-state + error handling + refresh.
   Future<void> _run(String orderId, Future<void> Function() action,
       {String? success}) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('merchant:orders:write') != true) return;
     setState(() => _busyOrderId = orderId);
     try {
       await action();
@@ -96,6 +97,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
   /// full order first, let the merchant confirm a quantity per line (default =
   /// ordered), then post `{itemId, qtyConfirmed}` confirmations.
   Future<void> _partialAccept(SubOrder o) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('merchant:orders:write') != true) return;
     setState(() => _busyOrderId = o.id);
     List<OrderItem> items;
     try {
@@ -232,6 +234,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
   }
 
   Future<void> _assignDriver(SubOrder o) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('merchant:orders:write') != true) return;
     final driverCtrl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
@@ -266,6 +269,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
   @override
   Widget build(BuildContext context) {
     final orders = ref.watch(merchantOrdersProvider);
+    final canWrite = ref.watch(profileProvider).valueOrNull?.hasPermission('merchant:orders:write') ?? false;
     return Scaffold(
         appBar: AppBar(title: const Text('Merchant Orders'), actions: [
           IconButton(
@@ -302,11 +306,11 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
             return ListView(children: [
               if (pending.isNotEmpty) ...[
                 _section('Pending (${pending.length})', TaifTokens.warn),
-                ...pending.map(_pendingCard)
+                ...pending.map((order) => _pendingCard(order, canWrite))
               ],
               if (active.isNotEmpty) ...[
                 _section('Active (${active.length})', TaifTokens.info),
-                ...active.map(_activeCard)
+                ...active.map((order) => _activeCard(order, canWrite))
               ],
               if (done.isNotEmpty) ...[
                 _section('Completed (${done.length})', TaifTokens.muted),
@@ -328,7 +332,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
           style: TextStyle(
               fontWeight: FontWeight.w600, color: color, fontSize: 14)));
 
-  Widget _pendingCard(SubOrder o) {
+  Widget _pendingCard(SubOrder o, bool canWrite) {
     final busy = _busyOrderId == o.id;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -345,7 +349,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
               '${formatMinor(o.totalMinor, o.currency)} · ${o.itemCount} ${o.itemCount == 1 ? 'item' : 'items'}',
               style: const TextStyle(color: TaifTokens.muted, fontSize: 13)),
           const SizedBox(height: 12),
-          Row(children: [
+          if (canWrite) Row(children: [
             Expanded(
               child: ElevatedButton.icon(
                 onPressed: busy ? null : () => _accept(o),
@@ -375,6 +379,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
               ),
             ),
           ]),
+          if (!canWrite) const Text('Read-only: order changes require merchant:orders:write', style: TextStyle(color: TaifTokens.muted, fontSize: 12)),
         ]),
       ),
     );
@@ -387,7 +392,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
       : Icon(icon, size: 16, color: color);
 
-  Widget _activeCard(SubOrder o) {
+  Widget _activeCard(SubOrder o, bool canWrite) {
     final busy = _busyOrderId == o.id;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -406,7 +411,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
               style: const TextStyle(color: TaifTokens.muted, fontSize: 13)),
           const SizedBox(height: 12),
           // M7.1: fulfillment-specific actions per status.
-          _fulfillmentActions(o, busy),
+          _fulfillmentActions(o, busy, canWrite),
         ]),
       ),
     );
@@ -415,7 +420,8 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
   /// M7.1: Merchant fulfillment action buttons based on order status.
   /// Merchant can: Prepare (ACCEPTED→PREPARING), Ready (PREPARING→READY),
   /// Assign Driver (READY→ASSIGNED). Driver-only actions are NOT exposed here.
-  Widget _fulfillmentActions(SubOrder o, bool busy) {
+  Widget _fulfillmentActions(SubOrder o, bool busy, bool canWrite) {
+    if (!canWrite) return const Text('Read-only: fulfillment changes require merchant:orders:write', style: TextStyle(color: TaifTokens.muted, fontSize: 12));
     switch (o.status) {
       case 'ACCEPTED':
       case 'PARTIALLY_ACCEPTED':

@@ -305,3 +305,13 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Updated UX-009 and whole-product inventory. Next: map the 32 mobile screens/routes and granular permission/action affordances, then complete remaining web/API and worker/provider ownership mapping.
 - Actions budget constraint recorded: approximately 90% of GitHub Actions minutes consumed; related work is batched and the comprehensive campaign is deferred until implementation/integration completion.
 - The pre-batch branch head was `cd1d7de837d3c519db4a249479effe65db5fce53`; this grouped commit is the implementation checkpoint following it. PR #138 remains draft. No database/staging/deployment/migration/grant/RLS/worker/release action occurred.
+
+
+## 2026-11-22 — Mobile authorization parity continuation
+
+- Re-read `project-memory/START-HERE.md` and relevant project-memory decisions, gaps, inventory, current-state, release, roadmap, and work-log material before changing code.
+- Verified branch `remediation/phase-0-1-tenant-security`, PR #138, and baseline head `06cd8fc1e56dc7ef64a141b97b594adc96ffbece`.
+- Baseline CI #1337: changed-file formatting failed for nine PR files; Flutter passed; dependent checks were skipped. No new CI run is requested for this implementation commit because the user has consumed 90% of GitHub Actions minutes and asked to consolidate implementation before one testing/fixing phase.
+- Added mobile permission parsing, route policy, Access Restricted screen, router refresh on profile/active-org changes, permission-filtered buyer/merchant navigation, and action-level checks across organization, driver, order, merchant-order, inventory, catalog, store-profile, and cart flows.
+- Added focused route/profile permission tests and `docs/mobile-route-permission-matrix.md`. Test execution remains pending.
+- Follow-up: reconcile missing `identity:organizations:create` seed/default grants with organization type and creator-role policy; then complete the remaining action-affordance audit and run one consolidated formatter, Flutter, backend, security, and CI validation.

@@ -172,10 +172,11 @@ class _ActionBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final canWrite = ref.watch(profileProvider).valueOrNull?.hasPermission('merchant:inventory:write') ?? false;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Wrap(spacing: 8, children: [
-        OutlinedButton.icon(
+        if (canWrite) OutlinedButton.icon(
           icon: const Icon(Icons.warning_amber, size: 16),
           label: const Text('Check Low Stock'),
           onPressed: () => _checkLowStock(context, ref),
@@ -195,6 +196,7 @@ class _ActionBar extends ConsumerWidget {
   }
 
   Future<void> _checkLowStock(BuildContext context, WidgetRef ref) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('merchant:inventory:write') != true) return;
     try {
       final alerted = await ref.read(apiServiceProvider).checkLowStock(storeId);
       if (context.mounted) {
@@ -268,6 +270,7 @@ class _InventoryTileState extends ConsumerState<_InventoryTile> {
   @override
   Widget build(BuildContext context) {
     final warehouses = ref.watch(storeWarehousesProvider(storeId));
+    final canWrite = ref.watch(profileProvider).valueOrNull?.hasPermission('merchant:inventory:write') ?? false;
     final isLow = item.lowStockAlert && item.available <= item.reorderPoint;
     final whName =
         _warehouseName(item.warehouseId, warehouses.valueOrNull ?? []);
@@ -303,7 +306,7 @@ class _InventoryTileState extends ConsumerState<_InventoryTile> {
           ],
         ),
         isThreeLine: true,
-        trailing: PopupMenuButton<String>(
+        trailing: canWrite ? PopupMenuButton<String>(
           onSelected: (v) =>
               _onAction(context, v, warehouses.valueOrNull ?? []),
           itemBuilder: (_) => [
@@ -311,7 +314,7 @@ class _InventoryTileState extends ConsumerState<_InventoryTile> {
             if ((warehouses.valueOrNull ?? []).length > 1)
               const PopupMenuItem(value: 'transfer', child: Text('Transfer')),
           ],
-        ),
+        ) : null,
       ),
     );
   }
@@ -349,6 +352,7 @@ class _InventoryTileState extends ConsumerState<_InventoryTile> {
   }
 
   Future<void> _showAdjustDialog(BuildContext context) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('merchant:inventory:write') != true) return;
     final qtyCtrl = TextEditingController();
     final reasonCtrl = TextEditingController();
     final result = await showDialog<Map<String, dynamic>>(
@@ -410,6 +414,7 @@ class _InventoryTileState extends ConsumerState<_InventoryTile> {
 
   Future<void> _showTransferDialog(
       BuildContext context, List<Map<String, dynamic>> warehouses) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('merchant:inventory:write') != true) return;
     final otherWarehouses =
         warehouses.where((w) => w['id'] != item.warehouseId).toList();
     if (otherWarehouses.isEmpty) return;

@@ -113,3 +113,8 @@ The user reports that approximately 90% of the GitHub Actions minutes allowance 
 - Do not create repeated temporary formatter workflows. Follow repository formatting conventions and batch formatting with the same implementation commit.
 - Do not disable required checks, bypass workflow approval, or misrepresent unrun checks. A single meaningful CI run is preferred over many incremental runs, but required validation remains mandatory before merge/release.
 - When a workflow fails, inspect job outcomes and rerun only failed jobs when the workflow and GitHub permissions support that safely; do not rerun successful jobs unnecessarily.
+
+
+## GitHub Actions budget — 22 November 2026
+
+The user reports that 90% of GitHub Actions action minutes have been consumed. Group related implementation and documentation changes into fewer commits, avoid workflow runs for individual edits, and defer broad testing until the implementation batch is complete. Use one consolidated formatter/test/security/CI run for the final validation and fix all findings together. Implementation commits may use `[skip ci]` when validation is intentionally deferred and clearly recorded.

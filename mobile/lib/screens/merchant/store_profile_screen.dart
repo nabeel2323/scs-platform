@@ -60,6 +60,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
   }
 
   Future<void> _save(Store store) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('merchant:stores:write') != true) return;
     setState(() {
       _saving = true;
       _error = null;
@@ -96,6 +97,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
   }
 
   Future<void> _addWarehouse(String storeId) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('merchant:stores:write') != true) return;
     final nameCtrl = TextEditingController();
     final cityCtrl = TextEditingController();
     final ok = await showDialog<bool>(
@@ -152,6 +154,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final storeAsync = ref.watch(activeStoreProvider);
+    final canWrite = ref.watch(profileProvider).valueOrNull?.hasPermission('merchant:stores:write') ?? false;
     return Scaffold(
       appBar: AppBar(title: const Text('Store Profile')),
       body: storeAsync.when(
@@ -169,114 +172,71 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
                 icon: Icons.storefront_outlined);
           }
           _populate(store);
-          return _form(store);
+          return _form(store, canWrite);
         },
       ),
     );
   }
 
-  Widget _form(Store store) =>
+  Widget _form(Store store, bool canWrite) =>
       ListView(padding: const EdgeInsets.all(16), children: [
         if (_error != null) ...[
           ErrorBanner(message: _error!),
           const SizedBox(height: 12),
         ],
         Row(children: [
-          Expanded(
-              child: Text(store.displayName,
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w700))),
+          Expanded(child: Text(store.displayName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
           StatusBadge(store.verificationStatus),
         ]),
         const SizedBox(height: 4),
-        Text('Slug: /${store.slug} (read-only)',
-            style: const TextStyle(fontSize: 12, color: TaifTokens.muted)),
+        Text('Slug: /${store.slug} (read-only)', style: const TextStyle(fontSize: 12, color: TaifTokens.muted)),
         const SizedBox(height: 20),
-        TextField(
-            controller: _displayNameCtrl,
-            decoration: const InputDecoration(
-                labelText: 'Display Name *', border: OutlineInputBorder())),
+        TextField(controller: _displayNameCtrl, enabled: canWrite, decoration: const InputDecoration(labelText: 'Display Name *', border: OutlineInputBorder())),
         const SizedBox(height: 16),
-        TextField(
-            controller: _descriptionCtrl,
-            maxLines: 3,
-            decoration: const InputDecoration(
-                labelText: 'Description',
-                alignLabelWithHint: true,
-                border: OutlineInputBorder())),
+        TextField(controller: _descriptionCtrl, enabled: canWrite, maxLines: 3, decoration: const InputDecoration(labelText: 'Description', alignLabelWithHint: true, border: OutlineInputBorder())),
         const SizedBox(height: 16),
         Row(children: [
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              initialValue: _currency,
-              decoration: const InputDecoration(
-                  labelText: 'Currency', border: OutlineInputBorder()),
-              items: _currencies
-                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) setState(() => _currency = v);
-              },
-            ),
-          ),
+          Expanded(child: DropdownButtonFormField<String>(
+            initialValue: _currency,
+            decoration: const InputDecoration(labelText: 'Currency', border: OutlineInputBorder()),
+            items: _currencies.map((currency) => DropdownMenuItem(value: currency, child: Text(currency))).toList(),
+            onChanged: canWrite ? (value) { if (value != null) setState(() => _currency = value); } : null,
+          )),
           const SizedBox(width: 12),
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              initialValue: _locale,
-              decoration: const InputDecoration(
-                  labelText: 'Locale', border: OutlineInputBorder()),
-              items: const [
-                DropdownMenuItem(value: 'ar', child: Text('Arabic')),
-                DropdownMenuItem(value: 'en', child: Text('English')),
-              ],
-              onChanged: (v) {
-                if (v != null) setState(() => _locale = v);
-              },
-            ),
-          ),
+          Expanded(child: DropdownButtonFormField<String>(
+            initialValue: _locale,
+            decoration: const InputDecoration(labelText: 'Locale', border: OutlineInputBorder()),
+            items: const [DropdownMenuItem(value: 'ar', child: Text('Arabic')), DropdownMenuItem(value: 'en', child: Text('English'))],
+            onChanged: canWrite ? (value) { if (value != null) setState(() => _locale = value); } : null,
+          )),
         ]),
         const SizedBox(height: 16),
-        TextField(
-            controller: _timezoneCtrl,
-            decoration: const InputDecoration(
-                labelText: 'Timezone',
-                hintText: 'e.g. Asia/Riyadh',
-                border: OutlineInputBorder())),
+        TextField(controller: _timezoneCtrl, enabled: canWrite, decoration: const InputDecoration(labelText: 'Timezone', hintText: 'e.g. Asia/Riyadh', border: OutlineInputBorder())),
         const SizedBox(height: 16),
-        TextField(
-            controller: _cityCtrl,
-            decoration: const InputDecoration(
-                labelText: 'City',
-                hintText: 'e.g. Riyadh',
-                border: OutlineInputBorder())),
+        TextField(controller: _cityCtrl, enabled: canWrite, decoration: const InputDecoration(labelText: 'City', hintText: 'e.g. Riyadh', border: OutlineInputBorder())),
         const SizedBox(height: 24),
-        SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-                onPressed: _saving ? null : () => _save(store),
-                icon: _saving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.save),
-                label: Text(_saving ? 'Saving...' : 'Save Changes'),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: TaifTokens.brandPrimary,
-                    padding: const EdgeInsets.symmetric(vertical: 14)))),
+        if (canWrite) SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _saving ? null : () => _save(store),
+            icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save),
+            label: Text(_saving ? 'Saving...' : 'Save Changes'),
+            style: ElevatedButton.styleFrom(backgroundColor: TaifTokens.brandPrimary, padding: const EdgeInsets.symmetric(vertical: 14)),
+          ),
+        ),
+        if (!canWrite) const Text('Read-only: store changes require merchant:stores:write', style: TextStyle(color: TaifTokens.muted, fontSize: 12)),
         const SizedBox(height: 32),
-        _warehousesSection(store),
+        _warehousesSection(store, canWrite),
       ]);
 
-  Widget _warehousesSection(Store store) {
+  Widget _warehousesSection(Store store, bool canWrite) {
     final whs = ref.watch(storeWarehousesProvider(store.id));
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         const Text('Warehouses',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
         const Spacer(),
-        TextButton.icon(
+        if (canWrite) TextButton.icon(
             onPressed: () => _addWarehouse(store.id),
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Add')),

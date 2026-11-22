@@ -51,8 +51,10 @@ class _DriverShipmentsScreenState extends ConsumerState<DriverShipmentsScreen> {
     String message,
     Future<void> Function() action, {
     required String success,
+    required String permission,
     IconData icon = Icons.check_circle,
   }) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission(permission) != true) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -77,6 +79,9 @@ class _DriverShipmentsScreenState extends ConsumerState<DriverShipmentsScreen> {
   @override
   Widget build(BuildContext context) {
     final shipments = ref.watch(driverShipmentsProvider);
+    final profile = ref.watch(profileProvider).valueOrNull;
+    final canPickup = profile?.hasPermission('fulfillment:shipments:pickup') ?? false;
+    final canDeliver = profile?.hasPermission('fulfillment:shipments:deliver') ?? false;
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Shipments'),
@@ -111,14 +116,14 @@ class _DriverShipmentsScreenState extends ConsumerState<DriverShipmentsScreen> {
               children: [
                 if (active.isNotEmpty) ...[
                   _sectionHeader('Active (${active.length})', TaifTokens.info),
-                  ...active.map(_shipmentCard),
+                  ...active.map((shipment) => _shipmentCard(shipment, canPickup, canDeliver)),
                 ],
                 if (done.isNotEmpty) ...[
                   _sectionHeader('Delivered (${done.length})', TaifTokens.ok),
-                  ...done.map(_shipmentCard),
+                  ...done.map((shipment) => _shipmentCard(shipment, canPickup, canDeliver)),
                 ],
                 // If there are other statuses not shown above.
-                if (active.isEmpty && done.isEmpty) ...list.map(_shipmentCard),
+                if (active.isEmpty && done.isEmpty) ...list.map((shipment) => _shipmentCard(shipment, canPickup, canDeliver)),
                 const SizedBox(height: 24),
               ],
             ),
@@ -141,7 +146,7 @@ class _DriverShipmentsScreenState extends ConsumerState<DriverShipmentsScreen> {
                 fontWeight: FontWeight.w600, color: color, fontSize: 14)),
       );
 
-  Widget _shipmentCard(DriverShipment s) {
+  Widget _shipmentCard(DriverShipment s, bool canPickup, bool canDeliver) {
     final busy = _busyId == s.orderId;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -173,16 +178,17 @@ class _DriverShipmentsScreenState extends ConsumerState<DriverShipmentsScreen> {
               _infoRow('Delivered', _formatTime(s.deliveredAt!)),
             const SizedBox(height: 12),
             // Action buttons based on current status.
-            _driverActions(s, busy),
+            _driverActions(s, busy, canPickup, canDeliver),
           ],
         ),
       ),
     );
   }
 
-  Widget _driverActions(DriverShipment s, bool busy) {
+  Widget _driverActions(DriverShipment s, bool busy, bool canPickup, bool canDeliver) {
     switch (s.status) {
       case 'ASSIGNED':
+        if (!canPickup) return const SizedBox.shrink();
         return SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -194,6 +200,7 @@ class _DriverShipmentsScreenState extends ConsumerState<DriverShipmentsScreen> {
                       'Mark order #${s.orderId.substring(0, 8)} as picked up?',
                       () => _api.pickupOrder(s.orderId),
                       success: 'Picked up',
+                      permission: 'fulfillment:shipments:pickup',
                       icon: Icons.inventory,
                     ),
             style: ElevatedButton.styleFrom(backgroundColor: TaifTokens.ok),
@@ -202,6 +209,7 @@ class _DriverShipmentsScreenState extends ConsumerState<DriverShipmentsScreen> {
           ),
         );
       case 'PICKED_UP':
+        if (!canPickup) return const SizedBox.shrink();
         return SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -213,6 +221,7 @@ class _DriverShipmentsScreenState extends ConsumerState<DriverShipmentsScreen> {
                       'Mark order #${s.orderId.substring(0, 8)} as out for delivery?',
                       () => _api.outForDelivery(s.orderId),
                       success: 'Out for delivery',
+                      permission: 'fulfillment:shipments:pickup',
                       icon: Icons.directions_car,
                     ),
             style: ElevatedButton.styleFrom(backgroundColor: TaifTokens.info),
@@ -221,6 +230,7 @@ class _DriverShipmentsScreenState extends ConsumerState<DriverShipmentsScreen> {
           ),
         );
       case 'OUT_FOR_DELIVERY':
+        if (!canDeliver) return const SizedBox.shrink();
         return SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -232,6 +242,7 @@ class _DriverShipmentsScreenState extends ConsumerState<DriverShipmentsScreen> {
                       'Mark order #${s.orderId.substring(0, 8)} as delivered?',
                       () => _api.deliverOrder(s.orderId),
                       success: 'Delivered',
+                      permission: 'fulfillment:shipments:deliver',
                       icon: Icons.check_circle,
                     ),
             style: ElevatedButton.styleFrom(backgroundColor: TaifTokens.ok),

@@ -88,3 +88,16 @@ Every additional row must include: unique ID; module/surface; exact source evide
 ## UX-009 Admin route permission audit — 22 November 2026
 
 All 56 Admin `page.tsx` route files were reviewed against the shared `ManagementPage`/`managementTables` configuration and the inspected API permission declarations. The resulting route/action map is `docs/admin-route-permission-matrix.md`. Two concrete UI mismatches were corrected in the same implementation group: `/calendar` exposed holiday add/remove controls to read-only users, and `/returns/[id]` exposed escalation resolution to users without `admin:returns:write`. Both backend endpoints already enforced the write permission; this batch aligns the UI and adds focused component coverage. UX-009 is IMPLEMENTED at source level; role/deep-link/action regression remains in Phase 3.
+
+
+## UX-011 — Mobile active-organization permission parity (22 November 2026)
+
+**Status:** Implementation added; consolidated validation pending.
+
+Mobile now retains the `perms` array returned by `GET /v1/me`. A route policy checks direct/deep links against the active organization's grants and displays an Access Restricted screen when a route permission is missing. The router refreshes after profile and active-organization changes.
+
+Navigation and mutation affordances are filtered by permission: buyer Search/Cart/Orders tabs; merchant Dashboard/Orders/Catalog/Inventory tabs; Home merchant/driver launchers; organization create/edit/member management; driver pickup/delivery; buyer order cancellation/delivery confirmation/reorder; merchant order mutations; inventory adjustment/transfer/low-stock checks; catalog create/edit/delete/offer/category links; store profile/warehouse writes; and Add to Cart controls.
+
+Focused tests cover permission parsing and route policy. Their execution, deep-link tests, active-organization switching, role switching, and mutation regression tests remain in the consolidated validation campaign.
+
+**RBAC follow-up:** `identity:organizations:create` is referenced by the mobile affordance but was absent from the inspected permission seed/default grants. Do not silently grant it to BUYER/MERCHANT roles. Reconcile organization type and creator-role policy before adding a migration/seed grant.

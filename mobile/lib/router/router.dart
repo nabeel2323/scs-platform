@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/providers.dart';
+import './route_permissions.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/credential_setup_screen.dart';
 import '../screens/auth/change_password_screen.dart';
 import '../screens/auth/sessions_screen.dart';
+import '../screens/permission_denied_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/search/search_screen.dart';
 import '../screens/stores/stores_list_screen.dart';
@@ -40,8 +42,9 @@ final routerProvider = Provider<GoRouter>((ref) {
   // loading, the initial location defaults to '/login' but the redirect below
   // holds the user there only until restoration completes.
   final sessionAsync = ref.watch(sessionRestorationProvider);
-  final isLoggedIn = sessionAsync.valueOrNull ?? false;
-  return GoRouter(
+  final authState = ref.watch(isAuthenticatedProvider);
+  final isLoggedIn = sessionAsync.valueOrNull ?? authState;
+  final router = GoRouter(
     initialLocation: isLoggedIn ? '/home' : '/login',
     redirect: (context, state) {
       final loggedIn = ref.read(isAuthenticatedProvider);
@@ -53,35 +56,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       // profileProvider is a FutureProvider; during initial load maybeWhen
       // returns null so the redirect does not fire until the profile arrives.
       if (loggedIn) {
-        final profileAsync = ref.read(profileProvider);
-        final role = profileAsync.maybeWhen(
-          data: (p) => p.role,
-          orElse: () => null,
-        );
-        final isMerchant = role == 'MERCHANT_OWNER' || role == 'MERCHANT_STAFF';
-        final isDriver = role == 'DRIVER';
-        final path = state.matchedLocation;
-
-        // Merchant routes require merchant role, except /merchant/register
-        // which is open so any authenticated user can become a merchant.
-        if (path.startsWith('/merchant') &&
-            path != '/merchant/register' &&
-            !isMerchant) {
-          return '/home';
-        }
-
-        // M7.1: Driver routes require DRIVER role (or admin).
-        if (path.startsWith('/driver') &&
-            !isDriver &&
-            role != 'ADMIN' &&
-            role != 'SUPER_ADMIN') {
-          return '/home';
+        final profile = ref.read(profileProvider).valueOrNull;
+        if (profile != null) {
+          final role = profile.role;
+          final isMerchant = role == 'MERCHANT_OWNER' || role == 'MERCHANT_STAFF';
+          final isDriver = role == 'DRIVER';
+          final path = state.matchedLocation;
+          if (path.startsWith('/merchant') && path != '/merchant/register' && !isMerchant) {
+            return '/home';
+          }
+          if (path.startsWith('/driver') && !isDriver && role != 'ADMIN' && role != 'SUPER_ADMIN') {
+            return '/home';
+          }
+          final rule = permissionRuleForRoute(state.uri);
+          if (rule != null && !rule.allows(profile.perms)) {
+            final encoded = Uri.encodeQueryComponent(rule.missingRequirements(profile.perms).join(';'));
+            return '/access-denied?required=$encoded';
+          }
         }
       }
       return null;
     },
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(path: '/access-denied', builder: (_, state) => PermissionDeniedScreen(requiredPermissions: state.uri.queryParameters['required'] ?? '')),
 
       // ── Buyer bottom-nav shell (Home / Search / Cart / Orders / Account) ──
       // Each branch keeps its own stack via indexedStack. Detail routes below
@@ -203,4 +201,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           builder: (_, __) => const DriverShipmentsScreen()),
     ],
   );
-});
+  if (isLoggedIn) {
+    ref.listen(profileProvider, (_, __) => router.refresh());
+    ref.listen(activeOrgIdProvider, (_, __) => router.refresh());
+  }
+  ref.onDispose(router.dispose);
+  return router;
+});;

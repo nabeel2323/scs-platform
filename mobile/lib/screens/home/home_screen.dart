@@ -32,6 +32,8 @@ class HomeScreen extends ConsumerWidget {
     final role = profile?.role;
     final isMerchant = role == 'MERCHANT_OWNER' || role == 'MERCHANT_STAFF';
     final isDriver = role == 'DRIVER';
+    final canOpenMerchantTools = profile?.hasAnyPermission(['merchant:stores:read', 'merchant:orders:read', 'catalog:products:read', 'merchant:inventory:read']) ?? false;
+    final canOpenDriverTools = profile?.hasPermission('fulfillment:shipments:read') ?? false;
     final phone = ref.watch(currentUserPhoneProvider);
     final email = ref.watch(currentUserEmailProvider);
     final fullName = profile?.fullName;
@@ -86,8 +88,8 @@ class HomeScreen extends ConsumerWidget {
             _categoriesSection(context, ref),
             _popularSection(context, ref),
             _suppliersSection(context, ref),
-            if (isMerchant) _manageSection(context),
-            if (isDriver) _driverSection(context),
+            if (isMerchant && canOpenMerchantTools) _manageSection(context, profile!.perms),
+            if (isDriver && canOpenDriverTools) _driverSection(context),
             const SizedBox(height: 24),
           ],
         ),
@@ -296,6 +298,7 @@ class HomeScreen extends ConsumerWidget {
 
   Widget _popularSection(BuildContext context, WidgetRef ref) {
     final feed = ref.watch(featuredProductsProvider);
+    final canAddToCart = ref.watch(profileProvider).valueOrNull?.hasPermission('orders:write') ?? false;
     return feed.when(
       data: (res) => res.products.isEmpty
           ? const SizedBox.shrink()
@@ -316,7 +319,7 @@ class HomeScreen extends ConsumerWidget {
                           child: ProductCard(
                             product: p,
                             onTap: () => context.push('/products/${p.id}'),
-                            onAddToCart: () => _addToCart(context, ref, p),
+                            onAddToCart: canAddToCart ? () => _addToCart(context, ref, p) : null,
                           ),
                         ),
                       ),
@@ -463,24 +466,29 @@ class HomeScreen extends ConsumerWidget {
 
   /// Merchant tooling — rendered ONLY for merchant roles. Buyers never see
   /// these launchers (the old home showed them to everyone).
-  Widget _manageSection(BuildContext context) {
+  Widget _manageSection(BuildContext context, List<String> permissions) {
+    final cards = <Widget>[];
+    if (permissions.contains('merchant:stores:read')) {
+      cards.add(_navCard(context, 'Dashboard', Icons.dashboard, '/merchant', TaifTokens.brandPrimary));
+    }
+    if (permissions.contains('merchant:orders:read')) {
+      cards.add(_navCard(context, 'Orders', Icons.receipt_long, '/merchant?tab=orders', const Color(0xFF7C3AED)));
+    }
+    if (permissions.contains('catalog:products:read')) {
+      cards.add(_navCard(context, 'Catalog', Icons.inventory_2, '/merchant?tab=catalog', TaifTokens.info));
+    }
+    if (permissions.contains('merchant:inventory:read')) {
+      cards.add(_navCard(context, 'Inventory', Icons.warehouse, '/merchant?tab=inventory', TaifTokens.warn));
+    }
+    final rows = <Widget>[];
+    for (var i = 0; i < cards.length; i += 2) {
+      rows.add(Row(children: [cards[i], if (i + 1 < cards.length) cards[i + 1] else const Expanded(child: SizedBox.shrink())]));
+      if (i + 2 < cards.length) rows.add(const SizedBox(height: 12));
+    }
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _sectionHeader(context, 'Manage'),
-      Row(children: [
-        _navCard(context, 'Dashboard', Icons.dashboard, '/merchant',
-            TaifTokens.brandPrimary),
-        const SizedBox(width: 12),
-        _navCard(context, 'Orders', Icons.receipt_long, '/merchant?tab=orders',
-            const Color(0xFF7C3AED)),
-      ]),
       const SizedBox(height: 12),
-      Row(children: [
-        _navCard(context, 'Catalog', Icons.inventory_2, '/merchant?tab=catalog',
-            TaifTokens.info),
-        const SizedBox(width: 12),
-        _navCard(context, 'Inventory', Icons.warehouse,
-            '/merchant?tab=inventory', TaifTokens.warn),
-      ]),
+      ...rows,
       const SizedBox(height: 24),
     ]);
   }
@@ -508,6 +516,7 @@ class HomeScreen extends ConsumerWidget {
 
   Future<void> _addToCart(
       BuildContext context, WidgetRef ref, Product p) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('orders:write') != true) return;
     try {
       await ref.read(apiServiceProvider).addProductToCart(p);
       ref.invalidate(cartProvider);

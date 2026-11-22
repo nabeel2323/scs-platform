@@ -173,3 +173,13 @@ The user reports that about 90% of the GitHub Actions minutes allowance is alrea
 - Fixed two action-level UI permission gaps: `/calendar` holiday add/remove and `/returns/[id]` escalation resolution now require `admin:returns:write`. Added focused Admin component tests and `docs/admin-route-permission-matrix.md`.
 - UX-009 is IMPLEMENTED at source level; full role/deep-link/action regression remains in Phase 3. UX-006 mobile permission affordances and remaining MAP-001 mapping remain outstanding.
 - No database, staging, deployment, migration, grants, RLS, worker activation or release restrictions changed.
+
+
+## Continuation checkpoint — 22 November 2026
+
+- Repository: `nabeel2323/scs-platform`; branch: `remediation/phase-0-1-tenant-security`; PR #138 remains open and unmerged.
+- Verified pre-change branch head: `06cd8fc1e56dc7ef64a141b97b594adc96ffbece`.
+- Baseline CI #1337: changed-file formatting failed on nine PR files; the Flutter job passed; dependent checks were skipped. This is not a full green release gate.
+- The mobile permission-parity implementation is grouped into one commit marked `[skip ci]` to preserve the user's remaining GitHub Actions minutes. The user reports 90% of the allowance consumed and explicitly requests grouped changes and one consolidated testing/fixing phase.
+- Focused Flutter permission tests and the mobile route/action matrix are added. Test execution is intentionally deferred until the implementation batch is complete. Do not trigger CI for small follow-up edits.
+- Outstanding RBAC policy issue: `identity:organizations:create` is checked by the organization creation flow but is absent from the inspected permission seed/default grants. Do not silently grant it before organization-type and creator-role semantics are reconciled.
