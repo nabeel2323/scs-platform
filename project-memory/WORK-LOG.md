@@ -357,3 +357,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Found `GET /offers/nearby` in `PromotionsController`; corrected the earlier inventory assumption that no route existed. The service currently ignores coordinates/radius and returns active promotions by date/limit; no matching wrapper was found in the inspected web/mobile API clients and Home/Search entry pages. UX-008 remains pending a product/location decision.
 - Found CartController mutations had only JWT auth and no `orders:write` permission. Added the canonical permission guard to all cart mutations while retaining authenticated self-scoped GET. Added controller metadata/guard tests.
 - Updated MAP-001 and API-001 documentation. Validation is intentionally deferred; no GitHub Actions run, database change, migration, role grant, staging write, worker activation, deployment or release action occurred.
+
+
+## 2026-11-22 — Aramex provider registry wiring
+
+- Reviewed the existing outbox ownership map and staging runtime topology before extending MAP-001; avoided duplicating the already documented worker ownership model.
+- Found that `AramexProvider` was registered in Nest DI but not in `ShippingProviderRegistry`. `ShippingCarrierWorker` uses that registry for provider-key resolution and falls back to `aramex`, so carrier events could not resolve the provider.
+- Updated `ShippingService.onModuleInit` to register Aramex as non-default while retaining `manual-driver` as the default. Optional injection preserves existing direct construction tests. No credentials are loaded and no external HTTP call occurs at startup.
+- Added a focused registry integration unit test and documented the ownership/activation boundary. Validation deferred to the consolidated Phase 3 campaign; no CI, deployment, secret, DB, migration or live carrier action occurred.

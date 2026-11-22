@@ -1,11 +1,12 @@
 import {
-  Injectable, Logger, OnModuleInit,
+  Injectable, Logger, OnModuleInit, Optional,
   NotFoundException, ForbiddenException, BadRequestException, ConflictException,
 } from '@nestjs/common';
 import { eq, and, inArray } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { ManualDeliveryProvider } from './providers/manual-delivery.provider';
+import { AramexProvider } from './aramex/aramex.provider';
 import { ShippingProvider } from './shipping-provider';
 import { CreateShipmentRequest, CreateShipmentResult } from './shipping.types';
 import {
@@ -120,10 +121,16 @@ export class ShippingService implements OnModuleInit {
     private readonly db: DatabaseService,
     private readonly registry: ShippingProviderRegistry,
     private readonly manualProvider: ManualDeliveryProvider,
+    @Optional() private readonly aramexProvider?: AramexProvider,
   ) {}
 
   onModuleInit(): void {
     this.registry.register(this.manualProvider, true);
+    if (this.aramexProvider) {
+      this.registry.register(this.aramexProvider);
+      this.logger.log('ShippingService initialised — manual-driver default and Aramex carrier provider registered.');
+      return;
+    }
     this.logger.log('ShippingService initialised — manual-driver provider registered.');
   }
 

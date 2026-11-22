@@ -76,3 +76,10 @@ The inspected Render workspace previously showed one API service and no separate
 - G-003 poller ownership proof is complete for the persisted carrier/non-carrier cases exercised in CI #687; extend coverage only if a new publisher/event family or consumer is introduced.
 - Keep G-010 label-generation behavior as a separate finding; this ownership map does not close the label handler no-op.
 - P13 activation and alert-sink verification remain separate operational work; no workers were newly activated and no deployment topology was changed.
+
+
+## Shipping provider registry wiring — 22 November 2026
+
+A source cross-check found that `ShippingModule` registered `AramexProvider` in Nest DI and exported it, but `ShippingService.onModuleInit()` registered only `ManualDeliveryProvider` in `ShippingProviderRegistry`. The carrier worker resolves the persisted provider key through that registry and defaults missing shipment provider keys to `aramex`; therefore Aramex events could fail with an unknown-provider error even though the provider class was present in DI.
+
+The registry wiring now keeps `manual-driver` as the default and registers the injected Aramex adapter as a non-default provider. Registration does not read credentials or invoke Aramex. Per-store carrier configuration and active organization-scoped encrypted credentials remain required at operation time. A focused provider-registration test is added but not executed; no live carrier request or credential change occurred.

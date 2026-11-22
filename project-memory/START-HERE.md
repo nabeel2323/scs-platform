@@ -218,3 +218,11 @@ Correction to the earlier onboarding-permission note: staging is not missing `id
 - Added a focused test for method permission metadata, guard registration, deny/allow behavior and the read-only cart exception. Execution is deferred to the consolidated Phase 3 campaign.
 - Updated the API route matrix, mobile permission matrix and programme gap register. No role grant, database, migration, staging, deployment or worker change was needed.
 - MAP-001 now has its first controller-level route/client/permission matrix. Exact call-site mapping, physical relation reconciliation and worker/provider activation mapping remain outstanding.
+
+
+## Aramex provider registry wiring — 22 November 2026
+
+- Source audit found a DI/registry mismatch: `AramexProvider` was a ShippingModule provider/export, but `ShippingService.onModuleInit` registered only `manual-driver`. The carrier worker resolves provider keys from the registry and defaults missing keys to `aramex`.
+- Fixed provider registration: preserve `manual-driver` as default and register injected Aramex as a non-default provider. The registration step performs no credential reads or external HTTP calls.
+- Added a focused provider-registration test. Execution remains deferred to the consolidated Phase 3 campaign; no live carrier credentials or requests were used.
+- Updated the outbox ownership map, API route matrix and gap register. Actual Aramex execution still requires valid store-scoped configuration and active encrypted organization credentials; no staging or production activation is claimed.

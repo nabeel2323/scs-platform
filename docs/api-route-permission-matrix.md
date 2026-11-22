@@ -2,7 +2,7 @@
 
 **Audit date:** 22 November 2026  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Source checkpoint:** `e0dfd0b694dc07646ed22ee4ceca61609a212459`  
+**Source checkpoint:** `dd2ce1792179eda29cf2007d98854c65f8cdf71f`  
 **Scope:** all 28 NestJS module controller files under `apps/api/src/modules/**`.
 
 ## Evidence and interpretation
@@ -60,3 +60,8 @@ This is a controller-source map of route families, primary client surfaces and m
 - Reconcile 99 Drizzle-exported tables against the 114+ historical physical relation inventory using authorized read-only evidence.
 - Map worker/provider registration, activation flags, retries, leases, outbox ownership, webhook verification, observability and staging runtime topology.
 - Keep generated OpenAPI/contracts and API/client behavior aligned; no schema/migration changes are implied by this inventory.
+
+
+## Carrier provider registry wiring
+
+The Nest module provides/exports `AramexProvider`; `ShippingService.onModuleInit` registers it in `ShippingProviderRegistry` as non-default while preserving `manual-driver` as default. The carrier worker resolves provider keys through that registry and defaults missing keys to `aramex`. Registration itself performs no credential read or network call; a live carrier operation still requires store-scoped configuration and active encrypted organization credentials. The focused registration test is added but not executed.
