@@ -170,7 +170,7 @@ class _PriceListCreateDialogState extends State<_PriceListCreateDialog> {
                 decoration: const InputDecoration(labelText: 'Name')),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              initialValue: _currency,
+              value: _currency,
               decoration: const InputDecoration(labelText: 'Currency'),
               items: [
                 DropdownMenuItem(value: _currency, child: Text(_currency)),

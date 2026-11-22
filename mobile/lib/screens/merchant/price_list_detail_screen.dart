@@ -353,7 +353,7 @@ class _CreatePriceTierDialogState extends ConsumerState<_CreatePriceTierDialog> 
             loading: () => const LinearProgressIndicator(),
             error: (e, _) => Text(ApiService.errorMessage(e)),
             data: (products) => DropdownButtonFormField<String>(
-              initialValue: _productId,
+              value: _productId,
               isExpanded: true,
               decoration: const InputDecoration(labelText: 'Product'),
               items: products.map((product) => DropdownMenuItem(
@@ -372,7 +372,7 @@ class _CreatePriceTierDialogState extends ConsumerState<_CreatePriceTierDialog> 
                 final active = variants.where((variant) => variant.isActive).toList();
                 if (active.isEmpty) return const Text('This product has no active variants.');
                 return DropdownButtonFormField<String>(
-                  initialValue: _variantId,
+                  value: _variantId,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Variant'),
                   items: active.map((variant) => DropdownMenuItem(

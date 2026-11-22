@@ -81,7 +81,7 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
       case 1:
         return true; // variant is optional
       case 2:
-        return _selectedPriceListId != null || double.tryParse(_priceCtrl.text) != null;
+        return (_selectedPriceListId != null && _selectedVariantId != null) || double.tryParse(_priceCtrl.text) != null;
       case 3:
         final moq = int.tryParse(_moqCtrl.text);
         final incrementText = _orderIncrementCtrl.text.trim();
@@ -345,7 +345,11 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
                                 ? const Icon(Icons.check_circle,
                                     color: TaifTokens.brandPrimary)
                                 : null,
-                            onTap: () => setState(() => _selectedProduct = p),
+                            onTap: () => setState(() {
+                              _selectedProduct = p;
+                              _selectedVariantId = null;
+                              _selectedPriceListId = null;
+                            }),
                           ),
                         );
                       },
@@ -405,6 +409,8 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
                 setState(() {
                   _selectedCanonicalProduct = p;
                   // Create a synthetic Product for downstream compatibility
+                  _selectedVariantId = null;
+                  _selectedPriceListId = null;
                   _selectedProduct = Product(
                     id: p.id,
                     storeId: '',
@@ -480,7 +486,10 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
                         TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
               ),
               TextButton(
-                onPressed: () => setState(() => _selectedVariantId = null),
+                onPressed: () => setState(() {
+                  _selectedVariantId = null;
+                  _selectedPriceListId = null;
+                }),
                 child: const Text('Skip'),
               ),
             ]),
@@ -514,7 +523,10 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
                         ? const Icon(Icons.check_circle,
                             color: TaifTokens.brandPrimary)
                         : null,
-                    onTap: () => setState(() => _selectedVariantId = v.id),
+                    onTap: () => setState(() {
+                      _selectedVariantId = v.id;
+                      _selectedPriceListId = null;
+                    }),
                   ),
                 );
               },
@@ -586,9 +598,11 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
           DropdownMenuItem(value: 'USD', child: Text('USD — US Dollar')),
           DropdownMenuItem(value: 'EUR', child: Text('EUR — Euro')),
         ],
-        onChanged: (v) {
-          if (v != null) setState(() => _currency = v);
-        },
+        onChanged: _selectedPriceListId != null
+            ? null
+            : (v) {
+                if (v != null) setState(() => _currency = v);
+              },
       ),
       const SizedBox(height: 20),
       const Text('Price List (optional)',
@@ -819,7 +833,17 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
 
     setState(() => _submitting = true);
     try {
-      final offer = await ref.read(apiServiceProvider).createMerchantOffer(
+      final api = ref.read(apiServiceProvider);
+      if (_selectedPriceListId != null) {
+        if (_selectedVariantId == null) {
+          throw StateError('Select a product variant before using a price list.');
+        }
+        final tiers = await api.fetchPriceListTiers(_selectedPriceListId!);
+        if (!tiers.any((tier) => tier.variantId == _selectedVariantId)) {
+          throw StateError('The selected price list has no quantity tier for this variant. Add a matching tier or choose base pricing.');
+        }
+      }
+      final offer = await api.createMerchantOffer(
             storeId: store.id,
             productId: _selectedProduct!.id,
             variantId: _selectedVariantId,
