@@ -1359,3 +1359,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Added docs/remediation/G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md and linked it from the schema reconciliation, CLI map and operation map.
 - No audit was executed, no database contents were read, no live query/write, migration, seed, reset, grant, default-ACL, RLS, deployment, worker or provider action occurred.
 - The 114-versus-116 discrepancy remains unresolved until the enhanced audit is run with an explicitly approved protected read-only connection and its relation-kind scope is compared with the historical count.
+
+
+## G-002 method-level ownership predicate batch 1 — 22 November 2026
+
+- Added docs/remediation/G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md for OrdersService, PaymentsService and InventoryService.
+- Confirmed public OrdersController routes pass CallerContext or a specific buyer/driver identity; payment detail helpers are unscoped by UUID but controller paths apply assertOrderAccessible; admin global queues rely on platform-only permissions and service role checks; inventory controller routes pass CallerContext to active org/store-membership helpers.
+- Identified InventoryService.transferStock missing the same-store relationship check already enforced by createItem. Fixed it so source warehouse, destination warehouse and variant store must match for both caller and system paths.
+- Added inventory-transfer regression test; not run. No tests, CI, database or staging actions occurred.

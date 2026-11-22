@@ -77,3 +77,8 @@ These helpers use DatabaseService directly and are not passed the caller's activ
 ## Explicit non-actions
 
 No controller endpoint was invoked. No webhook/provider call, worker action, database query/write, migration, seed, reset, bootstrap, grant change, RLS activation, staging deployment or test run occurred.
+
+
+## Method-level ownership predicate link — 22 November 2026
+
+The controller callsite map is now paired with [G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md](./G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md) for the first high-risk service batch (Orders, Payments, Inventory). It records the ownership checks and the internal unscoped helper methods that public controller routes must wrap.

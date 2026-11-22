@@ -251,3 +251,10 @@ The legacy /webhooks/carrier/:providerKey route previously used findFirst on act
 ## Physical objects outside the Drizzle table declarations — source slice 9
 
 The 19-November 114 public r/p count reconciles to 99 Drizzle declarations plus 15 non-Drizzle relations: public._migration_log (migration runner), public.backfill_errors (migration 0053 only), and 13 analytics_events partition children (default plus 12 monthly partitions). See [G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md](./G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md) for DDL and access evidence. The historical 116 count remains unresolved.
+
+
+## Method-level ownership predicate checkpoint — Orders, Payments and Inventory
+
+The first method-level pass is recorded in [G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md](./G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md). It maps controller/service predicates for OrdersService, PaymentsService and InventoryService, including unscoped internal helpers and platform-admin global read paths.
+
+A defect was fixed in InventoryService.transferStock: the destination warehouse could belong to a different store from the product variant even when the caller belonged to both stores in the same organization. Source warehouse, destination warehouse and variant ownership must now resolve to one store for both caller and system paths. Focused regression test added, not run.

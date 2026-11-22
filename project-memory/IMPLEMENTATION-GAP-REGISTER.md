@@ -168,3 +168,10 @@ DB-003 remains IMPLEMENTATION_IN_PROGRESS until an authorized read-only live run
 The shared local UAT guard is now applied to 11 M5/M6 TypeScript scripts plus the independently guarded M6 environment check, and to both JavaScript migration harnesses. It requires SCS_ENVIRONMENT=development|test, SCS_UAT_CONFIRM=true and local DB/API/Redis targets where supplied. The local API's underlying DATABASE_URL remains an operator precondition.
 
 All five staging bootstrap scripts now require SCS_ENVIRONMENT=staging, explicit confirmation, exact SCS_STAGING_BOOTSTRAP_DATABASE and a second target-specific approval value. The db:bootstrap:staging package sequence runs the read-only target preflight before RBAC seed/bootstrap writes. No script was executed.
+
+
+## G-002 method-level predicate batch 1 — 22 November 2026
+
+Mapped OrdersService, PaymentsService and InventoryService method groups to table operations and caller predicates. The map distinguishes buyer, merchant organization, active store membership, assigned driver, platform-admin and system/worker contexts, and records the unscoped internal lookup helpers that controller paths wrap.
+
+Fixed InventoryService.transferStock so the source warehouse, destination warehouse and product variant must belong to the same store for user and system callers. Added a focused regression test; not run. Remaining method-level mapping covers catalog/offer/taxonomy, pricing/merchant/store membership, returns/disputes/reviews, carrier/shipping and worker/outbox/bootstrap contexts. No tests or CI were run.
