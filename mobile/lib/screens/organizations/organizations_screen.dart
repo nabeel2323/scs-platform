@@ -165,7 +165,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                   : RefreshIndicator(
                       onRefresh: () async {
                         try {
-                          await ref.refresh(myOrganizationsProvider.future);
+                          await ref.refresh(myOrganizationsProvider.future).then<void>((_) {});
                         } catch (_) {
                           // Keep the last successful membership list visible.
                         }
