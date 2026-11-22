@@ -28,7 +28,7 @@ const { api } = vi.hoisted(() => ({
 vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
 }));
-vi.mock('../lib/auth', () => ({ hasPerm: () => false }));
+vi.mock('../components/AuthProvider', () => ({ useAuth: () => ({ user: { perms: [] }, loading: false }) }));
 vi.mock('../lib/api', () => Object.fromEntries(
   Object.entries(api).map(([key, fn]) => [key, (...args: unknown[]) => fn(...args)]),
 ));
