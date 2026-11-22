@@ -1,11 +1,11 @@
 # SCS Platform — Release and CI Status
 
-**Checkpoint:** 22 November 2026  
+**Checkpoint:** 23 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest implementation/test commit:** `be40978bf90ec479f13a8f852145aecee4ce9df6` — UX-037 inventory movement-history recovery and helper tests; implementation/test commits used `[skip ci]`.
-**Exact-head checks:** no GitHub Actions run is attached to the current head. The live combined status reports Vercel Web and Admin failures at the external build-rate-limit page; these are not application test results.  
-Documentation-only handoff commits also use `[skip ci]`; fetch the live branch ref for the current documentation HEAD. The latest inspected exact-head preview statuses both reported external build-rate-limit FAILURE. These are preview-provider statuses, not application test results. Focused Web tests have not been executed.
+**Latest live branch head:** `89561501099a75f02d344eef97a373d861413c5a` — PR #138 head; source slice UX-095 / G-036. Relevant source commits include `a9df486`, `7010a0e`, `eaf65eaf`; focused test commits include `df1964a1` and `7fce2ef`. All commits use `[skip ci]`.
+**Exact-head checks:** no GitHub Actions workflow run is attached to exact head `89561501099a75f02d344eef97a373d861413c5a`. The live combined status reports Vercel Web FAILURE and Vercel Admin FAILURE at the external build-rate-limit page; these are not application test results.  
+Documentation-only handoff commits also use `[skip ci]`; fetch the live branch ref for the current documentation HEAD. The latest inspected exact-head preview statuses both reported external build-rate-limit FAILURE. These are preview-provider statuses, not application test results. Focused Web/API tests have not been executed.
 
 ## Previous CI run at the 21 November checkpoint (historical)
 
@@ -833,3 +833,12 @@ The next full workflow is required to verify these changes.
 - UX-094 includes a 13-route merchant deep-link permission matrix plus category read-only policy/helper coverage. Tests are present but not executed. The category API remains ADMIN/MODERATOR-only for writes; no backend permission change was made.
 - The prior CI #1380 API typecheck failure on `de9eeafb3852822552c667d13ad1e0c27fa8d28f` remains historical failure evidence. Corrective API changes exist on this branch but are not CI-verified.
 - No merge, deployment, staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
+
+
+## Exact-head reconciliation — 23 November 2026 (UX-095 / G-036)
+
+- Repository: `nabeel2323/scs-platform`; branch: `remediation/phase-0-1-tenant-security`.
+- PR #138: OPEN, DRAFT, UNMERGED; base `develop`; live head `89561501099a75f02d344eef97a373d861413c5a`.
+- GitHub Actions workflow-run lookup for the exact head returned no runs. The combined status reports Vercel Web FAILURE and Vercel Admin FAILURE at the external build-rate-limit destination. These are preview-provider failures, not application test results.
+- UX-095 Web merchant route/action and active-organization permission alignment is implemented. G-036 realtime store/order room authorization is implemented in source. Focused Web/API tests were added/updated but not executed.
+- k6 and protected staging release remain unrun. No merge, deployment, protected staging operation, shared database mutation, migration, grants/default ACL change, RLS enablement or worker activation occurred.
