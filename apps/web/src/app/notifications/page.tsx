@@ -11,7 +11,7 @@ import {
 } from '../../lib/buyer-api';
 import { useAuth } from '../../components/AuthProvider';
 import { onNotification } from '../../lib/realtime';
-import { formatDate, EmptyState, LoadingSpinner } from '../../components/Shared';
+import { formatDate, EmptyState, ErrorBanner, LoadingSpinner } from '../../components/Shared';
 import { PageHeader, colors, radii, shadows, transitions } from '@scs/ui-kit';
 
 type Filter = 'ALL' | 'UNREAD' | 'READ';
@@ -31,6 +31,8 @@ export default function NotificationsPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [mutationError, setMutationError] = useState('');
   const [filter, setFilter] = useState<Filter>('ALL');
   // Track IDs that are mid-transition so the button shows a spinner and
   // repeated clicks are suppressed.
@@ -46,11 +48,15 @@ export default function NotificationsPage() {
 
   const load = useCallback(async () => {
     if (!user) return;
+    setLoadError('');
     try {
       const data = await fetchNotifications();
       setNotifications(data);
-    } catch { /* silently swallow — the empty state covers it */ }
-    finally { setLoading(false); }
+    } catch (err: unknown) {
+      setLoadError(err instanceof Error ? err.message : 'Unable to load notifications. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
   useEffect(() => { if (user) void load(); }, [load, user]);
@@ -70,6 +76,9 @@ export default function NotificationsPage() {
   async function toggleRead(n: Notification) {
     const id = n.id;
     const wasRead = !!n.readAt;
+    const originalReadAt = n.readAt;
+    const originalStatus = n.status;
+    setMutationError('');
     setWorking(prev => { const s = new Set(prev); s.add(id); return s; });
 
     // Optimistic update
@@ -87,10 +96,11 @@ export default function NotificationsPage() {
       }
       notifyBadgeChanged();
     } catch {
-      // Revert on failure
+      // Revert on failure and explain that the optimistic change was not saved.
       setNotifications(prev => prev.map(x =>
-        x.id === id ? { ...x, readAt: wasRead ? x.readAt : null, status: wasRead ? 'READ' : 'SENT' } : x,
+        x.id === id ? { ...x, readAt: originalReadAt, status: originalStatus } : x,
       ));
+      setMutationError('Could not update this notification. Please try again.');
     } finally {
       setWorking(prev => { const s = new Set(prev); s.delete(id); return s; });
     }
@@ -98,6 +108,7 @@ export default function NotificationsPage() {
 
   // ── Mark all read ────────────────────────────────────────────
   async function handleMarkAllRead() {
+    setMutationError('');
     setWorking(prev => { const s = new Set(prev); s.add('__all__'); return s; });
     const prev = notifications;
 
@@ -109,6 +120,7 @@ export default function NotificationsPage() {
       notifyBadgeChanged();
     } catch {
       setNotifications(prev);
+      setMutationError('Could not mark all notifications as read. Please try again.');
     } finally {
       setWorking(prev => { const s = new Set(prev); s.delete('__all__'); return s; });
     }
@@ -151,6 +163,8 @@ export default function NotificationsPage() {
       />
 
       <div style={{ padding: '20px 24px 48px' }}>
+        {loadError && <ErrorBanner message={loadError} onRetry={() => void load()} />}
+        {mutationError && <ErrorBanner message={mutationError} />}
         {/* Filter tabs */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: colors.bgSubtle, borderRadius: radii.lg, padding: 4, width: 'fit-content' }}>
           {([['ALL', 'All'], ['UNREAD', 'Unread'], ['READ', 'Read']] as const).map(([key, label]) => {
@@ -175,7 +189,7 @@ export default function NotificationsPage() {
           })}
         </div>
 
-        {visible.length === 0 ? (
+        {visible.length === 0 && !loadError ? (
           <EmptyState
             title={filter === 'UNREAD' ? 'No unread notifications' : filter === 'READ' ? 'No read notifications' : 'No notifications'}
             description={filter === 'UNREAD' ? 'All caught up!' : 'Notifications will appear here as they arrive.'}

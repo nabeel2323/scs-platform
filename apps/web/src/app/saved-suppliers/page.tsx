@@ -6,6 +6,7 @@ import { fetchSavedSuppliers, removeSavedSupplier, SavedSupplier } from '../../l
 import { useAuth } from '../../components/AuthProvider';
 import Link from 'next/link';
 import { PageHeader, colors, radii } from '@scs/ui-kit';
+import { ErrorBanner } from '../../components/Shared';
 
 /**
  * Saved Suppliers (§21.3) — the store-level analog of Favorites.
@@ -16,6 +17,9 @@ export default function SavedSuppliersPage() {
   const router = useRouter();
   const [saved, setSaved] = useState<SavedSupplier[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -28,10 +32,11 @@ export default function SavedSuppliersPage() {
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    setLoadError('');
     try {
       setSaved(await fetchSavedSuppliers());
-    } catch {
-      /* ignore */
+    } catch (err: unknown) {
+      setLoadError(err instanceof Error ? err.message : 'Unable to load saved suppliers. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -42,11 +47,15 @@ export default function SavedSuppliersPage() {
   if (authLoading || !user) return <div style={{ textAlign: 'center', padding: 40, color: colors.muted }}>Loading...</div>;
 
   const handleRemove = async (storeId: string) => {
+    setActionError('');
+    setRemovingId(storeId);
     try {
       await removeSavedSupplier(storeId);
       setSaved((s) => s.filter((x) => x.storeId !== storeId));
-    } catch {
-      /* ignore */
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Could not remove this supplier. Please try again.');
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -58,11 +67,13 @@ export default function SavedSuppliersPage() {
       <PageHeader title="Saved Suppliers" subtitle={`${saved.length} suppliers saved`} />
       <div style={{ padding: '20px 24px 48px' }}>
 
+      {loadError && <ErrorBanner message={loadError} onRetry={() => void load()} />}
+      {actionError && <ErrorBanner message={actionError} />}
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40, color: colors.muted }}>
           Loading saved suppliers...
         </div>
-      ) : saved.length === 0 ? (
+      ) : saved.length === 0 && !loadError ? (
         <div style={{ textAlign: 'center', padding: 60, color: colors.muted }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>☆</div>
           <p>No saved suppliers yet. Open a store and click “Save Supplier” to bookmark it.</p>
@@ -83,7 +94,7 @@ export default function SavedSuppliersPage() {
               key={s.id}
               style={{
                 background: '#fff',
-                border: '1px solid ${colors.border}',
+                border: `1px solid ${colors.border}`,
                 borderRadius: 10,
                 padding: 16,
               }}
@@ -121,7 +132,8 @@ export default function SavedSuppliersPage() {
                   View →
                 </Link>
                 <button
-                  onClick={() => handleRemove(s.storeId)}
+                  onClick={() => void handleRemove(s.storeId)}
+                  disabled={removingId === s.storeId}
                   style={{
                     padding: '4px 10px',
                     fontSize: 11,
@@ -129,10 +141,11 @@ export default function SavedSuppliersPage() {
                     color: colors.err,
                     border: `1px solid ${colors.errBorder}`,
                     borderRadius: 4,
-                    cursor: 'pointer',
+                    cursor: removingId === s.storeId ? 'wait' : 'pointer',
+                    opacity: removingId === s.storeId ? 0.6 : 1,
                   }}
                 >
-                  Remove
+                  {removingId === s.storeId ? 'Removing…' : 'Remove'}
                 </button>
               </div>
             </div>

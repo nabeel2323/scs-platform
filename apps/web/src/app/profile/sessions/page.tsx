@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getSessions, revokeSessionsByDevice } from '@/lib/auth';
 import { PageHeader, colors, radii, shadows } from '@scs/ui-kit';
+import { ErrorBanner } from '../../../components/Shared';
 
 interface Session {
   id: string;
@@ -19,6 +20,7 @@ export default function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
@@ -26,11 +28,13 @@ export default function SessionsPage() {
   }, []);
 
   const loadSessions = async () => {
+    setLoading(true);
+    setLoadError('');
     try {
       const data = await getSessions();
       setSessions(data);
     } catch (err: any) {
-      setError(err.message || 'Failed to load sessions');
+      setLoadError(err.message || 'Failed to load sessions');
     } finally {
       setLoading(false);
     }
@@ -86,7 +90,8 @@ export default function SessionsPage() {
       <PageHeader title="Active Sessions" subtitle="Manage your active sessions across devices" />
         <div style={{ padding: '20px 24px 48px' }}>
 
-      {error && <div style={{ background: colors.errBg, border: `1px solid ${colors.errBorder}`, color: colors.err, padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{error}</div>}
+      {loadError && <ErrorBanner message={loadError} onRetry={() => void loadSessions()} />}
+      {error && <div role="alert" style={{ background: colors.errBg, border: `1px solid ${colors.errBorder}`, color: colors.err, padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{error}</div>}
       {success && <div style={{ background: colors.okBg, border: `1px solid ${colors.okBorder}`, color: colors.ok, padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{success}</div>}
 
       <div style={tableWrap}>
@@ -146,7 +151,7 @@ export default function SessionsPage() {
           </tbody>
         </table>
 
-        {sessions.length === 0 && (
+        {sessions.length === 0 && !loadError && (
           <div style={{ textAlign: 'center', padding: 32, color: colors.muted, fontSize: 13 }}>
             No active sessions found
           </div>
