@@ -208,6 +208,7 @@ export default function AdminHomePage() {
       <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
         {/* KPI Row */}
         {canReadKpis && (
+          <>
           <div
             style={{
               display: 'grid',
@@ -265,6 +266,7 @@ export default function AdminHomePage() {
               <button type="button" onClick={() => void loadKpis()}>Retry KPIs</button>
             </div>
           )}
+          </>
         )}
 
         {/* Pending Organization Updates Widget */}
