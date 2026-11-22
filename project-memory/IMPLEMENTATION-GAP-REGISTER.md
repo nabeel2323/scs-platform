@@ -485,3 +485,12 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - Warehouse-list failures used the generic action error state and still rendered “No warehouses yet,” conflating failed reads with successful empty directories. There was no retry action or independent list loading state.
 - Store discovery now has explicit loading/error/retry/no-store states. Warehouse reads have independent loading/error/retry handling, request-version protection and a successful-empty-only state. Existing rows are retained if a later refresh fails.
 - Added `merchant-warehouses-recovery.test.tsx` for store lookup retry, warehouse list retry/empty-state suppression and the true no-store state. Tests have not been executed. No API, permission, schema or database behavior changed.
+
+## UX-043 — Admin Dashboard independent read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- Dashboard KPI and pending-organization-update requests silently swallowed failures, leaving zero/default KPI values or a false “No pending update requests” state. Catalog Imports and Catalog Requests shared one error/loading state, so one failure could obscure the other and both widgets could show false empty results.
+- Added independent loaders, error states, retry actions and request-version guards for KPIs, organization updates, catalog imports and catalog requests. A failed KPI read now displays an unavailable placeholder rather than fabricated zero values; previously loaded KPI/list data remains visible during failed refreshes.
+- Each catalog widget now reports its own error and suppresses its empty state only when its own read failed. The other widget remains independently usable.
+- Added `admin-dashboard-recovery.test.tsx` covering independent failures, retry and empty-state suppression. Tests have not been executed. No API, permission or backend behavior changed.
