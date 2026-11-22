@@ -1532,3 +1532,10 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - UX-047 implemented: Merchant Store Detail now displays locale, popularity-badge visibility, logo/cover previews and address from the existing store detail endpoint.
 - Focused tests added: Admin create-user recovery, user role-permission/profile/membership display, merchant detail presentation, and API user-creation partial-membership rejection. Tests have not been executed; status remains IMPLEMENTED / TESTING_PENDING for the consolidated Phase 3 campaign.
 - No new API routes, permission keys, schema, migrations, database changes, staging writes, grant/RLS changes, deployment or worker activation.
+
+## UX-048 / UX-049 — Admin Roles and Audit Log recovery — 22 November 2026
+
+- UX-048 implemented: Roles list exposes retry on failed reads and uses request-version guards with effect cleanup to prevent stale/unmounted updates.
+- UX-049 implemented: Audit Log query responses are generation-guarded; older filter responses cannot overwrite newer results. Pending requests are invalidated during cleanup, errors expose Retry audit log, and last successful rows remain visible during refresh/failure.
+- Focused tests added for role lookup retry, audit query response ordering and audit retry. Tests have not been executed; status remains IMPLEMENTED / TESTING_PENDING for Phase 3.
+- No API routes, permission keys, schema, migrations or database changes.
