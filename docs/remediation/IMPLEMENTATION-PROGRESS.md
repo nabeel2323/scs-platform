@@ -1727,3 +1727,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - A cached store whose organization ID does not match the active organization is not presented as the active store while the new organization lookup is pending or failing.
 - Added `store_profile_read_recovery_test.dart` for stale store detail preservation after refresh failure.
 - Store editing, warehouse creation, currency/locale selection and permissions are unchanged. No API, database, migration, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-078 — Mobile Buyer Store Directory and Store Detail recovery — 23 November 2026
+
+- Buyer Store Directory now has explicit refresh and pull-to-refresh. The last successful store list remains visible during refresh and after a failed refresh, with stale-data messaging and Retry. Initial failures remain actionable errors rather than successful empty states.
+- Buyer Store Detail now uses a dedicated store-keyed, auto-disposed provider for its catalogue, preserving the existing buyer-only ACTIVE product filter. It exposes explicit refresh, pull-to-refresh, retryable initial errors and same-store stale catalogue preservation; an unavailable first read cannot become a false "No products" state.
+- Added `store_buyer_read_recovery_test.dart` for store-list and store-catalogue stale-data preservation, initial failure/retry and successful empty states.
+- No API, permission, product visibility, store lifecycle, cart mutation, database, migration, staging or provider behavior changed. The existing `fetchStoreProducts(..., status: 'ACTIVE')` contract remains authoritative. Flutter tests are pending the consolidated Phase 3 campaign.
