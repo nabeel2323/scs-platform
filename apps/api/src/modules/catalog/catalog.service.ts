@@ -2294,10 +2294,14 @@ export class CatalogService {
       return this.coerceVariantNumeric(updated);
     }
 
-    // Legacy path: no optimistic locking
+    // Legacy path: no optimistic locking, but retain the product relationship
+    // in the UPDATE predicate to close the gap between preflight and write.
     const [updated] = await this.db.db.update(productVariants)
       .set(updates)
-      .where(eq(productVariants.id, variantId))
+      .where(and(
+        eq(productVariants.id, variantId),
+        eq(productVariants.productId, productId),
+      ))
       .returning();
     // PHASE 4 P6: Audit — variant updated by merchant
     await this.audit.record({
@@ -2485,6 +2489,18 @@ export class CatalogService {
 
   async addMedia(productId: string, input: AddMediaInput) {
     await this.getProduct(productId);
+    if (input.variantId) {
+      const variant = await this.db.db.query.productVariants.findFirst({
+        where: and(
+          eq(productVariants.id, input.variantId),
+          eq(productVariants.productId, productId),
+        ),
+        columns: { id: true },
+      });
+      if (!variant) {
+        throw new BadRequestException('Variant does not belong to this product');
+      }
+    }
     const id = crypto.randomUUID();
 
     await this.db.db.insert(productMedia).values({

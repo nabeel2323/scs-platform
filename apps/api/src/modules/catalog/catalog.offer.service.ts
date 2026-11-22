@@ -12,7 +12,7 @@ import { products, productVariants } from './catalog.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import { priceLists } from '../pricing/pricing.schema';
 import { orderItems } from '../orders/orders.schema';
-import { eq, and, isNull, asc, desc, inArray, sql, count, gte, lt } from 'drizzle-orm';
+import { eq, and, or, isNull, asc, desc, inArray, sql, count, gte, lt } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 
@@ -162,8 +162,13 @@ export class CatalogOfferService {
       input.warehouseId,
     );
 
+    // Offers may target shared canonical products or products owned by
+    // this same store, never another merchant's private product.
     const product = await this.db.db.query.products.findFirst({
-      where: eq(products.id, input.productId),
+      where: and(
+        eq(products.id, input.productId),
+        or(isNull(products.storeId), eq(products.storeId, input.storeId)),
+      ),
     });
     if (!product) throw new NotFoundException('Product not found');
 
