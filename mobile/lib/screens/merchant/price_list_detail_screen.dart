@@ -31,7 +31,7 @@ class PriceListDetailScreen extends ConsumerWidget {
 
   Future<void> _refreshTiers(WidgetRef ref) async {
     try {
-      await ref.refresh(priceListTiersProvider(priceListId).future);
+      await ref.refresh(priceListTiersProvider(priceListId).future).then<void>((_) {});
     } catch (_) {
       // Preserve the last successful tiers; the provider state shows the error.
     }
