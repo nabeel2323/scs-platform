@@ -261,3 +261,10 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Added retryable detail loading for users, merchants and organizations with request-version guards against stale route responses.
 - Isolated the user's effective-permission catalog load from the core user record. The user detail remains available when the permission catalog fails; the Permissions tab now has an independent retry state.
 - Added focused tests for user, merchant and organization read recovery; not run. Continue remaining UX-010 source audit.
+
+
+## 2026-11-22 — UX-021 Admin dispute resolution workflow
+
+- Added a resolution form to Admin dispute detail, wired to the existing protected resolve endpoint. Required text, pending state, error/success feedback and final resolved-state rendering are included.
+- The existing route permission and platform-admin service guard remain authoritative; no new refund contract was assumed.
+- Added a focused component test; not run. Continue UX-010 source audit and implementation.

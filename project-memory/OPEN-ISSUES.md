@@ -324,3 +324,10 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - User, merchant and organization details previously had non-retryable read failures and no stale-response guard.
 - Added retryable error states and request-version protection; user permission catalog failures are isolated to the Permissions tab.
 - Added focused tests, not executed. Continue UX-010 re-audit; full tests remain deferred.
+
+
+## UX-021 Admin dispute resolution workflow — 22 November 2026
+
+- Admin dispute detail previously had no way to invoke the existing resolve API. Added a required resolution form, pending/error/success feedback and resolved-state display using the existing `PATCH /v1/disputes/:id/resolve` contract.
+- Service-level platform-admin authorization remains in place; UI does not introduce unsupported refund fields. Focused test added, not executed.
+- Continue remaining UX-010 audit; comprehensive test campaign remains deferred.

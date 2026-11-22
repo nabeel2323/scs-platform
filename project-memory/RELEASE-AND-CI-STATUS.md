@@ -472,3 +472,10 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Source implementation commit: `b20bdbfea47365bd8478f06cfa7ed4e73ce6d613`; documentation sync follows separately.
 - PR #138 remains open, draft and unmerged to `develop`.
 - Focused Admin tests were added but not run. No GitHub Actions CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred as part of this source batch.
+
+
+## Exact source checkpoint — UX-021 Admin dispute resolution — 22 November 2026
+
+- Source implementation commit: `e6c56d1c32a0e7d496db62e4ae69025d9e624ccd`; documentation sync follows separately.
+- PR #138 remains open, draft and unmerged to `develop`.
+- Focused Admin component test was added but not run. No GitHub Actions CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred as part of this change.

@@ -415,3 +415,10 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Added focused tests for all three detail retry paths. Not executed.
 - Source baseline before docs sync: `b20bdbfea47365bd8478f06cfa7ed4e73ce6d613`; docs commit advances branch. PR #138 remains open/draft/unmerged.
 - No DB, migration, deployment, worker activation, grants/RLS or provider actions occurred.
+
+
+## Admin dispute resolution UX-021 checkpoint — 22 November 2026
+
+- Admin dispute detail now exposes a required resolution workflow for unresolved disputes, calling the existing protected `PATCH /v1/disputes/:id/resolve` endpoint. It disables empty/in-flight submission, shows error/progress/success feedback, reloads after resolution and displays the stored decision for resolved/closed cases.
+- Service-level platform-admin authorization and `support:disputes:resolve` permission remain in force. No unsupported refund fields were added to the UI.
+- Added a focused component test; not executed. Source baseline before docs sync: `e6c56d1c32a0e7d496db62e4ae69025d9e624ccd`; docs commit advances branch. PR #138 remains open/draft/unmerged.

@@ -231,6 +231,7 @@ Deferred/remaining:
 | UX-018 | Mobile cart line-action concurrency and quantity recovery | P2 | IMPLEMENTED IN SOURCE — NOT TESTED | Mobile cart quantity/remove actions could be triggered repeatedly while requests were pending; the quantity stepper remained editable during mutations and a rejected optimistic text entry could remain visible. Added a shared item-action lock, per-row busy feedback, disabled quantity editor and failure reset. |
 | UX-019 | Admin dispute and evidence timeline read recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Dispute detail and Events/Evidence tabs used non-retryable errors; stale requests could update the screen after a tab or route change. Added retryable shared error states, request-version protection and focused recovery tests. |
 | UX-020 | Admin user, merchant and organization detail read recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | User/merchant/organization detail reads used non-retryable errors and lacked stale-response protection. Added retryable detail states, request-version guards, and independent permission-catalog retry for user detail. |
+| UX-021 | Admin dispute resolution workflow | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Dispute detail exposed overview/events but no resolution form despite the protected resolve API and route permission. Added a required resolution form, guarded PATCH action, progress/error/success feedback and resolved-state rendering. |
 
 
 ## UX-015 — Product Studio save and step-transition integrity — 22 November 2026
@@ -276,3 +277,11 @@ Deferred/remaining:
 - User, merchant and organization detail pages now use awaitable load callbacks, clear prior errors, and ignore obsolete responses after route/permission changes or unmounts.
 - User detail separates the primary user read from the effective-permission catalog read: a permissions outage no longer hides otherwise available user details, and the Permissions tab has its own retryable error state.
 - Merchant and organization detail errors now expose the shared retry action. Added focused Admin tests for all three detail recovery paths. Tests have not been executed.
+
+
+## UX-021 — Admin dispute resolution workflow — 22 November 2026
+
+- The Admin dispute detail page now exposes a Resolution section for disputes that are not already RESOLVED/CLOSED. It requires a nonblank resolution explanation (maximum 4,000 characters) and calls the existing `PATCH /v1/disputes/:id/resolve` contract with `{ resolution }`.
+- The submit action is disabled for empty input or while in flight, shows progress and API errors, reloads the dispute after success, and displays the stored resolution for resolved/closed disputes instead of an editable form.
+- The API permission `support:disputes:resolve` and service-level platform-admin check remain authoritative; this UI does not bypass either. No refund amount/return link fields were invented because the current controller contract exposes only the resolution text.
+- Added a focused Admin component test for the protected resolution request. Tests have not been executed.

@@ -601,3 +601,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added focused component tests in `apps/admin/src/__tests__/management.test.tsx` for user, merchant and organization detail recovery. Not executed.
 - Source baseline: `b20bdbfea47365bd8478f06cfa7ed4e73ce6d613`; docs sync follows separately.
 - No DB, migration, deployment, worker activation, grants/RLS or provider calls.
+
+
+## 2026-11-22 — UX-021 Admin dispute resolution workflow
+
+- Added an Admin dispute Resolution section for non-resolved disputes, with required decision text and `PATCH disputes/:id/resolve` request.
+- The form disables invalid/concurrent submissions, shows API errors and progress, reloads dispute detail after success, and displays the stored resolution when already resolved/closed.
+- Preserved the API permission and service-level platform-admin guard; no refund amount or unsupported body fields were invented.
+- Added a focused test to `apps/admin/src/__tests__/management.test.tsx`. Not executed.
+- Source baseline: `e6c56d1c32a0e7d496db62e4ae69025d9e624ccd`; docs sync follows separately.
+- No DB, migration, deployment, worker activation, grants/RLS or provider calls.

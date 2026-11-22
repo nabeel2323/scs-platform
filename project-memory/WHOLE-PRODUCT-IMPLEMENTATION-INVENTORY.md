@@ -308,3 +308,11 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - User, merchant and organization detail pages previously displayed non-retryable read errors and did not guard against stale request completions.
 - Added retryable shared error states and request-version protection. User detail now isolates the permission catalog read from the core user detail so permission-service failure does not hide user identity; the Permissions tab can retry independently.
 - Added focused component tests for user, merchant and organization detail retry behavior. Not executed.
+
+
+## 22 November 2026 — Admin dispute resolution workflow (UX-021)
+
+- The Admin dispute detail screen previously showed the dispute and event timeline but exposed no action to resolve it, despite the existing `support:disputes:resolve` API route.
+- Added a required resolution text form for unresolved disputes. It calls the existing `PATCH /v1/disputes/:id/resolve` contract, displays pending/error/success states, reloads after success and renders the stored resolution for already resolved/closed disputes.
+- The API permission guard and platform-admin service check remain authoritative. The UI only sends the currently supported `{ resolution }` field; no unsupported refund parameters were added.
+- Added a focused component test. Not executed.
