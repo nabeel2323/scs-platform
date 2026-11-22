@@ -616,3 +616,8 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - Attribute Groups and Attribute Definitions already exposed retry buttons, but their failed reads could still render empty result rows/counts. Attribute Definitions also issued overlapping filter requests without guarding stale completion.
 - Added request-version guards and cleanup invalidation to both pages, role-aware read guards, explicit alert semantics, and suppression of empty-result rows/counts after failures. Last successful data remains visible during failed refreshes.
 - Added `admin-attribute-groups-recovery.test.tsx` and `admin-attributes-recovery.test.tsx`. Tests not executed. No API, permission, schema or database change.
+
+
+## UX-078 — Mobile Buyer Store read recovery — 23 November 2026
+
+Source-confirmed gap closed in implementation: buyer Store Directory lacked stale-data-safe refresh and Store Detail used a FutureBuilder without retry/refresh. Both now preserve last successful data, expose retry and explicit refresh/pull-to-refresh, and distinguish initial read failure from successful empty results. The Store Detail provider retains the ACTIVE-only buyer catalogue contract. Focused Flutter tests are added but remain TESTING_PENDING. No API, permission, database, migration, staging or provider behavior changed.
