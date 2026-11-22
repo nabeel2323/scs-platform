@@ -432,3 +432,14 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
 - Next: continue Mobile merchant operational screens, then remaining Web/Admin routes. Implement only source-confirmed contract-backed gaps.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
+
+
+## Latest UX continuation checkpoint — 23 November 2026 (UX-086)
+
+- Implemented Mobile Merchant Catalog recovery: active-store and product reads preserve last-successful data through refresh/reload failures; explicit refresh and pull-to-refresh await the correct current-store product read; stale notices/retry; initial errors remain separate from successful empty catalogues.
+- Existing product search/status filters and create/delete permission gates are unchanged.
+- Added Flutter widget tests for stale catalogue preservation, initial failure/retry and true-empty state. Tests have not been executed and remain pending Phase 3.
+- Source commits: `4ef8813` and current-store refresh correction `7723fb7`; focused tests: `5484e8f`. All use `[skip ci]`.
+- PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
+- Next: continue remaining merchant operational screens and then Web/Admin routes; implement only source-confirmed contract-backed gaps.
+- No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
