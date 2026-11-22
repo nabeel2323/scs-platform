@@ -455,3 +455,12 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Confirmed 0060 business_calendars has created_by but no org/store key; its tenant-vs-global comment is not reflected in the table structure. 0034 catalog_imports is explicitly platform-level and uploaded_by is attribution.
 - Reaffirmed migration 0070 revokes anon/authenticated table/sequence privileges and defaults and pins normalize_arabic search_path, but does not enable RLS or change service_role. Migration 0071 adds auto-complete claim fields/index only.
 - No staging catalog query, database write, migration, grant/default-ACL change, RLS activation, deployment, worker activation or provider call occurred.
+
+
+## 2026-11-22 — G-002 earlier migration FK crosswalk extension
+
+- Extended the migration crosswalk with core schema constraints from migrations 0001, 0003, 0004, 0005, 0009, 0010, 0023, 0026, 0040 and 0041.
+- Added explicit membership, store/warehouse, catalog, inventory, cart/order, offer, shipment/driver, shipping-zone, label/proof and webhook FK paths.
+- Flagged the absence of composite consistency constraints for multi-parent rows such as verification requests, business documents, cart items, inventory items, merchant offers, order participants, settlement records, carrier configurations, delivery-zone methods and driver-store assignments.
+- Reaffirmed that a child-table RLS predicate must verify every required parent relationship; one valid FK alone does not guarantee all referenced parents belong to the same tenant.
+- No live catalog query or DB mutation occurred; this remains migration-source evidence only.
