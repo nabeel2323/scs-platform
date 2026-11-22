@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
 import '../../services/api_service.dart';
@@ -84,18 +85,24 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
                       () => ref.invalidate(ordersProvider),
                     ),
                   if (list.isEmpty)
-                    EmptyState(
+                    SizedBox(
+                      height: 320,
+                      child: EmptyState(
                       title: 'No orders yet',
                       description: 'Place your first order from the store',
                       icon: Icons.receipt_long,
                       onAction: () => context.go('/search'),
                       actionLabel: 'Browse',
+                    ),
                     )
                   else if (filtered.isEmpty)
-                    EmptyState(
+                    SizedBox(
+                      height: 320,
+                      child: EmptyState(
                       title: 'Nothing here',
                       description: 'No ${_filter.name} orders.',
                       icon: Icons.filter_alt_off_outlined,
+                    ),
                     )
                   else
                     ...filtered.map(_orderCard),
@@ -155,8 +162,8 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.06),
-          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+          color: TaifTokens.err.withValues(alpha: 0.06),
+          border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -164,7 +171,7 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
             Expanded(
               child: Text(
                 message,
-                style: const TextStyle(fontSize: 12, color: Colors.red),
+                style: const TextStyle(fontSize: 12, color: TaifTokens.err),
               ),
             ),
             TextButton(onPressed: onRetry, child: const Text('Retry')),
