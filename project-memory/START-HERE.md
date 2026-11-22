@@ -75,7 +75,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 22 November 2026 confirms branch `remediation/phase-0-1-tenant-security`, PR #138 open/draft/unmerged to `develop`. Latest source implementation commit: `784948d0b5b63f35b4f3b0666a29db9e277dc2a0`; latest focused test commit: `f67d70f225b799606f5ed1c2a8af4fa61a1bde06`. Latest project-memory/progress synchronization commit: `dfdcaaff8a897f73b25af2cd46ef7472cb8e5dfe`; refresh the live ref after the next documentation update.
+Live GitHub reconciliation on 22 November 2026 confirms branch `remediation/phase-0-1-tenant-security`, PR #138 open/draft/unmerged to `develop`. Latest source implementation commit: `784948d0b5b63f35b4f3b0666a29db9e277dc2a0`; latest focused test commit: `f67d70f225b799606f5ed1c2a8af4fa61a1bde06`. Project-memory and remediation progress documents are synchronized through UX-049; refresh the live ref after the next documentation update.
 
 UX-046 Admin User Management is implemented: optional phone, independent organization/role lookup retry, org/role pair validation at UI and service boundaries, profile editing, membership management, confirmed status changes, and accurate per-role permission display. UX-047 Merchant Store Detail presents locale, popularity-badge visibility, logo/cover previews and address. UX-048 Roles List has retryable reads and stale-response protection. UX-049 Audit Log filter reads are request-version guarded and expose retry without losing the last successful rows. Focused Admin/API tests were added but not executed. All commits use `[skip ci]`; Vercel Web/Admin failures remain external build-rate-limit statuses, not application test results.
 
