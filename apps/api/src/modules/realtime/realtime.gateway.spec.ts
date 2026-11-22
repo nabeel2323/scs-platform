@@ -155,9 +155,9 @@ describe('RealtimeGateway room authorization', () => {
     });
 
     const result = await gateway.handleJoin(socket, {
-      rooms: [`org:${ids.store}`, `user:${ids.otherUser}`],
+      rooms: [`org:${ids.store}`, `order:${ids.order}`, `user:${ids.otherUser}`],
     });
 
-    expect(result.data.rooms).toEqual([`org:${ids.store}`]);
+    expect(result.data.rooms).toEqual([`org:${ids.store}`, `order:${ids.order}`]);
   });
 });
