@@ -30,6 +30,9 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
   Widget build(BuildContext context) {
     final offerAsync = ref.watch(merchantOfferDetailProvider(widget.offerId));
     final analyticsAsync = ref.watch(merchantOfferAnalyticsProvider);
+    final canWriteOffers = ref.watch(profileProvider).valueOrNull
+            ?.hasPermission('catalog:offers:write') ??
+        false;
 
     return Scaffold(
       appBar: AppBar(
@@ -99,7 +102,7 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
                 const SizedBox(height: 16),
 
                 // Action buttons
-                _actionBar(offer),
+                _actionBar(offer, canWriteOffers),
               ],
             ),
           );
@@ -623,7 +626,16 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
 
   // ── Action Bar ──────────────────────────────────────────────────
 
-  Widget _actionBar(MerchantOffer offer) {
+  Widget _actionBar(MerchantOffer offer, bool canWriteOffers) {
+    if (!canWriteOffers) {
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: Text(
+          'Read-only: offer changes require catalog:offers:write',
+          style: TextStyle(fontSize: 12, color: TaifTokens.muted),
+        ),
+      );
+    }
     final actions = <Widget>[];
 
     if (offer.canPropose) {
@@ -682,6 +694,7 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
   // ── Actions ─────────────────────────────────────────────────────
 
   Future<void> _propose(MerchantOffer offer) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('catalog:offers:write') != true) return;
     final confirmed = await _confirmDialog(
       title: 'Propose Offer',
       message:
@@ -712,6 +725,7 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
   }
 
   Future<void> _withdraw(MerchantOffer offer) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('catalog:offers:write') != true) return;
     final confirmed = await _confirmDialog(
       title: 'Withdraw Offer',
       message:
@@ -742,6 +756,7 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
   }
 
   Future<void> _updatePricing(MerchantOffer offer) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('catalog:offers:write') != true) return;
     // Navigate to pricing update form (Phase 5 will provide the full form).
     // For now, show a simple dialog with the key pricing fields.
     final priceCtrl = TextEditingController(
