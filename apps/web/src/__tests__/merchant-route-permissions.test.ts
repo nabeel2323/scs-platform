@@ -31,8 +31,10 @@ describe('merchant route permission policy', () => {
     expect(canAccessMerchantRoute(path, [])).toBe(false);
   });
 
-  it('leaves authenticated onboarding and the merchant dashboard outside feature gates', () => {
-    expect(merchantRoutePermission('/merchant')).toBeNull();
+  it('requires store read access for the dashboard and leaves onboarding role-open', () => {
+    expect(merchantRoutePermission('/merchant')).toBe('merchant:stores:read');
+    expect(canAccessMerchantRoute('/merchant', ['merchant:stores:read'])).toBe(true);
+    expect(canAccessMerchantRoute('/merchant', [])).toBe(false);
     expect(merchantRoutePermission('/merchant/register')).toBeNull();
     expect(merchantRoutePermission('/merchant/onboard')).toBeNull();
     expect(merchantRoutePermission('/merchant/success')).toBeNull();
