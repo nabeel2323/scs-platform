@@ -100,8 +100,8 @@ void main() {
       ),
     );
 
-    await tester.enterText(find.byLabelText('Delivery Address'), '1 Main Street');
-    await tester.enterText(find.byLabelText('City'), 'Riyadh');
+    await tester.enterText(find.byType(TextFormField).at(0), '1 Main Street');
+    await tester.enterText(find.byType(TextFormField).at(1), 'Riyadh');
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
 
