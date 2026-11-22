@@ -454,3 +454,11 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Added request-version guards for tab/filter reads and a separate retryable selected-run detail read for reconciliation. Financial mutation failures remain action errors.
 - Added four focused Admin tests; not executed.
 - Source baseline before docs sync: `2fb4628b58420e0e9350bfb296b6266f291ca58d`; docs commit advances branch. PR #138 remains open/draft/unmerged.
+
+
+## Product Studio follow-up UX-015 / UX-025 checkpoint — 22 November 2026
+
+- Progress stepper navigation is sequential and shares the Offer → Media persistence gate; it is disabled while saving. This closes a bypass where users could click directly to later steps without the same save validation.
+- Subsequent saves now PATCH an existing product instead of only creating once. The returned product `updatedAt` is carried forward and supplied for optimistic concurrency. Create/update now persist supported product type and GTIN/EAN/MPN fields.
+- Added progress-indicator and existing-product update-failure regression coverage. Not executed.
+- Source baseline before docs sync: `49b28054855fa3e18ade7e17aca0395124713a6f`; docs commit advances branch. PR #138 remains open/draft/unmerged.

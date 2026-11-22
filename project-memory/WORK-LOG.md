@@ -644,3 +644,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added four tests to `apps/admin/src/__tests__/management.test.tsx` for payment queue, settlement, reconciliation and settlement-adjustment read failure → retry → successful empty results. Not executed.
 - Source baseline: `2fb4628b58420e0e9350bfb296b6266f291ca58d`; docs sync follows separately.
 - No database, migration, deployment, worker activation, grants/RLS or provider actions.
+
+
+## 2026-11-22 — Product Studio save and update completion (UX-015 / UX-025)
+
+- Progress stepper navigation is now sequential; it routes Offer → Media through the same persistence helper as Next and disables all steps while saving. This closes the direct-step-click bypass.
+- Product Studio now PATCHes existing products on subsequent saves rather than silently ignoring edits made after navigating back. Product `updatedAt` is carried forward for optimistic locking.
+- Added supported productTypeId and GTIN/EAN/MPN fields to create/update payloads and validates store/title in the save routine.
+- Added `apps/web/src/__tests__/product-studio-progress.test.tsx` and an existing-product update failure case in `product-studio-flow.test.ts`. Not executed.
+- Source baseline: `49b28054855fa3e18ade7e17aca0395124713a6f`; docs sync follows separately.
+- No database, migration, deployment, worker activation, grants/RLS or provider calls.

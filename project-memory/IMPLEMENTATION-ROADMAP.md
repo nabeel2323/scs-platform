@@ -289,3 +289,10 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Added retryable read states and separate action-error feedback to payments, settlements, reconciliation and settlement-adjustment workflows.
 - Added stale-request guards for payment tabs and settlement/reconciliation filters. Reconciliation run detail has its own retry action.
 - Added focused tests for the four financial list recovery paths; not run. Continue UX-010 source audit.
+
+
+## 2026-11-22 — UX-025 Product Studio existing-product update integrity
+
+- Product Studio now updates previously created products on subsequent saves, carries the optimistic-lock `updatedAt` value and persists supported product type and canonical identifiers.
+- The progress stepper can no longer jump over required sequential steps or bypass the Offer-step save guard; it is disabled during persistence.
+- Added focused tests for stepper navigation and failed update transition. Not run. Continue UX-010 source audit.

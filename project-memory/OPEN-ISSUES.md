@@ -360,3 +360,10 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Payments, Settlements, Reconciliation and Settlement Adjustments now show retryable read failures separately from mutation errors. Empty financial queues are only shown after a successful read.
 - Added stale-request protection for tabs/filters and retryable reconciliation run detail. Four focused tests added, not executed.
 - Continue UX-010 audit and integration; comprehensive test campaign remains deferred.
+
+
+## UX-025 Product Studio update/identifier integrity — 22 November 2026
+
+- Existing Product Studio products now receive PATCH updates on later saves, using optimistic-lock `updatedAt`; create/update payloads persist productTypeId and GTIN/EAN/MPN. Save validates store/title.
+- Progress navigation is sequential and uses the same save guard; no direct jump can bypass Offer-step persistence.
+- Focused tests added, not executed. Full test campaign remains deferred.

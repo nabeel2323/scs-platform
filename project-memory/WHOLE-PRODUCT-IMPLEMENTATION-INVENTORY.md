@@ -339,3 +339,11 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Added request-version protection to payment tabs, settlement status filters, reconciliation run history and settlement-adjustment filters. Reconciliation selected-run detail has its own retryable error state.
 - Mutation failures remain inline action errors; successful actions reload the authoritative list/detail state. No finance API contracts or financial side effects were changed.
 - Added four focused Admin tests for read failure/retry on payment queue, settlements, reconciliation and settlement adjustments. Not executed.
+
+
+## 22 November 2026 — Product Studio persistence completion (UX-015 / UX-025)
+
+- Progress navigation now allows only the previous/completed steps and the next sequential step. The Offer → Media stepper click uses the same save gate as Next, and the entire stepper is disabled during save, preventing direct navigation from bypassing product persistence.
+- Existing Product Studio products are now updated on subsequent saves rather than silently skipping identity edits. The product's `updatedAt` is retained and sent for optimistic locking.
+- Create/update payloads include the supported productTypeId, GTIN, EAN and MPN fields. Store/title are validated in the save routine as well as the step transition helper.
+- Added a progress-indicator widget test and an existing-product update-failure regression case. Tests not executed.

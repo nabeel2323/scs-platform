@@ -509,3 +509,10 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Source implementation commit: `2fb4628b58420e0e9350bfb296b6266f291ca58d`; documentation sync follows separately.
 - PR #138 remains open, draft and unmerged to `develop`. Four focused Admin financial read-retry tests were added but not executed.
 - No exact-head CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred.
+
+
+## Exact source checkpoint — UX-025 Product Studio updates — 22 November 2026
+
+- Source implementation commit: `49b28054855fa3e18ade7e17aca0395124713a6f`; documentation sync follows separately.
+- PR #138 remains open, draft and unmerged to `develop`. Focused Product Studio stepper/update tests were added but not run.
+- No exact-head CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred.
