@@ -705,3 +705,12 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Focused Flutter tests: `mobile/test/merchant_catalog_read_recovery_test.dart` commit `5484e8f`.
 - All commits use `[skip ci]`. No Flutter tests or exact-head CI jobs have been executed for this increment.
 - PR #138 remains open/draft/unmerged to `develop`. No catalog API, permission, database, migration, staging, grant/RLS, worker or provider action occurred.
+
+## Exact-head status — 23 November 2026 (Mobile UX-088)
+
+- PR #138 remains OPEN / DRAFT / UNMERGED against `develop`.
+- Branch head at the implementation/test checkpoint: `fe508b0d30c791fb7597ec7f1c95d6b6968461b4` (`test(mobile): cover merchant inventory read recovery [skip ci]`).
+- GitHub Actions workflow lookup returned no run for this exact SHA; the implementation/test commits deliberately use `[skip ci]` under the implementation-first programme. No test or CI pass is claimed.
+- Combined status contexts at this SHA: Vercel Admin PENDING; Vercel Web FAILURE with the provider's build-rate-limit destination. These are preview-provider statuses, not application test results.
+- Focused Flutter tests for UX-087 and UX-088 are added but not executed. The consolidated Phase 3 test campaign remains NOT STARTED.
+- No merge, deployment, staging release, staging write, shared database change, migration, grant/default-ACL change, RLS enablement, worker activation or provider operation occurred.
