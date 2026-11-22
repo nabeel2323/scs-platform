@@ -118,3 +118,10 @@ The user reports that approximately 90% of the GitHub Actions minutes allowance 
 ## GitHub Actions budget — 22 November 2026
 
 The user reports that 90% of GitHub Actions action minutes have been consumed. Group related implementation and documentation changes into fewer commits, avoid workflow runs for individual edits, and defer broad testing until the implementation batch is complete. Use one consolidated formatter/test/security/CI run for the final validation and fix all findings together. Implementation commits may use `[skip ci]` when validation is intentionally deferred and clearly recorded.
+
+## 2026-11-23 — Mobile organization/session cache boundaries
+
+- On a successful organization switch, persist and install the replacement token, update `activeOrgIdProvider`, then invalidate the organization-scoped provider set. Do not invalidate user-level buyer cart/order/notification state for an org-only switch.
+- Active-store resolution must match the selected `activeOrgIdProvider`; it must return null rather than fall back to a store from another organization.
+- At a user-session boundary (new login/logout), clear in-memory phone/email/active-org identity and invalidate all authenticated provider caches, including buyer orders/cart, notifications, organization detail/members and driver reads. New login clears persisted active-org selection before writing the new token. Logout clears persisted tokens and active-org through `AuthStorage.clearTokens`.
+- This is client-side cache/context hygiene only. Backend tenant authorization remains authoritative; do not treat client invalidation as a security boundary or as closure of RLS/grant findings.
