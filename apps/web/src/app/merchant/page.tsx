@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { fetchProfile, fetchMyStores, Store, UserProfile } from '../../lib/api';
 import { pickStore, rememberStoreId } from '../../lib/merchant-store';
@@ -28,6 +28,8 @@ const CARDS = [
 
 export default function MerchantDashboardPage() {
   const { user } = useAuth();
+  const activeOrgId = user?.activeOrgId ?? null;
+  const loadRequestRef = useRef(0);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const permissions = user?.perms ?? profile?.perms ?? [];
   const visibleCards = CARDS.filter((card) => permissions.includes(card.permission));
@@ -37,19 +39,39 @@ export default function MerchantDashboardPage() {
   const [newOrderAlert, setNewOrderAlert] = useState<NewOrderEvent | null>(null);
 
   useEffect(() => {
+    const requestId = ++loadRequestRef.current;
+    setLoading(true);
+    setProfile(null);
+    setStores([]);
+    setActiveId('');
+    setNewOrderAlert(null);
+
     (async () => {
       try {
         const [p, s] = await Promise.all([
           fetchProfile(),
           fetchMyStores().catch(() => [] as Store[]),
         ]);
+        if (requestId !== loadRequestRef.current) return;
         setProfile(p);
         setStores(s);
         setActiveId(pickStore(s)?.id || '');
-      } catch { /* handled below via hasOrg */ }
-      finally { setLoading(false); }
+      } catch {
+        // Keep the dashboard empty for the new organization rather than
+        // retaining the previous organization's profile or store snapshot.
+        if (requestId === loadRequestRef.current) {
+          setProfile(null);
+          setStores([]);
+        }
+      } finally {
+        if (requestId === loadRequestRef.current) setLoading(false);
+      }
     })();
-  }, []);
+
+    return () => {
+      if (requestId === loadRequestRef.current) loadRequestRef.current += 1;
+    };
+  }, [activeOrgId]);
 
   // Gap 2: surface incoming orders in real time. The shared hook joins each of
   // this merchant's store rooms and fires whenever a `new_order` broadcast lands
