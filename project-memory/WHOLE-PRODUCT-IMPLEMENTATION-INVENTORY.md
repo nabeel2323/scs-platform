@@ -463,3 +463,11 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - Roles list has independent retry and request-version/unmount protection.
 - Audit Log filter reads are guarded against stale response overwrite, cleanup invalidates pending requests, and the error banner exposes retry while last successful rows remain visible.
 - Focused tests added in `admin-roles-recovery.test.tsx` and `admin-audit-race.test.tsx`; not executed. UX-048/049 are IMPLEMENTED / TESTING_PENDING. No API, permission, schema or database change.
+
+## 22 November 2026 — Admin Catalog/Analytics UX-050–UX-053 re-audit
+
+- Category Detail no longer swallows product-type, product or product-type attribute-schema failures. Each read is retryable and request-version guarded; the Attributes tab resolves its own product-type dependency and schema aggregation is complete-or-error.
+- Product Type Detail's Products tab now distinguishes failed reads from a successful empty product set.
+- Catalog Import Center has a separate retryable history error and suppresses false empty history after failed reads; last successful rows remain visible on failed refresh.
+- Analytics date-range/activity-limit reads are independently generation-guarded, retryable and cleanup-safe; event sorting no longer mutates state.
+- Focused tests added for UX-050–UX-053 but not executed. No API, permission, schema, migration or database change.
