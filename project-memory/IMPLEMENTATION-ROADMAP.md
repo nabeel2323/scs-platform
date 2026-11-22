@@ -429,3 +429,11 @@ Completed the Admin attribute directory recovery slice. Attribute Groups and Att
 - Added three focused Flutter widget scenarios; not executed and remain TESTING_PENDING for Phase 3.
 - No order transition, fulfillment, stock reservation, API, permission, database or migration behavior changed.
 - Continue Mobile Store Profile and merchant route-transition audit, then remaining Web/Admin route/action permission mapping. Keep Phase 3 as the consolidated full test campaign.
+
+## 2026-11-23 — UX-092 Mobile Store Profile and warehouse recovery
+
+- Store Profile refresh now awaits the store-directory read and dependent active-store value before refreshing the current warehouse directory.
+- Added pull-to-refresh for the full profile form, stale store preservation during refresh/reload failures, and independent retry/stale-data handling for warehouse reads. Successful empty warehouse results remain distinct from errors.
+- Added three focused Flutter widget scenarios; not executed and remain TESTING_PENDING for Phase 3.
+- No store update, warehouse creation, permission, API, database or migration behavior changed.
+- Continue the remaining Mobile merchant route-transition audit, then Web/Admin route/action permission mapping. Keep Phase 3 as the consolidated full test campaign.
