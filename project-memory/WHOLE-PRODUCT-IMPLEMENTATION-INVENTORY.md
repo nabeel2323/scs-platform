@@ -485,3 +485,8 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - Attribute Groups and Definitions now guard asynchronous reads and stale filter responses, expose accessible retryable errors and render empty states/counts only after successful reads.
 - Attribute Group detail no longer reports no attributes defined when its shared attribute read failed.
 - Focused tests added in `admin-attribute-groups-recovery.test.tsx` and `admin-attributes-recovery.test.tsx`; not executed. UX-058 is IMPLEMENTED / TESTING_PENDING. No API, permission, schema, migration or database change.
+
+
+## 23 November 2026 — Mobile category route/action permission re-audit (UX-094)
+
+The source audit found a mismatch between the merchant category directory and the API's platform-only category mutations. The merchant route is now gated by `catalog:categories:read`, the dashboard launcher uses the same read grant, and merchant create/edit/delete affordances are hidden. The policy helper and route tests are present but not executed. The API remains unchanged: category writes still require ADMIN/MODERATOR plus `catalog:categories:write`. Merchant-owned category CRUD remains a scope/ownership decision; do not relax backend guards until store ownership and active membership semantics are defined.
