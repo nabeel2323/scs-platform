@@ -191,7 +191,7 @@ class HomeScreen extends ConsumerWidget {
           border:
               Border.all(color: TaifTokens.brandAccent.withValues(alpha: 0.4)),
         ),
-        child: const Row(children: [
+        child: Row(children: [
           Icon(Icons.store, size: 24, color: TaifTokens.brandAccent),
           SizedBox(width: 12),
           Expanded(
