@@ -15,7 +15,7 @@ import { useAuth } from '../../../components/AuthProvider';
 import { isMerchantRole } from '../../../lib/auth';
 import { ShipRow, listShipments, exceptionLabel } from '../../../lib/shipops';
 import { PageHeader, Breadcrumb } from '@scs/ui-kit';
-import { StatusBadge, LoadingSpinner, EmptyState, formatDate } from '../../../components/Shared';
+import { StatusBadge, LoadingSpinner, EmptyState, ErrorBanner, formatDate } from '../../../components/Shared';
 
 const PAGE = 25;
 const TABS = [
@@ -81,22 +81,7 @@ export default function MerchantDeliveriesPage() {
         breadcrumbs={<Breadcrumb items={[{ label: 'Deliveries', href: '/merchant/deliveries' }]} />}
       />
       <div style={{ padding: '20px 24px 48px' }}>
-        {error && (
-          <div
-            role="alert"
-            style={{
-              background: '#fef2f2',
-              border: '1px solid #fca5a5',
-              borderRadius: 8,
-              padding: '10px 14px',
-              marginBottom: 16,
-              fontSize: 13,
-              color: '#991b1b',
-            }}
-          >
-            {error}
-          </div>
-        )}
+        {error && <ErrorBanner message={error} onRetry={load} />}
 
         <div role="tablist" style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
           {TABS.map((t) => {
@@ -134,7 +119,7 @@ export default function MerchantDeliveriesPage() {
 
         {loading ? (
           <LoadingSpinner />
-        ) : rows.length === 0 ? (
+        ) : rows.length === 0 && !error ? (
           <EmptyState
             title="No deliveries yet"
             description="Shipments appear here once you accept orders."
