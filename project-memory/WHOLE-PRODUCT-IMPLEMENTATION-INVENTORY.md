@@ -432,3 +432,9 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - Merchant Warehouses now distinguishes a failed store-directory read from a successful no-store result and exposes Retry store lookup.
 - Warehouse list reads have separate loading/error/retry states. A failed read no longer appears as “No warehouses yet”; the empty state is rendered only after a successful empty response. Request-version guards protect against stale results and previously loaded rows remain visible after failed refreshes.
 - Focused test added but not executed. UX-042 is IMPLEMENTED / TESTING_PENDING. No API, permission, schema or database behavior changed.
+
+## 22 November 2026 — Admin Dashboard UX-043 re-audit
+
+- Admin Dashboard KPI and pending-organization-update failures no longer disappear silently. Catalog Imports and Catalog Requests have independent loading/error/retry states rather than one shared error state.
+- Failed reads no longer become fabricated zero KPIs or successful empty lists. Previously loaded data remains visible after a failed refresh, with a retryable warning.
+- Focused Admin test added but not executed. UX-043 is IMPLEMENTED / TESTING_PENDING. No API, permission or backend behavior changed.
