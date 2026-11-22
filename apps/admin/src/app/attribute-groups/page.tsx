@@ -129,7 +129,7 @@ export default function AttributeGroupsPage() {
         {/* Detail dialog */}
         {selectedGroup && (
           <DetailDialog title={`Group — ${selectedGroup.name}`} onClose={() => setSelectedGroup(null)}>
-            <GroupDetail group={selectedGroup} attributes={attrs} />
+            <GroupDetail group={selectedGroup} attributes={attrs} error={error} />
           </DetailDialog>
         )}
       </div>
@@ -196,7 +196,7 @@ function GroupForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
 
 /* ── Group Detail ──────────────────────────────────────────── */
 
-function GroupDetail({ group, attributes }: { group: AttributeGroup; attributes: AttributeDefinition[] }) {
+function GroupDetail({ group, attributes, error }: { group: AttributeGroup; attributes: AttributeDefinition[]; error: string | null }) {
   return (
     <div>
       <div className={styles['fields']}>
