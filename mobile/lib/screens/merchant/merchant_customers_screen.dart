@@ -22,7 +22,7 @@ class _MerchantCustomersScreenState
 
   Future<void> _refreshCustomers() async {
     try {
-      await ref.refresh(merchantCustomersProvider.future);
+      await ref.refresh(merchantCustomersProvider.future).then<void>((_) {});
     } catch (_) {
       // Keep the last successful customer list and show the provider error.
     }
