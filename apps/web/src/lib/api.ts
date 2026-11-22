@@ -32,6 +32,8 @@ export interface UserProfile {
   role: string;
   activeOrgId: string | null;
   organizations: (Organization & { membershipStatus: string })[];
+  /** Effective permissions projected for the active organization by GET /me. */
+  perms?: string[];
   createdAt: string;
 }
 
