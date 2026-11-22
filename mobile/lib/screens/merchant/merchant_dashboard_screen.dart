@@ -248,7 +248,7 @@ class MerchantDashboardScreen extends ConsumerWidget {
                 const Color(0xFF059669),
                 onTap: () =>
                     _open(context, 'inventory', '/merchant/inventory')),
-            if (profile.hasPermission('catalog:categories:write'))
+            if (profile.hasPermission('catalog:categories:read'))
               _card(context, 'Categories', Icons.category, '/merchant/categories',
                 TaifTokens.warn),
             if (profile.hasPermission('merchant:orders:read'))
