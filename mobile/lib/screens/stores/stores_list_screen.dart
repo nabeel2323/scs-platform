@@ -42,7 +42,7 @@ class StoresListScreen extends ConsumerWidget {
               _refreshNotice(
                 stores.isRefreshing
                     ? 'Refreshing stores… showing the last successfully loaded list.'
-                    : 'Could not refresh stores: \${ApiService.errorMessage(stores.error!)}. Showing the last successfully loaded list.',
+                    : 'Could not refresh stores: ${ApiService.errorMessage(stores.error!)}. Showing the last successfully loaded list.',
                 () => ref.invalidate(storesProvider),
               ),
             if (list.isEmpty)
@@ -67,10 +67,10 @@ class StoresListScreen extends ConsumerWidget {
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       subtitle: Text(
-                        '\${store.verificationStatus} · \${store.currency}',
+                        '${store.verificationStatus} · ${store.currency}',
                       ),
                       trailing: StatusBadge(store.verificationStatus),
-                      onTap: () => context.push('/stores/\${store.id}'),
+                      onTap: () => context.push('/stores/${store.id}'),
                     ),
                   )),
           ];
