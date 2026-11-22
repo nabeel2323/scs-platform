@@ -408,3 +408,9 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - `apps/web/src/app/merchant/orders/page.tsx` now exposes store-directory and order-list read failures with Retry, shows queue loading, and suppresses the false empty-order state until a successful empty response. If no accessible store remains, stale store/order selection is cleared. Buyer-name enrichment remains best-effort by design and falls back to buyer IDs.
 - `apps/web/src/app/merchant/offers/page.tsx` now exposes retryable store, offers-list, product-directory, analytics and trend failures. Product selection/offer creation are disabled while the product directory is unavailable. Failed analytics no longer appears as zero orders/units/revenue in the table or CSV; trend failures no longer appear as an empty sales range.
 - Focused tests: `merchant-orders-recovery.test.tsx` and `merchant-offers-recovery.test.tsx`. Not executed. No API, permission, schema, DB or migration change.
+
+## 22 November 2026 — UX-037 Merchant Inventory movement-history recovery
+
+- `apps/web/src/app/merchant/inventory/page.tsx` no longer converts a failed `fetchInventoryMovements` request into a successful empty history. The dialog shows a retryable error; “No movements recorded yet” is shown only after a successful empty response.
+- Extracted `readInventoryHistory` into `apps/web/src/lib/inventory-history.ts`.
+- Added `apps/web/src/__tests__/inventory-history-recovery.test.ts` for successful and failed reads. Not executed. No API, permission, schema or DB changes.

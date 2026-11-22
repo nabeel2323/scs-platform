@@ -1519,3 +1519,9 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Product-directory failure is visible/retryable and blocks offer creation until products are available.
 - Analytics/trend errors have independent retry paths. Failed analytics no longer becomes zero sales in the table/CSV; trend failure no longer becomes “No sales in this range.”
 - Added `merchant-offers-recovery.test.tsx`. Not run; no API/permission/schema/DB change.
+
+## UX-037 — Merchant Inventory movement-history recovery — 22 November 2026
+
+- Stock movement-history read failures now remain visible and retryable; the dialog does not present a failed request as a successful empty history.
+- Extracted `readInventoryHistory` into `apps/web/src/lib/inventory-history.ts`; added `inventory-history-recovery.test.ts` for successful and failed responses.
+- Tests not executed. No API, permission, schema or DB changes.
