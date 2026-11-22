@@ -444,3 +444,14 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Corrected the seed: MERCHANT_OWNER has one existing merchant:stores:read grant; MERCHANT_STAFF now has one grant; no duplicate or new permission key remains.
 - Re-read the final role blocks and confirmed CatalogController has five catalog:products:read decorators, StoreMembershipController has merchant:stores:read for member listing, and neither controller references merchant:products:read.
 - The focused test asserts both owner and staff role grants and should catch future drift. Test execution remains deferred to the consolidated campaign.
+
+
+## 2026-11-22 — G-002 migration foreign-key crosswalk
+
+- Reviewed migrations 0034, 0043, 0054, 0058, 0059, 0060, 0061, 0062, 0063, 0070 and 0071.
+- Created docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md to record migration-defined parent relationships, deferred FKs, actor-attribution links, financial lineage and system-table boundaries.
+- Confirmed 0062 adds org_id to reconciliation_runs, settlement_adjustments, commission_reversals and reconciliation_discrepancies without an FK to organizations; these are application-maintained scope fields whose consistency must be proven against order/store/return parents.
+- Confirmed 0063 worker_leases, ops_controls, ops_control_audit, ops_alerts and p13_pilot_allowlist have no tenant/user FKs; they are system/operator state, not ordinary tenant rows.
+- Confirmed 0060 business_calendars has created_by but no org/store key; its tenant-vs-global comment is not reflected in the table structure. 0034 catalog_imports is explicitly platform-level and uploaded_by is attribution.
+- Reaffirmed migration 0070 revokes anon/authenticated table/sequence privileges and defaults and pins normalize_arabic search_path, but does not enable RLS or change service_role. Migration 0071 adds auto-complete claim fields/index only.
+- No staging catalog query, database write, migration, grant/default-ACL change, RLS activation, deployment, worker activation or provider call occurred.
