@@ -328,3 +328,11 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Latest source implementation commit: `bd9b89160ce886944cebab227f4a568cdbdb363a`; focused test commit: `cf940371bc77f633cf61561eb443d2b53cab7d83`; source cleanup commit: `ac1373889556750a75c198741f9c2dec16f8db55`. The following project-memory commits synchronize this checkpoint; resolve the live PR head at session start.
 - Continue UX-010 source re-audit across remaining Admin and Mobile workflows. Do not repeat UX-030–UX-043.
 - PR #138 remains open/draft/unmerged to `develop`. All commits use `[skip ci]`; exact-head CI must be checked live. No merge/deployment, staging/shared DB write, migration, grant/default-ACL change, RLS activation or worker activation occurred.
+
+## Latest continuation checkpoint — 22 November 2026 (UX-044)
+
+- Implemented UX-044 on the dedicated Admin KPI Dashboard: retryable read failures, date-range request-version protection and stale-data preservation. Initial failure shows unavailable metrics instead of zero defaults; failed refresh retains the last successful dataset.
+- Focused test added in `admin-kpi-recovery.test.tsx`; not executed.
+- Latest source implementation commit: `daf42ad5a4d5d9323b08e89e0c1c0b1679ac0d0e`; focused test commit: `c794c3d03413bbf965696fe1f69f6c89069f9544`. The following project-memory commits synchronize this checkpoint; resolve the live PR head at session start.
+- Next: continue UX-010 across remaining Admin workflows, beginning with independent Organizations list/update-request reads, then Mobile. Do not repeat UX-030–UX-044.
+- PR #138 remains open/draft/unmerged to `develop`. All commits use `[skip ci]`; exact-head CI must be checked live. No merge/deployment, staging/shared DB write, migration, grant/default-ACL change, RLS activation or worker activation occurred.
