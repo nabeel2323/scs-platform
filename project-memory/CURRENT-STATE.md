@@ -643,3 +643,8 @@ Checkout idempotency keys now follow payload identity: identical retry attempts 
 ## Mobile Merchant Dashboard UX-085 — 23 November 2026
 
 Merchant profile and active-store reads now preserve last-successful data during refresh/reload failure, with retryable stale notices and explicit initial errors. Dashboard refresh/pull-to-refresh awaits independent profile, store and KPI reads; KPI-level recovery remains. A focused Flutter widget test was added but not executed; it remains pending Phase 3. No organization/store lifecycle, permission, API, database or migration behavior changed.
+
+
+## Mobile Merchant Catalog UX-086 — 23 November 2026
+
+Merchant active-store and product reads now preserve last-successful data through refresh/reload failures, with retryable stale notices and truthful initial error/empty states. Explicit refresh awaits active-store resolution then the current store's product list; pull-to-refresh awaits product refresh. Search/status filters and permission gates are unchanged. Focused Flutter tests were added but not executed; they remain pending Phase 3. No catalog API/product visibility/database/migration behavior changed.
