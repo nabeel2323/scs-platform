@@ -689,3 +689,11 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Focused Flutter test: `mobile/test/checkout_idempotency_key_test.dart` commit `6adaa06` with mock-signature correction `515c8f8`.
 - All commits use `[skip ci]`. No Flutter tests or exact-head CI jobs have been executed for this increment.
 - PR #138 remains open/draft/unmerged to `develop`. No backend checkout/idempotency contract, database, migration, staging, grant/RLS, worker or provider action occurred.
+
+
+## UX-085 verification boundary — 23 November 2026
+
+- Source implementation: `mobile/lib/screens/merchant/merchant_dashboard_screen.dart` commit `39deb8b`.
+- Focused Flutter test: `mobile/test/merchant_dashboard_read_recovery_test.dart` commit `3781af6`.
+- Both commits use `[skip ci]`. No Flutter tests or exact-head CI jobs have been executed for this increment.
+- PR #138 remains open/draft/unmerged to `develop`. No org/store lifecycle, permission, API, database, migration, staging, grant/RLS, worker or provider action occurred.
