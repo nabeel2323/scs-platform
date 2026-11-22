@@ -106,3 +106,58 @@ All focused tests are committed but not run.
 - Several catalog service methods are unscoped by ID and depend on controller prechecks. Preserve the controller/service pairing; direct service calls must be classified as internal/system context.
 - Shared tenant-scope helpers still use singleton DatabaseService rather than the caller's active transaction. Ownership reads and subsequent writes can therefore be separated by a concurrency window; the later request transaction design must address this.
 
+
+
+## Pricing, Merchant and Store Membership — method-level batch 3 — 22 November 2026
+
+### PricingService and PricingController
+
+| Method family | Tables read/written | Ownership predicate and context |
+|---|---|---|
+| createPriceList / getPriceList / listPriceListsByStore / updatePriceList | price_lists, stores, store_members | PricingController resolves the store and checks active organization plus ACTIVE store membership before service calls. ID-based list reads/writes first resolve the parent price list, then check its store. Service methods remain context-free internal operations; public HTTP access depends on the controller pairing. |
+| addTier / listTiersByPriceList | price_lists, price_tiers, product_variants, products, stores, store_members | Controller checks price-list store and variant store and requires both to match. PricingService now independently verifies variant → product → store equals price_list.store_id before inserting a tier. |
+| updateTier / removeTier | price_lists, price_tiers, product_variants, products, stores, store_members | Controller resolves tier → price list and variant, then checks active org/store membership and same-store relationship. Service revalidates the stored tier variant/product store against its price list before update/delete. |
+| getProductPricing / listTiersByVariant / resolvePrice | price_lists, price_tiers, product_variants, products, stores, store_members | Controller checks variant store access and optional requested-store equality. Service checks variant → product → store against the requested store or price-list store before reading tier data. |
+
+### Pricing security correction
+
+A price tier is a cross-parent relationship between a merchant price list and a product variant. The controller already checked that both resolved to the same store, but service methods could be called without that preflight. PricingService now enforces the invariant for tier creation, update, removal, product-pricing reads and price resolution. Canonical variants without a merchant store owner are rejected for merchant price lists. Added pricing-service-tenant-scope.spec.ts with foreign-store and canonical-product denial cases. Tests were not run. Caller ownership for public HTTP paths remains in PricingController; PricingService still does not accept CallerContext.
+
+### MerchantService and MerchantController
+
+| Method family | Tables read/written | Ownership predicate and context |
+|---|---|---|
+| createStore | organizations, organization_members, stores, store_members, outbox_events | Service checks the creator has an ACTIVE membership in the submitted organization, then creates the store, initial OWNER membership and outbox event in one transaction. |
+| listStoresByOrg / getCustomersByOrg | stores, orders, users, organization_members | HTTP controller passes CallerContext. Non-privileged callers must have activeOrg equal to the requested organization and a current ACTIVE organization_members row before store/customer data is returned. Context-free calls remain for trusted internal workflows. |
+| getStore / updateStore / createWarehouse / listWarehousesByStore / getWarehouse / updateWarehouse | stores, warehouses, store_members | MerchantController resolves the parent store and checks active organization plus ACTIVE store membership before calling ID-based service methods. New HTTP routes must preserve that pairing. |
+| uploadDocument | business_documents, organizations, organization_members, stores, store_members | HTTP controller passes CallerContext. Service requires submitted orgId to equal caller.activeOrg and verifies ACTIVE organization membership. If storeId is supplied, the store must belong to the same orgId and the caller must have ACTIVE store membership. Platform-privileged callers may bypass membership, but store/org consistency is still enforced. |
+| listDocumentsByOrg / listDocumentsByStore / presignForMerchant | business_documents, organizations, organization_members, stores | Merchant document listing and merchant presigning now require a current ACTIVE organization_members row. Reviewer permission merchant:verification:review retains its explicit document-read bypass in assertOrgAccess. |
+| listVerificationsForOrg | verification_requests, stores, organization_members | Requires current ACTIVE organization membership before enumerating organization stores and verification requests. |
+| reviewVerification | verification_requests, stores, business_documents, products, organizations, outbox_events | Transaction locks request and store, verifies request.orgId equals store.orgId, then updates review/store/document/product state and audit/outbox effects within the transaction. |
+
+### Merchant security corrections
+
+1. Document listing and merchant download previously treated any organization_members row as sufficient. The document read/presign predicate now includes status = ACTIVE; revoked/inactive members are denied even if a still-valid access token retains an activeOrg claim.
+2. Organization verification listing had the same missing ACTIVE predicate and now reuses the active-membership assertion.
+3. Document upload previously trusted body-supplied orgId/storeId. The controller now supplies caller context and the service validates activeOrg equality, ACTIVE organization membership, store-to-org ownership and ACTIVE store membership for store-scoped uploads.
+4. Organization-scoped store/customer reads now accept caller context from the controller and revalidate activeOrg plus current ACTIVE organization membership.
+
+Added merchant-service-tenant-scope.spec.ts for inactive membership denial, foreign organization/store upload denial and valid store-scoped upload. Focused tests are committed but not run.
+
+### StoreMembershipService
+
+| Method family | Tables read/written | Ownership predicate and context |
+|---|---|---|
+| listMembers | stores, store_members | Controller resolves store → org, verifies caller activeOrg and ACTIVE membership (platform roles bypass), then service lists only that store's member rows. |
+| listEligibleUsers | store_members, organization_members, users | Controller requires OWNER/ADMIN membership manager. Service excludes existing store members and filters candidate organization_members to ACTIVE rows before reading user contact fields. |
+| addMember | stores, organization_members, store_members, outbox_events | Controller enforces OWNER/ADMIN role matrix; service verifies target user is an ACTIVE member of the store's organization. Insert/reactivation and outbox event share a transaction. |
+| removeMember / changeRole / activateMember / deactivateMember | store_members, stores, outbox_events | Controller invokes assertCanManageMembers and assertCanModifyMember before mutation. Service locks ACTIVE OWNER rows and protects the last-owner invariant; membership mutation and outbox event share a transaction. |
+
+The membership role matrix remains: MEMBER cannot manage membership; ADMIN cannot modify OWNERs or other ADMINs and can add/change only MEMBERs; OWNER can manage members subject to last-owner protection; platform-privileged roles bypass. Self-role-change is denied; self-remove/deactivate/activate follow the documented self-service rules.
+
+### Remaining constraints
+
+- PricingService relation checks now protect the price-list/variant same-store invariant, but route caller ownership still depends on PricingController preflight; service-level CallerContext propagation is not yet implemented.
+- Merchant ID-based store/warehouse helpers and StoreMembershipService mutation methods still rely on the HTTP controller to supply authorization preflight; classify context-free internal callers separately before designing RLS.
+- Shared tenant-scope helpers still use singleton DatabaseService rather than the caller's active transaction. A later request transaction design must close preflight/write concurrency windows without breaking nested service transactions.
+- No tests or CI were run for this batch. No database query/write, migration, grant, RLS change, staging action, deployment, worker activation or provider call occurred.

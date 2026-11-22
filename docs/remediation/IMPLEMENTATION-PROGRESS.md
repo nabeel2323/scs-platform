@@ -1376,3 +1376,14 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Fixed four catalog/offer ownership gaps: variant attribute GET now verifies variant belongs to authorized product; addMedia rejects foreign variantId; updateVariant legacy UPDATE includes productId; createOffer rejects private products owned by another store.
 - Added focused regression tests for the catalog controller variant-attribute read, media attachment and offer product scope. Not run. Existing inventory transfer store-boundary test also remains unrun.
 - No tests, CI, DB query/write, migration, seed, grant, RLS or staging action occurred.
+
+
+## G-002 method-level ownership predicate batch 3 — Pricing, Merchant and Store Membership — 22 November 2026
+
+- Extended the method-level map to PricingService, MerchantService and StoreMembershipService.
+- PricingService now independently validates variant → product → store against the owning price list for tier creation, update, removal and price resolution, and against the requested store for product-pricing reads. This preserves the same-store invariant even when service methods are called without the controller preflight.
+- Merchant document reads, merchant presigning and organization verification listing now require current ACTIVE organization membership. A still-valid JWT activeOrg claim no longer lets an inactive organization member pass these service checks.
+- Document upload now receives CallerContext from MerchantController. Service validation requires activeOrg equality and ACTIVE organization membership; optional storeId must belong to the same org and have ACTIVE store membership. Organization-scoped store/customer reads also receive caller context and revalidate active membership.
+- Added merchant-service-tenant-scope.spec.ts and pricing-service-tenant-scope.spec.ts for foreign/inactive membership and cross-store relationship denials. Tests were not run.
+- No tests, Actions, database connections/queries, migrations, grants, RLS, staging/deployment or worker/provider actions were performed.
+- Remaining method-level families: Returns/Disputes/Reviews; carrier/shipping; worker/outbox/bootstrap/system. Pricing caller-context propagation and controller-preflight concurrency windows remain explicit follow-up design work.

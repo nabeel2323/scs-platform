@@ -496,3 +496,10 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Staging bootstrap requires SCS_ENVIRONMENT=staging, SCS_STAGING_BOOTSTRAP_CONFIRM=true, exact SCS_STAGING_BOOTSTRAP_DATABASE and SCS_STAGING_BOOTSTRAP_APPROVAL=I_APPROVE_STAGING_BOOTSTRAP:<database>. The connected current_database() is compared before writes.
 - Added unit tests for both guard helpers; tests were not run. No UAT/migration/bootstrap script was executed and no database connection was opened by this implementation.
 - Current branch head: b78ad3137ecc7820e8a4a0c3816a772bff764c3d; no Actions run; Vercel Admin/Web report provider build-rate-limit failures.
+
+
+## G-002 method-level predicate batch 3 — Pricing, Merchant and Store Membership — 22 November 2026
+
+Completed source mapping and implementation for PricingService, MerchantService and StoreMembershipService. Fixed cross-store price-tier relationships at the PricingService boundary; inactive organization members can no longer list/download merchant documents or enumerate organization verification requests; document uploads validate the caller's active organization, current organization membership and optional store ownership/membership. Organization-scoped store/customer reads now receive caller context from MerchantController.
+
+Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-tenant-scope.spec.ts; they are committed but not run. See the G-002 method-level predicate map. Next method-level batch: Returns/Disputes/Reviews. Then carrier/shipping and worker/outbox/bootstrap/system. Full testing remains deferred to the consolidated phase.

@@ -243,3 +243,10 @@ Remaining implementation: guard or retire legacy M5/M6 scripts, add target confi
 ## G-002 UAT/staging safety update — 22 November 2026
 
 Legacy M5/M6 UAT scripts and both JavaScript migration harnesses now fail closed unless explicitly in development/test with SCS_UAT_CONFIRM=true; DB/API/Redis targets must be local where supplied. The five staging bootstrap scripts and package sequence now require exact staging environment/database/approval confirmation before writes. Unit tests were added but not run. Remaining source work is method-level ownership-predicate mapping and worker/outbox/system context review; live identities and 114-versus-116 remain protected read-only gates.
+
+
+## G-002 method-level ownership predicate batch 3 — 22 November 2026
+
+Implemented the Pricing/Merchant/Store Membership source batch. PricingService now verifies variant → product → store equality with the owning price list for tier creation, update, removal and resolution. Merchant document listing/download and organization verification listing now require current ACTIVE organization membership; upload requires caller activeOrg equality and validates the optional store's org and ACTIVE store membership. Organization-scoped store/customer reads receive caller context and revalidate membership.
+
+Added focused merchant/pricing tenant-scope specs, not run. The method-level map and gap register are synchronized. Next: Returns/Disputes/Reviews, then carrier/shipping, then worker/outbox/bootstrap/system. No tests/CI, live DB, migration, grant/RLS, staging, deployment or worker action occurred.

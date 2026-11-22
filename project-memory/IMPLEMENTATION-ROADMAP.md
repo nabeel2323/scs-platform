@@ -167,3 +167,13 @@ Next implementation is local-only hardening/retirement of legacy M5/M6 scripts, 
 ## G-002 operator script safety checkpoint — 22 November 2026
 
 Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and migration harnesses, plus exact-target confirmation for all staging bootstrap scripts and the package preflight. No scripts were executed. Next: method-level service-to-table ownership predicates, worker/outbox/system context review, then protected live identity/catalog verification.
+
+
+## 2026-11-22 — G-002 method-level predicate batch 3
+
+- Implemented PricingService same-store validation for price list ↔ variant ↔ product relationships on tier create/update/delete, product-pricing reads and price resolution.
+- Hardened MerchantService document listing/download and organization verification listing to require current ACTIVE organization membership, not merely an organization_members row.
+- Hardened document upload at the service boundary: HTTP controller supplies CallerContext; service enforces activeOrg equality, ACTIVE org membership, store→org consistency and ACTIVE store membership for store-scoped documents.
+- Added caller-context checks to organization-scoped store/customer reads.
+- Added merchant/pricing tenant-scope regression specs; not run.
+- No tests, CI, database connection/query/write, migration, grant/RLS change, staging/deployment, worker activation or provider call occurred.

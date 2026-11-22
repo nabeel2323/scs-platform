@@ -19,6 +19,7 @@ import { productImageCount, trimProductReference } from '../catalog/product-imag
 import { outboxEvents } from '../audit/audit.schema';
 import { isUuid } from '../../common/utils/uuid';
 import crypto from 'node:crypto';
+import { isTenantPrivileged, type CallerContext } from '../../common/tenant-scope';
 
 /**
  * Merchant service — store lifecycle, warehouses, documents, verification.
@@ -37,6 +38,69 @@ export class MerchantService {
     private readonly outbox: OutboxDispatcher,
     private readonly storage: StorageService,
   ) {}
+
+  /**
+   * Require a current, ACTIVE organization membership for merchant-facing
+   * organization data. JWT activeOrg is a routing claim, not a substitute for
+   * checking that membership has not since been revoked.
+   */
+  private async assertActiveOrgMembership(orgId: string, userId: string): Promise<void> {
+    const membership = await this.db.db.query.organizationMembers.findFirst({
+      where: and(
+        eq(organizationMembers.orgId, orgId),
+        eq(organizationMembers.userId, userId),
+        eq(organizationMembers.status, 'ACTIVE'),
+      ),
+      columns: { id: true },
+    });
+    if (!membership) {
+      throw new ForbiddenException('You are not an active member of this organization');
+    }
+  }
+
+  /**
+   * Validate document ownership at the service boundary. Store-scoped
+   * documents must reference a store in the same organization and, for
+   * merchant callers, an ACTIVE store membership.
+   */
+  private async assertDocumentUploadScope(
+    input: UploadDocumentInput,
+    caller: CallerContext,
+  ): Promise<void> {
+    if (!isTenantPrivileged(caller)) {
+      if (!caller.activeOrg || caller.activeOrg !== input.orgId) {
+        throw new ForbiddenException('Document organization must match your active organization');
+      }
+      await this.assertActiveOrgMembership(input.orgId, caller.sub);
+    }
+
+    if (input.storeId) {
+      const store = await this.db.db.query.stores.findFirst({
+        where: and(
+          eq(stores.id, input.storeId),
+          eq(stores.orgId, input.orgId),
+        ),
+        columns: { id: true },
+      });
+      if (!store) {
+        throw new ForbiddenException('Document store must belong to the supplied organization');
+      }
+
+      if (!isTenantPrivileged(caller)) {
+        const storeMembership = await this.db.db.query.storeMembers.findFirst({
+          where: and(
+            eq(storeMembers.storeId, input.storeId),
+            eq(storeMembers.userId, caller.sub),
+            eq(storeMembers.status, 'ACTIVE'),
+          ),
+          columns: { id: true },
+        });
+        if (!storeMembership) {
+          throw new ForbiddenException('You are not an active member of this store');
+        }
+      }
+    }
+  }
 
   // ── Stores ─────────────────────────────────────────────────────
 
@@ -173,14 +237,26 @@ export class MerchantService {
     return store;
   }
 
-  async listStoresByOrg(orgId: string) {
+  async listStoresByOrg(orgId: string, caller?: CallerContext) {
+    if (caller && !isTenantPrivileged(caller)) {
+      if (caller.activeOrg !== orgId) {
+        throw new ForbiddenException('Store organization must match your active organization');
+      }
+      await this.assertActiveOrgMembership(orgId, caller.sub);
+    }
     return this.db.db.query.stores.findMany({
       where: eq(stores.orgId, orgId),
       orderBy: [desc(stores.createdAt)],
     });
   }
 
-  async getCustomersByOrg(orgId: string) {
+  async getCustomersByOrg(orgId: string, caller?: CallerContext) {
+    if (caller && !isTenantPrivileged(caller)) {
+      if (caller.activeOrg !== orgId) {
+        throw new ForbiddenException('Customer organization must match your active organization');
+      }
+      await this.assertActiveOrgMembership(orgId, caller.sub);
+    }
     // Get all stores for this org
     const orgStores = await this.listStoresByOrg(orgId);
     if (orgStores.length === 0) return [];
@@ -360,7 +436,13 @@ export class MerchantService {
 
   // ── Documents ──────────────────────────────────────────────────
 
-  async uploadDocument(input: UploadDocumentInput) {
+  async uploadDocument(input: UploadDocumentInput, caller?: CallerContext) {
+    // HTTP callers always supply context. Context-free calls remain available
+    // only to trusted internal workflows, consistent with tenant-scope policy.
+    if (caller) {
+      await this.assertDocumentUploadScope(input, caller);
+    }
+
     const docId = crypto.randomUUID();
     // Persist the key the client actually uploaded to (returned by
     // POST /documents/presign-upload). Without this the record points at a key
@@ -400,13 +482,7 @@ export class MerchantService {
    */
   private async assertOrgAccess(orgId: string, userId: string, perms: string[]) {
     if (perms.includes('merchant:verification:review')) return;
-    const membership = await this.db.db.query.organizationMembers.findFirst({
-      where: and(
-        eq(organizationMembers.orgId, orgId),
-        eq(organizationMembers.userId, userId),
-      ),
-    });
-    if (!membership) throw new ForbiddenException('Not authorized to access these documents');
+    await this.assertActiveOrgMembership(orgId, userId);
   }
 
   async listDocumentsByOrg(orgId: string, userId: string, perms: string[] = []) {
@@ -449,14 +525,8 @@ export class MerchantService {
    */
   async presignForMerchant(docId: string, userId: string): Promise<{ downloadUrl: string }> {
     const doc = await this.getDocument(docId);
-    // Verify the requesting user is a member of the document's organization
-    const membership = await this.db.db.query.organizationMembers.findFirst({
-      where: and(
-        eq(organizationMembers.orgId, doc.orgId),
-        eq(organizationMembers.userId, userId),
-      ),
-    });
-    if (!membership) throw new ForbiddenException('Not authorized to access this document');
+    // Recheck current membership rather than trusting a still-valid JWT claim.
+    await this.assertActiveOrgMembership(doc.orgId, userId);
     return this.generatePresignedUrl(docId);
   }
 
@@ -561,13 +631,7 @@ export class MerchantService {
    * powers the "correction requested" surface on the web organization page.
    */
   async listVerificationsForOrg(orgId: string, userId: string) {
-    const membership = await this.db.db.query.organizationMembers.findFirst({
-      where: and(
-        eq(organizationMembers.orgId, orgId),
-        eq(organizationMembers.userId, userId),
-      ),
-    });
-    if (!membership) throw new ForbiddenException('Not authorized to view these verification requests');
+    await this.assertActiveOrgMembership(orgId, userId);
     const orgStores = await this.db.db.query.stores.findMany({
       where: eq(stores.orgId, orgId),
       columns: { id: true },

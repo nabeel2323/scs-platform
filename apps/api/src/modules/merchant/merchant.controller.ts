@@ -102,7 +102,11 @@ export class MerchantController {
 
     // Merchant: scope to their active org
     if (user.activeOrg) {
-      return this.merchantService.listStoresByOrg(user.activeOrg);
+      return this.merchantService.listStoresByOrg(user.activeOrg, {
+        sub: user.sub,
+        role: user.role,
+        activeOrg: user.activeOrg,
+      });
     }
 
     // Buyers/public: show verified stores only
@@ -118,7 +122,11 @@ export class MerchantController {
     if (!user.activeOrg) {
       return [];
     }
-    return this.merchantService.getCustomersByOrg(user.activeOrg);
+    return this.merchantService.getCustomersByOrg(user.activeOrg, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Get('stores/:id')
@@ -191,10 +199,17 @@ export class MerchantController {
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async uploadDocument(@CurrentUser() user: JwtPayload, @Body() input: UploadDocumentInput) {
-    return this.merchantService.uploadDocument({
-      ...input,
-      uploadedBy: user.sub,
-    });
+    return this.merchantService.uploadDocument(
+      {
+        ...input,
+        uploadedBy: user.sub,
+      },
+      {
+        sub: user.sub,
+        role: user.role,
+        activeOrg: user.activeOrg,
+      },
+    );
   }
 
   @Post('documents/presign-upload')
