@@ -633,3 +633,12 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Source/test batch: Attribute Groups and Attribute Definitions request lifecycle, retry and false-empty-state suppression.
 - Focused tests were added but not executed. Commits use `[skip ci]`; no GitHub Actions run is expected for the exact source head. Do not claim test or CI verification.
 - No deployment, preview validation, staging write, database/migration/grant/RLS change, worker activation or provider action was performed.
+
+
+## UX-078 verification boundary — 23 November 2026
+
+- Implementation commits: provider `bbf78ff`; buyer Store Directory `aaf04f3` with interpolation correction `83f68ab`; buyer Store Detail `8876ecc`; focused tests `c9a9c3b`.
+- Documentation/memory commits: remediation progress `65f8d94`, START-HERE `23db09d`, CURRENT-STATE `929858e`, WORK-LOG `03cc157`, with this status synchronization following.
+- All changes use `[skip ci]`. No focused Flutter tests or full CI jobs have been executed for this increment. Do not claim test/CI verification.
+- PR #138 remains open/draft/unmerged to `develop`. Vercel preview statuses, if present, are external provider signals and not application test results.
+- No staging deployment/write, shared database mutation, migration, grants/default-ACL change, RLS activation, worker activation or provider call occurred.
