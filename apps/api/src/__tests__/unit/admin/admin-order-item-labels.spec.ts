@@ -9,13 +9,12 @@ describe('AdminService order detail item labels', () => {
     const items = [{
       id: 'item-a',
       orderId: 'order-a',
-      productId: 'product-a',
       variantId: 'variant-a',
       productTitle: 'Cotton Shirt',
       variantSku: 'SHIRT-BLU-L',
       variantTitle: 'Blue / Large',
     }];
-    const history = [];
+    const history: Array<{ id: string }> = [];
     const orderLimit = vi.fn().mockResolvedValue([order]);
     const orderWhere = vi.fn().mockReturnValue({ limit: orderLimit });
     const orderJoin2 = vi.fn().mockReturnValue({ where: orderWhere });
