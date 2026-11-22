@@ -508,7 +508,7 @@ export default function ImportWizardPage() {
           setPollError(null);
           if (job.status === 'PROCESSING') {
             const total = job.totalRows || job.stats?.['total'] || 0;
-            const done = job.processedRows ?? job.stats?.processed ?? 0;
+            const done = job.processedRows ?? job.stats?.['processed'] ?? 0;
             setProgress(total ? Math.round((done / total) * 100) : 0);
           } else {
             const outcome = getImportJobOutcome(job.status);
