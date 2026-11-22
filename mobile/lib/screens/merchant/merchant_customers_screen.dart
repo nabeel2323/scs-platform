@@ -20,72 +20,135 @@ class _MerchantCustomersScreenState
   String _search = '';
   String _sortBy = 'recent';
 
+  Future<void> _refreshCustomers() async {
+    try {
+      await ref.refresh(merchantCustomersProvider.future);
+    } catch (_) {
+      // Keep the last successful customer list and show the provider error.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final customers = ref.watch(merchantCustomersProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Customers'), actions: [
-        IconButton(
+      appBar: AppBar(
+        title: const Text('Customers'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh customers',
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(merchantCustomersProvider)),
-      ]),
-      body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(children: [
-            Expanded(
-              child: TextField(
-                onChanged: (v) => setState(() => _search = v),
-                decoration: const InputDecoration(
-                    hintText: 'Search by name or phone...',
-                    prefixIcon: Icon(Icons.search),
-                    isDense: true,
-                    border: OutlineInputBorder()),
-              ),
-            ),
-            const SizedBox(width: 12),
-            DropdownButton<String>(
-              value: _sortBy,
-              underline: const SizedBox.shrink(),
-              items: const [
-                DropdownMenuItem(value: 'recent', child: Text('Recent')),
-                DropdownMenuItem(value: 'total', child: Text('Top Spent')),
-                DropdownMenuItem(value: 'orders', child: Text('Most Orders')),
+            onPressed: _refreshCustomers,
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    onChanged: (v) => setState(() => _search = v),
+                    decoration: const InputDecoration(
+                      hintText: 'Search by name or phone...',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                DropdownButton<String>(
+                  value: _sortBy,
+                  underline: const SizedBox.shrink(),
+                  items: const [
+                    DropdownMenuItem(value: 'recent', child: Text('Recent')),
+                    DropdownMenuItem(value: 'total', child: Text('Top Spent')),
+                    DropdownMenuItem(value: 'orders', child: Text('Most Orders')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setState(() => _sortBy = v);
+                  },
+                ),
               ],
-              onChanged: (v) {
-                if (v != null) setState(() => _sortBy = v);
+            ),
+          ),
+          Expanded(
+            child: customers.when(
+              skipLoadingOnRefresh: true,
+              skipError: true,
+              loading: () => const LoadingSpinner(),
+              error: (e, _) => AppErrorState(
+                title: 'Could not load customers',
+                message: ApiService.errorMessage(e),
+                onRetry: () => ref.invalidate(merchantCustomersProvider),
+              ),
+              data: (list) {
+                final filtered = _applyFilter(list);
+                final emptyState = EmptyState(
+                  title: _search.isEmpty
+                      ? 'No customers yet'
+                      : 'No customers match your search',
+                  description: _search.isEmpty
+                      ? 'Customers appear here once buyers order from your store'
+                      : 'Try a different search term',
+                  icon: Icons.people_outline,
+                );
+                final customerList = filtered.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(16),
+                        children: [
+                          SizedBox(height: 260, child: emptyState),
+                        ],
+                      )
+                    : ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(16),
+                        children: [
+                          _statsGrid(filtered),
+                          const SizedBox(height: 16),
+                          ...filtered.map(_customerCard),
+                        ],
+                      );
+                final content = RefreshIndicator(
+                  onRefresh: _refreshCustomers,
+                  child: customerList,
+                );
+
+                if (!customers.isRefreshing && !customers.hasError) {
+                  return content;
+                }
+
+                return Column(
+                  children: [
+                    if (customers.isRefreshing)
+                      const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text(
+                          'Refreshing customers… showing the last successful results.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: TaifTokens.muted,
+                          ),
+                        ),
+                      ),
+                    if (customers.hasError)
+                      ErrorBanner(
+                        message:
+                            'Could not refresh customers: ${ApiService.errorMessage(customers.error!)}. Showing the last successful results.',
+                        onRetry: () => ref.invalidate(merchantCustomersProvider),
+                      ),
+                    Expanded(child: content),
+                  ],
+                );
               },
             ),
-          ]),
-        ),
-        Expanded(
-          child: customers.when(
-            loading: () => const LoadingSpinner(),
-            error: (e, _) => EmptyState(
-                title: 'Error',
-                description: ApiService.errorMessage(e),
-                onAction: () => ref.invalidate(merchantCustomersProvider)),
-            data: (list) {
-              final filtered = _applyFilter(list);
-              if (filtered.isEmpty) {
-                return EmptyState(
-                    title: _search.isEmpty
-                        ? 'No customers yet'
-                        : 'No customers match your search',
-                    description: _search.isEmpty
-                        ? 'Customers appear here once buyers order from your store'
-                        : 'Try a different search term',
-                    icon: Icons.people_outline);
-              }
-              return ListView(padding: const EdgeInsets.all(16), children: [
-                _statsGrid(filtered),
-                const SizedBox(height: 16),
-                ...filtered.map(_customerCard),
-              ]);
-            },
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 
