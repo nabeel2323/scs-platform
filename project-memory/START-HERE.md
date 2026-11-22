@@ -348,3 +348,14 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Latest source implementation commit: `772586447312c7abe308c30b85e2e922c588708d`; focused test/mocking commit: `7650fd06cda30dce47dc332260d14dbb9825c7fe`. The following project-memory commits synchronize this checkpoint; resolve the live PR head at session start.
 - Next: continue UX-010 across remaining Admin users/merchants workflows, then Mobile. Do not repeat UX-030–UX-045.
 - PR #138 remains open/draft/unmerged to `develop`. All commits use `[skip ci]`; exact-head CI must be checked live. No merge/deployment, staging/shared DB write, migration, grant/default-ACL change, RLS activation or worker activation occurred.
+
+
+## Latest UX continuation checkpoint — 23 November 2026 (UX-078)
+
+- Implemented Mobile Buyer Store Directory and Store Detail read recovery: explicit refresh/pull-to-refresh, same-screen stale-data preservation, retryable initial errors and truthful empty states.
+- Store Detail now uses a dedicated buyer catalogue provider that preserves the existing ACTIVE-only product filter; merchant catalogue behavior is unchanged.
+- Added four focused Flutter widget scenarios in `mobile/test/store_buyer_read_recovery_test.dart`. Tests have not been executed and remain pending the consolidated Phase 3 campaign.
+- Source commits: provider `bbf78ff`, store list `aaf04f3` plus interpolation correction `83f68ab`, store detail `8876ecc`, focused tests `c9a9c3b`. All use `[skip ci]`.
+- PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed; external Vercel preview limits are not application test evidence.
+- Next: continue UX-010 source audit through remaining buyer-facing Mobile screens and remaining Web/Admin routes; implement only source-confirmed, contract-backed gaps. Keep Phase 3 consolidated testing deferred until implementation/integration completion.
+- No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
