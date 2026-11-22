@@ -42,6 +42,7 @@ const stores = [{ id: 'store-1', displayName: 'North Store', verificationStatus:
 
 describe('merchant warehouses read recovery', () => {
   beforeEach(() => {
+    auth.user.perms = ['merchant:stores:write'];
     fetchMyStores.mockReset();
     fetchWarehouses.mockReset();
     createWarehouse.mockReset();
@@ -85,7 +86,7 @@ describe('merchant warehouses read recovery', () => {
 
     render(<WarehousesPage />);
 
-    expect(await screen.findByText('No warehouses yet.')).toBeTruthy();
+    expect(await screen.findByText(/No warehouses yet\./)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Add Warehouse' })).toBeNull();
   });
 
