@@ -30,7 +30,7 @@ import { shipments } from '../orders/shipment.schema';
  *
  * Rooms:
  *   user:{userId}   — personal notifications, order updates
- *   org:{orgId}     — org-wide broadcasts (merchant dashboard)
+ *   org:{storeId}   — store-scoped broadcasts (merchant dashboard)
  *   order:{orderId} — order-specific live updates (tracking, status)
  *
  * Events emitted:
