@@ -65,8 +65,9 @@ class _MerchantShellScreenState extends ConsumerState<MerchantShellScreen> {
     ref.listen(activeOrgIdProvider, (previous, next) {
       if (previous != next) setState(() => _selectedTab = widget.initialTab);
     });
-    final profile = ref.watch(profileProvider).valueOrNull;
-    if (profile == null) {
+    final profileAsync = ref.watch(profileProvider);
+    final profile = profileAsync.valueOrNull;
+    if (profile == null || profileAsync.isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final tabs = _visibleTabs(profile);
