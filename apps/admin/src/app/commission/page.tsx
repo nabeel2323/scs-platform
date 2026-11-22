@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { adminRequest } from '../../lib/api';
 import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
 import { PageHeader, Card, colors, radii, typeScale } from '@scs/ui-kit';
@@ -49,22 +49,31 @@ export default function CommissionOversightPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const requestVersion = useRef(0);
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     if (!hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
     setError('');
     const sp = new URLSearchParams();
     if (statusFilter) sp.set('status', statusFilter);
     const qs = sp.toString();
-    adminRequest<CommissionReversal[]>(`admin/commission-reversals${qs ? `?${qs}` : ''}`)
-      .then(data => setReversals(data))
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
+    try {
+      const data = await adminRequest<CommissionReversal[]>(`admin/commission-reversals${qs ? `?${qs}` : ''}`);
+      if (requestId === requestVersion.current) setReversals(data);
+    } catch (err) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load commission reversals');
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
   }, [hasAccess, statusFilter]);
 
   useEffect(() => {
-    if (hasAccess) load();
+    if (hasAccess) void load();
+    return () => { requestVersion.current += 1; };
   }, [hasAccess, load]);
 
   if (!hasAccess) {
@@ -96,10 +105,10 @@ export default function CommissionOversightPage() {
         </button>
       </div>
 
-      {error && <div style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{error}</div>}
+      {error && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{error}{' '}<button type="button" onClick={() => void load()}>Retry commission reversals</button></div>}
       {loading && <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Loading...</div>}
 
-      {!loading && reversals.length === 0 && (
+      {!loading && !error && reversals.length === 0 && (
         <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>No commission reversals found.</div>
       )}
 
