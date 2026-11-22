@@ -87,7 +87,7 @@ export default function AttributesPage() {
     <div className={styles['shell']}>
       <header className={styles['header']}>
         <h1>Attribute Management</h1>
-        <p>{filtered.length} attribute{filtered.length !== 1 ? 's' : ''} — define the building blocks for product types</p>
+        <p>{error ? 'Attribute count unavailable' : `${filtered.length} attribute${filtered.length !== 1 ? 's' : ''} — define the building blocks for product types`}</p>
       </header>
 
       <div className={styles['content']}>
@@ -121,7 +121,7 @@ export default function AttributesPage() {
         {loading ? <SkeletonTable rows={6} cols={7} /> : (
           <div className={styles['tableWrap']}>
             <table>
-              <caption style={{ textAlign: 'left', padding: 12 }}>Attributes — {filtered.length} results</caption>
+              <caption style={{ textAlign: 'left', padding: 12 }}>Attributes — {error ? 'unavailable' : `${filtered.length} results`}</caption>
               <thead>
                 <tr>
                   <th scope="col">Code</th>
