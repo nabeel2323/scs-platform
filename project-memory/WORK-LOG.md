@@ -564,3 +564,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added `apps/web/src/__tests__/cart-actions.test.ts` for success/refresh and error/pending cleanup. Not executed; broad tests remain at the final campaign.
 - Source baseline: `c04b722528d70c1c85261b5d160f14ad422b1f64`. Documentation synchronization is in the next grouped commit; resolve live SHA afterward.
 - No staging/shared DB, migration, grants/RLS, deployment, worker activation or provider call occurred.
+
+
+## 2026-11-22 — UX-017 Admin returns oversight recovery
+
+- Updated Admin returns queue with shared retryable error state, error branch rather than false empty queue, and request-version protection against out-of-order filter responses and stale unmounted updates.
+- Updated return detail with shared loading skeleton, retryable error state and explicit not-found state. The loader now returns a promise and is awaited after escalation resolution.
+- Added focused tests to `apps/admin/src/__tests__/management.test.tsx` for queue and detail retry recovery. Tests not run.
+- Source baseline: `d581d7b649139b04be62f1fbe7fed72cc6a11546`. Docs sync follows separately.
+- No database, migration, deployment, worker activation, grants/RLS or provider actions.

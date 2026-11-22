@@ -278,3 +278,11 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Source review found cart quantity/remove/clear handlers had no local error handling or in-flight lock. Failed validation plus failed fallback reads set cart=null, which could misrepresent an unavailable cart as empty.
 - Added a shared cart mutation helper with error feedback, pending-state cleanup and refresh-on-success. Cart actions are serialized; controls expose accessible labels and progress states. Promo/checkout actions are disabled while a mutation is in flight.
 - Cart reads now preserve the last successful cart and show a retryable load error when both validation and fallback reads fail. Focused helper tests were added but not run.
+
+
+## 22 November 2026 — Admin returns oversight recovery (UX-017)
+
+- The returns queue previously rendered a bare error and could fall through to the empty-queue message; requests started by rapidly changing status filters could resolve out of order and overwrite the latest queue.
+- Added a retryable shared AdminErrorState, explicit error branch, request-version protection and cleanup on filter change/unmount.
+- Return detail now uses shared loading/error/not-found states with a retry action. The load callback is awaitable, so the escalation resolution flow waits for the refreshed return read.
+- Added two focused component tests for queue and detail recovery. Not executed; no browser/CI verification yet.

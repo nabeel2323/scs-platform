@@ -381,3 +381,11 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Cart reads no longer turn a double read failure into a false empty-cart state. The last successful cart is retained and a retryable error is shown.
 - Added focused web tests for successful refresh, failure feedback and pending cleanup. Not executed; full validation remains deferred.
 - Source baseline before documentation sync: `c04b722528d70c1c85261b5d160f14ad422b1f64`; grouped docs commit advances branch. PR #138 remains open/draft/unmerged.
+
+
+## Admin returns UX-017 checkpoint — 22 November 2026
+
+- Fixed retry and stale-request handling on the Admin returns queue. Filter requests are versioned so an older response cannot replace the current filter result; failed reads show a retryable error rather than an empty queue.
+- Return detail now uses shared loading, retryable error and not-found components. The load callback returns a promise and is awaited by the escalation resolution path.
+- Added focused queue/detail retry tests; not executed. Source baseline before docs sync: `d581d7b649139b04be62f1fbe7fed72cc6a11546`; this documentation commit advances the branch.
+- PR #138 remains open/draft/unmerged. No database, migration, deployment, worker activation or grant/RLS action occurred.

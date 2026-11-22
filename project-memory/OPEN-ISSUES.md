@@ -296,3 +296,10 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Cart quantity/remove/clear requests previously had no local error handling or in-flight lock. Cart read failure could fall through to cart=null and render the empty state.
 - Added recoverable mutation feedback and action serialization; failed reads now preserve prior cart data and show a retry action. Focused helper tests added but not executed.
 - Next: continue UX-010 source audit on Admin/Web/Mobile screens and integrate remaining workflow gaps. Comprehensive tests remain deferred.
+
+
+## UX-017 Admin returns oversight recovery — 22 November 2026
+
+- Admin returns list/detail previously had non-retryable read errors; list filter requests could race and overwrite newer data.
+- Added shared retryable error states, detail loading/empty states and request-version protection. The return detail reload now resolves asynchronously for the escalation workflow.
+- Added focused tests, not executed. Continue remaining UX-010 source audit and implementation; comprehensive test campaign remains deferred.

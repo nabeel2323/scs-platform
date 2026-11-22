@@ -442,3 +442,10 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - PR #138 remains open, draft and unmerged to `develop`.
 - Exact-head check-runs on `c04b722...`: no GitHub Actions CI workflow run; Vercel Preview Comments passed. Vercel Web preview was pending deployment and Admin preview was skipped/not affected. These are not application test evidence.
 - Focused cart-action tests were added but not run. No comprehensive suite, staging action, database mutation, migration, deployment, worker activation, grant/RLS change or provider call occurred.
+
+
+## Exact source checkpoint — UX-017 Admin returns recovery — 22 November 2026
+
+- Source implementation commit: `d581d7b649139b04be62f1fbe7fed72cc6a11546`; documentation sync follows as a separate commit.
+- PR #138 remains open, draft and unmerged to `develop`.
+- Focused Admin queue/detail retry tests were added but not executed. No full CI, staging action, DB mutation, migration, deployment, worker activation, grant/RLS change or provider call occurred.

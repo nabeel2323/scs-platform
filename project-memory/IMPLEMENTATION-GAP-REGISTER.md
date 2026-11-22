@@ -227,6 +227,7 @@ Deferred/remaining:
 | UX-014 | Buyer search offers-only filter | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Search result cards already displayed active offer counts and lowest offer price, but there was no server-backed offers-only filter. Added hasOffers=true to API search, with the predicate applied to empty, full-text and exact-SKU paths; added web and mobile filters. |
 | UX-015 | Product Studio save and step-transition integrity | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Offer-step navigation previously advanced after a failed product save; the intermediate save also created the offer before final review, so the final save could create a duplicate. Partial variant creation could be repeated after retry. Added a fail-closed transition helper, product-only intermediate save, final-review offer creation guard and persisted-SKU recheck before variant retries. |
 | UX-016 | Buyer cart mutation feedback and recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Cart quantity/remove/clear handlers previously allowed rejected requests to escape without user feedback or pending-state protection; failed validation and fallback reads could be rendered as an empty cart. Added a shared mutation wrapper, action locking, accessible pending labels, error display and retry while preserving the last loaded cart. |
+| UX-017 | Admin returns queue/detail read recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Admin return list/detail pages used plain, non-retryable error text; the list could show a stale empty state after failure and overlapping filter requests could overwrite newer results. Added standardized retryable error/loading/empty states, request-version protection and focused recovery tests. |
 
 
 ## UX-015 — Product Studio save and step-transition integrity — 22 November 2026
@@ -243,3 +244,10 @@ Deferred/remaining:
 - Quantity controls and remove actions expose accessible labels; pending quantity/remove/clear operations show progress feedback. Promo application and checkout navigation are blocked while another cart mutation is in flight.
 - Cart loading falls back from validation to the plain cart read, clears stale validation warnings on fallback, preserves the last successfully loaded cart if both reads fail, and shows an explicit retryable error rather than falsely presenting an empty cart.
 - Added focused tests for successful refresh, mutation failure feedback and pending-state cleanup. Tests have not been executed; comprehensive validation remains deferred.
+
+
+## UX-017 — Admin returns queue/detail read recovery — 22 November 2026
+
+- The Admin returns queue now clears prior errors on retry, shows a shared retryable error state instead of an empty table on failure, and ignores obsolete responses after filter changes/unmounts through a request-version guard.
+- Return detail now uses the shared loading skeleton, retryable error state and explicit not-found state. Its load callback is awaitable so the resolution workflow waits for the updated return read before leaving its submission path.
+- Added focused Admin tests for queue and detail error → retry → success behavior. Tests have not been executed; consolidated validation remains deferred.

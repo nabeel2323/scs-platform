@@ -231,3 +231,11 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Added accessible labels and progress feedback to cart controls; promo and checkout are blocked while a cart mutation is in flight.
 - Cart load fallback preserves the last successful cart and exposes a retryable error rather than showing a false empty state.
 - Focused tests added but not run. Continue the UX-010 Admin/Web/Mobile source audit; keep full testing consolidated after implementation/integration.
+
+
+## 2026-11-22 — UX-017 Admin returns oversight recovery
+
+- Added standardized retryable error/loading/not-found states to the Admin return detail page and retryable queue error handling.
+- Protected the queue against out-of-order responses when status filters change or the screen unmounts.
+- Made detail reload awaitable for the escalation resolution flow. Added focused tests for queue and detail retry recovery; not run.
+- Continue UX-010 source re-audit across remaining Admin/Web/Mobile screens. Full test campaign remains at the end.
