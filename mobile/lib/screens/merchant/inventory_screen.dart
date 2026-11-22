@@ -161,7 +161,7 @@ class _InventoryBody extends ConsumerWidget {
     try {
       await ref.refresh(
         storeInventoryProvider((storeId: storeId, page: page)).future,
-      );
+      ).then<void>((_) {});
     } catch (_) {
       // Keep the last successful page visible; the AsyncValue below explains
       // the refresh failure and provides a retry action.
