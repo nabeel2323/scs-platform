@@ -1825,3 +1825,13 @@ This is programme-level UX implementation evidence and does not change any G-001
 - Pricing source commits: `9b0393a`, `3b76bf4`, `0fd2622`, `fd3b94b`; pricing test commits: `2f112e9`, `a03c23f`. Customers source/test commits: `b279c263`, `3f3b0f6`.
 - Both deliverables are **IMPLEMENTED / TESTING_PENDING**, not test-verified or CI-verified. No API, permission, schema, migration, database, staging or worker changes.
 - Continue Mobile Merchant Orders and store/profile route audit, then remaining Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
+
+## Mobile merchant order refresh continuation — UX-091 — 23 November 2026
+
+This is programme-level UX implementation evidence; it does not change G-001–G-035 audit finding status.
+
+- **UX-091 — Mobile Merchant Orders:** explicit refresh now resolves active store then awaits the dependent order queue without duplicate requests. The queue and successful empty state support pull-to-refresh; existing stale-data preservation and retry states remain.
+- Added three focused Flutter widget scenarios in `mobile/test/merchant_orders_read_recovery_test.dart` for stale queue preservation, initial error/retry and pull-to-refresh failure while empty. Not executed.
+- Source commits: `da19ca1`, `9ecce8a`; test commits: `112bf00`, `b8c7b1c`.
+- Status: **IMPLEMENTED / TESTING_PENDING**, not test-verified or CI-verified. No API, permission, order transition, stock, fulfillment, schema, migration, database, staging or worker behavior changed.
+- Continue Mobile Store Profile and route-transition audit, then remaining Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
