@@ -665,3 +665,11 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Focused Flutter tests: `mobile/test/product_detail_read_recovery_test.dart` at `222a47f`.
 - All commits use `[skip ci]`. No Flutter tests or exact-head CI jobs have been executed for this increment.
 - PR #138 remains open/draft/unmerged to `develop`. No backend route, permission, database, migration, staging, grant/RLS, worker or provider action occurred.
+
+
+## UX-082 verification boundary — 23 November 2026
+
+- Source implementation: `mobile/lib/screens/notifications/notifications_screen.dart` commit `ae9f5c1`.
+- Focused Flutter tests: `mobile/test/notifications_read_recovery_test.dart` commit `e1bd420`.
+- Both commits use `[skip ci]`. No Flutter tests or exact-head CI jobs have been executed for this increment.
+- PR #138 remains open/draft/unmerged to `develop`. No realtime, provider, backend, database, migration, staging, grant/RLS, worker or outbound notification operation occurred.
