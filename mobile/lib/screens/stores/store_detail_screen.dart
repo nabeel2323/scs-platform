@@ -150,4 +150,3 @@ Widget _refreshNotice(String message, VoidCallback onRetry) => Container(
         ],
       ),
     );
-}
