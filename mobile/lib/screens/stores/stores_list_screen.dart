@@ -8,7 +8,7 @@ import '../../widgets/common_widgets.dart';
 
 Future<void> _refreshStores(WidgetRef ref) async {
   try {
-    await ref.refresh(storesProvider.future);
+    await ref.refresh(storesProvider.future).then<void>((_) {});
   } catch (_) {
     // The provider exposes the failure in its AsyncValue; pull-to-refresh
     // should complete normally so the stale list and retry message stay usable.
