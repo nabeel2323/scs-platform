@@ -112,9 +112,30 @@ This slice extends the static map into platform-admin, import, membership, carri
 - PaymentProviderRegistry, ProviderRegistryService, OtpDeliveryService, WebhookSecurityService and RealtimeGateway do not directly use DatabaseService in the inspected source. They may call DB-backed services or Redis, but are not themselves direct PostgreSQL access paths in this slice.
 - CarrierCredentialsService is DB-backed and is reached from shipping configuration/webhook code; its table carrier_credentials is read and written by that service. A full CRUD operation map for the credential lifecycle remains in the shipping-specific source pass.
 
+## Catalog execution, carrier credentials and financial subservices — source slice 4
+
+| Source path | Tables and observed operations |
+|---|---|
+| apps/api/src/modules/catalog-import/excel-executor.service.ts | brands I/U; categories R/I/U; products I/U; product_variants I/U; product_sources I; attribute_groups I; attribute_definitions I; attribute_options I; product_types I; product_type_attributes I; product_attribute_values I; variant_attribute_values I. Executor comment and transaction code define 12 ordered per-entity-type transactions; a failure in one entity type does not poison unrelated entity types. |
+| apps/api/src/modules/shipping/carrier-credentials.service.ts | carrier_credentials R/I/U; credentials are encrypted before persistence and returned through a masked projection. |
+| apps/api/src/modules/shipping/carrier-configurations.service.ts | carrier_configurations R/I/U; carrier_credentials R; stores R. Configuration references credential and optional store, so org/store consistency is required. |
+| apps/api/src/modules/shipping/carrier-reconciliation.service.ts | shipments U; source contains SQL claim/reconciliation paths for shipment state. Exact predicates and full statement classification remain a dedicated review item. |
+| apps/api/src/modules/returns/commission-reversal.service.ts | commission_reversals R/I; return_requests R; return_request_items R; orders R; order_financial_breakdown R; order_items R; settlement_records R; stores R. |
+| apps/api/src/modules/returns/settlement-adjustment.service.ts | settlement_adjustments R/I/U; settlement_adjustment_approvals R/I; settlement_records R/I; orders R; stores R. |
+| apps/api/src/modules/returns/business-calendar.service.ts | business_calendars R/I/U; business_calendar_holidays R/I/D; business_calendar_audit R/I. |
+
+### Transaction and actor-context implications
+
+- ExcelExecutorService uses ordered per-entity-type transactions rather than one all-or-nothing transaction for the entire import. A request-scoped transaction wrapper must not accidentally collapse these transaction boundaries or change partial-failure semantics. The import orchestration also updates catalog_imports and catalog_import_errors outside the executor's individual entity transactions.
+- CarrierCredentialsService is organization-scoped; decryption is a privileged application operation. A tenant query may access masked metadata for its organization, but plaintext credential material must not be exposed by a general row policy or ordinary API projection.
+- CarrierConfigurationsService links an organization credential to an optional store. Verify credential.org_id equals store.org_id whenever store_id is present; do not rely only on a configuration row's org_id.
+- CarrierReconciliationService is a system/worker/admin operation over shipments. Shipment ownership still resolves through the shipment's store and order, while retry/circuit-breaker/lease metadata may be system-owned.
+- CommissionReversalService and SettlementAdjustmentService are financial subservices. Their records connect returns, refunds, settlements and suborders. The service-level org scope and financial approval state machine must be preserved; a row's created_by or approver_id is attribution, not the owner predicate.
+- BusinessCalendarService schema has no direct org_id field in the inspected declarations despite comments describing tenant or global calendars. The actual calendar scope may be encoded elsewhere; treat the row as unresolved global/configuration scope until service logic and migrations establish the tenant mapping.
+
 ## Still unmapped
 
-This map does not complete DB-003. It now includes 26 service files plus supporting outbox/worker/monitor/lease/alert paths, but does not yet prove full coverage of every controller caller, all import-executor transaction internals, every shipping credential/retry/recovery path, migration/bootstrap/CLI scripts, dynamic imports, DB functions/triggers/views/sequences, partition children, extension-owned objects or all 99 Drizzle-exported tables. The bounded access-path inventory remains authoritative for shared DatabaseService behavior, asynchronous audit middleware, bootstrap, runtime identity and nested-transaction blockers.
+This map now includes 33 service files plus supporting outbox/worker/monitor/lease/alert paths, but does not yet prove full coverage of every controller caller, every import-executor transaction edge, all shipping retry/recovery/webhook paths, migration/bootstrap/CLI scripts, dynamic imports, DB functions/triggers/views/sequences, partition children, extension-owned objects or all 99 Drizzle-exported tables. The bounded access-path inventory remains authoritative for shared DatabaseService behavior, asynchronous audit middleware, bootstrap, runtime identity and nested-transaction blockers.
 
 Next source slices should cover the remaining service files in catalog-import execution/planning, carrier credential lifecycle/retry/recovery, all API controller-to-service caller paths, migration/bootstrap scripts and any standalone CLI jobs; then reconcile each operation to principal/actor context, exact direct/indirect FK owner and read/write/delete predicates. The 114-versus-116 relation discrepancy still requires a refreshed protected read-only catalog snapshot.
 
