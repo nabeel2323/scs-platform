@@ -113,7 +113,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     // S1.38.2: the identity cache is separate from auth state, so it has to be
     // reset here too — otherwise Home shows the previous user's email/phone to
     // whoever signs in next on this device.
-    resetIdentityProviders(ref.container);
+    resetIdentityProviders(ref);
     if (mounted) context.go('/login');
   }
 
