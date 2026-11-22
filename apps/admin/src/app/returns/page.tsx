@@ -41,7 +41,9 @@ export default function AdminReturnsPage() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [loadedFilter, setLoadedFilter] = useState<string | null>(null);
   const requestVersion = useRef(0);
+  const hasCurrentResults = loadedFilter === statusFilter;
 
   const load = useCallback(() => {
     if (!hasAccess) { setLoading(false); return; }
@@ -53,7 +55,10 @@ export default function AdminReturnsPage() {
     const qs = sp.toString();
     adminRequest<ReturnRow[]>(`admin/returns${qs ? `?${qs}` : ''}`)
       .then((data) => {
-        if (requestId === requestVersion.current) setReturns(data);
+        if (requestId === requestVersion.current) {
+          setReturns(data);
+          setLoadedFilter(statusFilter);
+        }
       })
       .catch((e) => {
         if (requestId === requestVersion.current) {
@@ -91,6 +96,7 @@ export default function AdminReturnsPage() {
             Cross-organization return request management
           </p>
         </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -109,13 +115,28 @@ export default function AdminReturnsPage() {
           <option value="EXPIRED">Expired</option>
           <option value="ESCALATED">Escalated</option>
         </select>
+        <button
+          type="button"
+          onClick={load}
+          style={{ padding: '6px 12px', borderRadius: radii.md, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 13, cursor: 'pointer' }}
+        >
+          Refresh
+        </button>
+        </div>
       </div>
 
-      {error ? (
-        <AdminErrorState title="Unable to load returns" message={error} onRetry={load} />
-      ) : loading ? (
+      {error && (hasCurrentResults ? (
+        <div role="alert" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: 12, marginBottom: 12, borderRadius: 8, background: '#7f1d1d', color: '#fff', fontSize: 13 }}>
+          <span>{error} Showing the last successfully loaded results.</span>
+          <button onClick={load} style={{ padding: '4px 12px', border: 0, borderRadius: 6, cursor: 'pointer' }}>Retry returns</button>
+        </div>
+      ) : <AdminErrorState title="Unable to load returns" message={error} onRetry={load} />)}
+      {loading && hasCurrentResults && (
+        <div role="status" style={{ color: 'rgba(255,255,255,0.5)', padding: '6px 0', fontSize: 12 }}>Refreshing returns… showing the last successful results.</div>
+      )}
+      {loading && !hasCurrentResults ? (
         <div style={{ color: 'rgba(255,255,255,0.5)', padding: 40, textAlign: 'center' }}>Loading…</div>
-      ) : returns.length === 0 ? (
+      ) : !hasCurrentResults ? null : returns.length === 0 ? (
         <div style={{ color: 'rgba(255,255,255,0.5)', padding: 40, textAlign: 'center' }}>
           No return requests found.
         </div>

@@ -1578,3 +1578,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Separated list-read errors from approve/reject action errors so action failures do not mislabel valid rows as stale.
 - Added `admin-catalog-requests-recovery.test.tsx` for initial failure/retry, stale filter response ordering and permission-gated reads. Tests remain pending the consolidated Phase 3 campaign.
 - No API route, permission, business transition, schema, migration, database, staging or provider behavior changed.
+
+
+## UX-061 — Admin Returns Oversight read recovery — 22 November 2026
+
+- Added explicit Refresh for the selected return status filter.
+- The page now tracks which status filter produced the last successful response. It preserves those rows during same-filter refreshes and after refresh failures, clearly labels stale results, and offers Retry.
+- A filter change never displays rows from the previous filter as if they matched the new selection; an initial/changed-filter failure remains an error rather than a false empty state. Existing request-version and unmount guards remain in place.
+- Added `admin-returns-recovery.test.tsx` for failed initial reads/retry, stale-data preservation after failed refresh, and isolation between status-filter result sets. Tests remain pending the consolidated Phase 3 campaign.
+- No return workflow, refund calculation, action, API, permission, schema, migration, database, staging or provider behavior changed.
