@@ -9,7 +9,9 @@ import { PERMISSIONS_KEY } from '../../../common/guards/current-user.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { StoreMembershipController } from '../../../modules/merchant/store-membership.controller';
 
-function contextFor(handler: Function, perms: string[]): ExecutionContext {
+type Handler = (...args: never[]) => unknown;
+
+function contextFor(handler: Handler, perms: string[]): ExecutionContext {
   return {
     getHandler: () => handler,
     getClass: () => StoreMembershipController,
@@ -38,7 +40,7 @@ describe('StoreMembershipController permission alignment', () => {
   });
 
   it('retains JWT authentication at controller level and permission guard at the route', () => {
-    const classGuards = Reflect.getMetadata(GUARDS_METADATA, StoreMembershipController) as Function[];
+    const classGuards = Reflect.getMetadata(GUARDS_METADATA, StoreMembershipController) as unknown[];
     const methodGuards = Reflect.getMetadata(
       GUARDS_METADATA,
       StoreMembershipController.prototype.listMembers,
