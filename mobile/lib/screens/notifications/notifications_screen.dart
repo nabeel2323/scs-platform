@@ -10,7 +10,7 @@ import '../../widgets/common_widgets.dart';
 
 Future<void> _refreshNotifications(WidgetRef ref) async {
   try {
-    await ref.refresh(notificationsProvider.future);
+    await ref.refresh(notificationsProvider.future).then<void>((_) {});
   } catch (_) {
     // The provider retains the last successful list and exposes the error.
   }
