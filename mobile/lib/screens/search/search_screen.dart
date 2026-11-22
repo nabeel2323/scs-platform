@@ -71,6 +71,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Future<void> _search(String q, {bool append = false}) async {
+    _debounce?.cancel();
     final searchKey = _searchKey(q);
     if (append &&
         (_loadingMore || _lastSuccessfulSearchKey != searchKey)) {
@@ -331,7 +332,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _resultsArea(bool hasMore) {
-    if (_searching) {
+    final hasCurrentResults = _items.isNotEmpty &&
+        _lastSuccessfulSearchKey == _searchKey(_ctrl.text);
+    if (_searching && !hasCurrentResults) {
       return Padding(
         padding: const EdgeInsets.all(16),
         child: GridView.count(
@@ -360,6 +363,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
     }
     return Column(children: [
+      if (_searching && hasCurrentResults)
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Refreshing search results… showing the last successful results.',
+              style: TextStyle(fontSize: 12, color: TaifTokens.muted),
+            ),
+          ),
+        ),
       Expanded(
         child: GridView.builder(
           padding: const EdgeInsets.all(16),
