@@ -369,7 +369,7 @@ export function useProductStudio() {
     } finally {
       setSaving(false);
     }
-  }, [state, brands, offerCreatedForProductId]);
+  }, [state, brands, offerCreatedForTargetKey]);
 
   // Compute completeness score (0–100)
   const completeness = useCallback((): number => {
