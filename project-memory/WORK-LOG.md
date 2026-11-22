@@ -764,3 +764,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - UX-039: Merchant Import History now recovers from store-directory failures, distinguishes no store from loading, exposes a retryable import-job read error, preserves previously loaded jobs after failed refreshes, and polls only while a known job is active without overlapping requests.
 - Added `merchant-inventory-variants.test.ts` and `merchant-import-history-recovery.test.tsx`. They cover pagination/partial variant failure and store/job recovery/no-store behavior. Tests are intentionally not executed during the implementation phase.
 - No API contract, permission, schema, migration, database, staging, worker, provider or deployment changes. All implementation/test commits use `[skip ci]` under the Actions-minute budget.
+
+## 2026-11-22 — UX-040 / UX-041 Merchant Import Wizard recovery and lifecycle
+
+- UX-040: replaced swallowed Merchant Import Wizard store lookup errors with loading/error/retry/no-store states. A true empty store directory links to onboarding; failed discovery exposes Retry store lookup; import progression stays disabled until a real store is resolved.
+- UX-041: corrected the import-processing race by starting status polling only after the process request succeeds. Polling now has request generation/overlap/unmount guards, exposes retry after status-read errors, and uses explicit COMPLETED/FAILED/CANCELLED outcome classification so a FAILED job cannot be presented as a successful import.
+- Added `merchant-import-wizard-store-recovery.test.tsx` and `import-job-outcome.test.ts`. Tests are not executed during the implementation-first phase.
+- No API/permission/schema/database/queue/worker changes. Commits use `[skip ci]`; no deployment or staging action.
