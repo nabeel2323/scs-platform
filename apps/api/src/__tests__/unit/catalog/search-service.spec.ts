@@ -18,6 +18,7 @@ function makeMockDb(opts: {
   productCount?: number;
   variants?: Row | null;
   activeOffer?: Row | null;
+  capturedProductWhere?: unknown[];
   categories?: Row[];
   brands?: Row[];
   capturedWhere?: unknown[];
@@ -27,7 +28,10 @@ function makeMockDb(opts: {
     db: {
       query: {
         products: {
-          findFirst: async () => opts.products?.[0] ?? null,
+          findFirst: async (config?: { where?: unknown }) => {
+            if (config?.where) opts.capturedProductWhere?.push(config.where);
+            return opts.products?.[0] ?? null;
+          },
           findMany: async (config?: { where?: unknown }) => {
             if (config?.where) opts.capturedWhere?.push(config.where);
             return opts.products ?? [];
@@ -202,6 +206,36 @@ describe('SearchService — active offer filter', () => {
       expect(query.sql).toContain('merchant_offers');
       expect(query.sql).toContain("mo.status = 'ACTIVE'");
     }
+  });
+
+  it('applies store/category/brand constraints to the exact-SKU fast path', async () => {
+    const capturedProductWhere: unknown[] = [];
+    const svc = makeHarness({
+      variants: { id: 'variant-a', productId: 'product-a' },
+      products: [{
+        id: 'product-a',
+        storeId: 'store-a',
+        categoryId: 'category-a',
+        brandId: 'brand-a',
+        status: 'ACTIVE',
+        deletedAt: null,
+      }],
+      activeOffer: { id: 'offer-a' },
+      capturedProductWhere,
+    });
+
+    const result = await svc.search('SKU-PRIVATE', {
+      storeId: 'store-a',
+      categoryId: 'category-a',
+      brandId: 'brand-a',
+      hasOffers: true,
+    });
+
+    expect(result.matchType).toBe('exact');
+    const compiled = new PgDialect().sqlToQuery(capturedProductWhere[0] as any);
+    expect(compiled.params).toContain('store-a');
+    expect(compiled.params).toContain('category-a');
+    expect(compiled.params).toContain('brand-a');
   });
 
   it('does not let the SKU fast path bypass the active-offer filter', async () => {

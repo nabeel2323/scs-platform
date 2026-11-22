@@ -156,22 +156,39 @@ export class SearchService {
     const limit = options?.limit || 20;
     const offset = options?.offset || 0;
 
-    // 1. Fast path: SKU/barcode exact match
-    const skuMatch = await this.db.db.query.productVariants.findFirst({
-      where: or(
-        eq(productVariants.sku, query.trim()),
-        eq(productVariants.barcode, query.trim()),
-      ),
-    });
+    // 1. Fast path: SKU/barcode exact match. Filters that require offer-price,
+    // stock or dynamic-attribute evaluation use the full-text path so the fast
+    // path cannot silently bypass a requested constraint.
+    const exactFastPathAllowed =
+      options?.priceMin == null &&
+      options?.priceMax == null &&
+      options?.availability == null &&
+      (!options?.attributeFilters || Object.keys(options.attributeFilters).length === 0);
+    const skuMatch = exactFastPathAllowed
+      ? await this.db.db.query.productVariants.findFirst({
+          where: or(
+            eq(productVariants.sku, query.trim()),
+            eq(productVariants.barcode, query.trim()),
+          ),
+        })
+      : null;
 
     if (skuMatch) {
+      const productConditions = [
+        eq(products.id, skuMatch['productId']),
+        isNull(products.deletedAt),
+        eq(products.status, 'ACTIVE'),
+      ];
+      if (options?.storeId) productConditions.push(eq(products.storeId, options.storeId));
+      if (options?.categoryId) productConditions.push(eq(products.categoryId, options.categoryId));
+      if (options?.brandId) productConditions.push(eq(products.brandId, options.brandId));
       const product = await this.db.db.query.products.findFirst({
-        where: eq(products.id, skuMatch['productId']),
+        where: and(...productConditions),
       });
       // The other two paths filter on status = 'ACTIVE'; the fast path must too,
       // otherwise scanning the SKU of a DRAFT or SUSPENDED listing exposes it to
       // any buyer who happens to have its code.
-      if (product && !product['deletedAt'] && (product['status'] === 'ACTIVE')) {
+      if (product) {
         const hasMatchingOffer = !options?.hasOffers || Boolean(
           await this.db.db.query.merchantOffers.findFirst({
             where: and(
