@@ -394,3 +394,22 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - Reused the existing shared `ErrorBanner` with Retry and suppressed the empty queue state while a read error is active. The existing load routine retains the last successful rows if a refresh fails.
 - Added a focused Web test for initial failure/retry. Not executed.
 - No API, permission, route, schema, migration or database change.
+
+## UX-033 — Web Merchant Returns store selection and recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- Replaced the manually typed Store ID with the authenticated store directory, selecting the first available store by default and allowing store switching.
+- Added retryable store-directory and return-list errors, status filtering, successful-empty-only rendering and stale-request cancellation/version protection.
+- Added retry to Merchant Return Detail.
+- Existing API contracts remain authoritative: list requires `merchant:orders:read` and storeId; return transitions require `merchant:orders:write`. No API permission or server authorization was weakened.
+- Added focused list/detail recovery tests. Not executed.
+
+## UX-034 — Merchant Organization auxiliary read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- Replaced silent catches with independent retryable states for verification history, update-request history, store information, warehouses and organization roles; member reads now expose Retry.
+- Last successful auxiliary data is retained on refresh failure. A failed update-request read blocks verified-organization change submission until pending-request state is known.
+- Role loading exposes retry and stops automatic retries after failure. Primary profile/organization read failure no longer appears as “No organization yet.”
+- Added focused organization recovery tests. Not executed. No API, route, permission, schema or database changes.

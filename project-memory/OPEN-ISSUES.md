@@ -406,3 +406,9 @@ Merchant Customers previously swallowed list-read failures and could show a fals
 ## UX-032 — Merchant Deliveries read recovery — 22 November 2026
 
 Merchant Deliveries previously had no retry action and could show “No deliveries yet” after a failed list read. Source commit `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81` adds retry and keeps the empty state distinct from read failure. Focused test added but not executed. Continue the UX-010 Merchant/Web audit.
+
+## UX-033 / UX-034 — Merchant Web workflow recovery — 22 November 2026
+
+UX-033 replaces the manual Merchant Returns Store ID field with the authenticated store directory, supports store/status filtering, and adds retryable store/list/detail reads. Existing API guards remain unchanged (`merchant:orders:read` for listing and `merchant:orders:write` for transitions). Focused tests are added but not executed.
+
+UX-034 makes Merchant Organization verification, update-request, store, warehouse, role and member read failures visible and retryable. Last successful auxiliary data is retained on failed refresh; verified-org updates are blocked while pending-request state is unknown. Focused tests are added but not executed. Continue UX-010 audit; comprehensive testing remains deferred.

@@ -717,3 +717,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Preserved existing rows across failed refreshes (the existing load path already leaves the prior data intact).
 - Added `apps/web/src/__tests__/merchant-deliveries-recovery.test.tsx`; not executed.
 - Source implementation commit: `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81`; `[skip ci]` used under the Actions-minute budget. No API or permission change.
+
+## 2026-11-22 — UX-033 / UX-034 Merchant Web implementation
+
+- Merchant Returns now loads the signed-in merchant's stores through `fetchMyStores`, selects the first available store and supports store/status filtering. Store-directory and return-list reads have separate retry states and request-version protection.
+- Merchant Return Detail now supports retry after a failed read.
+- Merchant Organization now surfaces retryable verification, update-request, store, warehouse, role and member read failures. It retains last successful auxiliary data and blocks verified-organization updates while pending-request state is unknown.
+- Focused tests added: `merchant-returns-recovery.test.tsx`, `merchant-return-detail-recovery.test.tsx`, `merchant-organization-recovery.test.tsx`. Not executed.
+- Source/test commit sequence: `644627df54c8c8678643fb4e8893df8f4591982e`, `c9fa87b82948a344c95901a589ef23cdfcb53758`, `1bce8364ba843583eda49203dea8a622342efee5`, `112a5a10290a5669cc62235782fcb50ed43fe82e`, `73d6db58a7ebd069a4c67b67d4a5a5a6099e38b8`, `ea9460000823477887475aa91d09f146c79ca097`, `a86ef5522ef7f5921e3a13ff3efa991eeddd4c35`.
+- All commits used `[skip ci]`. No tests/CI were run. No API, permission, schema, database, staging, deployment, worker or provider change occurred.

@@ -342,3 +342,10 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 
 - Merchant Deliveries now exposes Retry on read failure and does not show a successful empty queue while the read has failed. Existing rows are preserved on refresh failure.
 - Focused test added; not executed. Continue UX-010 Merchant/Web screen and permission audit; comprehensive tests remain Phase 3.
+
+## 2026-11-22 — UX-033 / UX-034 Merchant Web implementation
+
+- Merchant Returns now discovers stores through the authenticated store-list API, selects the first available store and supports store/status filtering. Store/list errors have retry paths and stale requests cannot overwrite newer selections.
+- Merchant Return Detail now supports retry after a failed read.
+- Merchant Organization auxiliary reads for verification history, update requests, stores, warehouses, roles and members now expose errors/retry. Last successful rows are retained where available; verified-org updates are disabled while pending-request state is unknown.
+- Added focused Web tests for returns list/detail and organization recovery. Not run. Continue UX-010 audit and integration; Phase 3 remains the consolidated test campaign.

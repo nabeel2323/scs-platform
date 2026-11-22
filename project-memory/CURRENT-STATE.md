@@ -3,7 +3,7 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81` — `fix(web): add merchant delivery queue retry recovery [skip ci]`  
+**Latest implementation batch commit:** `a86ef5522ef7f5921e3a13ff3efa991eeddd4c35` — UX-033/034 Merchant Web implementation and focused test additions  
 **Previous source increment:** `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — Merchant Customers recovery (UX-031)  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commit that follows is documentation-only.
 
@@ -20,13 +20,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
 | Live branch head | Resolve from the live GitHub ref at session start; this checkpoint is documentation and does not pin its resulting SHA |
-| Latest source implementation | `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81` — UX-032 Merchant Deliveries read recovery |
+| Latest implementation batch | `a86ef5522ef7f5921e3a13ff3efa991eeddd4c35` — UX-033/034 Merchant Web implementation and focused test additions |
 | Previous source implementation | `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — UX-031 Merchant Customers read recovery |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact source-SHA GitHub Actions | No run for `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81`; NOT CI-VERIFIED |
+| Exact-head GitHub Actions | No run for `a86ef5522ef7f5921e3a13ff3efa991eeddd4c35` because commits used `[skip ci]`; NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
 | Latest inspected Vercel contexts | Web FAILURE; Admin FAILURE (external build-rate-limit page); not application test results |
-| Focused Web tests | UX-030–032 added; not executed |
+| Focused Web tests | UX-030–034 added; not executed |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
 ## Current remediation status
@@ -56,7 +56,7 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 ## Immediate next actions
 
-1. Continue UX-010 source re-audit across remaining Admin, Web and Mobile screens. Trace each visible screen/action against API contracts, active-organization permissions, object ownership, and loading/empty/error/retry behavior. Record only concrete gaps and implement safe related fixes in grouped commits.
+1. Continue UX-010 source re-audit across remaining Admin, Web and Mobile screens. UX-033 now replaces the manually typed merchant return store ID with the authenticated store directory and adds list/detail recovery; UX-034 makes Merchant Organization auxiliary reads explicit and retryable. Continue tracing screens/actions against API contracts, active-organization permissions, object ownership and loading/empty/error/retry behavior.
 2. Continue integration completion for buyer/merchant/admin workflows, including remaining cross-client order, returns, fulfillment and commercial lifecycle gaps. UX-015–UX-029 are implemented in source; their focused regression tests have not been executed.
 3. Keep G-001 PARTIAL pending independent security review. Keep G-002 IN PROGRESS pending protected live API/migration identity evidence, refreshed catalog audit, 114-versus-116 physical relation reconciliation, complete operation ownership review and an approved transaction-context/RLS design.
 4. Preserve the implementation-first sequence: do not run the comprehensive test suite after each small change. Add targeted regression coverage when needed; execute the coordinated API/PostgreSQL/migration/Web/Admin/Flutter/concurrency/performance campaign only after implementation and integration are complete.
