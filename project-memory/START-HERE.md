@@ -222,7 +222,7 @@ Correction to the earlier onboarding-permission note: staging is not missing `id
 
 ## Aramex provider registry wiring — 22 November 2026
 
-- Source audit found a DI/registry mismatch: `AramexProvider` was a ShippingModule provider/export, but `ShippingService.onModuleInit` registered only `manual-driver`. The carrier worker resolves provider keys from the registry and defaults missing keys to `aramex`.
+- Source audit found a DI/registry mismatch: `AramexProvider` was a ShippingModule provider/export, but `ShippingService.onModuleInit` registered only `manual-driver`. The carrier worker resolves explicitly configured provider keys and otherwise uses `manual-driver` for shipment operations; `CarrierTrackingPoller` separately falls back to `aramex`.
 - Fixed provider registration: preserve `manual-driver` as default and register injected Aramex as a non-default provider. The registration step performs no credential reads or external HTTP calls.
 - Added a focused provider-registration test. Execution remains deferred to the consolidated Phase 3 campaign; no live carrier credentials or requests were used.
 - Updated the outbox ownership map, API route matrix and gap register. Actual Aramex execution still requires valid store-scoped configuration and active encrypted organization credentials; no staging or production activation is claimed.
@@ -231,3 +231,11 @@ Correction to the earlier onboarding-permission note: staging is not missing `id
 ## Post-implementation source review — 22 November 2026
 
 A static source pass after the grouped Admin permission and shipping-provider changes caught one remaining dashboard KPI loading reference that still used the removed shared `loading` state. It now uses `kpisLoading`; the two independently gated dashboard sections are also formatted as proper nested JSX. The new test mocks include the commission page's UI-kit imports, and the Aramex test uses a deliberate `unknown` cast for the lightweight provider stub. These corrections are source-reviewed only; test execution remains in Phase 3.
+
+
+## API wrapper and worker activation mapping — 22 November 2026
+
+- Extended docs/api-route-permission-matrix.md with source-confirmed wrapper symbols across Admin, Web and Mobile clients. Exact page/screen call-site tracing remains open; no nearby-offers wrapper exists in the inspected API clients.
+- Corrected provider fallback semantics: shipment create/cancel/label operations default to manual-driver; the separate CarrierTrackingPoller defaults missing provider keys to aramex. The registry fix covers explicitly configured Aramex operations and tracking polls.
+- Cross-checked worker startup/activation: P13 return-expiration is opt-in and disabled by default; P13Monitor is separate, read-only and always starts on API instances at the configured cadence; other in-process pollers start without the P13 gate and rely on their own claim/lease behavior.
+- No worker was activated, no live credentials used, and no staging/production service was restarted or changed.

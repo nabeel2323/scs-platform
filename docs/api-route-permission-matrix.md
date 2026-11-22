@@ -2,7 +2,7 @@
 
 **Audit date:** 22 November 2026  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Source checkpoint:** `5eb195433dd0bbf09b96a3495e9ca2e6fb7fe597`  
+**Source checkpoint:** `8a46082e17b08521d5c976d06996af57fcfb3dcc`  
 **Scope:** all 28 NestJS module controller files under `apps/api/src/modules/**`.
 
 ## Evidence and interpretation
@@ -64,4 +64,31 @@ This is a controller-source map of route families, primary client surfaces and m
 
 ## Carrier provider registry wiring
 
-The Nest module provides/exports `AramexProvider`; `ShippingService.onModuleInit` registers it in `ShippingProviderRegistry` as non-default while preserving `manual-driver` as default. The carrier worker resolves provider keys through that registry and defaults missing keys to `aramex`. Registration itself performs no credential read or network call; a live carrier operation still requires store-scoped configuration and active encrypted organization credentials. The focused registration test is added but not executed.
+The Nest module provides/exports `AramexProvider`; `ShippingService.onModuleInit` registers it in `ShippingProviderRegistry` as non-default while preserving `manual-driver` as default. The carrier worker resolves an explicitly configured provider key through that registry; shipment operations otherwise fall back to `manual-driver`. The separate CarrierTrackingPoller defaults a missing provider key to `aramex`. Registration itself performs no credential read or network call; a live carrier operation still requires store-scoped configuration and active encrypted organization credentials. The focused registration test is added but not executed.
+
+
+## Confirmed API client wrapper symbols
+
+The following wrapper functions were matched to controller route families by source inspection. This is wrapper-level evidence; individual page/screen call sites and generated contract schemas remain part of the remaining MAP-001 trace.
+
+| API family | Admin wrapper symbols | Web wrapper symbols | Mobile wrapper symbols |
+|---|---|---|---|
+| Authentication/profile | Admin auth/session helpers and user-detail functions | fetchProfile, updateProfile, profile/device helpers | OTP/login/session/device/profile functions in api_service.dart |
+| Organizations/store membership | fetchAdminOrganizations, fetchAdminOrgUpdateRequests, reviewOrgUpdateRequest, fetchAdminUsers, assignUserRole, removeUserRole | createOrganization, joinOrganization, fetchMyOrganizations, fetchOrganization, updateOrganization, fetchOrgMembers, addOrgMember, removeOrgMember, lookupOrgMember, submitOrgUpdateRequest, fetchOrgUpdateRequests, fetchStoreMembers, addStoreMember, removeStoreMember, changeMemberRole, activateMember, deactivateMember | Organization/store/member counterparts in api_service.dart |
+| Catalog/taxonomy | fetchAdminBrandsEnriched, createAttribute, updateAttribute, deleteAttribute, addAttributeOption, createAttributeGroup, createProductType, publishProductType, setVariantDimensions, updateProductTypeCategory, createNewVersion, fetchAdminCatalogRequests, approveCatalogRequest, rejectCatalogRequest, fetchDataQualityMetrics | Merchant catalog request wrappers and buyer search/product wrappers | Product/variant/media/category/product-type wrappers in api_service.dart |
+| Catalog imports | uploadCatalogImport, fetchCatalogImports, fetchCatalogImport, fetchCatalogImportPreview, executeCatalogImport, fetchCatalogImportErrors, retryCatalogImport, downloadCatalogImportReport, downloadCatalogTemplate, exportCatalog | Store-scoped merchant import wrappers | Store import submit/status/process wrappers |
+| Cart/checkout | Admin order/payment visibility helpers | fetchCart, addToCart, updateCartItem, removeCartItem, clearCart, validateCart, applyPromoCode, previewCheckout, checkout | fetchCart, addToCart, updateCartItem, removeCartItem, clearCart, validateCart, applyPromo, removePromo, checkout preview/submit |
+| Orders/fulfillment | fetchAdminOrders, fetchAdminOrderDetail, admin cancellation/status helpers | fetchOrders, fetchOrder, fetchMasterOrder, fetchOrderHistory, cancelOrder, confirmDelivery, reorder, acceptMerchantOrder, rejectMerchantOrder, partiallyAcceptMerchantOrder, transitionOrderStatus, prepareOrder, readyOrder, assignDriver, fetchTracking | Buyer/merchant order and driver shipment action wrappers in api_service.dart |
+| Payments/finance | fetchAdminPayments, payment verification/refund/settlement wrappers | Payment proof/refund wrappers in buyer/merchant client surfaces | Buyer/merchant payment and order payment methods |
+| Inventory/pricing | Admin inventory and settlement operations | Inventory, warehouse, price-list and tier wrappers in buyer-api.ts | fetchWarehouseInventory, fetchLowStock, adjustStock, createInventoryItem, updateInventoryItem, bulkAdjustStock, fetchStoreInventory, transferStock, checkLowStock, price-list wrappers |
+| Promotions/shipping | Admin offer KPI/trend and governance wrappers | fetchStorePromotions, createPromotion, updatePromotion, fetchShippingMethods, createShippingMethod, updateShippingMethod, deactivateShippingMethod, fetchDeliveryZones, createDeliveryZone, updateDeliveryZone, attachMethodToZone, detachMethodFromZone, fetchShippingEstimate | Merchant promotion/offer, shipping estimate and shipping configuration wrappers |
+| Notifications/reviews/disputes | fetchDisputeEvents, analytics and audit wrappers | fetchNotifications, unread/read operations, createReview, fetchStoreReviews, createDispute, fetchDisputes, fetchDisputeEvents, submitDisputeEvidence | Notification, review, dispute and evidence wrappers in api_service.dart |
+| Returns | Admin return, refund, commission, adjustment and reconciliation screens | fetchMyReturns, fetchReturn, createReturn, cancelReturn, markReturnShipped | No matching return wrapper found in inspected api_service.dart; confirm whether mobile returns are intentionally web-only or implemented through another service |
+| Nearby promotions | No wrapper found | No offers/nearby wrapper found in api.ts or buyer-api.ts | No offers/nearby wrapper found in api_service.dart or mobile-core api_client.dart |
+
+## Worker and provider activation cross-reference
+
+- Source-level worker ownership, startup delays, runtime gates, leases and outbox prefix ownership are documented in docs/remediation/OUTBOX-EVENT-OWNERSHIP-MAP.md.
+- P13 return-expiration processing is disabled unless P13_WORKER_ENABLED is explicitly enabled. The separate P13 monitor runs on each API instance at the configured cadence (default 60 seconds); alert dedup is enforced in Postgres and the default alert sink is log-only.
+- AutoCompleteWorker, ShippingCarrierWorker, CarrierTrackingPoller and the generic OutboxDispatcher are registered in API modules and start in-process without a P13 gate. Carrier and tracking workers use atomic row claims; the generic dispatcher is a log sink and is not a side-effect delivery system.
+- Aramex is registered as a non-default provider; manual-driver remains the default for ordinary shipment operations. The tracking poller uses aramex only as its fallback provider key. Actual carrier requests still require active store configuration and encrypted organization credentials.

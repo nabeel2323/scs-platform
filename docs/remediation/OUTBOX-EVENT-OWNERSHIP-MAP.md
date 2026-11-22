@@ -58,7 +58,7 @@ The current NestJS source registers background pollers as providers inside the A
 | `CarrierTrackingPoller` | `ShippingModule` provider | Starts polling after 15 seconds | No environment gate in source |
 | `AutoCompleteWorker` | `OrdersModule` provider | Starts polling after 30 seconds | No environment gate in source |
 | `ReturnExpirationWorker` | `ReturnsModule` provider | Starts after configured delay (default 45 seconds) | Explicitly disabled unless `P13_WORKER_ENABLED` is enabled |
-| `P13MonitorService` | `OperationsModule` provider | Operational monitor; inspect its own scheduler/lease configuration separately | P13 operational configuration |
+| `P13MonitorService` | `OperationsModule` provider | Runs on every API instance at P13_MONITOR_INTERVAL_MS (default 60 seconds); read-only scan and Postgres alert dedup | Not gated by P13_WORKER_ENABLED; alert delivery defaults to log-only without a valid signed webhook sink |
 
 All modules above are imported by `AppModule`. Therefore every API process instantiates these providers; multi-instance deployment can run multiple pollers concurrently. Carrier outbox claiming uses `FOR UPDATE SKIP LOCKED` and per-event leases, while the generic dispatcher excludes the carrier namespace. Other workers must be reviewed against their own lease/claim strategy before increasing API replicas.
 
@@ -80,6 +80,6 @@ The inspected Render workspace previously showed one API service and no separate
 
 ## Shipping provider registry wiring — 22 November 2026
 
-A source cross-check found that `ShippingModule` registered `AramexProvider` in Nest DI and exported it, but `ShippingService.onModuleInit()` registered only `ManualDeliveryProvider` in `ShippingProviderRegistry`. The carrier worker resolves the persisted provider key through that registry and defaults missing shipment provider keys to `aramex`; therefore Aramex events could fail with an unknown-provider error even though the provider class was present in DI.
+A source cross-check found that `ShippingModule` registered `AramexProvider` in Nest DI and exported it, but `ShippingService.onModuleInit()` registered only `ManualDeliveryProvider` in `ShippingProviderRegistry`. The carrier worker resolves an explicitly persisted provider key through that registry and otherwise defaults shipment create/cancel/label operations to `manual-driver`. The separate CarrierTrackingPoller defaults a missing provider key to `aramex`; therefore explicitly configured Aramex events and tracking polls could not resolve the provider even though the provider class was present in DI.
 
-The registry wiring now keeps `manual-driver` as the default and registers the injected Aramex adapter as a non-default provider. Registration does not read credentials or invoke Aramex. Per-store carrier configuration and active organization-scoped encrypted credentials remain required at operation time. A focused provider-registration test is added but not executed; no live carrier request or credential change occurred.
+The registry wiring now keeps `manual-driver` as the default for shipment create/cancel/label operations and registers the injected Aramex adapter as a non-default provider. The separate tracking poller falls back to `aramex` when a shipment has no provider key. Registration does not read credentials or invoke Aramex. Per-store carrier configuration and active organization-scoped encrypted credentials remain required at operation time. A focused provider-registration test is added but not executed; no live carrier request or credential change occurred.

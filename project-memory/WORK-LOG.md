@@ -362,7 +362,7 @@ The current-state handover metadata was reconciled to the latest documentation h
 ## 2026-11-22 — Aramex provider registry wiring
 
 - Reviewed the existing outbox ownership map and staging runtime topology before extending MAP-001; avoided duplicating the already documented worker ownership model.
-- Found that `AramexProvider` was registered in Nest DI but not in `ShippingProviderRegistry`. `ShippingCarrierWorker` uses that registry for provider-key resolution and falls back to `aramex`, so carrier events could not resolve the provider.
+- Found that `AramexProvider` was registered in Nest DI but not in `ShippingProviderRegistry`. `ShippingCarrierWorker` resolves explicitly configured provider keys through that registry and otherwise defaults shipment create/cancel/label operations to `manual-driver`; `CarrierTrackingPoller` separately falls back to `aramex`, so Aramex-configured operations and tracking polls could not resolve the provider.
 - Updated `ShippingService.onModuleInit` to register Aramex as non-default while retaining `manual-driver` as the default. Optional injection preserves existing direct construction tests. No credentials are loaded and no external HTTP call occurs at startup.
 - Added a focused registry integration unit test and documented the ownership/activation boundary. Validation deferred to the consolidated Phase 3 campaign; no CI, deployment, secret, DB, migration or live carrier action occurred.
 
@@ -372,3 +372,10 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Static inspection of the Admin dashboard found the Completion Rate card still referenced the old `loading` variable after the KPI/org split. Corrected it to `kpisLoading` and normalized conditional JSX indentation/loading markup.
 - Added the missing `Card` export to the UI-kit test mock and made the Aramex provider stub cast explicit through `unknown` to satisfy TypeScript's structural-cast rules.
 - Updated the API matrix source checkpoint to the Aramex registry wiring commit. No tests or CI were run; this remains part of the single consolidated Phase 3 verification campaign.
+
+
+## 2026-11-22 — Client wrapper and worker activation mapping
+
+- Matched Admin, Web and Mobile API wrapper symbols to the 28-controller route-family inventory and recorded them in docs/api-route-permission-matrix.md. Exact page/screen call-site mapping remains open. The nearby-offers endpoint has no wrapper in the inspected API clients; its service still ignores geographic inputs.
+- Corrected the provider fallback description: shipment create/cancel/label paths use manual-driver when no provider is configured; only CarrierTrackingPoller falls back to aramex. The registry fix makes explicit Aramex provider selection and tracking polls resolvable.
+- Verified source activation boundaries: P13 return-expiration is opt-in and disabled by default; P13Monitor is an always-on read-only scanner with Postgres dedup and log-only alert fallback; other in-process workers start without the P13 flag and use their own claim/lease logic. No runtime activation or deployment change was made.
