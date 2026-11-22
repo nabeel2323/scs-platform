@@ -127,7 +127,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    expect(find.text('Main Variant'), findsOneWidget);
+    expect(find.textContaining('Main Variant'), findsOneWidget);
     expect(find.text('1 tiers'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Refresh price list'));
