@@ -636,3 +636,8 @@ Source-confirmed gaps closed in implementation: selected attribute facet values 
 ## UX-081 — Mobile Product Detail stable reads — 23 November 2026
 
 Source-confirmed gap closed in implementation: the Product Detail inline FutureBuilder recreated the main product request on each stateful rebuild; initial product failure lacked retry/refresh; auxiliary variant/offer/review failures were hidden. A stable product-ID provider, stale-data-safe refresh, retryable initial and auxiliary reads, and route-reuse request guards are implemented. Focused Flutter tests are added but remain TESTING_PENDING. No backend/API route/database behavior changed.
+
+
+## UX-082 — Mobile Notifications recovery — 23 November 2026
+
+Source-confirmed gaps closed in implementation: notification refresh/realtime invalidation discarded the last successful inbox; individual mark-read failures escaped without user feedback. The screen now preserves stale data through refresh failure, exposes retry/refresh, distinguishes initial error from empty inbox, and guards individual/Mark All Read actions with progress and feedback. Focused Flutter tests are added but remain TESTING_PENDING. Realtime and notification API contracts unchanged.
