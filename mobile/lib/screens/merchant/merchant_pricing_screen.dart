@@ -68,10 +68,11 @@ class MerchantPricingScreen extends ConsumerWidget {
         skipLoadingOnReload: true,
         skipError: true,
         loading: () => const LoadingSpinner(),
-        error: (e, _) => AppErrorState(
+        error: (e, _) => EmptyState(
           title: 'Could not load store',
-          message: ApiService.errorMessage(e),
-          onRetry: () => ref.invalidate(activeStoreProvider),
+          description: ApiService.errorMessage(e),
+          actionLabel: 'Retry store',
+          onAction: () => ref.invalidate(activeStoreProvider),
         ),
         data: (store) {
           if (store == null) {
