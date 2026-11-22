@@ -64,7 +64,9 @@ RoutePermissionRule? permissionRuleForRoute(Uri uri) {
     return const RoutePermissionRule(allOf: ['merchant:products:write']);
   }
   if (path == '/merchant/categories') {
-    return const RoutePermissionRule(allOf: ['catalog:categories:write']);
+    // The mobile merchant directory is read-only: category mutations remain
+    // restricted to platform catalog administrators by the API.
+    return const RoutePermissionRule(allOf: ['catalog:categories:read']);
   }
   if (path == '/merchant/customers') {
     return const RoutePermissionRule(allOf: ['merchant:orders:read']);
@@ -79,4 +81,12 @@ RoutePermissionRule? permissionRuleForRoute(Uri uri) {
     return const RoutePermissionRule(allOf: ['merchant:inventory:read']);
   }
   return null;
+}
+
+/// Category writes are a platform catalog-governance action, not a merchant
+/// store action. Keep merchant routes read-only until the API explicitly
+/// supports store-owned category mutations.
+bool canManageMerchantCategories(String role, Iterable<String> permissions) {
+  return (role == 'ADMIN' || role == 'MODERATOR') &&
+      permissions.contains('catalog:categories:write');
 }
