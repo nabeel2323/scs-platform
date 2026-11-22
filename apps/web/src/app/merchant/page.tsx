@@ -21,7 +21,7 @@ const CARDS = [
   { href: '/merchant/customers', title: 'Customers', desc: 'Buyers, revenue & order stats', icon: '👥', permission: 'merchant:orders:read' },
   { href: '/merchant/inventory', title: 'Inventory', desc: 'Stock levels per warehouse & adjustments', icon: '📊', permission: 'merchant:inventory:read' },
   { href: '/merchant/pricing', title: 'Pricing', desc: 'Price lists & volume tiers', icon: '🏷️', permission: 'merchant:pricing:read' },
-  { href: '/merchant/import', title: 'Import', desc: 'Bulk product import jobs', icon: '⬆️', permission: 'catalog:products:read' },
+  { href: '/merchant/import', title: 'Import', desc: 'Bulk product import jobs', icon: '⬆️', permission: 'merchant:products:write' },
   { href: '/merchant/requests', title: 'Catalog Requests', desc: 'Request new categories, brands or attributes', icon: '📋', permission: 'catalog:offers:write' },
   { href: '/merchant/organization', title: 'Organization', desc: 'Business details & members', icon: '🏢', permission: 'merchant:stores:read' },
 ];
