@@ -8,33 +8,39 @@
  */
 import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { fetchAdminUserDetail, fetchRoleDetail, type AdminUserDetail, type RoleDetail } from '../../../lib/api';
+import { fetchAdminUserDetail, fetchRoleDetail, updateUserProfile, type AdminRecord, type AdminUserDetail, type RoleDetail } from '../../../lib/api';
 import { useRequirePerms } from '../../../hooks/useRequirePerms';
+import { UserMemberships, UserStatusActions } from '../../../components/EntityActions';
 import {
   AdminDetailHeader,
   AdminDetailTabs,
   AdminDetailSection,
   AdminKeyValueGrid,
   AdminStatusBadge,
-  AdminEntityLink,
   AdminCopyButton,
-  AdminRelatedTable,
   AdminLoadingSkeleton,
   AdminErrorState,
   AdminEmptyState,
   formatDate,
   type KVItem,
-  type RelatedColumn,
 } from '../../../components/detail';
 
 function UserDetailContent({ id }: { id: string }) {
   const { hasAccess } = useRequirePerms(['admin:users:read']);
+  const { hasAccess: canWriteUsers } = useRequirePerms(['admin:users:write']);
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<AdminUserDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [userError, setUserError] = useState('');
   const [roleErrors, setRoleErrors] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState('overview');
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [profileFullName, setProfileFullName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [profileLocale, setProfileLocale] = useState('en');
   const [roleDetails, setRoleDetails] = useState<Record<string, RoleDetail>>({});
   const [permsLoading, setPermsLoading] = useState(false);
   const userRequestVersion = useRef(0);
@@ -134,19 +140,7 @@ function UserDetailContent({ id }: { id: string }) {
     )},
   ];
 
-  const orgColumns: RelatedColumn[] = [
-    { key: 'orgName', label: 'Organization', sortable: true, render: (_val, row) => {
-      const orgId = String(row['orgId'] || '');
-      const orgName = String(row['orgName'] || '');
-      return orgId ? (
-        <AdminEntityLink type="organization" id={orgId} name={orgName || orgId.slice(0, 12) + '…'} showIcon />
-      ) : '—';
-    }},
-    { key: 'orgType', label: 'Type', render: (val) => String(val || '—') },
-    { key: 'roleName', label: 'Role', render: (val) => String(val || '—') },
-    { key: 'membershipStatus', label: 'Status', render: (val) => val ? <AdminStatusBadge status={String(val)} /> : '—' },
-    { key: 'joinedAt', label: 'Joined', render: (val) => val ? formatDate(String(val)) : '—' },
-  ];
+
 
   return (
     <div>
@@ -163,6 +157,7 @@ function UserDetailContent({ id }: { id: string }) {
         }
         status={user.status}
         entityId={id}
+        actions={canWriteUsers ? <UserStatusActions record={user as unknown as AdminRecord} onDone={() => void loadUser()} /> : undefined}
       />
 
       <AdminDetailTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
@@ -170,20 +165,65 @@ function UserDetailContent({ id }: { id: string }) {
       <div style={{ padding: '0 32px 48px', display: 'flex', flexDirection: 'column', gap: 24 }}>
         {activeTab === 'overview' && (
           <AdminDetailSection title="User Information">
-            <AdminKeyValueGrid items={overviewItems} />
+            {canWriteUsers && !editingProfile && (
+              <button type="button" onClick={() => {
+                setProfileFullName(user.fullName || '');
+                setProfileEmail(user.email || '');
+                setProfilePhone(user.phone || '');
+                setProfileLocale(user.locale || 'en');
+                setProfileError('');
+                setEditingProfile(true);
+              }}>Edit profile</button>
+            )}
+            {editingProfile ? (
+              <form onSubmit={async event => {
+                event.preventDefault();
+                setProfileError('');
+                setProfileSaving(true);
+                try {
+                  await updateUserProfile(id, {
+                    fullName: profileFullName.trim(),
+                    email: profileEmail.trim(),
+                    ...(profilePhone.trim() ? { phone: profilePhone.trim() } : {}),
+                    locale: profileLocale,
+                  });
+                  setEditingProfile(false);
+                  await loadUser();
+                } catch (err) {
+                  setProfileError(err instanceof Error ? err.message : 'Unable to update user profile');
+                } finally {
+                  setProfileSaving(false);
+                }
+              }} style={{ display: 'grid', gap: 12, maxWidth: 720, marginBottom: 20 }}>
+                {profileError && <div role="alert" style={{ color: '#991b1b' }}>{profileError}</div>}
+                <label htmlFor="admin-user-full-name">Full name</label>
+                <input id="admin-user-full-name" required maxLength={160} value={profileFullName} onChange={event => setProfileFullName(event.target.value)} />
+                <label htmlFor="admin-user-email">Email</label>
+                <input id="admin-user-email" required type="email" maxLength={254} value={profileEmail} onChange={event => setProfileEmail(event.target.value)} />
+                <label htmlFor="admin-user-phone">Phone</label>
+                <input id="admin-user-phone" type="tel" maxLength={20} value={profilePhone} onChange={event => setProfilePhone(event.target.value)} />
+                <label htmlFor="admin-user-locale">Locale</label>
+                <select id="admin-user-locale" value={profileLocale} onChange={event => setProfileLocale(event.target.value)}>
+                  <option value="en">English</option>
+                  <option value="ar">العربية</option>
+                  <option value="fr">Français</option>
+                  <option value="es">Español</option>
+                </select>
+                <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>Leave phone blank to keep the existing phone number. Profile changes are recorded in the audit log.</p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="submit" disabled={profileSaving || !profileFullName.trim() || !profileEmail.trim()}>{profileSaving ? 'Saving…' : 'Save profile'}</button>
+                  <button type="button" disabled={profileSaving} onClick={() => { setEditingProfile(false); setProfileError(''); }}>Cancel</button>
+                </div>
+              </form>
+            ) : (
+              <AdminKeyValueGrid items={overviewItems} />
+            )}
           </AdminDetailSection>
         )}
 
         {activeTab === 'organizations' && (
           <AdminDetailSection title={`Organization Memberships (${user.organizations.length})`}>
-            {user.organizations.length > 0 ? (
-              <AdminRelatedTable
-                columns={orgColumns}
-                data={user.organizations as unknown as Record<string, unknown>[]}
-              />
-            ) : (
-              <AdminEmptyState title="No memberships" description="This user is not a member of any organization." />
-            )}
+            <UserMemberships record={user as unknown as AdminRecord} onDone={() => void loadUser()} />
           </AdminDetailSection>
         )}
 
