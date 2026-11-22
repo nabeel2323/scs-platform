@@ -312,3 +312,11 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Latest source implementation commit: `f6e1779558b92861e4f8df110de7075f7ee3c1b6`. The following project-memory commits synchronize this checkpoint; resolve the live PR head from GitHub at session start.
 - Continue UX-010 re-audit across remaining Merchant Inventory workflows, then remaining Admin and Mobile screens. Do not repeat UX-030–UX-041.
 - PR #138 remains open/draft/unmerged to `develop`. Exact-head Actions lookup must be refreshed after docs sync; all commits use `[skip ci]`. No merge/deployment, staging/shared DB write, migration, grant/default-ACL change, RLS activation or worker activation occurred.
+
+## Latest continuation checkpoint — 22 November 2026 (UX-042)
+
+- Implemented UX-042 Merchant Warehouses store/list recovery: failed store lookup is distinct from no store and has Retry; warehouse-list failure is distinct from a successful empty directory and has Retry; stale reads are guarded and existing rows are retained during failed refreshes.
+- Focused test added in `merchant-warehouses-recovery.test.tsx`; not executed.
+- Latest source implementation commit: `7ce63c27b0920331d181edeb97d3b8d4e06f99d1`; focused test commit: `cfe53d1c7993025b9c578aab127a777624028c21`. The following project-memory commits synchronize the checkpoint; resolve the live PR head from GitHub at session start.
+- Continue UX-010 source re-audit across remaining Admin and Mobile workflows. Merchant Inventory/Import History/Import Wizard/Warehouses slices UX-038–UX-042 are implemented; do not repeat them.
+- PR #138 remains open/draft/unmerged to `develop`. All commits use `[skip ci]`; exact-head CI must be checked live. No merge/deployment, staging/shared DB write, migration, grant/default-ACL change, RLS activation or worker activation occurred.
