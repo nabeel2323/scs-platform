@@ -565,3 +565,10 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Merchant Deliveries now exposes retry on list-read failure and does not render a successful empty-queue state after a failed request. Existing rows remain visible if a later refresh fails.
 - Focused test added in `apps/web/src/__tests__/merchant-deliveries-recovery.test.tsx`; not executed. Exact-head Actions lookup returned no run because of `[skip ci]`; Vercel Web/Admin both report external build-rate-limit failures.
 - PR #138 remains open/draft/unmerged. No API/DB/permission/schema/deployment/staging/worker change.
+
+## 22 November 2026 — UX-038 / UX-039 implementation checkpoint
+
+- Source/test batch: Merchant Inventory variant-directory recovery and Merchant Import History store/job read recovery. Focused tests were added but not executed.
+- Implementation commits use `[skip ci]`; no GitHub Actions run is expected for the exact source head. Do not describe the change as CI-verified or test-verified.
+- No deployment, Vercel preview validation, k6, staging release, database write, migration, grants/RLS change, worker activation or provider action was performed.
+- Reconcile the live branch head and combined statuses before treating this checkpoint as current; external Vercel build-rate-limit failures are not application test results.
