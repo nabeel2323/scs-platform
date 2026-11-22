@@ -18,6 +18,7 @@ const PAGE_SIZE = 20;
 
 export default function MerchantCatalogPage() {
   const { user } = useAuth();
+  const activeOrgId = user?.activeOrgId ?? null;
   const canWriteProducts = user?.perms?.includes('merchant:products:write') === true;
   const canRequestCatalogChanges = user?.perms?.includes('catalog:offers:write') === true;
   const [storeId, setStoreId] = useState('');
@@ -37,6 +38,9 @@ export default function MerchantCatalogPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+  const storeScopeRequestRef = useRef(0);
+  const productsRequestRef = useRef(0);
+  const categoriesRequestRef = useRef(0);
 
   // Bulk selection
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -47,6 +51,7 @@ export default function MerchantCatalogPage() {
   const [cLoading, setCLoading] = useState(true);
 
   const loadProducts = useCallback(async (sid: string, off = 0, append = false) => {
+    const requestId = ++productsRequestRef.current;
     setPLoading(true);
     try {
       const data = await fetchStoreProducts(sid, {
@@ -56,45 +61,82 @@ export default function MerchantCatalogPage() {
         limit: PAGE_SIZE,
         offset: off,
       });
+      if (requestId !== productsRequestRef.current) return;
       const items = data.items as Product[];
       setProducts(prev => append ? [...prev, ...items] : items);
       setTotal(data.total);
       setOffset(off + items.length);
     } catch (err: any) {
-      setError(err.message || 'Failed to load products');
+      if (requestId === productsRequestRef.current) {
+        setError(err.message || 'Failed to load products');
+      }
     } finally {
-      setPLoading(false);
+      if (requestId === productsRequestRef.current) setPLoading(false);
     }
   }, [statusFilter, categoryFilter, search]);
 
   const loadCategories = useCallback(async (sid: string) => {
+    const requestId = ++categoriesRequestRef.current;
     setCLoading(true);
     try {
       const data = await fetchStoreCategories(sid);
-      setCategories(data);
+      if (requestId === categoriesRequestRef.current) setCategories(data);
     } catch (err: any) {
-      setError(err.message || 'Failed to load categories');
+      if (requestId === categoriesRequestRef.current) {
+        setError(err.message || 'Failed to load categories');
+      }
     } finally {
-      setCLoading(false);
+      if (requestId === categoriesRequestRef.current) setCLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    const requestId = ++storeScopeRequestRef.current;
+    productsRequestRef.current += 1;
+    categoriesRequestRef.current += 1;
+    setStoreId('');
+    setStoreName('');
+    setNoStore(false);
+    setProducts([]);
+    setCategories([]);
+    setSelected(new Set());
+    setError('');
+    setPLoading(true);
+    setCLoading(true);
+
     (async () => {
       try {
         const stores = await fetchMyStores();
-        const s = pickStore(stores);
-        if (!s) { setNoStore(true); setPLoading(false); setCLoading(false); return; }
-        setStoreId(s.id);
-        setStoreName(s.displayName);
-        await Promise.all([loadProducts(s.id), loadCategories(s.id)]);
+        if (requestId !== storeScopeRequestRef.current) return;
+        const store = pickStore(stores);
+        if (!store) {
+          setNoStore(true);
+          setPLoading(false);
+          setCLoading(false);
+          return;
+        }
+        setStoreId(store.id);
+        setStoreName(store.displayName);
       } catch (err: any) {
-        setError(err.message || 'Failed to resolve store');
-        setPLoading(false);
-        setCLoading(false);
+        if (requestId === storeScopeRequestRef.current) {
+          setError(err.message || 'Failed to resolve store');
+          setPLoading(false);
+          setCLoading(false);
+        }
       }
     })();
-  }, [loadProducts, loadCategories]);
+
+    return () => {
+      storeScopeRequestRef.current += 1;
+      productsRequestRef.current += 1;
+      categoriesRequestRef.current += 1;
+    };
+  }, [activeOrgId]);
+
+  useEffect(() => {
+    if (storeId) void loadCategories(storeId);
+    else setCategories([]);
+  }, [storeId, loadCategories]);
 
   // Debounced search: reload products when search changes
   useEffect(() => {
