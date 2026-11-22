@@ -538,7 +538,7 @@ The API TypeScript diagnostics exposed by CI #1380 have source/test corrections 
 
 ## UX-094 — Mobile category directory/API permission mismatch — 23 November 2026
 
-The merchant category directory is now read-only for merchant roles and requires `catalog:categories:read`; the Home/Dashboard entry uses the same permission. New/Edit/Delete controls are hidden because the API currently restricts category mutations to ADMIN/MODERATOR with `catalog:categories:write`, while the router excludes those roles from the merchant route. Focused policy tests were added but not executed. Client alignment is IMPLEMENTED / TESTING_PENDING.
+The merchant category directory is now read-only for merchant roles and requires `catalog:categories:read`; the Home/Dashboard entry uses the same permission. New/Edit/Delete controls are hidden because the API currently restricts category mutations to ADMIN/MODERATOR with `catalog:categories:write`, while the router excludes those roles from the merchant route. Focused policy tests now cover the category rule/helper and a 13-route merchant deep-link permission matrix; they were added but not executed. Client alignment is IMPLEMENTED / TESTING_PENDING.
 
 **Still blocked:** choose whether merchant-owned categories should be supported with store-scoped ownership + active membership enforcement in the API, or whether category CRUD belongs exclusively on a platform-admin route. Do not weaken API role guards or restore merchant write controls before that decision.
 
