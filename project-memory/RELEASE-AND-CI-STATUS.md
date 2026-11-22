@@ -449,3 +449,11 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Source implementation commit: `d581d7b649139b04be62f1fbe7fed72cc6a11546`; documentation sync follows as a separate commit.
 - PR #138 remains open, draft and unmerged to `develop`.
 - Focused Admin queue/detail retry tests were added but not executed. No full CI, staging action, DB mutation, migration, deployment, worker activation, grant/RLS change or provider call occurred.
+
+
+## Exact source checkpoint — UX-018 mobile cart — 22 November 2026
+
+- Source implementation commit: `cfea06ea07e9a140672f3f741815ebf745354e1d`; documentation synchronization follows separately.
+- PR #138 remains open, draft and unmerged to `develop`.
+- No GitHub Actions CI run was attached to the source SHA. Vercel Admin and Web combined statuses both failed with “Deployment rate limited — retry in 24 hours”; these are preview-provider failures, not test results.
+- Focused Flutter widget tests were added but not run. No staging/database/migration/deployment/worker/grant/RLS/provider action occurred.

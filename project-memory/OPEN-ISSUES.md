@@ -303,3 +303,10 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Admin returns list/detail previously had non-retryable read errors; list filter requests could race and overwrite newer data.
 - Added shared retryable error states, detail loading/empty states and request-version protection. The return detail reload now resolves asynchronously for the escalation workflow.
 - Added focused tests, not executed. Continue remaining UX-010 source audit and implementation; comprehensive test campaign remains deferred.
+
+
+## UX-018 Mobile cart mutation locking — 22 November 2026
+
+- Mobile cart quantity/remove requests could overlap and the quantity stepper stayed editable during pending writes. Failed quantity writes could leave optimistic text in the field.
+- Added shared mutation locking, busy-row feedback, disabled quantity editor and provider-backed reset on failure. Added Flutter widget tests, not executed.
+- Continue remaining Admin/Web/Mobile source audit; full test campaign remains deferred.

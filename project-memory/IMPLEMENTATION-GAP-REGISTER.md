@@ -228,6 +228,7 @@ Deferred/remaining:
 | UX-015 | Product Studio save and step-transition integrity | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Offer-step navigation previously advanced after a failed product save; the intermediate save also created the offer before final review, so the final save could create a duplicate. Partial variant creation could be repeated after retry. Added a fail-closed transition helper, product-only intermediate save, final-review offer creation guard and persisted-SKU recheck before variant retries. |
 | UX-016 | Buyer cart mutation feedback and recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Cart quantity/remove/clear handlers previously allowed rejected requests to escape without user feedback or pending-state protection; failed validation and fallback reads could be rendered as an empty cart. Added a shared mutation wrapper, action locking, accessible pending labels, error display and retry while preserving the last loaded cart. |
 | UX-017 | Admin returns queue/detail read recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Admin return list/detail pages used plain, non-retryable error text; the list could show a stale empty state after failure and overlapping filter requests could overwrite newer results. Added standardized retryable error/loading/empty states, request-version protection and focused recovery tests. |
+| UX-018 | Mobile cart line-action concurrency and quantity recovery | P2 | IMPLEMENTED IN SOURCE — NOT TESTED | Mobile cart quantity/remove actions could be triggered repeatedly while requests were pending; the quantity stepper remained editable during mutations and a rejected optimistic text entry could remain visible. Added a shared item-action lock, per-row busy feedback, disabled quantity editor and failure reset. |
 
 
 ## UX-015 — Product Studio save and step-transition integrity — 22 November 2026
@@ -251,3 +252,11 @@ Deferred/remaining:
 - The Admin returns queue now clears prior errors on retry, shows a shared retryable error state instead of an empty table on failure, and ignores obsolete responses after filter changes/unmounts through a request-version guard.
 - Return detail now uses the shared loading skeleton, retryable error state and explicit not-found state. Its load callback is awaitable so the resolution workflow waits for the updated return read before leaving its submission path.
 - Added focused Admin tests for queue and detail error → retry → success behavior. Tests have not been executed; consolidated validation remains deferred.
+
+
+## UX-018 — Mobile cart line-action concurrency and quantity recovery — 22 November 2026
+
+- Mobile cart quantity updates and item removal now share an in-flight lock, preventing overlapping line mutations. The active row displays progress and all cart mutations are disabled while an item/promo/clear action is pending.
+- QuantityStepper now accepts an optional enabled flag (default remains enabled for existing callers) and disables both increment/decrement controls and direct text entry when the cart is busy.
+- A failed quantity mutation invalidates cart data and recreates the stepper from the last provider value so an optimistic text entry is not left looking accepted.
+- Added Flutter widget tests for disabled and default-enabled QuantityStepper behavior. Tests have not been executed.

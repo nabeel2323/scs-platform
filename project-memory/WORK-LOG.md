@@ -573,3 +573,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added focused tests to `apps/admin/src/__tests__/management.test.tsx` for queue and detail retry recovery. Tests not run.
 - Source baseline: `d581d7b649139b04be62f1fbe7fed72cc6a11546`. Docs sync follows separately.
 - No database, migration, deployment, worker activation, grants/RLS or provider actions.
+
+
+## 2026-11-22 — UX-018 Mobile cart mutation locking
+
+- Added `_itemActionBusy`/`_busyItemId` locking to mobile cart quantity and remove operations; the active line shows a progress indicator and all cart controls are disabled while a cart mutation is active.
+- Added optional `enabled` to `QuantityStepper`, disabling decrement, increment and direct entry during pending cart operations. Existing callers remain enabled by default.
+- Failed quantity updates invalidate cart data and bump a stepper key to restore the provider-backed value instead of leaving optimistic text visible.
+- Added `mobile/test/cart_quantity_stepper_test.dart` for disabled and default-enabled behavior. Not executed.
+- Source baseline: `cfea06ea07e9a140672f3f741815ebf745354e1d`; documentation sync follows separately.
+- No DB, migration, deployment, worker activation, grants/RLS or provider actions.

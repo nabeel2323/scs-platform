@@ -286,3 +286,11 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Added a retryable shared AdminErrorState, explicit error branch, request-version protection and cleanup on filter change/unmount.
 - Return detail now uses shared loading/error/not-found states with a retry action. The load callback is awaitable, so the escalation resolution flow waits for the refreshed return read.
 - Added two focused component tests for queue and detail recovery. Not executed; no browser/CI verification yet.
+
+
+## 22 November 2026 — Mobile cart mutation locking (UX-018)
+
+- Mobile cart item quantity/remove operations previously had no shared in-flight lock. QuantityStepper allowed direct text entry and repeated ± actions while a request was pending.
+- Added a shared cart-action lock, row-specific progress indicator and disabled item/promo/clear controls while a mutation is active. QuantityStepper now supports an optional enabled flag that disables both buttons and text entry.
+- Failed quantity updates invalidate cart data and recreate the stepper from provider state to avoid displaying an unaccepted optimistic value.
+- Added Flutter widget tests for disabled and default-enabled QuantityStepper behavior. Not executed; no device/CI validation.

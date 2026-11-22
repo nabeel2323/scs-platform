@@ -239,3 +239,11 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Protected the queue against out-of-order responses when status filters change or the screen unmounts.
 - Made detail reload awaitable for the escalation resolution flow. Added focused tests for queue and detail retry recovery; not run.
 - Continue UX-010 source re-audit across remaining Admin/Web/Mobile screens. Full test campaign remains at the end.
+
+
+## 2026-11-22 — UX-018 Mobile cart mutation locking
+
+- Added a shared in-flight lock for mobile cart quantity/remove actions and disable cart controls during item, promo or clear mutations.
+- Added per-row busy feedback and optional enabled state to QuantityStepper; both +/- buttons and direct text input are disabled while busy.
+- Failed quantity writes reset the local stepper from provider-backed cart data. Focused Flutter widget tests added but not run.
+- Continue remaining UX-010 source audit and integration; consolidated test campaign remains deferred.

@@ -389,3 +389,13 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Return detail now uses shared loading, retryable error and not-found components. The load callback returns a promise and is awaited by the escalation resolution path.
 - Added focused queue/detail retry tests; not executed. Source baseline before docs sync: `d581d7b649139b04be62f1fbe7fed72cc6a11546`; this documentation commit advances the branch.
 - PR #138 remains open/draft/unmerged. No database, migration, deployment, worker activation or grant/RLS action occurred.
+
+
+## Mobile cart UX-018 checkpoint — 22 November 2026
+
+- Mobile cart item mutations now serialize through a shared in-flight lock; the active line shows progress and all cart mutation controls are disabled while a line/promo/clear action is pending.
+- QuantityStepper supports an optional enabled flag for both ± buttons and direct text entry. Failed quantity writes reset the local stepper to provider-backed state.
+- Added Flutter widget tests for disabled and default-enabled behavior. Not executed.
+- Source baseline before docs sync: `cfea06ea07e9a140672f3f741815ebf745354e1d`; this documentation commit advances the branch. PR #138 remains open/draft/unmerged.
+- Latest source-head Vercel Admin and Web statuses are both rate-limited failures, not application test results. No GitHub Actions CI run was attached to the source SHA.
+- No database, migration, deployment, worker activation, grants/RLS or provider actions occurred.
