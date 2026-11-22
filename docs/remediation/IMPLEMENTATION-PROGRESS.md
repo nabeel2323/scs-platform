@@ -1631,3 +1631,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Added explicit Refresh/Retry and refreshing feedback. Variant read errors and deactivate/reactivate/delete action errors now have separate UI channels.
 - Added `admin-variant-detail-recovery.test.tsx` for stale-data preservation after a failed refresh.
 - No variant business actions, API, permission, schema, migration, database, staging or provider behavior changed. Tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-067 — Mobile Merchant Offer Detail analytics truthfulness — 22 November 2026
+
+- Merchant Offer Detail no longer converts an analytics-provider loading/error state into a successful-looking `No sales data yet` message. Loading, unavailable and successfully empty analytics are now distinct states.
+- Added a retry action for performance analytics and for trend failures; successful empty responses still render the legitimate no-sales state.
+- Added `merchant_offer_detail_analytics_test.dart` to verify unavailable analytics are not rendered as zero-sales data and the retry action is visible.
+- No offer, pricing, analytics API, permission, schema, migration, database, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.

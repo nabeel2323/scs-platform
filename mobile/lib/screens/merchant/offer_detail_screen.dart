@@ -52,16 +52,6 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
               ref.invalidate(merchantOfferDetailProvider(widget.offerId)),
         ),
         data: (offer) {
-          // Find matching analytics row for this offer.
-          OfferAnalyticsRow? analytics;
-          analyticsAsync.whenData((rows) {
-            for (final r in rows) {
-              if (r.offerId == offer.id) {
-                analytics = r;
-                return;
-              }
-            }
-          });
 
           return RefreshIndicator(
             onRefresh: () async {
@@ -86,7 +76,7 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
                 const SizedBox(height: 12),
 
                 // Analytics card
-                _analyticsCard(offer, analytics),
+                _analyticsStateCard(offer, analyticsAsync),
                 const SizedBox(height: 12),
 
                 // Trend chart
@@ -231,6 +221,52 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
 
   // ── Analytics ───────────────────────────────────────────────────
 
+  Widget _analyticsStateCard(
+      MerchantOffer offer, AsyncValue<List<OfferAnalyticsRow>> analyticsAsync) {
+    return analyticsAsync.when(
+      loading: () => _sectionCard(
+        title: 'PERFORMANCE',
+        icon: Icons.analytics_outlined,
+        children: const [
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ],
+      ),
+      error: (error, _) => _sectionCard(
+        title: 'PERFORMANCE',
+        icon: Icons.analytics_outlined,
+        children: [
+          const Text(
+            'Performance metrics are unavailable. No zero-sales result is assumed.',
+            style: TextStyle(fontSize: 13, color: TaifTokens.muted),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => ref.invalidate(merchantOfferAnalyticsProvider),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Retry performance'),
+            ),
+          ),
+        ],
+      ),
+      data: (rows) {
+        OfferAnalyticsRow? analytics;
+        for (final row in rows) {
+          if (row.offerId == offer.id) {
+            analytics = row;
+            break;
+          }
+        }
+        return _analyticsCard(offer, analytics);
+      },
+    );
+  }
+
   Widget _analyticsCard(MerchantOffer offer, OfferAnalyticsRow? analytics) {
     final orders = analytics?.ordersCount ?? 0;
     final units = analytics?.unitsSold ?? 0;
@@ -300,8 +336,24 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
             height: 160,
             child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
           ),
-          error: (e, _) => const Text('Trend unavailable',
-              style: TextStyle(fontSize: 13, color: TaifTokens.muted)),
+          error: (e, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Trend unavailable: ${ApiService.errorMessage(e)}',
+                style: const TextStyle(fontSize: 13, color: TaifTokens.muted),
+              ),
+              TextButton.icon(
+                onPressed: () => ref.invalidate(merchantOfferTrendProvider((
+                  offerId: offer.id,
+                  granularity: _trendGranularity,
+                  days: _trendDays,
+                ))),
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Retry trend'),
+              ),
+            ],
+          ),
           data: (points) => TrendChart(
             points: points,
             metric: _trendMetric,
