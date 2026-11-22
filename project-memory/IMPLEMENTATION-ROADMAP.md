@@ -373,3 +373,7 @@ Completed the Merchant Import Wizard source audit slice. Store discovery now has
 ## UX-042 — Merchant Warehouses — 22 November 2026
 
 Completed the Merchant Warehouses source re-audit. Store discovery now distinguishes failed lookup from no store and exposes retry. Warehouse reads have their own loading/error/retry state, suppress false empty results, preserve prior rows after failed refreshes and ignore stale responses. Focused test added but not executed. Continue UX-010 source re-audit across remaining Admin and Mobile workflows; keep full testing deferred until implementation and integration are complete.
+
+## UX-043 — Admin Dashboard — 22 November 2026
+
+Completed the Admin Dashboard read-recovery slice. KPIs, pending organization updates, Catalog Imports and Catalog Requests now have independent retry/error/loading handling and stale-response guards. Failed KPI reads no longer display zero defaults; failed lists no longer masquerade as empty; last successful data is retained during refresh errors. Focused test added but not executed. Continue UX-010 audit across remaining Admin and Mobile workflows; keep full testing deferred until implementation and integration are complete.
