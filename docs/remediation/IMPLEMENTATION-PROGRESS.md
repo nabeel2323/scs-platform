@@ -1763,3 +1763,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Seller review read failures now have an explicit retry affordance instead of disappearing silently.
 - Added Flutter widget coverage for stale product preservation after refresh failure, initial failure/retry and stable product request count across auxiliary-read rebuilds. Tests remain pending Phase 3.
 - No product API route, permissions, cart/order behavior, database, migration, staging or provider behavior changed.
+
+
+## UX-082 — Mobile Notifications read and action recovery — 23 November 2026
+
+- Notifications now retain the last successful list during realtime-triggered or manual refresh and after refresh failure, with explicit refresh, pull-to-refresh, stale-data messaging and retry. Initial read failures remain distinct from a true empty inbox.
+- Individual mark-as-read actions now expose per-row progress and catch/report failures instead of allowing an uncaught async action error. Mark All Read is extracted into a guarded action with success/failure feedback and retains its in-flight disable state.
+- Added Flutter widget coverage for stale notification preservation, initial failure/retry and individual mark-read failure feedback. Tests remain pending Phase 3.
+- Realtime subscription behavior and notification API contracts are unchanged. No provider, database, migration, staging or outbound notification behavior changed.
