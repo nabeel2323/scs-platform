@@ -255,3 +255,8 @@ The user approved the Implementation Completion Program and requested that this 
 
 - CI #44961723564 on `10a890a3a69f7281b93f4a8e80b735f2228825cb`: lint/typecheck passed; Flutter analysis/tests passed; formatting failed only on CURRENT-STATE.md, RELEASE-AND-CI-STATUS.md, START-HERE.md and WORK-LOG.md. Downstream API, PostgreSQL, Web/Admin, migration, build and smoke jobs were skipped.
 - The four documents are being formatted with repository-locked Prettier 3.9.6. This run is not full verification.
+
+
+## G-002 source access-path checkpoint — 22 November 2026
+
+A 53-file API module service/worker/provider source inventory and shared middleware/database review are recorded in docs/remediation/G-002-DATABASE-ACCESS-PATH-INVENTORY-2026-11-22.md. The key blockers are singleton Drizzle access without request transaction context, existing nested service transactions, asynchronous audit writes, worker/system access paths and unverified live staging API/migration identities. The 114-versus-116 relation-count discrepancy remains open. The next task is to complete operation/ownership mapping and design explicit request, worker, audit and bootstrap contexts before any RLS implementation.

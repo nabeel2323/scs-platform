@@ -3,7 +3,7 @@
 **Checkpoint:** 22 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest PR #138 head:** `c30dce7fd126c1ac1b7279cc895e5786a208173a`  
+**Source baseline before this status-only documentation batch:** `d8f9941e9f517c93b9fbcb22bae1a1eeb384bce2`  
 **Exact-head GitHub Actions:** no workflow run attached; the latest grouped source commits intentionally used `[skip ci]` to conserve Actions minutes. External Vercel statuses are pending and are not GitHub Actions test results.
 
 ## Previous CI run at the 21 November checkpoint (historical)
@@ -331,3 +331,8 @@ Neither PR is merged. CI results are disposable-environment verification only; l
 - PR #142 remains open/draft/unmerged on security/runtime-db-identity-diagnostics at dddff20c170737dc4694008bb807b2b90e177f77. Exact-head CI #1293 (run 44953735602) completed successfully, including the disposable PostgreSQL identity integration test. This does not verify live staging API or migration identities.
 - No staging release, production deployment, shared database mutation, migration 0070/0071 application, grants/default-ACL change, RLS enablement, worker activation, k6 run or Phase 6 E2E campaign is claimed.
 - The Actions-minute conservation decision remains: continue grouped implementation with CI skipped; run one consolidated verification campaign after implementation and documentation are ready.
+
+
+## Database access-path inventory checkpoint — 22 November 2026
+
+The latest source baseline for this status update is d8f9941e9f517c93b9fbcb22bae1a1eeb384bce2. A bounded static inventory of 53 API module service/worker/provider files plus shared DB/audit/guard/bootstrap code is now recorded in docs/remediation/G-002-DATABASE-ACCESS-PATH-INVENTORY-2026-11-22.md. This is source-only evidence: no live staging DB query, migration, role change or RLS enablement was performed. The inventory identifies the singleton Drizzle handle, nested service transactions, asynchronous audit writes and worker/system contexts that must be accounted for before G-002 implementation.

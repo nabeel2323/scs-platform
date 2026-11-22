@@ -379,3 +379,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Matched Admin, Web and Mobile API wrapper symbols to the 28-controller route-family inventory and recorded them in docs/api-route-permission-matrix.md. Exact page/screen call-site mapping remains open. The nearby-offers endpoint has no wrapper in the inspected API clients; its service still ignores geographic inputs.
 - Corrected the provider fallback description: shipment create/cancel/label paths use manual-driver when no provider is configured; only CarrierTrackingPoller falls back to aramex. The registry fix makes explicit Aramex provider selection and tracking polls resolvable.
 - Verified source activation boundaries: P13 return-expiration is opt-in and disabled by default; P13Monitor is an always-on read-only scanner with Postgres dedup and log-only alert fallback; other in-process workers start without the P13 flag and use their own claim/lease logic. No runtime activation or deployment change was made.
+
+
+## 2026-11-22 — G-002 database access-path inventory
+
+- Reviewed all 53 API module service/worker/provider TypeScript files plus DatabaseService/Module, AuditService, AuditLogMiddleware, JwtAuthGuard, PermissionsGuard, AppModule and main.ts.
+- Recorded the bounded source findings in docs/remediation/G-002-DATABASE-ACCESS-PATH-INVENTORY-2026-11-22.md: singleton Drizzle handle; typed and raw execute(sql...) operations; multiple existing nested service transactions; asynchronous post-response audit writes; worker/monitor/bootstrap DB access outside HTTP request context; and raw PoolClient limited to DatabaseService startup identity and development/test migrations/seeding within the reviewed application path.
+- No global transaction interceptor or AsyncLocalStorage adapter was added because the architecture requires complete operation-path, nested-transaction, audit and worker-context proof first.
+- No live staging DB query, migration, role/grant change, RLS enablement, worker activation, deployment or test run occurred.

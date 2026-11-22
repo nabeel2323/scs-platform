@@ -1296,3 +1296,8 @@ Both PRs remain open, draft and unmerged. G-001 remains PARTIAL pending independ
 - MAP-001 now has a 28-controller route-family inventory, API wrapper symbol map and worker/provider activation cross-reference. Exact page/screen call-site tracing, operation-level DB ownership mapping and live-catalog reconciliation remain open.
 - The latest detailed 19-November live catalog report and 21-November Drizzle reconciliation agree on 114 public relations (99 Drizzle tables plus 15 non-Drizzle/partition relations). The table ownership matrix still contains a separate 116-table historical count; its scope is not reconciled. Treat the discrepancy as open and resolve it only with a refreshed protected read-only catalog audit.
 - G-001 remains PARTIAL pending independent security review. G-002 remains IN PROGRESS. Do not apply migrations 0070/0071, alter grants/default ACLs, enable RLS, activate workers, deploy or mutate staging/production as part of this source-only work.
+
+
+## G-002 database access-path inventory — 22 November 2026
+
+A bounded static review of all 53 API module service/worker/provider files plus DatabaseService, audit middleware/service, guards, AppModule and main.ts is recorded in docs/remediation/G-002-DATABASE-ACCESS-PATH-INVENTORY-2026-11-22.md. The source confirms singleton Drizzle access, multiple existing nested transactions, asynchronous audit writes after response completion, and worker/monitor/bootstrap paths outside HTTP request context. It does not prove live staging role identity or resolve the 114-versus-116 relation count. The next G-002 task is operation/ownership and runtime-context proof; a global request transaction and RLS activation remain blocked.
