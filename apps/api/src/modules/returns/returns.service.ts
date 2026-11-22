@@ -842,6 +842,10 @@ export class ReturnsService {
     caller: CallerContext,
     notes?: string,
   ) {
+    if (!isTenantPrivileged(caller)) {
+      throw new ForbiddenException('Only platform administrators can resolve escalated returns');
+    }
+
     const ret = await this.db.db.query.returnRequests.findFirst({
       where: eq(returnRequests.id, returnId),
     });
@@ -1122,17 +1126,14 @@ export class ReturnsService {
         }
         break;
       case 'EXPIRED':
-        if (!isTenantPrivileged(caller)) {
-          throw new ForbiddenException('Only admins can expire returns');
-        }
-        break;
       case 'ESCALATED':
-        // System transition — triggered by worker, no caller authorization needed
-        break;
       case 'REFUND_PENDING':
       case 'REFUNDED':
       case 'REFUND_FAILED':
-        // System transitions — no caller authorization needed
+        // These are platform/system transitions, never buyer or merchant actions.
+        if (!isTenantPrivileged(caller)) {
+          throw new ForbiddenException('Only platform staff or system workers can perform this transition');
+        }
         break;
     }
   }

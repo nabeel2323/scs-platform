@@ -29,8 +29,15 @@ export class ReviewsController {
   }
 
   @Get('orders/:orderId/reviews')
-  async getOrderReviews(@Param('orderId') orderId: string) {
-    return this.reviewsService.getReviewsByOrder(orderId);
+  async getOrderReviews(
+    @CurrentUser() user: JwtPayload,
+    @Param('orderId') orderId: string,
+  ) {
+    return this.reviewsService.getReviewsByOrder(orderId, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Get('reviews/:id')

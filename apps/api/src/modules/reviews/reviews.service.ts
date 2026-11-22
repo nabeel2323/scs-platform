@@ -4,6 +4,7 @@ import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service'
 import { reviews, trustSnapshots } from './reviews.schema';
 import { orders, orderItems } from '../orders/orders.schema';
 import { productVariants } from '../catalog/catalog.schema';
+import { CallerContext, assertStoreInOrg, assertStoreMember, isTenantPrivileged } from '../../common/tenant-scope';
 import { eq, and, desc, avg, count, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
@@ -120,7 +121,18 @@ export class ReviewsService {
     });
   }
 
-  async getReviewsByOrder(orderId: string) {
+  async getReviewsByOrder(orderId: string, caller: CallerContext) {
+    const order = await this.db.db.query.orders.findFirst({
+      where: eq(orders.id, orderId),
+      columns: { buyerId: true, storeId: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+
+    if (!isTenantPrivileged(caller) && order.buyerId !== caller.sub) {
+      await assertStoreInOrg(this.db, caller, order.storeId);
+      await assertStoreMember(this.db, caller, order.storeId);
+    }
+
     return this.db.db.query.reviews.findMany({
       where: eq(reviews.orderId, orderId),
       orderBy: [desc(reviews.createdAt)],

@@ -201,7 +201,7 @@ export class ReturnsController {
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
   ) {
-    const caller: CallerContext = { sub: user.sub, role: 'ADMIN', activeOrg: user.activeOrg };
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.returns.transitionReturn(id, 'REFUND_PENDING', caller);
   }
 
