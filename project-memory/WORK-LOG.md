@@ -854,3 +854,11 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Re-audited `mobile/lib/screens/orders/orders_list_screen.dart`. The refresh action only invalidated the provider and pull-to-refresh returned immediately; refreshes replaced the visible list, and a failed refresh had no stale-data context.
 - Added awaited provider refresh, skip-loading/skip-error handling, stale-data messaging and retry while retaining the active status filter. Initial read failure remains distinct from a true empty history.
 - Added three focused Flutter widget scenarios. Not run under the implementation-first test cadence. No order/payment/fulfillment/API/permission/database/migration/staging behavior changed.
+
+
+## 2026-11-23 — UX-080 Mobile Search facet and request lifecycle
+
+- Source audit found the dynamic attribute facet chips updated only local state; `ApiService.search` did not serialize them even though the existing API controller accepts `attrFilters` JSON and SearchService applies `attributeFilters`.
+- Added client serialization without changing the backend contract. Added request-generation checks so delayed older queries/filter/page responses cannot overwrite the current search, invalidated in-flight requests as soon as the text changes, and canceled pending debounce when another action starts a search.
+- Added explicit Refresh search, same-query stale-result preservation and protection against old-query rows/false empty states after a different query fails.
+- Added ApiService query serialization and widget out-of-order response tests. Not run under the implementation-first cadence. No backend/database/permission/staging/provider changes.
