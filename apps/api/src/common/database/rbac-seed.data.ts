@@ -271,6 +271,7 @@ export const ROLES: RoleDef[] = [
       'catalog:products:delete',
       'catalog:categories:read',
       'catalog:categories:write',
+      'merchant:stores:read',
       'orders:read',
       'orders:write',
       'merchant:stores:read',
