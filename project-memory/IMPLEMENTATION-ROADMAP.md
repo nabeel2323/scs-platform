@@ -1,7 +1,7 @@
 # SCS Platform — Implementation Roadmap
 
 **Status source:** [Authoritative remediation plan](../docs/remediation/IMPLEMENTATION-PLAN.md) and [progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md).  
-**Last checkpoint:** 22 November 2026.
+**Last checkpoint:** 23 November 2026.
 
 This file is a compact navigation and sequencing view. The remediation plan owns phase definitions, finding scope, acceptance criteria and release gates. The progress tracker owns detailed finding status and evidence. Update this summary whenever those documents change.
 
@@ -51,6 +51,15 @@ Continue evidence gathering and design only within authorized boundaries:
 Do not make shared database changes as part of this work without explicit approval. G-002 remains IN PROGRESS until the evidence and design gates are satisfied.
 
 ### 3. Continue remaining findings and phases
+### 4. UX-094 / UX-095 — client permission and organization-context alignment
+
+- UX-094 Mobile merchant category permission/contract alignment is implemented; merchant-owned category CRUD remains blocked until the backend ownership contract is decided.
+- UX-095 Web merchant route/action permission alignment is implemented: direct route guards, permission-filtered navigation/dashboard, operation-specific action controls, and workspace remount/stale-response protection on active organization or permission changes.
+- G-036 server-side realtime room authorization is implemented in source with focused API gateway tests added. Store/order rooms now require tenant ownership, buyer ownership, driver assignment or platform-staff read permission as appropriate.
+- These focused tests have not been executed; exact-head CI and independent review remain pending.
+
+**Next implementation task:** complete the Mobile route-permission and organization-context transition audit, then finish remaining Admin route/action permission mapping. Keep the comprehensive test campaign in Phase 3.
+
 
 Use the authoritative finding register to sequence G-007, G-010, G-012–G-015, G-018, G-020–G-022 and any other open/partial items. Do not silently change a finding status or product scope. Phase 6 remains unstarted until its entry criteria are met.
 
