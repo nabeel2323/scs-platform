@@ -16,7 +16,27 @@ WHERE event.credential_id IS NULL
     WHERE candidate.provider_key = event.provider_key
   ) = 1;
 
-DO $$
+-- Revalidate historical links where the credential could be identified.
+-- Any known cross-org/provider mismatch is detached for manual reconciliation.
+UPDATE carrier_webhook_events AS event
+SET shipment_id = NULL,
+    processed = false,
+    processed_at = NULL,
+    processing_error = 'Historical webhook link failed credential tenant/provider revalidation; manual review required'
+FROM shipments AS shipment,
+     stores AS store,
+     carrier_credentials AS credential
+WHERE event.shipment_id = shipment.id
+  AND store.id = shipment.store_id
+  AND credential.id = event.credential_id
+  AND event.credential_id IS NOT NULL
+  AND (
+    store.org_id IS DISTINCT FROM credential.org_id
+    OR shipment.shipping_provider_key IS DISTINCT FROM event.provider_key
+    OR shipment.carrier_shipment_id IS DISTINCT FROM event.external_delivery_id
+  );
+
+DO $
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
