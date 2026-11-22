@@ -129,6 +129,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         refreshToken: tokens.refreshToken,
         expiresAt: DateTime.now().add(AuthStorage.tokenLifetime));
     ref.read(apiClientProvider).setAccessToken(tokens.accessToken);
+    // A new login may follow a different account on the same device. Drop the
+    // prior user's org and authenticated read caches before routing to Home.
+    resetIdentityProviders(ref);
     ref.read(isAuthenticatedProvider.notifier).state = true;
     ref.read(currentUserPhoneProvider.notifier).state = phone ?? '';
     ref.read(currentUserEmailProvider.notifier).state =
