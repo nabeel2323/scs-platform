@@ -1743,3 +1743,13 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Added explicit Refresh orders and a pull-to-refresh action that awaits the provider result. Initial failures remain retryable and cannot render as a successful empty order history.
 - Added `buyer_orders_read_recovery_test.dart` for stale order preservation, initial failure/retry and filter-aware empty-state behavior after refresh failure.
 - No order state transition, cancellation, payment, fulfillment, API, permission, database, migration, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-080 — Mobile Search facet contract and request lifecycle — 23 November 2026
+
+- Search attribute facet chips now reach the existing API contract as JSON `attrFilters` (attribute code to selected-value array). The API controller and SearchService already support this filter; the mobile client previously changed chip state but omitted it from the request.
+- Added request-generation protection across query typing/debounce, filter changes, pagination and disposal so older responses cannot replace results for a newer query/filter set.
+- Added explicit Refresh search. A same-query refresh keeps the last successful results visible with a refreshing notice; a failed same-query refresh identifies stale results. A failed different-query read clears old-query rows and suppresses the false "No products found" state.
+- Pagination is disabled while loading or after an error, and append requests are accepted only for the current successful search key.
+- Added an ApiService query-serialization test and a Flutter widget test proving a late older search response cannot overwrite a newer query. Tests remain pending Phase 3.
+- No backend route, permission, search SQL, database, migration, product visibility, staging or provider behavior changed.
