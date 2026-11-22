@@ -489,3 +489,10 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - UX-015–UX-021 changes have focused regression tests added but not executed. No exact-head application test evidence exists for these batches.
 - Next: finish implementation/integration; execute one consolidated formatter + API unit/coverage + PostgreSQL integration + migration + Web/Admin + Flutter + boundary/security + build + performance campaign, then stabilize failures and request independent review. Staging release remains a separate protected action.
 - No merge, deployment, staging/shared DB writes, migrations, grants/default ACL changes, RLS enablement, worker activation or provider calls occurred.
+
+
+## Exact source checkpoint — UX-022 Admin detail recovery — 22 November 2026
+
+- Source implementation commit: `9578040e4d28b327c451618f2111ba3ae8819493`; documentation sync follows separately.
+- PR #138 remains open, draft and unmerged to `develop`.
+- Focused Admin tests for attribute, order and import-error-tab retry were added but not run. No exact-head CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred.

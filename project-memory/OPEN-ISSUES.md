@@ -340,3 +340,10 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - G-001 independent security review and G-002 protected live identity/catalog/operation ownership/transaction-context design remain open. Do not enable RLS or alter shared DB grants/ACLs.
 - UX-007 support-ticket scope and UX-008 geospatial/location policy remain blocked on product decisions. OutboxDispatcher remains log-only pending event-bus contract.
 - Phase 3 full test campaign and Phase 4 stabilization are still pending.
+
+
+## UX-022 Admin detail recovery expansion — 22 November 2026
+
+- Remaining Admin catalog/order/role detail screens now have retryable primary read states; import errors and offer inventory tabs distinguish read failures from empty results.
+- Role permission-save errors are isolated to the detail page rather than replacing it. Focused tests added but not executed.
+- Continue remaining UX-010 Admin/Web/Mobile audit; consolidated tests remain deferred.

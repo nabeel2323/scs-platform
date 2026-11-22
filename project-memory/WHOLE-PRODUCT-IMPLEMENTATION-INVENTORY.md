@@ -316,3 +316,11 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Added a required resolution text form for unresolved disputes. It calls the existing `PATCH /v1/disputes/:id/resolve` contract, displays pending/error/success states, reloads after success and renders the stored resolution for already resolved/closed disputes.
 - The API permission guard and platform-admin service check remain authoritative. The UI only sends the currently supported `{ resolution }` field; no unsupported refund parameters were added.
 - Added a focused component test. Not executed.
+
+
+## 22 November 2026 — Admin catalog/order/role detail recovery (UX-022)
+
+- Extended retryable read handling to attributes, brands, catalog import, offers, orders, roles, variants, categories and product types. Main request paths clear stale errors and ignore out-of-date responses where version guards were added.
+- The Catalog Import Errors tab and Offer Inventory tab now show explicit retryable errors instead of silently presenting failed reads as empty lists/no inventory.
+- Role permission-save failures are isolated to an inline action error and no longer hide the role detail. The UI copy now correctly states that permission selections require an explicit save.
+- Added focused tests for attribute, order and import-error-tab recovery. Not executed.

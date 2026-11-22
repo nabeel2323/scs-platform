@@ -268,3 +268,11 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Added a resolution form to Admin dispute detail, wired to the existing protected resolve endpoint. Required text, pending state, error/success feedback and final resolved-state rendering are included.
 - The existing route permission and platform-admin service guard remain authoritative; no new refund contract was assumed.
 - Added a focused component test; not run. Continue UX-010 source audit and implementation.
+
+
+## 2026-11-22 — UX-022 Admin detail recovery expansion
+
+- Added retryable primary reads and stale-response protection across attribute, brand, import-job, offer, order, role, variant, category and product-type detail screens.
+- Fixed two misleading empty-state cases: import errors and offer inventory now show retryable read failures rather than “no errors”/“no inventory.”
+- Role permission-save errors now stay in an inline action banner without hiding the role detail.
+- Added focused tests for attribute/order retry and import errors-tab recovery; not run. Continue remaining UX-010 screen audit.

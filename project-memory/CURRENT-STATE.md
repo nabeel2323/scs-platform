@@ -431,3 +431,11 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Latest exact-head GitHub Actions: none. Vercel Admin/Web statuses are both rate-limit failures. Latest actual run #44963271498 tests older SHA `06cd8fc1e56dc7ef64a141b97b594adc96ffbece`: Flutter passed; changed-file Prettier failed; API unit, Web/Admin, integration/PostgreSQL, migration, contract, boundary, build, k6 and staging release jobs skipped.
 - Next: continue UX-010 source re-audit across remaining Admin/Web/Mobile screens, then integration completion, then one consolidated test/fix campaign. UX-007 support-ticket scope and UX-008 location/geospatial policy remain blocked on product decisions; generic OutboxDispatcher remains log-only pending an event-bus contract.
 - No merge/deploy/staging/shared DB writes/migrations/grants/RLS/worker activation/provider calls occurred.
+
+
+## Admin catalog/order/role UX-022 checkpoint — 22 November 2026
+
+- Extended retryable Admin detail reads to attributes, brands, catalog imports, offers, orders, roles, variants, categories and product types. Main loads clear stale errors; version guards protect route changes on refactored screens.
+- Catalog-import Errors and Offer Inventory tabs now distinguish request failures from true empty data and expose their own Retry actions. Role permission-save errors remain inline rather than hiding the detail page.
+- Added focused tests for attribute retry, order retry and import error-tab retry. Not executed.
+- Source baseline before docs sync: `9578040e4d28b327c451618f2111ba3ae8819493`; documentation commit advances branch. PR #138 remains open/draft/unmerged.

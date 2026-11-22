@@ -232,6 +232,7 @@ Deferred/remaining:
 | UX-019 | Admin dispute and evidence timeline read recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Dispute detail and Events/Evidence tabs used non-retryable errors; stale requests could update the screen after a tab or route change. Added retryable shared error states, request-version protection and focused recovery tests. |
 | UX-020 | Admin user, merchant and organization detail read recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | User/merchant/organization detail reads used non-retryable errors and lacked stale-response protection. Added retryable detail states, request-version guards, and independent permission-catalog retry for user detail. |
 | UX-021 | Admin dispute resolution workflow | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Dispute detail exposed overview/events but no resolution form despite the protected resolve API and route permission. Added a required resolution form, guarded PATCH action, progress/error/success feedback and resolved-state rendering. |
+| UX-022 | Admin catalog, offer, order and role detail read recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Several Admin detail pages had non-retryable read failures; the import Errors tab and offer Inventory tab silently converted failed reads into empty states; role permission-save errors replaced the whole detail page. Added retryable loads, stale-request guards, explicit tab errors and isolated role mutation feedback. |
 
 
 ## UX-015 — Product Studio save and step-transition integrity — 22 November 2026
@@ -285,3 +286,11 @@ Deferred/remaining:
 - The submit action is disabled for empty input or while in flight, shows progress and API errors, reloads the dispute after success, and displays the stored resolution for resolved/closed disputes instead of an editable form.
 - The API permission `support:disputes:resolve` and service-level platform-admin check remain authoritative; this UI does not bypass either. No refund amount/return link fields were invented because the current controller contract exposes only the resolution text.
 - Added a focused Admin component test for the protected resolution request. Tests have not been executed.
+
+
+## UX-022 — Admin catalog, offer, order and role detail read recovery — 22 November 2026
+
+- Attribute, brand, import-job, offer, order, role, variant, category and product-type detail pages now expose retryable primary-read errors. The main loaders use request-version guards where refactored so obsolete requests cannot overwrite current route data.
+- Catalog-import Errors and Offer Inventory tabs now distinguish a failed read from a genuinely empty result and expose their own retry actions. Previously, import errors could appear as “No errors” after a failed request, and inventory failures looked like no inventory.
+- Role permission update errors are now isolated as an inline action error; they no longer replace/hide the loaded role detail. Copy was corrected to match the explicit Save Permissions action.
+- Added focused Admin tests for attribute retry, order retry and import-error-tab retry. Tests have not been executed.

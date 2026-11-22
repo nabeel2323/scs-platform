@@ -619,3 +619,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Reconciled the current branch head before this refresh to `7031cafcd94300421cf314aa6ac3ba3d3ef59651`; PR #138 is open/draft/unmerged to `develop`.
 - Exact-head Actions lookup is empty. Vercel Admin/Web statuses are rate-limited failures. The latest actual Actions run #44963271498 on older SHA `06cd8fc1e56dc7ef64a141b97b594adc96ffbece` failed at changed-file Prettier; Mobile passed and dependent jobs were skipped.
 - The project-memory current starting point and next action are updated to the implementation-first UX-010 continuation. UX-015–UX-021 have focused tests committed but not executed.
+
+
+## 2026-11-22 — UX-022 Admin detail recovery expansion
+
+- Added retryable primary-read callbacks and stale-request protection to Admin attribute, brand, import-job, offer, order, role, variant, category and product-type detail pages.
+- Catalog import Errors and Offer Inventory tabs now show explicit retryable errors when reads fail; they no longer imply empty data. Role permission-save errors are isolated inline and the save guidance now matches the explicit Save Permissions button.
+- Added tests in `apps/admin/src/__tests__/management.test.tsx` for attribute retry, order retry and import error-tab retry. Not executed.
+- Source baseline: `9578040e4d28b327c451618f2111ba3ae8819493`; docs sync follows separately.
+- No DB, migration, deployment, worker activation, grants/RLS or provider calls.
