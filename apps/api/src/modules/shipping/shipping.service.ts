@@ -380,8 +380,11 @@ export class ShippingService implements OnModuleInit {
   }
 
   async detachMethodFromZone(zoneId: string, methodId: string, caller: CallerContext) {
-    await this.getDeliveryZone(zoneId, caller);
-    await this.getShippingMethod(methodId, caller);
+    const zone = await this.getDeliveryZone(zoneId, caller);
+    const method = await this.getShippingMethod(methodId, caller);
+    if (zone.storeId !== method.storeId) {
+      throw new NotFoundException('Zone and shipping method association not found');
+    }
 
     await this.db.db.delete(deliveryZoneMethods)
       .where(and(
@@ -393,7 +396,7 @@ export class ShippingService implements OnModuleInit {
   }
 
   async listMethodsForZone(zoneId: string, caller: CallerContext) {
-    await this.getDeliveryZone(zoneId, caller);
+    const zone = await this.getDeliveryZone(zoneId, caller);
 
     const rows = await this.db.db.select().from(deliveryZoneMethods)
       .where(eq(deliveryZoneMethods.zoneId, zoneId));
@@ -402,12 +405,15 @@ export class ShippingService implements OnModuleInit {
     if (methodIds.length === 0) return [];
 
     return this.db.db.query.shippingMethods.findMany({
-      where: inArray(shippingMethods.id, methodIds),
+      where: and(
+        inArray(shippingMethods.id, methodIds),
+        eq(shippingMethods.storeId, zone.storeId),
+      ),
     });
   }
 
   async listZonesForMethod(methodId: string, caller: CallerContext) {
-    await this.getShippingMethod(methodId, caller);
+    const method = await this.getShippingMethod(methodId, caller);
 
     const rows = await this.db.db.select().from(deliveryZoneMethods)
       .where(eq(deliveryZoneMethods.shippingMethodId, methodId));
@@ -416,7 +422,10 @@ export class ShippingService implements OnModuleInit {
     if (zoneIds.length === 0) return [];
 
     return this.db.db.query.deliveryZones.findMany({
-      where: inArray(deliveryZones.id, zoneIds),
+      where: and(
+        inArray(deliveryZones.id, zoneIds),
+        eq(deliveryZones.storeId, method.storeId),
+      ),
     });
   }
 
