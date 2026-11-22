@@ -9,8 +9,12 @@ export interface ProductStudioOfferTarget {
   warehouseId: string | null;
 }
 
+export type ProductStudioExistingOffer = Omit<ProductStudioOfferTarget, 'basePriceMinor'> & {
+  basePriceMinor: number | null;
+};
+
 export function matchesExistingProductStudioOffer(
-  existing: ProductStudioOfferTarget,
+  existing: ProductStudioExistingOffer,
   desired: ProductStudioOfferTarget,
 ): boolean {
   return existing.storeId === desired.storeId
