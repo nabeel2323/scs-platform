@@ -801,3 +801,16 @@ The third workflow passed Flutter analysis and API lint, and ran 257 Mobile test
 Corrections now preserve the customer AsyncValue during reload and scroll the refreshed list into view; fingerprint the complete logical checkout payload (address, notes, shipping choices, payment method and cart lines) so retries reuse a key but payload changes rotate it; and reduce Home category tile content to fit its constrained height.
 
 The same workflow also exposed two Admin TypeScript errors: an attribute-group detail component referenced an unpassed error state, and merchant image fields were not narrowed from unknown before rendering. Both are corrected. The next full workflow is required to verify this state; no pass is claimed yet.
+
+## Fifth CI checkpoint — checkout idempotency and Web typecheck corrections — 23 November 2026
+
+The fourth workflow reported 256 Mobile tests passing and one failing: the payment-method control was below the viewport, so the test tap never changed the selected method. The test now scrolls the control into view, and checkout key rotation is driven only by a stable fingerprint of the complete logical request. The Home overflow and Customer stale-list fixes are included in that run.
+
+Web typecheck failures from the same run have also been corrected:
+- Use the exported `listMedia` API for Product Studio media de-duplication and remove a stale callback dependency name.
+- Populate the required `productUpdatedAt` field in both Product Studio edit-state constructors.
+- Narrow imported product records to objects with string IDs before loading variants.
+- Use bracket access for import-job stats and guard the nullable warehouse store before rendering.
+- Replace unsupported test matchers with direct DOM disabled-state assertions.
+
+The next full workflow is required to verify these changes.
