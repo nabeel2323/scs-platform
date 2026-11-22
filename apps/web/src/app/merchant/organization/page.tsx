@@ -569,8 +569,8 @@ export default function MerchantOrganizationPage() {
             </div>
             <div className="metric-card" style={metricCard}>
               <div style={metricLabel}>Documents</div>
-              <div style={metricValue}>{documents.length}</div>
-              <div style={metricHint}>{documents.filter(d => d.verificationStatus === 'VERIFIED').length} verified</div>
+              <div style={metricValue}>{docsError ? '—' : documents.length}</div>
+              <div style={metricHint}>{docsError ? 'Unavailable' : `${documents.filter(d => d.verificationStatus === 'VERIFIED').length} verified`}</div>
             </div>
             <div className="metric-card" style={{ ...metricCard, cursor: org.inviteCode ? 'pointer' : 'default' }} onClick={handleCopyInvite}>
               <div style={metricLabel}>Invite Code</div>
@@ -728,7 +728,7 @@ export default function MerchantOrganizationPage() {
               <LoadingSpinner />
             ) : warehouses.length === 0 && !warehousesError ? (
               <div style={{ textAlign: 'center', padding: '20px 0', color: '#5b6b74', fontSize: 13 }}>
-                No warehouses configured. <Link href="/merchant/warehouses" style={{ color: '#1e6178' }}>Add one</Link>
+                {stores.length === 0 ? 'Create a store before adding warehouses.' : <>No warehouses configured. <Link href="/merchant/warehouses" style={{ color: '#1e6178' }}>Add one</Link></>}
               </div>
             ) : warehouses.length > 0 ? (
               <div style={tableWrap}>
@@ -804,16 +804,18 @@ export default function MerchantOrganizationPage() {
           {/* Verification Documents */}
           <div style={{ ...card, marginTop: 20 }}>
             <h2 style={sectionTitle}>Verification Documents</h2>
-            {docsLoading ? <LoadingSpinner /> : docsError ? (
-              <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                <ErrorBanner message={docsError} />
-                <button onClick={() => org && loadDocuments(org.id)} style={{ ...ghostBtn, marginTop: 8 }}>Retry</button>
+            {docsError && (
+              <div style={{ padding: '12px 0' }}>
+                <ErrorBanner message={docsError} onRetry={() => org && void loadDocuments(org.id)} />
               </div>
-            ) : documents.length === 0 ? (
+            )}
+            {docsLoading && documents.length === 0 ? (
+              <LoadingSpinner />
+            ) : documents.length === 0 && !docsError ? (
               <div style={{ textAlign: 'center', padding: '24px 0', color: '#5b6b74', fontSize: 13 }}>
                 No documents submitted yet. Documents are uploaded during the registration process.
               </div>
-            ) : (
+            ) : documents.length > 0 ? (
               <div style={tableWrap}>
                 <table style={table}>
                   <thead><tr style={theadRow}>
@@ -855,7 +857,7 @@ export default function MerchantOrganizationPage() {
                   </tbody>
                 </table>
               </div>
-            )}
+            ) : null}
 
             {/* Upload new document */}
             {canEdit && (
@@ -991,13 +993,14 @@ export default function MerchantOrganizationPage() {
               </div>
             )}
 
-            {membersError ? (
+            {membersError && (
               <div style={{ padding: '12px 0' }}>
                 <ErrorBanner message={membersError} onRetry={() => org && void loadMembers(org.id)} />
               </div>
-            ) : members.length === 0 ? (
+            )}
+            {members.length === 0 && !membersError ? (
               <p style={{ fontSize: 13, color: '#5b6b74', textAlign: 'center', padding: '20px 0' }}>No members found.</p>
-            ) : (
+            ) : members.length > 0 ? (
               <div style={tableWrap}>
                 <table style={table}>
                   <thead><tr style={theadRow}>
@@ -1028,7 +1031,7 @@ export default function MerchantOrganizationPage() {
                   </tbody>
                 </table>
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Quick Links */}
