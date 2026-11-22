@@ -304,3 +304,11 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Exact-head Actions lookup for the source commit returned no workflow run. Combined statuses show only Web/Admin Vercel failures pointing to the provider build-rate-limit page; these are not application test results. All new implementation/test/documentation commits use `[skip ci]` under the Actions-minute constraint.
 - Continue UX-010 re-audit across the Merchant Import wizard, remaining inventory workflows, and remaining Admin/Mobile screens. Implement only concrete contract-backed gaps. Comprehensive testing remains deferred until implementation and integration are complete.
 - No merge/deployment, staging/shared database write, migration, grants/default-ACL change, RLS enablement, worker activation, provider call or release authorization occurred.
+
+## Latest continuation checkpoint — 22 November 2026 (UX-040 / UX-041)
+
+- Implemented UX-040 Merchant Import Wizard store-discovery recovery and UX-041 import-processing lifecycle/outcome correctness. The wizard now distinguishes loading, store lookup failure and a true no-store state; polling starts after the process request succeeds, prevents overlapping/stale reads, stops on unmount, exposes status retry, and distinguishes COMPLETED/FAILED/CANCELLED outcomes.
+- Focused tests were added in `merchant-import-wizard-store-recovery.test.tsx` and `import-job-outcome.test.ts`. They have not been executed.
+- Latest source implementation commit: `f6e1779558b92861e4f8df110de7075f7ee3c1b6`. The following project-memory commits synchronize this checkpoint; resolve the live PR head from GitHub at session start.
+- Continue UX-010 re-audit across remaining Merchant Inventory workflows, then remaining Admin and Mobile screens. Do not repeat UX-030–UX-041.
+- PR #138 remains open/draft/unmerged to `develop`. Exact-head Actions lookup must be refreshed after docs sync; all commits use `[skip ci]`. No merge/deployment, staging/shared DB write, migration, grant/default-ACL change, RLS activation or worker activation occurred.
