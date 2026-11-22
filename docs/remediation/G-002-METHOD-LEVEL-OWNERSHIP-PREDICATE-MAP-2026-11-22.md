@@ -300,3 +300,25 @@ The P13 worker remains opt-in and disabled unless its existing runtime flag is e
 p13_pilot_allowlist has no organization/store foreign keys. Adding a store-scoped entry previously trusted the supplied orgId/storeId pair. The service now verifies the organization exists and, when storeId is present, verifies that store belongs to that organization before inserting. This prevents inconsistent system configuration from bypassing the canonical store→organization relationship.
 
 Focused tests were added for lease locking/fencing, stale-worker no-op behavior, platform-only manual escalation and allowlist store/org consistency. They are committed as source tests but have not been executed.
+
+
+## Worker/system/operator context batch 7 — 22 November 2026
+
+### WorkerLeaseService
+
+Lease ownership is the tuple lease_key + holder_id + epoch + expires_at > now(). Previously, renewAndFence, isLiveHolder, poll-success, poll-failure and release matched holder/epoch but did not reject an expired lease. The service now requires an unexpired row for every ownership mutation and liveness check. Once expired, the old holder must reacquire through tryAcquire, which increments epoch. Focused expiry-fencing tests were added but not run.
+
+### OpsAlertService and P13MonitorService
+
+P13MonitorService scans globally as a system component on each API instance. A unique dedup key did not by itself serialize delivery. The alert path now checks INSERT ... ON CONFLICT DO NOTHING RETURNING id, atomically claims PENDING/FAILED/expired-repeat rows as SENDING, refuses fresh concurrent SENDING claims, and reclaims stale SENDING claims after a bounded timeout. SENDING rows are visible in the operator open-alert list; migration 0073 updates the partial index. Focused concurrent-delivery tests were added but not run.
+
+### OpsControlService, PilotControlService, BootstrapService and Audit
+
+- OpsControlService writes the pause control and append-only control audit in one transaction, then writes the general audit trail and alert separately. Pause/read paths are platform operator/system context; the worker treats unreadable pause state as paused.
+- PilotControlService is a platform configuration surface. Organization/store allowlist inserts now verify the organization exists and any supplied store belongs to it. Feature flags and allowlist rows must not inherit tenant request authority.
+- BootstrapService is a one-time global provisioning path: owner OTP uses Redis and provider delivery; createSuperAdmin consumes the authorization and creates the user, platform organization and membership under a transaction-scoped advisory lock. AuditService is non-throwing and writes outside that transaction by contract.
+- AuditLogMiddleware writes after response finish using the authenticated request actor/activeOrg; AuditService writes append-only audit_logs and records write failures in process counters for P13 monitoring. It is asynchronous and is not transactionally coupled to the business mutation.
+
+### OutboxDispatcher
+
+OutboxDispatcher.publish accepts a transaction client so domain outbox inserts can share the business transaction. The generic poller excludes shipping.carrier.* events because those have a dedicated leased worker. The generic dispatcher currently logs event type/aggregate and marks rows dispatched; it does not publish to Kafka/RabbitMQ/SNS or another real bus. Treat that as a deferred integration limitation, not proof of downstream delivery. Carrier provider side effects remain in their dedicated worker path.

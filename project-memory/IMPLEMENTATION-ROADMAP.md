@@ -196,3 +196,13 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Passed store context through tracking controller, worker, poller and reconciliation paths; validated outbox tenant metadata before external carrier side effects.
 - Added shipping tenant-context regression coverage and updated worker label fixture. Tests not run.
 - Next: worker/outbox/bootstrap/system source predicates and final raw DB object evidence. No tests/CI, DB, migration, grants/RLS, staging/deployment, worker activation or provider calls occurred.
+
+
+## 2026-11-22 — G-002 worker/system/operator continuation
+
+- Implemented return-expiration claim and escalation fencing at the transaction boundary, plus platform-only manual escalation.
+- Added store/org consistency validation to pilot allowlist writes.
+- Added expiry checks to all WorkerLeaseService ownership mutations and liveness checks.
+- Added atomic P13 alert delivery claims with stale-claim recovery and migration 0073.
+- Completed bounded source mapping of worker, outbox, bootstrap, audit and operator contexts. The generic outbox is still a log-only sink; external event-bus integration remains deferred.
+- Added focused regression tests but did not execute them. Full test, CI and release gates remain consolidated at the end of implementation.

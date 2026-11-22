@@ -276,3 +276,21 @@ See [G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md](./G-002-METHOD-LE
 ## Worker lease expiration is part of every ownership predicate — 22 November 2026
 
 The WorkerLeaseService previously matched only lease_key + holder_id + epoch for renewal, liveness and completion bookkeeping. An expired holder could therefore renew the same epoch before another process acquired it, or still appear live in read-only checks. Expiry is now included in renewAndFence, poll-success, poll-failure and release predicates; isLiveHolder also requires expiresAt to be in the future. Once the lease expires, the old holder must reacquire through tryAcquire, which increments the fencing epoch. Focused regression tests were added but not run.
+
+
+## System/operator method-level context — 22 November 2026
+
+| Service/path | Operations | Principal / transaction boundary |
+|---|---|---|
+| WorkerLeaseService | worker_leases I/U/R; acquire increments epoch; renew, poll success/failure and release match holder+epoch+unexpired; read/readAll/liveHolderCounts are system observability | System worker identity. Expiry is now part of ownership; expired holders must reacquire with a new epoch. |
+| ReturnExpirationWorker | global bounded claim of due REQUESTED returns; locks live worker lease in claim CTE; per-return service transition receives holder+epoch | System worker. Business transition revalidates/locks lease inside same transaction; no worker activation was performed. |
+| AutoCompleteWorker | global due DELIVERED order claim using FOR UPDATE SKIP LOCKED and persisted owner/time; canonical OrdersService completion verifies claim owner and age | System worker claim, then canonical order transition. |
+| P13MonitorService | global read-only scans of leases, returns, refunds, reversals, adjustments, outbox and financial invariants; calls alert raise/resolve | System monitoring context. Cross-tenant reads are intentional and must not be exposed through ordinary tenant DB authority. |
+| OpsAlertService | ops_alerts I/U/R; dedup key, atomic SENDING claim, delivery attempt outcome and resolve | System alert context. Atomic claim serializes API instances; stale SENDING claims are recoverable. |
+| OpsControlService | ops_controls I/U/R; ops_control_audit I/R; AuditService writes audit_logs; OpsAlertService writes ops_alerts | Platform operator/system context. Pause row and append-only control history share one transaction; general audit/alert are separate best-effort side effects. |
+| PilotControlService | feature_flags R/I/U; p13_pilot_allowlist R/I/U; organizations R; stores R | Platform configuration. Store-specific allowlist writes validate store→org. |
+| BootstrapService | bootstrap_authorizations R/I/U; users R/I; roles R; organizations R/I; organization_members I; transaction-scoped advisory lock; Redis OTP/provider delivery | Global one-time bootstrap authority, not tenant request context. Core provisioning and token consumption share one transaction; audit is non-throwing/outside that transaction. |
+| AuditLogMiddleware / AuditService | audit_logs I; request actor/activeOrg is attached after response finish; write failures increment ops counters | Asynchronous audit system path, not transactionally coupled to business mutation by design. |
+| OutboxDispatcher | outbox_events I through publish (txClient supported); generic PENDING R/U; carrier prefix excluded | Generic dispatcher is currently log-only and marks events dispatched; no real event bus delivery is configured. Treat as deferred integration work. |
+
+The service-level map is not an authorization to add a global request transaction interceptor, RLS policies or DB grants. Live runtime identity and protected catalog evidence remain prerequisites for that design.

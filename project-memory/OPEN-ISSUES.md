@@ -260,3 +260,16 @@ Returns/Disputes/Reviews and financial-control services are now mapped. Fixed cr
 ## G-002 method-level predicate batch 5 — 22 November 2026
 
 Carrier/shipping review found and fixed an Aramex credential fallback that could select an arbitrary active credential across organizations. Store-bound tracking/rating/location calls now require store context and resolve only the store's org configuration; unscoped address validation is restricted to PLATFORM credentials. Carrier configuration resolution verifies store and linked credential organization. Shipping/carrier management now checks ACTIVE organization membership; shipment operations and outbox worker verify store/org context; webhook retry requires an active credential. Tests added/updated but not run. Next: worker/outbox/bootstrap/system method-level predicates and protected DB evidence. No worker activation or provider call occurred.
+
+
+## G-002 worker/system/operator source review — 22 November 2026
+
+The bounded source review now covers return-expiration and auto-completion workers, shipping carrier worker/poller/reconciliation paths, WorkerLeaseService, OpsControlService, P13MonitorService, OpsAlertService, PilotControlService, BootstrapService, AuditService/AuditLogMiddleware and OutboxDispatcher.
+
+Corrections committed:
+- ReturnExpirationWorker's lease fence is validated and locked in the claim and escalation mutation transactions.
+- WorkerLeaseService no longer allows an expired holder to renew, appear live, record poll success/failure or release the expired lease.
+- PilotControlService rejects non-existent organizations and store IDs that do not belong to the target organization.
+- OpsAlertService uses an atomic SENDING delivery claim and stale-claim recovery across API instances; migration 0073 updates the open-alert index.
+
+Focused tests were added but not run. Generic OutboxDispatcher currently logs and marks events dispatched; it does not publish to a real event bus. This remains a known functional limitation, not a verified delivery integration. No RLS or DB grants are approved. Live runtime identity/catalog evidence and final testing remain open.

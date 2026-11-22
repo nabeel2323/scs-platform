@@ -522,3 +522,14 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Updated tracking callers (ShipmentOperationsController, ShippingCarrierWorker, CarrierTrackingPoller, CarrierReconciliationService) to pass storeId.
 - Worker validates outbox store/org metadata against shipment→store→org before provider side effects; webhook retry checks active credential/org. Shipment writes repeat id + store predicates and outbox events carry tenant metadata.
 - Added shipping-tenant-context.spec.ts and updated shipping-carrier-worker-label.spec.ts. Tests not run; no CI, DB, migration, grants/RLS, staging, deployment, worker activation or carrier/provider calls.
+
+
+## 2026-11-22 — G-002 worker/system and operator-context continuation
+
+- Closed the return-expiration lease race: the bounded claim statement locks the current live P13 lease; ReturnsService.escalateReturn requires either a privileged platform caller or a worker holder/epoch fence; worker escalation locks and revalidates the lease inside the same transaction as the return update; outbox/event writes occur only after a successful transition.
+- Added organization/store validation to PilotControlService.addAllowlistEntry because p13_pilot_allowlist has no foreign keys.
+- Fixed WorkerLeaseService expiry semantics: renewAndFence, isLiveHolder, poll-success, poll-failure and release now all reject expired ownership. An expired worker must reacquire and receive a new epoch.
+- Fixed P13 alert delivery races across API instances: INSERT ... ON CONFLICT DO NOTHING RETURNING id is checked; PENDING/FAILED/SENT-repeat/stale-SENDING rows are claimed atomically as SENDING; stale claims are recoverable; SENDING appears in the open-alert view. Added migration 0073 for the open-alert index.
+- Added focused tests for each correction. Tests remain unexecuted by design; no CI was triggered.
+- Completed source-level worker/operator/bootstrap/audit/outbox context mapping. OutboxDispatcher remains log-only; real event-bus delivery is a deferred integration decision.
+- No migration was applied, no worker was enabled, and no live database, staging, deployment, grant/RLS or provider action occurred.

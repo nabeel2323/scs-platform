@@ -207,3 +207,14 @@ Closed two source-level correctness gaps found during worker/system context revi
 ## G-002 / P13 operational alert delivery ownership — 22 November 2026
 
 The P13 monitor runs on each API instance, so deduplication must cover delivery ownership as well as row uniqueness. Fixed the ON CONFLICT DO NOTHING path to inspect RETURNING and added an atomic SENDING claim with stale-claim recovery. This prevents concurrent monitor instances from delivering the same PENDING/FAILED alert simultaneously and makes abandoned claims recoverable. Added migration 0073 for the operator open-alert index and focused tests; not executed or applied.
+
+
+## G-002 worker/system/operator context — 22 November 2026
+
+Completed the bounded source review and corrected four concrete gaps: return-expiration lease validation at claim and mutation boundaries; expired worker leases cannot renew or write poll state; pilot allowlist store/org references are verified; and concurrent P13 monitors now coordinate alert delivery through an atomic SENDING claim with stale-claim recovery. Migration 0073 is committed but not applied. Regression tests were added but not executed.
+
+Deferred/remaining:
+- OutboxDispatcher is still a log-only sink; a real broker/event bus and delivery contract require an explicit architecture decision.
+- Worker/system source review does not substitute for live API/migration role identity evidence or protected catalog inspection.
+- Transaction-context propagation, shared singleton helper transaction windows and RLS policy design remain architecture review items; no global interceptor/RLS/grant was implemented.
+- Consolidated test/CI/release gate remains open.

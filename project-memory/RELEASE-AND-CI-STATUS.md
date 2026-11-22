@@ -403,3 +403,14 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Implementation batch 3 covers Pricing/Merchant/Store Membership: same-store pricing tier invariants enforced in PricingService; merchant document/verification reads require ACTIVE org membership; document uploads validate caller activeOrg, org membership and optional store/org/membership; organization-scoped store/customer reads revalidate CallerContext. Two focused unit specs added but not run.
 - Next: Returns/Disputes/Reviews, then carrier/shipping, then worker/outbox/bootstrap/system.
 - No tests/CI, database connections/queries/writes, migrations, grants, RLS changes, staging actions, deployments, worker activation or provider calls occurred. Comprehensive testing remains deferred to the consolidated final phase.
+
+
+## Current branch and verification checkpoint — 22 November 2026
+
+- PR #138 remains open, draft and unmerged from remediation/phase-0-1-tenant-security to develop. Source head at checkpoint: 311ec402b4e5f908b01fd3a57137701f7a2f2a30.
+- GitHub Actions check-runs: none on this head. No Actions workflow run is attached to this exact commit.
+- Combined statuses: Vercel Admin FAILURE and Vercel Web FAILURE, both with “Deployment rate limited — retry in 24 hours.” These are preview-provider failures, not application test results.
+- Source implementation since the previous checkpoint: method-level returns/disputes/reviews and carrier/shipping fixes; return-expiration transactional lease fencing; pilot allowlist org/store validation; atomic P13 alert SENDING claims with stale-claim recovery and migration 0073; expired-lease rejection in WorkerLeaseService.
+- Focused tests were added but not run. No CI was triggered.
+- No migration was applied, no staging/shared DB action, no deployment, no worker activation, no grant/RLS change and no external provider call occurred.
+- Remaining release gates: consolidated unit/integration/typecheck/lint/format/build tests; review/apply migrations only after explicit DB-target confirmation; protected live API/migration identity evidence; reconcile the 114-versus-116 physical relation count; and review transaction-context/RLS architecture. RLS activation is not approved.

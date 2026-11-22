@@ -336,3 +336,17 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Latest commit 9d3eaa8f961f2a718f1840b08c8e37dc113ea636 formats the new tenant-scope specs and pricing imports. No GitHub Actions run is attached to this head. Vercel Admin and Web report FAILURE due to provider build-rate-limit; these are preview-provider statuses, not test results.
 - Next method-level implementation batch: Returns/Disputes/Reviews. Then carrier/shipping, followed by worker/outbox/bootstrap/system contexts.
 - No tests/CI, database connections/queries/writes, migrations, grants, RLS changes, staging actions, deployments, worker activation or provider calls occurred. Full testing remains deferred to the consolidated final phase.
+
+
+## Latest implementation checkpoint — 22 November 2026 (worker/system context)
+
+- Repository: nabeel2323/scs-platform. Branch: remediation/phase-0-1-tenant-security. PR #138 remains open, draft, unmerged, targeting develop.
+- Latest source implementation head before this project-memory refresh: 311ec402b4e5f908b01fd3a57137701f7a2f2a30.
+- Completed the bounded G-002 method-level batches: Orders/Payments/Inventory; Catalog/Offers/Product Governance/Taxonomy; Pricing/Merchant/Store Membership; Returns/Disputes/Reviews/financial controls; Carrier/Shipping/Webhook; and worker/outbox/bootstrap/operator/system contexts.
+- Additional worker/system fixes: return-expiration claim and escalation now lock and validate the live lease at the mutation boundary; manual escalation requires platform authority; pilot allowlist writes verify organization existence and store→organization ownership; WorkerLeaseService treats expiry as loss of ownership for renewal, liveness, poll bookkeeping and release.
+- P13 alert delivery now uses an atomic SENDING claim with stale-claim recovery. The ON CONFLICT DO NOTHING insert path checks RETURNING before attempting delivery. Migration 0073 updates the open-alert index to include SENDING.
+- Focused regression tests were added for return worker fencing, pilot allowlist ownership, alert delivery concurrency and lease-expiry fencing. None were executed. All tests remain reserved for the consolidated final testing phase.
+- The generic OutboxDispatcher is still a log-only sink, not a configured event-bus publisher. This is an explicit functional limitation; do not claim external delivery or introduce a broker without a separate architecture decision.
+- Latest head has no GitHub Actions check runs. Vercel Admin and Web statuses fail because the provider is rate-limited for 24 hours; these are not application test results.
+- No migration was applied, no staging/shared DB was accessed, no RLS/grant/DB identity change was made, no deployment or worker activation occurred, and no external provider call was made.
+- Remaining protected gates: live API/migration role identities, the unresolved 114-versus-116 physical relation count, transaction-context/RLS architecture review, and consolidated testing/CI/release verification.

@@ -98,3 +98,10 @@ The alert path now:
 - Includes SENDING alerts in the operator open-alert list.
 
 The new migration 0073 refreshes the open-alert partial index to include SENDING. These source changes and focused regression tests are not executed or live-applied in this implementation phase.
+
+
+## Worker/system/operator and outbox delivery boundary — 22 November 2026
+
+The source-level context review covers the P13 lease, monitor, alert, pause, pilot and return-expiration paths; bootstrap; audit; and generic outbox dispatch. The return-expiration worker now carries a live holder/epoch fence into the claim and mutation transactions. WorkerLeaseService rejects expired ownership. OpsAlertService coordinates concurrent monitor delivery through a durable SENDING claim and stale-claim recovery.
+
+The generic OutboxDispatcher is intentionally not represented as a real downstream delivery integration: it currently logs the event type/aggregate and marks the row dispatched. The carrier prefix is excluded and handled by the dedicated shipping worker. A real event bus, consumer contract, replay semantics and idempotency policy remain a separate architecture decision.
