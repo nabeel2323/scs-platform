@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   fetchOfferRevenueKpis, OfferRevenueKpiResponse, OfferRevenueRow,
@@ -30,7 +30,9 @@ export default function OffersKpiPage() {
   const [status, setStatus] = useState('');
   const [limit, setLimit] = useState('100');
 
+  const requestVersion = useRef(0);
   const load = useCallback(async () => {
+    const requestId = ++requestVersion.current;
     setLoading(true);
     setError('');
     try {
@@ -41,15 +43,20 @@ export default function OffersKpiPage() {
         status: status || undefined,
         limit: limit ? Number(limit) : undefined,
       });
-      setData(res);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load offer KPIs');
+      if (requestId === requestVersion.current) setData(res);
+    } catch (err: unknown) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load offer KPIs');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestVersion.current) setLoading(false);
     }
   }, [from, to, storeId, status, limit]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   if (!hasAccess) return <AccessDenied requiredPerms={['admin:kpis:read']} missingPerms={missingPerms} />;
 
@@ -111,7 +118,7 @@ export default function OffersKpiPage() {
 
       {error && (
         <div role="alert" style={{ padding: 12, background: colors.errBg, color: colors.err, borderRadius: radii.sm, marginBottom: 16 }}>
-          {error}
+          <span>{error}</span>{' '}<button type="button" onClick={() => void load()}>Retry offer KPIs</button>
         </div>
       )}
 
@@ -120,7 +127,7 @@ export default function OffersKpiPage() {
         <KpiCard
           icon={<IconActivity />}
           label="Offers Touched"
-          value={String(data?.totals.offersTouched ?? 0)}
+          value={data ? String(data.totals.offersTouched) : '—'}
           accent={colors.brand[700]}
           tint={colors.brand[50]}
         />
@@ -153,7 +160,7 @@ export default function OffersKpiPage() {
         </div>
         {loading ? (
           <div style={{ padding: 24, color: colors.muted }}>Loading…</div>
-        ) : !data || data.offers.length === 0 ? (
+        ) : error && !data ? null : !data || data.offers.length === 0 ? (
           <div style={{ padding: 24, color: colors.muted }}>No offer-backed sales in this window.</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
