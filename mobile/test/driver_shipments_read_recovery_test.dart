@@ -35,12 +35,12 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    expect(find.text('Order #order-1'), findsOneWidget);
+    expect(find.text('Order #order-12'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Refresh'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Order #order-1'), findsOneWidget);
+    expect(find.text('Order #order-12'), findsOneWidget);
     expect(find.textContaining('Shipment service unavailable'), findsOneWidget);
     expect(find.textContaining('last successfully loaded results'), findsOneWidget);
     expect(find.text('No shipments'), findsNothing);
