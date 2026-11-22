@@ -79,7 +79,7 @@ export default function MerchantDashboardPage() {
       <div style={{ padding: '20px 24px 48px' }}>
 
       {/* New order alert (Gap 2) — dismissible, links straight to the order. */}
-      {newOrderAlert && (
+      {newOrderAlert && permissions.includes('merchant:orders:read') && (
         <div style={{ background: colors.brand[50], border: `1px solid ${colors.brand[500]}`, borderRadius: radii.md, padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18 }}>🔔</span>
           <div style={{ flex: 1 }}>
