@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   fetchAdminPayments,
   fetchPaymentVerificationQueue,
@@ -58,7 +58,9 @@ export default function AdminPaymentsPage() {
   const [payments, setPayments] = useState<AdminPayment[]>([]);
   const [refunds, setRefunds] = useState<AdminRefund[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const requestVersion = useRef(0);
   const [acting, setActing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -72,38 +74,44 @@ export default function AdminPaymentsPage() {
       return;
     }
 
+    const requestId = ++requestVersion.current;
     setLoading(true);
-    setError('');
+    setLoadError('');
+    setActionError('');
     try {
       if (tab === 'refunds') {
-        setRefunds(await fetchRequestedRefunds());
+        const data = await fetchRequestedRefunds();
+        if (requestId === requestVersion.current) setRefunds(data);
       } else {
         let data: AdminPayment[];
         if (tab === 'queue') data = await fetchPaymentVerificationQueue();
         else if (tab === 'stale') data = await fetchStalePayments();
         else data = await fetchAdminPayments();
-        setPayments(data);
+        if (requestId === requestVersion.current) setPayments(data);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load payments');
+      if (requestId === requestVersion.current) {
+        setLoadError(err.message || 'Failed to load payments');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestVersion.current) setLoading(false);
     }
   }, [tab, hasAccess, canVerifyPayments, canApproveRefunds]);
 
   useEffect(() => {
-    if (hasAccess || (tab === 'refunds' && canApproveRefunds)) load();
+    if (hasAccess || (tab === 'refunds' && canApproveRefunds)) void load();
+    return () => { requestVersion.current += 1; };
   }, [load, hasAccess, tab, canApproveRefunds]);
 
   const handleVerify = async (paymentId: string, decision: 'CONFIRMED' | 'REJECTED') => {
     if (!canVerifyPayments) return;
     setActing(paymentId);
-    setError('');
+    setActionError('');
     try {
       await verifyPayment(paymentId, decision);
       await load();
     } catch (err: any) {
-      setError(err.message || 'Verification failed');
+      setActionError(err.message || 'Verification failed');
     } finally {
       setActing(null);
     }
@@ -119,12 +127,12 @@ export default function AdminPaymentsPage() {
     }
 
     setActing(refund.id);
-    setError('');
+    setActionError('');
     try {
       await approveRefund(refund.id);
       await load();
     } catch (err: any) {
-      setError(err.message || 'Refund approval failed');
+      setActionError(err.message || 'Refund approval failed');
     } finally {
       setActing(null);
     }
@@ -173,24 +181,19 @@ export default function AdminPaymentsPage() {
         ))}
       </div>
 
-      {error && (
-        <div
-          role="alert"
-          style={{
-            padding: '10px 14px',
-            background: '#fef2f2',
-            border: '1px solid #fecaca',
-            borderRadius: radii.sm,
-            color: '#dc2626',
-            marginBottom: 12,
-            fontSize: 13,
-          }}
-        >
-          {error}
+      {loadError && (
+        <div role="alert" style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.sm, color: '#dc2626', marginBottom: 12, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span>{loadError}</span>
+          <Button size="sm" variant="secondary" onClick={() => void load()}>Retry</Button>
+        </div>
+      )}
+      {actionError && (
+        <div role="alert" style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.sm, color: '#dc2626', marginBottom: 12, fontSize: 13 }}>
+          {actionError}
         </div>
       )}
 
-      {loading ? (
+      {loadError ? null : loading ? (
         <div style={{ padding: 40, textAlign: 'center', color: colors.muted }}>Loading…</div>
       ) : tab === 'refunds' ? (
         refunds.length === 0 ? (

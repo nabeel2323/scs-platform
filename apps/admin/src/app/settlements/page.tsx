@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchAdminSettlements, markSettlementPaid, type AdminSettlement } from '../../lib/api';
 import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
 import { PageHeader, Card, Button, colors, typeScale, radii } from '@scs/ui-kit';
@@ -40,36 +40,44 @@ export default function AdminSettlementsPage() {
   const { hasAccess: canWrite } = useRequirePerms(['admin:settlements:write']);
   const [settlements, setSettlements] = useState<AdminSettlement[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const requestVersion = useRef(0);
   const [acting, setActing] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('');
 
   const load = useCallback(async () => {
     if (!hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
-    setError('');
+    setLoadError('');
+    setActionError('');
     try {
       const data = await fetchAdminSettlements(filter ? { status: filter } : undefined);
-      setSettlements(data);
+      if (requestId === requestVersion.current) setSettlements(data);
     } catch (err: any) {
-      setError(err.message || 'Failed to load settlements');
+      if (requestId === requestVersion.current) {
+        setLoadError(err.message || 'Failed to load settlements');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestVersion.current) setLoading(false);
     }
   }, [filter, hasAccess]);
 
   useEffect(() => {
-    if (hasAccess) load();
+    if (hasAccess) void load();
+    return () => { requestVersion.current += 1; };
   }, [load, hasAccess]);
 
   const handleMarkPaid = async (id: string) => {
     if (!canWrite) return;
     setActing(id);
+    setActionError('');
     try {
       await markSettlementPaid(id);
       await load();
     } catch (err: any) {
-      setError(err.message || 'Failed to mark settlement as paid');
+      setActionError(err.message || 'Failed to mark settlement as paid');
     } finally {
       setActing(null);
     }
@@ -103,25 +111,17 @@ export default function AdminSettlementsPage() {
         </select>
       </div>
 
-      {error && (
-        <div
-          style={{
-            padding: '10px 14px',
-            background: '#fef2f2',
-            border: '1px solid #fecaca',
-            borderRadius: radii.sm,
-            color: '#dc2626',
-            marginBottom: 12,
-            fontSize: 13,
-          }}
-        >
-          {error}
+      {loadError && (
+        <div role="alert" style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.sm, color: '#dc2626', marginBottom: 12, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span>{loadError}</span>
+          <Button size="sm" variant="secondary" onClick={() => void load()}>Retry</Button>
         </div>
       )}
+      {actionError && <div role="alert" style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.sm, color: '#dc2626', marginBottom: 12, fontSize: 13 }}>{actionError}</div>}
 
       {loading ? (
         <div style={{ padding: 40, textAlign: 'center', color: colors.muted }}>Loading…</div>
-      ) : settlements.length === 0 ? (
+      ) : loadError ? null : settlements.length === 0 ? (
         <Card style={{ padding: 32, textAlign: 'center', color: colors.muted }}>
           No settlements found.
         </Card>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { adminRequest } from '../../lib/api';
 import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
 import { PageHeader } from '@scs/ui-kit';
@@ -79,55 +79,73 @@ export default function ReconciliationPage() {
   const { hasAccess: canWrite } = useRequirePerms(['admin:reconciliation:write']);
   const [runs, setRuns] = useState<ReconciliationRun[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [detailError, setDetailError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const requestVersion = useRef(0);
+  const detailRequestVersion = useRef(0);
   const [selectedRun, setSelectedRun] = useState<ReconciliationRun | null>(null);
   const [running, setRunning] = useState(false);
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     if (!hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
-    adminRequest<ReconciliationRun[]>('admin/reconciliation')
-      .then((data) => setRuns(data))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    setLoadError('');
+    setActionError('');
+    try {
+      const data = await adminRequest<ReconciliationRun[]>('admin/reconciliation');
+      if (requestId === requestVersion.current) setRuns(data);
+    } catch (e: any) {
+      if (requestId === requestVersion.current) setLoadError(e.message || 'Failed to load reconciliation runs');
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
   }, [hasAccess]);
 
   useEffect(() => {
-    if (hasAccess) load();
+    if (hasAccess) void load();
+    return () => { requestVersion.current += 1; };
   }, [load, hasAccess]);
 
-  const loadRunDetail = useCallback(
-    async (id: string) => {
-      if (!hasAccess) return;
-      try {
-        const run = await adminRequest<ReconciliationRun>(`admin/reconciliation/${id}`);
-        setSelectedRun(run);
-      } catch (e: any) {
-        setError(e.message);
-      }
-    },
-    [hasAccess],
-  );
+  const loadRunDetail = useCallback(async (id: string) => {
+    if (!hasAccess) return;
+    const requestId = ++detailRequestVersion.current;
+    setSelectedRunId(id);
+    setSelectedRun(null);
+    setDetailLoading(true);
+    setDetailError('');
+    try {
+      const run = await adminRequest<ReconciliationRun>(`admin/reconciliation/${id}`);
+      if (requestId === detailRequestVersion.current) setSelectedRun(run);
+    } catch (e: any) {
+      if (requestId === detailRequestVersion.current) setDetailError(e.message || 'Failed to load reconciliation details');
+    } finally {
+      if (requestId === detailRequestVersion.current) setDetailLoading(false);
+    }
+  }, [hasAccess]);
 
   const handleRun = async () => {
     if (!canWrite) return;
     if (!periodStart || !periodEnd) {
-      setError('Period start and end are required');
+      setActionError('Period start and end are required');
       return;
     }
     setRunning(true);
-    setError('');
+    setActionError('');
     try {
       await adminRequest('admin/reconciliation/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ periodStart, periodEnd, currency: 'SYP' }),
       });
-      load();
+      await load();
     } catch (e: any) {
-      setError(e.message);
+      setActionError(e.message);
     } finally {
       setRunning(false);
     }
@@ -143,9 +161,9 @@ export default function ReconciliationPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes }),
       });
-      if (selectedRun) loadRunDetail(selectedRun.id);
+      if (selectedRunId) await loadRunDetail(selectedRunId);
     } catch (e: any) {
-      setError(e.message);
+      setActionError(e.message);
     }
   };
 
@@ -225,24 +243,13 @@ export default function ReconciliationPage() {
         </div>
       )}
 
-      {error && (
-        <div
-          style={{
-            background: '#7f1d1d',
-            padding: 12,
-            borderRadius: 8,
-            marginBottom: 16,
-            fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
-      )}
+      {loadError && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}><span>{loadError}</span><button onClick={() => void load()} style={{ background: '#374151', color: '#fff', border: 0, borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>Retry</button></div>}
+      {actionError && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{actionError}</div>}
       {loading && <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Loading...</div>}
 
       {/* Run history */}
       <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Execution History</div>
-      {runs.length === 0 && !loading && (
+      {loadError ? null : runs.length === 0 && !loading && (
         <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
           No reconciliation runs yet.
         </div>
@@ -254,9 +261,9 @@ export default function ReconciliationPage() {
             key={run.id}
             onClick={() => loadRunDetail(run.id)}
             style={{
-              background: selectedRun?.id === run.id ? '#1e293b' : '#1a1d24',
+              background: selectedRunId === run.id ? '#1e293b' : '#1a1d24',
               borderRadius: 8,
-              border: `1px solid ${selectedRun?.id === run.id ? '#3b82f6' : '#2a2d34'}`,
+              border: `1px solid ${selectedRunId === run.id ? '#3b82f6' : '#2a2d34'}`,
               padding: '10px 14px',
               cursor: 'pointer',
             }}
@@ -300,6 +307,8 @@ export default function ReconciliationPage() {
       </div>
 
       {/* Discrepancy detail */}
+      {detailLoading && <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginBottom: 12 }}>Loading run details…</div>}
+      {detailError && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}><span>{detailError}</span><button onClick={() => selectedRunId && void loadRunDetail(selectedRunId)} style={{ background: '#374151', color: '#fff', border: 0, borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>Retry</button></div>}
       {selectedRun && selectedRun.discrepancies && (
         <div>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>

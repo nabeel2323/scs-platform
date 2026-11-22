@@ -121,6 +121,53 @@ afterEach(() => {
 
 
 
+
+describe('Admin financial list read recovery', () => {
+  it('retries the payment verification queue after a read failure', async () => {
+    vi.mocked(fetchPaymentVerificationQueue)
+      .mockRejectedValueOnce(new Error('Payment queue unavailable'))
+      .mockResolvedValueOnce([]);
+    render(<AdminPaymentsPage />);
+    expect(await screen.findByText('Payment queue unavailable')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText('No payments found in this view.');
+    expect(fetchPaymentVerificationQueue).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries the settlements list after a read failure', async () => {
+    vi.mocked(fetchAdminSettlements)
+      .mockRejectedValueOnce(new Error('Settlements unavailable'))
+      .mockResolvedValueOnce([]);
+    render(<AdminSettlementsPage />);
+    expect(await screen.findByText('Settlements unavailable')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText('No settlements found.');
+    expect(fetchAdminSettlements).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries the reconciliation run list after a read failure', async () => {
+    vi.mocked(adminRequest)
+      .mockRejectedValueOnce(new Error('Reconciliation unavailable'))
+      .mockResolvedValueOnce([]);
+    render(<ReconciliationPage />);
+    expect(await screen.findByText('Reconciliation unavailable')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText('No reconciliation runs yet.');
+    expect(adminRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries the settlement adjustment list after a read failure', async () => {
+    vi.mocked(adminRequest)
+      .mockRejectedValueOnce(new Error('Adjustments unavailable'))
+      .mockResolvedValueOnce([]);
+    render(<SettlementAdjustmentsPage />);
+    expect(await screen.findByText('Adjustments unavailable')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText('No settlement adjustments found.');
+    expect(adminRequest).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('Admin detail read retry coverage', () => {
   it('retries an attribute detail read after a temporary failure', async () => {
     vi.mocked(adminRequest)

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { adminRequest } from '../../lib/api';
 import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
 import { PageHeader } from '@scs/ui-kit';
@@ -89,30 +89,41 @@ export default function SettlementAdjustmentsPage() {
   const { hasAccess: canApprove } = useRequirePerms(['admin:adjustments:approve']);
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const requestVersion = useRef(0);
   const [statusFilter, setStatusFilter] = useState('');
   const [acting, setActing] = useState<string | null>(null);
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     if (!hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
+    setLoadError('');
+    setActionError('');
     const sp = new URLSearchParams();
     if (statusFilter) sp.set('status', statusFilter);
     const qs = sp.toString();
-    adminRequest<Adjustment[]>(`admin/settlement-adjustments${qs ? `?${qs}` : ''}`)
-      .then((data) => setAdjustments(data))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    try {
+      const data = await adminRequest<Adjustment[]>(`admin/settlement-adjustments${qs ? `?${qs}` : ''}`);
+      if (requestId === requestVersion.current) setAdjustments(data);
+    } catch (e: any) {
+      if (requestId === requestVersion.current) setLoadError(e.message || 'Failed to load settlement adjustments');
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
   }, [statusFilter, hasAccess]);
 
   useEffect(() => {
-    if (hasAccess) load();
+    if (hasAccess) void load();
+    return () => { requestVersion.current += 1; };
   }, [load, hasAccess]);
 
   const handleAction = async (id: string, action: string) => {
     if (action === 'submit' && !canWrite) return;
     if (['approve', 'reject', 'post'].includes(action) && !canApprove) return;
     setActing(id);
+    setActionError('');
     try {
       if (action === 'submit') {
         await adminRequest(`admin/settlement-adjustments/${id}/submit`, {
@@ -133,9 +144,9 @@ export default function SettlementAdjustmentsPage() {
           body: '{}',
         });
       }
-      load();
+      await load();
     } catch (e: any) {
-      setError(e.message);
+      setActionError(e.message);
     } finally {
       setActing(null);
     }
@@ -191,28 +202,17 @@ export default function SettlementAdjustmentsPage() {
         </button>
       </div>
 
-      {error && (
-        <div
-          style={{
-            background: '#7f1d1d',
-            padding: 12,
-            borderRadius: 8,
-            marginBottom: 16,
-            fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
-      )}
+      {loadError && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}><span>{loadError}</span><button onClick={() => void load()} style={{ background: '#374151', color: '#fff', border: 0, borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>Retry</button></div>}
+      {actionError && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{actionError}</div>}
       {loading && <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Loading...</div>}
 
-      {!loading && adjustments.length === 0 && (
+      {!loading && !loadError && adjustments.length === 0 && (
         <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
           No settlement adjustments found.
         </div>
       )}
 
-      {adjustments.length > 0 && (
+      {!loadError && adjustments.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {adjustments.map((adj) => (
             <div
