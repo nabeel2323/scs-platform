@@ -7,7 +7,6 @@ import {
   fetchStoreWarehouses,
   fetchWarehouseInventory,
   adjustStock,
-  fetchInventoryMovements,
   fetchStoreProducts,
   fetchProductVariants,
   createInventoryItem,
@@ -25,6 +24,7 @@ import {
 } from '../../../lib/buyer-api';
 import { fetchMyStores } from '../../../lib/api';
 import { pickStore } from '../../../lib/merchant-store';
+import { readInventoryHistory } from '../../../lib/inventory-history';
 import { LoadingSpinner, ErrorBanner, EmptyState } from '../../../components/Shared';
 import { PageHeader, Breadcrumb } from '@scs/ui-kit';
 import { useAuth } from '../../../components/AuthProvider';
@@ -265,9 +265,9 @@ function InventoryPageContent() {
     setLoadingHistory(true);
     setHistoryError('');
     try {
-      setMovements(await fetchInventoryMovements(itemId));
-    } catch (err: any) {
-      setHistoryError(err.message || 'Failed to load stock movement history');
+      const result = await readInventoryHistory(itemId);
+      setMovements(result.movements);
+      setHistoryError(result.error);
     } finally {
       setLoadingHistory(false);
     }
