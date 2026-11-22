@@ -66,62 +66,103 @@ export default function ImportHistoryPage() {
   const [storeId, setStoreId] = useState('');
   const [storeName, setStoreName] = useState('');
   const [jobs, setJobs] = useState<ImportJobRow[]>([]);
+  const [storeLoading, setStoreLoading] = useState(true);
+  const [storeError, setStoreError] = useState<string | null>(null);
+  const [noStore, setNoStore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [jobsReadError, setJobsReadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const storeRequestRef = useRef(0);
+  const jobsRequestRef = useRef(0);
+  const jobsInFlightRef = useRef(false);
 
-  // Auto-resolve store
-  useEffect(() => {
-    (async () => {
-      try {
-        const stores = await fetchMyStores();
-        const s = pickStore(stores);
-        if (s) { setStoreId(s.id); setStoreName(s.displayName); }
-      } catch { /* handled below */ }
-    })();
+  const resolveStore = useCallback(async () => {
+    const requestId = ++storeRequestRef.current;
+    setStoreLoading(true);
+    setStoreError(null);
+    setNoStore(false);
+    try {
+      const stores = await fetchMyStores();
+      if (requestId !== storeRequestRef.current) return;
+      const store = pickStore(stores);
+      if (!store) {
+        setStoreId('');
+        setStoreName('');
+        setJobs([]);
+        setNoStore(true);
+        return;
+      }
+      setStoreId(store.id);
+      setStoreName(store.displayName);
+    } catch (err: unknown) {
+      if (requestId !== storeRequestRef.current) return;
+      setStoreId('');
+      setStoreName('');
+      setStoreError(err instanceof Error ? err.message : 'Failed to load stores');
+    } finally {
+      if (requestId === storeRequestRef.current) setStoreLoading(false);
+    }
   }, []);
 
-  const loadJobs = useCallback(async () => {
-    if (!storeId) return;
+  useEffect(() => {
+    void resolveStore();
+    return () => {
+      storeRequestRef.current += 1;
+    };
+  }, [resolveStore]);
+
+  const loadJobs = useCallback(async (silent = false) => {
+    if (!storeId || jobsInFlightRef.current) return;
+    jobsInFlightRef.current = true;
+    const requestId = ++jobsRequestRef.current;
+    if (!silent) {
+      setLoading(true);
+      setJobsReadError(null);
+    }
     try {
       const res = await authFetch(`${API_URL}/v1/stores/${storeId}/imports`);
-      if (res.ok) {
-        const data = await res.json();
+      if (!res.ok) throw new Error(`Failed to load imports: ${res.status}`);
+      const data = await res.json();
+      if (requestId === jobsRequestRef.current) {
         setJobs(Array.isArray(data) ? data : []);
-        setError(null);
-      } else {
-        setError(`Failed to load imports: ${res.status}`);
+        setJobsReadError(null);
       }
-    } catch {
-      setError('Network error loading import history.');
+    } catch (err: unknown) {
+      if (requestId === jobsRequestRef.current) {
+        setJobsReadError(err instanceof Error ? err.message : 'Network error loading import history.');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === jobsRequestRef.current && !silent) setLoading(false);
+      jobsInFlightRef.current = false;
     }
   }, [storeId]);
 
-  // Load + poll for active jobs
   useEffect(() => {
     if (!storeId) return;
     setLoading(true);
-    loadJobs();
-
-    // Poll every 3s if any job is in an active state
-    pollRef.current = setInterval(() => {
-      loadJobs();
-    }, 3000);
-
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    void loadJobs();
+    return () => {
+      jobsRequestRef.current += 1;
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = null;
+    };
   }, [storeId, loadJobs]);
 
-  // Stop polling when no active jobs
+  // Poll only while a known job is active; never overlap an in-flight read.
   useEffect(() => {
     const activeStatuses = ['UPLOADED', 'MAPPING', 'PREVIEWING', 'PROCESSING', 'IMPORTING'];
-    const hasActive = jobs.some(j => activeStatuses.includes(j.status));
-    if (!hasActive && pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  }, [jobs]);
+    if (!storeId || !jobs.some((job) => activeStatuses.includes(job.status))) return;
+
+    const interval = setInterval(() => {
+      void loadJobs(true);
+    }, 3000);
+    pollRef.current = interval;
+    return () => {
+      clearInterval(interval);
+      if (pollRef.current === interval) pollRef.current = null;
+    };
+  }, [storeId, jobs, loadJobs]);
 
   /** R5 — cancel a READY/PROCESSING job (cooperative). */
   const handleCancel = async (jobId: string) => {
@@ -177,33 +218,57 @@ export default function ImportHistoryPage() {
       <div style={{ padding: '20px 24px 48px' }}>
 
         {error && (
-          <div style={{ padding: '12px 16px', marginBottom: 16, backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#B3372F', fontSize: 13 }}>
+          <div role="alert" style={{ padding: '12px 16px', marginBottom: 16, backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#B3372F', fontSize: 13 }}>
             {error}
           </div>
         )}
 
-        {/* Action bar */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <div style={{ fontSize: 13, color: '#666' }}>
-            {storeName ? `Store: ${storeName}` : 'No store found'}
+        {storeError && (
+          <div role="alert" style={{ padding: '12px 16px', marginBottom: 16, backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#B3372F', fontSize: 13 }}>
+            <div>{storeError}</div>
+            <button type="button" onClick={() => void resolveStore()} style={{ marginTop: 8 }}>Retry stores</button>
           </div>
-          <Link
-            href="/merchant/import"
-            style={{
-              padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600,
-              backgroundColor: '#174A5B', color: 'white', textDecoration: 'none',
-            }}
-          >
-            + New Import
-          </Link>
-        </div>
+        )}
 
-        {loading ? (
+        {storeLoading ? (
+          <div role="status" style={{ textAlign: 'center', padding: 48, color: '#9CA3AF' }}>Loading stores...</div>
+        ) : storeError ? null : noStore ? (
+          <div style={{ textAlign: 'center', padding: 48, backgroundColor: '#F9FAFB', borderRadius: 12, border: '1px solid #E5E7EB' }}>
+            <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 4 }}>No store found</div>
+            <div style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>Onboard a store before importing products.</div>
+            <Link href="/merchant/onboard">Onboard a Store</Link>
+          </div>
+        ) : (
+          <>
+            {/* Action bar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: 13, color: '#666' }}>
+                {storeName ? `Store: ${storeName}` : 'Store'}
+              </div>
+              <Link
+                href="/merchant/import"
+                style={{
+                  padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600,
+                  backgroundColor: '#174A5B', color: 'white', textDecoration: 'none',
+                }}
+              >
+                + New Import
+              </Link>
+            </div>
+
+            {jobsReadError && (
+              <div role="alert" style={{ padding: '12px 16px', marginBottom: 16, backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#B3372F', fontSize: 13 }}>
+                <div>{jobsReadError}</div>
+                <button type="button" onClick={() => void loadJobs()} style={{ marginTop: 8 }}>Retry</button>
+              </div>
+            )}
+
+            {loading ? (
           <div style={{ textAlign: 'center', padding: 48, color: '#9CA3AF' }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
             Loading import history...
           </div>
-        ) : jobs.length === 0 ? (
+        ) : jobsReadError && jobs.length === 0 ? null : jobs.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 48, backgroundColor: '#F9FAFB', borderRadius: 12, border: '1px solid #E5E7EB' }}>
             <div style={{ fontSize: 40, marginBottom: 8 }}>📦</div>
             <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 4 }}>No imports yet</div>
@@ -300,6 +365,8 @@ export default function ImportHistoryPage() {
               {jobs.filter(j => ['PROCESSING', 'IMPORTING'].includes(j.status)).length} in progress
             </span>
           </div>
+            )}
+          </>
         )}
       </div>
     </div>
