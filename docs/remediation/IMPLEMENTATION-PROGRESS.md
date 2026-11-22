@@ -1771,3 +1771,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Individual mark-as-read actions now expose per-row progress and catch/report failures instead of allowing an uncaught async action error. Mark All Read is extracted into a guarded action with success/failure feedback and retains its in-flight disable state.
 - Added Flutter widget coverage for stale notification preservation, initial failure/retry and individual mark-read failure feedback. Tests remain pending Phase 3.
 - Realtime subscription behavior and notification API contracts are unchanged. No provider, database, migration, staging or outbound notification behavior changed.
+
+
+## UX-083 — Mobile Home discovery section recovery — 23 November 2026
+
+- Categories, Popular Products and Suppliers sections now expose initial loading/error states and retry rather than silently disappearing on read failure. Refresh failures preserve their last successful data with an explicit stale-data notice.
+- Home refresh now awaits each independent provider refresh while allowing other sections to complete when one fails; added an explicit Refresh home action.
+- The notification badge no longer converts unread-count loading/error into a fabricated zero count; it remains unbadged until a successful count is available.
+- Added Flutter widget coverage for stale category preservation, initial category failure/retry and unread-count failure not displaying a false zero. Tests remain pending Phase 3.
+- No discovery API, permissions, role gating, database, migration, staging or provider behavior changed.
