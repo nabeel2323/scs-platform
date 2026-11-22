@@ -1568,3 +1568,13 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - During a refresh, the current tab's last successful rows remain visible with a refresh status. If refresh fails, the retryable error explicitly identifies the displayed rows as the last successful result. An initial failure still does not render a false empty state.
 - Added `admin-payments-recovery.test.tsx` for failed initial reads/retry and preservation of successful rows after a failed refresh.
 - No payment, refund, approval, reconciliation, API, permission, schema, migration, database, staging or provider behavior changed. Tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-060 — Admin Catalog Requests read recovery — 22 November 2026
+
+- Added request-generation guards and effect-cleanup invalidation so an older type/status filter response cannot overwrite the currently selected filter, and pending reads cannot update state after unmount.
+- Catalog Requests now gates the read on `catalog:requests:manage`; a user without access does not trigger the list API request.
+- Added explicit retry for list-read failures, suppresses false empty states when the selected filter has never loaded successfully, preserves the last successful rows during refresh, and labels stale rows when a refresh fails.
+- Separated list-read errors from approve/reject action errors so action failures do not mislabel valid rows as stale.
+- Added `admin-catalog-requests-recovery.test.tsx` for initial failure/retry, stale filter response ordering and permission-gated reads. Tests remain pending the consolidated Phase 3 campaign.
+- No API route, permission, business transition, schema, migration, database, staging or provider behavior changed.

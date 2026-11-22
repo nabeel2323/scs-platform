@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AdminCatalogRequest,
   fetchAdminCatalogRequests,
@@ -157,8 +157,18 @@ function RequestsPageContent() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('PENDING');
   const [rejecting, setRejecting] = useState<AdminCatalogRequest | null>(null);
+  const [loadedFilterKey, setLoadedFilterKey] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
+  const requestVersion = useRef(0);
+  const currentFilterKey = `${typeFilter}:${statusFilter}`;
+  const hasCurrentResults = loadedFilterKey === currentFilterKey;
 
   const reload = useCallback(async () => {
+    if (!hasAccess) {
+      setLoading(false);
+      return;
+    }
+    const requestId = ++requestVersion.current;
     setLoading(true);
     setError('');
     try {
@@ -166,25 +176,32 @@ function RequestsPageContent() {
         type: typeFilter || undefined,
         status: statusFilter || undefined,
       });
-      setRequests(data);
+      if (requestId === requestVersion.current) {
+        setRequests(data);
+        setLoadedFilterKey(currentFilterKey);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load requests');
+      if (requestId === requestVersion.current) {
+        setError(e instanceof Error ? e.message : 'Failed to load requests');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestVersion.current) setLoading(false);
     }
-  }, [typeFilter, statusFilter]);
+  }, [typeFilter, statusFilter, hasAccess, currentFilterKey]);
 
   useEffect(() => {
     void reload();
+    return () => { requestVersion.current += 1; };
   }, [reload]);
 
   const handleApprove = async (req: AdminCatalogRequest) => {
     const reviewerId = getUser()?.id || '';
+    setActionError('');
     try {
       await approveCatalogRequest(req.id, reviewerId);
       void reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to approve request');
+      setActionError(e instanceof Error ? e.message : 'Failed to approve request');
     }
   };
 
@@ -201,7 +218,13 @@ function RequestsPageContent() {
       </div>
 
       <div style={css.content}>
-        {error && <div style={css.error}>{error}</div>}
+        {error && (
+          <div role="alert" style={{ ...css.error, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <span>{error}{hasCurrentResults ? ' Showing the last successfully loaded results.' : ''}</span>
+            <button style={css.btn} onClick={() => void reload()}>Retry requests</button>
+          </div>
+        )}
+        {actionError && <div role="alert" style={css.error}>{actionError}</div>}
 
         {/* Toolbar */}
         <div style={css.toolbar}>
@@ -235,7 +258,7 @@ function RequestsPageContent() {
         </div>
 
         <p style={{ fontSize: 12, color: '#5b6b74', margin: '8px 0' }}>
-          Showing {requests.length} request{requests.length !== 1 ? 's' : ''}
+          Showing {hasCurrentResults ? requests.length : '—'} request{hasCurrentResults && requests.length !== 1 ? 's' : 's'}
         </p>
 
         {/* Table */}
@@ -253,10 +276,16 @@ function RequestsPageContent() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loading && !hasCurrentResults ? (
                 <tr>
                   <td colSpan={7} style={{ ...css.td, textAlign: 'center', color: '#5b6b74' }}>
                     Loading requests…
+                  </td>
+                </tr>
+              ) : !hasCurrentResults ? (
+                <tr>
+                  <td colSpan={7} style={{ ...css.td, textAlign: 'center', color: '#5b6b74' }}>
+                    {error ? 'Results are unavailable for the selected filters.' : 'No results loaded for the selected filters.'}
                   </td>
                 </tr>
               ) : requests.length === 0 ? (
@@ -266,7 +295,15 @@ function RequestsPageContent() {
                   </td>
                 </tr>
               ) : (
-                requests.map((r) => (
+                <>
+                  {loading && (
+                    <tr>
+                      <td colSpan={7} style={{ ...css.td, textAlign: 'center', color: '#5b6b74' }}>
+                        Refreshing… showing the last successful results.
+                      </td>
+                    </tr>
+                  )}
+                  {requests.map((r) => (
                   <tr key={r.id}>
                     <td style={css.td}>
                       <span style={css.badge('#e5f2f8', '#1e6178')}>
@@ -341,7 +378,8 @@ function RequestsPageContent() {
                       )}
                     </td>
                   </tr>
-                ))
+                  ))}
+                </>
               )}
             </tbody>
           </table>
@@ -357,7 +395,7 @@ function RequestsPageContent() {
             setRejecting(null);
             void reload();
           }}
-          onError={setError}
+          onError={setActionError}
         />
       )}
     </div>
