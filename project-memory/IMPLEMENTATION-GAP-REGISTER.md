@@ -709,3 +709,13 @@ Source-confirmed gaps closed in implementation: product pull-to-refresh invalida
 - Store Profile refresh now awaits the organization store-directory read and the dependent active-store value before refreshing the current store's warehouse directory. The profile form supports pull-to-refresh and preserves last-successful store details during refresh/reload failure.
 - Warehouse directory failures now have retry and stale-data handling; the successful empty state is shown only after a successful read.
 - Three focused Flutter widget scenarios cover stale store preservation, warehouse retry and initial store lookup recovery. Source commit: `bfb820e`; test commit: `90b2b6b`. Not executed. No store update, warehouse creation, permission, API, database or migration behavior changed.
+
+## UX-093 — Organization and authenticated-session context invalidation — 23 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1 / tenant-context correctness.**
+
+- Organization switching now invalidates the complete organization-scoped client read cache after the new access token is persisted/installed and the active organization is updated. Both the Organizations list and Organization Detail switch flows use the shared invalidation helper.
+- Active-store resolution is explicitly filtered by the selected active organization and returns null if no store belongs to that organization; it never falls back to the first store from another org.
+- New login clears the persisted active organization before saving the new user's token, resets in-memory phone/email/org identity, and invalidates authenticated reads. Logout resets the same identity and authenticated cache set; AuthStorage logout already clears the persisted org id.
+- Focused ProviderContainer tests cover active-store org matching, organization-scoped invalidation while preserving buyer-order cache on org-only switch, and session reset invalidating user-level data. Source commits include `b49424e`, `3f4a6a3`, `1f29e7c`, `cd04739`, `fc1f22a`, `b416041`; test commits `a0f308c` / `d0d0b26`. Not executed.
+- No API/backend authorization, permission, DB, migration, RLS, worker or staging behavior changed.
