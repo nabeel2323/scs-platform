@@ -441,3 +441,21 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - The stock movement-history dialog swallowed read failures and cleared movements, then rendered “No movements recorded yet,” conflating an unavailable history with a successful empty history.
 - Extracted the history read into `apps/web/src/lib/inventory-history.ts`, returning an explicit error alongside movements. The dialog now shows the error and a Retry action; only a successful empty response renders the empty-history message.
 - Added `inventory-history-recovery.test.ts` for success/empty versus failed-read distinction. Not executed. No API, permission, schema or DB change.
+
+## UX-038 — Merchant Inventory variant-directory completeness and retry — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- The variant picker loaded products and their variants in two phases, but each product's variant request used `.catch(() => [])`. A partial API failure therefore appeared as a successful but incomplete variant directory, potentially hiding selectable SKUs.
+- Extracted the paginated read into `apps/web/src/lib/merchant-inventory-variants.ts`. Any product-page or variant request failure now fails the read visibly instead of silently dropping one product's variants.
+- The Inventory dialog clears stale picker data while loading, ignores obsolete requests after store changes/unmount, and offers an explicit Retry variants action. Opening the dialog no longer clears a failed-read state and turns it into a false empty result.
+- Added `merchant-inventory-variants.test.ts` for pagination, a genuine empty product directory, and partial variant-request failure. Tests have not been executed. No API, permission, schema or database behavior changed.
+
+## UX-039 — Merchant Import History store and job read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- Store discovery failures were swallowed, leaving Import History without a retry path and potentially loading indefinitely. A merchant with no store also had no explicit onboarding state.
+- Store discovery now has independent loading/error/retry/no-store states. A successful empty store directory renders an onboarding prompt and does not expose an import action that cannot succeed.
+- Import-job reads now distinguish failed reads from a successful empty history, preserve existing rows during refresh failures, and provide Retry. Polling runs only while a known job is active and avoids overlapping requests; request identity guards prevent stale responses from replacing current state.
+- Added `merchant-import-history-recovery.test.tsx` for store lookup retry, failed job read/retry, and the no-store state. Tests have not been executed. No API, permission, schema or database behavior changed.
