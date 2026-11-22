@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { assertStagingBootstrapTarget } from './scripts/staging-bootstrap-safety';
 import fs from "node:fs";
 import crypto from "node:crypto";
 
@@ -206,6 +207,7 @@ async function main() {
   const client = await pool.connect();
 
   try {
+    await assertStagingBootstrapTarget(client, 'bootstrap-staging-rbac');
     await client.query("BEGIN");
 
     console.log("Creating permissions...");

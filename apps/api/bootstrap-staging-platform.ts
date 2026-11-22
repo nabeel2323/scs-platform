@@ -1,6 +1,7 @@
 import { Client } from 'pg';
 import * as fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { assertStagingBootstrapTarget } from './scripts/staging-bootstrap-safety';
 
 async function main() {
   const connectionString = process.env['DATABASE_URL'];
@@ -27,13 +28,11 @@ async function main() {
   await client.connect();
 
   try {
-    const identity = await client.query(`
-      SELECT current_database(), current_user, version()
-    `);
+    const identity = await assertStagingBootstrapTarget(client, 'bootstrap-staging-platform');
 
     console.log('\n=== TAIF Staging Platform Bootstrap ===');
-    console.log(`Database: ${identity.rows[0].current_database}`);
-    console.log(`User:     ${identity.rows[0].current_user}`);
+    console.log(`Database: ${identity.current_database}`);
+    console.log(`User:     ${identity.current_user}`);
 
     await client.query('BEGIN');
 
