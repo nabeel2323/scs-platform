@@ -369,3 +369,13 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
 - Next: continue the buyer-facing Mobile source audit, especially Search request ordering and stale-result context, then remaining Web/Admin routes. Keep comprehensive testing deferred until implementation/integration completion.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
+
+
+## Latest UX continuation checkpoint — 23 November 2026 (UX-080)
+
+- Implemented Mobile Search correctness: attribute facet selections now serialize to the existing API `attrFilters` query contract; request generations prevent stale query/filter/page responses from replacing current results; explicit Refresh search is available; same-query refresh preserves last successful results; failed different-query reads cannot display previous results as current or show a false no-results state.
+- Added ApiService query serialization coverage and a Flutter widget test for out-of-order search responses. Tests have not been executed and remain pending Phase 3.
+- Source commits: API client `69f1351`, request/facet implementation `c2e6ca8`, error empty-state correction `bce5cb2`, same-query refresh preservation `db83dd0`; tests `8a4bf1f` and `0b8fdfb`. All use `[skip ci]`.
+- PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
+- Next: continue the Mobile UX-010 source audit for remaining buyer discovery and product-detail flows, then re-audit remaining Web/Admin routes. Keep comprehensive testing deferred until implementation/integration completion.
+- No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
