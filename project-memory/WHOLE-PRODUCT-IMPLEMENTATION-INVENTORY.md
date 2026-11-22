@@ -384,3 +384,8 @@ Web's `apps/web/src/app/returns/[id]/page.tsx` displays complete buyer return de
 ## 22 November 2026 — Web buyer self-service recovery (UX-030)
 
 Source audit of the Web buyer account surfaces found that Notifications, Favorites and Saved Suppliers swallowed list-fetch errors and rendered empty states, making network/API failure indistinguishable from a genuinely empty list. Favorite/supplier removal failures were also swallowed. Profile Sessions showed an initial error but no retry and could still display “No active sessions” after a failed fetch. These states are now explicit and retryable. Removal failures remain visible and preserve the affected row. Notification optimistic read rollback now restores the original `readAt` and `status`. Focused tests added; not executed.
+
+
+## 22 November 2026 — UX-031 Merchant Customers read recovery
+
+The Merchant Customers page previously swallowed initial and refresh failures and showed an empty directory as though the read had succeeded. It now surfaces a retryable read error, preserves the last successful rows when a refresh fails, and renders “No customers yet” only after a successful empty response. Focused tests added; not executed.

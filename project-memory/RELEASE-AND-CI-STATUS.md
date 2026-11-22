@@ -3,7 +3,7 @@
 **Checkpoint:** 22 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source implementation commit:** `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` — `fix(web): preserve self-service read failures and retries [skip ci]` (the project-memory sync is a documentation-only child commit).
+**Latest source implementation commit:** `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — `fix(web): recover merchant customer directory reads [skip ci]` (the project-memory sync is a documentation-only child commit).
 **Exact source-SHA checks:** no Actions run is attached to `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` because the implementation commit used `[skip ci]`; Vercel Web and Admin both reported external build-rate-limit failures.  
 **Latest documentation head:** `dd224b4fbcaac11b9bdefefd5196d3ad9af4ea12`; no Actions run is attached. Vercel Admin is PENDING and Web is FAILURE at the external build-rate-limit page. These are preview-provider statuses, not application test results. Focused Web tests have not been executed.
 
@@ -549,3 +549,11 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Notifications, Favorites, Saved Suppliers and Profile Sessions now distinguish failed reads from successful empty results and expose retry. Favorite/supplier remove errors are surfaced without hiding rows. Notification optimistic read rollback restores the pre-action timestamp and status.
 - Focused tests were added but not run. Exact-head Actions lookup returned no run due to `[skip ci]`; Vercel Web/Admin contexts point to external build-rate-limit failures.
 - PR #138 remains open/draft/unmerged. No staging/deployment/database/worker operation.
+
+
+## UX-031 exact source checkpoint — 22 November 2026
+
+- Source commit: `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8`; parent `0ac5142cc8959d973e77a738a8fc3df05cfe4e05`.
+- Merchant Customers no longer converts a failed directory read into “No customers yet”; it shows a retryable error and retains the last successful rows when refresh fails.
+- Focused tests added in `apps/web/src/__tests__/merchant-customer-recovery.test.tsx`; not executed. Exact-head Actions lookup must be checked live; source commit used `[skip ci]`.
+- PR #138 remains open/draft/unmerged. No API/DB/permission/schema/deployment/staging/worker change.

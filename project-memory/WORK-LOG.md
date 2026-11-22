@@ -701,3 +701,11 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Fixed notification optimistic-update rollback to restore the original `readAt` and `status`, not the already-mutated values, and display mutation failure.
 - Added `apps/web/src/__tests__/buyer-self-service-recovery.test.tsx` for all read/retry paths and failed favorite removal. Not executed.
 - Source implementation commit: `b310f4da3ccda31f7a8c815f1d99ed1977329ad6`; exact-head Actions not run due to `[skip ci]`. No API/DB/permission/route change.
+
+
+## 2026-11-22 — UX-031 Web Merchant Customers recovery
+
+- Found `fetchMerchantCustomers` failures silently swallowed in the Merchant Customers page, which then displayed “No customers yet.” Realtime/manual refresh failures were also hidden.
+- Added retryable read-error feedback and retained the last successful customer list when a refresh fails.
+- Added `apps/web/src/__tests__/merchant-customer-recovery.test.tsx` for initial failure/retry and failed-refresh stale-data preservation. Not executed.
+- Source implementation commit: `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8`; `[skip ci]` used to conserve Actions minutes. No API or permission change.

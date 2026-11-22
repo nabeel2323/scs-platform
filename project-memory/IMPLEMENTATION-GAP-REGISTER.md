@@ -374,3 +374,13 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - Implemented explicit retryable read errors on all four pages. A failed read no longer becomes a false empty result. Favorite/supplier remove failures are shown while preserving the row; action buttons show a pending state. Notification mark-read failure restores the original `readAt` and `status` after its optimistic update and surfaces the failure.
 - Added focused tests for read failure/retry across all four pages and failed favorite removal. Tests have not been executed.
 - No API, permission, route, schema, migration or database changes.
+
+
+## UX-031 — Web Merchant Customers read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- Source audit found `apps/web/src/app/merchant/customers/page.tsx` silently swallowed `fetchMerchantCustomers` failures and rendered “No customers yet,” conflating service/network failure with a successful empty customer directory. Manual/realtime refresh failures were equally silent.
+- Added a distinct read-error state with Retry. Failed refreshes preserve the last successful customer rows; only a successful empty response renders the empty-directory state.
+- Added focused tests for initial read failure/retry and stale-data preservation after a failed refresh. Tests have not been executed.
+- No API, permission, route, schema, migration or database change.

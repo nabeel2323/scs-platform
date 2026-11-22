@@ -3,8 +3,9 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` — `fix(web): preserve self-service read failures and retries [skip ci]`  
-**Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The documentation synchronization commit that follows is a child of this source commit.
+**Latest source implementation commit:** `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — `fix(web): recover merchant customer directory reads [skip ci]`  
+**Previous source increment:** `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` — Web buyer self-service recovery (UX-030)  
+**Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commit that follows is documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
 
@@ -18,16 +19,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Live branch head | `dd224b4fbcaac11b9bdefefd5196d3ad9af4ea12` — documentation handoff commit |
-| Latest source implementation | `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` — Web buyer self-service recovery (UX-030) |
-| Latest commit | `docs(project): record UX-030 and refresh handoff [skip ci]` |
-| PR #138 | Open; draft; not merged |
-| PR base | `develop` |
-| Exact-head GitHub Actions | No run for `dd224b4fbcaac11b9bdefefd5196d3ad9af4ea12`; NOT CI-VERIFIED |
-| Exact-head Vercel statuses | Admin PENDING; Web FAILURE (external build-rate-limit page); not application test results |
-| Source-SHA Vercel statuses | On `b310f4da3ccda31f7a8c815f1d99ed1977329ad6`, Web and Admin both reported external build-rate-limit FAILURE |
-| Focused UX-030 tests | Added; not executed |
-| Historical CI evidence | PR #138 #44954371615 on `741a09f...` and PR #142 #44953735602 on `dddff20c...`; not transferable to current head |
+| Latest source implementation | `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — UX-031 Merchant Customers read recovery |
+| Previous source implementation | `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` — UX-030 buyer self-service recovery |
+| Latest documentation head before this checkpoint update | `0ac5142cc8959d973e77a738a8fc3df05cfe4e05` |
+| PR #138 | Open; draft; not merged; base `develop` |
+| Exact-head GitHub Actions | No run for latest source SHA; NOT CI-VERIFIED |
+| Focused Web tests | Added for UX-030/031; not executed |
+| Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
 ## Current remediation status
 
@@ -506,3 +504,14 @@ UX-030 is implemented in source commit `b310f4da3ccda31f7a8c815f1d99ed1977329ad6
 - Current source SHA `b310f4da3ccda31f7a8c815f1d99ed1977329ad6`; exact-SHA Actions lookup returned no workflow runs. Vercel Web/Admin statuses both point to external build-rate-limit failure.
 - Next: continue the remaining UX-010 Web/Merchant route-to-contract/permission audit and integration mapping. UX-007 support ticket and UX-008 nearby geospatial behavior remain blocked on explicit product/privacy decisions.
 - No merge, deployment, staging, DB, migration, grant/RLS or worker activation.
+
+
+## Latest implementation checkpoint — UX-031 — 22 November 2026
+
+UX-031 is implemented in source commit `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8`: the Web Merchant Customers directory now distinguishes a failed read from a genuinely empty customer list, exposes a retry action, and preserves the last successful customer rows when a realtime/manual refresh fails. A focused Web regression test covers initial read failure/retry and failed refresh with stale-data preservation. Tests have not been executed.
+
+- The affected surface is `apps/web/src/app/merchant/customers/page.tsx`. Initial and subsequent reads now clear/set a distinct load error; a failed fetch no longer becomes “No customers yet.”
+- The page exposes Retry and preserves the last successful directory contents when a realtime/manual refresh fails.
+- Added `apps/web/src/__tests__/merchant-customer-recovery.test.tsx` for initial failure/retry and stale-data preservation. Not executed.
+- No API, permission, route, schema, migration, DB, staging or worker change.
+- Next: continue the UX-010 Web/Merchant audit, prioritizing route-level permission affordances and other read/action recovery gaps.

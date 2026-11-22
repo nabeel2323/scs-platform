@@ -1462,3 +1462,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Notification mark-read/unread failure rolls back to the exact pre-action `readAt` and `status`, and shows an action error.
 - Added `apps/web/src/__tests__/buyer-self-service-recovery.test.tsx` covering all four read/retry paths and a failed favorite removal. Not executed; full test campaign remains Phase 3.
 - No API/schema/DB/permission/route/migration change.
+
+
+## UX-031 — Web Merchant Customers read recovery — 22 November 2026
+
+- Source commit `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` corrects the Merchant Customers page's silent read failure: failed initial reads no longer render a false empty directory; a Retry action is available.
+- Failed realtime/manual refresh preserves the last successfully loaded customer rows while surfacing the error.
+- Added `apps/web/src/__tests__/merchant-customer-recovery.test.tsx` for initial failure/retry and stale-data preservation. Not executed; comprehensive testing remains Phase 3.
+- No API, schema, DB, permission, route or migration change.

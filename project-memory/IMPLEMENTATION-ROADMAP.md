@@ -330,3 +330,9 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Added retryable read-failure handling to Notifications, Favorites, Saved Suppliers and Profile Sessions.
 - Prevented failed list reads from being presented as successful empty states. Surfaced failed favorite/supplier removals and preserved affected rows. Corrected notification optimistic rollback to restore the original state.
 - Added focused Web tests; not executed. Continue remaining UX-010 Web/Merchant route-to-contract and permission audit.
+
+
+## 2026-11-22 — UX-031 Merchant Customers recovery
+
+- Merchant Customers now distinguishes failed reads from a successful empty list, provides Retry, and preserves the last successful list after a failed manual/realtime refresh.
+- Focused tests added but not executed. Continue UX-010 Web/Merchant audit; comprehensive tests remain Phase 3.
