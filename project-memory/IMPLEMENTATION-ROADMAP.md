@@ -51,15 +51,6 @@ Continue evidence gathering and design only within authorized boundaries:
 Do not make shared database changes as part of this work without explicit approval. G-002 remains IN PROGRESS until the evidence and design gates are satisfied.
 
 ### 3. Continue remaining findings and phases
-### 4. UX-094 / UX-095 — client permission and organization-context alignment
-
-- UX-094 Mobile merchant category permission/contract alignment is implemented; merchant-owned category CRUD remains blocked until the backend ownership contract is decided.
-- UX-095 Web merchant route/action permission alignment is implemented: direct route guards, permission-filtered navigation/dashboard, operation-specific action controls, and workspace remount/stale-response protection on active organization or permission changes.
-- G-036 server-side realtime room authorization is implemented in source with focused API gateway tests added. Store/order rooms now require tenant ownership, buyer ownership, driver assignment or platform-staff read permission as appropriate.
-- These focused tests have not been executed; exact-head CI and independent review remain pending.
-
-**Next implementation task:** complete the Mobile route-permission and organization-context transition audit, then finish remaining Admin route/action permission mapping. Keep the comprehensive test campaign in Phase 3.
-
 
 Use the authoritative finding register to sequence G-007, G-010, G-012–G-015, G-018, G-020–G-022 and any other open/partial items. Do not silently change a finding status or product scope. Phase 6 remains unstarted until its entry criteria are met.
 
@@ -464,3 +455,12 @@ Completed the Admin attribute directory recovery slice. Attribute Groups and Att
 - Focused route/helper tests were added in `mobile/test/route_permissions_test.dart`; not executed. Commits: `6741baf6f7d47c12ddc79d3ca1f4bbd3f110a39f`, `6f0659299c39952b0c8190a4a8dd520ccd3e3db9`, `bb2e4650534bae0b30bf112500db184c227ccba8`, `7b293273f4aba14429ed226932123678a0892c55`, route-matrix test `76b9b15dc1db37c67841d405b4a232f4731fc986`, and explanatory source comment `bd672f0b93de31d6bc669bb7785eeb70a345c302`.
 - Client alignment is IMPLEMENTED / TESTING_PENDING. Actual merchant-owned category CRUD remains BLOCKED pending a product/API ownership decision: either implement store-scoped category ownership and membership authorization, or move category mutation to a dedicated platform-admin surface. Do not expose write controls until that decision and backend contract exist.
 - No API, RBAC seed, role grant, schema, database, migration, RLS, worker, staging or deployment behavior changed.
+
+### 4. UX-094 / UX-095 — client permission and organization-context alignment
+
+- UX-094 Mobile merchant category permission/contract alignment is implemented; merchant-owned category CRUD remains blocked until the backend ownership contract is decided.
+- UX-095 Web merchant route/action permission alignment is implemented: direct route guards, permission-filtered navigation/dashboard, operation-specific action controls, and workspace remount/stale-response protection on active organization or permission changes.
+- G-036 server-side realtime room authorization is implemented in source with focused API gateway tests added. Store/order rooms now require tenant ownership, buyer ownership, driver assignment or platform-staff read permission as appropriate.
+- These focused tests have not been executed; exact-head CI and independent review remain pending.
+
+**Next implementation task:** complete the Mobile route-permission and organization-context transition audit, then finish remaining Admin route/action permission mapping. Keep the comprehensive test campaign in Phase 3.
