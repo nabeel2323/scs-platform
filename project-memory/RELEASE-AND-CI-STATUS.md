@@ -771,3 +771,11 @@ The first complete workflow on the earlier source/documentation checkpoint expos
 - Corrected Merchant Dashboard widget nesting, Store Detail trailing brace, Order Detail nullable return/currency handling, and Offer Detail router import.
 - Replaced unsupported test finders and consumed awaited Riverpod refresh results to clear `unused_result` analyzer warnings.
 - Exact validation is intentionally pending the next full workflow; do not mark these fixes verified until the resulting jobs complete.
+
+## Second CI remediation checkpoint — 23 November 2026
+
+The prior validation run reached both lint and Flutter analysis and identified:
+- One remaining Flutter nullability error in the order-return detail callback (corrected by preserving the non-null assertion inside the callback).
+- Six ESLint `no-unsafe-function-type` errors in three API permission test files (replaced broad `Function` annotations with explicit callable handler types and `unknown[]` metadata arrays).
+
+The rest of the earlier Flutter compile errors and Admin JSX parse error were corrected in the preceding commits. The next full workflow is required to verify this state; no pass is claimed until it completes.
