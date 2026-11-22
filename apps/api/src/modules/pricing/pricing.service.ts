@@ -152,18 +152,8 @@ export class PricingService {
   }
 
   async listTiersByVariant(variantId: string, priceListId?: string, storeId?: string) {
-    if (priceListId) {
-      return this.db.db.query.priceTiers.findMany({
-        where: and(
-          eq(priceTiers.variantId, variantId),
-          eq(priceTiers.priceListId, priceListId),
-        ),
-        orderBy: [priceTiers.minQty],
-      });
-    }
-
     if (!storeId) {
-      throw new BadRequestException('storeId is required when listing variant tiers across price lists');
+      throw new BadRequestException('storeId is required when listing variant pricing tiers');
     }
 
     return this.db.db
@@ -180,6 +170,7 @@ export class PricingService {
       .where(and(
         eq(priceTiers.variantId, variantId),
         eq(priceLists.storeId, storeId),
+        ...(priceListId ? [eq(priceTiers.priceListId, priceListId)] : []),
       ))
       .orderBy(desc(priceLists.priority), asc(priceTiers.minQty));
   }

@@ -5,9 +5,10 @@ import { PricingService } from '../../../modules/pricing/pricing.service';
 import { priceLists } from '../../../modules/pricing/pricing.schema';
 
 describe('PricingService variant tier store scope', () => {
-  it('requires a store scope when listing tiers across price lists', async () => {
+  it('requires a store scope for every variant-tier query, including a specific list', async () => {
     const service = new PricingService({ db: {} } as any, {} as any);
     await expect(service.listTiersByVariant('variant-a')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.listTiersByVariant('variant-a', 'list-a')).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('filters cross-list variant tiers to the owning store', async () => {
