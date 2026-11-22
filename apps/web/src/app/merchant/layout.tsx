@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { isAuthenticated, isMerchantRole } from '../../lib/auth';
@@ -75,7 +75,7 @@ export default function MerchantLayout({ children }: { children: React.ReactNode
   );
 
   return (
-    <>
+    <Fragment key={accessScopeKey}>
       {!isOpenPath && (
         <nav style={{
           background: colors.surface,
@@ -114,6 +114,6 @@ export default function MerchantLayout({ children }: { children: React.ReactNode
         </nav>
       )}
       {children}
-    </>
+    </Fragment>
   );
 }
