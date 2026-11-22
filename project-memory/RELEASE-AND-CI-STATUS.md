@@ -714,3 +714,12 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Combined status contexts at this SHA: Vercel Admin PENDING; Vercel Web FAILURE with the provider's build-rate-limit destination. These are preview-provider statuses, not application test results.
 - Focused Flutter tests for UX-087 and UX-088 are added but not executed. The consolidated Phase 3 test campaign remains NOT STARTED.
 - No merge, deployment, staging release, staging write, shared database change, migration, grant/default-ACL change, RLS enablement, worker activation or provider operation occurred.
+
+## Exact-head status — 23 November 2026 (Mobile UX-090)
+
+- PR #138 remains OPEN / DRAFT / UNMERGED against `develop`.
+- Latest implementation/test checkpoint: `3f3b0f6b4d610b24242c44fc75006c509bc7abd7` (`test(mobile): cover merchant customer read recovery [skip ci]`).
+- GitHub Actions workflow lookup returned no run for this exact SHA. Implementation/test commits deliberately use `[skip ci]`; no tests or CI pass are claimed.
+- Combined status contexts: Vercel Admin FAILURE and Vercel Web FAILURE, both targeting the external provider build-rate-limit page. These are preview-provider statuses, not application test results.
+- Focused Flutter tests for UX-087–UX-090 are added but not executed. The consolidated Phase 3 campaign remains NOT STARTED.
+- No merge, deployment, staging release/write, shared database change, migration, grant/default-ACL change, RLS enablement, worker activation or provider operation occurred.
