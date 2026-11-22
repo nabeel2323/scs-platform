@@ -516,3 +516,9 @@ Mobile Pricing list/detail and Merchant Customers read-recovery work is implemen
 The Merchant Orders queue now awaits active-store/order refresh, supports pull-to-refresh, preserves the last successful queue during refresh/reload failures and keeps a successful empty order history refreshable. Existing order action permission checks, confirmation steps, idempotency and fulfillment behavior are unchanged. Three focused Flutter widget scenarios were added but have not been executed; UX-091 remains TESTING_PENDING for Phase 3. No API, order transition, stock reservation, fulfillment, database or migration behavior changed.
 
 **Next implementation:** continue the source-first audit of Mobile Store Profile and remaining merchant route transitions, then complete the outstanding Web/Admin route and action permission mapping. Do not reopen UX-078–UX-091 without new source evidence.
+
+## UX-092 — Mobile Merchant Store Profile and warehouse recovery — 23 November 2026
+
+Mobile Store Profile now awaits its store-directory/active-store/warehouse refresh chain, supports pull-to-refresh, preserves last-successful store details during refresh failures and provides independent warehouse retry/stale-data handling. Three focused Flutter widget scenarios were added but have not been executed; UX-092 remains TESTING_PENDING for Phase 3. Store update and warehouse creation behavior, permissions and API contracts are unchanged.
+
+**Next implementation:** finish the remaining Mobile merchant route-transition/source audit, then complete the outstanding Web/Admin route and action permission mapping. Do not reopen UX-078–UX-092 without new source evidence.
