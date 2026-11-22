@@ -621,3 +621,8 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 ## UX-078 — Mobile Buyer Store read recovery — 23 November 2026
 
 Source-confirmed gap closed in implementation: buyer Store Directory lacked stale-data-safe refresh and Store Detail used a FutureBuilder without retry/refresh. Both now preserve last successful data, expose retry and explicit refresh/pull-to-refresh, and distinguish initial read failure from successful empty results. The Store Detail provider retains the ACTIVE-only buyer catalogue contract. Focused Flutter tests are added but remain TESTING_PENDING. No API, permission, database, migration, staging or provider behavior changed.
+
+
+## UX-079 — Mobile Buyer Order History recovery — 23 November 2026
+
+Source-confirmed gap closed in implementation: buyer order history did not preserve the previous list during refresh, pull-to-refresh did not await the provider, and refresh failure was not distinguished from current results. The screen now retains last-successful data, preserves the selected filter, exposes retry and refresh, and keeps initial failure separate from a successful empty history. Focused Flutter tests are added but remain TESTING_PENDING. No order/payment/fulfillment/API/database behavior changed.
