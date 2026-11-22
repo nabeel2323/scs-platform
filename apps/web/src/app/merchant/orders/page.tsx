@@ -118,6 +118,8 @@ export default function MerchantOrdersPage() {
   const [dateTo, setDateTo] = useState('');
 
   const load = async (sid: string) => {
+    setLoading(true);
+    setError('');
     try {
       const data = await fetchOrders({ storeId: sid });
       setOrders(data as SubOrder[]);
@@ -170,6 +172,8 @@ export default function MerchantOrdersPage() {
 
   const retryLoad = () => storeId ? load(storeId) : loadStoresAndOrders();
 
+  // The initial store resolution is intentionally retried through the same
+  // entry point; API authorization remains responsible for store ownership.
   useEffect(() => {
     // Buyer labels resolve best-effort: a directory failure only degrades
     // rows to "Buyer {id}" — it must not break the orders load.
