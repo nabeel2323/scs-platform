@@ -1639,3 +1639,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Added a retry action for performance analytics and for trend failures; successful empty responses still render the legitimate no-sales state.
 - Added `merchant_offer_detail_analytics_test.dart` to verify unavailable analytics are not rendered as zero-sales data and the retry action is visible.
 - No offer, pricing, analytics API, permission, schema, migration, database, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-068 — Mobile Merchant Orders stale-read recovery — 22 November 2026
+
+- Merchant Orders now retains the last successful list while a manual refresh is in progress and after a refresh fails, instead of replacing the entire queue with a spinner/error empty state.
+- A failed refresh displays a clear retry banner and identifies the visible list as the last successful result. An initial failure still uses the existing error/retry state and cannot become a false successful empty state.
+- Added `merchant_orders_read_recovery_test.dart` for stale-list preservation and initial failure/retry.
+- No merchant order transitions, permissions, API calls, inventory reservation, fulfillment or other business behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.

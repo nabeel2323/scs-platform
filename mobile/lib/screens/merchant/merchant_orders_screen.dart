@@ -278,6 +278,8 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
               onPressed: () => ref.invalidate(merchantOrdersProvider)),
         ]),
         body: orders.when(
+          skipLoadingOnRefresh: true,
+          skipError: true,
           data: (list) {
             final pending = list
                 .where((o) =>
@@ -297,25 +299,63 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
                 .where((o) =>
                     ['COMPLETED', 'CANCELLED', 'REJECTED'].contains(o.status))
                 .toList();
-            if (list.isEmpty) {
-              return const EmptyState(
-                  title: 'No orders',
-                  description: 'Orders from buyers will appear here',
-                  icon: Icons.receipt_long_outlined);
-            }
-            return ListView(children: [
-              if (pending.isNotEmpty) ...[
-                _section('Pending (${pending.length})', TaifTokens.warn),
-                ...pending.map((order) => _pendingCard(order, canWrite))
-              ],
-              if (active.isNotEmpty) ...[
-                _section('Active (${active.length})', TaifTokens.info),
-                ...active.map((order) => _activeCard(order, canWrite))
-              ],
-              if (done.isNotEmpty) ...[
-                _section('Completed (${done.length})', TaifTokens.muted),
-                ...done.map(_doneCard)
-              ],
+            final content = list.isEmpty
+                ? const EmptyState(
+                    title: 'No orders',
+                    description: 'Orders from buyers will appear here',
+                    icon: Icons.receipt_long_outlined)
+                : ListView(children: [
+                    if (pending.isNotEmpty) ...[
+                      _section('Pending (${pending.length})', TaifTokens.warn),
+                      ...pending.map((order) => _pendingCard(order, canWrite))
+                    ],
+                    if (active.isNotEmpty) ...[
+                      _section('Active (${active.length})', TaifTokens.info),
+                      ...active.map((order) => _activeCard(order, canWrite))
+                    ],
+                    if (done.isNotEmpty) ...[
+                      _section('Completed (${done.length})', TaifTokens.muted),
+                      ...done.map(_doneCard)
+                    ],
+                  ]);
+
+            if (!orders.isRefreshing && !orders.hasError) return content;
+            return Column(children: [
+              if (orders.isRefreshing)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(children: [
+                    SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                    SizedBox(width: 8),
+                    Text('Refreshing orders… showing the last successful results.',
+                        style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+                  ]),
+                ),
+              if (orders.hasError)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: TaifTokens.err.withValues(alpha: 0.06),
+                      border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+                      borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+                    ),
+                    child: Row(children: [
+                      Expanded(
+                        child: Text(
+                          'Could not refresh orders: ${ApiService.errorMessage(orders.error!)}. Showing the last successfully loaded results.',
+                          style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => ref.invalidate(merchantOrdersProvider),
+                        child: const Text('Retry'),
+                      ),
+                    ]),
+                  ),
+                ),
+              Expanded(child: content),
             ]);
           },
           loading: () => const LoadingSpinner(),
