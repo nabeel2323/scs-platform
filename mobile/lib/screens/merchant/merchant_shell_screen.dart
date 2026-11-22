@@ -73,7 +73,7 @@ class _MerchantShellScreenState extends ConsumerState<MerchantShellScreen> {
     final selectedTab = tabs.contains(_selectedTab) ? _selectedTab : tabs.first;
     final selectedIndex = tabs.indexOf(selectedTab);
     final permissionKey = (profile.perms.toList()..sort()).join(',');
-    final scopeKey = '${activeOrgId ?? 'none'}:$permissionKey';
+    final scopeKey = '${activeOrgId ?? 'none'}:${profile.role ?? 'none'}:$permissionKey';
     return Scaffold(
       body: KeyedSubtree(
         key: ValueKey(scopeKey),
