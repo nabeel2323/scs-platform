@@ -100,7 +100,7 @@ function VariantDetailContent({ id }: { id: string }) {
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied.</div>;
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error && !variant) return <AdminErrorState title="Unable to load variant" message={error} />;
+  if (error && !variant) return <AdminErrorState title="Unable to load variant" message={error} onRetry={loadVariant} />;
   if (!variant) return null;
 
   const productId = variant['productId'] as string;

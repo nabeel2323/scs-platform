@@ -6,7 +6,7 @@
  * Route: /catalog-import/[id]
  * Shows pipeline progress, summary counts, and error details.
  */
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { adminRequest, type AdminRecord } from '../../../lib/api';
 import { useRequirePerms } from '../../../hooks/useRequirePerms';
@@ -43,28 +43,62 @@ function ImportJobDetailContent({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
+  const [errorsLoading, setErrorsLoading] = useState(false);
+  const [errorsError, setErrorsError] = useState('');
+  const requestVersion = useRef(0);
+  const errorsRequestVersion = useRef(0);
 
   useEffect(() => setReady(true), []);
-  useEffect(() => {
+
+  const load = useCallback(async () => {
     if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
-    adminRequest<AdminRecord>(`admin/catalog-imports/${encodeURIComponent(id)}`)
-      .then(data => { setJob(data); setLoading(false); })
-      .catch(err => { setError(err instanceof Error ? err.message : 'Failed to load import job'); setLoading(false); });
+    setError('');
+    try {
+      const data = await adminRequest<AdminRecord>(`admin/catalog-imports/${encodeURIComponent(id)}`);
+      if (requestId === requestVersion.current) setJob(data);
+    } catch (err) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load import job');
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
   }, [id, ready, hasAccess]);
 
-  // Load errors when errors tab is active
   useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
+
+  const loadErrors = useCallback(async () => {
     if (activeTab !== 'errors' || !ready || !hasAccess || !job) return;
-    adminRequest<AdminRecord[]>(`admin/catalog-imports/${encodeURIComponent(id)}/errors`)
-      .then(data => setErrors(Array.isArray(data) ? data : []))
-      .catch(() => { /* errors tab is optional */ });
+    const requestId = ++errorsRequestVersion.current;
+    setErrorsLoading(true);
+    setErrorsError('');
+    setErrors([]);
+    try {
+      const data = await adminRequest<AdminRecord[]>(`admin/catalog-imports/${encodeURIComponent(id)}/errors`);
+      if (requestId === errorsRequestVersion.current) setErrors(Array.isArray(data) ? data : []);
+    } catch (err) {
+      if (requestId === errorsRequestVersion.current) {
+        setErrorsError(err instanceof Error ? err.message : 'Failed to load import errors');
+      }
+    } finally {
+      if (requestId === errorsRequestVersion.current) setErrorsLoading(false);
+    }
   }, [activeTab, id, ready, hasAccess, job]);
+
+  useEffect(() => {
+    void loadErrors();
+    return () => { errorsRequestVersion.current += 1; };
+  }, [loadErrors]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: catalog:imports:manage</div>;
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error) return <AdminErrorState title="Unable to load import job" message={error} />;
+  if (error) return <AdminErrorState title="Unable to load import job" message={error} onRetry={load} />;
   if (!job) return null;
 
   const status = String(job['status'] || '');
@@ -182,7 +216,11 @@ function ImportJobDetailContent({ id }: { id: string }) {
 
         {activeTab === 'errors' && (
           <AdminDetailSection title={`Import Errors (${errors.length})`}>
-            {errors.length > 0 ? (
+            {errorsLoading ? (
+              <AdminLoadingSkeleton kvRows={4} />
+            ) : errorsError ? (
+              <AdminErrorState title="Unable to load import errors" message={errorsError} onRetry={loadErrors} />
+            ) : errors.length > 0 ? (
               <AdminRelatedTable columns={errorColumns} data={errors} />
             ) : (
               <AdminEmptyState title="No errors" description="This import job has no recorded errors." />

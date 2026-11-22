@@ -17,6 +17,8 @@ import ProductDetails, { ProductModerationActions } from '../components/ProductD
 import UsersPage from '../app/users/page';
 import DisputeDetailPage from '../app/disputes/[id]/page';
 import AdminReturnsPage from '../app/returns/page';
+import ImportJobDetailPage from '../app/catalog-import/[id]/page';
+import OrderDetailPage from '../app/orders/[id]/page';
 import UserDetailPage from '../app/users/[id]/page';
 import MerchantDetailPage from '../app/merchants/[id]/page';
 import OrganizationDetailPage from '../app/organizations/[id]/page';
@@ -32,6 +34,11 @@ import {
   fetchAdminUserDetail,
   fetchPermissions,
   fetchAdminOrganizationDetail,
+  fetchAdminOrderDetail,
+  fetchCategoryContents,
+  fetchRoleDetail,
+  fetchProductTypeSchema,
+  fetchAttributes,
   moderateAdminProduct,
   fetchAdminPayments,
   fetchPaymentVerificationQueue,
@@ -59,6 +66,11 @@ vi.mock('../lib/api', () => ({
   fetchAdminUserDetail: vi.fn(),
   fetchPermissions: vi.fn(),
   fetchAdminOrganizationDetail: vi.fn(),
+  fetchAdminOrderDetail: vi.fn(),
+  fetchCategoryContents: vi.fn(),
+  fetchRoleDetail: vi.fn(),
+  fetchProductTypeSchema: vi.fn(),
+  fetchAttributes: vi.fn(),
   moderateAdminProduct: vi.fn(),
   fetchAdminPayments: vi.fn(),
   fetchPaymentVerificationQueue: vi.fn(),
@@ -111,6 +123,64 @@ afterEach(() => {
 });
 
 
+
+
+describe('Admin detail read retry coverage', () => {
+  it('retries an attribute detail read after a temporary failure', async () => {
+    vi.mocked(adminRequest)
+      .mockRejectedValueOnce(new Error('Attribute read unavailable'))
+      .mockResolvedValueOnce({
+        id: 'dispute-1',
+        name: 'Screen size',
+        type: 'NUMERIC',
+        scope: 'PRODUCT',
+      });
+    render(<AttributeDetailPage />);
+    expect(await screen.findByText('Attribute read unavailable')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText('Screen size');
+    expect(adminRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries an order detail read after a temporary failure', async () => {
+    vi.mocked(fetchAdminOrderDetail)
+      .mockRejectedValueOnce(new Error('Order read unavailable'))
+      .mockResolvedValueOnce({
+        id: 'dispute-1',
+        orderNumber: 'ORD-1001',
+        status: 'PENDING_CONFIRMATION',
+        currency: 'SAR',
+        subtotalMinor: 1000,
+        totalMinor: 1000,
+        items: [],
+        history: [],
+      } as never);
+    render(<OrderDetailPage />);
+    expect(await screen.findByText('Order read unavailable')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText(/ORD-1001/);
+    expect(fetchAdminOrderDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not present an import error read failure as an empty error list', async () => {
+    vi.mocked(adminRequest)
+      .mockResolvedValueOnce({
+        id: 'dispute-1',
+        status: 'COMPLETED',
+        fileName: 'catalog.csv',
+        errorCount: 0,
+      })
+      .mockRejectedValueOnce(new Error('Import errors unavailable'))
+      .mockResolvedValueOnce([]);
+    render(<ImportJobDetailPage />);
+    await screen.findByText('catalog.csv');
+    fireEvent.click(screen.getByRole('tab', { name: /Errors/ }));
+    expect(await screen.findByText('Import errors unavailable')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText('This import job has no recorded errors.');
+    expect(adminRequest).toHaveBeenCalledTimes(3);
+  });
+});
 
 describe('Admin identity and organization detail read recovery', () => {
   it('retries a failed user detail read without losing the permission catalogue', async () => {

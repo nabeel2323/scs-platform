@@ -7,7 +7,7 @@
  * Shows commercial information, inventory, merchant, and canonical product.
  * Reinforces the marketplace hierarchy: Product → Variant → Merchant Offer.
  */
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { adminRequest, type AdminRecord } from '../../../lib/api';
@@ -37,31 +37,63 @@ function OfferDetailContent({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('commercial');
+  const [inventoryError, setInventoryError] = useState('');
+  const requestVersion = useRef(0);
+  const inventoryRequestVersion = useRef(0);
 
   const variantId = (offer?.['variantId'] as string | null) ?? null;
 
   useEffect(() => setReady(true), []);
-  useEffect(() => {
+
+  const load = useCallback(async () => {
     if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
-    adminRequest<AdminRecord>(`offers/${encodeURIComponent(id)}`)
-      .then(data => { setOffer(data); setLoading(false); })
-      .catch(err => { setError(err instanceof Error ? err.message : 'Failed to load offer'); setLoading(false); });
+    setError('');
+    try {
+      const data = await adminRequest<AdminRecord>(`offers/${encodeURIComponent(id)}`);
+      if (requestId === requestVersion.current) setOffer(data);
+    } catch (err) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load offer');
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
   }, [id, ready, hasAccess]);
 
-  // Load inventory data when the tab is activated
   useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
+
+  const loadInventory = useCallback(async () => {
     if (activeTab !== 'inventory' || !variantId) return;
+    const requestId = ++inventoryRequestVersion.current;
     setInvLoading(true);
-    adminRequest<AdminRecord>(`inventory/variant/${encodeURIComponent(variantId)}`)
-      .then(data => { setInventory(data); setInvLoading(false); })
-      .catch(() => { setInventory(null); setInvLoading(false); });
+    setInventoryError('');
+    try {
+      const data = await adminRequest<AdminRecord>(`inventory/variant/${encodeURIComponent(variantId)}`);
+      if (requestId === inventoryRequestVersion.current) setInventory(data);
+    } catch (err) {
+      if (requestId === inventoryRequestVersion.current) {
+        setInventoryError(err instanceof Error ? err.message : 'Failed to load inventory');
+        setInventory(null);
+      }
+    } finally {
+      if (requestId === inventoryRequestVersion.current) setInvLoading(false);
+    }
   }, [activeTab, variantId]);
+
+  useEffect(() => {
+    void loadInventory();
+    return () => { inventoryRequestVersion.current += 1; };
+  }, [loadInventory]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={8} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: catalog:offers:govern</div>;
   if (loading) return <AdminLoadingSkeleton kvRows={8} />;
-  if (error) return <AdminErrorState title="Unable to load offer" message={error} />;
+  if (error) return <AdminErrorState title="Unable to load offer" message={error} onRetry={load} />;
   if (!offer) return null;
 
   const status = String(offer['status'] || '');

@@ -6,7 +6,7 @@
  * Route: /orders/[id]
  * Shows order summary, items, financials, and status history.
  */
-import { Suspense, useEffect, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { cancelAdminOrder, fetchAdminOrderDetail, type AdminOrderDetail } from '../../../lib/api';
 import { useRequirePerms } from '../../../hooks/useRequirePerms';
@@ -67,21 +67,31 @@ function OrderDetailContent({ id }: { id: string }) {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
+  const requestVersion = useRef(0);
 
   useEffect(() => setReady(true), []);
-  useEffect(() => {
+
+  const load = useCallback(async () => {
     if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
-    fetchAdminOrderDetail(id)
-      .then((data) => {
-        setOrder(data);
-        setLoading(false);
-      })
-      .catch((err) => {
+    setError('');
+    try {
+      const data = await fetchAdminOrderDetail(id);
+      if (requestId === requestVersion.current) setOrder(data);
+    } catch (err) {
+      if (requestId === requestVersion.current) {
         setError(err instanceof Error ? err.message : 'Failed to load order');
-        setLoading(false);
-      });
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
   }, [id, ready, hasAccess]);
+
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   const handleCancel = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -119,7 +129,7 @@ function OrderDetailContent({ id }: { id: string }) {
       </div>
     );
   if (loading) return <AdminLoadingSkeleton kvRows={8} />;
-  if (error) return <AdminErrorState title="Unable to load order" message={error} />;
+  if (error) return <AdminErrorState title="Unable to load order" message={error} onRetry={load} />;
   if (!order) return null;
 
   const currency = order.currency;

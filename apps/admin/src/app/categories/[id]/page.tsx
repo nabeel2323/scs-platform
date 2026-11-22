@@ -14,7 +14,7 @@
  * Task §4 / §6 / §21: the UI must show what products, product types and
  * attributes actually live in a Category, not just its metadata.
  */
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { adminRequest, type AdminRecord } from '../../../lib/api';
@@ -75,29 +75,39 @@ function CategoryDetailContent({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
+  const requestVersion = useRef(0);
 
   useEffect(() => setReady(true), []);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
     setError('');
-    Promise.all([
-      fetchCategoryContents(id),
-      adminRequest<{ data: AdminRecord[]; total: number }>(
-        `admin/categories?parentId=${encodeURIComponent(id)}&limit=50&sortBy=name&sortDir=asc`,
-      ),
-    ])
-      .then(([cat, childRes]) => {
+    try {
+      const [cat, childRes] = await Promise.all([
+        fetchCategoryContents(id),
+        adminRequest<{ data: AdminRecord[]; total: number }>(
+          `admin/categories?parentId=${encodeURIComponent(id)}&limit=50&sortBy=name&sortDir=asc`,
+        ),
+      ]);
+      if (requestId === requestVersion.current) {
         setCategory(cat);
         setChildren(childRes?.data || []);
-        setLoading(false);
-      })
-      .catch(err => {
+      }
+    } catch (err) {
+      if (requestId === requestVersion.current) {
         setError(err instanceof Error ? err.message : 'Failed to load category');
-        setLoading(false);
-      });
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
   }, [id, ready, hasAccess]);
+
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   // Product Types tab uses the admin endpoint that returns DRAFT rows too,
   // so admins can see un-published types linked to this category (task §21).
@@ -173,7 +183,7 @@ function CategoryDetailContent({ id }: { id: string }) {
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: catalog:categories:write (missing: {missingPerms?.join(', ')})</div>;
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error) return <AdminErrorState title="Unable to load category" message={error} />;
+  if (error) return <AdminErrorState title="Unable to load category" message={error} onRetry={load} />;
   if (!category) return null;
 
   const tabs = [

@@ -6,7 +6,7 @@
  * Route: /attributes/[id]
  * Shows attribute definition, type-specific validation, and allowed options.
  */
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { adminRequest, type AdminRecord } from '../../../lib/api';
 import { useRequirePerms } from '../../../hooks/useRequirePerms';
@@ -29,26 +29,36 @@ function AttributeDetailContent({ id }: { id: string }) {
   const [attr, setAttr] = useState<AdminRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const requestVersion = useRef(0);
 
   useEffect(() => setReady(true), []);
-  useEffect(() => {
+
+  const load = useCallback(async () => {
     if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
-    adminRequest<AdminRecord>(`attributes/${encodeURIComponent(id)}`)
-      .then((data) => {
-        setAttr(data);
-        setLoading(false);
-      })
-      .catch((err) => {
+    setError('');
+    try {
+      const data = await adminRequest<AdminRecord>(`attributes/${encodeURIComponent(id)}`);
+      if (requestId === requestVersion.current) setAttr(data);
+    } catch (err) {
+      if (requestId === requestVersion.current) {
         setError(err instanceof Error ? err.message : 'Failed to load attribute');
-        setLoading(false);
-      });
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
   }, [id, ready, hasAccess]);
+
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied.</div>;
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error) return <AdminErrorState title="Unable to load attribute" message={error} />;
+  if (error) return <AdminErrorState title="Unable to load attribute" message={error} onRetry={load} />;
   if (!attr) return null;
 
   const attrType = String(attr['type'] || 'TEXT').toUpperCase();

@@ -6,7 +6,7 @@
  * Requires admin:users:read to view, admin:roles:write to edit permissions.
  */
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { fetchRoleDetail, updateRolePermissions, type RoleDetail } from '@/lib/api';
 import { useRequirePerms } from '@/hooks/useRequirePerms';
@@ -19,26 +19,47 @@ function RoleDetailContent({ id }: { id: string }) {
   const [role, setRole] = useState<RoleDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const requestVersion = useRef(0);
   const [saving, setSaving] = useState(false);
   const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
 
   useEffect(() => setReady(true), []);
-  useEffect(() => {
+
+  const load = useCallback(async () => {
     if (!ready || !canRead) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
-    fetchRoleDetail(id)
-      .then(data => { setRole(data); setSelectedPerms(data.permissions); setLoading(false); })
-      .catch(err => { setError(err instanceof Error ? err.message : 'Failed to load role'); setLoading(false); });
+    setError('');
+    try {
+      const data = await fetchRoleDetail(id);
+      if (requestId === requestVersion.current) {
+        setRole(data);
+        setSelectedPerms(data.permissions);
+      }
+    } catch (err) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load role');
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
   }, [id, ready, canRead]);
+
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   async function handleSave() {
     if (!canWrite) return;
     setSaving(true);
+    setActionError('');
     try {
       await updateRolePermissions(id, selectedPerms);
       setRole(prev => prev ? { ...prev, permissions: selectedPerms } : prev);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update role permissions');
+      setActionError(err instanceof Error ? err.message : 'Failed to update role permissions');
     } finally {
       setSaving(false);
     }
@@ -47,7 +68,7 @@ function RoleDetailContent({ id }: { id: string }) {
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!canRead) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: admin:users:read</div>;
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error) return <AdminErrorState title="Unable to load role" message={error} />;
+  if (error) return <AdminErrorState title="Unable to load role" message={error} onRetry={load} />;
   if (!role) return null;
 
   const allPermissions = role.permissions;
@@ -77,6 +98,8 @@ function RoleDetailContent({ id }: { id: string }) {
           </p>
         </div>
       )}
+
+      {actionError && <div role="alert" style={{ color: '#991b1b', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 12, marginBottom: 16 }}>{actionError}</div>}
 
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
         <div style={{ padding: 16, borderBottom: '1px solid #f1f5f9', fontSize: 13, fontWeight: 600, color: '#475569' }}>

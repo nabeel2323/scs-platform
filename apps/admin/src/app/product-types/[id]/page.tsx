@@ -297,7 +297,7 @@ export default function ProductTypeBuilderPage() {
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!hasAccess) return <AccessDenied requiredPerms={['catalog:product-types:manage']} missingPerms={missingPerms} />;
   if (loading) return <AdminLoadingSkeleton kvRows={8} />;
-  if (!schema) return <AdminErrorState title="Product type not found" message={error || 'The requested product type could not be loaded.'} />;
+  if (!schema) return <AdminErrorState title="Product type not found" message={error || 'The requested product type could not be loaded.'} onRetry={load} />;
 
   const tabs = [
     { key: 'overview', label: 'Overview' },
