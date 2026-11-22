@@ -12,7 +12,7 @@ export const MERCHANT_OPEN_PATHS = [
 ] as const;
 
 export const MERCHANT_NAV_ITEMS: readonly MerchantNavigationItem[] = [
-  { href: '/merchant', label: 'Dashboard', exact: true, permission: null },
+  { href: '/merchant', label: 'Dashboard', exact: true, permission: 'merchant:stores:read' },
   { href: '/merchant/catalog', label: 'Catalog', permission: 'catalog:products:read' },
   { href: '/merchant/orders', label: 'Orders', permission: 'merchant:orders:read' },
   { href: '/merchant/deliveries', label: 'Deliveries', permission: 'fulfillment:shipments:read' },
@@ -58,7 +58,7 @@ function matchesRoute(pathname: string, prefix: string): boolean {
  * authenticated merchant role is sufficient or the route is onboarding. */
 export function merchantRoutePermission(pathname: string): string | null {
   if (MERCHANT_OPEN_PATHS.some((path) => matchesRoute(pathname, path))) return null;
-  if (pathname === '/merchant') return null;
+  if (pathname === '/merchant') return 'merchant:stores:read';
   return MERCHANT_ROUTE_RULES.find(([prefix]) => matchesRoute(pathname, prefix))?.[1] ?? null;
 }
 
