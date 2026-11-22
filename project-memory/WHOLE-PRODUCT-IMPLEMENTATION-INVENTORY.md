@@ -426,3 +426,9 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - Store discovery now distinguishes loading, failed lookup (with retry) and a successful empty store directory (with onboarding route). The import action remains unavailable until a store resolves.
 - Import processing now starts polling after the process request succeeds, prevents overlapping/stale status reads, cleans up polling on unmount, surfaces status-read failures with retry, and distinguishes COMPLETED from FAILED/CANCELLED results. Failed jobs no longer render the successful completion banner.
 - Focused store-recovery and outcome-classification tests were added but not executed. UX-040/UX-041 are IMPLEMENTED / TESTING_PENDING. No API, permission, schema, database, queue or worker behavior changed.
+
+## 22 November 2026 — Merchant Warehouses UX-042 re-audit
+
+- Merchant Warehouses now distinguishes a failed store-directory read from a successful no-store result and exposes Retry store lookup.
+- Warehouse list reads have separate loading/error/retry states. A failed read no longer appears as “No warehouses yet”; the empty state is rendered only after a successful empty response. Request-version guards protect against stale results and previously loaded rows remain visible after failed refreshes.
+- Focused test added but not executed. UX-042 is IMPLEMENTED / TESTING_PENDING. No API, permission, schema or database behavior changed.
