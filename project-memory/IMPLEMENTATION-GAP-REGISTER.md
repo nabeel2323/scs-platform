@@ -502,3 +502,11 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - The dedicated Admin KPI Dashboard silently swallowed `fetchKpis` failures. The page showed a generic failure message but had no retry action, and overlapping date-range requests could complete out of order.
 - Added explicit retryable error state and request-version protection. A failed refresh preserves the last successful KPI dataset and displays an error warning; an initial failure shows unavailable data rather than fabricated values and offers Retry KPIs. The period subtitle distinguishes an unavailable period from an active load.
 - Added `admin-kpi-recovery.test.tsx` for initial failure/retry and suppression of fake zero values. Tests have not been executed. No API, permission or backend behavior changed.
+
+## UX-045 — Admin Organizations independent list/update-request recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- The Organizations page loaded the organization directory and organization-update review queue through one `Promise.all`. Failure of either request prevented both datasets from loading, and the shared error state allowed a failed directory read to appear as an empty list.
+- Split organization and update-request reads into independent loaders with separate loading/error/retry states and request-version guards. Each list now suppresses its empty state only when its own read failed; a successful list remains usable if the other endpoint fails. Last successful rows remain visible after failed refreshes.
+- Added `admin-organizations-recovery.test.tsx` for independent failure, retry and empty-state suppression. Tests have not been executed. No API, permission or backend behavior changed.
