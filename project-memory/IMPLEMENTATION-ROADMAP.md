@@ -421,3 +421,11 @@ Completed the Admin attribute directory recovery slice. Attribute Groups and Att
 - Focused Flutter tests were added for both areas; they have not been executed and remain TESTING_PENDING for Phase 3.
 - No API, permission, pricing, stock, customer, order, financial, database or migration behavior changed.
 - Continue the Mobile merchant audit with Orders and store/profile route transitions, then remaining Web/Admin route/action permission mapping. Keep Phase 3 as the consolidated full test campaign.
+
+## 2026-11-23 — UX-091 Mobile Merchant Orders refresh lifecycle
+
+- Merchant Orders explicit refresh now resolves the active store and awaits the dependent order-list read without issuing a duplicate request.
+- The order queue and successful empty state are always-scrollable and support pull-to-refresh. Last-successful rows remain visible during refresh/reload failures.
+- Added three focused Flutter widget scenarios; not executed and remain TESTING_PENDING for Phase 3.
+- No order transition, fulfillment, stock reservation, API, permission, database or migration behavior changed.
+- Continue Mobile Store Profile and merchant route-transition audit, then remaining Web/Admin route/action permission mapping. Keep Phase 3 as the consolidated full test campaign.
