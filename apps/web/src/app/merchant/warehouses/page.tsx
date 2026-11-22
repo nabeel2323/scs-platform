@@ -98,6 +98,7 @@ export default function WarehousesPage() {
   };
 
   const openEditForm = (wh: Warehouse) => {
+    if (!canEdit) return;
     setEditingId(wh.id);
     setName(wh.name);
     const addr = (wh.address || {}) as Record<string, unknown>;
@@ -110,6 +111,7 @@ export default function WarehousesPage() {
   };
 
   const handleSubmit = async () => {
+    if (!canEdit) return;
     if (!store || !name.trim()) {
       setError('Warehouse name is required');
       return;
