@@ -85,6 +85,7 @@ export default function StoreProfilePage() {
   }, [populate, loadWarehouses]);
 
   const handleSave = async () => {
+    if (!canEdit) return;
     if (!store) return;
     if (!displayName.trim()) { setError('Display name is required'); return; }
     setSaving(true);
@@ -118,6 +119,7 @@ export default function StoreProfilePage() {
   };
 
   const handleAddWarehouse = async () => {
+    if (!canEdit) return;
     if (!store || !whName.trim()) return;
     setWhSaving(true);
     setError('');
