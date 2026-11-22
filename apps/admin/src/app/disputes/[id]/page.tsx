@@ -6,7 +6,7 @@
  * Route: /disputes/[id]
  * Shows dispute information, parties, and resolution status.
  */
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { adminRequest, type AdminRecord } from '../../../lib/api';
 import { fetchDisputeEvents, type DisputeEventRecord } from '../../../lib/api';
@@ -36,36 +36,55 @@ function DisputeDetailContent({ id }: { id: string }) {
   const [events, setEvents] = useState<DisputeEventRecord[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsError, setEventsError] = useState('');
+  const disputeRequestVersion = useRef(0);
+  const eventsRequestVersion = useRef(0);
 
   useEffect(() => setReady(true), []);
-  useEffect(() => {
+
+  const loadDispute = useCallback(async () => {
     if (!ready || !hasAccess) return;
+    const requestId = ++disputeRequestVersion.current;
     setLoading(true);
-    adminRequest<AdminRecord>(`admin/disputes/${encodeURIComponent(id)}`)
-      .then((data) => {
-        setDispute(data);
-        setLoading(false);
-      })
-      .catch((err) => {
+    setError('');
+    try {
+      const data = await adminRequest<AdminRecord>(`admin/disputes/${encodeURIComponent(id)}`);
+      if (requestId === disputeRequestVersion.current) setDispute(data);
+    } catch (err) {
+      if (requestId === disputeRequestVersion.current) {
         setError(err instanceof Error ? err.message : 'Failed to load dispute');
-        setLoading(false);
-      });
+      }
+    } finally {
+      if (requestId === disputeRequestVersion.current) setLoading(false);
+    }
   }, [id, ready, hasAccess]);
 
   useEffect(() => {
+    void loadDispute();
+    return () => { disputeRequestVersion.current += 1; };
+  }, [loadDispute]);
+
+  const loadEvents = useCallback(async () => {
     if (activeTab !== 'events' || !id) return;
+    const requestId = ++eventsRequestVersion.current;
     setEventsLoading(true);
     setEventsError('');
-    fetchDisputeEvents(id)
-      .then((data) => {
-        setEvents(data);
-        setEventsLoading(false);
-      })
-      .catch((err) => {
+    setEvents([]);
+    try {
+      const data = await fetchDisputeEvents(id);
+      if (requestId === eventsRequestVersion.current) setEvents(data);
+    } catch (err) {
+      if (requestId === eventsRequestVersion.current) {
         setEventsError(err instanceof Error ? err.message : 'Failed to load events');
-        setEventsLoading(false);
-      });
+      }
+    } finally {
+      if (requestId === eventsRequestVersion.current) setEventsLoading(false);
+    }
   }, [activeTab, id]);
+
+  useEffect(() => {
+    void loadEvents();
+    return () => { eventsRequestVersion.current += 1; };
+  }, [loadEvents]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!hasAccess)
@@ -75,7 +94,7 @@ function DisputeDetailContent({ id }: { id: string }) {
       </div>
     );
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error) return <AdminErrorState title="Unable to load dispute" message={error} />;
+  if (error) return <AdminErrorState title="Unable to load dispute" message={error} onRetry={loadDispute} />;
   if (!dispute) return null;
 
   const status = String(dispute['status'] || '');
@@ -214,24 +233,14 @@ function DisputeDetailContent({ id }: { id: string }) {
               <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading events…</div>
             )}
             {eventsError && (
-              <div
-                style={{
-                  padding: 16,
-                  color: '#991b1b',
-                  fontSize: 13,
-                  background: '#fef2f2',
-                  borderRadius: 6,
-                }}
-              >
-                {eventsError}
-              </div>
+              <AdminErrorState title="Unable to load dispute events" message={eventsError} onRetry={loadEvents} />
             )}
             {!eventsLoading && !eventsError && events.length === 0 && (
               <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>
                 No events recorded for this dispute.
               </div>
             )}
-            {events.length > 0 && (
+            {!eventsError && events.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                 {events.map((ev, idx) => {
                   const isEvidence = ev.type === 'EVIDENCE' || ev.type === 'evidence';

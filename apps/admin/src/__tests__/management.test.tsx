@@ -25,6 +25,7 @@ import ReconciliationPage from '../app/reconciliation/page';
 import SettlementAdjustmentsPage from '../app/settlement-adjustments/page';
 import {
   adminRequest,
+  fetchDisputeEvents,
   moderateAdminProduct,
   fetchAdminPayments,
   fetchPaymentVerificationQueue,
@@ -48,6 +49,7 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('../lib/api', () => ({
   adminRequest: vi.fn(),
+  fetchDisputeEvents: vi.fn(),
   moderateAdminProduct: vi.fn(),
   fetchAdminPayments: vi.fn(),
   fetchPaymentVerificationQueue: vi.fn(),
@@ -320,6 +322,49 @@ describe('accessible dialogs and row actions', () => {
     await screen.findByText('Dispute #dispute-1');
     expect(navigation.requiredPerms).toEqual(['support:disputes:resolve']);
     expect(adminRequest).toHaveBeenCalledWith('admin/disputes/dispute-1');
+  });
+
+
+  it('shows a retryable error for the dispute detail and reloads successfully', async () => {
+    vi.mocked(adminRequest)
+      .mockRejectedValueOnce(new Error('Dispute read unavailable'))
+      .mockResolvedValueOnce({
+        id: 'dispute-1',
+        status: 'OPEN',
+        reason: 'Damaged goods',
+        amountMinor: 1000,
+        currency: 'SAR',
+      });
+
+    render(<DisputeDetailPage />);
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByText('Dispute read unavailable')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText('Dispute #dispute-1');
+    expect(adminRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it('supports retrying the dispute events timeline after a read failure', async () => {
+    vi.mocked(adminRequest).mockResolvedValue({
+      id: 'dispute-1',
+      status: 'OPEN',
+      reason: 'Damaged goods',
+      amountMinor: 1000,
+      currency: 'SAR',
+    });
+    vi.mocked(fetchDisputeEvents)
+      .mockRejectedValueOnce(new Error('Events read unavailable'))
+      .mockResolvedValueOnce([]);
+
+    render(<DisputeDetailPage />);
+    await screen.findByText('Dispute #dispute-1');
+    fireEvent.click(screen.getByRole('tab', { name: 'Events & Evidence' }));
+    expect(await screen.findByText('Events read unavailable')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText('No events recorded for this dispute.');
+    expect(fetchDisputeEvents).toHaveBeenCalledTimes(2);
   });
 
   it('uses the canonical attribute-management permission for attribute detail', async () => {
