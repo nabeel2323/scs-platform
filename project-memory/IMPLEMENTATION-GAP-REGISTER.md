@@ -413,3 +413,23 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - Last successful auxiliary data is retained on refresh failure. A failed update-request read blocks verified-organization change submission until pending-request state is known.
 - Role loading exposes retry and stops automatic retries after failure. Primary profile/organization read failure no longer appears as “No organization yet.”
 - Added focused organization recovery tests. Not executed. No API, route, permission, schema or database changes.
+
+## UX-035 — Merchant Orders store/queue read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- The initial store-directory failure was swallowed and could leave the page presenting a false empty order queue. The queue also lacked a retry action and did not render its loading state.
+- Store discovery now has an explicit error/retry path; order reads have Retry; loading is visible; the “No orders yet” state appears only after a successful empty read.
+- Retrying an order read reuses the selected store. If no accessible store remains, stale store/order selection is cleared.
+- Buyer-name enrichment remains intentionally best-effort and degrades to the buyer ID; it does not block order visibility.
+- Added `merchant-orders-recovery.test.tsx`. Not executed. No API permission or transition behavior changed.
+
+## UX-036 — Merchant Offers list and analytics read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- Store discovery failures previously left the offers list loading indefinitely; an empty accessible-store list also had no distinct state.
+- Offer-list, product-directory and analytics reads now have separate error/retry handling. Product selection and offer creation are blocked while the product directory is unavailable.
+- Failed analytics no longer silently becomes zero orders/units/revenue in the table or CSV; unavailable values are shown blank in CSV and as an em dash in the table. Trend failures have Retry and no longer render “No sales in this range.”
+- Successful empty responses remain distinct from failed reads. No API, permission, schema or DB behavior changed.
+- Added `merchant-offers-recovery.test.tsx`. Not executed.

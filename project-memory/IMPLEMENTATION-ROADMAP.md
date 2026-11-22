@@ -349,3 +349,9 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Merchant Return Detail now supports retry after a failed read.
 - Merchant Organization auxiliary reads for verification history, update requests, stores, warehouses, roles and members now expose errors/retry. Last successful rows are retained where available; verified-org updates are disabled while pending-request state is unknown.
 - Added focused Web tests for returns list/detail and organization recovery. Not run. Continue UX-010 audit and integration; Phase 3 remains the consolidated test campaign.
+
+## 2026-11-22 — UX-035 / UX-036 Merchant Orders and Offers recovery
+
+- Merchant Orders now exposes store-directory and order-list failures with Retry, shows loading state and suppresses “No orders yet” until a successful empty response. A missing accessible store clears stale store/order data.
+- Merchant Offers now exposes store, offers, products, analytics and trend read failures with appropriate retry paths. Product selection/offer creation are disabled while products are unavailable; failed analytics no longer becomes zero sales in the UI or CSV.
+- Focused tests added for Orders and Offers read recovery. Not run. Continue UX-010 across remaining merchant inventory/imports, Admin and Mobile workflows; Phase 3 remains the consolidated test campaign.

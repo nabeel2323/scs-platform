@@ -412,3 +412,9 @@ Merchant Deliveries previously had no retry action and could show “No deliveri
 UX-033 replaces the manual Merchant Returns Store ID field with the authenticated store directory, supports store/status filtering, and adds retryable store/list/detail reads. Existing API guards remain unchanged (`merchant:orders:read` for listing and `merchant:orders:write` for transitions). Focused tests are added but not executed.
 
 UX-034 makes Merchant Organization verification, update-request, store, warehouse, role and member read failures visible and retryable. Last successful auxiliary data is retained on failed refresh; verified-org updates are blocked while pending-request state is unknown. Focused tests are added but not executed. Continue UX-010 audit; comprehensive testing remains deferred.
+
+## UX-035 / UX-036 — Merchant Orders and Offers read recovery — 22 November 2026
+
+UX-035 corrects the Merchant Orders initial store-directory failure path, adds queue retry/loading feedback, and suppresses the false empty-order state after failed reads. It clears stale order/store data when no accessible store remains. Focused tests are added but not executed.
+
+UX-036 makes Merchant Offers store discovery, offer-list, product-directory, analytics and trend failures explicit and retryable. Failed analytics no longer reports zero sales in the table or CSV, and failed trend reads no longer claim there were no sales. Focused tests are added but not executed. Continue UX-010 audit; comprehensive validation remains deferred.

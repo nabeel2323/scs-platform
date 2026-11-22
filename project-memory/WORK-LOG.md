@@ -737,3 +737,17 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 
 - Merchant Organization now keeps previously loaded document and member rows visible alongside retryable errors after a failed refresh. Metrics no longer present a failed document read as a confirmed zero, and warehouse loading/error states avoid rendering an empty table as successful data.
 - Commit: `3a8c5767ffd2a8e852ef0f7bcbe042da35dfa812`. No tests run; `[skip ci]` preserved Actions minutes.
+
+## 2026-11-22 — UX-035 Merchant Orders queue recovery
+
+- Fixed initial store-directory failure handling: errors are surfaced with Retry instead of being swallowed and followed by a false “No orders yet” state.
+- Added visible queue loading, retry for order-list failures, and suppression of the successful-empty state while a read is loading/failed.
+- Retry uses the selected store; a successful store discovery with no accessible store clears stale store/order state.
+- Added `apps/web/src/__tests__/merchant-orders-recovery.test.tsx`. Not executed. No API permission/transition change.
+
+## 2026-11-22 — UX-036 Merchant Offers read/analytics recovery
+
+- Added explicit store loading/error/retry and a distinct no-store state. Offer list reads now expose retry and cannot show a false empty list after failure.
+- Product directory failures are visible and retryable; offer creation is disabled until products are available.
+- Analytics and trend failures are surfaced separately; unavailable sales data no longer appears as zero in the table/CSV or as “No sales in this range.” Both have retry.
+- Added `apps/web/src/__tests__/merchant-offers-recovery.test.tsx`. Not executed. No API/permission change.
