@@ -23,15 +23,15 @@ vi.mock('next/link', () => ({
   ),
 }));
 vi.mock('@scs/contracts', () => ({ UPDATE_REQUEST_STATUS_LABELS: { PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Rejected' } }));
-vi.mock('../../lib/api', () => ({
+vi.mock('../lib/api', () => ({
   fetchAdminOrganizations: (...args: unknown[]) => fetchAdminOrganizations(...args),
   fetchAdminOrgUpdateRequests: (...args: unknown[]) => fetchAdminOrgUpdateRequests(...args),
   deactivateAdminOrganization: (...args: unknown[]) => deactivateAdminOrganization(...args),
   reviewOrgUpdateRequest: (...args: unknown[]) => reviewOrgUpdateRequest(...args),
   fetchAdminOrganizationDetail: (...args: unknown[]) => fetchAdminOrganizationDetail(...args),
 }));
-vi.mock('../../lib/auth', () => ({ getUser: (...args: unknown[]) => getUser(...args) }));
-vi.mock('../../hooks/useRequirePerms', () => ({
+vi.mock('../lib/auth', () => ({ getUser: (...args: unknown[]) => getUser(...args) }));
+vi.mock('../hooks/useRequirePerms', () => ({
   useRequirePerms: () => ({ hasAccess: true, missingPerms: [] }),
 }));
 vi.mock('@scs/ui-kit', () => ({
