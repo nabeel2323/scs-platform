@@ -626,3 +626,8 @@ Source-confirmed gap closed in implementation: buyer Store Directory lacked stal
 ## UX-079 — Mobile Buyer Order History recovery — 23 November 2026
 
 Source-confirmed gap closed in implementation: buyer order history did not preserve the previous list during refresh, pull-to-refresh did not await the provider, and refresh failure was not distinguished from current results. The screen now retains last-successful data, preserves the selected filter, exposes retry and refresh, and keeps initial failure separate from a successful empty history. Focused Flutter tests are added but remain TESTING_PENDING. No order/payment/fulfillment/API/database behavior changed.
+
+
+## UX-080 — Mobile Search facets and request ordering — 23 November 2026
+
+Source-confirmed gaps closed in implementation: selected attribute facet values were not sent to the existing API `attrFilters` parameter, and overlapping search requests could complete out of order. Mobile now serializes the supported filter contract, guards requests by generation and search key, preserves matching results during refresh, and avoids showing old-query results as current. Focused API-client and widget tests are added but remain TESTING_PENDING. No backend route/SQL/database change.
