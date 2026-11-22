@@ -48,6 +48,31 @@ void main() {
       expect(permissionRuleForRoute(Uri.parse('/merchant'))?.allows(['merchant:stores:read']), isTrue);
     });
 
+    test('merchant category directory is read-only for merchant roles', () {
+      expect(
+        permissionRuleForRoute(Uri.parse('/merchant/categories'))
+            ?.allows(['catalog:categories:read']),
+        isTrue,
+      );
+      expect(
+        permissionRuleForRoute(Uri.parse('/merchant/categories'))
+            ?.allows(['catalog:categories:write']),
+        isFalse,
+      );
+      expect(
+        canManageMerchantCategories('MERCHANT_OWNER', ['catalog:categories:write']),
+        isFalse,
+      );
+      expect(
+        canManageMerchantCategories('MERCHANT_STAFF', ['catalog:categories:write']),
+        isFalse,
+      );
+      expect(
+        canManageMerchantCategories('MODERATOR', ['catalog:categories:write']),
+        isTrue,
+      );
+    });
+
     test('driver route requires shipment read access', () {
       expect(permissionRuleForRoute(Uri.parse('/driver/shipments'))?.allows(['fulfillment:shipments:read']), isTrue);
       expect(permissionRuleForRoute(Uri.parse('/driver/shipments'))?.allows(['orders:read']), isFalse);
