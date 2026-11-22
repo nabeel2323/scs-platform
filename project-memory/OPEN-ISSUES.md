@@ -478,3 +478,19 @@ Catalog Import Center conflated failed history reads with an empty import histor
 ## UX-053 — Admin Analytics — 22 November 2026
 
 Analytics date/limit requests could race and stale results could overwrite newer filters. Event/activity reads now have independent request-version guards, cleanup invalidation and direct retry actions. Focused test added but not executed. UX-053 remains TESTING_PENDING.
+
+## UX-054 — Admin Commission Oversight — 22 November 2026
+
+Commission reversal status-filter requests could race; errors could coexist with a false empty state. The page now has request-version guards, retry and successful-empty-only rendering. Focused test added but not executed. UX-054 remains TESTING_PENDING.
+
+## UX-055 — Admin Offer KPI and Trend — 22 November 2026
+
+Offer KPI/Trend filters could race, errors had no direct retry, and failed initial reads could display zero/empty sales. The pages now guard request generations, expose retry and distinguish unavailable data from successful empty results. Focused tests added but not executed. UX-055 remains TESTING_PENDING.
+
+## UX-056 — Admin Brands — 22 November 2026
+
+Brand directory read failures lacked retry and could render “No brands found.” The page now has retry, request-version protection and successful-empty-only rendering. Focused test added but not executed. UX-056 remains TESTING_PENDING.
+
+## UX-057 — Admin Business Calendar — 22 November 2026
+
+Business Calendar read failures lacked retry and could be mistaken for no configured calendar; dependent holiday/audit empty states were also ambiguous. The page now guards requests, exposes retry and suppresses false empty states. Focused test added but not executed. UX-057 remains TESTING_PENDING.
