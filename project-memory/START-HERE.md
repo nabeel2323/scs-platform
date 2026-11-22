@@ -336,3 +336,11 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Latest source implementation commit: `daf42ad5a4d5d9323b08e89e0c1c0b1679ac0d0e`; focused test commit: `c794c3d03413bbf965696fe1f69f6c89069f9544`. The following project-memory commits synchronize this checkpoint; resolve the live PR head at session start.
 - Next: continue UX-010 across remaining Admin workflows, beginning with independent Organizations list/update-request reads, then Mobile. Do not repeat UX-030–UX-044.
 - PR #138 remains open/draft/unmerged to `develop`. All commits use `[skip ci]`; exact-head CI must be checked live. No merge/deployment, staging/shared DB write, migration, grant/default-ACL change, RLS activation or worker activation occurred.
+
+## Latest continuation checkpoint — 22 November 2026 (UX-045)
+
+- Implemented UX-045 Admin Organizations independent read recovery. Organization directory and update-request queue now load independently with separate loading/error/retry states and request-version guards; one failed endpoint no longer blocks the other or renders a false empty state.
+- Focused test added in `admin-organizations-recovery.test.tsx`; not executed.
+- Latest source implementation commit: `772586447312c7abe308c30b85e2e922c588708d`; focused test/mocking commit: `7650fd06cda30dce47dc332260d14dbb9825c7fe`. The following project-memory commits synchronize this checkpoint; resolve the live PR head at session start.
+- Next: continue UX-010 across remaining Admin users/merchants workflows, then Mobile. Do not repeat UX-030–UX-045.
+- PR #138 remains open/draft/unmerged to `develop`. All commits use `[skip ci]`; exact-head CI must be checked live. No merge/deployment, staging/shared DB write, migration, grant/default-ACL change, RLS activation or worker activation occurred.
