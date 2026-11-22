@@ -28,8 +28,9 @@ const CARDS = [
 
 export default function MerchantDashboardPage() {
   const { user } = useAuth();
-  const visibleCards = CARDS.filter((card) => user?.perms?.includes(card.permission));
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const permissions = user?.perms ?? profile?.perms ?? [];
+  const visibleCards = CARDS.filter((card) => permissions.includes(card.permission));
   const [stores, setStores] = useState<Store[]>([]);
   const [activeId, setActiveId] = useState('');
   const [loading, setLoading] = useState(true);
