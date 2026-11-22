@@ -444,3 +444,9 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - The dedicated KPI Dashboard now surfaces read failures with Retry KPIs and request-version guards. Date-range requests cannot overwrite newer results after completing out of order.
 - Failed refreshes retain the last successful KPI dataset; initial failure shows unavailable values rather than fabricated zero metrics. Period subtitle distinguishes unavailable data from loading.
 - Focused test added but not executed. UX-044 is IMPLEMENTED / TESTING_PENDING. No API, permission or backend behavior changed.
+
+## 22 November 2026 — Admin Organizations UX-045 re-audit
+
+- Organization directory and update-request review queue reads are independent, with separate loading/error/retry states and request-version guards.
+- One failed endpoint no longer blocks the other dataset or masquerades as an empty list. Last successful rows remain visible after failed refreshes; only successful empty responses render empty states.
+- Focused Admin test added but not executed. UX-045 is IMPLEMENTED / TESTING_PENDING. No API, permission or backend behavior changed.
