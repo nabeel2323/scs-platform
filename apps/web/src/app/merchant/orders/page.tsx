@@ -587,7 +587,7 @@ export default function MerchantOrdersPage() {
                     )}
                   </div>
                 </div>
-                {cancelId === order.id && (
+                {canWriteOrders && cancelId === order.id && (
                   <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
                     <input type="text" placeholder="Cancellation reason..." value={cancelReason} onChange={e => setCancelReason(e.target.value)} style={{ flex: 1, padding: '6px 10px', border: '1px solid #d9e2e6', borderRadius: 4, fontSize: 13 }} />
                     <button onClick={handleCancel} style={{ padding: '6px 12px', fontSize: 12, fontWeight: 600, background: '#991b1b', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Confirm</button>
