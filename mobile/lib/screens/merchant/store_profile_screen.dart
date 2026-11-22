@@ -153,7 +153,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
 
   Future<void> _refreshStoreProfile() async {
     try {
-      await ref.refresh(myStoresProvider.future);
+      await ref.refresh(myStoresProvider.future).then<void>((_) {});
     } catch (_) {
       // activeStoreProvider retains its last successful value when possible.
       return;
