@@ -1605,3 +1605,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Added `admin-reconciliation-detail-recovery.test.tsx` for successful detail load followed by failed refresh with stale-detail preservation.
 - Corrected the Catalog Requests result-count singular/plural label as a small UX-060 polish fix.
 - No reconciliation execution, discrepancy resolution, financial record, API, permission, schema, migration, database, staging or provider behavior changed. Tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-064 — Admin Order Detail cancellation/read separation — 22 November 2026
+
+- Separated the cancellation mutation outcome from the subsequent order-detail refresh. A successful cancellation is no longer reported as a failed cancellation merely because the follow-up read fails.
+- Added a distinct retryable detail-refresh error and an explicit Refresh order action; the last known order detail remains visible while the refresh is unavailable.
+- Once the cancellation mutation succeeds, the UI suppresses repeat cancellation controls even if the follow-up read fails, preventing a stale pre-cancellation status from inviting a duplicate action.
+- Added `admin-order-cancel-refresh.test.tsx` for mutation success followed by detail-read failure, truthful success messaging, stale-detail visibility and safe retry.
+- No API, permission, order transition, stock/shipment side effect, schema, migration, database, staging or provider behavior changed. Tests remain pending the consolidated Phase 3 campaign.

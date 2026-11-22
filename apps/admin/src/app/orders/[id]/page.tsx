@@ -67,6 +67,9 @@ function OrderDetailContent({ id }: { id: string }) {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
+  const [refreshError, setRefreshError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [cancelCompleted, setCancelCompleted] = useState(false);
   const requestVersion = useRef(0);
 
   useEffect(() => setReady(true), []);
@@ -93,6 +96,24 @@ function OrderDetailContent({ id }: { id: string }) {
     return () => { requestVersion.current += 1; };
   }, [load]);
 
+  const refreshOrder = useCallback(async () => {
+    const requestId = ++requestVersion.current;
+    setRefreshing(true);
+    setRefreshError('');
+    try {
+      const data = await fetchAdminOrderDetail(id);
+      if (requestId === requestVersion.current) setOrder(data);
+      return requestId === requestVersion.current;
+    } catch (err) {
+      if (requestId === requestVersion.current) {
+        setRefreshError(err instanceof Error ? err.message : 'Failed to refresh order details');
+      }
+      return false;
+    } finally {
+      if (requestId === requestVersion.current) setRefreshing(false);
+    }
+  }, [id]);
+
   const handleCancel = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!order || !canCancelOrder) return;
@@ -110,10 +131,15 @@ function OrderDetailContent({ id }: { id: string }) {
     setCancelLoading(true);
     setActionError('');
     setActionSuccess('');
+    setRefreshError('');
     try {
       await cancelAdminOrder(id, { reason: cancelReason, notes: cancelNotes.trim() || undefined });
-      setOrder(await fetchAdminOrderDetail(id));
-      setActionSuccess('Order cancelled successfully.');
+      setCancelCompleted(true);
+      setActionSuccess('Order cancellation succeeded.');
+      const refreshed = await refreshOrder();
+      if (!refreshed) {
+        setActionSuccess('Order cancellation succeeded, but the latest order details could not be refreshed.');
+      }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to cancel order');
     } finally {
@@ -285,6 +311,23 @@ function OrderDetailContent({ id }: { id: string }) {
       <AdminDetailTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
 
       <div style={{ padding: '0 32px 48px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => void refreshOrder()}
+            disabled={refreshing}
+            style={{ padding: '6px 12px', border: '1px solid #cbd5e1', borderRadius: 6, background: '#fff', cursor: refreshing ? 'wait' : 'pointer', fontSize: 12 }}
+          >
+            {refreshing ? 'Refreshing…' : 'Refresh order'}
+          </button>
+          {refreshing && <span role="status" style={{ color: '#64748b', fontSize: 12 }}>Refreshing order details…</span>}
+        </div>
+        {refreshError && (
+          <div role="alert" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: 12, borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>
+            <span>Order details may be stale: {refreshError}</span>
+            <button type="button" onClick={() => void refreshOrder()} disabled={refreshing}>Retry order details</button>
+          </div>
+        )}
         {actionSuccess && (
           <p role="status" style={{ color: '#166534', margin: 0 }}>
             {actionSuccess}
@@ -295,7 +338,7 @@ function OrderDetailContent({ id }: { id: string }) {
             {actionError}
           </p>
         )}
-        {canCancelOrder && CANCELLABLE_ORDER_STATUSES.includes(order.status) && (
+        {canCancelOrder && !cancelCompleted && CANCELLABLE_ORDER_STATUSES.includes(order.status) && (
           <AdminDetailSection title="Order actions">
             <form onSubmit={handleCancel} style={{ display: 'grid', gap: 12, maxWidth: 560 }}>
               <label style={{ display: 'grid', gap: 6, fontSize: 13, fontWeight: 600 }}>
