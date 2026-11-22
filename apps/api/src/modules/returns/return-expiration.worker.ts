@@ -327,6 +327,9 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
       const outcome = await this.processExpiration(row.id, epoch);
       if (outcome === 'escalated') escalated += 1;
       else if (outcome === 'failed') failed += 1;
+      else if (outcome === 'fence_lost') {
+        return { state: 'STANDBY', executed: true, skipped: 'fence_lost', epoch, escalated, failed };
+      }
     }
 
     if (failed > 0) {
@@ -369,7 +372,15 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
         holderId: this.leases.holderId,
         epoch,
       });
-      if (!result) return 'skipped';
+      if (!result) {
+        const stillOwnsLease = await this.leases.renewAndFence(epoch, P13_LEASE_KEY);
+        if (!stillOwnsLease) {
+          this.epoch = 0;
+          this.state = 'STANDBY';
+          return 'fence_lost';
+        }
+        return 'skipped';
+      }
       this.logger.log(`Escalated return ${ret.id} to admin review (merchant SLA exceeded)`);
       return 'escalated';
     } catch (err: any) {

@@ -33,13 +33,32 @@ describe('ReturnExpirationWorker lease fencing', () => {
     expect(leases.recordPollSuccess).toHaveBeenCalledOnce();
   });
 
+
+  it('stops the batch when the lease is lost between the pre-check and transactional escalation', async () => {
+    const findFirst = vi.fn().mockResolvedValue({ id: 'return-a', status: 'REQUESTED' });
+    const escalateReturn = vi.fn().mockResolvedValue(null);
+    const renewAndFence = vi.fn().mockResolvedValue(false);
+    const worker = new ReturnExpirationWorker(
+      { db: { query: { returnRequests: { findFirst } } } } as any,
+      { escalateReturn } as any,
+      { holderId: 'worker-host-123', renewAndFence } as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect((worker as any).processExpiration('return-a', 42)).resolves.toBe('fence_lost');
+    expect(renewAndFence).toHaveBeenCalledWith(42, 'p13-return-expiration');
+    expect((worker as any).state).toBe('STANDBY');
+    expect((worker as any).epoch).toBe(0);
+  });
+
   it('passes the lease identity to the transactional escalation and treats a lost fence as skipped', async () => {
     const findFirst = vi.fn().mockResolvedValue({ id: 'return-a', status: 'REQUESTED' });
     const escalateReturn = vi.fn().mockResolvedValue(null);
     const worker = new ReturnExpirationWorker(
       { db: { query: { returnRequests: { findFirst } } } } as any,
       { escalateReturn } as any,
-      { holderId: 'worker-host-123' } as any,
+      { holderId: 'worker-host-123', renewAndFence: vi.fn().mockResolvedValue(true) } as any,
       {} as any,
       {} as any,
     );

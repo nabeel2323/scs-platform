@@ -895,7 +895,9 @@ export class ReturnsService {
       return true;
     });
 
-    if (!escalated) return null;
+    if (!escalated) {
+      return authority.kind === 'platform' ? this.getReturnRequest(returnId) : null;
+    }
     this.logger.log(`Return ${returnId} escalated to admin review`);
     return this.getReturnRequest(returnId);
   }
