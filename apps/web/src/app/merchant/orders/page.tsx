@@ -16,6 +16,7 @@ import {
   OrderItem,
 } from '../../../lib/buyer-api';
 import { fetchMyStores, Store } from '../../../lib/api';
+import { useAuth } from '../../../components/AuthProvider';
 import { pickStore, rememberStoreId } from '../../../lib/merchant-store';
 import { useMerchantRealtime } from '../../../lib/useMerchantRealtime';
 import {
@@ -88,6 +89,9 @@ function BuyerLine({ order, buyers }: {
 }
 
 export default function MerchantOrdersPage() {
+  const { user } = useAuth();
+  const canWriteOrders = user?.perms?.includes('merchant:orders:write') === true;
+  const canAssignDrivers = user?.perms?.includes('fulfillment:shipments:assign') === true;
   const [orders, setOrders] = useState<SubOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -212,6 +216,7 @@ export default function MerchantOrdersPage() {
   };
 
   const handleAccept = async (orderId: string) => {
+    if (!canWriteOrders) return;
     setError('');
     try {
       await acceptMerchantOrder(orderId);
@@ -220,6 +225,7 @@ export default function MerchantOrdersPage() {
   };
 
   const handleReject = async () => {
+    if (!canWriteOrders) return;
     if (!rejectReason.trim()) return;
     setError('');
     try {
@@ -231,6 +237,7 @@ export default function MerchantOrdersPage() {
   };
 
   const handleTransition = async (orderId: string, status: string) => {
+    if (!canWriteOrders) return;
     setError('');
     try {
       await transitionOrderStatus(orderId, status);
@@ -239,6 +246,7 @@ export default function MerchantOrdersPage() {
   };
 
   const handlePrepare = async (orderId: string) => {
+    if (!canWriteOrders) return;
     setFulfillmentError('');
     try {
       await prepareOrder(orderId);
@@ -247,6 +255,7 @@ export default function MerchantOrdersPage() {
   };
 
   const handleReady = async (orderId: string) => {
+    if (!canWriteOrders) return;
     setFulfillmentError('');
     try {
       await readyOrder(orderId);
@@ -255,6 +264,7 @@ export default function MerchantOrdersPage() {
   };
 
   const handleAssignDriver = async () => {
+    if (!canAssignDrivers) return;
     if (!driverInput.trim()) return;
     setFulfillmentError('');
     try {
@@ -266,6 +276,7 @@ export default function MerchantOrdersPage() {
   };
 
   const handleCancel = async () => {
+    if (!canWriteOrders) return;
     if (!cancelReason.trim()) return;
     setError('');
     try {
@@ -500,21 +511,21 @@ export default function MerchantOrdersPage() {
                 </div>
                 <div className="mo-row-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                   <StatusBadge status={order.status} />
-                  <button onClick={() => handleAccept(order.id)} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: '#065f46', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Accept</button>
-                  <button onClick={() => { setRejectId(order.id); setRejectReason(''); setCancelId(''); }} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: '#fff', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer' }}>Reject</button>
-                  {isCancellable(order.status) && (
+                  {canWriteOrders && <button onClick={() => handleAccept(order.id)} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: '#065f46', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Accept</button>}
+                  {canWriteOrders && <button onClick={() => { setRejectId(order.id); setRejectReason(''); setCancelId(''); }} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: '#fff', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer' }}>Reject</button>}
+                  {canWriteOrders && isCancellable(order.status) && (
                     <button onClick={() => { setCancelId(order.id); setCancelReason(''); setRejectId(''); }} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: '#fff', color: '#5b6b74', border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer' }}>Cancel</button>
                   )}
                 </div>
               </div>
-              {rejectId === order.id && (
+              {canWriteOrders && rejectId === order.id && (
                 <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
                   <input type="text" placeholder="Rejection reason..." value={rejectReason} onChange={e => setRejectReason(e.target.value)} style={{ flex: 1, padding: '6px 10px', border: '1px solid #d9e2e6', borderRadius: 4, fontSize: 13 }} />
                   <button onClick={handleReject} style={{ padding: '6px 12px', fontSize: 12, fontWeight: 600, background: '#991b1b', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Confirm</button>
                   <button onClick={() => setRejectId('')} style={{ padding: '6px 12px', fontSize: 12, background: '#fff', border: '1px solid #d9e2e6', borderRadius: 4, cursor: 'pointer' }}>Close</button>
                 </div>
               )}
-              {cancelId === order.id && (
+              {canWriteOrders && cancelId === order.id && (
                 <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
                   <input type="text" placeholder="Cancellation reason..." value={cancelReason} onChange={e => setCancelReason(e.target.value)} style={{ flex: 1, padding: '6px 10px', border: '1px solid #d9e2e6', borderRadius: 4, fontSize: 13 }} />
                   <button onClick={handleCancel} style={{ padding: '6px 12px', fontSize: 12, fontWeight: 600, background: '#991b1b', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Confirm</button>
@@ -543,22 +554,22 @@ export default function MerchantOrdersPage() {
                   <div className="mo-row-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     <StatusBadge status={order.status} />
                     {/* M7.1 Fulfillment actions */}
-                    {order.status === 'ACCEPTED' && (
+                    {canWriteOrders && order.status === 'ACCEPTED' && (
                       <button onClick={() => handlePrepare(order.id)} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, background: '#065f46', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
                         Prepare
                       </button>
                     )}
-                    {order.status === 'PREPARING' && (
+                    {canWriteOrders && order.status === 'PREPARING' && (
                       <button onClick={() => handleReady(order.id)} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, background: '#065f46', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
                         Ready
                       </button>
                     )}
                     {order.status === 'READY' && (
                       <>
-                        <button onClick={() => { setAssignId(order.id); setDriverInput(''); }} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, background: '#1e40af', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                        {canAssignDrivers && <button onClick={() => { setAssignId(order.id); setDriverInput(''); }} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, background: '#1e40af', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
                           Assign Driver
-                        </button>
-                        {nextStatuses.filter(ns => !['CANCELLED', 'ASSIGNED'].includes(ns)).map(ns => (
+                        </button>}
+                        {canWriteOrders && nextStatuses.filter(ns => !['CANCELLED', 'ASSIGNED'].includes(ns)).map(ns => (
                           <button key={ns} onClick={() => handleTransition(order.id, ns)} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
                             → {ns.replace(/_/g, ' ')}
                           </button>
@@ -566,12 +577,12 @@ export default function MerchantOrdersPage() {
                       </>
                     )}
                     {/* Fallback for other active statuses */}
-                    {!['ACCEPTED', 'PREPARING', 'READY'].includes(order.status) && nextStatuses.filter(ns => ns !== 'CANCELLED').map(ns => (
+                    {canWriteOrders && !['ACCEPTED', 'PREPARING', 'READY'].includes(order.status) && nextStatuses.filter(ns => ns !== 'CANCELLED').map(ns => (
                       <button key={ns} onClick={() => handleTransition(order.id, ns)} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
                         → {ns.replace(/_/g, ' ')}
                       </button>
                     ))}
-                    {isCancellable(order.status) && (
+                    {canWriteOrders && isCancellable(order.status) && (
                       <button onClick={() => { setCancelId(order.id); setCancelReason(''); }} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, background: '#fff', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer' }}>Cancel</button>
                     )}
                   </div>
@@ -583,7 +594,7 @@ export default function MerchantOrdersPage() {
                     <button onClick={() => setCancelId('')} style={{ padding: '6px 12px', fontSize: 12, background: '#fff', border: '1px solid #d9e2e6', borderRadius: 4, cursor: 'pointer' }}>Close</button>
                   </div>
                 )}
-                {assignId === order.id && (
+                {canAssignDrivers && assignId === order.id && (
                   <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
                     <input type="text" placeholder="Driver user ID..." value={driverInput} onChange={e => setDriverInput(e.target.value)} style={{ flex: 1, padding: '6px 10px', border: '1px solid #d9e2e6', borderRadius: 4, fontSize: 13 }} />
                     <button onClick={handleAssignDriver} style={{ padding: '6px 12px', fontSize: 12, fontWeight: 600, background: '#1e40af', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Assign</button>
