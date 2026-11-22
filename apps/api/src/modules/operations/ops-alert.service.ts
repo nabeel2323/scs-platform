@@ -126,8 +126,9 @@ export class OpsAlertService {
     dedupKey: string,
   ): Promise<OpsAlertResult> {
     const id = randomUUID();
+    let inserted = false;
     try {
-      await this.db.db.execute(sql`
+      const rows = readRows<{ id: string }>(await this.db.db.execute(sql`
         INSERT INTO ops_alerts (
           id, dedup_key, condition_key, severity, title, detail, status,
           fire_count, suppressed_count, attempt_count, org_id,
@@ -141,24 +142,26 @@ export class OpsAlertService {
           now(), now(), now(), now()
         )
         ON CONFLICT (dedup_key) DO NOTHING
-      `);
+        RETURNING id
+      `));
+      inserted = rows.some((row) => row.id === id);
     } catch (err) {
-      // A concurrent scan may have inserted the same key between our read and
-      // write. Fall back to the dedup path rather than losing the condition.
-      this.logger.debug(`Alert insert raced for ${dedupKey}: ${errMessage(err)}`);
+      this.logger.debug(`Alert insert failed for ${dedupKey}: ${errMessage(err)}`);
       const row = await this.findByDedupKey(dedupKey);
       if (row) return this.handleExisting(row, input, dedupKey);
       throw err;
     }
 
-    const delivered = await this.deliver(id, input, dedupKey);
-    return {
-      id,
-      status: delivered.status,
-      notified: delivered.notified,
-      deduped: false,
-      fireCount: 1,
-    };
+    // ON CONFLICT DO NOTHING is a successful SQL command with zero returned
+    // rows. Never attempt delivery against our unused UUID: the winning
+    // monitor owns the durable row and the same atomic delivery claim.
+    if (!inserted) {
+      const row = await this.findByDedupKey(dedupKey);
+      if (row) return this.handleExisting(row, input, dedupKey);
+      throw new Error(`Alert insert produced no row for dedup key ${dedupKey}`);
+    }
+
+    return this.deliver(id, input, dedupKey);
   }
 
   private async handleExisting(
@@ -169,11 +172,12 @@ export class OpsAlertService {
     const recursedAfterResolve = row.status === 'RESOLVED';
 
     // Record the recurrence unconditionally.
+    const countAsNewFire = row.status !== 'SENDING';
     await this.db.db.execute(sql`
       UPDATE ops_alerts
-      SET fire_count = fire_count + 1,
+      SET fire_count = fire_count + ${countAsNewFire ? 1 : 0},
           last_observed_at = now(),
-          updated_at = now(),
+          updated_at = CASE WHEN ${countAsNewFire} THEN now() ELSE updated_at END,
           severity = ${input.severity},
           title = ${input.title.slice(0, 200)},
           detail = ${JSON.stringify(input.detail ?? {})},
@@ -182,13 +186,15 @@ export class OpsAlertService {
       WHERE dedup_key = ${dedupKey}
     `);
 
-    const fireCount = row.fire_count + 1;
+    const fireCount = row.fire_count + (countAsNewFire ? 1 : 0);
 
-    // Decide whether this recurrence warrants another notification.
+    // SENDING is included so a crashed delivery can be reclaimed after the
+    // claim lease expires. The atomic claim below prevents concurrent senders.
     const needsDelivery =
       recursedAfterResolve ||
       row.status === 'PENDING' ||
       row.status === 'FAILED' ||
+      row.status === 'SENDING' ||
       (row.status === 'SENT' && pastRepeatWindow(row.delivered_at, this.config.alertRepeatWindowMs));
 
     if (!needsDelivery) {
@@ -216,6 +222,36 @@ export class OpsAlertService {
     dedupKey: string,
     deduped = false,
   ): Promise<OpsAlertResult> {
+    const staleClaimMs = Math.max(60_000, this.config.alertDeliveryTimeoutMs * 2);
+    const claim = readRows<{ id: string }>(await this.db.db.execute(sql`
+      UPDATE ops_alerts
+      SET status = 'SENDING', updated_at = now()
+      WHERE id = ${alertId}
+        AND (
+          status IN ('PENDING', 'FAILED')
+          OR (
+            status = 'SENT'
+            AND (delivered_at IS NULL OR delivered_at <= now() - make_interval(secs => ${this.config.alertRepeatWindowMs / 1000}))
+          )
+          OR (
+            status = 'SENDING'
+            AND updated_at <= now() - make_interval(secs => ${staleClaimMs / 1000})
+          )
+        )
+      RETURNING id
+    `));
+
+    if (claim.length === 0) {
+      const current = await this.findByDedupKey(dedupKey);
+      return {
+        id: alertId,
+        status: current?.status ?? 'UNKNOWN',
+        notified: false,
+        deduped: true,
+        fireCount: Number(current?.fire_count ?? 1),
+      };
+    }
+
     const fireCountRow = firstRow<{ fire_count: number }>(await this.db.db.execute(sql`
       SELECT fire_count FROM ops_alerts WHERE id = ${alertId}
     `));
@@ -230,7 +266,7 @@ export class OpsAlertService {
             delivery_channel = 'log-only',
             last_error = NULL,
             updated_at = now()
-        WHERE id = ${alertId}
+        WHERE id = ${alertId} AND status = 'SENDING'
       `);
       this.logger.error(
         `[P13-ALERT] ${input.severity} ${input.conditionKey} — ${input.title} ` +
@@ -301,7 +337,7 @@ export class OpsAlertService {
         UPDATE ops_alerts
         SET status = 'SENT', delivery_channel = 'webhook', attempt_count = attempt_count + 1,
             delivered_at = now(), last_error = NULL, updated_at = now()
-        WHERE id = ${alertId}
+        WHERE id = ${alertId} AND status = 'SENDING'
       `);
       this.logger.warn(`Alert delivered: ${input.conditionKey} (${dedupKey}) [signed]`);
       return { id: alertId, status: 'SENT', notified: true, deduped, fireCount };
@@ -312,7 +348,7 @@ export class OpsAlertService {
       UPDATE ops_alerts
       SET status = 'FAILED', delivery_channel = 'webhook', attempt_count = attempt_count + 1,
           last_error = ${truncate(failure, 300)}, updated_at = now()
-      WHERE id = ${alertId}
+      WHERE id = ${alertId} AND status = 'SENDING'
     `);
     this.logger.error(`Alert delivery FAILED for ${input.conditionKey}: ${truncate(failure, 200)}`);
 
@@ -391,7 +427,7 @@ export class OpsAlertService {
     const rows = readRows<OpsAlertRecord>(await this.db.db.execute(sql`
       SELECT ${ALERT_COLUMNS}
       FROM ops_alerts
-      WHERE status IN ('PENDING', 'SENT', 'FAILED')
+      WHERE status IN ('PENDING', 'SENDING', 'SENT', 'FAILED')
       ORDER BY
         CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'WARN' THEN 1 ELSE 2 END,
         last_observed_at DESC

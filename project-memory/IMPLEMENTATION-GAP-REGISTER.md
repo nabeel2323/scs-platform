@@ -202,3 +202,8 @@ Completed carrier/shipping source review and corrections. Added ACTIVE organizat
 ## G-002 method-level ownership predicate batch 6 — worker/system contexts — 22 November 2026
 
 Closed two source-level correctness gaps found during worker/system context review: ReturnExpirationWorker now carries its lease fence into the actual claim and escalation transactions, and PilotControlService refuses inconsistent store/org allowlist entries. The worker's platform/manual escalation path is independently role-checked. Focused regression tests were added but intentionally not executed. Live runtime identities, protected catalog evidence, RLS design/review and all external release gates remain open.
+
+
+## G-002 / P13 operational alert delivery ownership — 22 November 2026
+
+The P13 monitor runs on each API instance, so deduplication must cover delivery ownership as well as row uniqueness. Fixed the ON CONFLICT DO NOTHING path to inspect RETURNING and added an atomic SENDING claim with stale-claim recovery. This prevents concurrent monitor instances from delivering the same PENDING/FAILED alert simultaneously and makes abandoned claims recoverable. Added migration 0073 for the operator open-alert index and focused tests; not executed or applied.

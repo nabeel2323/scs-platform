@@ -83,3 +83,18 @@ The inspected Render workspace previously showed one API service and no separate
 A source cross-check found that `ShippingModule` registered `AramexProvider` in Nest DI and exported it, but `ShippingService.onModuleInit()` registered only `ManualDeliveryProvider` in `ShippingProviderRegistry`. The carrier worker resolves an explicitly persisted provider key through that registry and otherwise defaults shipment create/cancel/label operations to `manual-driver`. The separate CarrierTrackingPoller defaults a missing provider key to `aramex`; therefore explicitly configured Aramex events and tracking polls could not resolve the provider even though the provider class was present in DI.
 
 The registry wiring now keeps `manual-driver` as the default for shipment create/cancel/label operations and registers the injected Aramex adapter as a non-default provider. The separate tracking poller falls back to `aramex` when a shipment has no provider key. Registration does not read credentials or invoke Aramex. Per-store carrier configuration and active organization-scoped encrypted credentials remain required at operation time. A focused provider-registration test is added but not executed; no live carrier request or credential change occurred.
+
+
+## P13 operational alert delivery concurrency correction — 22 November 2026
+
+The P13 monitor runs on every API instance. A unique dedup key alone did not guarantee single delivery: concurrent monitors could both observe no row, and PostgreSQL ON CONFLICT DO NOTHING returns successfully with zero inserted rows. The old insert path did not inspect RETURNING and could attempt delivery using a UUID that was never persisted. Existing PENDING/FAILED rows also had no atomic delivery claim, so concurrent monitors could send duplicate webhooks.
+
+The alert path now:
+- Uses INSERT ... ON CONFLICT DO NOTHING RETURNING id and follows the existing-row path when another monitor won the insert race.
+- Claims delivery with one conditional UPDATE that changes PENDING/FAILED (or an expired SENT repeat window) to SENDING and returns the claimed row.
+- Prevents another monitor from delivering while a fresh SENDING claim exists.
+- Reclaims a SENDING row only after a bounded stale-claim timeout, so a crashed API process does not leave delivery permanently stuck.
+- Preserves the SENDING claim timestamp while other monitors observe the same alert; repeated scans do not keep the stale claim alive.
+- Includes SENDING alerts in the operator open-alert list.
+
+The new migration 0073 refreshes the open-alert partial index to include SENDING. These source changes and focused regression tests are not executed or live-applied in this implementation phase.
