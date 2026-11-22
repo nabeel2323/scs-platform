@@ -9,6 +9,7 @@ import {
 } from '../lib/buyer-api';
 import { fetchMyStores } from '../lib/api';
 import { generateSku, buildVariantTitle, resolveComboAttributes } from '../lib/sku-utils';
+import { resolveProductPersistenceTarget } from '../lib/product-studio-flow';
 
 export type Step = 'identity' | 'specifications' | 'variants' | 'offer' | 'media' | 'review';
 
@@ -186,8 +187,13 @@ export function useProductStudio() {
         throw new Error('A store and product title are required before saving.');
       }
 
-      let productId = state.productId;
+      const persistenceTarget = resolveProductPersistenceTarget(state);
+      let productId = persistenceTarget.productId;
+      const isExistingCanonical = persistenceTarget.isExistingCanonical;
       let productUpdatedAt = state.productUpdatedAt;
+      if (isExistingCanonical && productId && state.productId !== productId) {
+        setState(prev => ({ ...prev, productId }));
+      }
 
       // Step 1: Create the product once, then update that same product on
       // subsequent saves so edits made after navigating back are persisted.
@@ -210,7 +216,7 @@ export function useProductStudio() {
         productId = product.id;
         productUpdatedAt = product.updatedAt ?? null;
         setState(prev => ({ ...prev, productId, productUpdatedAt }));
-      } else {
+      } else if (!isExistingCanonical) {
         const updatedProduct = await updateProduct(productId, {
           title: state.title,
           titleAr: state.titleAr || undefined,
@@ -231,7 +237,7 @@ export function useProductStudio() {
       }
 
       // Step 2: Save attribute values
-      if (state.productTypeSchema && Object.keys(state.attributeValues).length > 0) {
+      if (!isExistingCanonical && state.productTypeSchema && Object.keys(state.attributeValues).length > 0) {
         const values = Object.entries(state.attributeValues)
           .filter(([, v]) => v !== '')
           .map(([attrId, val]) => ({ attributeDefinitionId: attrId, valueText: val }));
@@ -241,7 +247,7 @@ export function useProductStudio() {
       }
 
       // Step 3: Create variants for enabled combinations (skip if using existing variant)
-      if (!state.selectedExistingVariantId) {
+      if (!isExistingCanonical && !state.selectedExistingVariantId) {
         // Resolve brand name for SKU generation (from the brands loaded at init).
         const brandName = brands.find(b => b.id === state.brandId)?.name ?? null;
         if (state.enabledCombinations.size > 0) {
@@ -284,6 +290,7 @@ export function useProductStudio() {
         await createMerchantOffer({
           storeId: state.storeId,
           productId,
+          variantId: state.selectedExistingVariantId || undefined,
           currency: state.currency,
           basePriceMinor: state.basePriceMinor,
           moq: state.moq,

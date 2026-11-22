@@ -1,5 +1,44 @@
 import { describe, expect, it, vi } from 'vitest';
-import { continueProductStudioStep } from '../lib/product-studio-flow';
+import { continueProductStudioStep, resolveProductPersistenceTarget } from '../lib/product-studio-flow';
+
+
+describe('resolveProductPersistenceTarget', () => {
+  it('uses the selected canonical product instead of creating a duplicate merchant product', () => {
+    expect(
+      resolveProductPersistenceTarget({
+        productId: null,
+        useExistingProductId: 'canonical-product-1',
+      }),
+    ).toEqual({
+      productId: 'canonical-product-1',
+      isExistingCanonical: true,
+    });
+  });
+
+  it('updates a product created earlier in this wizard', () => {
+    expect(
+      resolveProductPersistenceTarget({
+        productId: 'merchant-product-1',
+        useExistingProductId: null,
+      }),
+    ).toEqual({
+      productId: 'merchant-product-1',
+      isExistingCanonical: false,
+    });
+  });
+
+  it('creates a product only when neither an existing nor wizard product ID exists', () => {
+    expect(
+      resolveProductPersistenceTarget({
+        productId: null,
+        useExistingProductId: null,
+      }),
+    ).toEqual({
+      productId: null,
+      isExistingCanonical: false,
+    });
+  });
+});
 
 describe('continueProductStudioStep', () => {
   it('does not advance when product persistence fails on the offer step', async () => {

@@ -1,3 +1,13 @@
+export function resolveProductPersistenceTarget(input: {
+  productId: string | null;
+  useExistingProductId: string | null;
+}): { productId: string | null; isExistingCanonical: boolean } {
+  return {
+    productId: input.productId ?? input.useExistingProductId,
+    isExistingCanonical: Boolean(input.useExistingProductId),
+  };
+}
+
 export interface ProductStudioContinueOptions {
   step: string;
   saving: boolean;
