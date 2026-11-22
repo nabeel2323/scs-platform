@@ -26,7 +26,7 @@ BEGIN
       ADD CONSTRAINT fk_carrier_webhook_events_credential
       FOREIGN KEY (credential_id)
       REFERENCES carrier_credentials(id)
-      ON DELETE SET NULL;
+      ON DELETE RESTRICT;
   END IF;
 END $$;
 

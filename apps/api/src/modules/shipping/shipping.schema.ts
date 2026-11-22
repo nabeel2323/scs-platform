@@ -148,7 +148,7 @@ export const carrierWebhookEvents = pgTable('carrier_webhook_events', {
   providerKey: varchar('provider_key', { length: 40 }).notNull(),
   // Nullable only for legacy rows; all newly ingested events bind the exact
   // credential that verified the HMAC signature.
-  credentialId: uuid('credential_id').references(() => carrierCredentials.id, { onDelete: 'set null' }),
+  credentialId: uuid('credential_id').references(() => carrierCredentials.id, { onDelete: 'restrict' }),
   eventType: varchar('event_type', { length: 80 }).notNull(),
   externalDeliveryId: varchar('external_delivery_id', { length: 200 }).notNull(),
   shipmentId: uuid('shipment_id').references(() => shipments.id),

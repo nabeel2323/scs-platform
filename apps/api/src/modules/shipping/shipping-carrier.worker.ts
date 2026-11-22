@@ -1074,23 +1074,15 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     try {
       if (!webhookEvent.shipmentId) {
         let credential: any = null;
-        if (webhookEvent.credentialId) {
-          credential = await this.db.db.query.carrierCredentials.findFirst({
-            where: eq(carrierCredentials.id, webhookEvent.credentialId),
-          });
-        } else {
-          const legacyCredentials = await this.db.db.query.carrierCredentials.findMany({
-            where: eq(carrierCredentials.providerKey, webhookEvent.providerKey),
-            limit: 2,
-          });
-          if (legacyCredentials.length !== 1) {
-            throw new NonRetryableCarrierError(
-              'Legacy webhook event has no unique credential binding',
-              { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
-            );
-          }
-          credential = legacyCredentials[0];
+        if (!webhookEvent.credentialId) {
+          throw new NonRetryableCarrierError(
+            'Legacy webhook event has no unambiguous credential binding',
+            { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
+          );
         }
+        credential = await this.db.db.query.carrierCredentials.findFirst({
+          where: eq(carrierCredentials.id, webhookEvent.credentialId),
+        });
 
         if (!credential) {
           throw new NonRetryableCarrierError(
