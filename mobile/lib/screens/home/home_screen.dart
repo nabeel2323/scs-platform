@@ -314,7 +314,7 @@ class HomeScreen extends ConsumerWidget {
         },
         child: Container(
           width: 84,
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: TaifTokens.surface,
             borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
