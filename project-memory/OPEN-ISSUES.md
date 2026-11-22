@@ -214,3 +214,8 @@ See [WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md](./WHOLE-PRODUCT-IMPLEMENTATION-I
 - Complete route-level permission audit across all admin pages; do not repeat the older blanket assertion because generic ManagementPage has a configured permission gate.
 
 These are implementation candidates, not automatically verified defects or permission to expand future-phase scope.
+
+
+## G-002 migration crosswalk — 22 November 2026
+
+Migration-source FK evidence now covers core identity/store/catalog/inventory/cart/order/offer/shipping plus payment/return/financial/carrier/operations paths. Important remaining blockers are still open: verify deployed constraints and all relation objects from a refreshed protected read-only catalog snapshot; validate application-maintained org_id fields added in migration 0062; resolve cross-parent consistency where no composite FK exists; verify live API/migration DB identities; and reconcile 114-versus-116. No live DB changes or RLS activation.
