@@ -771,3 +771,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - UX-041: corrected the import-processing race by starting status polling only after the process request succeeds. Polling now has request generation/overlap/unmount guards, exposes retry after status-read errors, and uses explicit COMPLETED/FAILED/CANCELLED outcome classification so a FAILED job cannot be presented as a successful import.
 - Added `merchant-import-wizard-store-recovery.test.tsx` and `import-job-outcome.test.ts`. Tests are not executed during the implementation-first phase.
 - No API/permission/schema/database/queue/worker changes. Commits use `[skip ci]`; no deployment or staging action.
+
+## 2026-11-22 — UX-042 Merchant Warehouses read recovery
+
+- Source audit found store lookup failures were presented as “No store found,” while warehouse-list failures still rendered “No warehouses yet” and had no retry.
+- Added separate store loading/error/retry/no-store states and independent warehouse list loading/error/retry states. Request-version guards prevent stale store/list responses from overwriting newer state. Failed refreshes preserve the last successful warehouse rows.
+- Added `merchant-warehouses-recovery.test.tsx` for store lookup retry, failed warehouse read/retry, empty-state suppression and true no-store handling. Test not executed.
+- No API, permission, schema, database or migration changes. Commit uses `[skip ci]`; no deployment or staging action.
