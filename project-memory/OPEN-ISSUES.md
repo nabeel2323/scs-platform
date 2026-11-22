@@ -281,3 +281,11 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Admin order detail now returns and displays product/variant titles and SKU rather than only IDs.
 - PricingService variant-tier reads now fail closed without storeId and filter through priceLists.storeId, including the internal product-pricing resolver.
 - Next: continue UX-010 re-audit for other concrete, source-confirmed Admin/Web/Mobile gaps. G-002 live identity/catalog evidence and transaction-context/RLS design remain protected gates; no global interceptor, RLS or grants are authorized.
+
+
+## UX-015 Product Studio save-flow correction — 22 November 2026
+
+- Fixed a concrete wizard correctness defect: Offer-step navigation previously advanced even when the product save returned null, and the intermediate save created the offer before the final Review save ran the same routine again.
+- Product/variant persistence is now a separate intermediate operation; final Review creates the offer once. Failed or incomplete saves block navigation. Variant retry skips already-persisted SKUs.
+- Added focused tests, not executed. UX-005's warehouse selector was already implemented; stale raw-ID inventory wording is corrected.
+- Remaining: continue UX-010 Admin/Web/Mobile re-audit; keep protected G-002 identity/catalog/RLS gates and consolidated test/release campaign open.

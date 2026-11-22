@@ -425,3 +425,12 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Focused tests were added but not run. No CI was triggered.
 - No migration was applied, no staging/shared DB action, no deployment, no worker activation, no grant/RLS change and no external provider call occurred.
 - Remaining gates: UX-010 screen re-audit; protected API/migration identity evidence; 114-versus-116 physical relation reconciliation; transaction-context/RLS architecture review; and the consolidated final test/CI/release campaign.
+
+
+## Exact source checkpoint — Product Studio UX-015 — 22 November 2026
+
+- Source implementation commit: `3adb376515137bf49da4b44699e1b3c731389504` (Product Studio save-flow implementation). The following documentation synchronization commit advances the branch; verify the live SHA before relying on this note.
+- PR #138 remains open, draft and unmerged to `develop`.
+- On source commit `3adb376...`, GitHub Actions check-runs contained no CI workflow run; only the Vercel Preview Comments check completed successfully. Combined statuses showed Web preview pending deployment and Admin preview skipped/not affected. These are not test evidence.
+- The last recorded actual CI workflow remains run #1337 on SHA `06cd8fc1e56dc7ef64a141b97b594adc96ffbece`; it failed the changed-file Prettier gate, so dependent jobs were skipped. It does not verify UX-015.
+- Focused UX-015 tests were added but not run. No comprehensive tests, CI rerun, staging action, database query/write, migration, deployment, worker activation, grant/RLS change or provider call occurred.

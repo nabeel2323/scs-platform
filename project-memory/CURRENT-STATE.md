@@ -364,3 +364,12 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Latest exact-head GitHub Actions check-runs: none. Vercel Admin and Web statuses fail with Deployment rate limited — retry in 24 hours; these are preview-provider failures, not test results.
 - No migrations applied, no shared/staging DB action, no grants/RLS changes, no deployment, no worker activation and no external provider calls.
 - Next implementation work: continue UX-010 source re-audit across remaining Admin/Web/Mobile screens, recording only concrete contract-backed gaps. UX-007 support ticket scope and UX-008 geospatial/location policy remain blocked on product decisions; generic OutboxDispatcher remains log-only pending an event-bus decision.
+
+
+## Product Studio save-flow checkpoint — 22 November 2026
+
+- Source baseline before this checkpoint: `3adb376515137bf49da4b44699e1b3c731389504`. The grouped source/documentation commit advances the branch; resolve the resulting SHA from GitHub.
+- UX-015 fixes the Product Studio Offer-step transition: failed product persistence no longer advances; product/variant persistence is separated from final commercial-offer creation; retries skip already-persisted variant SKUs; and Next is disabled during saving.
+- Added focused web helper tests for failed-save blocking, required identity, successful advance, in-flight blocking and already-created product behavior. Not executed; full testing remains reserved for the consolidated campaign.
+- UX-005 is confirmed implemented in current source: StepOffer already uses the selected store's active warehouse selector. The old inventory statement about a raw warehouse-ID input was historical and has been corrected.
+- PR #138 remains open/draft/unmerged. No merge, deployment, database mutation, migration application, grant/RLS change, worker activation or provider call occurred.

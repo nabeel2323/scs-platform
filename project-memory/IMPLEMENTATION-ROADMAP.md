@@ -214,3 +214,12 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Enforced store-scoped variant-tier reads in PricingService for both direct variant pricing and internal price-list resolution.
 - Implemented UX-013 Admin order item label enrichment and UI presentation.
 - Added focused tests; did not execute them. Next implementation stream is the remaining UX-010 screen audit. Protected G-002 runtime identity/catalog and RLS gates remain open.
+
+
+## 2026-11-22 — UX-015 Product Studio save-flow integrity
+
+- Separated product/variant persistence at the Offer step from commercial-offer creation at final Review save.
+- Blocked navigation after failed saves or while saving; added required store/title validation and in-flight button disablement.
+- Added persisted-SKU checks so retries do not recreate variants already written by a partial save.
+- Confirmed UX-005 warehouse selection was already implemented; corrected the stale whole-product inventory description. Focused helper tests added but not run.
+- Next: continue UX-010 source re-audit across remaining Admin/Web/Mobile screens, recording only contract-backed gaps. Do not run the comprehensive suite until implementation/integration completion.

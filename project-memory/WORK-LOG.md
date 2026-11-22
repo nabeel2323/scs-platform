@@ -544,3 +544,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added focused tests for mobile pricing route permission, price-tier enrichment, variant-tier store isolation and admin order labels. Tests not run; no CI triggered.
 - Updated UX-012 and UX-013 in the gap register. Broad UX-010 source re-audit remains the next implementation stream.
 - No migrations, DB writes, grants/RLS, staging/deployment, worker activation or external provider calls.
+
+
+## 2026-11-22 — UX-015 Product Studio save-flow integrity
+
+- Source review confirmed StepOffer already uses the selected store's active warehouse selector; the older whole-product inventory statement about a raw warehouse ID was stale and has been corrected.
+- Fixed the Product Studio save sequence. Offer-step Next now validates store/title, blocks while saving, waits for product-only persistence and does not advance on a null/failed result. The intermediate save no longer creates the commercial offer; the final Review save creates it once.
+- Variant creation retries reload persisted variants and skip existing SKUs, avoiding duplicate variants after partial failure. The dirty-state baseline now captures the actual saved state; save callback dependencies include loaded brands and offer-creation state.
+- Added `apps/web/src/lib/product-studio-flow.ts` and `apps/web/src/__tests__/product-studio-flow.test.ts` covering five transition cases. Not executed by design; comprehensive validation remains at the end.
+- Source baseline: `3adb376515137bf49da4b44699e1b3c731389504`. Documentation and hook correction are included in the next grouped commit; resolve live branch SHA afterward.
+- PR #138 remains draft. No staging/shared DB, migration, grants/RLS, deployment, worker activation or external provider calls occurred.

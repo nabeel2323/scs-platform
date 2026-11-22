@@ -225,3 +225,12 @@ Deferred/remaining:
 | UX-013 | Admin order detail product/variant labels | P2 | IMPLEMENTED IN SOURCE — NOT TESTED | Admin order detail previously showed product and variant UUIDs only. AdminService now joins product/variant labels and the Admin UI displays product title, variant title and SKU with UUID fallback. Route permission remains admin:orders:read. |
 
 | UX-014 | Buyer search offers-only filter | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Search result cards already displayed active offer counts and lowest offer price, but there was no server-backed offers-only filter. Added hasOffers=true to API search, with the predicate applied to empty, full-text and exact-SKU paths; added web and mobile filters. |
+| UX-015 | Product Studio save and step-transition integrity | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Offer-step navigation previously advanced after a failed product save; the intermediate save also created the offer before final review, so the final save could create a duplicate. Partial variant creation could be repeated after retry. Added a fail-closed transition helper, product-only intermediate save, final-review offer creation guard and persisted-SKU recheck before variant retries. |
+
+
+## UX-015 — Product Studio save and step-transition integrity — 22 November 2026
+
+- The Offer → Media transition now requires a store and nonblank product title, waits for the product-only save, and advances only when a product ID is returned. A failed save leaves the user on the Offer step with the existing error message visible.
+- The intermediate save creates the product, attributes and missing variants but does not create the commercial offer. The final Review action creates the offer once, preventing the previous Offer-step save + Review save double-creation path.
+- Before retrying variant creation, the hook reloads persisted variants and skips SKUs already created by a partially completed save. The dirty-state baseline now reflects the actual saved wizard state, and the save callback tracks its brand/offer state dependencies.
+- Next is disabled while a save is in progress. Focused helper tests cover failed-save blocking, required identity, successful advance, in-flight blocking and already-created product behavior. Tests have not been executed; the comprehensive campaign remains deferred.

@@ -88,7 +88,7 @@ export function useProductStudio() {
   useEffect(() => {
     const current = JSON.stringify(state);
     setIsDirty(current !== initialRef.current);
-  }, [state, brands, offerCreatedForProductId]);
+  }, [state]);
 
   // beforeunload protection (browser refresh, back, close tab)
   useEffect(() => {
@@ -271,7 +271,7 @@ export function useProductStudio() {
             : 'Product details saved. Continue to review to create the offer.',
       );
       // P7 Phase 5: reset dirty state after successful save
-      initialRef.current = JSON.stringify({ ...INITIAL, productId, storeId: state.storeId });
+      initialRef.current = JSON.stringify({ ...state, productId });
       setIsDirty(false);
       return productId;
     } catch (e: unknown) {
@@ -280,7 +280,7 @@ export function useProductStudio() {
     } finally {
       setSaving(false);
     }
-  }, [state]);
+  }, [state, brands, offerCreatedForProductId]);
 
   // Compute completeness score (0–100)
   const completeness = useCallback((): number => {
