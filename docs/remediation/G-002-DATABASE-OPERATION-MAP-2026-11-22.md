@@ -47,6 +47,35 @@ These are source-symbol observations, not runtime query counts, a complete call 
 5. **Audit and outbox are separate system concerns.** The audit service inserts audit rows; merchant and order services insert outbox events. The separate dispatcher/worker paths still need their own explicit operation and actor classification.
 6. **Catalog taxonomy has both platform-governed and product-linked rows.** Attribute definitions/options/groups and product-type relations need explicit platform-vs-tenant ownership classification; product/variant attribute values inherit product/variant ownership rather than an assumed direct organization column.
 
+## Additional service and worker operation map — source slice 2
+
+The following source files were also inspected. Schema-backed operations use the same R/I/U/D labels defined above. Raw-SQL worker tables are listed as **SQL touchpoints** only where the source uses SQL fragments; exact statement-by-statement read/write classification is deliberately not inferred from keyword matching.
+
+| Source path | Tables and observed operations |
+|---|---|
+| `apps/api/src/modules/orders/cart.service.ts` | `carts` R/I/U; `cart_items` R/I/U/D; `products` R; `product_variants` R; `merchant_offers` R |
+| `apps/api/src/modules/promotions/promotions.service.ts` | `promotions` R/I/U; `promotion_redemptions` R/I |
+| `apps/api/src/modules/notifications/notifications.service.ts` | `notifications` R/I/U; `notification_preferences` R/I/U; `device_tokens` R/I/U |
+| `apps/api/src/modules/analytics/analytics.service.ts` | `analytics_events` R/I |
+| `apps/api/src/modules/reviews/disputes.service.ts` | `disputes` R/I/U; `dispute_events` R/I; `conversations` R/I/U; `messages` R/I/U; `orders` R; `payment_records` R; `refunds` R/U |
+| `apps/api/src/modules/reviews/reviews.service.ts` | `reviews` R/I; `trust_snapshots` R/I/U; `orders` R |
+| `apps/api/src/common/outbox/outbox-dispatcher.service.ts` | `outbox_events` R/I/U |
+| `apps/api/src/modules/shipping/shipping-carrier.worker.ts` | `outbox_events` U; `shipments` R/U; `carrier_webhook_events` R/U; `shipment_labels` R/I |
+| `apps/api/src/modules/operations/p13-monitor.service.ts` | Raw SQL touchpoints: `return_requests`, `orders`, `stores`, `worker_leases`, `refunds`, `commission_reversals`, `payment_records`, `settlement_adjustments`, `outbox_events`, `ops_alerts` |
+| `apps/api/src/modules/operations/worker-lease.service.ts` | Raw SQL touchpoint: `worker_leases` (lease acquisition/renewal/release) |
+| `apps/api/src/modules/operations/ops-alert.service.ts` | Raw SQL touchpoint: `ops_alerts` (durable alert state and delivery lifecycle) |
+| `apps/api/src/modules/orders/auto-complete.worker.ts` | Raw SQL touchpoint: `orders` for due-order claiming; delegates the state transition to OrdersService |
+| `apps/api/src/modules/returns/return-expiration.worker.ts` | Raw SQL touchpoint: `return_requests` for due-return selection/claiming; delegates return transitions to ReturnsService |
+
+### Worker and system-context implications
+
+- The generic OutboxDispatcher reads and updates `outbox_events`; the dedicated ShippingCarrierWorker also consumes carrier outbox events and updates shipment/carrier records. Event-type ownership and claim predicates must be recorded so the same event cannot be acknowledged by a non-owning consumer.
+- WorkerLeaseService and P13MonitorService use raw SQL rather than Drizzle schema objects for at least part of their operations. A scoped DB abstraction must cover these raw SQL paths; wrapping only typed Drizzle query-builder calls would be incomplete.
+- P13MonitorService is an operational monitor with read-only domain scans plus durable alert coordination. OpsAlertService owns the `ops_alerts` lifecycle; WorkerLeaseService owns `worker_leases`. Keep these system tables distinct from tenant-owned business rows.
+- AutoCompleteWorker and ReturnExpirationWorker execute outside HTTP request context and delegate domain transitions to OrdersService and ReturnsService. Their claim/lease queries and delegated service operations need an explicit worker identity and, where applicable, the owning order/store context.
+- Notifications and analytics contain user/org-associated rows but are not automatically safe for broad tenant reads. Device tokens and notification preferences are user-private; analytics requires event-level access and aggregation rules.
+- Disputes/conversations/messages inherit order-participant and conversation membership rules. A dispute's parent order and payment references are part of the ownership path; a generic org-only filter is insufficient.
+
 ## Still unmapped
 
 This slice does **not** complete DB-003. It does not yet enumerate all service/controller/worker/webhook/CLI paths, raw SQL, dynamic imports, database functions/triggers/views/sequences, partition children, extension-owned objects or all 99 Drizzle-exported tables. The access-path inventory remains authoritative for the worker, audit-middleware, bootstrap, runtime identity and nested-transaction blockers.
