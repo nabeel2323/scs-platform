@@ -148,6 +148,7 @@ class TestHarness {
           activeOrgId: any(named: 'activeOrgId'),
         )).thenAnswer((_) async {});
     when(() => storage.clearTokens()).thenAnswer((_) async {});
+    when(() => storage.clearActiveOrgId()).thenAnswer((_) async {});
     when(() => storage.getAccessToken()).thenAnswer((_) async => null);
     when(() => storage.getRefreshToken()).thenAnswer((_) async => null);
     when(() => storage.getActiveOrgId()).thenAnswer((_) async => null);
