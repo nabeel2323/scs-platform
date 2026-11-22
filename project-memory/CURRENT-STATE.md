@@ -373,3 +373,11 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Added focused web helper tests for failed-save blocking, required identity, successful advance, in-flight blocking and already-created product behavior. Not executed; full testing remains reserved for the consolidated campaign.
 - UX-005 is confirmed implemented in current source: StepOffer already uses the selected store's active warehouse selector. The old inventory statement about a raw warehouse-ID input was historical and has been corrected.
 - PR #138 remains open/draft/unmerged. No merge, deployment, database mutation, migration application, grant/RLS change, worker activation or provider call occurred.
+
+
+## Buyer cart UX-016 checkpoint — 22 November 2026
+
+- Fixed cart mutation feedback/recovery: quantity, remove and clear operations now serialize through a shared helper, display API failures and always release pending state. Controls have accessible labels and pending feedback; promo and checkout are gated during mutations.
+- Cart reads no longer turn a double read failure into a false empty-cart state. The last successful cart is retained and a retryable error is shown.
+- Added focused web tests for successful refresh, failure feedback and pending cleanup. Not executed; full validation remains deferred.
+- Source baseline before documentation sync: `c04b722528d70c1c85261b5d160f14ad422b1f64`; grouped docs commit advances branch. PR #138 remains open/draft/unmerged.

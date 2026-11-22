@@ -271,3 +271,10 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Product Studio now uses a product-only intermediate save and creates the commercial offer only on the final Review action. The transition is blocked for missing store/title, failed persistence or an in-flight save. The Next button is disabled while saving.
 - Variant retries re-read existing product variants and skip already-persisted SKUs, avoiding duplicate variants after a partial failure. The saved dirty-state baseline reflects the actual wizard state.
 - Added focused tests for the transition helper; not executed. This is source-level implementation evidence, not browser/device verification.
+
+
+## 22 November 2026 — buyer cart mutation recovery (UX-016)
+
+- Source review found cart quantity/remove/clear handlers had no local error handling or in-flight lock. Failed validation plus failed fallback reads set cart=null, which could misrepresent an unavailable cart as empty.
+- Added a shared cart mutation helper with error feedback, pending-state cleanup and refresh-on-success. Cart actions are serialized; controls expose accessible labels and progress states. Promo/checkout actions are disabled while a mutation is in flight.
+- Cart reads now preserve the last successful cart and show a retryable load error when both validation and fallback reads fail. Focused helper tests were added but not run.

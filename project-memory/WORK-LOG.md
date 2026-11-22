@@ -554,3 +554,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added `apps/web/src/lib/product-studio-flow.ts` and `apps/web/src/__tests__/product-studio-flow.test.ts` covering five transition cases. Not executed by design; comprehensive validation remains at the end.
 - Source baseline: `3adb376515137bf49da4b44699e1b3c731389504`. Documentation and hook correction are included in the next grouped commit; resolve live branch SHA afterward.
 - PR #138 remains draft. No staging/shared DB, migration, grants/RLS, deployment, worker activation or external provider calls occurred.
+
+
+## 2026-11-22 — UX-016 buyer cart mutation recovery
+
+- Added `apps/web/src/lib/cart-actions.ts` to serialize cart mutations, surface API errors, refresh after success and always release pending state. Quantity/remove/clear handlers use it.
+- Cart action controls now expose accessible names and pending feedback; promo application and checkout navigation are disabled during a cart mutation.
+- Cart loading now falls back from validation to plain fetch without discarding the last known cart; if both reads fail, it shows a retryable load error instead of a false empty-cart state.
+- Added `apps/web/src/__tests__/cart-actions.test.ts` for success/refresh and error/pending cleanup. Not executed; broad tests remain at the final campaign.
+- Source baseline: `c04b722528d70c1c85261b5d160f14ad422b1f64`. Documentation synchronization is in the next grouped commit; resolve live SHA afterward.
+- No staging/shared DB, migration, grants/RLS, deployment, worker activation or provider call occurred.

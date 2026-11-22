@@ -223,3 +223,11 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Added persisted-SKU checks so retries do not recreate variants already written by a partial save.
 - Confirmed UX-005 warehouse selection was already implemented; corrected the stale whole-product inventory description. Focused helper tests added but not run.
 - Next: continue UX-010 source re-audit across remaining Admin/Web/Mobile screens, recording only contract-backed gaps. Do not run the comprehensive suite until implementation/integration completion.
+
+
+## 2026-11-22 — UX-016 buyer cart mutation recovery
+
+- Cart quantity, remove and clear actions now use a shared mutation wrapper with visible errors, pending-state locking, refresh-on-success and guaranteed pending cleanup.
+- Added accessible labels and progress feedback to cart controls; promo and checkout are blocked while a cart mutation is in flight.
+- Cart load fallback preserves the last successful cart and exposes a retryable error rather than showing a false empty state.
+- Focused tests added but not run. Continue the UX-010 Admin/Web/Mobile source audit; keep full testing consolidated after implementation/integration.

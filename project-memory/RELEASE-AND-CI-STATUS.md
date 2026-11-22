@@ -434,3 +434,11 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - On source commit `3adb376...`, GitHub Actions check-runs contained no CI workflow run; only the Vercel Preview Comments check completed successfully. Combined statuses showed Web preview pending deployment and Admin preview skipped/not affected. These are not test evidence.
 - The last recorded actual CI workflow remains run #1337 on SHA `06cd8fc1e56dc7ef64a141b97b594adc96ffbece`; it failed the changed-file Prettier gate, so dependent jobs were skipped. It does not verify UX-015.
 - Focused UX-015 tests were added but not run. No comprehensive tests, CI rerun, staging action, database query/write, migration, deployment, worker activation, grant/RLS change or provider call occurred.
+
+
+## Exact source checkpoint — UX-016 buyer cart recovery — 22 November 2026
+
+- Source implementation commit: `c04b722528d70c1c85261b5d160f14ad422b1f64`. The following project-memory sync commit advances the branch; resolve the resulting SHA from GitHub.
+- PR #138 remains open, draft and unmerged to `develop`.
+- Exact-head check-runs on `c04b722...`: no GitHub Actions CI workflow run; Vercel Preview Comments passed. Vercel Web preview was pending deployment and Admin preview was skipped/not affected. These are not application test evidence.
+- Focused cart-action tests were added but not run. No comprehensive suite, staging action, database mutation, migration, deployment, worker activation, grant/RLS change or provider call occurred.

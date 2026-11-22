@@ -226,6 +226,7 @@ Deferred/remaining:
 
 | UX-014 | Buyer search offers-only filter | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Search result cards already displayed active offer counts and lowest offer price, but there was no server-backed offers-only filter. Added hasOffers=true to API search, with the predicate applied to empty, full-text and exact-SKU paths; added web and mobile filters. |
 | UX-015 | Product Studio save and step-transition integrity | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Offer-step navigation previously advanced after a failed product save; the intermediate save also created the offer before final review, so the final save could create a duplicate. Partial variant creation could be repeated after retry. Added a fail-closed transition helper, product-only intermediate save, final-review offer creation guard and persisted-SKU recheck before variant retries. |
+| UX-016 | Buyer cart mutation feedback and recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Cart quantity/remove/clear handlers previously allowed rejected requests to escape without user feedback or pending-state protection; failed validation and fallback reads could be rendered as an empty cart. Added a shared mutation wrapper, action locking, accessible pending labels, error display and retry while preserving the last loaded cart. |
 
 
 ## UX-015 — Product Studio save and step-transition integrity — 22 November 2026
@@ -234,3 +235,11 @@ Deferred/remaining:
 - The intermediate save creates the product, attributes and missing variants but does not create the commercial offer. The final Review action creates the offer once, preventing the previous Offer-step save + Review save double-creation path.
 - Before retrying variant creation, the hook reloads persisted variants and skips SKUs already created by a partially completed save. The dirty-state baseline now reflects the actual saved wizard state, and the save callback tracks its brand/offer state dependencies.
 - Next is disabled while a save is in progress. Focused helper tests cover failed-save blocking, required identity, successful advance, in-flight blocking and already-created product behavior. Tests have not been executed; the comprehensive campaign remains deferred.
+
+
+## UX-016 — Buyer cart mutation feedback and recovery — 22 November 2026
+
+- Quantity, remove and clear actions now run through a shared mutation helper that reports API errors, serializes concurrent cart mutations, refreshes after success and always releases the pending state.
+- Quantity controls and remove actions expose accessible labels; pending quantity/remove/clear operations show progress feedback. Promo application and checkout navigation are blocked while another cart mutation is in flight.
+- Cart loading falls back from validation to the plain cart read, clears stale validation warnings on fallback, preserves the last successfully loaded cart if both reads fail, and shows an explicit retryable error rather than falsely presenting an empty cart.
+- Added focused tests for successful refresh, mutation failure feedback and pending-state cleanup. Tests have not been executed; comprehensive validation remains deferred.

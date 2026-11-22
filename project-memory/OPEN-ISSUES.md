@@ -289,3 +289,10 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Product/variant persistence is now a separate intermediate operation; final Review creates the offer once. Failed or incomplete saves block navigation. Variant retry skips already-persisted SKUs.
 - Added focused tests, not executed. UX-005's warehouse selector was already implemented; stale raw-ID inventory wording is corrected.
 - Remaining: continue UX-010 Admin/Web/Mobile re-audit; keep protected G-002 identity/catalog/RLS gates and consolidated test/release campaign open.
+
+
+## UX-016 buyer cart mutation recovery — 22 November 2026
+
+- Cart quantity/remove/clear requests previously had no local error handling or in-flight lock. Cart read failure could fall through to cart=null and render the empty state.
+- Added recoverable mutation feedback and action serialization; failed reads now preserve prior cart data and show a retry action. Focused helper tests added but not executed.
+- Next: continue UX-010 source audit on Admin/Web/Mobile screens and integrate remaining workflow gaps. Comprehensive tests remain deferred.
