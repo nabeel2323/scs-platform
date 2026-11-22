@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-const { api } = vi.hoisted(() => ({
+const { api, auth } = vi.hoisted(() => ({
+  auth: { user: { perms: ['merchant:orders:write', 'fulfillment:shipments:assign'] } },
   api: {
     fetchOrders: vi.fn(),
     fetchMerchantCustomersCached: vi.fn(),
@@ -16,6 +17,7 @@ const { api } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('../components/AuthProvider', () => ({ useAuth: () => auth }));
 vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
 }));
