@@ -442,3 +442,7 @@ Admin Dashboard KPI and organization-update reads previously swallowed failures,
 ## UX-044 — Admin KPI Dashboard — 22 November 2026
 
 The dedicated KPI Dashboard silently swallowed read failures, offered no retry and allowed overlapping date-range reads to race. It now has explicit retryable errors, request-version protection and stale-data preservation; initial failures show unavailable metrics rather than zero defaults. Focused test added but not executed. UX-044 remains TESTING_PENDING for the consolidated campaign. No API or permission change.
+
+## UX-045 — Admin Organizations — 22 November 2026
+
+The Organizations page previously coupled the directory and update-request queue through one `Promise.all`; a single failure blocked both and could render false empty states. These reads are now independent with retryable errors, request-version guards and successful-empty-only rendering. Focused test added but not executed. UX-045 remains TESTING_PENDING for the consolidated campaign. No API or permission change.
