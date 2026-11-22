@@ -35,34 +35,44 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
         title: const Text('Offer Detail'),
         actions: [
           IconButton(
+            tooltip: 'Refresh offer',
             icon: const Icon(Icons.refresh),
-            onPressed: () {
-              ref.invalidate(merchantOfferDetailProvider(widget.offerId));
-              ref.invalidate(merchantOfferAnalyticsProvider);
-            },
+            onPressed: _refreshOffer,
           ),
         ],
       ),
       body: offerAsync.when(
+        skipLoadingOnRefresh: true,
+        skipLoadingOnReload: true,
+        skipError: true,
         loading: () => const LoadingSpinner(),
         error: (e, _) => AppErrorState(
           title: 'Could not load offer',
           message: ApiService.errorMessage(e),
-          onRetry: () =>
-              ref.invalidate(merchantOfferDetailProvider(widget.offerId)),
+          onRetry: () => ref.invalidate(
+            merchantOfferDetailProvider(widget.offerId),
+          ),
         ),
         data: (offer) {
-
+          final analytics = _analyticsFor(
+            analyticsAsync.valueOrNull,
+            offer.id,
+          );
           return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(merchantOfferDetailProvider(widget.offerId));
-              ref.invalidate(merchantOfferAnalyticsProvider);
-              await ref
-                  .read(merchantOfferDetailProvider(widget.offerId).future);
-            },
+            onRefresh: _refreshOffer,
             child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
               children: [
+                if (offerAsync.isRefreshing || offerAsync.hasError)
+                  _readNotice(
+                    offerAsync.isRefreshing
+                        ? 'Refreshing offer… showing the last successfully loaded offer.'
+                        : 'Could not refresh offer: ${ApiService.errorMessage(offerAsync.error!)}. Showing the last successfully loaded offer.',
+                    () => ref.invalidate(
+                      merchantOfferDetailProvider(widget.offerId),
+                    ),
+                  ),
                 // Status + product header
                 _header(offer, analytics),
                 const SizedBox(height: 16),
@@ -96,6 +106,57 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
       ),
     );
   }
+
+  Future<void> _refreshRead<T>(Future<T> read) async {
+    try {
+      await read;
+    } catch (_) {
+      // Offer and analytics are independent reads; preserve each provider's
+      // last successful value when one source is unavailable.
+    }
+  }
+
+  Future<void> _refreshOffer() async {
+    await Future.wait<void>([
+      _refreshRead(
+        ref.refresh(merchantOfferDetailProvider(widget.offerId).future),
+      ),
+      _refreshRead(ref.refresh(merchantOfferAnalyticsProvider.future)),
+    ]);
+  }
+
+  OfferAnalyticsRow? _analyticsFor(
+    List<OfferAnalyticsRow>? rows,
+    String offerId,
+  ) {
+    if (rows == null) return null;
+    for (final row in rows) {
+      if (row.offerId == offerId) return row;
+    }
+    return null;
+  }
+
+  Widget _readNotice(String message, VoidCallback onRetry) => Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: TaifTokens.err.withValues(alpha: 0.06),
+          border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+              ),
+            ),
+            TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
+      );
 
   // ── Header ──────────────────────────────────────────────────────
 
@@ -224,6 +285,8 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
   Widget _analyticsStateCard(
       MerchantOffer offer, AsyncValue<List<OfferAnalyticsRow>> analyticsAsync) {
     return analyticsAsync.when(
+      skipLoadingOnRefresh: true,
+      skipError: true,
       loading: () => _sectionCard(
         title: 'PERFORMANCE',
         icon: Icons.analytics_outlined,
@@ -262,7 +325,21 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
             break;
           }
         }
-        return _analyticsCard(offer, analytics);
+        final card = _analyticsCard(offer, analytics);
+        if (!analyticsAsync.isRefreshing && !analyticsAsync.hasError) {
+          return card;
+        }
+        return Column(
+          children: [
+            _readNotice(
+              analyticsAsync.isRefreshing
+                  ? 'Refreshing offer performance… showing the last successful metrics.'
+                  : 'Could not refresh offer performance: ${ApiService.errorMessage(analyticsAsync.error!)}. Showing the last successful metrics.',
+              () => ref.invalidate(merchantOfferAnalyticsProvider),
+            ),
+            card,
+          ],
+        );
       },
     );
   }
