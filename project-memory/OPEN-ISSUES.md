@@ -528,3 +528,10 @@ Mobile Store Profile now awaits its store-directory/active-store/warehouse refre
 Organization switching now invalidates merchant/store-scoped client caches in both switch entry points; active-store resolution filters against the selected organization and never falls back across orgs. Login clears the persisted previous active-org selection and resets authenticated caches; logout clears in-memory identity and authenticated caches in addition to stored tokens. Focused ProviderContainer tests were added but have not been executed; UX-093 remains TESTING_PENDING for Phase 3. This is client cache/context correctness, not a replacement for backend tenant authorization. No API, permission, database, migration, RLS, worker or staging changes occurred.
 
 **Next implementation:** finish the Mobile route permission and organization-context transition audit (including route guards and remaining route refresh semantics), then complete the outstanding Web/Admin route and action permission mapping. Do not reopen UX-078–UX-093 without new source evidence.
+
+
+## API typecheck correction batch — 23 November 2026
+
+The API TypeScript diagnostics exposed by CI #1380 have source/test corrections committed on PR #138. The fixes cover explicit P13 escalation authority in integration tests, the worker's fenced-lease outcome union, the Admin order-item product join, two test fixture typings/contracts, and authoritative order → store organization resolution for settlement adjustments. This work is **IMPLEMENTED / NOT VERIFIED**: no typecheck or tests were run after the correction batch, and the current head has no CI run because the commits use `[skip ci]`. Keep the consolidated Phase 3 validation gate. Do not treat CI #1380 as passing or as verification of the corrective commits.
+
+**Next implementation:** continue the Mobile route permission and organization-context transition audit, then complete remaining Web/Admin route/action permission mapping.
