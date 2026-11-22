@@ -80,10 +80,11 @@ class _MerchantCustomersScreenState
               skipLoadingOnRefresh: true,
               skipError: true,
               loading: () => const LoadingSpinner(),
-              error: (e, _) => AppErrorState(
+              error: (e, _) => EmptyState(
                 title: 'Could not load customers',
-                message: ApiService.errorMessage(e),
-                onRetry: () => ref.invalidate(merchantCustomersProvider),
+                description: ApiService.errorMessage(e),
+                actionLabel: 'Retry customers',
+                onAction: () => ref.invalidate(merchantCustomersProvider),
               ),
               data: (list) {
                 final filtered = _applyFilter(list);
