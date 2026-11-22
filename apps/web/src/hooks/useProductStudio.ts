@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ProductTypeSchemaDetail, fetchProductTypeSchema, fetchCategories, fetchBrandsAdmin,
   Category, Brand, createProduct, updateProduct, upsertProductAttributeValues, createVariant,
-  createMerchantOffer, fetchMerchantOffers, presignMedia, addMedia, searchCanonicalProducts, Product,
+  createMerchantOffer, fetchMerchantOffers, presignMedia, addMedia, listMedia, searchCanonicalProducts, Product,
   searchCanonicalCatalog, CanonicalProductSummary, fetchProductVariants, ProductVariant,
 } from '../lib/buyer-api';
 import { fetchMyStores } from '../lib/api';
@@ -257,7 +257,7 @@ export function useProductStudio() {
         await persistProductStudioMedia(
           productId,
           state.mediaItems,
-          fetchProductMedia,
+          listMedia,
           addMedia,
         );
       }
