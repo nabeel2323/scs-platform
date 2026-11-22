@@ -642,3 +642,10 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - All changes use `[skip ci]`. No focused Flutter tests or full CI jobs have been executed for this increment. Do not claim test/CI verification.
 - PR #138 remains open/draft/unmerged to `develop`. Vercel preview statuses, if present, are external provider signals and not application test results.
 - No staging deployment/write, shared database mutation, migration, grants/default-ACL change, RLS activation, worker activation or provider call occurred.
+
+
+## UX-079 verification boundary — 23 November 2026
+
+- Source commits: buyer order history `0bdc925`, theme/empty-state cleanup `35ef98a`, collection syntax correction `fe218e8`; focused tests `c8924b1` with label assertion correction `b7bae42`.
+- All commits use `[skip ci]`. Flutter widget tests have not been executed. No exact-head Actions test result is claimed.
+- PR #138 remains open/draft/unmerged to `develop`. No staging deployment/write, shared database mutation, migration, grants/default-ACL change, RLS activation, worker activation or provider call occurred.
