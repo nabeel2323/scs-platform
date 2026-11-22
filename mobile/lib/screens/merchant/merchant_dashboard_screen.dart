@@ -30,6 +30,7 @@ class MerchantDashboardScreen extends ConsumerWidget {
             onPressed: () {
               ref.invalidate(profileProvider);
               ref.invalidate(myStoresProvider);
+              ref.invalidate(merchantKpisProvider);
             }),
       ]),
       body: profile.when(
@@ -187,11 +188,54 @@ class MerchantDashboardScreen extends ConsumerWidget {
     final canReadInventory = ref.watch(profileProvider).valueOrNull?.hasPermission('merchant:inventory:read') ?? false;
     final kpis = ref.watch(merchantKpisProvider);
     return kpis.when(
+      skipLoadingOnRefresh: true,
+      skipError: true,
       loading: () =>
           const SizedBox(height: 96, child: Center(child: LoadingSpinner())),
-      error: (e, _) => const Text('KPIs unavailable',
-          style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
-      data: (k) => GridView.count(
+      error: (e, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('KPIs unavailable',
+              style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+          TextButton.icon(
+            onPressed: () => ref.invalidate(merchantKpisProvider),
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Retry KPIs'),
+          ),
+        ],
+      ),
+      data: (k) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (kpis.isRefreshing)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text('Refreshing dashboard metrics… showing the last successful values.',
+                  style: TextStyle(fontSize: 11, color: TaifTokens.muted)),
+            ),
+          if (kpis.hasError)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: TaifTokens.err.withValues(alpha: 0.06),
+                border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+                borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+              ),
+              child: Row(children: [
+                Expanded(
+                  child: Text(
+                    'Could not refresh dashboard metrics: ${ApiService.errorMessage(kpis.error!)}. Showing the last successful values.',
+                    style: const TextStyle(fontSize: 11, color: TaifTokens.err),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => ref.invalidate(merchantKpisProvider),
+                  child: const Text('Retry'),
+                ),
+              ]),
+            ),
+          GridView.count(
         crossAxisCount: 2,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -221,6 +265,7 @@ class MerchantDashboardScreen extends ConsumerWidget {
                 accent: (k.lowStockCount ?? 0) > 0 ? TaifTokens.err : null,
                 onTap: () => _open(context, 'inventory', '/merchant/inventory')),
         ],
+      ),
       ),
     );
   }

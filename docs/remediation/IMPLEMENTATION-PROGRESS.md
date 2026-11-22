@@ -1683,3 +1683,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Initial load failures continue to use the existing retryable error state. Cart mutations, idempotency, promo handling, MOQ/step constraints and validation behavior are unchanged.
 - Added `cart_read_recovery_test.dart` for stale-cart preservation after refresh failure and initial failure/retry.
 - No cart/checkout business behavior, API, permission, schema, migration, database, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-073 — Mobile Merchant Dashboard KPI recovery — 22 November 2026
+
+- Merchant Dashboard KPI refresh now retains the last successful metrics during refresh and after a refresh failure, with explicit stale-value messaging and Retry.
+- Initial KPI errors now include a Retry KPIs action instead of a static unavailable label. The dashboard's top-level Refresh action now also invalidates the KPI provider.
+- Existing nullable revenue/units/low-stock values continue to render as unavailable rather than fabricated zero values.
+- Added `merchant_dashboard_kpi_recovery_test.dart` for same-session stale KPI preservation after refresh failure and retry.
+- No KPI calculation, merchant permissions, API, schema, migration, database, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
