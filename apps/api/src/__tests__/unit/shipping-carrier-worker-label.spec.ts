@@ -35,6 +35,7 @@ function makeWorker(
     db: {
       query: {
         shipments: { findFirst: findShipment },
+        stores: { findFirst: vi.fn().mockResolvedValue({ orgId: 'org-1' }) },
         shipmentLabels: { findFirst: findLabel },
       },
       insert: () => ({ values: insertValues }),

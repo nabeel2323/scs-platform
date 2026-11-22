@@ -249,7 +249,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
 
     if (trackingId) {
       try {
-        const trackingInfo = await provider.getTrackingInfo(trackingId);
+        const trackingInfo = await provider.getTrackingInfo(trackingId, shipment.storeId);
         this.circuitBreaker.recordSuccess(cbScope);
 
         if (trackingInfo) {
@@ -465,7 +465,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     const trackingId = shipment.carrier_tracking_id;
     if (trackingId) {
       try {
-        const trackingInfo = await provider.getTrackingInfo(trackingId);
+        const trackingInfo = await provider.getTrackingInfo(trackingId, shipment.store_id);
         this.circuitBreaker.recordSuccess(cbScope);
 
         if (trackingInfo) {

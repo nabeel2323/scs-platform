@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { eq, and, isNull } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
-import { CallerContext, isTenantPrivileged } from '../../common/tenant-scope';
+import { assertActiveOrgMembership, type CallerContext } from '../../common/tenant-scope';
 import { carrierConfigurations, carrierCredentials } from './shipping.schema';
 import { stores } from '../merchant/merchant.schema';
 
@@ -53,7 +53,7 @@ export class CarrierConfigurationsService {
    * Includes both org-wide defaults and store-specific overrides.
    */
   async listForOrg(orgId: string, caller: CallerContext) {
-    this.assertOrgAccess(orgId, caller);
+    await this.assertOrgAccess(orgId, caller);
 
     return this.db.db.query.carrierConfigurations.findMany({
       where: eq(carrierConfigurations.orgId, orgId),
@@ -69,7 +69,12 @@ export class CarrierConfigurationsService {
    *   3. null (no configuration)
    */
   async resolveForStore(orgId: string, storeId: string): Promise<any | null> {
-    // Try store-specific first
+    const store = await this.db.db.query.stores.findFirst({
+      where: and(eq(stores.id, storeId), eq(stores.orgId, orgId)),
+      columns: { id: true },
+    });
+    if (!store) return null;
+
     const storeConfig = await this.db.db.query.carrierConfigurations.findFirst({
       where: and(
         eq(carrierConfigurations.orgId, orgId),
@@ -77,9 +82,12 @@ export class CarrierConfigurationsService {
         eq(carrierConfigurations.isActive, true),
       ),
     });
-    if (storeConfig) return storeConfig;
+    if (storeConfig) {
+      return await this.hasActiveOrgCredential(storeConfig.credentialId, orgId)
+        ? storeConfig
+        : null;
+    }
 
-    // Fall back to org-wide default
     const orgDefault = await this.db.db.query.carrierConfigurations.findFirst({
       where: and(
         eq(carrierConfigurations.orgId, orgId),
@@ -87,7 +95,10 @@ export class CarrierConfigurationsService {
         eq(carrierConfigurations.isActive, true),
       ),
     });
-    return orgDefault ?? null;
+    if (!orgDefault) return null;
+    return await this.hasActiveOrgCredential(orgDefault.credentialId, orgId)
+      ? orgDefault
+      : null;
   }
 
   /**
@@ -99,7 +110,7 @@ export class CarrierConfigurationsService {
     });
     if (!row) throw new NotFoundException('Carrier configuration not found');
 
-    this.assertOrgAccess(row.orgId, caller);
+    await this.assertOrgAccess(row.orgId, caller);
     return row;
   }
 
@@ -115,7 +126,7 @@ export class CarrierConfigurationsService {
    */
   async create(input: CreateCarrierConfigurationInput, caller: CallerContext) {
     // Must be admin or merchant owner with write access
-    this.assertOrgAccess(input.orgId, caller);
+    await this.assertOrgAccess(input.orgId, caller);
     this.assertWritePermission(caller);
 
     // Validate credential belongs to the same org
@@ -212,11 +223,20 @@ export class CarrierConfigurationsService {
 
   // ── Private helpers ─────────────────────────────────────────────────────
 
-  private assertOrgAccess(orgId: string, caller: CallerContext): void {
-    if (isTenantPrivileged(caller)) return;
-    if (caller.activeOrg !== orgId) {
-      throw new ForbiddenException('You do not have access to this organization\'s carrier configurations');
-    }
+  private async hasActiveOrgCredential(credentialId: string, orgId: string): Promise<boolean> {
+    const credential = await this.db.db.query.carrierCredentials.findFirst({
+      where: and(
+        eq(carrierCredentials.id, credentialId),
+        eq(carrierCredentials.orgId, orgId),
+        eq(carrierCredentials.isActive, true),
+      ),
+      columns: { id: true },
+    });
+    return !!credential;
+  }
+
+  private async assertOrgAccess(orgId: string, caller: CallerContext): Promise<void> {
+    await assertActiveOrgMembership(this.db, caller, orgId);
   }
 
   /**

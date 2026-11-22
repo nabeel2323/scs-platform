@@ -8,7 +8,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import {
   CurrentUser, JwtPayload, RequirePermission,
 } from '../../common/guards/current-user.decorator';
-import { isTenantPrivileged } from '../../common/tenant-scope';
+import { assertActiveOrgMembership, isTenantPrivileged } from '../../common/tenant-scope';
 import { CarrierCredentialsService, CreateCarrierCredentialInput } from './carrier-credentials.service';
 import { CarrierConfigurationsService, CreateCarrierConfigurationInput, UpdateCarrierConfigurationInput } from './carrier-configurations.service';
 import { CarrierReconciliationService } from './carrier-reconciliation.service';
@@ -210,9 +210,10 @@ export class CarrierAdminController {
         where: eq(stores.id, shipment.storeId),
         columns: { orgId: true },
       });
-      if (!store || store.orgId !== user.activeOrg) {
+      if (!user.activeOrg || !store?.orgId || store.orgId !== user.activeOrg) {
         throw new NotFoundException(`Shipment ${id} not found`);
       }
+      await assertActiveOrgMembership(this.db, caller, store.orgId);
     }
 
     // Verify the shipment is in a recoverable state (create or cancel)
@@ -232,7 +233,10 @@ export class CarrierAdminController {
         nextReconciliationAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(shipments.id, id));
+      .where(and(
+        eq(shipments.id, id),
+        eq(shipments.storeId, shipment.storeId),
+      ));
 
     // M7.2.4-A Phase 8: Re-fetch the shipment after the update so reconciliation
     // sees the authoritative current state (not a stale snapshot).
@@ -297,6 +301,7 @@ export class CarrierAdminController {
       if (!user.activeOrg) {
         throw new ForbiddenException('An active organization is required to view the recovery queue');
       }
+      await assertActiveOrgMembership(this.db, caller, user.activeOrg);
       const storeRows = await this.db.db.query.stores.findMany({
         where: eq(stores.orgId, user.activeOrg),
         columns: { id: true },

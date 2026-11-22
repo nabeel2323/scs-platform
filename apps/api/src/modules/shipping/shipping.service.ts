@@ -16,7 +16,7 @@ import {
   resolveShippingCost, matchDeliveryZone,
   ShippingCostResult, DeliveryZoneRow, ZoneMatchInput,
 } from './shipping-cost.resolver';
-import { CallerContext } from '../../common/tenant-scope';
+import { assertActiveOrgMembership, isTenantPrivileged, type CallerContext } from '../../common/tenant-scope';
 import { stores } from '../merchant/merchant.schema';
 
 // ── Input / Output types ────────────────────────────────────────────────────
@@ -137,17 +137,17 @@ export class ShippingService implements OnModuleInit {
   // ── Tenant helpers ──────────────────────────────────────────────────────
 
   private async assertStoreInOrg(storeId: string, caller: CallerContext): Promise<void> {
-    const privileged = ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'].includes(caller.role || '');
-    if (privileged) return;
+    if (isTenantPrivileged(caller)) return;
 
     const store = await this.db.db.query.stores.findFirst({
       where: eq(stores.id, storeId),
       columns: { orgId: true },
     });
-    if (!store) throw new NotFoundException('Store not found');
-    if (!store.orgId || store.orgId !== caller.activeOrg) {
+    if (!store?.orgId || store.orgId !== caller.activeOrg) {
       throw new ForbiddenException('Store does not belong to your organization');
     }
+
+    await assertActiveOrgMembership(this.db, caller, store.orgId);
   }
 
   // ── Shipping Method CRUD ────────────────────────────────────────────────

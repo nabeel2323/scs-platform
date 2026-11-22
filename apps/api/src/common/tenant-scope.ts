@@ -3,6 +3,7 @@ import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { DatabaseService } from './database/database.service';
 import { recordOpsCounter } from '../modules/operations/ops-counters';
 import { stores, warehouses, storeMembers } from '../modules/merchant/merchant.schema';
+import { organizationMembers } from '../modules/identity/identity.schema';
 import { products, productVariants } from '../modules/catalog/catalog.schema';
 import { inventoryItems } from '../modules/inventory/inventory.schema';
 
@@ -60,6 +61,34 @@ export function financialOrgScope(caller: CallerContext): string | null {
  */
 export function isTenantPrivileged(caller: CallerContext): boolean {
   return BYPASS_ROLES.includes(caller.role || '');
+}
+
+/**
+ * activeOrg is a JWT routing claim and can outlive membership revocation.
+ * Require a current ACTIVE membership for non-platform organization access.
+ */
+export async function assertActiveOrgMembership(
+  db: DatabaseService,
+  caller: CallerContext,
+  orgId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+  if (!orgId || caller.activeOrg !== orgId) {
+    throw new ForbiddenException('You do not have access to this organization');
+  }
+
+  const membership = await db.db.query.organizationMembers.findFirst({
+    where: and(
+      eq(organizationMembers.orgId, orgId),
+      eq(organizationMembers.userId, caller.sub),
+      eq(organizationMembers.status, 'ACTIVE'),
+    ),
+    columns: { id: true },
+  });
+
+  if (!membership) {
+    throw new ForbiddenException('You are not an active member of this organization');
+  }
 }
 
 async function storeOrgId(db: DatabaseService, storeId: string): Promise<string | null> {

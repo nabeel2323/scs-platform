@@ -19,7 +19,7 @@ import { orders } from '../orders/orders.schema';
 import {
   generateIdempotencyKey, CancelShipmentResult, TrackingInfo,
 } from './shipping.types';
-import { CallerContext } from '../../common/tenant-scope';
+import { assertActiveOrgMembership, isTenantPrivileged, type CallerContext } from '../../common/tenant-scope';
 import { OrdersService } from '../orders/orders.service';
 
 /** Query parameters accepted by the shipment list read model. */
@@ -82,7 +82,7 @@ export class ShipmentOperationsController {
     if (!shipment) throw new NotFoundException('Shipment not found');
 
     // 2. Tenant check
-    await this.assertShipmentAccessible(shipment, caller);
+    const shipmentOrgId = await this.assertShipmentAccessible(shipment, caller);
 
     // 3. Guard: already created
     if (shipment.carrierCreateStatus === 'SUCCESS' && shipment.carrierShipmentId) {
@@ -116,7 +116,7 @@ export class ShipmentOperationsController {
           carrierCreateRetries: 0,
           updatedAt: new Date(),
         })
-        .where(eq(shipments.id, id));
+        .where(and(eq(shipments.id, id), eq(shipments.storeId, shipment.storeId)));
 
       await tx.insert(outboxEvents).values({
         id: crypto.randomUUID(),
@@ -124,6 +124,8 @@ export class ShipmentOperationsController {
         aggregateId: id,
         payload: { shipmentId: id, idempotencyKey },
         metadata: { providerKey: shipment.shippingProviderKey || 'manual-driver' },
+        organizationId: shipmentOrgId,
+        storeId: shipment.storeId,
         status: 'PENDING',
       });
     });
@@ -186,7 +188,7 @@ export class ShipmentOperationsController {
         status: 'CANCELLED',
         updatedAt: new Date(),
       })
-      .where(eq(shipments.id, id));
+      .where(and(eq(shipments.id, id), eq(shipments.storeId, shipment.storeId)));
 
     // Append audit event
     await this.db.db.insert(shipmentEvents).values({
@@ -230,7 +232,7 @@ export class ShipmentOperationsController {
 
     let trackingInfo: TrackingInfo | null = null;
     if (provider && shipment.carrierTrackingId) {
-      trackingInfo = await provider.getTrackingInfo(shipment.carrierTrackingId);
+      trackingInfo = await provider.getTrackingInfo(shipment.carrierTrackingId, shipment.storeId);
     }
 
     // Get local shipment events as tracking timeline
@@ -275,7 +277,7 @@ export class ShipmentOperationsController {
       where: eq(shipments.id, id),
     });
     if (!shipment) throw new NotFoundException('Shipment not found');
-    await this.assertShipmentAccessible(shipment, caller);
+    const shipmentOrgId = await this.assertShipmentAccessible(shipment, caller);
 
     if (!shipment.carrierShipmentId) {
       throw new BadRequestException('Create the carrier shipment before requesting a label');
@@ -303,7 +305,7 @@ export class ShipmentOperationsController {
           shippingProviderKey: shipments.shippingProviderKey,
         })
         .from(shipments)
-        .where(eq(shipments.id, id))
+        .where(and(eq(shipments.id, id), eq(shipments.storeId, shipment.storeId)))
         .for('update');
       const lockedShipment = locked[0];
       if (!lockedShipment) throw new NotFoundException('Shipment not found');
@@ -345,6 +347,8 @@ export class ShipmentOperationsController {
         aggregateId: id,
         payload: { shipmentId: id },
         metadata: { providerKey },
+        organizationId: shipmentOrgId,
+        storeId: shipment.storeId,
         status: 'PENDING',
       });
       outcome = { status: 'QUEUED', eventId };
@@ -421,6 +425,7 @@ export class ShipmentOperationsController {
       if (!caller.activeOrg) {
         return { data: [], total: 0, limit: 0, offset: 0 };
       }
+      await assertActiveOrgMembership(this.db, caller, caller.activeOrg);
       const storeRows = await this.db.db.query.stores.findMany({
         where: eq(stores.orgId, caller.activeOrg),
         columns: { id: true },
@@ -818,17 +823,17 @@ export class ShipmentOperationsController {
   private async assertShipmentAccessible(
     shipment: any,
     caller: CallerContext,
-  ): Promise<void> {
-    const privileged = ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'].includes(caller.role || '');
-    if (privileged) return;
-
+  ): Promise<string> {
     const store = await this.db.db.query.stores.findFirst({
       where: eq(stores.id, shipment.storeId),
       columns: { orgId: true },
     });
-    if (!store) throw new NotFoundException('Store not found for shipment');
+    if (!store?.orgId) throw new NotFoundException('Store not found for shipment');
+    if (isTenantPrivileged(caller)) return store.orgId;
     if (store.orgId !== caller.activeOrg) {
       throw new BadRequestException('Shipment does not belong to your organization');
     }
+    await assertActiveOrgMembership(this.db, caller, store.orgId);
+    return store.orgId;
   }
 }

@@ -253,7 +253,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
     if (!this.circuitBreaker.canRequest(cbScope)) return;
 
     try {
-      const trackingInfo = await provider.getTrackingInfo(shipment.carrierTrackingId);
+      const trackingInfo = await provider.getTrackingInfo(shipment.carrierTrackingId, shipment.store_id);
       this.circuitBreaker.recordSuccess(cbScope);
 
       // ── M7.3-B.3.4 (C6 / BD-3.4-04 / BD-3.4-05): DELIVERED_AFTER_CANCEL ──

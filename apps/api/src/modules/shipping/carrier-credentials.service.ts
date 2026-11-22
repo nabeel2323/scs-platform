@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { eq, and } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
-import { CallerContext, isTenantPrivileged } from '../../common/tenant-scope';
+import { assertActiveOrgMembership, type CallerContext } from '../../common/tenant-scope';
 import { carrierCredentials } from './shipping.schema';
 import { CarrierCredentialCryptoService } from './carrier-credential-crypto.service';
 
@@ -66,7 +66,7 @@ export class CarrierCredentialsService {
    * List all credentials for an organization (masked — no plaintext).
    */
   async listForOrg(orgId: string, caller: CallerContext): Promise<MaskedCredential[]> {
-    this.assertOrgAccess(orgId, caller);
+    await this.assertOrgAccess(orgId, caller);
 
     const rows = await this.db.db.query.carrierCredentials.findMany({
       where: eq(carrierCredentials.orgId, orgId),
@@ -84,7 +84,7 @@ export class CarrierCredentialsService {
     });
     if (!row) throw new NotFoundException('Carrier credential not found');
 
-    this.assertOrgAccess(row.orgId, caller);
+    await this.assertOrgAccess(row.orgId, caller);
     return this.maskCredential(row);
   }
 
@@ -96,7 +96,7 @@ export class CarrierCredentialsService {
    */
   async create(input: CreateCarrierCredentialInput, caller: CallerContext): Promise<MaskedCredential> {
     this.assertAdmin(caller);
-    this.assertOrgAccess(input.orgId, caller);
+    await this.assertOrgAccess(input.orgId, caller);
 
     // Validate provider key format
     if (!input.providerKey || !/^[a-z0-9-]{1,40}$/.test(input.providerKey)) {
@@ -166,7 +166,7 @@ export class CarrierCredentialsService {
     });
     if (!row) throw new NotFoundException('Carrier credential not found');
 
-    this.assertOrgAccess(row.orgId, caller);
+    await this.assertOrgAccess(row.orgId, caller);
 
     const [updated] = await this.db.db.update(carrierCredentials)
       .set({ isActive: false, updatedAt: new Date() })
@@ -201,7 +201,7 @@ export class CarrierCredentialsService {
     const row = await this.db.db.query.carrierCredentials.findFirst({
       where: eq(carrierCredentials.id, credentialId),
     });
-    if (!row) return null;
+    if (!row || !row.isActive) return null;
     if (!row.webhookSecretEncrypted) return null;
 
     return this.crypto.decrypt(row.webhookSecretEncrypted);
@@ -256,11 +256,8 @@ export class CarrierCredentialsService {
    * Assert the caller has access to the specified organization.
    * Platform staff (SUPER_ADMIN, ADMIN, MODERATOR) bypass org scoping.
    */
-  private assertOrgAccess(orgId: string, caller: CallerContext): void {
-    if (isTenantPrivileged(caller)) return;
-    if (caller.activeOrg !== orgId) {
-      throw new ForbiddenException('You do not have access to this organization\'s carrier credentials');
-    }
+  private async assertOrgAccess(orgId: string, caller: CallerContext): Promise<void> {
+    await assertActiveOrgMembership(this.db, caller, orgId);
   }
 
   /**

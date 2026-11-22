@@ -7,6 +7,7 @@ import { CarrierCredentialsService } from './carrier-credentials.service';
 import { CarrierConfigurationsService } from './carrier-configurations.service';
 import { outboxEvents } from '../audit/audit.schema';
 import { shipments } from '../orders/shipment.schema';
+import { stores } from '../merchant/merchant.schema';
 import { carrierWebhookEvents, carrierCredentials, shipmentLabels } from './shipping.schema';
 import { resolveShipmentForCredential } from './carrier-webhook-routing';
 import { generateIdempotencyKey, CarrierCreateStatus, CreateShipmentRequest, CancelPickupRequest } from './shipping.types';
@@ -265,6 +266,47 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
   // ── Event Handlers ────────────────────────────────────────────────────────
 
   /**
+   * Verify optional outbox tenant metadata against the shipment's authoritative
+   * store → organization relationship before any provider side effect.
+   */
+  private async assertOutboxTenantMatchesShipment(
+    event: any,
+    shipment: any,
+    expectedOrgId?: string,
+  ): Promise<void> {
+    const eventStoreId = event.storeId || event.metadata?.storeId;
+    const providerKey = shipment.shippingProviderKey || 'unknown';
+    if (eventStoreId && eventStoreId !== shipment.storeId) {
+      throw new NonRetryableCarrierError(
+        'Carrier outbox event store does not match its shipment',
+        { providerKey, operation: 'validateTenant' },
+      );
+    }
+
+    const store = await this.db.db.query.stores.findFirst({
+      where: eq(stores.id, shipment.storeId),
+      columns: { orgId: true },
+    });
+    if (!store?.orgId) {
+      throw new NonRetryableCarrierError(
+        'Carrier shipment has no valid owning organization',
+        { providerKey, operation: 'validateTenant' },
+      );
+    }
+
+    const eventOrgId = event.organizationId || event.metadata?.organizationId;
+    if (
+      (eventOrgId && eventOrgId !== store.orgId) ||
+      (expectedOrgId && expectedOrgId !== store.orgId)
+    ) {
+      throw new NonRetryableCarrierError(
+        'Carrier outbox event organization does not match its shipment',
+        { providerKey, operation: 'validateTenant' },
+      );
+    }
+  }
+
+  /**
    * Handle shipping.carrier.create.
    *
    * M7.2.3-C SAFETY:
@@ -281,6 +323,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       where: eq(shipments.id, shipmentId),
     });
     if (!shipment) throw new Error(`Shipment ${shipmentId} not found`);
+    await this.assertOutboxTenantMatchesShipment(event, shipment);
 
     // Guard: already created
     if (shipment.carrierCreateStatus === 'SUCCESS' && shipment.carrierShipmentId) {
@@ -494,13 +537,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     });
     if (!shipment) throw new Error(`Shipment ${shipmentId} not found`);
 
-    // Tenant verification: event storeId must match shipment storeId
-    const eventStoreId = event.storeId || event.metadata?.storeId;
-    if (eventStoreId && eventStoreId !== shipment.storeId) {
-      throw new Error(
-        `Tenant mismatch: event storeId ${eventStoreId} ≠ shipment storeId ${shipment.storeId}`,
-      );
-    }
+    await this.assertOutboxTenantMatchesShipment(event, shipment);
 
     // 2. Idempotent guard
     const cancelStatus = shipment.carrierCancelStatus as string | null;
@@ -763,6 +800,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         { providerKey: 'unknown', operation: 'generateLabel' },
       );
     }
+    await this.assertOutboxTenantMatchesShipment(event, shipment);
 
     // The outbox event ID is the stable identity for both the object key and
     // shipment_labels row. A retry after an S3 upload/DB insert interruption
@@ -980,6 +1018,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       where: eq(shipments.id, shipmentId),
     });
     if (!shipment) throw new Error(`Shipment ${shipmentId} not found`);
+    await this.assertOutboxTenantMatchesShipment(event, shipment);
 
     if (!shipment.carrierTrackingId) {
       this.logger.warn(`Shipment ${shipmentId} has no tracking ID — skipping track poll.`);
@@ -1001,7 +1040,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      const trackingInfo = await provider.getTrackingInfo(shipment.carrierTrackingId);
+      const trackingInfo = await provider.getTrackingInfo(shipment.carrierTrackingId, shipment.storeId);
       this.circuitBreaker.recordSuccess(cbScope);
 
       if (trackingInfo) {
@@ -1084,9 +1123,9 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           where: eq(carrierCredentials.id, webhookEvent.credentialId),
         });
 
-        if (!credential) {
+        if (!credential || !credential.isActive) {
           throw new NonRetryableCarrierError(
-            'Webhook credential is missing or was deleted',
+            'Webhook credential is missing, inactive or was deleted',
             { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
           );
         }
@@ -1116,6 +1155,11 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
             { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
           );
         }
+        await this.assertOutboxTenantMatchesShipment(
+          { organizationId: credential.orgId },
+          resolution.shipment,
+          credential.orgId,
+        );
 
         await this.db.db
           .update(carrierWebhookEvents)

@@ -32,7 +32,7 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { DatabaseService } from '../../../common/database/database.service';
 import { CarrierCredentialsService } from '../carrier-credentials.service';
 import { CarrierConfigurationsService } from '../carrier-configurations.service';
@@ -66,6 +66,7 @@ import { resolveCarrierEndpoint } from '../carrier-endpoints';
 import { carrierEndpointAllowlistRegistry } from '../ssrf-protection';
 import { shipments } from '../../orders/shipment.schema';
 import { stores } from '../../merchant/merchant.schema';
+import { organizations } from '../../identity/identity.schema';
 import { carrierCredentials } from '../shipping.schema';
 import { buildClientInfo } from './aramex-clientinfo.builder';
 import { mapAramexStatus } from './aramex-status.mapper';
@@ -340,13 +341,18 @@ export class AramexProvider extends ShippingProvider {
 
   // ── Tracking (B2.13) ────────────────────────────────────────────────────
 
-  override async getTrackingInfo(trackingId: string): Promise<TrackingInfo | null> {
+  override async getTrackingInfo(
+    trackingId: string,
+    storeId?: string,
+  ): Promise<TrackingInfo | null> {
+    if (!storeId) {
+      throw new NonRetryableCarrierError(
+        'Store context is required for Aramex tracking',
+        { providerKey: this.key, operation: 'getTrackingInfo' },
+      );
+    }
     const correlationId = this.observability.generateCorrelationId();
-
-    // Tracking requires credentials — use a default org's credential
-    // In practice, the worker calls this with context. For direct calls,
-    // we need at least one active credential.
-    const { payload, primaryUrl } = await this.resolveAnyCredential();
+    const { payload, primaryUrl } = await this.resolveCredentials(storeId);
     const clientInfo = buildClientInfo(payload);
 
     const trackingBaseUrl = resolveCarrierEndpoint('tracking', payload, primaryUrl);
@@ -403,12 +409,15 @@ export class AramexProvider extends ShippingProvider {
   /**
    * Track multiple shipments in a single batch (for polling).
    */
-  async trackShipmentsBatch(waybillNumbers: string[]): Promise<Map<string, TrackingEvent[]>> {
+  async trackShipmentsBatch(
+    storeId: string,
+    waybillNumbers: string[],
+  ): Promise<Map<string, TrackingEvent[]>> {
     const result = new Map<string, TrackingEvent[]>();
     if (waybillNumbers.length === 0) return result;
 
     const correlationId = this.observability.generateCorrelationId();
-    const { payload, primaryUrl } = await this.resolveAnyCredential();
+    const { payload, primaryUrl } = await this.resolveCredentials(storeId);
     const clientInfo = buildClientInfo(payload);
 
     const trackingBaseUrl = resolveCarrierEndpoint('tracking', payload, primaryUrl);
@@ -446,9 +455,14 @@ export class AramexProvider extends ShippingProvider {
 
   // ── Address Validation (B2.19) ──────────────────────────────────────────
 
-  override async validateAddress(address: ShippingAddress): Promise<boolean> {
+  override async validateAddress(
+    address: ShippingAddress,
+    storeId?: string,
+  ): Promise<boolean> {
     const correlationId = this.observability.generateCorrelationId();
-    const { payload, primaryUrl } = await this.resolveAnyCredential();
+    const { payload, primaryUrl } = storeId
+      ? await this.resolveCredentials(storeId)
+      : await this.resolvePlatformCredential();
     const clientInfo = buildClientInfo(payload);
 
     const locationBaseUrl = resolveCarrierEndpoint('location', payload, primaryUrl);
@@ -504,12 +518,14 @@ export class AramexProvider extends ShippingProvider {
     paymentType: string;
     currency: string;
     numberOfPieces?: number;
+    storeId: string;
     credentialId?: string;
   }): Promise<AramexRateResult> {
     const correlationId = this.observability.generateCorrelationId();
-    const { payload, primaryUrl } = params.credentialId
-      ? await this.resolveCredentialsById(params.credentialId)
-      : await this.resolveAnyCredential();
+    const { payload, primaryUrl } = await this.resolveCredentials(
+      params.storeId,
+      params.credentialId,
+    );
     const clientInfo = buildClientInfo(payload);
 
     const ratingBaseUrl = resolveCarrierEndpoint('rating', payload, primaryUrl);
@@ -937,88 +953,102 @@ export class AramexProvider extends ShippingProvider {
   // ── Private: Credential Resolution ──────────────────────────────────────
 
   /**
-   * Resolve decrypted credentials for a store.
-   * Uses the carrier configuration → credential chain.
+   * Resolve the active carrier credential for the shipment's owning store.
+   * No cross-organization fallback is permitted.
    */
-  /**
-   * Resolve credentials via the configuration chain for a given store.
-   *
-   * Resolution order:
-   *   1. Store-specific carrier configuration → linked credential
-   *   2. Org-wide default carrier configuration → linked credential
-   *   3. Any active Aramex credential (fallback)
-   */
-  private async resolveCredentials(storeId: string): Promise<{
-    payload: AramexCredentialPayload;
-    primaryUrl: string | null;
-  }> {
-    // Try to resolve through configuration chain
-    // The configurations service needs orgId + storeId, but we only have storeId here.
-    // Look up the store's orgId first, then resolve configuration.
-    try {
-      const store = await this.db.db.query.stores.findFirst({
-        where: eq(stores.id, storeId),
-        columns: { orgId: true },
-      });
-      if (store) {
-        const config = await this.configurations.resolveForStore(store.orgId, storeId);
-        if (config?.credentialId) {
-          return this.resolveCredentialsById(config.credentialId);
-        }
-        // Try org-wide default
-        const orgConfig = await this.configurations.resolveForStore(store.orgId, '');
-        if (orgConfig?.credentialId) {
-          return this.resolveCredentialsById(orgConfig.credentialId);
-        }
-      }
-    } catch {
-      // Fall through to any-credential lookup
+  private async resolveCredentials(
+    storeId: string,
+    explicitCredentialId?: string,
+  ): Promise<{ payload: AramexCredentialPayload; primaryUrl: string | null }> {
+    const store = await this.db.db.query.stores.findFirst({
+      where: eq(stores.id, storeId),
+      columns: { orgId: true },
+    });
+    if (!store?.orgId) {
+      throw new NonRetryableCarrierError(
+        'Store has no owning organization; refusing cross-tenant credential fallback',
+        { providerKey: this.key, operation: 'resolveCredentials' },
+      );
     }
 
-    return this.resolveAnyCredential();
+    if (explicitCredentialId) {
+      return this.resolveCredentialsById(explicitCredentialId, store.orgId);
+    }
+
+    const config = await this.configurations.resolveForStore(store.orgId, storeId);
+    if (!config?.credentialId) {
+      throw new NonRetryableCarrierError(
+        'No active Aramex configuration exists for this store organization',
+        { providerKey: this.key, operation: 'resolveCredentials' },
+      );
+    }
+
+    return this.resolveCredentialsById(config.credentialId, store.orgId);
   }
 
   /**
    * Decrypt and return credentials by credential ID.
    */
-  private async resolveCredentialsById(credentialId: string): Promise<{
-    payload: AramexCredentialPayload;
-    primaryUrl: string | null;
-  }> {
-    const credJson = await this.credentials.decryptCredentials(credentialId);
-    const payload = JSON.parse(credJson) as AramexCredentialPayload;
-
+  private async resolveCredentialsById(
+    credentialId: string,
+    expectedOrgId: string,
+  ): Promise<{ payload: AramexCredentialPayload; primaryUrl: string | null }> {
     const row = await this.db.db.query.carrierCredentials.findFirst({
-      where: eq(carrierCredentials.id, credentialId),
+      where: and(
+        eq(carrierCredentials.id, credentialId),
+        eq(carrierCredentials.orgId, expectedOrgId),
+        eq(carrierCredentials.providerKey, ARAMEX_PROVIDER_KEY),
+        eq(carrierCredentials.isActive, true),
+      ),
       columns: { endpointUrl: true },
     });
-
-    return { payload, primaryUrl: row?.endpointUrl || null };
-  }
-
-  /**
-   * Find any active Aramex credential for fallback operations
-   * (tracking, address validation, location services).
-   */
-  private async resolveAnyCredential(): Promise<{
-    payload: AramexCredentialPayload;
-    primaryUrl: string | null;
-  }> {
-    const row = await this.db.db.query.carrierCredentials.findFirst({
-      where: eq(carrierCredentials.providerKey, ARAMEX_PROVIDER_KEY),
-    });
-
-    if (!row || !row.isActive) {
+    if (!row) {
       throw new NonRetryableCarrierError(
-        'No Aramex credential available — configure credentials via admin API',
+        'Aramex credential is inactive or belongs to another organization',
         { providerKey: this.key, operation: 'resolveCredential' },
       );
     }
 
-    const credJson = await this.credentials.decryptCredentials(row.id);
+    const credJson = await this.credentials.decryptCredentials(credentialId);
     const payload = JSON.parse(credJson) as AramexCredentialPayload;
-
     return { payload, primaryUrl: row.endpointUrl || null };
+  }
+
+  /**
+   * Global address/reference lookups may use only an explicitly configured
+   * PLATFORM organization's credential, never an arbitrary merchant account.
+   */
+  private async resolvePlatformCredential(): Promise<{
+    payload: AramexCredentialPayload;
+    primaryUrl: string | null;
+  }> {
+    const platformOrg = await this.db.db.query.organizations.findFirst({
+      where: eq(organizations.type, 'PLATFORM'),
+      columns: { id: true },
+    });
+    if (!platformOrg) {
+      throw new NonRetryableCarrierError(
+        'No platform organization is configured for Aramex reference lookups',
+        { providerKey: this.key, operation: 'resolvePlatformCredential' },
+      );
+    }
+
+    const credential = await this.db.db.query.carrierCredentials.findFirst({
+      where: and(
+        eq(carrierCredentials.orgId, platformOrg.id),
+        eq(carrierCredentials.providerKey, ARAMEX_PROVIDER_KEY),
+        eq(carrierCredentials.isActive, true),
+      ),
+      columns: { id: true },
+    });
+    if (!credential) {
+      throw new NonRetryableCarrierError(
+        'No active platform Aramex credential is configured',
+        { providerKey: this.key, operation: 'resolvePlatformCredential' },
+      );
+    }
+
+    return this.resolveCredentialsById(credential.id, platformOrg.id);
   }
 
   // ── Private: HTTP Client ────────────────────────────────────────────────
@@ -1084,10 +1114,10 @@ export class AramexProvider extends ShippingProvider {
     operation: string,
     opName: string,
     extraParams: Record<string, unknown>,
-    _storeId: string,
+    storeId: string,
   ): Promise<T> {
     const correlationId = this.observability.generateCorrelationId();
-    const { payload, primaryUrl } = await this.resolveAnyCredential();
+    const { payload, primaryUrl } = await this.resolveCredentials(storeId);
     const clientInfo = buildClientInfo(payload);
 
     const locationBaseUrl = resolveCarrierEndpoint('location', payload, primaryUrl);
