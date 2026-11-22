@@ -82,9 +82,9 @@ void main() {
         '/merchant/catalog/product/product-1': 'merchant:products:write',
         '/merchant/categories': 'catalog:categories:read',
         '/merchant/customers': 'merchant:orders:read',
-        '/merchant/offers': 'catalog:offers:write',
+        '/merchant/offers': 'merchant:stores:read',
         '/merchant/offers/new': 'catalog:offers:write',
-        '/merchant/offers/offer-1': 'catalog:offers:write',
+        '/merchant/offers/offer-1': 'merchant:stores:read',
         '/merchant/pricing': 'merchant:pricing:read',
         '/merchant/pricing/list-1': 'merchant:pricing:read',
         '/merchant/inventory': 'merchant:inventory:read',
@@ -99,6 +99,24 @@ void main() {
           reason: 'Expected ${entry.value} to allow ${entry.key}',
         );
       }
+    });
+
+    test('merchant offer reads do not require offer-write permission', () {
+      expect(
+        permissionRuleForRoute(Uri.parse('/merchant/offers'))
+            ?.allows(['merchant:stores:read']),
+        isTrue,
+      );
+      expect(
+        permissionRuleForRoute(Uri.parse('/merchant/offers'))
+            ?.allows(['catalog:offers:write']),
+        isFalse,
+      );
+      expect(
+        permissionRuleForRoute(Uri.parse('/merchant/offers/new'))
+            ?.allows(['catalog:offers:write']),
+        isTrue,
+      );
     });
 
     test('driver route requires shipment read access', () {
