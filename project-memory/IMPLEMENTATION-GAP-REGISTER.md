@@ -651,3 +651,8 @@ Source-confirmed gaps closed in implementation: Home discovery sections silently
 ## UX-084 — Mobile Checkout idempotency key lifecycle — 23 November 2026
 
 Source-confirmed correctness gap closed in implementation: changing payment method after preview altered the checkout payload but reused the previous idempotency key. The key now rotates on payment-method changes and remains stable for identical retries. Focused Flutter test is added but remains TESTING_PENDING. No backend idempotency/API/database behavior changed.
+
+
+## UX-085 — Mobile Merchant Dashboard recovery — 23 November 2026
+
+Source-confirmed gaps closed in implementation: dashboard refresh returned before independent reads completed, and profile/active-store refresh failures did not preserve last-successful context. The dashboard now has stale-safe profile/store reads, retry, awaited independent refresh and pull-to-refresh. Focused Flutter test is added but remains TESTING_PENDING. Existing KPI recovery and permission gating are unchanged.
