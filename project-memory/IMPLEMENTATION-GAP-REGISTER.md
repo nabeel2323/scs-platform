@@ -459,3 +459,20 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - Store discovery now has independent loading/error/retry/no-store states. A successful empty store directory renders an onboarding prompt and does not expose an import action that cannot succeed.
 - Import-job reads now distinguish failed reads from a successful empty history, preserve existing rows during refresh failures, and provide Retry. Polling runs only while a known job is active and avoids overlapping requests; request identity guards prevent stale responses from replacing current state.
 - Added `merchant-import-history-recovery.test.tsx` for store lookup retry, failed job read/retry, and the no-store state. Tests have not been executed. No API, permission, schema or database behavior changed.
+
+## UX-040 — Merchant Import Wizard store discovery recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- The Import Wizard silently swallowed `fetchMyStores` failures. The upload step displayed “No store found” for both an actual empty directory and a failed request, offered no retry, and left the next action disabled without explaining how to recover.
+- Store discovery now has independent loading, retryable error and true no-store states. A successful empty directory offers the existing store-onboarding route; a failed read offers Retry store lookup. The import action remains disabled until a store is actually resolved.
+- Added `merchant-import-wizard-store-recovery.test.tsx` for failed lookup/retry and a successful empty directory. Tests have not been executed. No API, permission, schema or database behavior changed.
+
+## UX-041 — Merchant Import Wizard processing lifecycle and outcome correctness — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- The status poll started before the process request completed, allowing a fast terminal poll to set the review step and then be overwritten by a later progress-step update. Poll errors were silently ignored, polling was not cleaned up on unmount, and every terminal job with stats was rendered as “Import Complete”, including FAILED jobs.
+- Processing now starts polling only after the process request succeeds. Polling is generation-guarded, prevents overlapping reads, is cancelled on unmount, surfaces status-read errors with a retry action, and cannot apply stale responses after a terminal state.
+- Terminal outcomes are classified explicitly: only COMPLETED is success; FAILED and CANCELLED have distinct result states. Partial counters remain visible for failed/cancelled jobs without presenting them as successful completion.
+- Added `import-job-outcome.ts` and `import-job-outcome.test.ts` for terminal-state classification. Tests have not been executed. No API, permission, schema, queue, worker or database behavior changed.
