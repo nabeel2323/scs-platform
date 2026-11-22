@@ -832,3 +832,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - UX-057 Business Calendar reads now have request-version/unmount protection and Retry calendar; a failed calendar read no longer reports that no calendar is configured, and dependent holiday/audit empty states are suppressed on read failure.
 - Added focused tests `admin-commission-recovery.test.tsx`, `admin-offer-kpis-recovery.test.tsx`, `admin-offer-trend-recovery.test.tsx`, `admin-brands-recovery.test.tsx`, and `admin-calendar-recovery.test.tsx`. Tests not executed.
 - No API, permission, schema, database or migration changes. Commits use `[skip ci]`; no deployment or staging action.
+
+## 2026-11-22 — UX-058 Attribute Groups and Definitions recovery
+
+- Attribute Groups and Attribute Definitions had retry controls but could still render empty result rows/counts when their initial reads failed. Attribute Definitions could also apply out-of-order filter responses.
+- Added request-version protection and effect cleanup invalidation, role-aware read guards, alert semantics and successful-empty-only rows/counts. Attribute Group detail no longer says no attributes are defined when the shared attribute read failed.
+- Added `admin-attribute-groups-recovery.test.tsx` and `admin-attributes-recovery.test.tsx`. Tests not executed.
+- No API, permission, schema, database or migration change. Commits use `[skip ci]`; no deployment or staging action.
