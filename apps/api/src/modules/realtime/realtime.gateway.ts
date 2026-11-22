@@ -9,10 +9,21 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
+import { and, eq } from 'drizzle-orm';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { RedisService } from '../../common/redis/redis.service';
 import { denylistKey } from '../../common/auth/token-denylist';
+import { DatabaseService } from '../../common/database/database.service';
+import {
+  assertStoreInOrg,
+  assertStoreMember,
+  isTenantPrivileged,
+  type CallerContext,
+} from '../../common/tenant-scope';
+import { stores } from '../merchant/merchant.schema';
+import { masterOrders, orders } from '../orders/orders.schema';
+import { shipments } from '../orders/shipment.schema';
 
 /**
  * Realtime WebSocket Gateway — `/realtime`
@@ -48,6 +59,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   constructor(
     private readonly jwt: JwtService,
     private readonly redis: RedisService,
+    private readonly db: DatabaseService,
   ) {}
 
   afterInit() {
@@ -69,7 +81,13 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       return;
     }
 
-    let payload: { sub?: string; activeOrg?: string; jti?: string };
+    let payload: {
+      sub?: string;
+      activeOrg?: string | null;
+      jti?: string;
+      role?: string;
+      perms?: unknown;
+    };
     try {
       payload = this.jwt.verify(token);
     } catch {
@@ -93,6 +111,10 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
 
     client.data['userId'] = payload.sub;
     client.data['activeOrg'] = payload.activeOrg ?? null;
+    client.data['role'] = payload.role ?? null;
+    client.data['perms'] = Array.isArray(payload.perms)
+      ? payload.perms.filter((permission): permission is string => typeof permission === 'string')
+      : [];
 
     // Auto-join the caller's personal room so user-scoped events (their
     // notifications and order updates) flow without an explicit join.
@@ -131,34 +153,157 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
 
   // ── Room management ──────────────────────────────────────────
 
-  /** Client joins rooms after authentication */
+  /** Client joins rooms only after scope-specific authorization. */
   @SubscribeMessage('join')
-  handleJoin(
+  async handleJoin(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { rooms: string[] },
   ) {
-    const userId = client.data['userId'] as string | undefined;
+    const caller = this.callerFromSocket(client);
     const joined: string[] = [];
+    if (!caller) return { event: 'joined', data: { rooms: joined } };
+
     for (const room of data.rooms ?? []) {
-      // Validate room format: user:{id}, org:{id}, order:{id}
-      const match = /^(user|org|order):(.+)$/.exec(room);
+      // All room identifiers are UUIDs: user:{id}, org:{storeId}, order:{id}.
+      const match = /^(user|org|order):([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.exec(room);
       if (!match) continue;
       const [, scope, id] = match;
-      // A socket may only join its OWN personal room — that channel carries
-      // notifications (order/verification/promo detail). Org and order rooms
-      // only receive low-sensitivity order-status broadcasts, so any
-      // authenticated socket may subscribe (e.g. a merchant dashboard joining
-      // `org:{storeId}` for its stores, or a tracking page joining
-      // `order:{orderId}`).
-      if (scope === 'user' && id !== userId) {
+
+      let allowed = false;
+      try {
+        if (scope === 'user') {
+          allowed = id === caller.sub;
+        } else if (scope === 'org') {
+          allowed = await this.canJoinStoreRoom(client, caller, id);
+        } else if (scope === 'order') {
+          allowed = await this.canJoinOrderRoom(client, caller, id);
+        }
+      } catch {
+        // Fail closed without disclosing whether a foreign room exists.
+        allowed = false;
+      }
+
+      if (!allowed) {
         this.logger.debug(`Client ${client.id} denied join to ${room}`);
         continue;
       }
+
       client.join(room);
       joined.push(room);
       this.logger.debug(`Client ${client.id} joined room ${room}`);
     }
     return { event: 'joined', data: { rooms: joined } };
+  }
+
+  private callerFromSocket(client: Socket): CallerContext | null {
+    const sub = client.data['userId'];
+    if (typeof sub !== 'string' || !sub) return null;
+    const role = client.data['role'];
+    const activeOrg = client.data['activeOrg'];
+    return {
+      sub,
+      role: typeof role === 'string' ? role : null,
+      activeOrg: typeof activeOrg === 'string' ? activeOrg : null,
+    };
+  }
+
+  private socketPermissions(client: Socket): string[] {
+    const permissions = client.data['perms'];
+    return Array.isArray(permissions)
+      ? permissions.filter((permission): permission is string => typeof permission === 'string')
+      : [];
+  }
+
+  /** Store rooms carry merchant order signals; require order-read permission
+   * plus current active-store membership, not merely a valid JWT. */
+  private async canJoinStoreRoom(
+    client: Socket,
+    caller: CallerContext,
+    storeId: string,
+  ): Promise<boolean> {
+    const permissions = this.socketPermissions(client);
+    const privileged = isTenantPrivileged(caller);
+    if (
+      !permissions.includes('merchant:orders:read') &&
+      !(privileged && permissions.includes('orders:read'))
+    ) {
+      return false;
+    }
+
+    const store = await this.db.db.query.stores.findFirst({
+      where: eq(stores.id, storeId),
+      columns: { id: true },
+    });
+    if (!store) return false;
+    if (privileged) return true;
+
+    try {
+      await assertStoreInOrg(this.db, caller, storeId);
+      await assertStoreMember(this.db, caller, storeId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Order rooms are limited to the buyer, an active member of the fulfilling
+   * store, an assigned driver, or platform staff with the matching read grant. */
+  private async canJoinOrderRoom(
+    client: Socket,
+    caller: CallerContext,
+    orderId: string,
+  ): Promise<boolean> {
+    const permissions = this.socketPermissions(client);
+    const order = await this.db.db.query.orders.findFirst({
+      where: eq(orders.id, orderId),
+      columns: { buyerId: true, storeId: true },
+    });
+
+    if (!order) {
+      // Buyer tracking may use the master-order identifier rather than a
+      // merchant sub-order identifier.
+      const masterOrder = await this.db.db.query.masterOrders.findFirst({
+        where: eq(masterOrders.id, orderId),
+        columns: { buyerId: true },
+      });
+      return !!masterOrder &&
+        masterOrder.buyerId === caller.sub &&
+        permissions.includes('orders:read');
+    }
+
+    if (isTenantPrivileged(caller)) {
+      return permissions.includes('orders:read') || permissions.includes('merchant:orders:read');
+    }
+
+    if (order.buyerId === caller.sub && permissions.includes('orders:read')) {
+      return true;
+    }
+
+    if (
+      (caller.role === 'MERCHANT_OWNER' || caller.role === 'MERCHANT_STAFF') &&
+      permissions.includes('merchant:orders:read')
+    ) {
+      try {
+        await assertStoreInOrg(this.db, caller, order.storeId);
+        await assertStoreMember(this.db, caller, order.storeId);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    if (caller.role === 'DRIVER' && permissions.includes('fulfillment:shipments:read')) {
+      const assignment = await this.db.db.query.shipments.findFirst({
+        where: and(
+          eq(shipments.orderId, orderId),
+          eq(shipments.assignedDriverId, caller.sub),
+        ),
+        columns: { id: true },
+      });
+      return !!assignment;
+    }
+
+    return false;
   }
 
   @SubscribeMessage('leave')
@@ -204,10 +349,8 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
 
   /**
    * Emit a low-sensitivity "new order" signal to the selling store's room so a
-   * merchant dashboard can raise a toast/banner. Carries no buyer PII — the org
-   * room is joinable by any authenticated socket (see handleJoin), so the
-   * dashboard fetches full detail through the guarded REST endpoints using the
-   * ids in this payload.
+   * merchant dashboard can raise a toast/banner. Carries no buyer PII; the org
+   * room is restricted to active store members with merchant:orders:read.
    */
   emitNewOrder(
     storeId: string,
