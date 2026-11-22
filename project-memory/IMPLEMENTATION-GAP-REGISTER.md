@@ -494,3 +494,11 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - Added independent loaders, error states, retry actions and request-version guards for KPIs, organization updates, catalog imports and catalog requests. A failed KPI read now displays an unavailable placeholder rather than fabricated zero values; previously loaded KPI/list data remains visible during failed refreshes.
 - Each catalog widget now reports its own error and suppresses its empty state only when its own read failed. The other widget remains independently usable.
 - Added `admin-dashboard-recovery.test.tsx` covering independent failures, retry and empty-state suppression. Tests have not been executed. No API, permission or backend behavior changed.
+
+## UX-044 — Admin KPI Dashboard read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- The dedicated Admin KPI Dashboard silently swallowed `fetchKpis` failures. The page showed a generic failure message but had no retry action, and overlapping date-range requests could complete out of order.
+- Added explicit retryable error state and request-version protection. A failed refresh preserves the last successful KPI dataset and displays an error warning; an initial failure shows unavailable data rather than fabricated values and offers Retry KPIs. The period subtitle distinguishes an unavailable period from an active load.
+- Added `admin-kpi-recovery.test.tsx` for initial failure/retry and suppression of fake zero values. Tests have not been executed. No API, permission or backend behavior changed.
