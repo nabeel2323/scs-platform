@@ -298,9 +298,9 @@ export default function MerchantOffersPage() {
         o.basePriceMinor ?? '',
         o.moq,
         o.leadTimeDays ?? '',
-        a?.ordersCount ?? 0,
-        a?.unitsSold ?? 0,
-        a?.revenueMinor ?? 0,
+        analyticsError && !a ? '' : a?.ordersCount ?? 0,
+        analyticsError && !a ? '' : a?.unitsSold ?? 0,
+        analyticsError && !a ? '' : a?.revenueMinor ?? 0,
         o.createdAt,
       ].join(',');
     });
