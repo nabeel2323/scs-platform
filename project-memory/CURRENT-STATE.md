@@ -608,3 +608,8 @@ UX-032 is implemented in source commit `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81
 ## Mobile Buyer Store UX-078 — 23 November 2026
 
 Buyer Store Directory and Store Detail now preserve the last successful read through refresh failures, expose explicit refresh/pull-to-refresh and retry, and distinguish initial errors from successful empty states. Store Detail uses a separate buyer catalogue provider retaining the ACTIVE-only product filter. Four focused Flutter widget tests were added; they have not been executed and remain pending Phase 3. No API, permission, database, migration, staging or provider behavior changed.
+
+
+## Mobile Buyer Order History UX-079 — 23 November 2026
+
+Buyer Order History now retains the last successful order list through refresh failures, keeps the selected client-side status filter applied, exposes explicit refresh/pull-to-refresh and retry, and distinguishes initial failure from successful empty history. Three focused Flutter tests were added but not executed; they remain pending Phase 3. No order, payment, fulfillment, API, permission, database or migration behavior changed.
