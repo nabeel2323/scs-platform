@@ -18,6 +18,11 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   bool _applyingPromo = false;
   bool _removingPromo = false;
   bool _clearing = false;
+  bool _itemActionBusy = false;
+  int _cartMutationRevision = 0;
+
+  bool get _cartActionsDisabled =>
+      _itemActionBusy || _clearing || _applyingPromo || _removingPromo;
 
   @override
   void dispose() {
@@ -26,18 +31,28 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   }
 
   Future<void> _setQty(CartItem item, int qty) async {
+    if (_cartActionsDisabled) return;
+    setState(() => _itemActionBusy = true);
     try {
       await ref.read(apiServiceProvider).updateCartItem(item.id, qty);
       ref.invalidate(cartProvider);
     } catch (e) {
+      // Rebuild the stepper from the last provider value so a failed optimistic
+      // text entry cannot remain visible as if the server accepted it.
+      if (mounted) setState(() => _cartMutationRevision++);
+      ref.invalidate(cartProvider);
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(ApiService.errorMessage(e))));
       }
+    } finally {
+      if (mounted) setState(() => _itemActionBusy = false);
     }
   }
 
   Future<void> _removeItem(CartItem item) async {
+    if (_cartActionsDisabled) return;
+    setState(() => _itemActionBusy = true);
     try {
       await ref.read(apiServiceProvider).removeCartItem(item.id);
       ref.invalidate(cartProvider);
@@ -46,12 +61,14 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(ApiService.errorMessage(e))));
       }
+    } finally {
+      if (mounted) setState(() => _itemActionBusy = false);
     }
   }
 
   Future<void> _applyPromo() async {
     final code = _promoCtrl.text.trim();
-    if (code.isEmpty) return;
+    if (code.isEmpty || _cartActionsDisabled) return;
     setState(() => _applyingPromo = true);
     try {
       await ref.read(apiServiceProvider).applyPromo(code);
@@ -72,6 +89,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   }
 
   Future<void> _removePromo() async {
+    if (_cartActionsDisabled) return;
     setState(() => _removingPromo = true);
     try {
       await ref.read(apiServiceProvider).removePromo();
@@ -108,6 +126,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
   Widget _cartLine(CartItem item) {
     final floor = _floorFor(item);
+    final actionsDisabled = _cartActionsDisabled;
+    final itemBusy = _itemActionBusy;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Padding(
@@ -137,14 +157,18 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   ]),
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline,
-                  size: 20, color: TaifTokens.err),
-              onPressed: () => _removeItem(item),
+              tooltip: 'Remove ${item.title ?? item.sku ?? 'item'}',
+              onPressed: actionsDisabled ? null : () => _removeItem(item),
+              icon: itemBusy
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.delete_outline, size: 20, color: TaifTokens.err),
             ),
           ]),
           const SizedBox(height: 8),
           Row(children: [
             QuantityStepper(
+              key: ValueKey('cart-qty-${item.id}-$_cartMutationRevision'),
+              enabled: !actionsDisabled,
               value: item.quantity,
               minQty: floor,
               step: _stepFor(item),
@@ -181,7 +205,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                           color: TaifTokens.ok)),
                 ),
                 TextButton(
-                  onPressed: _removingPromo ? null : _removePromo,
+                  onPressed: actionsDisabled ? null : _removePromo,
                   child: _removingPromo
                       ? const SizedBox(
                           width: 16,
@@ -202,13 +226,13 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                       prefixIcon: Icon(Icons.local_offer_outlined, size: 18),
                       border: OutlineInputBorder(),
                     ),
-                    enabled: !_applyingPromo,
+                    enabled: !actionsDisabled,
                     onSubmitted: (_) => _applyPromo(),
                   ),
                 ),
                 const SizedBox(width: 8),
                 TextButton(
-                  onPressed: _applyingPromo ? null : _applyPromo,
+                  onPressed: actionsDisabled ? null : _applyPromo,
                   child: _applyingPromo
                       ? const SizedBox(
                           width: 16,
@@ -229,7 +253,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     return Scaffold(
         appBar: AppBar(title: const Text('Cart'), actions: [
           TextButton(
-              onPressed: _clearing
+              onPressed: _cartActionsDisabled
                   ? null
                   : () async {
                       setState(() => _clearing = true);

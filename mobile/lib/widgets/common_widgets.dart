@@ -268,6 +268,7 @@ class QuantityStepper extends StatefulWidget {
   final ValueChanged<int> onChanged;
   final int minQty;
   final int step;
+  final bool enabled;
   final String? tierHint;
   const QuantityStepper({
     super.key,
@@ -275,6 +276,7 @@ class QuantityStepper extends StatefulWidget {
     required this.onChanged,
     this.minQty = 1,
     this.step = 1,
+    this.enabled = true,
     this.tierHint,
   });
   @override
@@ -339,9 +341,9 @@ class _QuantityStepperState extends State<QuantityStepper> {
           ),
         ),
         IconButton(
-          onPressed: () {
-            _commit((widget.value + widget.step).toString());
-          },
+          onPressed: widget.enabled
+              ? () { _commit((widget.value + widget.step).toString()); }
+              : null,
           icon: const Icon(Icons.add, size: 18),
           iconSize: 18,
           splashRadius: 18,
