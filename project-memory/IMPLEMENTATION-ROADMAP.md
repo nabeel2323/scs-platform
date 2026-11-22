@@ -385,3 +385,7 @@ Completed the dedicated Admin KPI Dashboard recovery slice. KPI reads now have r
 ## UX-045 — Admin Organizations — 22 November 2026
 
 Completed the Admin Organizations read-recovery slice. Organization directory and update-request queue now load independently, each with its own retry/error/loading state and request-version guard. A failure in one endpoint no longer blocks the other list or renders a false empty state; last successful rows remain visible during failed refreshes. Focused test added but not executed. Continue UX-010 across remaining Admin users/merchants workflows, then Mobile.
+
+## UX-046 / UX-047 — Admin Users and Merchants — 22 November 2026
+
+Completed the Admin Users/Merchants source audit slice. User creation now supports optional phone, exposes retryable organization/role lookups and enforces paired initial membership selection in both UI and service. User Detail now exposes audited profile editing, membership assignment/removal and confirmed suspension/deactivation. The permissions tab now shows configured permissions for each assigned role and no longer labels the global permission catalog as user-effective. Merchant Store Detail now presents locale, popularity-badge visibility, logo/cover previews and address data already supplied by the API. Focused Admin/API tests were added but not executed. Continue UX-010 across remaining Admin routes and then Mobile; keep comprehensive testing deferred until implementation/integration are complete.
