@@ -127,10 +127,11 @@ class PriceListDetailScreen extends ConsumerWidget {
             skipLoadingOnReload: true,
             skipError: true,
             loading: () => const LoadingSpinner(),
-            error: (e, _) => AppErrorState(
+            error: (e, _) => EmptyState(
               title: 'Could not load tiers',
-              message: ApiService.errorMessage(e),
-              onRetry: () => ref.invalidate(priceListTiersProvider(priceListId)),
+              description: ApiService.errorMessage(e),
+              actionLabel: 'Retry tiers',
+              onAction: () => ref.invalidate(priceListTiersProvider(priceListId)),
             ),
             data: (tiers) {
               final tierList = tiers.isEmpty
