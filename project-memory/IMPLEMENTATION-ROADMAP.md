@@ -437,3 +437,12 @@ Completed the Admin attribute directory recovery slice. Attribute Groups and Att
 - Added three focused Flutter widget scenarios; not executed and remain TESTING_PENDING for Phase 3.
 - No store update, warehouse creation, permission, API, database or migration behavior changed.
 - Continue the remaining Mobile merchant route-transition audit, then Web/Admin route/action permission mapping. Keep Phase 3 as the consolidated full test campaign.
+
+## 2026-11-23 — UX-093 Organization/session context invalidation
+
+- Centralized invalidation of organization-scoped client reads and applied it to both organization-switch flows after the new token is persisted and installed.
+- Active-store resolution now requires a match for the selected active organization; no fallback to a different organization's store.
+- New login clears persisted active-org state and invalidates authenticated caches; logout clears in-memory identity/org context and authenticated reads.
+- Added focused ProviderContainer tests for org-scoped invalidation, active-store org matching and session reset; not executed and remain TESTING_PENDING for Phase 3.
+- This does not replace server-side tenant authorization and makes no API, permission, database, migration, RLS, worker or staging changes.
+- Next: Mobile route permission and org-context transition audit, then Web/Admin route/action permission mapping. Keep Phase 3 as the consolidated full test campaign.
