@@ -48,7 +48,6 @@ vi.mock('@scs/ui-kit', () => ({
   typeScale: { body: { fontSize: 14 }, bodySm: { fontSize: 12 }, caption: { fontSize: 11 }, label: { fontSize: 10 }, h4: { fontSize: 16 } },
   radii: { sm: 6, md: 8, full: 999 },
   shadows: { md: '' },
-  shadows: { md: '' },
   transitions: { fast: '100ms' },
 }));
 
