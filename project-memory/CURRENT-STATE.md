@@ -439,3 +439,10 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Catalog-import Errors and Offer Inventory tabs now distinguish request failures from true empty data and expose their own Retry actions. Role permission-save errors remain inline rather than hiding the detail page.
 - Added focused tests for attribute retry, order retry and import error-tab retry. Not executed.
 - Source baseline before docs sync: `9578040e4d28b327c451618f2111ba3ae8819493`; documentation commit advances branch. PR #138 remains open/draft/unmerged.
+
+
+## Admin ProductDetails UX-023 checkpoint — 22 November 2026
+
+- Product detail Merchant Offers now uses a request-version guarded loader with explicit loading, retryable error and true-empty states. A failed request can no longer be mistaken for a product with no merchant offers.
+- Added a focused component test for failed offers read → retry → successful empty state. Not executed.
+- Source baseline before docs sync: `486650b19040c8e4d974e7fb7875f8a47cb46d9c`; docs commit advances branch. PR #138 remains open/draft/unmerged.

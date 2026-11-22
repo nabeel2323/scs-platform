@@ -496,3 +496,9 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Source implementation commit: `9578040e4d28b327c451618f2111ba3ae8819493`; documentation sync follows separately.
 - PR #138 remains open, draft and unmerged to `develop`.
 - Focused Admin tests for attribute, order and import-error-tab retry were added but not run. No exact-head CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred.
+
+
+## Exact source checkpoint — UX-023 ProductDetails offers — 22 November 2026
+
+- Source implementation commit: `486650b19040c8e4d974e7fb7875f8a47cb46d9c`; documentation sync follows separately.
+- PR #138 remains open, draft and unmerged to `develop`. Focused ProductDetails test added but not executed. No exact-head CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred.

@@ -233,6 +233,7 @@ Deferred/remaining:
 | UX-020 | Admin user, merchant and organization detail read recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | User/merchant/organization detail reads used non-retryable errors and lacked stale-response protection. Added retryable detail states, request-version guards, and independent permission-catalog retry for user detail. |
 | UX-021 | Admin dispute resolution workflow | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Dispute detail exposed overview/events but no resolution form despite the protected resolve API and route permission. Added a required resolution form, guarded PATCH action, progress/error/success feedback and resolved-state rendering. |
 | UX-022 | Admin catalog, offer, order and role detail read recovery | P1 | IMPLEMENTED IN SOURCE — NOT TESTED | Several Admin detail pages had non-retryable read failures; the import Errors tab and offer Inventory tab silently converted failed reads into empty states; role permission-save errors replaced the whole detail page. Added retryable loads, stale-request guards, explicit tab errors and isolated role mutation feedback. |
+| UX-023 | Admin product detail merchant-offer read recovery | P2 | IMPLEMENTED IN SOURCE — NOT TESTED | ProductDetails fetched merchant offers once without retry and displayed a plain error above an empty-state table. Added request-version guarded reload, loading skeleton, explicit retryable error and true-empty state. |
 
 
 ## UX-015 — Product Studio save and step-transition integrity — 22 November 2026
@@ -294,3 +295,10 @@ Deferred/remaining:
 - Catalog-import Errors and Offer Inventory tabs now distinguish a failed read from a genuinely empty result and expose their own retry actions. Previously, import errors could appear as “No errors” after a failed request, and inventory failures looked like no inventory.
 - Role permission update errors are now isolated as an inline action error; they no longer replace/hide the loaded role detail. Copy was corrected to match the explicit Save Permissions action.
 - Added focused Admin tests for attribute retry, order retry and import-error-tab retry. Tests have not been executed.
+
+
+## UX-023 — Admin product detail merchant-offer read recovery — 22 November 2026
+
+- ProductDetails now loads merchant offers through an awaitable callback with request-version protection. Retry clears stale error/data, shows a loading skeleton and ignores obsolete completions after product changes/unmount.
+- A failed offers read now displays the shared retryable error state; only a successful empty response displays “No merchant offers yet.”
+- Added a focused ProductDetails component test for failed offer read → retry → empty-success state. Test has not been executed.

@@ -628,3 +628,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added tests in `apps/admin/src/__tests__/management.test.tsx` for attribute retry, order retry and import error-tab retry. Not executed.
 - Source baseline: `9578040e4d28b327c451618f2111ba3ae8819493`; docs sync follows separately.
 - No DB, migration, deployment, worker activation, grants/RLS or provider calls.
+
+
+## 2026-11-22 — UX-023 Admin ProductDetails offers recovery
+
+- Replaced the one-shot merchant-offer fetch in ProductDetails with an awaitable request-version guarded loader, loading skeleton, retryable error and true-empty state.
+- Added a component test in `apps/admin/src/__tests__/management.test.tsx` for an offers read failure followed by a successful retry returning no offers. Not executed.
+- Source baseline: `486650b19040c8e4d974e7fb7875f8a47cb46d9c`; docs sync follows separately.

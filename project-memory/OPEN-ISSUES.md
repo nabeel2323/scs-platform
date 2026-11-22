@@ -347,3 +347,9 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Remaining Admin catalog/order/role detail screens now have retryable primary read states; import errors and offer inventory tabs distinguish read failures from empty results.
 - Role permission-save errors are isolated to the detail page rather than replacing it. Focused tests added but not executed.
 - Continue remaining UX-010 Admin/Web/Mobile audit; consolidated tests remain deferred.
+
+
+## UX-023 Admin ProductDetails offers recovery — 22 November 2026
+
+- Product detail offers read now has a retryable error state and loading state; only a successful empty response renders the empty-offers message. Added request-version protection and a focused test, not executed.
+- Continue remaining UX-010 audit; full test campaign remains deferred.

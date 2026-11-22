@@ -276,3 +276,9 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Fixed two misleading empty-state cases: import errors and offer inventory now show retryable read failures rather than “no errors”/“no inventory.”
 - Role permission-save errors now stay in an inline action banner without hiding the role detail.
 - Added focused tests for attribute/order retry and import errors-tab recovery; not run. Continue remaining UX-010 screen audit.
+
+
+## 2026-11-22 — UX-023 ProductDetails merchant-offer read recovery
+
+- Added retryable offer loading and stale-response protection to the Admin ProductDetails Offers tab. Errors and empty data are now distinct states.
+- Added focused component test; not run. Continue remaining UX-010 source audit.
