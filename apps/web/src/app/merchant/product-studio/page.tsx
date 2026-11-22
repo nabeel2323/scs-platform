@@ -22,6 +22,7 @@ export default function ProductStudioPage() {
 
   const handleStepClick = (targetStep: Step) => {
     const targetIndex = STEPS.findIndex((item) => item.key === targetStep);
+    if (success || saving) return;
     if (targetIndex <= stepIndex) {
       setStep(targetStep);
       return;
@@ -63,7 +64,7 @@ export default function ProductStudioPage() {
       />
 
       {/* Progress Indicator */}
-      <ProgressIndicator currentStep={step} onStepClick={handleStepClick} stepIndex={stepIndex} disabled={saving} />
+      <ProgressIndicator currentStep={step} onStepClick={handleStepClick} stepIndex={stepIndex} disabled={saving || Boolean(success)} />
 
       {/* Step Content */}
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
@@ -142,7 +143,7 @@ export default function ProductStudioPage() {
               <button type="button" onClick={async () => {
                 const pid = await handleSaveProduct();
                 if (pid) router.push('/merchant/catalog');
-              }} disabled={saving}
+              }} disabled={saving || Boolean(success)}
                 style={{ padding: '10px 24px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#22c55e', color: '#fff', fontWeight: 600 }}>
                 {saving ? 'Saving…' : 'Save Product'}
               </button>
@@ -157,7 +158,7 @@ export default function ProductStudioPage() {
                 setError,
                 goNext,
               })}
-                disabled={saving}
+                disabled={saving || Boolean(success)}
                 style={{ padding: '10px 20px', borderRadius: 6, border: 'none', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.65 : 1, background: '#0f3340', color: '#fff', fontWeight: 600 }}>
                 {saving ? 'Saving…' : 'Next'}
               </button>

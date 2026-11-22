@@ -85,12 +85,20 @@ export function useProductStudio() {
 
   // P7 Phase 5 — dirty-state tracking for beforeunload protection
   const initialRef = useRef<string>(JSON.stringify(INITIAL));
+  const existingProductSelectionRef = useRef<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
     const current = JSON.stringify(state);
     setIsDirty(current !== initialRef.current);
   }, [state]);
+
+  useEffect(() => {
+    if (existingProductSelectionRef.current !== state.useExistingProductId) {
+      setOfferCreatedForProductId(null);
+      existingProductSelectionRef.current = state.useExistingProductId;
+    }
+  }, [state.useExistingProductId]);
 
   // beforeunload protection (browser refresh, back, close tab)
   useEffect(() => {
