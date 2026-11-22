@@ -314,7 +314,7 @@ class HomeScreen extends ConsumerWidget {
         },
         child: Container(
           width: 84,
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: 6),
           decoration: BoxDecoration(
             color: TaifTokens.surface,
             borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
@@ -322,8 +322,8 @@ class HomeScreen extends ConsumerWidget {
           ),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: TaifTokens.brandPrimary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
@@ -331,7 +331,7 @@ class HomeScreen extends ConsumerWidget {
               child: const Icon(Icons.category_outlined,
                   size: 20, color: TaifTokens.brandPrimary),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               child: Text(c.name,
