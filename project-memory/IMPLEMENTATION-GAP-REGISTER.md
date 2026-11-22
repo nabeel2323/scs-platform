@@ -693,3 +693,11 @@ Source-confirmed gaps closed in implementation: product pull-to-refresh invalida
 - Customer directory now preserves last-successful rows and derived statistics during refresh failures, supports awaited explicit/pull-to-refresh, exposes retryable initial errors and distinguishes successful empty/no-match states from failures.
 - Search and sort behavior and the existing customer API contract are unchanged.
 - Focused Flutter widget tests cover stale data/statistics and initial failure/retry. Source commit: `b279c263`; test commit: `3f3b0f6`. Not executed. No API, permission, order, financial, database or migration behavior changed.
+
+## UX-091 — Mobile Merchant Orders refresh lifecycle — 23 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- The merchant order queue already retained last-successful rows on refresh failure, but explicit refresh did not await the active-store/order dependency and no pull-to-refresh was available. A successful empty queue was not scrollable.
+- Refresh now awaits active-store resolution and the dependent order read without a duplicate request. The queue and successful empty state are always-scrollable and wrapped in RefreshIndicator; stale data/error messaging remains intact.
+- Three focused Flutter widget scenarios cover stale order preservation, initial error/retry and pull-to-refresh failure while the queue is successfully empty. Source commits: `da19ca1`, `9ecce8a`; test commits: `112bf00`, `b8c7b1c`. Not executed. No order transition, fulfillment, stock reservation, API, permission, database or migration behavior changed.
