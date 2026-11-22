@@ -54,7 +54,8 @@ export default function MerchantLayout({ children }: { children: React.ReactNode
     }
 
     if (!canAccessMerchantRoute(pathname, user?.perms ?? [])) {
-      router.replace('/merchant');
+      const fallback = user?.perms?.includes('merchant:stores:read') ? '/merchant' : '/search';
+      router.replace(fallback);
       return;
     }
 
