@@ -75,9 +75,9 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN/DRAFT/UNMERGED against `develop`. The latest implementation/test checkpoint before the current documentation synchronization is `90b2b6b45ee989cff03118a4c08efcd6c90cbea5`.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN/DRAFT/UNMERGED against `develop`. The latest implementation/test checkpoint before the current documentation synchronization is `d0d0b2642d7a001cd3253d043edb9279a74824aa`; subsequent source commits implement the same UX-093 context correction.
 
-The current Mobile implementation continuation covers UX-078–UX-092:
+The current Mobile implementation continuation covers UX-078–UX-093:
 - UX-078–UX-086: Buyer Store/Orders/Search/Product Detail/Notifications/Home/Checkout and Merchant Dashboard/Catalog recovery.
 - UX-087: Merchant Offer Detail stale-safe offer/analytics refresh and unavailable-metrics handling.
 - UX-088: Merchant Inventory active-store, inventory-page and warehouse-directory refresh/retry while preserving last-successful data.
@@ -85,12 +85,13 @@ The current Mobile implementation continuation covers UX-078–UX-092:
 - UX-090: Merchant Customers stale-safe directory/statistics, retry and awaited refresh while preserving search/sort state.
 - UX-091: Merchant Orders awaits active-store/order refresh and supports pull-to-refresh for populated and successful empty queues.
 - UX-092: Store Profile awaits store-directory/active-store/warehouse refresh, supports pull-to-refresh, preserves last-successful details and exposes independent warehouse retry.
+- UX-093: both organization-switch flows invalidate organization-scoped caches; active-store resolution matches the selected organization; login/logout reset authenticated cache and identity context, and new login clears the persisted previous active organization.
 
-Focused tests were added across these slices but have not been executed. They remain TESTING_PENDING for the consolidated Phase 3 campaign. Admin recovery UX-046–UX-058 also remains implemented with focused tests pending execution. No API, permission, offer lifecycle, pricing terms, stock mutation, warehouse transfer, customer/order transition, fulfillment, store update or warehouse creation behavior changed in UX-087–UX-092.
+Focused tests were added across these slices but have not been executed. They remain TESTING_PENDING for the consolidated Phase 3 campaign. Admin recovery UX-046–UX-058 also remains implemented with focused tests pending execution. UX-093 is client cache/context hygiene only; it does not replace backend tenant authorization or close RLS/grant findings.
 
-**Next implementation:** complete the remaining Mobile route-transition and organization/store context audit, then finish the outstanding Web/Admin route and action permission mapping. Do not repeat UX-078–UX-092 without new source evidence. G-001 remains PARTIAL pending independent security review; G-002 remains IN PROGRESS pending protected runtime identity/catalog evidence and reviewed access design. Phase 3 remains the consolidated full testing campaign.
+**Next implementation:** complete the Mobile route permission and organization-context transition audit (including route guards and remaining route refresh semantics), then finish the outstanding Web/Admin route and action permission mapping. Do not repeat UX-078–UX-093 without new source evidence. G-001 remains PARTIAL pending independent security review; G-002 remains IN PROGRESS pending protected runtime identity/catalog evidence and reviewed access design. Phase 3 remains the consolidated full testing campaign.
 
-All implementation/test commits use `[skip ci]`. The exact-head GitHub Actions lookup returned no run for `90b2b6b`; Vercel Web/Admin both showed external build-rate-limit failures. These are not application test results. PR #138 remains draft and is not release authorization.
+All implementation/test commits use `[skip ci]`. The exact-head GitHub Actions lookup returned no run for `d0d0b26`; Vercel Web/Admin failures point to the external build-rate-limit page. These are not application test results. PR #138 remains draft and is not release authorization.
 
 ## Safety reminder
 
