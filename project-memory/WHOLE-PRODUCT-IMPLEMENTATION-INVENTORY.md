@@ -471,3 +471,11 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - Catalog Import Center has a separate retryable history error and suppresses false empty history after failed reads; last successful rows remain visible on failed refresh.
 - Analytics date-range/activity-limit reads are independently generation-guarded, retryable and cleanup-safe; event sorting no longer mutates state.
 - Focused tests added for UX-050–UX-053 but not executed. No API, permission, schema, migration or database change.
+
+## 22 November 2026 — Admin finance/brand/calendar UX-054–UX-057 re-audit
+
+- Commission Oversight: status-filter reads use request generations, retry, and suppress false empty results on failure.
+- Offer KPI/Trend: filter reads are generation-guarded and retryable; failed initial reads do not fabricate zero metrics or no-sales results; period label distinguishes unavailable data.
+- Brand Management: retryable list reads, request-version protection and successful-empty-only display.
+- Business Calendar: retryable calendar read, request-version/unmount protection and suppression of false no-calendar/holiday/audit empty states after failed reads.
+- Focused tests added for UX-054–UX-057 but not executed. No API, permission, schema, migration or database change.
