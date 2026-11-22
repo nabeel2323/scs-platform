@@ -15,7 +15,7 @@ enum _OrderFilter { all, active, completed, cancelled }
 
 Future<void> _refreshBuyerOrders(WidgetRef ref) async {
   try {
-    await ref.refresh(ordersProvider.future);
+    await ref.refresh(ordersProvider.future).then<void>((_) {});
   } catch (_) {
     // The AsyncValue carries the refresh failure; keep pull-to-refresh usable.
   }
