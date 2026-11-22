@@ -32,6 +32,7 @@ export default function AttributesPage() {
   const [attrs, setAttrs] = useState<AttributeDefinition[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
 
   // Filters
   const [scopeFilter, setScopeFilter] = useState('');
@@ -44,6 +45,8 @@ export default function AttributesPage() {
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
+    if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
     setError(null);
     try {
@@ -52,15 +55,20 @@ export default function AttributesPage() {
         type: typeFilter || undefined,
         includeDeprecated: includeDeprecated || undefined,
       });
-      setAttrs(data);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load attributes');
+      if (requestId === requestVersion.current) setAttrs(data);
+    } catch (err: unknown) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load attributes');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestVersion.current) setLoading(false);
     }
-  }, [scopeFilter, typeFilter, includeDeprecated]);
+  }, [ready, hasAccess, scopeFilter, typeFilter, includeDeprecated]);
 
-  useEffect(() => { if (ready && hasAccess) load(); }, [ready, hasAccess, load]);
+  useEffect(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return attrs;
@@ -109,7 +117,7 @@ export default function AttributesPage() {
         </div>
 
         {/* Error / loading */}
-        {error && <div className={styles['error']}>{error} <button type="button" onClick={load} style={{ marginLeft: 8 }}>Retry</button></div>}
+        {error && <div role="alert" className={styles['error']}>{error} <button type="button" onClick={() => void load()} style={{ marginLeft: 8 }}>Retry</button></div>}
         {loading ? <SkeletonTable rows={6} cols={7} /> : (
           <div className={styles['tableWrap']}>
             <table>
@@ -148,7 +156,7 @@ export default function AttributesPage() {
                     </td>
                   </tr>
                 ))}
-                {!filtered.length && <tr><td colSpan={7}>No attributes found.</td></tr>}
+                {!loading && !error && !filtered.length && <tr><td colSpan={7}>No attributes found.</td></tr>}
               </tbody>
             </table>
           </div>
