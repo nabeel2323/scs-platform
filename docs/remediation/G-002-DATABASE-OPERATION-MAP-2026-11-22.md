@@ -258,3 +258,8 @@ The 19-November 114 public r/p count reconciles to 99 Drizzle declarations plus 
 The first method-level pass is recorded in [G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md](./G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md). It maps controller/service predicates for OrdersService, PaymentsService and InventoryService, including unscoped internal helpers and platform-admin global read paths.
 
 A defect was fixed in InventoryService.transferStock: the destination warehouse could belong to a different store from the product variant even when the caller belonged to both stores in the same organization. Source warehouse, destination warehouse and variant ownership must now resolve to one store for both caller and system paths. Focused regression test added, not run.
+
+
+## Method-level predicate checkpoint — Catalog family
+
+See [G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md](./G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md), Catalog/Offers/Product Governance/Taxonomy batch. This pass fixed four concrete ownership gaps: variant attribute GET product/variant mismatch, media attachment to a foreign variant, legacy updateVariant ID-only UPDATE, and createOffer referencing another store's private product. Three focused regression tests were added; not run.

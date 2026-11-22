@@ -82,3 +82,8 @@ No controller endpoint was invoked. No webhook/provider call, worker action, dat
 ## Method-level ownership predicate link — 22 November 2026
 
 The controller callsite map is now paired with [G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md](./G-002-METHOD-LEVEL-OWNERSHIP-PREDICATE-MAP-2026-11-22.md) for the first high-risk service batch (Orders, Payments, Inventory). It records the ownership checks and the internal unscoped helper methods that public controller routes must wrap.
+
+
+## Catalog method-level predicate link — 22 November 2026
+
+The method-level map now includes CatalogService, CatalogOfferService, ProductGovernanceService and CatalogTaxonomyService. It records product/store, product/variant, media/product, offer/store/product, price-list/warehouse and admin taxonomy boundaries. Four ownership gaps were fixed; focused tests were added but not run.

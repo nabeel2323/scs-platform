@@ -72,3 +72,37 @@ Continue with CatalogService/ProductGovernanceService/OfferService/CatalogTaxono
 ## Explicit non-actions
 
 No tests were run, no CI was triggered, no DB query/write, migration, seed, reset, grant, default-ACL change, RLS activation, staging deployment, worker action or provider call occurred.
+
+
+## Catalog, Offers, Product Governance and Taxonomy — method-level batch 2
+
+| Method family | Tables / ownership predicate | Boundary notes |
+|---|---|---|
+| Catalog canonical lookup: findProductByIdentifiers/searchCanonicalProducts | products, brands, categories, product_variants, merchant_offers | Canonical discovery filters products.storeId IS NULL, deletedAt IS NULL and status ACTIVE. Merchant-owned/unpublished products are not disclosed through canonical identifier/search endpoints. |
+| Catalog product mutations: create/update/delete/bulkProductOperations | products, stores | Controller applies assertProductEditableByMerchant/canManageStoreCatalog and store org/member checks. bulkProductOperations first selects IDs with both products.id IN ids and products.storeId=storeId, then updates only the returned valid IDs. |
+| Variant create/update/delete/bulkVariantOperations | product_variants, products, variant_attribute_values, price lists/tiers | Controller authorizes the parent product. updateVariant prechecks (variantId, productId); both optimistic and legacy UPDATE predicates now include productId. Bulk delete/toggle filters include productId; create path binds productId and typed attributes are written through setVariantAttributeValues, which locks the (variantId, productId) row. |
+| Product media: addMedia/reorderMedia/removeMedia/listMediaByProduct | product_media, products, product_variants | Controller authorizes product edit. reorderMedia updates by (mediaId, productId); removeMedia verifies media.productId before delete. addMedia now verifies an optional variantId belongs to the same product before insert. |
+| Variant attribute read/write | variant_attribute_values, product_variants, products | GET route authorizes product, then verifies product_variants.id=variantId AND product_variants.productId=productId before calling the unscoped getVariantAttributeValues(variantId). PUT service locks the same composite relationship before replacing typed rows. |
+| Import jobs | import_jobs, import_job_chunks, stores | Controller resolves job storeId and requires activeOrg + ACTIVE store membership before reading/updating job/chunk state. Service methods use job IDs after controller authorization. |
+| Product Governance submit/withdraw | products, product_moderation, outbox_events | Service checks product.storeId equals supplied storeId and deletedAt IS NULL; conditional UPDATE includes productId, storeId, source status and optional updatedAt. Controller first checks product edit access; audit and outbox are transactional. |
+| Product Governance admin review/moderation | products, product_moderation, audit/outbox | Global moderation queue and review actions are admin permission routes. Service enforces state transitions and optimistic locking; actor role/user are supplied from authenticated controller. |
+| Offer create/update/withdraw | merchant_offers, products, product_variants, price_lists, warehouses, stores | createOffer asserts merchant role, active org and ACTIVE store membership; optional price list and warehouse must belong to offer store; optional variant must belong to product; product must be canonical (storeId NULL) or owned by the same offer store; duplicate offer constraints are checked. Merchant detail uses getOfferForMerchant, which resolves offer.storeId then checks org and ACTIVE membership and returns 404 for foreign IDs. |
+| Offer analytics/trend | merchant_offers, order_items, orders, product_variants, products | Controller validates store access before service calls. Queries first resolve offer IDs by storeId, then aggregate order_items only for those IDs. Buyer-facing product offers are limited to ACTIVE/available offers and ACTIVE stores. |
+| Offer approval/rejection/suspension/reactivation | merchant_offers, audit | Admin lifecycle routes require platform offer-management permissions and service validates allowed state transitions. These methods accept reviewerId rather than CallerContext, so their protection depends on controller permission guards; keep them platform-only. |
+| Taxonomy global governance | attribute_definitions, attribute_options, attribute_groups, product_types, product_type_attributes, conditional rules | Authenticated taxonomy reads are intentionally available to dynamic merchant/buyer forms; create/update/delete/publish/version operations are guarded by platform taxonomy permissions. Product/variant typed-value operations are bound to their parent product/variant. |
+
+### Catalog security fixes in this batch
+
+1. GET /products/:productId/variants/:variantId/attribute-values previously authorized productId but queried variant values by variantId alone. A merchant authorized for product A could submit product A with another product's variant UUID and read its typed values. The controller now checks the composite (variantId, productId) relationship before calling the unscoped taxonomy read. Added a focused controller regression test.
+2. CatalogService.addMedia previously accepted variantId without checking that it belonged to productId. It now rejects a foreign variant before inserting product_media. Added a focused service regression test.
+3. CatalogService.updateVariant's legacy non-optimistic UPDATE previously filtered only by variantId after a composite preflight. The write predicate now also includes productId, matching the optimistic path and closing the preflight/write gap.
+4. CatalogOfferService.createOffer previously loaded a product by ID without checking whether it was a private product owned by another store. The lookup now accepts only canonical products (storeId IS NULL) or products owned by the offer's store. Added a focused service regression test.
+
+All focused tests are committed but not run.
+
+### Remaining Catalog notes
+
+- CatalogController.presignMedia creates a temporary unassociated object-storage key behind merchant:products:write; it does not attach a product/variant row. Treat orphan-upload quota/cleanup as an operational follow-up, not as a confirmed cross-tenant record leak.
+- Several catalog service methods are unscoped by ID and depend on controller prechecks. Preserve the controller/service pairing; direct service calls must be classified as internal/system context.
+- Shared tenant-scope helpers still use singleton DatabaseService rather than the caller's active transaction. Ownership reads and subsequent writes can therefore be separated by a concurrency window; the later request transaction design must address this.
+

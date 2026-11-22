@@ -1367,3 +1367,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Confirmed public OrdersController routes pass CallerContext or a specific buyer/driver identity; payment detail helpers are unscoped by UUID but controller paths apply assertOrderAccessible; admin global queues rely on platform-only permissions and service role checks; inventory controller routes pass CallerContext to active org/store-membership helpers.
 - Identified InventoryService.transferStock missing the same-store relationship check already enforced by createItem. Fixed it so source warehouse, destination warehouse and variant store must match for both caller and system paths.
 - Added inventory-transfer regression test; not run. No tests, CI, database or staging actions occurred.
+
+
+## G-002 method-level ownership predicate batch 2 — Catalog family — 22 November 2026
+
+- Extended the method-level map to CatalogService, CatalogOfferService, ProductGovernanceService and CatalogTaxonomyService.
+- Confirmed canonical product discovery filters storeId IS NULL, deletedAt IS NULL and ACTIVE status; bulk product operations select valid IDs constrained to storeId; variant update/delete/toggle and typed attribute writes bind variant to product; media reorder/remove bind media to product; import jobs are controller-scoped to active org/store membership.
+- Fixed four catalog/offer ownership gaps: variant attribute GET now verifies variant belongs to authorized product; addMedia rejects foreign variantId; updateVariant legacy UPDATE includes productId; createOffer rejects private products owned by another store.
+- Added focused regression tests for the catalog controller variant-attribute read, media attachment and offer product scope. Not run. Existing inventory transfer store-boundary test also remains unrun.
+- No tests, CI, DB query/write, migration, seed, grant, RLS or staging action occurred.

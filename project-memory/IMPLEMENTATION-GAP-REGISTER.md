@@ -175,3 +175,8 @@ All five staging bootstrap scripts now require SCS_ENVIRONMENT=staging, explicit
 Mapped OrdersService, PaymentsService and InventoryService method groups to table operations and caller predicates. The map distinguishes buyer, merchant organization, active store membership, assigned driver, platform-admin and system/worker contexts, and records the unscoped internal lookup helpers that controller paths wrap.
 
 Fixed InventoryService.transferStock so the source warehouse, destination warehouse and product variant must belong to the same store for user and system callers. Added a focused regression test; not run. Remaining method-level mapping covers catalog/offer/taxonomy, pricing/merchant/store membership, returns/disputes/reviews, carrier/shipping and worker/outbox/bootstrap contexts. No tests or CI were run.
+
+
+## G-002 method-level predicate batch 2 — Catalog family — 22 November 2026
+
+Mapped CatalogService, CatalogOfferService, ProductGovernanceService and CatalogTaxonomyService. Fixed four defects: variant attribute GET did not bind variantId to authorized productId; addMedia accepted a variant from another product; legacy updateVariant UPDATE omitted productId; createOffer could reference another store's private product. Added three focused regression test files (controller variant-attribute, service media-variant and offer product-scope) plus the prior inventory transfer test. None were run. Remaining service batches: Pricing/Merchant/StoreMembership; Returns/Disputes/Reviews; carrier/shipping; worker/outbox/bootstrap/system contexts.
