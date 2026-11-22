@@ -57,6 +57,7 @@ export default function AdminPaymentsPage() {
   const [tab, setTab] = useState<Tab>(canVerifyPayments ? 'queue' : hasAccess ? 'all' : 'refunds');
   const [payments, setPayments] = useState<AdminPayment[]>([]);
   const [refunds, setRefunds] = useState<AdminRefund[]>([]);
+  const [loadedTab, setLoadedTab] = useState<Tab | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -81,13 +82,19 @@ export default function AdminPaymentsPage() {
     try {
       if (tab === 'refunds') {
         const data = await fetchRequestedRefunds();
-        if (requestId === requestVersion.current) setRefunds(data);
+        if (requestId === requestVersion.current) {
+          setRefunds(data);
+          setLoadedTab(tab);
+        }
       } else {
         let data: AdminPayment[];
         if (tab === 'queue') data = await fetchPaymentVerificationQueue();
         else if (tab === 'stale') data = await fetchStalePayments();
         else data = await fetchAdminPayments();
-        if (requestId === requestVersion.current) setPayments(data);
+        if (requestId === requestVersion.current) {
+          setPayments(data);
+          setLoadedTab(tab);
+        }
       }
     } catch (err: any) {
       if (requestId === requestVersion.current) {
@@ -149,6 +156,8 @@ export default function AdminPaymentsPage() {
     ...(canApproveRefunds ? [{ key: 'refunds' as const, label: 'Refund Requests' }] : []),
   ];
 
+  const hasLoadedCurrentTab = loadedTab === tab;
+
   if (!hasAccess && !canApproveRefunds) {
     return <AccessDenied requiredPerms={['admin:payments:read']} missingPerms={missingPerms} />;
   }
@@ -183,8 +192,11 @@ export default function AdminPaymentsPage() {
 
       {loadError && (
         <div role="alert" style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.sm, color: '#dc2626', marginBottom: 12, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-          <span>{loadError}</span>
-          <Button size="sm" variant="secondary" onClick={() => void load()}>Retry</Button>
+          <span>
+            {loadError}
+            {hasLoadedCurrentTab ? ' Showing the last successfully loaded results.' : ''}
+          </span>
+          <Button size="sm" variant="secondary" onClick={() => void load()}>Retry payments</Button>
         </div>
       )}
       {actionError && (
@@ -193,9 +205,14 @@ export default function AdminPaymentsPage() {
         </div>
       )}
 
-      {loadError ? null : loading ? (
+      {loading && hasLoadedCurrentTab && (
+        <div role="status" style={{ padding: '6px 0', color: colors.muted, fontSize: 12 }}>
+          Refreshing this view…
+        </div>
+      )}
+      {loading && !hasLoadedCurrentTab ? (
         <div style={{ padding: 40, textAlign: 'center', color: colors.muted }}>Loading…</div>
-      ) : tab === 'refunds' ? (
+      ) : !hasLoadedCurrentTab ? null : tab === 'refunds' ? (
         refunds.length === 0 ? (
           <Card style={{ padding: 32, textAlign: 'center', color: colors.muted }}>
             No refund requests awaiting approval.

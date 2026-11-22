@@ -1560,3 +1560,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 
 - Implemented request-version guards and cleanup invalidation for Attribute Groups and Attribute Definitions. Failed reads expose accessible retryable errors and do not render successful-empty counts/rows. Filter requests in Attribute Definitions cannot overwrite newer results.
 - Focused tests added for both pages but not executed; status remains IMPLEMENTED / TESTING_PENDING for Phase 3. No API, permission, schema, migration or DB changes.
+
+
+## UX-059 — Admin Payments stale-data recovery — 22 November 2026
+
+- The Payments page now tracks which tab produced the last successful response. Switching tabs cannot present rows from a different view as if they belonged to the selected tab.
+- During a refresh, the current tab's last successful rows remain visible with a refresh status. If refresh fails, the retryable error explicitly identifies the displayed rows as the last successful result. An initial failure still does not render a false empty state.
+- Added `admin-payments-recovery.test.tsx` for failed initial reads/retry and preservation of successful rows after a failed refresh.
+- No payment, refund, approval, reconciliation, API, permission, schema, migration, database, staging or provider behavior changed. Tests remain pending the consolidated Phase 3 campaign.
