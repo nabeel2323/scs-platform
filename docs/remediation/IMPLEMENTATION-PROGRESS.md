@@ -1815,3 +1815,13 @@ This is programme-level UX implementation evidence; it does not change the statu
 - Source commit: `df5a171762a5f6a5b365a13f491a975d4c6e9aa8`; focused inventory test commit: `fe508b0d30c791fb7597ec7f1c95d6b6968461b4`. The offer-detail focused test commit is `910466470d28c7d1eec08c80db47a74b6727f3bc`.
 - Both deliverables are **IMPLEMENTED / TESTING_PENDING**, not test-verified or CI-verified. They introduce no API, permission, schema, migration, database, staging or worker changes.
 - Continue Mobile merchant operational source audit, then remaining Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
+
+## Mobile merchant operational continuation — UX-089 / UX-090 — 23 November 2026
+
+This is programme-level UX implementation evidence and does not change any G-001–G-035 audit finding status.
+
+- **UX-089 — Mobile Merchant Pricing:** implemented stale-safe store/list/detail/tier reads, independent retry/error states, awaited refresh, pull-to-refresh for successful empty states, and an unavailable tier count when the initial tier read has not succeeded. Four focused Flutter widget scenarios added in `mobile/test/merchant_pricing_read_recovery_test.dart`; not executed.
+- **UX-090 — Mobile Merchant Customers:** implemented stale-safe customer directory/statistics, retryable initial errors, awaited explicit/pull-to-refresh and true empty/no-match states while preserving search/sort state. Focused Flutter widget scenarios added in `mobile/test/merchant_customers_read_recovery_test.dart`; not executed.
+- Pricing source commits: `9b0393a`, `3b76bf4`, `0fd2622`, `fd3b94b`; pricing test commits: `2f112e9`, `a03c23f`. Customers source/test commits: `b279c263`, `3f3b0f6`.
+- Both deliverables are **IMPLEMENTED / TESTING_PENDING**, not test-verified or CI-verified. No API, permission, schema, migration, database, staging or worker changes.
+- Continue Mobile Merchant Orders and store/profile route audit, then remaining Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
