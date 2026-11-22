@@ -86,7 +86,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    expect(find.text('Error'), findsOneWidget);
+    expect(find.text('Could not load orders'), findsOneWidget);
     expect(find.text('No orders'), findsNothing);
 
     await tester.tap(find.byTooltip('Refresh'));
