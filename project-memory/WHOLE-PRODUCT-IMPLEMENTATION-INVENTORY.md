@@ -450,3 +450,10 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - Organization directory and update-request review queue reads are independent, with separate loading/error/retry states and request-version guards.
 - One failed endpoint no longer blocks the other dataset or masquerades as an empty list. Last successful rows remain visible after failed refreshes; only successful empty responses render empty states.
 - Focused Admin test added but not executed. UX-045 is IMPLEMENTED / TESTING_PENDING. No API, permission or backend behavior changed.
+
+## 22 November 2026 — Admin Users/Merchants UX-046 / UX-047 re-audit
+
+- User creation now matches the API's optional-phone contract; organization and role discovery has independent retryable errors; initial membership requires both values or neither, enforced in the UI and AdminService.
+- Dedicated User Detail now exposes the existing audited profile update and membership assign/remove APIs, and status controls confirm suspension/deactivation. Role permissions are derived from each membership role's detail endpoint; the page no longer mistakes the global permission catalog for user-effective permissions.
+- Merchant Store Detail now presents locale, popularity-badge visibility, logo and cover previews, and structured address from the existing store detail response.
+- Focused tests added in `admin-create-user-recovery.test.tsx`, `admin-user-role-permissions.test.tsx`, `admin-merchant-detail.test.tsx` and API `admin-user-creation.spec.ts`; not executed. UX-046/047 are IMPLEMENTED / TESTING_PENDING. No new API routes, permissions, schema, migration or database behavior.
