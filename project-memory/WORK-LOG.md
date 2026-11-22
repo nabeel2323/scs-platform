@@ -415,3 +415,13 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Explicitly separated owner columns from actor-attribution fields such as created_by, uploaded_by, reviewed_by, performed_by and actor_id. Flagged plain UUID references and missing direct org columns for migration/catalog verification.
 - Extended the operation map with AdminService, CatalogImportService, StoreMembershipService, carrier tracking/webhook, reconciliation and operations-control paths. Updated START-HERE and DB-003 evidence links.
 - These are static source observations only. No tests, CI, live DB query/write, migration, grants, RLS, staging, deployment, worker activation or provider call occurred.
+
+
+## 2026-11-22 — G-002 expanded import, carrier and financial operation paths
+
+- Extended the operation map to 33 service files, including ExcelExecutorService, carrier credential/configuration/reconciliation services, commission reversal, settlement adjustment and business calendar.
+- Recorded that catalog import execution uses ordered per-entity-type transactions and preserves partial-failure semantics; request transaction design must not collapse those boundaries.
+- Added carrier credential/configuration paths, including organization/store consistency and the privileged decrypt boundary.
+- Added financial ownership candidates for commission reversals, settlement adjustments/approvals, reconciliation runs/discrepancies and business calendar/holiday/audit rows.
+- Flagged business calendars as unresolved configuration scope: schema comments describe tenant/global calendars but the inspected declaration has no direct org_id.
+- No tests, CI, DB query/write, migration, grants, RLS, staging/deployment, provider call or worker activation occurred.
