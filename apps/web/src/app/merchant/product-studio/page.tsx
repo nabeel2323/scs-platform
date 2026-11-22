@@ -12,11 +12,12 @@ import StepVariants from './steps/StepVariants';
 import StepOffer from './steps/StepOffer';
 import StepMedia from './steps/StepMedia';
 import StepReview from './steps/StepReview';
+import { continueProductStudioStep } from '../../../lib/product-studio-flow';
 
 export default function ProductStudioPage() {
   const router = useRouter();
   const studio = useProductStudio();
-  const { step, setStep, stepIndex, state, setState, stores, categories, brands, error, saving, success, goNext, goPrev, handleSaveProduct, completeness, canonicalMatches, canonicalSearchResults, searchCanonical, searchCanonicalFreeText, existingVariants, loadExistingVariants } = studio;
+  const { step, setStep, stepIndex, state, setState, stores, categories, brands, error, setError, saving, success, goNext, goPrev, handleSaveProduct, completeness, canonicalMatches, canonicalSearchResults, searchCanonical, searchCanonicalFreeText, existingVariants, loadExistingVariants } = studio;
   const [productTypes, setProductTypes] = useState<ProductTypeSummary[]>([]);
 
   // Load product types
@@ -125,15 +126,19 @@ export default function ProductStudioPage() {
                 {saving ? 'Saving…' : 'Save Product'}
               </button>
             ) : (
-              <button type="button" onClick={async () => {
-                // Auto-save on step 4 (offer) to create the product before configuring offer
-                if (step === 'offer' && !state.productId && state.title && state.storeId) {
-                  await handleSaveProduct();
-                }
-                goNext();
-              }}
-                style={{ padding: '10px 20px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#0f3340', color: '#fff', fontWeight: 600 }}>
-                Next
+              <button type="button" onClick={() => continueProductStudioStep({
+                step,
+                saving,
+                productId: state.productId,
+                title: state.title,
+                storeId: state.storeId,
+                saveProduct: handleSaveProduct,
+                setError,
+                goNext,
+              })}
+                disabled={saving}
+                style={{ padding: '10px 20px', borderRadius: 6, border: 'none', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.65 : 1, background: '#0f3340', color: '#fff', fontWeight: 600 }}>
+                {saving ? 'Saving…' : 'Next'}
               </button>
             )}
           </div>

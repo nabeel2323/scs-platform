@@ -79,6 +79,7 @@ export function useProductStudio() {
   const [canonicalMatches, setCanonicalMatches] = useState<Product[]>([]);
   const [canonicalSearchResults, setCanonicalSearchResults] = useState<CanonicalProductSummary[]>([]);
   const [existingVariants, setExistingVariants] = useState<ProductVariant[]>([]);
+  const [offerCreatedForProductId, setOfferCreatedForProductId] = useState<string | null>(null);
 
   // P7 Phase 5 — dirty-state tracking for beforeunload protection
   const initialRef = useRef<string>(JSON.stringify(INITIAL));
@@ -87,7 +88,7 @@ export function useProductStudio() {
   useEffect(() => {
     const current = JSON.stringify(state);
     setIsDirty(current !== initialRef.current);
-  }, [state]);
+  }, [state, brands, offerCreatedForProductId]);
 
   // beforeunload protection (browser refresh, back, close tab)
   useEffect(() => {
@@ -174,7 +175,8 @@ export function useProductStudio() {
   }, []);
 
   // Save product (creates or updates)
-  const handleSaveProduct = useCallback(async (): Promise<string | null> => {
+  const handleSaveProduct = useCallback(async (options: { includeOffer?: boolean } = {}): Promise<string | null> => {
+    const includeOffer = options.includeOffer ?? true;
     setSaving(true);
     setError('');
     setSuccess('');
@@ -213,6 +215,11 @@ export function useProductStudio() {
         // Resolve brand name for SKU generation (from the brands loaded at init).
         const brandName = brands.find(b => b.id === state.brandId)?.name ?? null;
         if (state.enabledCombinations.size > 0) {
+          // A previous save may have created some variants before another
+          // operation failed. Re-read before retrying so those variants are
+          // not duplicated by a second click on Save.
+          const persistedVariants = await fetchProductVariants(productId);
+          const existingSkus = new Set(persistedVariants.map((variant) => variant.sku));
           for (const comboKey of state.enabledCombinations) {
             // Resolve raw attrId/value pairs to human-readable attribute entries
             // using the product type schema (attribute definition names + option labels).
@@ -226,17 +233,24 @@ export function useProductStudio() {
               productTitle: state.title,
               attributeValues: attrValues,
             });
+            if (existingSkus.has(sku)) continue;
             await createVariant(productId, {
               sku,
               title: title || undefined,
               attributes: JSON.parse(comboKey),
             });
+            existingSkus.add(sku);
           }
         }
       }
 
-      // Step 4: Create offer
-      if (state.basePriceMinor > 0) {
+      // Create the commercial offer only from the final review/save action.
+      // The offer step persists the product first so media and review can proceed.
+      if (
+        includeOffer &&
+        state.basePriceMinor > 0 &&
+        offerCreatedForProductId !== productId
+      ) {
         await createMerchantOffer({
           storeId: state.storeId,
           productId,
@@ -246,9 +260,16 @@ export function useProductStudio() {
           leadTimeDays: state.leadTimeDays || undefined,
           warehouseId: state.warehouseId || undefined,
         });
+        setOfferCreatedForProductId(productId);
       }
 
-      setSuccess('Product saved successfully!');
+      setSuccess(
+        includeOffer && state.basePriceMinor > 0
+          ? 'Product and offer saved successfully!'
+          : includeOffer
+            ? 'Product saved successfully!'
+            : 'Product details saved. Continue to review to create the offer.',
+      );
       // P7 Phase 5: reset dirty state after successful save
       initialRef.current = JSON.stringify({ ...INITIAL, productId, storeId: state.storeId });
       setIsDirty(false);
