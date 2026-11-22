@@ -96,8 +96,7 @@ describe('merchant offers read recovery', () => {
 
     expect((await screen.findByRole('alert')).textContent).toContain('Offer analytics unavailable');
     const row = screen.getByRole('table').querySelector('tbody tr');
-    expect(row?.textContent).toContain('—');
-    expect(row?.textContent).not.toContain('0');
+    expect(row?.textContent?.match(/—/g)?.length).toBe(3);
   });
 
   it('does not present a failed offers read as a successful empty list', async () => {
