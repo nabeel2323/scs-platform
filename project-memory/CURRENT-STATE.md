@@ -3,8 +3,8 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail; latest focused test commit is `f18f133b5631129d1b9fa3c84555921e5b9d32cc`  
-**Previous source increments:** `772586447312c7abe308c30b85e2e922c588708d` — Admin Organizations recovery; `f681eab83688d02240348e7e095de35b67ad8ce1` — User Detail profile/membership controls  
+**Latest source implementation commit:** `784948d0b5b63f35b4f3b0666a29db9e277dc2a0` — UX-049 Audit Log stale-response recovery; latest focused test commit is `f67d70f225b799606f5ed1c2a8af4fa61a1bde06`  
+**Previous source increments:** `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — Admin Users/Merchant Store Detail; `7ea27759b5d9c6361d3c88abe85205128014acae` — Roles list retry/recovery  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -20,13 +20,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
 | Live branch head | Resolve from the live GitHub ref at session start; this checkpoint is documentation and does not pin its resulting SHA |
-| Latest implementation/test | `f18f133b5631129d1b9fa3c84555921e5b9d32cc` — UX-047 Merchant Store Detail test |
+| Latest implementation/test | `f67d70f225b799606f5ed1c2a8af4fa61a1bde06` — UX-049 Audit Log ordering/retry test |
 | Previous source implementation | `57df8ab2048058a802422191b2e2c6b46f8eeb13` — UX-037 inventory movement-history recovery |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for source/test commits `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` / `f18f133b5631129d1b9fa3c84555921e5b9d32cc`; commits use `[skip ci]`; NOT CI-VERIFIED |
+| Exact-head GitHub Actions | No run for source/test commits `784948d0b5b63f35b4f3b0666a29db9e277dc2a0` / `f67d70f225b799606f5ed1c2a8af4fa61a1bde06`; commits use `[skip ci]`; NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
 | Latest inspected Vercel contexts | Web FAILURE; Admin FAILURE (external build-rate-limit page); not application test results |
-| Focused Web/Admin tests | UX-030–047 added; not executed |
+| Focused Web/Admin tests | UX-030–049 added; not executed |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
 ## Current remediation status
@@ -77,6 +77,11 @@ The complete finding register, phase dashboard and technical evidence live in [I
 - Latest source implementation commit: `7c9720821cae074415a3d3d8d1f1a178bb8db8c2`; latest focused test commit: `f18f133b5631129d1b9fa3c84555921e5b9d32cc`. Commits use `[skip ci]`; no Actions run is expected. Refresh the live branch/PR head and combined statuses after the documentation sync.
 - Vercel Web/Admin contexts remain external build-rate-limit failures, not application test results. No tests are claimed as executed.
 
+## Exact-head reconciliation — 22 November 2026 (UX-048/049)
+
+- Latest source implementation commit: `784948d0b5b63f35b4f3b0666a29db9e277dc2a0`; latest focused test commit: `f67d70f225b799606f5ed1c2a8af4fa61a1bde06`. Commits use `[skip ci]`; no Actions run is expected. Refresh the live branch/PR head and combined statuses after the documentation sync.
+- Vercel Web/Admin contexts remain external build-rate-limit failures, not application test results. No tests are claimed as executed.
+
 ## Historical CI and security verification evidence — 22 November 2026
 
 - PR #138 CI [#44948332893](https://github.com/nabeel2323/scs-platform/actions/runs/44948332893) passed all 10 executable jobs on branch source SHA `05e7a0ea602913c445e6766a1046fc3b8068be7b`. This includes API unit/coverage, PostgreSQL integration, migration full apply and read-only database-access audit, Web/Admin, Flutter, E6 boundary lint, container smoke, build, contract/codegen and formatting. k6 and protected staging release were skipped.
@@ -100,14 +105,16 @@ The complete finding register, phase dashboard and technical evidence live in [I
 - UX-045: Admin Organizations directory and update-request queue reads are independent, with separate loading/error/retry states and request-version guards.
 - UX-046: Admin User Management now supports optional phone, retryable org/role lookups, org/role pair validation in UI and service, profile editing, membership management, confirmed suspension/deactivation, and role-configured permission display rather than the global catalog.
 - UX-047: Merchant Store Detail now presents locale, popularity-badge visibility, logo/cover previews and structured address from the existing API.
-- Focused tests were added for UX-038–UX-047, including API unit coverage for incomplete user membership payloads. None have been executed. No new API routes, permission keys, schema, migration, database, queue or worker behavior changed.
-- Latest source implementation commit: `7c9720821cae074415a3d3d8d1f1a178bb8db8c2`; latest focused test commit: `f18f133b5631129d1b9fa3c84555921e5b9d32cc`. Exact-head Actions lookup is pending refresh; commits use `[skip ci]`.
+- UX-048: Roles List has retryable reads and request-version/unmount protection.
+- UX-049: Audit Log filter requests are generation-guarded; older responses cannot overwrite newer results. Errors expose Retry audit log while last successful rows remain visible.
+- Focused tests were added for UX-038–UX-049, including API unit coverage for incomplete user membership payloads. None have been executed. No new API routes, permission keys, schema, migration, database, queue or worker behavior changed.
+- Latest source implementation commit: `784948d0b5b63f35b4f3b0666a29db9e277dc2a0`; latest focused test commit: `f67d70f225b799606f5ed1c2a8af4fa61a1bde06`. Exact-head Actions lookup is pending refresh; commits use `[skip ci]`.
 - PR #138 remains open, draft and unmerged to `develop`. No merge, deployment, staging write, shared DB mutation, migration, grants/default-ACL change, RLS enablement, worker activation or provider call occurred.
 
 ## Immediate next actions
 
-1. Continue UX-010 across remaining Admin routes (orders, verification, disputes, catalog governance and supporting detail views), then audit remaining Mobile workflows. Record only contract-backed gaps; do not repeat UX-030–UX-047.
-2. Continue integration completion for buyer/merchant/admin workflows, including remaining cross-client order, returns, fulfillment and commercial lifecycle gaps. Focused tests for UX-015–UX-047 have been added but are not yet executed.
+1. Continue UX-010 across remaining Admin routes (orders, verification, disputes, catalog governance and operational screens), then audit remaining Mobile workflows. Record only contract-backed gaps; do not repeat UX-030–UX-049.
+2. Continue integration completion for buyer/merchant/admin workflows, including remaining cross-client order, returns, fulfillment and commercial lifecycle gaps. Focused tests for UX-015–UX-049 have been added but are not yet executed.
 3. Keep G-001 PARTIAL pending independent security review. Keep G-002 IN PROGRESS pending protected live API/migration identity evidence, refreshed catalog audit, 114-versus-116 physical relation reconciliation, complete operation ownership review and an approved transaction-context/RLS design.
 4. Preserve the implementation-first sequence: do not run the comprehensive test suite after each small change. Execute the coordinated API/PostgreSQL/migration/tenant-security/concurrency/Web/Admin/Flutter/performance campaign only after implementation and integration are complete.
 5. Preserve all merge/deployment/staging/shared-database/grant/RLS/worker restrictions.
