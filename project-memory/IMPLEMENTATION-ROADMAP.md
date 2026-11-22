@@ -206,3 +206,11 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Added atomic P13 alert delivery claims with stale-claim recovery and migration 0073.
 - Completed bounded source mapping of worker, outbox, bootstrap, audit and operator contexts. The generic outbox is still a log-only sink; external event-bus integration remains deferred.
 - Added focused regression tests but did not execute them. Full test, CI and release gates remain consolidated at the end of implementation.
+
+
+## 2026-11-22 — Mobile pricing, pricing tenant scope and Admin order presentation
+
+- Implemented UX-012 mobile merchant pricing list/tier management and linked it to offer creation/detail.
+- Enforced store-scoped variant-tier reads in PricingService for both direct variant pricing and internal price-list resolution.
+- Implemented UX-013 Admin order item label enrichment and UI presentation.
+- Added focused tests; did not execute them. Next implementation stream is the remaining UX-010 screen audit. Protected G-002 runtime identity/catalog and RLS gates remain open.

@@ -350,3 +350,17 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Latest head has no GitHub Actions check runs. Vercel Admin and Web statuses fail because the provider is rate-limited for 24 hours; these are not application test results.
 - No migration was applied, no staging/shared DB was accessed, no RLS/grant/DB identity change was made, no deployment or worker activation occurred, and no external provider call was made.
 - Remaining protected gates: live API/migration role identities, the unresolved 114-versus-116 physical relation count, transaction-context/RLS architecture review, and consolidated testing/CI/release verification.
+
+
+## Latest implementation checkpoint — 22 November 2026 (merchant pricing + order presentation)
+
+- Repository: nabeel2323/scs-platform. Branch: remediation/phase-0-1-tenant-security. PR #138 remains open, draft, unmerged, targeting develop.
+- Latest source head: adbc386470e37329e8357be9908b4bfbe6c6fee0.
+- Implemented UX-012: mobile merchant pricing list/detail surfaces; create/update/activate price lists; create/update/delete quantity tiers; product/variant selection; price-list selection in offer creation; preflight that a matching variant tier covers the offer MOQ; linked price-list navigation from offer detail. Read/write affordances use merchant:pricing:read/write and backend store ownership checks remain authoritative.
+- PricingService.listTiersByVariant now requires storeId for all query paths and joins priceLists to filter to the variant's owning store. Controller supplies the store resolved from the variant; the internal product-pricing resolver passes its store context. This closes an unscoped cross-list read path.
+- Implemented UX-013: Admin order detail now joins product title, variant title and SKU; Admin UI displays those labels instead of opaque product/variant IDs, with UUID fallback. No permission broadening.
+- Focused tests added for mobile pricing route permission, price tier label enrichment, variant tier store scope and admin order item labels. Not executed; full test campaign remains deferred to the end of implementation.
+- Source-level G-002 method mapping is complete for the bounded API service/worker/operator families. Protected live runtime identity evidence, 114-versus-116 physical relation reconciliation and transaction-context/RLS architecture remain open. Do not add a global request transaction interceptor or enable RLS before those gates.
+- Latest exact-head GitHub Actions check-runs: none. Vercel Admin and Web statuses fail with Deployment rate limited — retry in 24 hours; these are preview-provider failures, not test results.
+- No migrations applied, no shared/staging DB action, no grants/RLS changes, no deployment, no worker activation and no external provider calls.
+- Next implementation work: continue UX-010 source re-audit across remaining Admin/Web/Mobile screens, recording only concrete contract-backed gaps. UX-007 support ticket scope and UX-008 geospatial/location policy remain blocked on product decisions; generic OutboxDispatcher remains log-only pending an event-bus decision.

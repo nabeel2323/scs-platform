@@ -273,3 +273,14 @@ Current branch and PR #138 head: 9d3eaa8f961f2a718f1840b08c8e37dc113ea636. PR #1
 Method-level predicate batches 1–3 are complete: Orders/Payments/Inventory; Catalog/Offers/Taxonomy; Pricing/Merchant/Store Membership. Batch 3 added service-level same-store validation for price-tier relationships, ACTIVE organization membership checks for merchant document/verification reads, and caller-context validation for document uploads and organization-scoped store/customer reads. Focused merchant/pricing tests were added but not run.
 
 **Continue with Returns/Disputes/Reviews method-level mapping and implementation.** Then review carrier/shipping and worker/outbox/bootstrap/system contexts. Do not run tests or CI until the implementation groups are complete, per the implementation-first decision. Do not enable RLS or perform protected live DB actions.
+
+
+## Latest continuation checkpoint — 22 November 2026
+
+Current branch and PR #138 head: adbc386470e37329e8357be9908b4bfbe6c6fee0. PR #138 remains open/draft/unmerged to develop.
+
+G-002 bounded method-level source mapping now covers Orders/Payments/Inventory; Catalog/Offers/Taxonomy; Pricing/Merchant/Store Membership; Returns/Disputes/Reviews/Financial Controls; Carrier/Shipping/Webhook; and Worker/Outbox/Bootstrap/Operator/System. PricingService variant-tier reads require storeId and enforce priceLists.storeId on all paths. Protected live identity/catalog evidence and the transaction-context/RLS architecture remain open. Do not add a global request transaction interceptor or enable RLS before those gates.
+
+UX-012 is implemented in source: merchant mobile price-list/tier management and offer linkage. UX-013 is implemented in source: Admin order detail shows product/variant labels and SKU instead of only UUIDs. Focused tests were added but not executed; keep the consolidated testing phase at the end of implementation.
+
+**Next implementation task:** continue the UX-010 source re-audit across remaining Admin, Web and Mobile screens. Record only concrete, source-confirmed gaps and fix safe items in grouped commits. UX-007 support-ticket scope and UX-008 geospatial/location policy remain blocked on product decisions. The generic OutboxDispatcher remains a log-only sink until an event-bus contract is approved.

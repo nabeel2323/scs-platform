@@ -333,3 +333,10 @@ The controller validates the variant's store and rejects a caller-supplied misma
 ### Admin order detail
 
 AdminService.getOrderDetail now enriches order items with productTitle, variantSku and variantTitle through left joins to products and productVariants. The Admin UI displays the product/variant names and SKU rather than opaque UUIDs, with UUID fallback for historical orphaned references. The route remains admin:orders:read guarded; this is presentation enrichment only and does not broaden order access.
+
+
+## PricingService variant-tier read and Admin order-detail presentation — 22 November 2026
+
+- PricingService.listTiersByVariant now requires storeId for all paths. It joins priceLists and constrains priceLists.storeId, optionally also constraining priceListId. PricingController.getProductPricing passes the store resolved from the variant; getProductPricing passes its known store through the internal lookup.
+- Focused regression tests cover missing-store rejection and the owning-store SQL predicate.
+- AdminService.getOrderDetail joins orderItems to products/productVariants; Admin order detail displays product title, variant title and SKU with UUID fallback.

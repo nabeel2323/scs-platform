@@ -273,3 +273,11 @@ Corrections committed:
 - OpsAlertService uses an atomic SENDING delivery claim and stale-claim recovery across API instances; migration 0073 updates the open-alert index.
 
 Focused tests were added but not run. Generic OutboxDispatcher currently logs and marks events dispatched; it does not publish to a real event bus. This remains a known functional limitation, not a verified delivery integration. No RLS or DB grants are approved. Live runtime identity/catalog evidence and final testing remain open.
+
+
+## UX-012/UX-013 and PricingService store-scope follow-up — 22 November 2026
+
+- Mobile merchant price-list and quantity-tier management is implemented in source and linked into merchant offer creation/detail. Focused route/API tests are added but unexecuted.
+- Admin order detail now returns and displays product/variant titles and SKU rather than only IDs.
+- PricingService variant-tier reads now fail closed without storeId and filter through priceLists.storeId, including the internal product-pricing resolver.
+- Next: continue UX-010 re-audit for other concrete, source-confirmed Admin/Web/Mobile gaps. G-002 live identity/catalog evidence and transaction-context/RLS design remain protected gates; no global interceptor, RLS or grants are authorized.

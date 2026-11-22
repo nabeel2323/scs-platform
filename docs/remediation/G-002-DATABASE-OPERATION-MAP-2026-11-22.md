@@ -294,3 +294,8 @@ The WorkerLeaseService previously matched only lease_key + holder_id + epoch for
 | OutboxDispatcher | outbox_events I through publish (txClient supported); generic PENDING R/U; carrier prefix excluded | Generic dispatcher is currently log-only and marks events dispatched; no real event bus delivery is configured. Treat as deferred integration work. |
 
 The service-level map is not an authorization to add a global request transaction interceptor, RLS policies or DB grants. Live runtime identity and protected catalog evidence remain prerequisites for that design.
+
+
+## PricingService variant-tier query ownership — 22 November 2026
+
+PricingController.getProductPricing resolves the variant's owning store and passes it to PricingService.listTiersByVariant. The service now rejects missing store context and joins priceLists with an explicit storeId predicate on every variant-tier query, including the optional priceListId path. The internal getProductPricing resolver also passes storeId through. Focused regression coverage is added but not run.

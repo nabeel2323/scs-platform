@@ -90,3 +90,10 @@ No CLI, migration, seed, reset, bootstrap, provider, staging or shared database 
 
 
 Physical relation detail is now recorded in [G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md](./G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md). The read-only audit utility was extended to distinguish public r/p tables from views/sequences, list parent/child partition bounds, RLS/policy/owner/extension metadata, and summarize _migration_log/backfill_errors without reading sensitive row contents. The utility was not executed.
+
+
+## Source review continuation — pricing and admin order display — 22 November 2026
+
+PricingController already validated that the requested variant belongs to the caller's store, but the no-storeId branch of PricingService.listTiersByVariant previously queried by variantId alone. A corrupt cross-store price-list association could therefore expose another store's tier. The service now requires storeId for all paths and joins priceLists with an explicit priceLists.storeId predicate. The controller passes the store resolved from the variant; internal getProductPricing calls pass their storeId too.
+
+AdminService.getOrderDetail previously returned raw orderItems without product/variant labels. It now joins products/productVariants and returns productTitle, variantTitle and variantSku for the Admin UI. This is a read-only projection change; the existing admin:orders:read guard remains unchanged.

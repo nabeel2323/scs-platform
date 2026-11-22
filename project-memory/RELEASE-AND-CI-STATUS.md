@@ -414,3 +414,14 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Focused tests were added but not run. No CI was triggered.
 - No migration was applied, no staging/shared DB action, no deployment, no worker activation, no grant/RLS change and no external provider call occurred.
 - Remaining release gates: consolidated unit/integration/typecheck/lint/format/build tests; review/apply migrations only after explicit DB-target confirmation; protected live API/migration identity evidence; reconcile the 114-versus-116 physical relation count; and review transaction-context/RLS architecture. RLS activation is not approved.
+
+
+## Current branch and verification checkpoint — 22 November 2026
+
+- PR #138 remains open, draft and unmerged from remediation/phase-0-1-tenant-security to develop. Exact branch/PR head: adbc386470e37329e8357be9908b4bfbe6c6fee0.
+- GitHub Actions check-runs: none on this exact head; no Actions workflow run is attached to this SHA.
+- Combined statuses: Vercel Admin FAILURE and Vercel Web FAILURE, both reporting Deployment rate limited — retry in 24 hours. These are preview-provider failures, not application test results.
+- Source implementation since the worker/system checkpoint: mobile merchant price-list/tier management and offer linkage (UX-012); store-scoped PricingService variant-tier reads; Admin order item product/variant title and SKU enrichment (UX-013).
+- Focused tests were added but not run. No CI was triggered.
+- No migration was applied, no staging/shared DB action, no deployment, no worker activation, no grant/RLS change and no external provider call occurred.
+- Remaining gates: UX-010 screen re-audit; protected API/migration identity evidence; 114-versus-116 physical relation reconciliation; transaction-context/RLS architecture review; and the consolidated final test/CI/release campaign.

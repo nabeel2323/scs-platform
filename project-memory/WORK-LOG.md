@@ -533,3 +533,14 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added focused tests for each correction. Tests remain unexecuted by design; no CI was triggered.
 - Completed source-level worker/operator/bootstrap/audit/outbox context mapping. OutboxDispatcher remains log-only; real event-bus delivery is a deferred integration decision.
 - No migration was applied, no worker was enabled, and no live database, staging, deployment, grant/RLS or provider action occurred.
+
+
+## 2026-11-22 — UX-012/UX-013 and pricing read-scope continuation
+
+- Implemented the mobile merchant pricing workflow: store-scoped price-list listing/creation/editing/activation; quantity-tier CRUD; product/variant selection; price-list linkage during offer creation; MOQ coverage preflight; offer-detail navigation to the linked price list.
+- Enriched price-tier reads with product title, variant title and SKU for merchant-facing tier rows.
+- Hardened PricingService.listTiersByVariant: storeId is mandatory for every path; the query joins priceLists and filters to the owning store. The pricing controller supplies the store resolved from the variant; the internal resolver passes its known store.
+- Improved Admin order detail: AdminService joins product/variant labels and the Admin UI renders product title, variant title and SKU instead of only UUIDs.
+- Added focused tests for mobile pricing route permission, price-tier enrichment, variant-tier store isolation and admin order labels. Tests not run; no CI triggered.
+- Updated UX-012 and UX-013 in the gap register. Broad UX-010 source re-audit remains the next implementation stream.
+- No migrations, DB writes, grants/RLS, staging/deployment, worker activation or external provider calls.

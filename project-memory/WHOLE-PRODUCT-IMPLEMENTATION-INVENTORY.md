@@ -249,3 +249,10 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Read-only SQL confirms `identity:organizations:create` is assigned to BUYER, ADMIN, MERCHANT_OWNER, and SUPER_ADMIN.
 - Canonical `rbac-seed.data.ts` now mirrors the migration's permission definition and role grants; `merchant-rbac.spec.ts` asserts the real seed matrix.
 - No staging database mutation or new migration was needed.
+
+
+## 22 November 2026 — current-head UX re-audit addendum
+
+- Merchant mobile now has a dedicated Pricing dashboard entry, store-scoped price-list CRUD (create/update/activate), quantity-tier CRUD and product/variant selection. Offer creation can attach a price list and verifies that a tier covers the selected variant and MOQ; offer details link back to the list. See mobile/lib/screens/merchant/merchant_pricing_screen.dart and price_list_detail_screen.dart.
+- Admin order detail previously rendered productId and variantId as truncated UUIDs. AdminService now joins product title, variant title and SKU; Admin UI displays these values with ID fallback. Buyer and merchant mobile/web order detail already render item title/SKU as strings; no JSON/attribute serialization path was found in the inspected detail screens.
+- Focused tests added; not run. This addendum is source inspection, not a visual/device test.

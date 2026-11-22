@@ -1411,3 +1411,23 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Added shipping-tenant-context.spec.ts and updated shipping-carrier-worker-label.spec.ts. Tests not run.
 - No CI, database, migration, grant/RLS, staging, deployment, worker activation or carrier/provider call occurred.
 - Remaining method-level families: worker/outbox/bootstrap/system and final raw DB object reconciliation. Protected live identity/catalog evidence and request transaction-context proof remain open.
+
+
+## UX-012 — Mobile merchant pricing management and offer linkage — 22 November 2026
+
+- Added /merchant/pricing and /merchant/pricing/:id, protected by merchant:pricing:read; write affordances require merchant:pricing:write.
+- Added store-scoped price-list listing, creation, edit and activation/deactivation. Added quantity-tier create/edit/delete with product and variant selection; tier read responses include product title, variant title and SKU.
+- Merchant Dashboard links to Pricing. Offer creation can select an active price list, sets offer currency to the selected list currency, and verifies a quantity tier covers the selected variant and minimum order quantity before creating. Offer details link to the associated price list.
+- Added focused Flutter route-policy and API tier-enrichment tests. Not executed.
+
+## UX-013 — Admin order item labels — 22 November 2026
+
+- AdminService.getOrderDetail now joins orderItems to products and productVariants and returns productTitle, variantTitle and variantSku.
+- Admin order detail renders product/variant labels and SKU rather than opaque UUIDs, retaining ID fallback for missing historical references.
+- Added focused AdminService regression test. Not executed.
+
+## G-002 PricingService store-scope follow-up — 22 November 2026
+
+- PricingController.getProductPricing resolves the variant's store and passes it into PricingService.listTiersByVariant.
+- listTiersByVariant now rejects calls without storeId and joins priceLists with a storeId predicate for both cross-list reads and a specific price-list read. getProductPricing passes its storeId through the internal call.
+- Added a focused unit test for missing-store fail-closed behavior and the owning-store SQL predicate. Not executed.

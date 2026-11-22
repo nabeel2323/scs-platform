@@ -1216,3 +1216,10 @@ Buyer-facing product offer lists and ranked seller results now require the ownin
 ### G-001 query-shape refinement — 21 November 2026
 
 The ACTIVE-store visibility boundary uses a correlated SQL EXISTS predicate in both buyer-facing offer queries rather than materializing all active store IDs. This keeps tenant/store visibility filtering in the database and avoids an application-side list of store identifiers. The unit tests assert the query shape; exact-head CI remains the verification gate.
+
+
+## UX-012/UX-013 implementation continuation — 22 November 2026
+
+Mobile merchant pricing is now implemented against the existing pricing API: list/detail routes, price-list create/update/activation, quantity-tier CRUD, product/variant selection, offer linkage and MOQ-tier preflight. Admin order details now return and display product title, variant title and SKU. PricingService variant-tier reads require storeId and enforce the owning store through the priceLists join.
+
+Focused tests are committed but not run. The next source implementation stream is UX-010 re-audit of remaining Admin/Web/Mobile surfaces. G-002 live runtime identity/catalog evidence and transaction-context/RLS design remain protected gates; no global transaction interceptor, RLS or grants are approved.
