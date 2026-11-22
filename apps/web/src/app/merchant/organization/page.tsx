@@ -47,6 +47,8 @@ export default function MerchantOrganizationPage() {
   const [newRoleId, setNewRoleId] = useState('');
   const [addingMember, setAddingMember] = useState(false);
   const [roles, setRoles] = useState<RoleInfo[]>([]);
+  const [rolesError, setRolesError] = useState('');
+  const [rolesLoading, setRolesLoading] = useState(false);
   const [lookupQuery, setLookupQuery] = useState('');
   const [lookupResults, setLookupResults] = useState<UserLookupResult[]>([]);
   const [lookingUp, setLookingUp] = useState(false);
@@ -67,14 +69,19 @@ export default function MerchantOrganizationPage() {
 
   // Verification history (admin correction feedback)
   const [verifications, setVerifications] = useState<VerificationRequestInfo[]>([]);
+  const [verificationError, setVerificationError] = useState('');
   const [membersError, setMembersError] = useState('');
 
   // Update requests (admin approval workflow for verified orgs)
   const [updateRequests, setUpdateRequests] = useState<OrgUpdateRequest[]>([]);
+  const [updateRequestsError, setUpdateRequestsError] = useState('');
 
   // Store information (from registration)
   const [stores, setStores] = useState<Store[]>([]);
   const [activeStore, setActiveStore] = useState<Store | null>(null);
+  const [storeInfoError, setStoreInfoError] = useState('');
+  const [warehousesError, setWarehousesError] = useState('');
+  const [warehousesLoading, setWarehousesLoading] = useState(false);
   const [storeSaving, setStoreSaving] = useState(false);
   const [storeDisplayName, setStoreDisplayName] = useState('');
   const [storeDescription, setStoreDescription] = useState('');
@@ -114,11 +121,21 @@ export default function MerchantOrganizationPage() {
   }, []);
 
   const loadVerifications = useCallback(async (orgId: string) => {
-    try { setVerifications(await fetchOrgVerifications(orgId)); } catch { /* non-fatal */ }
+    try {
+      setVerifications(await fetchOrgVerifications(orgId));
+      setVerificationError('');
+    } catch (err: any) {
+      setVerificationError(err.message || 'Failed to load verification history');
+    }
   }, []);
 
   const loadUpdateRequests = useCallback(async (orgId: string) => {
-    try { setUpdateRequests(await fetchOrgUpdateRequests(orgId)); } catch { /* non-fatal */ }
+    try {
+      setUpdateRequests(await fetchOrgUpdateRequests(orgId));
+      setUpdateRequestsError('');
+    } catch (err: any) {
+      setUpdateRequestsError(err.message || 'Failed to load update requests');
+    }
   }, []);
 
   const populateStore = useCallback((s: Store) => {
@@ -133,19 +150,37 @@ export default function MerchantOrganizationPage() {
     setStoreZip(String(addr['zip'] ?? ''));
   }, []);
 
+  const loadWarehouses = useCallback(async (storeId: string) => {
+    setWarehousesLoading(true);
+    try {
+      setWarehouses(await fetchWarehouses(storeId));
+      setWarehousesError('');
+    } catch (err: any) {
+      setWarehousesError(err.message || 'Failed to load warehouses');
+    } finally {
+      setWarehousesLoading(false);
+    }
+  }, []);
+
   const loadStoreInfo = useCallback(async () => {
+    setStoreInfoError('');
     try {
       const storeList = await fetchMyStores();
       setStores(storeList);
       const first = storeList[0];
-      if (first) {
-        const full = await fetchStore(first.id);
-        populateStore(full);
-        // Load warehouses for the first store
-        try { setWarehouses(await fetchWarehouses(first.id)); } catch { /* non-fatal */ }
+      if (!first) {
+        setActiveStore(null);
+        setWarehouses([]);
+        setWarehousesError('');
+        return;
       }
-    } catch { /* non-fatal */ }
-  }, [populateStore]);
+      const full = await fetchStore(first.id);
+      populateStore(full);
+      await loadWarehouses(first.id);
+    } catch (err: any) {
+      setStoreInfoError(err.message || 'Failed to load store information');
+    }
+  }, [loadWarehouses, populateStore]);
 
   useEffect(() => {
     (async () => {
@@ -168,11 +203,21 @@ export default function MerchantOrganizationPage() {
     })();
   }, [populate, loadMembers, loadDocuments, loadVerifications, loadUpdateRequests, loadStoreInfo]);
 
-  useEffect(() => {
-    if (addOpen && roles.length === 0) {
-      fetchRoles().then(setRoles).catch(() => {});
+  const loadRoles = useCallback(async () => {
+    setRolesLoading(true);
+    try {
+      setRoles(await fetchRoles());
+      setRolesError('');
+    } catch (err: any) {
+      setRolesError(err.message || 'Failed to load organization roles');
+    } finally {
+      setRolesLoading(false);
     }
-  }, [addOpen, roles.length]);
+  }, []);
+
+  useEffect(() => {
+    if (addOpen && roles.length === 0 && !rolesLoading) void loadRoles();
+  }, [addOpen, roles.length, rolesLoading, loadRoles]);
 
   const handleSave = async () => {
     if (!org) return;
@@ -407,6 +452,14 @@ export default function MerchantOrganizationPage() {
 
   if (loading) return <LoadingSpinner />;
 
+  if (error && !org && !noOrg) {
+    return (
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
+        <ErrorBanner message={error} onRetry={() => window.location.reload()} />
+      </div>
+    );
+  }
+
   if (noOrg || !org) {
     return (
       <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
@@ -496,6 +549,11 @@ export default function MerchantOrganizationPage() {
           )}
 
           {error && <div style={{ marginTop: 20 }}><ErrorBanner message={error} /></div>}
+          {verificationError && (
+            <div style={{ marginTop: 12 }}>
+              <ErrorBanner message={verificationError} onRetry={() => org && loadVerifications(org.id)} />
+            </div>
+          )}
           {savedMsg && <div style={successBanner}>{savedMsg}</div>}
 
           {/* Metrics Dashboard */}
@@ -560,7 +618,7 @@ export default function MerchantOrganizationPage() {
                   <>
                     <button
                       onClick={handleSubmitUpdateRequest}
-                      disabled={saving || !name.trim() || !!pendingUpdate}
+                      disabled={saving || !name.trim() || !!pendingUpdate || !!updateRequestsError}
                       style={{ ...primaryBtn, opacity: saving || !!pendingUpdate ? 0.6 : 1 }}
                     >
                       {saving ? 'Submitting…' : 'Submit Update Request'}
@@ -598,6 +656,11 @@ export default function MerchantOrganizationPage() {
           </div>
 
           {/* Store Information */}
+          {storeInfoError && (
+            <div style={{ marginTop: 20 }}>
+              <ErrorBanner message={storeInfoError} onRetry={() => void loadStoreInfo()} />
+            </div>
+          )}
           {activeStore && (
             <div style={{ ...card, marginTop: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -655,7 +718,16 @@ export default function MerchantOrganizationPage() {
                 Manage warehouses →
               </Link>
             </div>
-            {warehouses.length === 0 ? (
+            {warehousesLoading ? (
+              <LoadingSpinner />
+            ) : warehousesError ? (
+              <div style={{ padding: '12px 0' }}>
+                <ErrorBanner
+                  message={warehousesError}
+                  onRetry={() => activeStore && void loadWarehouses(activeStore.id)}
+                />
+              </div>
+            ) : warehouses.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '20px 0', color: '#5b6b74', fontSize: 13 }}>
                 No warehouses configured. <Link href="/merchant/warehouses" style={{ color: '#1e6178' }}>Add one</Link>
               </div>
@@ -688,9 +760,15 @@ export default function MerchantOrganizationPage() {
           </div>
 
           {/* Update Requests (admin approval history) */}
-          {updateRequests.length > 0 && (
+          {(updateRequestsError || updateRequests.length > 0) && (
             <div style={{ ...card, marginTop: 20 }}>
               <h2 style={sectionTitle}>Update Requests</h2>
+              {updateRequestsError ? (
+                <ErrorBanner
+                  message={updateRequestsError}
+                  onRetry={() => org && void loadUpdateRequests(org.id)}
+                />
+              ) : (
               <div style={tableWrap}>
                 <table style={table}>
                   <thead><tr style={theadRow}>
@@ -719,6 +797,7 @@ export default function MerchantOrganizationPage() {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           )}
 
@@ -823,7 +902,7 @@ export default function MerchantOrganizationPage() {
           {/* Members */}
           <div style={{ ...card, marginTop: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h2 style={{ ...sectionTitle, marginBottom: 0 }}>Members ({members.length})</h2>
+              <h2 style={{ ...sectionTitle, marginBottom: 0 }}>Members ({membersError ? '—' : members.length})</h2>
               {canEdit && <button onClick={() => setAddOpen(v => !v)} style={ghostBtn}>{addOpen ? '✕ Close' : '+ Add Member'}</button>}
             </div>
 
@@ -893,12 +972,17 @@ export default function MerchantOrganizationPage() {
                 {/* Role Selection */}
                 <div style={{ marginBottom: 14 }}>
                   <label style={{ display: 'block', fontSize: 12, color: '#5b6b74', marginBottom: 4 }}>Role *</label>
-                  <select value={newRoleId} onChange={e => setNewRoleId(e.target.value)} style={{ ...input, fontSize: 13, width: '100%' }} aria-label="Select role">
-                    <option value="">Select a role…</option>
+                  <select value={newRoleId} onChange={e => setNewRoleId(e.target.value)} style={{ ...input, fontSize: 13, width: '100%' }} aria-label="Select role" disabled={rolesLoading || !!rolesError}>
+                    <option value="">{rolesLoading ? 'Loading roles…' : 'Select a role…'}</option>
                     {roles.map(r => (
                       <option key={r.id} value={r.id}>{r.name} ({r.key})</option>
                     ))}
                   </select>
+                  {rolesError && (
+                    <div style={{ marginTop: 8 }}>
+                      <ErrorBanner message={rolesError} onRetry={() => void loadRoles()} />
+                    </div>
+                  )}
                 </div>
 
                 <button onClick={handleAddMember} disabled={addingMember || !newUserId.trim() || !newRoleId.trim()} style={primaryBtn}>
@@ -908,7 +992,9 @@ export default function MerchantOrganizationPage() {
             )}
 
             {membersError ? (
-              <div style={{ padding: '12px 0' }}><ErrorBanner message={membersError} /></div>
+              <div style={{ padding: '12px 0' }}>
+                <ErrorBanner message={membersError} onRetry={() => org && void loadMembers(org.id)} />
+              </div>
             ) : members.length === 0 ? (
               <p style={{ fontSize: 13, color: '#5b6b74', textAlign: 'center', padding: '20px 0' }}>No members found.</p>
             ) : (
