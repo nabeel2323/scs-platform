@@ -510,3 +510,21 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - The Organizations page loaded the organization directory and organization-update review queue through one `Promise.all`. Failure of either request prevented both datasets from loading, and the shared error state allowed a failed directory read to appear as an empty list.
 - Split organization and update-request reads into independent loaders with separate loading/error/retry states and request-version guards. Each list now suppresses its empty state only when its own read failed; a successful list remains usable if the other endpoint fails. Last successful rows remain visible after failed refreshes.
 - Added `admin-organizations-recovery.test.tsx` for independent failure, retry and empty-state suppression. Tests have not been executed. No API, permission or backend behavior changed.
+
+## UX-046 — Admin User Management lifecycle completeness — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- The Create User form marked phone required although the API DTO and service allow it to be omitted. Organization and role lookups silently converted failures into empty arrays, and the UI allowed an organization or role to be selected independently even though the service only creates a membership when both are present.
+- The form now treats phone as optional, loads organizations and roles independently with visible retryable errors, and requires the initial organization/role pair to be both selected or both omitted. The API service now rejects incomplete pairs with `BadRequestException` instead of silently creating an unassigned user; unit tests cover both partial-pair directions.
+- The dedicated User Detail page now exposes profile editing through the existing audited `PATCH /admin/users/:id/profile` contract, membership assignment/removal through the existing `admin:users:write` actions, and status controls with explicit confirmation for suspension/deactivation.
+- The former “Effective Permissions” tab incorrectly called `GET /admin/permissions`, which returns the global permission catalog. It now shows permissions configured on each membership's role via the existing `GET /admin/roles/:id` contract and explicitly states that this is not a live authorization decision.
+- Added focused tests: `admin-create-user-recovery.test.tsx`, `admin-user-role-permissions.test.tsx`, and API `admin-user-creation.spec.ts` additions. Tests have not been executed. No new endpoint, permission, schema, migration or database behavior was introduced.
+
+## UX-047 — Admin Merchant Store Detail completeness — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- The existing store detail API already returned logo/cover URLs, address, locale and the popularity-badge visibility setting, but the detail page omitted most of that operational context.
+- The overview now displays locale and popularity-badge visibility, a dedicated branding section with logo/cover previews, and a structured store-address section. The technical tab now labels the identifier as Store ID and includes organization/store identifiers.
+- Added `admin-merchant-detail.test.tsx` against the existing `GET /admin/merchants/:id` contract. Test has not been executed. No API, permission, schema, migration or database change.
