@@ -85,7 +85,7 @@ void main() {
     expect(find.text('Could not load inventory'), findsOneWidget);
     expect(find.text('No inventory'), findsNothing);
 
-    await tester.tap(find.byTooltip('Refresh'));
+    await tester.tap(find.byTooltip('Refresh inventory'));
     await tester.pumpAndSettle();
 
     expect(find.text('No inventory'), findsOneWidget);
