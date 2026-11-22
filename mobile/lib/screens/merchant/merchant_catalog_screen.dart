@@ -270,7 +270,7 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
                 ),
               )
             else
-              ...filtered.map((p) => _buildProductCard(context, p, storeId)),
+              ...filtered.map((p) => _buildProductCard(context, p, storeId, canEdit, canDelete)),
           ],
         ];
 
@@ -305,7 +305,8 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
     );
   }
 
-  Widget _buildProductCard(BuildContext context, Product p, String storeId) {
+  Widget _buildProductCard(
+      BuildContext context, Product p, String storeId, bool canEdit, bool canDelete) {
     final activeVariants = p.variants.where((v) => v.isActive).length;
     final statusColor = _statusColors[p.status] ?? TaifTokens.muted;
     final hasImage = p.imageUrl != null;
