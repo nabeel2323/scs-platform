@@ -4,6 +4,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:scs_platform/models/models.dart';
 import 'package:scs_platform/providers/providers.dart';
 
+Store _store(String id, String orgId) => Store(
+      id: id,
+      orgId: orgId,
+      slug: id,
+      displayName: id,
+      currency: 'SAR',
+      status: 'ACTIVE',
+      verificationStatus: 'VERIFIED',
+      createdAt: '2026-11-22T10:00:00.000Z',
+    );
+
 UserProfile _profile() => UserProfile(
       id: 'user-1',
       status: 'ACTIVE',
@@ -11,6 +22,27 @@ UserProfile _profile() => UserProfile(
     );
 
 void main() {
+  test('active store resolution never falls back across organizations',
+      () async {
+    final container = ProviderContainer(
+      overrides: [
+        myStoresProvider.overrideWith((ref) async => [
+              _store('store-old', 'org-old'),
+              _store('store-new', 'org-new'),
+            ]),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(activeOrgIdProvider.notifier).state = 'org-new';
+    final activeStore = await container.read(activeStoreProvider.future);
+    expect(activeStore?.id, 'store-new');
+
+    container.read(activeOrgIdProvider.notifier).state = 'org-missing';
+    final missingStore = await container.read(activeStoreProvider.future);
+    expect(missingStore, isNull);
+  });
+
   test('organization switch invalidates organization-scoped caches only',
       () async {
     var profileReads = 0;
