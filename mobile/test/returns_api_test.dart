@@ -13,6 +13,8 @@ Map<String, dynamic> returnPayload({
 }) => {
   'id': id, 'subOrderId': subOrderId, 'status': status, 'reason': 'OTHER',
   'description': 'Opened package', 'requestedRefundMinor': 1250,
+  'actualRefundMinor': 1100, 'inspectionCondition': 'UNUSED',
+  'inspectionNotes': 'Item inspected', 'merchantNotes': 'Approved for refund',
   'shippingTrackingNumber': null,
   'createdAt': '2026-11-22T10:00:00.000Z',
   'updatedAt': '2026-11-22T10:00:00.000Z',
@@ -40,6 +42,10 @@ void main() {
       expect(detailed.id, 'return-1');
       expect(detailed.subOrderId, 'order-1');
       expect(detailed.requestedRefundMinor, 1250);
+      expect(detailed.actualRefundMinor, 1100);
+      expect(detailed.inspectionCondition, 'UNUSED');
+      expect(detailed.inspectionNotes, 'Item inspected');
+      expect(detailed.merchantNotes, 'Approved for refund');
       expect(detailed.items.single.orderItemId, 'order-item-1');
       expect(detailed.events.single.toStatus, 'REQUESTED');
       final listed = ReturnRequest.fromJson({

@@ -352,3 +352,14 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - The mobile client uses existing `GET /v1/returns/my`, `GET /v1/returns/:id`, `POST /v1/returns`, `POST /v1/returns/:id/cancel` and `POST /v1/returns/:id/shipped` contracts. It displays active return status and supports buyer cancel and shipped transitions at the states already allowed by the service.
 - Create timeouts reconcile through the buyer-scoped return list before any further action; the UI never blindly retries a possibly committed create. The API remains authoritative for ownership, payment/return-window eligibility, one-active-request and cumulative item quantities.
 - Added model/API contract tests in `mobile/test/returns_api_test.dart`; implementation commit `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`. They have not been executed. No new route, permission key, API behavior, schema or migration was introduced.
+
+
+## UX-029 — Mobile buyer return detail and lifecycle-event parity — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- Web `apps/web/src/app/returns/[id]/page.tsx` presents buyer return details, requested/actual refund, inspection and merchant notes, item details and ordered lifecycle events.
+- Mobile initially exposed a summary despite the existing buyer-authorized `GET /v1/returns/:id` contract returning the full request, return items and events.
+- Flutter now opens a retryable detail sheet from active and most-recent terminal return summaries on the existing Order Detail screen. It displays status, reason/description, requested and actual refund, tracking, inspection condition/notes, merchant notes, item quantities/conditions and chronological event history.
+- Extended `ReturnRequest` parsing and focused assertions in `mobile/test/returns_api_test.dart`. Tests have not been executed.
+- No new API, route, permission, schema or database behavior was introduced. API ownership/detail authorization is unchanged.

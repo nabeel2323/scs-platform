@@ -316,3 +316,10 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - Closed the source-level buyer returns parity gap between Web and Flutter using only the existing P13 contracts. Mobile now supports buyer-owned return creation, active-state visibility, cancellation and shipped confirmation.
 - API authorization and lifecycle remain unchanged: the server owns buyer checks, payment/delivery/return-window eligibility, one-active-request and cumulative return quantities. No new RBAC permission or route was added.
 - Added focused Flutter model/API contract tests in commit `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`; not executed. Continue UX-010 source re-audit and the remaining integration work; keep the consolidated test campaign at Phase 3.
+
+
+## 2026-11-22 — UX-029 mobile buyer return detail/history parity
+
+- Added full buyer return detail and lifecycle-event history to Flutter Order Detail via the existing buyer-authorized return-detail endpoint.
+- Detail includes status, requested/actual refund, reason/description, tracking, inspection and merchant notes, returned item quantities/conditions, and ordered lifecycle events. Read failures can be retried.
+- Extended DTO parsing and focused model/API tests; not executed. The existing route/permission model remains unchanged.

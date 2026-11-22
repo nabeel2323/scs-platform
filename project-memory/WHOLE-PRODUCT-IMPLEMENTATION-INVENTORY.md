@@ -374,3 +374,8 @@ Implemented in this batch:
 - Added `mobile/test/returns_api_test.dart` for DTO parsing and endpoint/body contracts. Source implementation commit: `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`. Tests are pending the consolidated Phase 3 campaign; source implementation is not yet test-verified.
 
 No database, API contract, route permission, worker, staging or deployment changes were made.
+
+
+## 22 November 2026 — UX-029 mobile return detail/history parity
+
+Web's `apps/web/src/app/returns/[id]/page.tsx` displays complete buyer return details and the lifecycle-event timeline. Flutter's initial buyer-return parity work displayed only a summary, although the existing `GET /v1/returns/:id` already returns detail, item and event records after buyer ownership authorization. The mobile Order Detail now opens a retryable sheet containing refund values, notes, returned item quantities/conditions and chronological event history. No separate route, permission or API change was required. DTO parsing and focused tests were extended; not executed.

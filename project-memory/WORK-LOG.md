@@ -683,3 +683,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added `mobile/test/returns_api_test.dart` for parsing and request contract coverage. Not executed; comprehensive tests remain consolidated for Phase 3.
 - Source implementation commit: `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`; parent: `9ce77fe3076adeafd58c26cb898bb1c5722d3baf`. PR #138 remains open/draft/unmerged.
 - No API/schema/migration/RLS/grant, shared DB, staging, deployment, worker or provider changes.
+
+
+## 2026-11-22 — UX-029 mobile buyer return detail/history parity
+
+- Re-audited Web `/returns/[id]` against the existing API detail response and Flutter Order Detail. Web displayed refund, item, inspection/merchant-note and lifecycle event details; Flutter initially showed only a summary.
+- Added a retryable detail sheet to the existing mobile Order Detail route using `fetchReturn` / `GET /v1/returns/:id`.
+- Added actual-refund and inspection/merchant-note fields to `ReturnRequest`; detail view includes status, reason/description, tracking, item quantities/conditions and chronological event history.
+- Updated `mobile/test/returns_api_test.dart` with DTO field assertions. Tests are not executed yet; consolidated regression remains Phase 3.
+- No API, permission, route, schema, migration, database, staging or worker change.

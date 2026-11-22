@@ -64,3 +64,8 @@ Added a dedicated merchant pricing entry from the mobile dashboard, protected by
 ## Buyer return lifecycle parity — 22 November 2026
 
 Buyer returns remain within the authenticated Orders detail route (`orders:read`); no separate mobile route or new permission key was introduced. The return controls render only for the authenticated buyer's own DELIVERED/COMPLETED sub-order. The API verifies ownership and enforces payment/return-window eligibility, one active return per sub-order, cumulative item quantities and allowed lifecycle transitions. Buyer cancellation is exposed in REQUESTED/MERCHANT_APPROVED; shipped confirmation is exposed in MERCHANT_APPROVED. Focused API/model tests are added but not executed.
+
+
+## UX-029 return-detail extension — 22 November 2026
+
+Buyer return detail and event history are displayed in a retryable sheet from the existing Orders detail route. It uses `GET /v1/returns/:id`, whose API authorizes the buyer who owns the return. The sheet is available for active and most-recent terminal returns; no new permission key or separate route is needed.

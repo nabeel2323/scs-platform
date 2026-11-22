@@ -1445,3 +1445,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Flutter buyer-return parity is committed in source as `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf` (parent `9ce77fe3076adeafd58c26cb898bb1c5722d3baf`).
 - Focused tests are present in `mobile/test/returns_api_test.dart`; not executed. Exact-head GitHub Actions lookup returned no workflow run because the source commit used `[skip ci]`.
 - PR #138 remains open/draft/unmerged. Comprehensive testing stays in Phase 3; no staging or database action was performed.
+
+
+## UX-029 — Mobile buyer return detail/history parity — 22 November 2026
+
+- Reused the existing authenticated buyer return-detail endpoint and API wrapper to expose detail/history on the existing Order Detail screen.
+- Detail sheet includes status, requested/actual refund, reason/description, tracking, inspection/merchant notes, returned item quantities/conditions and chronological lifecycle events. Detail-fetch errors expose a retry action.
+- Added optional DTO fields and focused assertions to `mobile/test/returns_api_test.dart`. Not executed; comprehensive regression remains Phase 3.
+- No API, schema, DB, route or permission changes.

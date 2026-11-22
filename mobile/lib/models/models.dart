@@ -627,7 +627,9 @@ class OrderItem {
 class ReturnRequest {
   final String id, subOrderId, status, reason, createdAt, updatedAt;
   final String? description, shippingTrackingNumber, shippingNotes;
+  final String? inspectionCondition, inspectionNotes, merchantNotes;
   final int requestedRefundMinor;
+  final int? actualRefundMinor;
   final List<ReturnRequestItem> items;
   final List<ReturnRequestEvent> events;
 
@@ -635,7 +637,9 @@ class ReturnRequest {
     required this.id, required this.subOrderId, required this.status,
     required this.reason, required this.createdAt, required this.updatedAt,
     this.description, this.shippingTrackingNumber, this.shippingNotes,
-    this.requestedRefundMinor = 0, this.items = const [], this.events = const [],
+    this.inspectionCondition, this.inspectionNotes, this.merchantNotes,
+    this.requestedRefundMinor = 0, this.actualRefundMinor,
+    this.items = const [], this.events = const [],
   });
 
   factory ReturnRequest.fromJson(Map<String, dynamic> j) => ReturnRequest(
@@ -648,6 +652,14 @@ class ReturnRequest {
     description: j['description'] as String?,
     shippingTrackingNumber: j['shippingTrackingNumber'] as String?,
     shippingNotes: j['shippingNotes'] as String?,
+    inspectionCondition: j['inspectionCondition'] as String?,
+    inspectionNotes: j['inspectionNotes'] as String?,
+    merchantNotes: j['merchantNotes'] as String?,
+    actualRefundMinor: j['actualRefundMinor'] == null
+        ? null
+        : j['actualRefundMinor'] is num
+            ? (j['actualRefundMinor'] as num).toInt()
+            : int.tryParse(j['actualRefundMinor'].toString()),
     requestedRefundMinor: j['requestedRefundMinor'] is num
         ? (j['requestedRefundMinor'] as num).toInt()
         : int.tryParse(j['requestedRefundMinor']?.toString() ?? '') ?? 0,

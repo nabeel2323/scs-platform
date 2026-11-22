@@ -386,3 +386,8 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 ## UX-028 exact implementation checkpoint — 22 November 2026
 
 Flutter buyer-return parity is committed as `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`. Focused DTO/API tests were added but not executed; continue the remaining UX-010 source audit and implementation/integration phase before the consolidated test campaign.
+
+
+## UX-029 — mobile return detail/history parity — 22 November 2026
+
+Source gap: Web's buyer return-detail page presents refund, item, inspection/merchant-note and event-history details, while Flutter initially exposed only a summary. Implemented a retryable detail sheet within the existing Order Detail route using the current owner-authorized endpoint. Focused DTO assertions were added but not executed. No route or permission expansion is required.

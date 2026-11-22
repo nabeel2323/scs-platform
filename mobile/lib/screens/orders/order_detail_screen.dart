@@ -48,6 +48,38 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     'INSPECTED', 'REFUND_PENDING', 'REFUND_FAILED', 'ESCALATED',
   };
 
+
+  static const _returnStatusLabels = <String, String>{
+    'REQUESTED': 'Pending review',
+    'MERCHANT_APPROVED': 'Approved',
+    'BUYER_SHIPPED': 'Shipped back',
+    'RECEIVED': 'Received',
+    'INSPECTED': 'Inspected',
+    'REFUND_PENDING': 'Refund processing',
+    'REFUNDED': 'Refunded',
+    'MERCHANT_REJECTED': 'Rejected',
+    'CANCELLED': 'Cancelled',
+    'EXPIRED': 'Expired',
+    'REJECTED_AFTER_INSPECTION': 'Rejected after inspection',
+    'REFUND_FAILED': 'Refund failed',
+    'ESCALATED': 'Escalated for review',
+  };
+
+  static const _returnEventLabels = <String, String>{
+    'REQUESTED': 'Return requested',
+    'MERCHANT_APPROVED': 'Merchant approved',
+    'MERCHANT_REJECTED': 'Merchant rejected',
+    'BUYER_SHIPPED': 'Buyer shipped back',
+    'RECEIVED': 'Merchant received',
+    'INSPECTED': 'Inspection completed',
+    'REFUND_PENDING': 'Refund processing',
+    'REFUNDED': 'Refund completed',
+    'CANCELLED': 'Return cancelled',
+    'EXPIRED': 'Return expired',
+    'REJECTED_AFTER_INSPECTION': 'Rejected after inspection',
+    'REFUND_FAILED': 'Refund failed',
+  };
+
   /// M7.3-A: statuses where the buyer can confirm delivery.
   static const _confirmableDelivery = {'DELIVERED'};
 
@@ -275,6 +307,239 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     }
   }
 
+
+  Future<void> _showReturnDetails(
+    ReturnRequest request,
+    String currency,
+  ) async {
+    Future<ReturnRequest>? detailFuture;
+
+    String timestamp(String value) {
+      final parsed = DateTime.tryParse(value)?.toLocal();
+      return parsed == null ? value : parsed.toString().substring(0, 16);
+    }
+
+    Widget detailRow(String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 112,
+                child: Text(label,
+                    style: const TextStyle(
+                        color: TaifTokens.muted, fontSize: 12)),
+              ),
+              Expanded(
+                child: Text(value, style: const TextStyle(fontSize: 13)),
+              ),
+            ],
+          ),
+        );
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setModalState) {
+          detailFuture ??=
+              ref.read(apiServiceProvider).fetchReturn(request.id);
+          return FractionallySizedBox(
+            heightFactor: 0.9,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text('Return details',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.w700)),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: FutureBuilder<ReturnRequest>(
+                    future: detailFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState != ConnectionState.done) {
+                        return const Center(
+                            child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  ApiService.errorMessage(snapshot.error),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: TaifTokens.err),
+                                ),
+                                const SizedBox(height: 12),
+                                TextButton.icon(
+                                  onPressed: () => setModalState(() {
+                                    detailFuture = ref
+                                        .read(apiServiceProvider)
+                                        .fetchReturn(request.id);
+                                  }),
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Retry'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+                      if (!snapshot.hasData) {
+                        return const Center(
+                            child: Text('Return details are unavailable.'));
+                      }
+
+                      final detail = snapshot.data!;
+                      final events = [...detail.events]
+                        ..sort((a, b) =>
+                            a.createdAt.compareTo(b.createdAt));
+
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _returnStatusLabels[detail.status] ??
+                                  detail.status.replaceAll('_', ' '),
+                              style: const TextStyle(
+                                color: TaifTokens.brandPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            detailRow('Reason',
+                                _returnReasons[detail.reason] ?? detail.reason),
+                            if (detail.description?.isNotEmpty == true)
+                              detailRow('Description', detail.description!),
+                            detailRow(
+                                'Requested refund',
+                                formatMinor(
+                                    detail.requestedRefundMinor, currency)),
+                            if (detail.actualRefundMinor != null)
+                              detailRow(
+                                  'Actual refund',
+                                  formatMinor(
+                                      detail.actualRefundMinor!, currency)),
+                            if (detail.shippingTrackingNumber?.isNotEmpty == true)
+                              detailRow(
+                                  'Tracking', detail.shippingTrackingNumber!),
+                            if (detail.inspectionCondition?.isNotEmpty == true)
+                              detailRow(
+                                  'Condition', detail.inspectionCondition!),
+                            if (detail.inspectionNotes?.isNotEmpty == true)
+                              detailRow(
+                                  'Inspection notes', detail.inspectionNotes!),
+                            if (detail.merchantNotes?.isNotEmpty == true)
+                              detailRow(
+                                  'Merchant notes', detail.merchantNotes!),
+                            const SizedBox(height: 12),
+                            const Divider(),
+                            const Text('Items',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14)),
+                            const SizedBox(height: 6),
+                            if (detail.items.isEmpty)
+                              const Text('No item details were returned.',
+                                  style: TextStyle(
+                                      color: TaifTokens.muted, fontSize: 12)),
+                            for (final item in detail.items)
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                                title: Text(
+                                  'Order item ${item.orderItemId.length > 8 ? item.orderItemId.substring(0, 8) : item.orderItemId}',
+                                ),
+                                subtitle: item.condition?.isNotEmpty == true
+                                    ? Text(item.condition!)
+                                    : null,
+                                trailing: Text('Qty: ${item.quantity}'),
+                              ),
+                            const Divider(),
+                            const Text('Event history',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14)),
+                            const SizedBox(height: 8),
+                            if (events.isEmpty)
+                              const Text('No lifecycle events recorded yet.',
+                                  style: TextStyle(
+                                      color: TaifTokens.muted, fontSize: 12)),
+                            for (final event in events)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 7),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox(
+                                      width: 116,
+                                      child: Text(timestamp(event.createdAt),
+                                          style: const TextStyle(
+                                              color: TaifTokens.muted,
+                                              fontSize: 11)),
+                                    ),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _returnEventLabels[event.eventType] ??
+                                                event.eventType.replaceAll('_', ' '),
+                                            style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600),
+                                          ),
+                                          Text(event.actorType,
+                                              style: const TextStyle(
+                                                  color: TaifTokens.muted,
+                                                  fontSize: 11)),
+                                          if (event.notes?.isNotEmpty == true)
+                                            Text(event.notes!,
+                                                style: const TextStyle(
+                                                    color: TaifTokens.muted,
+                                                    fontSize: 11)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buyerReturnSection(SubOrder order) {
     if (!['DELIVERED', 'COMPLETED'].contains(order.status)) return const SizedBox.shrink();
     if (_returnLoading) {
@@ -325,6 +590,11 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               style: const TextStyle(fontSize: 13, color: TaifTokens.brandPrimary)),
           Text('Reason: ${_returnReasons[active.reason] ?? active.reason}',
               style: const TextStyle(fontSize: 12, color: TaifTokens.muted)),
+          TextButton.icon(
+            onPressed: () => _showReturnDetails(active!, order.currency),
+            icon: const Icon(Icons.receipt_long_outlined, size: 16),
+            label: const Text('View details and history'),
+          ),
           if (active.shippingTrackingNumber != null && active.shippingTrackingNumber!.isNotEmpty)
             Text('Tracking: ${active.shippingTrackingNumber}',
                 style: const TextStyle(fontSize: 12, color: TaifTokens.muted)),
@@ -375,8 +645,20 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         const Text('Returns', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
         if (latest != null) ...[
           const SizedBox(height: 4),
-          Text('Previous request: ${latest.status.replaceAll('_', ' ')}',
-              style: const TextStyle(fontSize: 12, color: TaifTokens.muted)),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Previous request: ${_returnStatusLabels[latest.status] ?? latest.status.replaceAll('_', ' ')}',
+                  style: const TextStyle(fontSize: 12, color: TaifTokens.muted),
+                ),
+              ),
+              TextButton(
+                onPressed: () => _showReturnDetails(latest, order.currency),
+                child: const Text('View details'),
+              ),
+            ],
+          ),
         ],
         if (_showReturnForm) ...[
           const SizedBox(height: 8),
