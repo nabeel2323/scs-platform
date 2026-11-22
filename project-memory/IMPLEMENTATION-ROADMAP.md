@@ -405,3 +405,11 @@ Completed the next Admin source-audit slice. Commission Oversight status-filter 
 ## UX-058 — Admin Attribute Groups and Definitions — 22 November 2026
 
 Completed the Admin attribute directory recovery slice. Attribute Groups and Attribute Definitions now use request-version guards and cleanup invalidation, expose accessible retryable errors and suppress empty result rows/counts after failed reads. Attribute Definitions filter responses cannot overwrite newer selections. Focused tests were added but not executed. Continue UX-010 across remaining Admin operational workflows and then Mobile; full testing remains deferred until implementation/integration are complete.
+
+## 2026-11-23 — UX-087 / UX-088 Mobile merchant operational recovery
+
+- Merchant Offer Detail now preserves last-successful offer and analytics values through refresh failures, provides retryable initial errors and keeps analytics/trend reads independent. Failed metrics remain unavailable rather than appearing as zero sales.
+- Merchant Inventory now refreshes active store before store-scoped inventory/warehouse data, preserves last-successful store and inventory page, exposes independent warehouse retry, and supports pull-to-refresh even for a successful empty inventory.
+- Focused Flutter tests were added for both slices; they have not been executed and remain TESTING_PENDING for Phase 3.
+- No API, permission, offer lifecycle, pricing, stock mutation, warehouse transfer, database or migration behavior changed.
+- Continue the source-first audit across remaining Mobile merchant operational routes, then Web/Admin route/action permission mapping. Keep Phase 3 as the consolidated full test campaign.
