@@ -1,3 +1,11 @@
+export function buildOfferTargetKey(input: {
+  storeId: string;
+  productId: string;
+  variantId: string | null;
+}): string {
+  return `${input.storeId}:${input.productId}:${input.variantId ?? 'product'}`;
+}
+
 export function resolveProductPersistenceTarget(input: {
   productId: string | null;
   useExistingProductId: string | null;

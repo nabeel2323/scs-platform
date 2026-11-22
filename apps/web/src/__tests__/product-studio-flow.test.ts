@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import { continueProductStudioStep, persistProductStudioMedia, resolveProductPersistenceTarget } from '../lib/product-studio-flow';
+import { buildOfferTargetKey, continueProductStudioStep, persistProductStudioMedia, resolveProductPersistenceTarget } from '../lib/product-studio-flow';
 
+
+describe('buildOfferTargetKey', () => {
+  it('scopes the offer retry marker by store, product and variant', () => {
+    expect(buildOfferTargetKey({ storeId: 'store-a', productId: 'product-a', variantId: 'variant-a' }))
+      .not.toBe(buildOfferTargetKey({ storeId: 'store-a', productId: 'product-a', variantId: 'variant-b' }));
+    expect(buildOfferTargetKey({ storeId: 'store-a', productId: 'product-a', variantId: null }))
+      .not.toBe(buildOfferTargetKey({ storeId: 'store-b', productId: 'product-a', variantId: null }));
+  });
+});
 
 describe('resolveProductPersistenceTarget', () => {
   it('prefers the selected canonical product over a stale wizard product ID', () => {

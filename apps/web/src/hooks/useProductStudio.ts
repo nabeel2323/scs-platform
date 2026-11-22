@@ -9,7 +9,7 @@ import {
 } from '../lib/buyer-api';
 import { fetchMyStores } from '../lib/api';
 import { generateSku, buildVariantTitle, resolveComboAttributes } from '../lib/sku-utils';
-import { persistProductStudioMedia, resolveProductPersistenceTarget } from '../lib/product-studio-flow';
+import { buildOfferTargetKey, persistProductStudioMedia, resolveProductPersistenceTarget } from '../lib/product-studio-flow';
 
 export type Step = 'identity' | 'specifications' | 'variants' | 'offer' | 'media' | 'review';
 
@@ -81,11 +81,11 @@ export function useProductStudio() {
   const [canonicalMatches, setCanonicalMatches] = useState<Product[]>([]);
   const [canonicalSearchResults, setCanonicalSearchResults] = useState<CanonicalProductSummary[]>([]);
   const [existingVariants, setExistingVariants] = useState<ProductVariant[]>([]);
-  const [offerCreatedForProductId, setOfferCreatedForProductId] = useState<string | null>(null);
+  const [offerCreatedForTargetKey, setOfferCreatedForTargetKey] = useState<string | null>(null);
 
   // P7 Phase 5 — dirty-state tracking for beforeunload protection
   const initialRef = useRef<string>(JSON.stringify(INITIAL));
-  const existingProductSelectionRef = useRef<string | null>(null);
+  const offerTargetSelectionRef = useRef<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
@@ -93,12 +93,18 @@ export function useProductStudio() {
     setIsDirty(current !== initialRef.current);
   }, [state]);
 
+  const offerTargetSelectionKey = buildOfferTargetKey({
+    storeId: state.storeId,
+    productId: state.useExistingProductId ?? state.productId ?? '',
+    variantId: state.selectedExistingVariantId,
+  });
+
   useEffect(() => {
-    if (existingProductSelectionRef.current !== state.useExistingProductId) {
-      setOfferCreatedForProductId(null);
-      existingProductSelectionRef.current = state.useExistingProductId;
+    if (offerTargetSelectionRef.current !== offerTargetSelectionKey) {
+      setOfferCreatedForTargetKey(null);
+      offerTargetSelectionRef.current = offerTargetSelectionKey;
     }
-  }, [state.useExistingProductId]);
+  }, [offerTargetSelectionKey]);
 
   // beforeunload protection (browser refresh, back, close tab)
   useEffect(() => {
@@ -301,11 +307,16 @@ export function useProductStudio() {
       }
 
       // Create the commercial offer only from the final review/save action.
-      // Existing canonical products are never modified; the offer may target a selected variant.
+      // The retry marker is scoped to store + product + variant, not product alone.
+      const offerTargetKey = buildOfferTargetKey({
+        storeId: state.storeId,
+        productId,
+        variantId: state.selectedExistingVariantId,
+      });
       if (
         includeOffer &&
         state.basePriceMinor > 0 &&
-        offerCreatedForProductId !== productId
+        offerCreatedForTargetKey !== offerTargetKey
       ) {
         await createMerchantOffer({
           storeId: state.storeId,
@@ -317,7 +328,7 @@ export function useProductStudio() {
           leadTimeDays: state.leadTimeDays || undefined,
           warehouseId: state.warehouseId || undefined,
         });
-        setOfferCreatedForProductId(productId);
+        setOfferCreatedForTargetKey(offerTargetKey);
       }
 
       setSuccess(
