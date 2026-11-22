@@ -51,11 +51,10 @@ describe('admin create user form', () => {
     expect(await screen.findByText('Organization directory unavailable')).toBeTruthy();
     expect(await screen.findByText('Role directory unavailable')).toBeTruthy();
 
-    const retryButtons = screen.getAllByRole('button', { name: 'Retry lookup' });
-    fireEvent.click(retryButtons[0]!);
-    fireEvent.click(retryButtons[1]!);
-
+    fireEvent.click(screen.getAllByRole('button', { name: 'Retry lookup' })[0]!);
     expect(await screen.findByRole('option', { name: 'North Wholesale (WHOLESALER)' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry lookup' }));
     expect(await screen.findByRole('option', { name: 'MERCHANT_ADMIN — Merchant Admin' })).toBeTruthy();
 
     fireEvent.change(screen.getByPlaceholderText('Jane Doe'), { target: { value: 'Jane Doe' } });
