@@ -268,6 +268,7 @@ export function useProductStudioEdit(productId: string) {
         warehouseId: '',
         mediaItems,
         productId: p.id,
+        productUpdatedAt: p.updatedAt ?? null,
       };
 
       setState(reloaded);
