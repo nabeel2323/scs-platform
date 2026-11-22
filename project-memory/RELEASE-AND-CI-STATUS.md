@@ -5,7 +5,7 @@
 **Branch:** `remediation/phase-0-1-tenant-security`  
 **Latest source implementation commit:** `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81` — `fix(web): add merchant delivery queue retry recovery [skip ci]` (the project-memory sync is a documentation-only child commit).
 **Exact source-SHA checks:** no Actions run is attached to `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` because the implementation commit used `[skip ci]`; Vercel Web and Admin both reported external build-rate-limit failures.  
-**Latest documentation head:** `dd224b4fbcaac11b9bdefefd5196d3ad9af4ea12`; no Actions run is attached. Vercel Admin is PENDING and Web is FAILURE at the external build-rate-limit page. These are preview-provider statuses, not application test results. Focused Web tests have not been executed.
+**Latest documentation head:** `b6b6ffcfcdfc5fdc7bb1a84870af24ff0746d277`; no Actions run is attached. Vercel Admin and Web both report external build-rate-limit FAILURE. These are preview-provider statuses, not application test results. Focused Web tests have not been executed.
 
 ## Previous CI run at the 21 November checkpoint (historical)
 

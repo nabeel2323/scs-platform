@@ -19,11 +19,14 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
+| Live branch head | `b6b6ffcfcdfc5fdc7bb1a84870af24ff0746d277` — project-memory handoff commit |
 | Latest source implementation | `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81` — UX-032 Merchant Deliveries read recovery |
 | Previous source implementation | `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — UX-031 Merchant Customers read recovery |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81`; NOT CI-VERIFIED |
-| Exact-head Vercel contexts | Web FAILURE; Admin FAILURE (external build-rate-limit page); not application test results |
+| Exact source-SHA GitHub Actions | No run for `b09dde7d7bd7de9c73f86b8dc5eb6b11271b3d81`; NOT CI-VERIFIED |
+| Exact documentation-head GitHub Actions | No run for `b6b6ffcfcdfc5fdc7bb1a84870af24ff0746d277`; NOT CI-VERIFIED |
+| Exact source-SHA Vercel contexts | Web FAILURE; Admin FAILURE (external build-rate-limit page); not application test results |
+| Exact documentation-head Vercel contexts | Web FAILURE; Admin FAILURE (external build-rate-limit page); not application test results |
 | Focused Web tests | UX-030–032 added; not executed |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
