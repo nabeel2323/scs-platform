@@ -779,3 +779,14 @@ The prior validation run reached both lint and Flutter analysis and identified:
 - Six ESLint `no-unsafe-function-type` errors in three API permission test files (replaced broad `Function` annotations with explicit callable handler types and `unknown[]` metadata arrays).
 
 The rest of the earlier Flutter compile errors and Admin JSX parse error were corrected in the preceding commits. The next full workflow is required to verify this state; no pass is claimed until it completes.
+
+## Third CI checkpoint — focused widget-test corrections — 23 November 2026
+
+The second workflow passed Flutter analysis but reported 24 widget-test failures and one remaining ESLint unsafe-function annotation. The source/test corrections now include:
+- Added the missing `clearActiveOrgId` stub to the shared mobile auth test harness.
+- Corrected Checkout tests to target the actual `TextField` widgets.
+- Fixed a real 10px category-tile overflow on Home.
+- Updated Merchant Dashboard/Inventory refresh tooltips and error-state assertions.
+- Adjusted Customer, Pricing and Store Profile recovery tests to match rendered content and scrollable form sections.
+- Corrected the remaining broad function metadata annotation in the API permission tests.
+The next workflow is the verification gate for these corrections; results are not yet known.
