@@ -122,6 +122,13 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
         ref.refresh(merchantOfferDetailProvider(widget.offerId).future),
       ),
       _refreshRead(ref.refresh(merchantOfferAnalyticsProvider.future)),
+      _refreshRead(
+        ref.refresh(merchantOfferTrendProvider((
+          offerId: widget.offerId,
+          granularity: _trendGranularity,
+          days: _trendDays,
+        )).future),
+      ),
     ]);
   }
 
