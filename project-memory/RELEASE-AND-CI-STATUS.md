@@ -3,8 +3,8 @@
 **Checkpoint:** 22 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Source baseline before this status-only documentation batch:** `d8f9941e9f517c93b9fbcb22bae1a1eeb384bce2`  
-**Exact-head GitHub Actions:** no workflow run attached; the latest grouped source commits intentionally used `[skip ci]` to conserve Actions minutes. External Vercel statuses are pending and are not GitHub Actions test results.
+**Last verified PR #138 source/CI baseline:** `caba922e866635fad51e549e095a186f9d9df6cf`  
+**Exact-head GitHub Actions:** no workflow run attached; the latest grouped source commits intentionally used `[skip ci]` to conserve Actions minutes. At source baseline caba922, Vercel Admin and Vercel Web statuses are SUCCESS. No GitHub Actions workflow run is attached to that exact head.
 
 ## Previous CI run at the 21 November checkpoint (historical)
 
@@ -326,7 +326,7 @@ Neither PR is merged. CI results are disposable-environment verification only; l
 ## Current branch checkpoint — 22 November 2026
 
 - PR #138 remains open/draft/unmerged. Latest branch head: c30dce7fd126c1ac1b7279cc895e5786a208173a.
-- Five grouped implementation/documentation commits after the earlier checkpoint used [skip ci]. Exact-head workflow lookup returned no GitHub Actions run. The current combined statuses contain pending external Vercel web/admin checks; they are not passing test evidence.
+- Five grouped implementation/documentation commits after the earlier checkpoint used [skip ci]. Exact-head workflow lookup returned no GitHub Actions run. At source baseline caba922, Vercel Admin and Vercel Web statuses are SUCCESS; no GitHub Actions workflow run is attached. Vercel build status is separate from the deferred application test campaign.
 - Grouped source changes include Admin dashboard/commission permission enforcement, cart mutation orders:write enforcement, Aramex provider registry registration, API route/client/permission and worker/provider matrices, and focused regression tests. The new tests have not been executed.
 - PR #142 remains open/draft/unmerged on security/runtime-db-identity-diagnostics at dddff20c170737dc4694008bb807b2b90e177f77. Exact-head CI #1293 (run 44953735602) completed successfully, including the disposable PostgreSQL identity integration test. This does not verify live staging API or migration identities.
 - No staging release, production deployment, shared database mutation, migration 0070/0071 application, grants/default-ACL change, RLS enablement, worker activation, k6 run or Phase 6 E2E campaign is claimed.
@@ -336,3 +336,8 @@ Neither PR is merged. CI results are disposable-environment verification only; l
 ## Database access-path inventory checkpoint — 22 November 2026
 
 The latest source baseline for this status update is d8f9941e9f517c93b9fbcb22bae1a1eeb384bce2. A bounded static inventory of 53 API module service/worker/provider files plus shared DB/audit/guard/bootstrap code is now recorded in docs/remediation/G-002-DATABASE-ACCESS-PATH-INVENTORY-2026-11-22.md. This is source-only evidence: no live staging DB query, migration, role change or RLS enablement was performed. The inventory identifies the singleton Drizzle handle, nested service transactions, asynchronous audit writes and worker/system contexts that must be accounted for before G-002 implementation.
+
+
+## Latest Vercel status refresh — 22 November 2026
+
+On exact PR #138 source head caba922e866635fad51e549e095a186f9d9df6cf, both Vercel – scs-platform-admin and Vercel – scs-platform-web report SUCCESS. Exact-head GitHub Actions workflow lookup returns no run because the grouped commit uses [skip ci]. This does not substitute for the consolidated unit/integration/E2E campaign, which remains deferred.

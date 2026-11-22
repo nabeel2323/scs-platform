@@ -253,3 +253,8 @@ A static source pass after the grouped Admin permission and shipping-provider ch
 ## G-002 database access-path handover — 22 November 2026
 
 A preliminary source inventory of all 53 API module service/worker/provider files plus shared database, audit middleware/service, guards and application bootstrap is now documented at docs/remediation/G-002-DATABASE-ACCESS-PATH-INVENTORY-2026-11-22.md. It confirms a singleton Drizzle handle, existing nested service transactions, asynchronous post-response audit writes, and workers/monitors outside HTTP request context. The inventory also records the separate development/test migration PoolClient path and the unverified live staging runtime role. Do not add a global request transaction or enable RLS until exact table/operation ownership, the 114-versus-116 relation count, worker/system context, audit context, nested transactions and live runtime/migration identities are proven.
+
+
+## Latest verified build status — 22 November 2026
+
+At PR #138 source head caba922e866635fad51e549e095a186f9d9df6cf, Vercel Admin and Web statuses are SUCCESS. No GitHub Actions workflow run is attached to that exact head because the grouped commit used [skip ci]. This is build status only; the consolidated test campaign remains pending.
