@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { OpsAlertService } from '../../../modules/operations/ops-alert.service';
 
 const input = {
@@ -11,7 +12,7 @@ const input = {
 
 const existing = {
   id: 'alert-existing',
-  dedup_key: 'p13.worker.poll_failures:worker-lease',
+  dedup_key: 'p13.worker.poll_failures:worker_lease',
   condition_key: input.conditionKey,
   severity: input.severity,
   title: input.title,
@@ -53,7 +54,9 @@ describe('OpsAlertService concurrent delivery ownership', () => {
 
     expect(find).toHaveBeenCalledTimes(2);
     expect(handle).toHaveBeenCalledWith(existing, input, 'p13.worker.poll_failures:worker_lease');
-    expect(execute.mock.calls[0]![0].queryChunks).toBeDefined();
+    const insertQuery = new PgDialect().sqlToQuery(execute.mock.calls[0]![0]);
+    expect(insertQuery.sql).toContain('ON CONFLICT (dedup_key) DO NOTHING');
+    expect(insertQuery.sql).toContain('RETURNING id');
   });
 
   it('does not deliver when another monitor owns a fresh SENDING claim', async () => {
@@ -73,5 +76,9 @@ describe('OpsAlertService concurrent delivery ownership', () => {
       deduped: true,
     });
     expect(execute).toHaveBeenCalledOnce();
+    const claimQuery = new PgDialect().sqlToQuery(execute.mock.calls[0]![0]);
+    expect(claimQuery.sql).toContain("SET status = 'SENDING'");
+    expect(claimQuery.sql).toContain("status IN ('PENDING', 'FAILED')");
+    expect(claimQuery.sql).toContain("status = 'SENDING'");
   });
 });

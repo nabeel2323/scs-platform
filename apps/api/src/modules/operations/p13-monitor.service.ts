@@ -56,9 +56,9 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit(): void {
-    // The monitor is safe to run on every instance: alert dedup is enforced by
-    // the unique dedup_key in Postgres, so N monitors still produce one
-    // notification per condition per resource.
+    // The monitor is safe to run on every instance: unique dedup keys protect
+    // row identity and OpsAlertService's atomic SENDING claim gives one active
+    // delivery owner per condition/resource, with stale-claim recovery.
     this.timer = setInterval(() => {
       void this.runQuietly();
     }, this.config.monitorIntervalMs);

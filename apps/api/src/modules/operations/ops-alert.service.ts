@@ -11,8 +11,9 @@
  * `raise()` ALWAYS leaves a durable row. Delivery is a separate, observable
  * state machine on that row:
  *
- *   PENDING ──sink 2xx──▶ SENT
- *           └─sink error─▶ FAILED   (re-attempted on the next scan)
+ *   PENDING ──atomic claim──▶ SENDING ──sink 2xx──▶ SENT
+ *                                      └─sink error─▶ FAILED (re-attempted on the next scan)
+ *   stale SENDING ──claim timeout──▶ SENDING (recovered by one monitor)
  *   SENT ──condition recurs inside the repeat window──▶ suppressed_count++
  *   no sink configured ─▶ SUPPRESSED (logged, never silently dropped)
  *   RESOLVED ──condition recurs──▶ PENDING (new incident)
