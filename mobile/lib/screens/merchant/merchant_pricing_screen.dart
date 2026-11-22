@@ -30,7 +30,7 @@ class MerchantPricingScreen extends ConsumerWidget {
 
   Future<void> _refreshLists(WidgetRef ref) async {
     try {
-      await ref.refresh(merchantPriceListsProvider.future);
+      await ref.refresh(merchantPriceListsProvider.future).then<void>((_) {});
     } catch (_) {
       // Preserve the last successful list and show the refresh error below.
     }
