@@ -1,9 +1,15 @@
 # SCS Platform — Open Issues and Next Work
 
-**Last reconciled:** 21 November 2026  
+**Last reconciled:** 22 November 2026  
 **Authoritative detail:** [Implementation progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md).
 
 ## Immediate blockers and high-priority work
+
+### G-002 continuation — 22 November 2026
+
+The source operation map now covers 26 service files plus supporting outbox, carrier, tracking, reconciliation, operations-control and worker paths. A separate schema review records candidate owner paths and principal classes across the major tenant, buyer/order, financial, user-private and system tables. These documents are source-only evidence, not an approved policy. Still open: complete the remaining import-executor/carrier recovery/bootstrap/migration/CLI paths; verify FK constraints and plain UUID relationships against migrations/catalog; map exact read/insert/update/delete predicates and route principals; obtain actual API/migration runtime identities and the protected read-only staging catalog snapshot; resolve 114-versus-116. No shared database changes, migration, grants, RLS, deployment or worker activation are authorized.
+
+
 
 ### G-001 — P0 merchant offer authorization
 
