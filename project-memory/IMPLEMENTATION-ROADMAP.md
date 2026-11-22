@@ -361,3 +361,7 @@ Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and 
 - The stock movement-history dialog now distinguishes failed reads from a successful empty history and exposes Retry.
 - Extracted `readInventoryHistory` into a small helper with focused success/failure tests. Not run.
 - No API/permission/schema/DB change. Continue the remaining Merchant Inventory variant, import and workflow audit.
+
+## UX-038 / UX-039 — Merchant Inventory and Import History recovery — 22 November 2026
+
+Completed the source implementation for the next Merchant Web re-audit slice. Inventory variant lookup now treats product and variant reads as a complete directory operation, exposes Retry and prevents stale/partial results from appearing successful. Import History now exposes store discovery and job-read failures separately, distinguishes a true no-store state, retains last successful rows during refresh errors, and polls only while jobs are active without overlapping requests. Focused tests were added but not executed. Both items are IMPLEMENTED / TESTING_PENDING; continue the UX-010 audit across the import wizard and remaining Admin/Mobile workflows. The consolidated full test campaign remains deferred until implementation and integration completion.
