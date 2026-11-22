@@ -73,7 +73,7 @@ export class ReviewsService {
         eq(reviews.orderId, input.orderId),
         eq(reviews.reviewerId, input.reviewerId),
         eq(reviews.subjectId, input.subjectId),
-        eq(reviews.subjectType, input.subjectType),
+        eq(reviews.subjectType, subjectType),
       ),
     });
     if (existing) throw new ConflictException('Review already exists for this subject');

@@ -249,7 +249,7 @@ export class DisputesService {
             refundInput.amountMinor,
             refundInput.reason || 'PRODUCT_NOT_AS_DESCRIBED',
             dispute['raisedBy'],
-            { sub: adminUserId, role: 'ADMIN' },
+            { sub: adminUserId, role: caller.role },
             {
               idempotencyKey,
               notes: `Dispute ${disputeId} resolution refund`,
