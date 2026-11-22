@@ -271,6 +271,13 @@ final productVariantsProvider =
 final productMediaProvider = FutureProvider.family<List<MediaItem>, String>(
     (ref, productId) => ref.watch(apiServiceProvider).listMedia(productId));
 
+/// Stable buyer Product Detail read. Keying by product ID prevents rebuilds of
+/// the stateful PDP (gallery, variant selection, offer sorting) from issuing a
+/// new product request on every setState.
+final productDetailProvider =
+    FutureProvider.autoDispose.family<Product, String>(
+        (ref, productId) => ref.watch(apiServiceProvider).fetchProduct(productId));
+
 // ── Merchant Customers ──────────────────────────────────────
 
 final merchantCustomersProvider = FutureProvider<List<CustomerSummary>>(
