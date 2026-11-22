@@ -4,12 +4,12 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ProductTypeSchemaDetail, fetchProductTypeSchema, fetchCategories, fetchBrandsAdmin,
   Category, Brand, createProduct, updateProduct, upsertProductAttributeValues, createVariant,
-  createMerchantOffer, presignMedia, addMedia, fetchProductMedia, searchCanonicalProducts, Product,
+  createMerchantOffer, fetchMerchantOffers, presignMedia, addMedia, fetchProductMedia, searchCanonicalProducts, Product,
   searchCanonicalCatalog, CanonicalProductSummary, fetchProductVariants, ProductVariant,
 } from '../lib/buyer-api';
 import { fetchMyStores } from '../lib/api';
 import { generateSku, buildVariantTitle, resolveComboAttributes } from '../lib/sku-utils';
-import { buildOfferTargetKey, persistProductStudioMedia, resolveProductPersistenceTarget } from '../lib/product-studio-flow';
+import { buildOfferTargetKey, matchesExistingProductStudioOffer, persistProductStudioMedia, resolveProductPersistenceTarget } from '../lib/product-studio-flow';
 
 export type Step = 'identity' | 'specifications' | 'variants' | 'offer' | 'media' | 'review';
 
@@ -318,16 +318,37 @@ export function useProductStudio() {
         state.basePriceMinor > 0 &&
         offerCreatedForTargetKey !== offerTargetKey
       ) {
-        await createMerchantOffer({
+        const desiredOffer = {
           storeId: state.storeId,
           productId,
-          variantId: state.selectedExistingVariantId || undefined,
+          variantId: state.selectedExistingVariantId || null,
           currency: state.currency,
           basePriceMinor: state.basePriceMinor,
           moq: state.moq,
-          leadTimeDays: state.leadTimeDays || undefined,
-          warehouseId: state.warehouseId || undefined,
-        });
+          leadTimeDays: state.leadTimeDays || null,
+          warehouseId: state.warehouseId || null,
+        };
+        // A response can be lost after the server commits. Re-read the store's
+        // offers before retrying so we can recognize that committed result.
+        const existingOffers = await fetchMerchantOffers(state.storeId);
+        const existingOffer = existingOffers.find((offer) =>
+          offer.productId === productId &&
+          (offer.variantId ?? null) === desiredOffer.variantId,
+        );
+        if (existingOffer) {
+          if (!matchesExistingProductStudioOffer(existingOffer, desiredOffer)) {
+            throw new Error(
+              'An offer already exists for this product or variant in this store. Open Merchant Offers to update the existing offer instead of creating a duplicate.',
+            );
+          }
+        } else {
+          await createMerchantOffer({
+            ...desiredOffer,
+            variantId: desiredOffer.variantId ?? undefined,
+            leadTimeDays: desiredOffer.leadTimeDays ?? undefined,
+            warehouseId: desiredOffer.warehouseId ?? undefined,
+          });
+        }
         setOfferCreatedForTargetKey(offerTargetKey);
       }
 

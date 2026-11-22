@@ -1,6 +1,28 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildOfferTargetKey, continueProductStudioStep, persistProductStudioMedia, resolveProductPersistenceTarget } from '../lib/product-studio-flow';
+import { buildOfferTargetKey, continueProductStudioStep, matchesExistingProductStudioOffer, persistProductStudioMedia, resolveProductPersistenceTarget } from '../lib/product-studio-flow';
 
+
+describe('matchesExistingProductStudioOffer', () => {
+  const desired = {
+    storeId: 'store-a',
+    productId: 'product-a',
+    variantId: 'variant-a',
+    currency: 'SAR',
+    basePriceMinor: 250000,
+    moq: 1,
+    leadTimeDays: 5,
+    warehouseId: 'warehouse-a',
+  };
+
+  it('recognizes an offer committed before a client retry', () => {
+    expect(matchesExistingProductStudioOffer({ ...desired }, desired)).toBe(true);
+  });
+
+  it('does not mistake a different variant or commercial terms for the requested offer', () => {
+    expect(matchesExistingProductStudioOffer({ ...desired, variantId: 'variant-b' }, desired)).toBe(false);
+    expect(matchesExistingProductStudioOffer({ ...desired, basePriceMinor: 260000 }, desired)).toBe(false);
+  });
+});
 
 describe('buildOfferTargetKey', () => {
   it('scopes the offer retry marker by store, product and variant', () => {

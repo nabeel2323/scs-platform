@@ -1,3 +1,28 @@
+export interface ProductStudioOfferTarget {
+  storeId: string;
+  productId: string;
+  variantId: string | null;
+  currency: string;
+  basePriceMinor: number;
+  moq: number;
+  leadTimeDays: number | null;
+  warehouseId: string | null;
+}
+
+export function matchesExistingProductStudioOffer(
+  existing: ProductStudioOfferTarget,
+  desired: ProductStudioOfferTarget,
+): boolean {
+  return existing.storeId === desired.storeId
+    && existing.productId === desired.productId
+    && (existing.variantId ?? null) === desired.variantId
+    && existing.currency === desired.currency
+    && existing.basePriceMinor === desired.basePriceMinor
+    && existing.moq === desired.moq
+    && (existing.leadTimeDays ?? null) === desired.leadTimeDays
+    && (existing.warehouseId ?? null) === desired.warehouseId;
+}
+
 export function buildOfferTargetKey(input: {
   storeId: string;
   productId: string;
