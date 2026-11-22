@@ -3,7 +3,7 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `bb2e4650534bae0b30bf112500db184c227ccba8` — UX-094 Mobile category directory permission alignment; supporting route/screen commits include `6741baf`, `6f06592`, `bd672f0`. Latest focused test commit: `7b293273f4aba14429ed226932123678a0892c55`. Latest completed UX slice: UX-094.  
+**Latest source implementation commit:** `bb2e4650534bae0b30bf112500db184c227ccba8` — UX-094 Mobile category directory permission alignment; supporting route/screen commits include `6741baf`, `6f06592`, `bd672f0`. Latest focused test commit: `76b9b15dc1db37c67841d405b4a232f4731fc986`. Latest completed UX slice: UX-094.  
 **Previous source increments:** UX-092 Store Profile source/test `bfb820e` / `90b2b6b`; UX-091 Merchant Orders source `da19ca1` / `9ecce8a` and focused tests `112bf00` / `b8c7b1c`  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
@@ -19,14 +19,14 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation/test head | `7b293273f4aba14429ed226932123678a0892c55` (UX-094 route/helper tests added; not executed) |
+| Latest implementation/test head | `76b9b15dc1db37c67841d405b4a232f4731fc986` (UX-094 merchant route matrix test added; not executed) |
 | Latest implementation/test | UX-094 category route/action alignment; focused tests added but not executed; API typecheck correction batch also remains unverified |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
 | Exact-head GitHub Actions | CI #1380 failed on parent SHA `de9eeafb3852822552c667d13ad1e0c27fa8d28f` at API typecheck; corrective head uses `[skip ci]`, no new run; NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
 | Latest inspected Vercel contexts | At `de9eeafb`: Admin FAILURE and Web FAILURE with external build-rate-limit destination; not application test results |
-| Focused client tests | Admin UX-030–058 and Mobile UX-078–093 added; not executed |
+| Focused client tests | Admin UX-030–058 and Mobile UX-078–094 added; not executed |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
 ## Current remediation status
@@ -712,6 +712,6 @@ Merchant active-store and product reads now preserve last-successful data throug
 
 - Source audit confirmed `CatalogController` category create/update/delete operations require `catalog:categories:write` **and** platform role ADMIN/MODERATOR. The Mobile router's merchant-role gate excludes those platform roles from `/merchant/*`, while the merchant category screen previously displayed New/Edit/Delete controls to merchant owners/staff. Those controls could only fail at the API boundary.
 - The merchant category directory now requires `catalog:categories:read`, the Home/Dashboard entry uses the same read permission, and merchant users see a read-only list with no mutation controls. A pure policy helper mirrors the API's ADMIN/MODERATOR + write-permission condition. No API role guard or permission grant was weakened.
-- Focused route/helper tests were added in `mobile/test/route_permissions_test.dart`; not executed. Commits: `6741baf6f7d47c12ddc79d3ca1f4bbd3f110a39f`, `6f0659299c39952b0c8190a4a8dd520ccd3e3db9`, `bb2e4650534bae0b30bf112500db184c227ccba8`, `7b293273f4aba14429ed226932123678a0892c55`, and explanatory source comment `bd672f0b93de31d6bc669bb7785eeb70a345c302`.
+- Focused route/helper tests were added in `mobile/test/route_permissions_test.dart`; not executed. Commits: `6741baf6f7d47c12ddc79d3ca1f4bbd3f110a39f`, `6f0659299c39952b0c8190a4a8dd520ccd3e3db9`, `bb2e4650534bae0b30bf112500db184c227ccba8`, `7b293273f4aba14429ed226932123678a0892c55`, route-matrix test `76b9b15dc1db37c67841d405b4a232f4731fc986`, and explanatory source comment `bd672f0b93de31d6bc669bb7785eeb70a345c302`.
 - Client alignment is IMPLEMENTED / TESTING_PENDING. Actual merchant-owned category CRUD remains BLOCKED pending a product/API ownership decision: either implement store-scoped category ownership and membership authorization, or move category mutation to a dedicated platform-admin surface. Do not expose write controls until that decision and backend contract exist.
 - No API, RBAC seed, role grant, schema, database, migration, RLS, worker, staging or deployment behavior changed.
