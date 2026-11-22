@@ -7,8 +7,6 @@ import {
   fetchStoreWarehouses,
   fetchWarehouseInventory,
   adjustStock,
-  fetchStoreProducts,
-  fetchProductVariants,
   createInventoryItem,
   updateInventoryItem,
   bulkAdjustStock,
