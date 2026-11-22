@@ -54,6 +54,8 @@ export default function CatalogImportPage() {
   const [imports, setImports] = useState<CatalogImport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [importsError, setImportsError] = useState('');
+  const importsRequestVersion = useRef(0);
   const [currentImport, setCurrentImport] = useState<CatalogImport | null>(null);
   const [preview, setPreview] = useState<CatalogImportPreview | null>(null);
   const [importErrors, setImportErrors] = useState<CatalogImportError[]>([]);
@@ -64,15 +66,26 @@ export default function CatalogImportPage() {
   const [overrides, setOverrides] = useState<ImportOverrides>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const loadImports = useCallback(() => {
+  const loadImports = useCallback(async () => {
+    const requestId = ++importsRequestVersion.current;
     setLoading(true);
-    fetchCatalogImports({ limit: 20 })
-      .then(setImports)
-      .catch(e => setError(e instanceof Error ? e.message : 'Failed to load imports'))
-      .finally(() => setLoading(false));
+    setImportsError('');
+    try {
+      const rows = await fetchCatalogImports({ limit: 20 });
+      if (requestId === importsRequestVersion.current) setImports(rows);
+    } catch (err) {
+      if (requestId === importsRequestVersion.current) {
+        setImportsError(err instanceof Error ? err.message : 'Failed to load imports');
+      }
+    } finally {
+      if (requestId === importsRequestVersion.current) setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { loadImports(); }, [loadImports]);
+  useEffect(() => {
+    void loadImports();
+    return () => { importsRequestVersion.current += 1; };
+  }, [loadImports]);
 
   if (!hasAccess) return <AccessDenied requiredPerms={['catalog:imports:manage']} missingPerms={missingPerms} />;
 
@@ -185,6 +198,7 @@ export default function CatalogImportPage() {
           <DashboardStage
             imports={imports}
             loading={loading}
+            importsError={importsError}
             fileInputRef={fileInputRef}
             onFileSelect={handleFileSelect}
             onRefresh={loadImports}
@@ -219,9 +233,10 @@ export default function CatalogImportPage() {
 
 // ── Dashboard Stage ─────────────────────────────────────────────
 
-function DashboardStage({ imports, loading, fileInputRef, onFileSelect, onRefresh, onViewErrors, onDownloadReport, onDownloadTemplate, onExportCatalog, importErrors, onRetryImport }: {
+function DashboardStage({ imports, loading, importsError, fileInputRef, onFileSelect, onRefresh, onViewErrors, onDownloadReport, onDownloadTemplate, onExportCatalog, importErrors, onRetryImport }: {
   imports: CatalogImport[];
   loading: boolean;
+  importsError: string;
   fileInputRef: React.RefObject<HTMLInputElement>;
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRefresh: () => void;
@@ -316,9 +331,15 @@ function DashboardStage({ imports, loading, fileInputRef, onFileSelect, onRefres
 
       {/* Recent imports table */}
       <div style={{ ...typeScale.h3, color: colors.ink, marginBottom: 12 }}>Recent Imports</div>
-      {loading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: colors.muted }}>Loading…</div>
-      ) : imports.length === 0 ? (
+      {importsError && (
+        <div role="alert" style={{ padding: 14, marginBottom: 12, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.md, color: '#991b1b', ...typeScale.bodySm }}>
+          <span>{importsError}</span>{' '}
+          <button type="button" onClick={onRefresh}>Retry imports</button>
+        </div>
+      )}
+      {loading && imports.length === 0 ? (
+        <div role="status" style={{ padding: 40, textAlign: 'center', color: colors.muted }}>Loading…</div>
+      ) : importsError && imports.length === 0 ? null : imports.length === 0 ? (
         <div style={{ padding: 40, textAlign: 'center', color: colors.muted, background: colors.surface, borderRadius: radii.md, border: `1px solid ${colors.border}` }}>
           No imports yet. Upload a workbook to get started.
         </div>
