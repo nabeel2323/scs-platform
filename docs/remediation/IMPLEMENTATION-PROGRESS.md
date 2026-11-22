@@ -20,7 +20,7 @@
 | Phases completed                                  | 0                                                                     |
 | Phases in progress                                | 6                                                                     |
 | Original audit findings                           | 22                                                                    |
-| Additional findings discovered during remediation | 13 (G-023–G-035)                                                      |
+| Additional findings discovered during remediation | 14 (G-023–G-036)                                                      |
 | Total tracked findings                            | 36                                                                    |
 | P0 unresolved                                     | 1 (G-001)                                                             |
 | P1 unresolved                                     | 3 (G-002, G-007, G-036)                                                |
@@ -37,7 +37,7 @@
 
 ### Overall status
 
-<badge color="success">IN PROGRESS</badge> Source implementation continues in grouped commits. Exact-head CI is intentionally deferred to the consolidated Phase 3 verification campaign under the user's Actions-minute budget. PR #142 CI #1293 passed its disposable-PostgreSQL identity test; it is not live staging evidence. The current PR #138 head at this checkpoint is 30b61cbaaeccdd88993fae0bf1f71aa19f4f416e; no GitHub Actions run is associated with it because documentation commits use [skip ci]. Vercel Admin/Web statuses point to the external build-rate-limit page and are not application test results. G-001 is PARTIAL pending independent review; G-002 and G-036 remain IN PROGRESS; G-007's implementation is CI-verified but Phase 6 buyer journey/order-detail UAT remains pending. The final full test campaign is NOT STARTED. No staging/production deployment or database mutation is claimed.
+<badge color="success">IN PROGRESS</badge> Source implementation continues in grouped commits. Exact-head CI is intentionally deferred to the consolidated Phase 3 verification campaign under the user's Actions-minute budget. PR #142 CI #1293 passed its disposable-PostgreSQL identity test; it is not live staging evidence. The PR #138 implementation checkpoint head is 89561501099a75f02d344eef97a373d861413c5a; subsequent documentation synchronization commits use [skip ci] and have no Actions run. No exact-head application CI verification is claimed. Vercel Admin/Web statuses point to the external build-rate-limit page and are not application test results. G-001 is PARTIAL pending independent review; G-002 and G-036 remain IN PROGRESS; G-007's implementation is CI-verified but Phase 6 buyer journey/order-detail UAT remains pending. The final full test campaign is NOT STARTED. No staging/production deployment or database mutation is claimed.
 ---
 
 ## 2. Phase dashboard
