@@ -476,3 +476,12 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - Processing now starts polling only after the process request succeeds. Polling is generation-guarded, prevents overlapping reads, is cancelled on unmount, surfaces status-read errors with a retry action, and cannot apply stale responses after a terminal state.
 - Terminal outcomes are classified explicitly: only COMPLETED is success; FAILED and CANCELLED have distinct result states. Partial counters remain visible for failed/cancelled jobs without presenting them as successful completion.
 - Added `import-job-outcome.ts` and `import-job-outcome.test.ts` for terminal-state classification. Tests have not been executed. No API, permission, schema, queue, worker or database behavior changed.
+
+## UX-042 — Merchant Warehouses store and directory read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- Store-directory errors were caught and stored in the generic error state, but the page then rendered the same “No store found” onboarding state as a successful empty store list. There was no store lookup retry.
+- Warehouse-list failures used the generic action error state and still rendered “No warehouses yet,” conflating failed reads with successful empty directories. There was no retry action or independent list loading state.
+- Store discovery now has explicit loading/error/retry/no-store states. Warehouse reads have independent loading/error/retry handling, request-version protection and a successful-empty-only state. Existing rows are retained if a later refresh fails.
+- Added `merchant-warehouses-recovery.test.tsx` for store lookup retry, warehouse list retry/empty-state suppression and the true no-store state. Tests have not been executed. No API, permission, schema or database behavior changed.
