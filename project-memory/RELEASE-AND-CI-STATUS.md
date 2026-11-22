@@ -750,3 +750,13 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Combined status contexts at the latest source/documentation head `4be4f0ddc63741206c484fc5e647d94a03ed0398`: Vercel Admin FAILURE and Vercel Web FAILURE, both targeting the external provider build-rate-limit page. These are preview-provider statuses, not application test results.
 - Focused Flutter tests for UX-087–UX-093 are added but not executed. The consolidated Phase 3 campaign remains NOT STARTED.
 - No merge, deployment, staging release/write, shared database change, migration, grant/default-ACL change, RLS enablement, worker activation or provider operation occurred.
+
+## Final live branch verification — 23 November 2026
+
+- PR #138: OPEN / DRAFT / UNMERGED; base `develop`; branch `remediation/phase-0-1-tenant-security`.
+- Exact current branch head: `00d511be866730513bcf5262309840a273a10827` — `docs(state): reconcile SCS mobile org context through UX-093`.
+- Compare to `develop`: 1,478 commits ahead, 0 behind.
+- GitHub Actions workflow lookup: no run for the exact current head. Combined status contexts: none returned for this documentation-only `[skip ci]` head.
+- Last observed Vercel statuses on source/test checkpoint `4be4f0d`: Admin FAILURE and Web FAILURE to the external provider build-rate-limit page. Those statuses are not attached to the current documentation head and are not application test results.
+- No tests or CI pass are claimed. Focused tests UX-087–UX-093 are added but unexecuted; consolidated Phase 3 campaign remains NOT STARTED.
+- No merge, deployment, staging release/write, shared database change, migration, grant/default-ACL change, RLS enablement, worker activation or provider operation occurred.
