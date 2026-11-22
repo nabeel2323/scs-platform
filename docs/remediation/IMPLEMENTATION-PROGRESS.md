@@ -1753,3 +1753,13 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Pagination is disabled while loading or after an error, and append requests are accepted only for the current successful search key.
 - Added an ApiService query-serialization test and a Flutter widget test proving a late older search response cannot overwrite a newer query. Tests remain pending Phase 3.
 - No backend route, permission, search SQL, database, migration, product visibility, staging or provider behavior changed.
+
+
+## UX-081 — Mobile Product Detail stable reads and recovery — 23 November 2026
+
+- Replaced the inline `FutureBuilder` product fetch with a product-ID-keyed auto-disposed provider. The previous inline future was recreated on every stateful PDP rebuild, including gallery, variant and offer state updates, causing redundant product-detail requests.
+- Added explicit refresh and pull-to-refresh with last-successful product preservation and retryable initial errors.
+- Variant-matrix and offer-comparison reads now expose loading/error/retry states instead of silently swallowing failures; request generations prevent an old product's matrix/offers from overwriting a newly selected product after route reuse.
+- Seller review read failures now have an explicit retry affordance instead of disappearing silently.
+- Added Flutter widget coverage for stale product preservation after refresh failure, initial failure/retry and stable product request count across auxiliary-read rebuilds. Tests remain pending Phase 3.
+- No product API route, permissions, cart/order behavior, database, migration, staging or provider behavior changed.
