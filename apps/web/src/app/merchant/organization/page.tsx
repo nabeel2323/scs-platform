@@ -12,7 +12,7 @@ import {
   Organization, OrgMember, UserLookupResult, RoleInfo, BusinessDocument, VerificationRequestInfo, OrgUpdateRequest,
   Store, Warehouse,
 } from '../../../lib/api';
-import { hasPerm } from '../../../lib/auth';
+import { useAuth } from '../../../components/AuthProvider';
 import { DOCUMENT_STATUS_LABELS, UPDATE_REQUEST_STATUS_LABELS } from '@scs/contracts';
 import { LoadingSpinner, ErrorBanner, EmptyState, StatusBadge, formatDate } from '../../../components/Shared';
 import { PageHeader } from '@scs/ui-kit';
@@ -28,6 +28,7 @@ const DOC_TYPES = [
 ];
 
 export default function MerchantOrganizationPage() {
+  const { user } = useAuth();
   const [org, setOrg] = useState<Organization | null>(null);
   const [noOrg, setNoOrg] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -220,6 +221,7 @@ export default function MerchantOrganizationPage() {
   }, [addOpen, roles.length, rolesLoading, rolesError, loadRoles]);
 
   const handleSave = async () => {
+    if (!canEditOrganization) return;
     if (!org) return;
     if (!name.trim()) { setError('Organization name is required'); return; }
     setSaving(true);
@@ -242,6 +244,7 @@ export default function MerchantOrganizationPage() {
   // Verified orgs cannot edit legal details directly — changes go through an
   // admin-approved update request (G5).
   const handleSubmitUpdateRequest = async () => {
+    if (!canEditOrganization) return;
     if (!org) return;
     if (!name.trim()) { setError('Organization name is required'); return; }
     setSaving(true);
@@ -262,6 +265,7 @@ export default function MerchantOrganizationPage() {
   };
 
   const handleStoreSave = async () => {
+    if (!canEditStore) return;
     if (!activeStore) return;
     if (!storeDisplayName.trim()) { setError('Store name is required'); return; }
     setStoreSaving(true);
@@ -288,6 +292,7 @@ export default function MerchantOrganizationPage() {
   };
 
   const handleAddMember = async () => {
+    if (!canEditOrganization) return;
     if (!org || !newUserId.trim() || !newRoleId.trim()) return;
     setAddingMember(true);
     setError('');
@@ -320,6 +325,7 @@ export default function MerchantOrganizationPage() {
   };
 
   const confirmRemoveMember = async () => {
+    if (!canEditOrganization) return;
     if (!org || !removeTarget) return;
     setRemovingMember(true);
     setError('');
@@ -354,6 +360,7 @@ export default function MerchantOrganizationPage() {
   };
 
   const handleUploadDocument = async () => {
+    if (!canEditOrganization) return;
     if (!org || !uploadFile) return;
     setUploading(true);
     setError('');
@@ -394,7 +401,8 @@ export default function MerchantOrganizationPage() {
     }
   };
 
-  const canEdit = hasPerm('identity:organizations:write');
+  const canEditOrganization = user?.perms?.includes('identity:organizations:write') === true;
+  const canEditOrganizationStore = user?.perms?.includes('merchant:stores:write') === true;
 
   const fmtSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -585,18 +593,18 @@ export default function MerchantOrganizationPage() {
           <div style={{ ...card, marginTop: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h2 style={sectionTitle}>Business Details</h2>
-              {!canEdit && <span style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>Read-only</span>}
+              {!canEditOrganization && <span style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>Read-only</span>}
             </div>
 
             <div style={grid}>
               <label style={label}>Organization Name *
-                <input type="text" value={name} onChange={e => setName(e.target.value)} style={input} disabled={!canEdit} aria-label="Organization name" />
+                <input type="text" value={name} onChange={e => setName(e.target.value)} style={input} disabled={!canEditOrganization} aria-label="Organization name" />
               </label>
               <label style={label}>Legal Name
-                <input type="text" value={legalName} onChange={e => setLegalName(e.target.value)} style={input} disabled={!canEdit} placeholder="As registered with authorities" aria-label="Legal name" />
+                <input type="text" value={legalName} onChange={e => setLegalName(e.target.value)} style={input} disabled={!canEditOrganization} placeholder="As registered with authorities" aria-label="Legal name" />
               </label>
               <label style={label}>Tax ID / VAT Number
-                <input type="text" value={taxId} onChange={e => setTaxId(e.target.value)} style={input} disabled={!canEdit} placeholder="e.g. 300000000000003" aria-label="Tax ID" />
+                <input type="text" value={taxId} onChange={e => setTaxId(e.target.value)} style={input} disabled={!canEditOrganization} placeholder="e.g. 300000000000003" aria-label="Tax ID" />
               </label>
             </div>
 
@@ -606,13 +614,13 @@ export default function MerchantOrganizationPage() {
               <ReadOnlyField label="Member Since" value={org.createdAt ? new Date(org.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) : '—'} />
             </div>
 
-            {canEdit && isVerified && (
+            {canEditOrganization && isVerified && (
               <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginTop: 16, fontSize: 12, color: '#1e40af' }}>
                 Your organization is verified — changes to business details require admin approval. Submitting creates an update request that takes effect once approved.
               </div>
             )}
 
-            {canEdit && (
+            {canEditOrganization && (
               <div style={{ display: 'flex', gap: 8, marginTop: 20, alignItems: 'center', flexWrap: 'wrap' }}>
                 {isVerified ? (
                   <>
@@ -671,35 +679,35 @@ export default function MerchantOrganizationPage() {
               </div>
               <div style={grid}>
                 <label style={label}>Store Name *
-                  <input type="text" value={storeDisplayName} onChange={e => setStoreDisplayName(e.target.value)} style={input} disabled={!canEdit} aria-label="Store name" />
+                  <input type="text" value={storeDisplayName} onChange={e => setStoreDisplayName(e.target.value)} style={input} disabled={!canEditStore} aria-label="Store name" />
                 </label>
                 <label style={label}>Currency
-                  <select value={storeCurrency} onChange={e => setStoreCurrency(e.target.value)} style={{ ...input, width: '100%' }} disabled={!canEdit} aria-label="Currency">
+                  <select value={storeCurrency} onChange={e => setStoreCurrency(e.target.value)} style={{ ...input, width: '100%' }} disabled={!canEditStore} aria-label="Currency">
                     {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </label>
                 <label style={label}>Locale
-                  <select value={storeLocale} onChange={e => setStoreLocale(e.target.value)} style={{ ...input, width: '100%' }} disabled={!canEdit} aria-label="Locale">
+                  <select value={storeLocale} onChange={e => setStoreLocale(e.target.value)} style={{ ...input, width: '100%' }} disabled={!canEditStore} aria-label="Locale">
                     {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
                   </select>
                 </label>
               </div>
               <label style={{ ...label, marginTop: 8 }}>Description
-                <textarea value={storeDescription} onChange={e => setStoreDescription(e.target.value)} style={{ ...input, minHeight: 60, resize: 'vertical' }} disabled={!canEdit} placeholder="Brief description of your store" aria-label="Store description" />
+                <textarea value={storeDescription} onChange={e => setStoreDescription(e.target.value)} style={{ ...input, minHeight: 60, resize: 'vertical' }} disabled={!canEditStore} placeholder="Brief description of your store" aria-label="Store description" />
               </label>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#5b6b74', marginBottom: 8, marginTop: 12 }}>Store Address</div>
               <div style={grid}>
                 <label style={label}>Street
-                  <input type="text" value={storeStreet} onChange={e => setStoreStreet(e.target.value)} style={input} disabled={!canEdit} placeholder="Street address" aria-label="Street" />
+                  <input type="text" value={storeStreet} onChange={e => setStoreStreet(e.target.value)} style={input} disabled={!canEditStore} placeholder="Street address" aria-label="Street" />
                 </label>
                 <label style={label}>City
-                  <input type="text" value={storeCity} onChange={e => setStoreCity(e.target.value)} style={input} disabled={!canEdit} placeholder="City" aria-label="City" />
+                  <input type="text" value={storeCity} onChange={e => setStoreCity(e.target.value)} style={input} disabled={!canEditStore} placeholder="City" aria-label="City" />
                 </label>
                 <label style={label}>ZIP / Postal Code
-                  <input type="text" value={storeZip} onChange={e => setStoreZip(e.target.value)} style={input} disabled={!canEdit} placeholder="ZIP code" aria-label="ZIP code" />
+                  <input type="text" value={storeZip} onChange={e => setStoreZip(e.target.value)} style={input} disabled={!canEditStore} placeholder="ZIP code" aria-label="ZIP code" />
                 </label>
               </div>
-              {canEdit && (
+              {canEditStore && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                   <button onClick={handleStoreSave} disabled={storeSaving || !storeDisplayName.trim()} style={primaryBtn}>
                     {storeSaving ? 'Saving…' : 'Save Store Info'}
@@ -860,7 +868,7 @@ export default function MerchantOrganizationPage() {
             ) : null}
 
             {/* Upload new document */}
-            {canEdit && (
+            {canEditOrganization && (
               <div style={{ marginTop: 16, borderTop: '1px solid #eef2f5', paddingTop: 16 }}>
                 {!uploadOpen ? (
                   <button onClick={() => setUploadOpen(true)} style={ghostBtn}>+ Upload Document</button>
@@ -905,7 +913,7 @@ export default function MerchantOrganizationPage() {
           <div style={{ ...card, marginTop: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h2 style={{ ...sectionTitle, marginBottom: 0 }}>Members ({membersError ? '—' : members.length})</h2>
-              {canEdit && <button onClick={() => setAddOpen(v => !v)} style={ghostBtn}>{addOpen ? '✕ Close' : '+ Add Member'}</button>}
+              {canEditOrganization && <button onClick={() => setAddOpen(v => !v)} style={ghostBtn}>{addOpen ? '✕ Close' : '+ Add Member'}</button>}
             </div>
 
             {addOpen && (
@@ -1006,7 +1014,7 @@ export default function MerchantOrganizationPage() {
                   <thead><tr style={theadRow}>
                     <th style={th}>Member</th><th style={th}>Phone</th><th style={th}>Role</th>
                     <th style={th}>Status</th><th style={th}>Joined</th>
-                    {canEdit && <th style={th}>Actions</th>}
+                    {canEditOrganization && <th style={th}>Actions</th>}
                   </tr></thead>
                   <tbody>
                     {members.map(m => (
@@ -1021,7 +1029,7 @@ export default function MerchantOrganizationPage() {
                         <td style={td}><span style={roleChip(m.roleKey)}>{m.roleKey.replace(/_/g, ' ')}</span></td>
                         <td style={td}><StatusBadge status={m.status} /></td>
                         <td style={{ ...td, color: '#5b6b74', fontSize: 12 }}>{m.joinedAt ? formatDate(m.joinedAt) : '—'}</td>
-                        {canEdit && (
+                        {canEditOrganization && (
                           <td style={td}>
                             <button onClick={() => setRemoveTarget(m)} style={deleteBtn} aria-label={`Remove ${m.fullName}`}>Remove</button>
                           </td>
