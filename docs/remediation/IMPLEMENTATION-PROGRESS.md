@@ -1587,3 +1587,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - A filter change never displays rows from the previous filter as if they matched the new selection; an initial/changed-filter failure remains an error rather than a false empty state. Existing request-version and unmount guards remain in place.
 - Added `admin-returns-recovery.test.tsx` for failed initial reads/retry, stale-data preservation after failed refresh, and isolation between status-filter result sets. Tests remain pending the consolidated Phase 3 campaign.
 - No return workflow, refund calculation, action, API, permission, schema, migration, database, staging or provider behavior changed.
+
+
+## UX-062 — Admin Settlements and Settlement Adjustments read recovery — 22 November 2026
+
+- Settlements now tracks the status filter associated with its last successful response, exposes an explicit Refresh action, retains current-filter rows during refresh and after a failed refresh, and labels stale results with a retry path.
+- Settlement Adjustments now applies the same filter-aware stale-data behavior while retaining its existing Refresh action, request-version guard and separate action-error channel.
+- Neither page displays rows from a previous filter as if they belonged to the newly selected filter; failed first reads remain errors rather than successful empty states.
+- Added `admin-settlements-recovery.test.tsx` and `admin-settlement-adjustments-recovery.test.tsx` for initial failure/retry, stale-data preservation and filter isolation.
+- Tests remain pending the consolidated Phase 3 campaign. No settlement/adjustment business actions, payment logic, API, permissions, schema, migration, database, staging or provider behavior changed.

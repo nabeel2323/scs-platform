@@ -45,6 +45,8 @@ export default function AdminSettlementsPage() {
   const requestVersion = useRef(0);
   const [acting, setActing] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('');
+  const [loadedFilter, setLoadedFilter] = useState<string | null>(null);
+  const hasCurrentResults = loadedFilter === filter;
 
   const load = useCallback(async () => {
     if (!hasAccess) return;
@@ -54,7 +56,10 @@ export default function AdminSettlementsPage() {
     setActionError('');
     try {
       const data = await fetchAdminSettlements(filter ? { status: filter } : undefined);
-      if (requestId === requestVersion.current) setSettlements(data);
+      if (requestId === requestVersion.current) {
+        setSettlements(data);
+        setLoadedFilter(filter);
+      }
     } catch (err: any) {
       if (requestId === requestVersion.current) {
         setLoadError(err.message || 'Failed to load settlements');
@@ -109,19 +114,23 @@ export default function AdminSettlementsPage() {
           <option value="DUE">Due</option>
           <option value="PAID">Paid</option>
         </select>
+        <Button size="sm" variant="secondary" onClick={() => void load()}>Refresh</Button>
       </div>
 
       {loadError && (
         <div role="alert" style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.sm, color: '#dc2626', marginBottom: 12, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-          <span>{loadError}</span>
-          <Button size="sm" variant="secondary" onClick={() => void load()}>Retry</Button>
+          <span>{loadError}{hasCurrentResults ? ' Showing the last successfully loaded results.' : ''}</span>
+          <Button size="sm" variant="secondary" onClick={() => void load()}>Retry settlements</Button>
         </div>
       )}
       {actionError && <div role="alert" style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.sm, color: '#dc2626', marginBottom: 12, fontSize: 13 }}>{actionError}</div>}
 
-      {loading ? (
+      {loading && hasCurrentResults && (
+        <div role="status" style={{ padding: '6px 0', color: colors.muted, fontSize: 12 }}>Refreshing settlements… showing the last successful results.</div>
+      )}
+      {loading && !hasCurrentResults ? (
         <div style={{ padding: 40, textAlign: 'center', color: colors.muted }}>Loading…</div>
-      ) : loadError ? null : settlements.length === 0 ? (
+      ) : !hasCurrentResults ? null : settlements.length === 0 ? (
         <Card style={{ padding: 32, textAlign: 'center', color: colors.muted }}>
           No settlements found.
         </Card>

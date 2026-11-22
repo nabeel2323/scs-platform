@@ -93,6 +93,8 @@ export default function SettlementAdjustmentsPage() {
   const [actionError, setActionError] = useState('');
   const requestVersion = useRef(0);
   const [statusFilter, setStatusFilter] = useState('');
+  const [loadedFilter, setLoadedFilter] = useState<string | null>(null);
+  const hasCurrentResults = loadedFilter === statusFilter;
   const [acting, setActing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -106,7 +108,10 @@ export default function SettlementAdjustmentsPage() {
     const qs = sp.toString();
     try {
       const data = await adminRequest<Adjustment[]>(`admin/settlement-adjustments${qs ? `?${qs}` : ''}`);
-      if (requestId === requestVersion.current) setAdjustments(data);
+      if (requestId === requestVersion.current) {
+        setAdjustments(data);
+        setLoadedFilter(statusFilter);
+      }
     } catch (e: any) {
       if (requestId === requestVersion.current) setLoadError(e.message || 'Failed to load settlement adjustments');
     } finally {
@@ -202,17 +207,18 @@ export default function SettlementAdjustmentsPage() {
         </button>
       </div>
 
-      {loadError && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}><span>{loadError}</span><button onClick={() => void load()} style={{ background: '#374151', color: '#fff', border: 0, borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>Retry</button></div>}
+      {loadError && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}><span>{loadError}{hasCurrentResults ? ' Showing the last successfully loaded results.' : ''}</span><button onClick={() => void load()} style={{ background: '#374151', color: '#fff', border: 0, borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>Retry adjustments</button></div>}
       {actionError && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{actionError}</div>}
-      {loading && <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Loading...</div>}
+      {loading && hasCurrentResults && <div role="status" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>Refreshing adjustments… showing the last successful results.</div>}
+      {loading && !hasCurrentResults && <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Loading...</div>}
 
-      {!loading && !loadError && adjustments.length === 0 && (
+      {!loading && hasCurrentResults && adjustments.length === 0 && (
         <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
           No settlement adjustments found.
         </div>
       )}
 
-      {!loadError && adjustments.length > 0 && (
+      {hasCurrentResults && adjustments.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {adjustments.map((adj) => (
             <div
