@@ -39,8 +39,8 @@ The API's `GET /v1/me` response already includes the active-organization `perms`
 - Parse `GET /v1/me.perms` in `UserProfile`; expose exact, any, and all permission helpers.
 - Enforce route permissions for direct/deep links and show an Access Restricted screen with the missing permission.
 - Refresh router redirects after profile and active-organization changes.
-- Filter buyer bottom navigation, merchant tabs, Home launchers, and merchant dashboard destinations.
-- Gate organization creation/edit/member management, driver pickup/delivery, buyer order cancellation/delivery confirmation/reorder, merchant order mutations, inventory mutations, catalog create/edit/delete, store/warehouse writes, and Add to Cart actions.
+- Filter buyer bottom navigation, Home search/catalog/store discovery sections, merchant tabs, merchant launchers, and merchant dashboard destinations.
+- Gate organization creation/edit/member management, merchant registration organization/store creation, driver pickup/delivery, buyer order cancellation/delivery confirmation/reorder, merchant order mutations, inventory mutations, catalog create/edit/delete, store/warehouse writes, and every Add to Cart affordance.
 - Add focused Flutter tests for permission parsing and route-policy decisions.
 
 ## Outstanding policy and validation work

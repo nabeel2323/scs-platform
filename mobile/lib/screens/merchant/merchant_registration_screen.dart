@@ -189,6 +189,17 @@ class _MerchantRegistrationScreenState
   Future<void> _handleNext() async {
     setState(() => _error = null);
     final api = ref.read(apiServiceProvider);
+    final permissions = ref.read(profileProvider).valueOrNull?.perms ?? const <String>[];
+
+    if (_currentStep == 1 && _orgMode == 'create' &&
+        !permissions.contains('identity:organizations:create')) {
+      setState(() => _error = 'This account cannot create organizations. Join with an invitation code or ask an administrator.');
+      return;
+    }
+    if (_currentStep == 2 && !permissions.contains('merchant:stores:write')) {
+      setState(() => _error = 'Your active organization does not grant merchant:stores:write.');
+      return;
+    }
 
     if (_currentStep == 0) {
       // Validate & update profile
@@ -335,6 +346,10 @@ class _MerchantRegistrationScreenState
   }
 
   Future<void> _handleSubmit() async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('merchant:stores:write') != true) {
+      setState(() => _error = 'Your active organization does not grant merchant:stores:write.');
+      return;
+    }
     if (_createdStoreId == null) return;
     setState(() => _submitting = true);
     setState(() => _error = null);

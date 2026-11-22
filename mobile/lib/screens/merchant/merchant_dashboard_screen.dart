@@ -60,13 +60,19 @@ class MerchantDashboardScreen extends ConsumerWidget {
                 onAction: () => ref.invalidate(myStoresProvider)),
             data: (store) {
               if (store == null) {
-                return _onboardCta(
-                  context,
-                  icon: Icons.storefront_outlined,
-                  title: 'No store yet',
-                  message:
-                      'Your organization has no storefront. Complete registration to create one.',
-                  actionLabel: 'Create Your Store',
+                if (p.hasPermission('merchant:stores:write')) {
+                  return _onboardCta(
+                    context,
+                    icon: Icons.storefront_outlined,
+                    title: 'No store yet',
+                    message: 'Your organization has no storefront. Complete registration to create one.',
+                    actionLabel: 'Create Your Store',
+                  );
+                }
+                return const EmptyState(
+                  title: 'No store available',
+                  description: 'Your active organization can view merchant tools but does not have merchant:stores:write to create a storefront.',
+                  icon: Icons.lock_outline,
                 );
               }
               return _hub(context, ref, store, p);
@@ -174,6 +180,7 @@ class MerchantDashboardScreen extends ConsumerWidget {
   /// KPI strip (audit row 190 / spec §29). Every figure is real API data; a
   /// `null` (endpoint unavailable) renders "—", never a fabricated zero.
   Widget _kpis(BuildContext context, WidgetRef ref) {
+    final canReadInventory = ref.watch(profileProvider).valueOrNull?.hasPermission('merchant:inventory:read') ?? false;
     final kpis = ref.watch(merchantKpisProvider);
     return kpis.when(
       loading: () =>
@@ -203,11 +210,12 @@ class MerchantDashboardScreen extends ConsumerWidget {
               sub: 'awaiting action',
               accent: k.pendingCount > 0 ? TaifTokens.warn : null,
               onTap: () => _open(context, 'orders', '/merchant/orders')),
-          _kpiTile(context, 'Low stock',
-              k.lowStockCount == null ? '—' : '${k.lowStockCount}',
-              sub: 'at/below reorder',
-              accent: (k.lowStockCount ?? 0) > 0 ? TaifTokens.err : null,
-              onTap: () => _open(context, 'inventory', '/merchant/inventory')),
+          if (canReadInventory)
+            _kpiTile(context, 'Low stock',
+                k.lowStockCount == null ? '—' : '${k.lowStockCount}',
+                sub: 'at/below reorder',
+                accent: (k.lowStockCount ?? 0) > 0 ? TaifTokens.err : null,
+                onTap: () => _open(context, 'inventory', '/merchant/inventory')),
         ],
       ),
     );

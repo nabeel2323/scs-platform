@@ -183,3 +183,8 @@ The user reports that about 90% of the GitHub Actions minutes allowance is alrea
 - The mobile permission-parity implementation is grouped into one commit marked `[skip ci]` to preserve the user's remaining GitHub Actions minutes. The user reports 90% of the allowance consumed and explicitly requests grouped changes and one consolidated testing/fixing phase.
 - Focused Flutter permission tests and the mobile route/action matrix are added. Test execution is intentionally deferred until the implementation batch is complete. Do not trigger CI for small follow-up edits.
 - Outstanding RBAC policy issue: `identity:organizations:create` is checked by the organization creation flow but is absent from the inspected permission seed/default grants. Do not silently grant it before organization-type and creator-role semantics are reconciled.
+
+
+## Mobile permission review refinements — 22 November 2026
+
+A follow-up code review tightened Home discovery visibility, registration step guards, flat-variant/offer Add-to-Cart buttons, and the merchant low-stock KPI destination. The registration wizard now distinguishes organization creation from invitation-based joining and checks `merchant:stores:write` before store creation and verification submission. These refinements are grouped into one follow-up implementation commit; validation remains deferred to the consolidated phase.

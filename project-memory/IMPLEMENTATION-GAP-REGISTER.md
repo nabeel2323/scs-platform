@@ -101,3 +101,8 @@ Navigation and mutation affordances are filtered by permission: buyer Search/Car
 Focused tests cover permission parsing and route policy. Their execution, deep-link tests, active-organization switching, role switching, and mutation regression tests remain in the consolidated validation campaign.
 
 **RBAC follow-up:** `identity:organizations:create` is referenced by the mobile affordance but was absent from the inspected permission seed/default grants. Do not silently grant it to BUYER/MERCHANT roles. Reconcile organization type and creator-role policy before adding a migration/seed grant.
+
+
+### UX-011 review refinement
+
+Follow-up review additionally hides Home search/catalog/store discovery sections without the corresponding read permissions, disables all flat-variant and offer Add-to-Cart buttons without `orders:write`, guards merchant registration organization/store writes, and hides the merchant low-stock KPI destination without `merchant:inventory:read`. Consolidated test execution remains pending.

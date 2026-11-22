@@ -315,3 +315,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Added mobile permission parsing, route policy, Access Restricted screen, router refresh on profile/active-org changes, permission-filtered buyer/merchant navigation, and action-level checks across organization, driver, order, merchant-order, inventory, catalog, store-profile, and cart flows.
 - Added focused route/profile permission tests and `docs/mobile-route-permission-matrix.md`. Test execution remains pending.
 - Follow-up: reconcile missing `identity:organizations:create` seed/default grants with organization type and creator-role policy; then complete the remaining action-affordance audit and run one consolidated formatter, Flutter, backend, security, and CI validation.
+
+
+## 2026-11-22 — Mobile authorization follow-up review
+
+- Reviewed the pushed mobile authorization commit and found remaining action-affordance gaps: Home discovery visibility, product-detail variant/offer cart buttons, merchant registration mutations, and the low-stock KPI destination.
+- Closed those gaps in one grouped follow-up commit. The registration wizard now distinguishes create-organization permission from invitation-based joining and checks store-write before create/verification.
+- The merchant route builder already honors the `tab` query parameter; no duplicate router change was needed.
+- CI remains intentionally deferred. Finish the remaining permission audit, then perform one consolidated formatter, Flutter, backend, security, and CI validation run.

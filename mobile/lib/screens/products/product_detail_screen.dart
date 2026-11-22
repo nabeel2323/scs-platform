@@ -695,6 +695,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   // ── Flat variant list (fallback when no product type) ──
   Widget _buildFlatVariants(Product p, String currency) {
+    final canAddToCart = ref.read(profileProvider).valueOrNull?.hasPermission('orders:write') ?? false;
     final activeVariants = p.variants.where((v) => v.isActive).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -716,7 +717,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           fontWeight: FontWeight.w700, fontSize: 16)),
                   IconButton(
                       tooltip: 'Add ${v.title ?? v.sku}',
-                      onPressed: () => _add(context, ref, p, variantId: v.id),
+                      onPressed: canAddToCart ? () => _add(context, ref, p, variantId: v.id) : null,
                       icon: const Icon(Icons.add_shopping_cart, size: 20)),
                 ])))),
       ],
@@ -725,6 +726,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   // ── PHASE COS-15: Offer comparison ──
   Widget _buildOfferComparison(Product p, String currency) {
+    final canAddToCart = ref.read(profileProvider).valueOrNull?.hasPermission('orders:write') ?? false;
     // Sort offers
     final sorted = List<Offer>.from(_offers);
     if (_offerSort == 'price') {
@@ -834,8 +836,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         SizedBox(
                           height: 32,
                           child: ElevatedButton(
-                            onPressed: () => _add(context, ref, p,
-                                variantId: offer.variantId, offerId: offer.id, quantity: offer.moq),
+                            onPressed: canAddToCart ? () => _add(context, ref, p,
+                                variantId: offer.variantId, offerId: offer.id, quantity: offer.moq) : null,
                             style: ElevatedButton.styleFrom(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 12),

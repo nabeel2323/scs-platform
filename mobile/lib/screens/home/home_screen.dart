@@ -32,6 +32,9 @@ class HomeScreen extends ConsumerWidget {
     final role = profile?.role;
     final isMerchant = role == 'MERCHANT_OWNER' || role == 'MERCHANT_STAFF';
     final isDriver = role == 'DRIVER';
+    final canBrowseCatalog = profile?.hasPermission('catalog:products:read') ?? false;
+    final canReadStores = profile?.hasPermission('merchant:stores:read') ?? false;
+    final canCreateOrganization = profile?.hasPermission('identity:organizations:create') ?? false;
     final canOpenMerchantTools = profile?.hasAnyPermission(['merchant:stores:read', 'merchant:orders:read', 'catalog:products:read', 'merchant:inventory:read']) ?? false;
     final canOpenDriverTools = profile?.hasPermission('fulfillment:shipments:read') ?? false;
     final phone = ref.watch(currentUserPhoneProvider);
@@ -80,14 +83,16 @@ class HomeScreen extends ConsumerWidget {
             if (activeOrg == null &&
                 (profile?.organizations.isEmpty ?? true)) ...[
               const SizedBox(height: 12),
-              _registerCta(context),
+              _registerCta(context, canCreate: canCreateOrganization),
             ],
             const SizedBox(height: 16),
-            _searchBar(context),
-            const SizedBox(height: 20),
-            _categoriesSection(context, ref),
-            _popularSection(context, ref),
-            _suppliersSection(context, ref),
+            if (canBrowseCatalog) ...[
+              _searchBar(context),
+              const SizedBox(height: 20),
+              _categoriesSection(context, ref),
+              _popularSection(context, ref),
+            ],
+            if (canReadStores) _suppliersSection(context, ref),
             if (isMerchant && canOpenMerchantTools) _manageSection(context, profile!.perms),
             if (isDriver && canOpenDriverTools) _driverSection(context),
             const SizedBox(height: 24),
@@ -157,7 +162,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _registerCta(BuildContext context) {
+  Widget _registerCta(BuildContext context, {required bool canCreate}) {
     return GestureDetector(
       onTap: () => context.push('/merchant/register'),
       child: Container(
@@ -174,12 +179,12 @@ class HomeScreen extends ConsumerWidget {
           Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Register Your Store',
+              Text(canCreate ? 'Register Your Store' : 'Join an Organization',
                   style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: TaifTokens.ink)),
-              Text('Set up your business on the platform',
+              Text(canCreate ? 'Set up your business on the platform' : 'Use an invitation code to join an existing business',
                   style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
             ]),
           ),

@@ -224,3 +224,12 @@ The next mapping priority is the 32 mobile screens/routes and their granular per
 | Product/search/home cart actions | Add to Cart requires `orders:write` | Implementation added |
 
 API guards remain authoritative. Client-side checks improve navigation and affordances but do not replace backend authorization. Full validation is deferred to the consolidated final phase to conserve Actions minutes.
+
+
+### Mobile authorization review refinement — 22 November 2026
+
+- Home search, category/product discovery, and supplier sections are now individually filtered by catalog/store read permissions.
+- Flat variant and offer Add-to-Cart buttons are disabled without `orders:write` in addition to the mutation-handler guard.
+- Merchant registration checks `identity:organizations:create` before organization creation, preserves invitation joining, and checks `merchant:stores:write` before store creation and verification submission.
+- Merchant low-stock KPI navigation is hidden without `merchant:inventory:read`.
+- Full Flutter and backend validation remains deferred to the single consolidated validation phase.
