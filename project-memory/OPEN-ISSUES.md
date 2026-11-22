@@ -1,6 +1,6 @@
 # SCS Platform — Open Issues and Next Work
 
-**Last reconciled:** 22 November 2026  
+**Last reconciled:** 23 November 2026  
 **Authoritative detail:** [Implementation progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md).
 
 ## Immediate blockers and high-priority work
@@ -36,6 +36,19 @@ Remaining:
 
 The implementation author must not mark their own work independently reviewed.
 
+### G-036 — P1 realtime store/order room authorization
+
+**Status: IN PROGRESS — source remediation implemented; focused tests added, not executed.**
+
+The realtime gateway previously accepted arbitrary authenticated joins to `org:{storeId}` and `order:{orderId}` rooms. The server now requires:
+- `org:{storeId}`: existing store, `merchant:orders:read`, active-organization ownership and active store membership; platform staff require `orders:read`.
+- `order:{id}`: buyer ownership with `orders:read`, merchant membership with `merchant:orders:read`, assigned shipment with `fulfillment:shipments:read`, or platform-staff `orders:read`.
+- `user:{id}`: the authenticated user's own room only.
+
+UUID validation and lookup failures fail closed. Focused gateway tests cover merchant, buyer/master-order, driver and platform paths. The Web realtime client also avoids subscribing without merchant order-read permission. Exact-head CI and independent security review remain pending; do not close G-036 yet.
+
+No shared database, RLS, grants, migration, staging or deployment changes were made.
+
 ### G-002 — P1 database access and RLS
 
 **Status: IN PROGRESS.**
@@ -50,6 +63,8 @@ Remaining:
 Do not enable RLS, apply migration 0070, change grants/default ACLs or alter Supabase-managed ownership as part of unapproved work.
 
 ## Other tracked unresolved findings
+The additional P1 realtime room authorization finding G-036 is tracked above; the full 36-finding register remains authoritative.
+
 
 The following are navigation-level reminders, not a replacement for the full finding register:
 
@@ -543,3 +558,10 @@ The merchant category directory is now read-only for merchant roles and requires
 **Still blocked:** choose whether merchant-owned categories should be supported with store-scoped ownership + active membership enforcement in the API, or whether category CRUD belongs exclusively on a platform-admin route. Do not weaken API role guards or restore merchant write controls before that decision.
 
 **Next implementation:** finish the Mobile route permission and org-context transition audit, then Web/Admin route/action permission mapping.
+
+## Current client implementation continuation — 23 November 2026
+
+- UX-094 Mobile merchant category permission/contract alignment is implemented; actual merchant-owned category CRUD remains blocked pending an API/product ownership decision.
+- UX-095 Web merchant route/action permission alignment and active-organization context invalidation is implemented; focused tests are added but not executed.
+- G-036 realtime store/order room authorization is implemented in source with focused gateway tests added but not executed.
+- **Next:** finish the Mobile route-permission and organization-context transition audit, then remaining Admin route/action mapping. Comprehensive testing remains deferred to the consolidated testing phase.
