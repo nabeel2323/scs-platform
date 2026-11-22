@@ -510,3 +510,9 @@ Both Mobile Merchant Offer Detail and Inventory read-recovery slices are impleme
 Mobile Pricing list/detail and Merchant Customers read-recovery work is implemented. Pricing now retains last-successful price lists and quantity tiers, exposes retry, awaits refresh, and avoids reporting a failed initial tier read as zero. Customers retains the last successful directory and derived statistics, exposes retry, and supports pull-to-refresh without losing search/sort state. Focused Flutter tests were added but have not been executed; both remain TESTING_PENDING for Phase 3. No API, permission, pricing/stock mutation, customer/order/financial, database or migration behavior changed.
 
 **Next implementation:** continue the remaining Mobile merchant workflow audit (especially Merchant Orders and store/profile route transitions), then complete the outstanding Web/Admin route and action permission mapping. Do not reopen UX-078–UX-090 without new source evidence.
+
+## UX-091 — Mobile Merchant Orders refresh lifecycle — 23 November 2026
+
+The Merchant Orders queue now awaits active-store/order refresh, supports pull-to-refresh, preserves the last successful queue during refresh/reload failures and keeps a successful empty order history refreshable. Existing order action permission checks, confirmation steps, idempotency and fulfillment behavior are unchanged. Three focused Flutter widget scenarios were added but have not been executed; UX-091 remains TESTING_PENDING for Phase 3. No API, order transition, stock reservation, fulfillment, database or migration behavior changed.
+
+**Next implementation:** continue the source-first audit of Mobile Store Profile and remaining merchant route transitions, then complete the outstanding Web/Admin route and action permission mapping. Do not reopen UX-078–UX-091 without new source evidence.
