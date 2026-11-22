@@ -785,3 +785,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added independent KPI, organization-update, import and catalog-request loaders with retryable errors and request-version guards. Failed KPI reads show unavailable placeholders rather than zero defaults; stale successful data remains visible during failed refreshes; each widget suppresses only its own false empty state.
 - Added `admin-dashboard-recovery.test.tsx` for independent failures, retry and empty-state suppression. Test not executed.
 - No API, permission, schema, database or migration changes. Commits use `[skip ci]`; no deployment or staging action.
+
+## 2026-11-22 — UX-044 Admin KPI Dashboard recovery
+
+- The dedicated Admin KPI Dashboard swallowed fetch failures, offered no retry and lacked protection against out-of-order date-range responses.
+- Added explicit error/retry state, request-version protection and stale-data preservation. Initial failures show KPI data as unavailable rather than zero defaults; failed refreshes retain the last successful KPI view with a warning.
+- Added `admin-kpi-recovery.test.tsx` for initial read failure/retry and no fabricated zero values. Test not executed.
+- No API, permission, schema, database or migration change. Commits use `[skip ci]`; no deployment or staging action.
