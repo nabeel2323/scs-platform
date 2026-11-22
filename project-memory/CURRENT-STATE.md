@@ -613,3 +613,8 @@ Buyer Store Directory and Store Detail now preserve the last successful read thr
 ## Mobile Buyer Order History UX-079 — 23 November 2026
 
 Buyer Order History now retains the last successful order list through refresh failures, keeps the selected client-side status filter applied, exposes explicit refresh/pull-to-refresh and retry, and distinguishes initial failure from successful empty history. Three focused Flutter tests were added but not executed; they remain pending Phase 3. No order, payment, fulfillment, API, permission, database or migration behavior changed.
+
+
+## Mobile Search UX-080 — 23 November 2026
+
+Search facet chips now send their selected attribute values through the existing `attrFilters` API query contract. Search requests are generation-guarded across debounce, filters, pagination and disposal; explicit refresh and same-query stale-result preservation are implemented. Failed new-query reads do not present previous-query results as current or show a false empty result. ApiService and widget regression tests were added but not executed; they remain pending Phase 3. No backend/API route, permission, search SQL, database or migration behavior changed.
