@@ -33,6 +33,7 @@ vi.mock('../lib/api', () => ({
 vi.mock('../lib/auth', () => ({ getUser: (...args: unknown[]) => getUser(...args) }));
 vi.mock('../hooks/useRequirePerms', () => ({
   useRequirePerms: () => ({ hasAccess: true, missingPerms: [] }),
+  AccessDenied: () => <div>Access denied</div>,
 }));
 vi.mock('@scs/ui-kit', () => ({
   PageHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
