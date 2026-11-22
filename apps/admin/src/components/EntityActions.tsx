@@ -59,13 +59,17 @@ export function UserMemberships({ record, onDone }: { record: AdminRecord; onDon
     {editing && <form className={styles['card']} onSubmit={event => { event.preventDefault(); if (orgId && roleId) action.run(`admin/users/${record.id}/assign-role`, 'POST', { orgId, roleId }); }}>
       <ErrorNotice message={roles.error} retry={roles.reload} /><ErrorNotice message={orgs.error} retry={orgs.reload} />
       <div className={styles['toolbar']}>
-        <label>Organization<select value={orgId} required onChange={e => setOrgId(e.target.value)}><option value="">Select organization</option>
+        <label>Organization<select value={orgId} required disabled={orgs.loading || Boolean(orgs.error)} onChange={e => { setOrgId(e.target.value); setRoleId(''); }}>
+          <option value="">{orgs.loading ? 'Loading organizations…' : 'Select organization'}</option>
           {orgs.data?.map(org => <option key={org.id} value={org.id}>{org.name} ({org.type})</option>)}</select></label>
-        <label>Role<select value={roleId} required onChange={e => setRoleId(e.target.value)}><option value="">Select role</option>
+        <label>Role<select value={roleId} required disabled={!orgId || roles.loading || Boolean(roles.error)} onChange={e => setRoleId(e.target.value)}>
+          <option value="">{roles.loading ? 'Loading roles…' : 'Select role'}</option>
           {roles.data?.map(role => <option key={role.id} value={role.id}>{role.key} — {role.name}</option>)}</select></label>
       </div>
+      {!orgs.loading && !orgs.error && orgs.data?.length === 0 && <p>No organizations are available for assignment.</p>}
+      {!roles.loading && !roles.error && roles.data?.length === 0 && <p>No roles are available for assignment.</p>}
       {roleId && <p>Permissions: {roles.data?.find(role => role.id === roleId)?.permissions.join(', ') || 'None'}</p>}
-      <div className={styles['actions']}><button disabled={action.busy || !orgId || !roleId}>Assign</button><button type="button" onClick={() => setEditing(false)}>Cancel</button></div>
+      <div className={styles['actions']}><button disabled={action.busy || orgs.loading || roles.loading || Boolean(orgs.error) || Boolean(roles.error) || !orgId || !roleId}>Assign</button><button type="button" onClick={() => setEditing(false)}>Cancel</button></div>
     </form>}
   </section>;
 }
