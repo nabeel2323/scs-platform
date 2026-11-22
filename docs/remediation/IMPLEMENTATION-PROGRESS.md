@@ -1845,3 +1845,14 @@ This is programme-level UX implementation evidence; it does not change G-001–G
 - Source commit: `bfb820e`; focused test commit: `90b2b6b`.
 - Status: **IMPLEMENTED / TESTING_PENDING**, not test-verified or CI-verified. No store update, warehouse creation, API, permission, schema, migration, database, staging or worker behavior changed.
 - Continue remaining Mobile merchant route-transition/source audit, then remaining Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
+
+## Mobile organization/session context continuation — UX-093 — 23 November 2026
+
+This is client-side context/caching remediation evidence; it does not close or change G-001–G-035 server-side authorization findings.
+
+- **UX-093 — Organization/session context:** centralized invalidation for organization-scoped providers and invoked it from both organization-switch flows after the replacement token is persisted and installed. Active-store resolution filters by the selected active organization and will not fall back across organizations.
+- New login clears persisted active-org selection before token persistence, resets in-memory identity/org context and invalidates authenticated reads. Logout resets the same context and authenticated caches.
+- Three focused ProviderContainer tests are in `mobile/test/organization_scope_invalidation_test.dart`; not executed.
+- Source commits: `b49424e`, `3f4a6a3`, `1f29e7c`, `cd04739`, `fc1f22a`, `b416041`; tests `a0f308c` / `d0d0b26`.
+- Status: **IMPLEMENTED / TESTING_PENDING**, not test-verified or CI-verified. No API/backend authorization, permission, schema, migration, RLS, database, staging or worker changes.
+- Continue Mobile route permission/context transition audit, then Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
