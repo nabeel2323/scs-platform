@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { useProductStudio, STEPS } from '../../../hooks/useProductStudio';
+import { useProductStudio, STEPS, type Step } from '../../../hooks/useProductStudio';
 import { ProductTypeSummary, fetchProductTypes } from '../../../lib/buyer-api';
 import { PageHeader } from '@scs/ui-kit';
 import ProgressIndicator from './components/ProgressIndicator';
@@ -19,6 +19,27 @@ export default function ProductStudioPage() {
   const studio = useProductStudio();
   const { step, setStep, stepIndex, state, setState, stores, categories, brands, error, setError, saving, success, goNext, goPrev, handleSaveProduct, completeness, canonicalMatches, canonicalSearchResults, searchCanonical, searchCanonicalFreeText, existingVariants, loadExistingVariants } = studio;
   const [productTypes, setProductTypes] = useState<ProductTypeSummary[]>([]);
+
+  const handleStepClick = (targetStep: Step) => {
+    const targetIndex = STEPS.findIndex((item) => item.key === targetStep);
+    if (targetIndex <= stepIndex) {
+      setStep(targetStep);
+      return;
+    }
+    // Allow only the next sequential step. The Offer -> Media transition
+    // must use the same persistence gate as the Next button.
+    if (targetIndex !== stepIndex + 1) return;
+    void continueProductStudioStep({
+      step,
+      saving,
+      productId: state.productId,
+      title: state.title,
+      storeId: state.storeId,
+      saveProduct: handleSaveProduct,
+      setError,
+      goNext: () => setStep(targetStep),
+    });
+  };
 
   // Load product types
   useEffect(() => {
@@ -42,7 +63,7 @@ export default function ProductStudioPage() {
       />
 
       {/* Progress Indicator */}
-      <ProgressIndicator currentStep={step} onStepClick={setStep} stepIndex={stepIndex} />
+      <ProgressIndicator currentStep={step} onStepClick={handleStepClick} stepIndex={stepIndex} disabled={saving} />
 
       {/* Step Content */}
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
