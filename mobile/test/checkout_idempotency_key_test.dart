@@ -122,7 +122,12 @@ void main() {
 
     // Payment method changes the checkout payload and therefore must rotate
     // the key before the next submission.
+    await tester.ensureVisible(find.text('Bank transfer'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Bank transfer'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Place order'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Place order'));
     await tester.pumpAndSettle();
 
