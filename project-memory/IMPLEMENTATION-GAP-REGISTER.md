@@ -576,3 +576,35 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - Analytics date-range and activity-limit changes could overlap, and older responses could overwrite newer results. Error messages had no direct retry action.
 - Added independent request-version guards for event counts and activity, cleanup invalidation on tab/filter changes and unmount, explicit Retry events/Retry activity actions, and non-mutating event sorting. Failed refreshes retain last successful data.
 - Added `admin-analytics-race.test.tsx` for out-of-order date-range results and retry. Test not executed. No API, permission, schema or database change.
+
+## UX-054 — Admin Commission Oversight read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- Commission reversal reads had no request ordering guard; overlapping status-filter reads could overwrite newer results. Failed reads showed the error and also rendered “No commission reversals found.”
+- Added request-version protection, unmount/filter invalidation, explicit Retry commission reversals, and successful-empty-only rendering. Last successful rows remain visible during failed refreshes.
+- Added `admin-commission-recovery.test.tsx`. Test not executed. No API, permission, schema or database change.
+
+## UX-055 — Admin Offer KPI and Trend read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- Offer KPI and Trend filter requests could overlap and older responses could replace newer results. Errors had no direct retry. Offer KPI showed a fabricated zero count when no response had loaded, and both tables could display “No offer-backed sales” after a failed initial read.
+- Added request-version guards, cleanup invalidation, retry actions and successful-empty-only table states. Offer KPI now shows an unavailable placeholder until data exists; Trend labels an unavailable period accurately. Last successful data remains visible on refresh failure.
+- Added `admin-offer-kpis-recovery.test.tsx` and `admin-offer-trend-recovery.test.tsx`. Tests not executed. No API, permission, schema or database change.
+
+## UX-056 — Admin Brands list recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- Brand list failures were visible but had no direct retry action, and the table could still render “No brands found.” Filter changes had no request-version guard.
+- Added Retry brands, request-version/unmount protection and suppression of the empty state after a failed initial read. Last successful brands remain visible during failed refreshes.
+- Added `admin-brands-recovery.test.tsx`. Test not executed. No API, permission, schema or database change.
+
+## UX-057 — Admin Business Calendar read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P1.**
+
+- Calendar configuration, holiday and audit reads were coupled. A failed initial calendar read could also render “No business calendar configured”; failures had no retry action. Holiday/audit empty states could be misleading after a failed dependent read, and requests had no stale-response guard.
+- Added request-version protection, explicit Retry calendar, error-aware suppression of the no-calendar/empty holiday/empty audit states, and cleanup invalidation. Calendar list, holidays and audit still use the existing endpoints; no new API contract.
+- Added `admin-calendar-recovery.test.tsx`. Test not executed. No API, permission, schema or database change.
