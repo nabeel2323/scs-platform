@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const { createUser, fetchAdminOrganizations, fetchRoles } = vi.hoisted(() => ({
   createUser: vi.fn(),
@@ -64,14 +64,14 @@ describe('admin create user form', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Create User' }));
 
-    expect(createUser).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(createUser).toHaveBeenCalledWith(expect.objectContaining({
       fullName: 'Jane Doe',
       email: 'jane@example.com',
       phone: undefined,
       orgId: undefined,
       roleId: undefined,
-    }));
-    expect(onDone).toHaveBeenCalledTimes(1);
+    })));
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
   });
 
   it('requires organization and role to be selected together', async () => {
