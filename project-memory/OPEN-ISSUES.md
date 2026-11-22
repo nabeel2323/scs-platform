@@ -522,3 +522,9 @@ The Merchant Orders queue now awaits active-store/order refresh, supports pull-t
 Mobile Store Profile now awaits its store-directory/active-store/warehouse refresh chain, supports pull-to-refresh, preserves last-successful store details during refresh failures and provides independent warehouse retry/stale-data handling. Three focused Flutter widget scenarios were added but have not been executed; UX-092 remains TESTING_PENDING for Phase 3. Store update and warehouse creation behavior, permissions and API contracts are unchanged.
 
 **Next implementation:** finish the remaining Mobile merchant route-transition/source audit, then complete the outstanding Web/Admin route and action permission mapping. Do not reopen UX-078–UX-092 without new source evidence.
+
+## UX-093 — Organization and authenticated-session context invalidation — 23 November 2026
+
+Organization switching now invalidates merchant/store-scoped client caches in both switch entry points; active-store resolution filters against the selected organization and never falls back across orgs. Login clears the persisted previous active-org selection and resets authenticated caches; logout clears in-memory identity and authenticated caches in addition to stored tokens. Focused ProviderContainer tests were added but have not been executed; UX-093 remains TESTING_PENDING for Phase 3. This is client cache/context correctness, not a replacement for backend tenant authorization. No API, permission, database, migration, RLS, worker or staging changes occurred.
+
+**Next implementation:** finish the Mobile route permission and organization-context transition audit (including route guards and remaining route refresh semantics), then complete the outstanding Web/Admin route and action permission mapping. Do not reopen UX-078–UX-093 without new source evidence.
