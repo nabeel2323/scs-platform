@@ -28,7 +28,7 @@ Then read the relevant authoritative technical documents linked below. Do not du
 - [Audit-driven remediation implementation plan](../docs/remediation/IMPLEMENTATION-PLAN.md) — authoritative phases, findings, acceptance criteria and release gates.
 - [Audit-driven implementation progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md) — authoritative finding register, current progress and evidence log.
 - [G-002 RLS architecture design](../docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md) — read-only target database role model, transaction-bound tenant context, ownership classification and rollout gates.
-- [G-002 database operation map](../docs/remediation/G-002-DATABASE-OPERATION-MAP-2026-11-22.md) — preliminary operation map covering 26 service files plus supporting outbox/worker/monitor/lease paths; raw SQL and actor handoffs are explicitly distinguished.
+- [G-002 database operation map](../docs/remediation/G-002-DATABASE-OPERATION-MAP-2026-11-22.md) — preliminary operation map covering 33 service files plus supporting outbox/worker/monitor/lease paths; raw SQL and actor handoffs are explicitly distinguished.
 - [G-002 table ownership and predicate candidates](../docs/remediation/G-002-TABLE-OWNERSHIP-AND-PREDICATE-CANDIDATES-2026-11-22.md) — schema-backed candidate ownership paths for identity, store, catalog, order, financial, user-private and system rows; not an approved policy.
 - [Remediation documentation directory](../docs/remediation/) — detailed audits, database access evidence and finding-specific records.
 - [Implementation Completion Gap Register](./IMPLEMENTATION-GAP-REGISTER.md) — programme phases, evidence-backed implementation gaps, statuses and completion rules.
