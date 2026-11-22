@@ -971,3 +971,34 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Focused route/helper tests were added in `mobile/test/route_permissions_test.dart`; not executed. Commits: `6741baf6f7d47c12ddc79d3ca1f4bbd3f110a39f`, `6f0659299c39952b0c8190a4a8dd520ccd3e3db9`, `bb2e4650534bae0b30bf112500db184c227ccba8`, `7b293273f4aba14429ed226932123678a0892c55`, route-matrix test `76b9b15dc1db37c67841d405b4a232f4731fc986`, and explanatory source comment `bd672f0b93de31d6bc669bb7785eeb70a345c302`.
 - Client alignment is IMPLEMENTED / TESTING_PENDING. Actual merchant-owned category CRUD remains BLOCKED pending a product/API ownership decision: either implement store-scoped category ownership and membership authorization, or move category mutation to a dedicated platform-admin surface. Do not expose write controls until that decision and backend contract exist.
 - No API, RBAC seed, role grant, schema, database, migration, RLS, worker, staging or deployment behavior changed.
+
+
+## 23 November 2026 — Web merchant access alignment and G-036 realtime authorization
+
+**Branch:** `remediation/phase-0-1-tenant-security`  
+**PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED to `develop`  
+**Exact live head:** `89561501099a75f02d344eef97a373d861413c5a`
+
+### Web merchant UX-095
+
+- Added a shared merchant route-permission map for navigation and direct deep links. The dashboard requires `merchant:stores:read`; Product Studio/import/offer creation/promotions/catalog requests require their write grants; onboarding paths still require authentication.
+- Filtered dashboard cards and navigation by the active permission projection. Merchant workspace subtree is keyed by active organization, role and permission signature to clear old local state and in-flight work on scope changes.
+- Added action-level guards for catalog mutations/export, order/return mutations, driver assignment, store/warehouse operations and organization/store profile operations. Organization writes use `identity:organizations:write`; store profile writes use `merchant:stores:write`.
+- Dashboard profile/store reads refresh on active-org changes with request-version protection; store, warehouse, organization, orders and catalog reads also guard stale responses.
+- Web merchant realtime subscriptions now require `merchant:orders:read`.
+
+### Security G-036 — realtime room authorization
+
+- Fixed the API Socket.IO gateway so a valid JWT alone no longer grants access to arbitrary `org:{storeId}` or `order:{orderId}` rooms.
+- Store rooms require an existing store, `merchant:orders:read`, active-org ownership and active store membership; platform staff require `orders:read`.
+- Order rooms require buyer ownership, merchant store membership, an assigned shipment/driver or platform-staff read permission as appropriate. User rooms remain self-only. UUID validation and authorization/database errors fail closed.
+- Added focused gateway tests for merchant permissions/membership, foreign organization, buyer/master-order ownership, driver assignment and platform access.
+
+### Verification and safety
+
+- Focused Web tests were added/updated in route-permission, orders recovery, warehouses recovery and organization recovery suites. Focused API tests were added/updated in `apps/api/src/__tests__/unit/realtime/realtime.gateway.spec.ts`.
+- **Tests were not executed.** Exact-head workflow lookup returned no GitHub Actions run for `89561501099a75f02d344eef97a373d861413c5a`; combined status shows Vercel Web and Admin external build-rate-limit failures, not application test results.
+- All implementation commits use `[skip ci]`. No merge, deployment, staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
+- UX-095 is IMPLEMENTED / TESTING_PENDING. G-036 is IN PROGRESS; do not close before exact-head verification and independent review.
+
+**Next:** complete the Mobile route-permission and organization-context transition audit, then finish remaining Admin route/action permission mapping. Keep the comprehensive test campaign deferred to Phase 3.
