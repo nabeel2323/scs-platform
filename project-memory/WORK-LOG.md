@@ -681,5 +681,5 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added a buyer-only return section to mobile OrderDetail, available for owned DELIVERED/COMPLETED sub-orders. It mirrors the Web reason vocabulary and per-line quantity inputs, displays active return state, and offers cancellation and shipped transitions only when the service permits them.
 - Uncertain create responses are reconciled by reading the buyer's request list; no blind retry is issued.
 - Added `mobile/test/returns_api_test.dart` for parsing and request contract coverage. Not executed; comprehensive tests remain consolidated for Phase 3.
-- Source parent before implementation: `9ce77fe3076adeafd58c26cb898bb1c5722d3baf`. PR #138 remains open/draft/unmerged.
+- Source implementation commit: `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`; parent: `9ce77fe3076adeafd58c26cb898bb1c5722d3baf`. PR #138 remains open/draft/unmerged.
 - No API/schema/migration/RLS/grant, shared DB, staging, deployment, worker or provider changes.

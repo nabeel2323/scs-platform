@@ -381,3 +381,8 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - UX-027's latest Product Studio source work scopes retry identity to store/product/variant and reconciles existing store offers after uncertain creates; nullable existing prices are handled safely. Helper tests are added but not executed.
 - UX-028 mobile buyer returns parity has been implemented in source: Flutter now uses existing buyer return endpoints and mirrors Web reason/quantity collection plus buyer cancel/ship transitions. Model/API tests are added but not executed.
 - Continue the UX-010 cross-screen audit and integration mapping. The whole-product test campaign remains deferred until the implementation batch is complete.
+
+
+## UX-028 exact implementation checkpoint — 22 November 2026
+
+Flutter buyer-return parity is committed as `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`. Focused DTO/API tests were added but not executed; continue the remaining UX-010 source audit and implementation/integration phase before the consolidated test campaign.

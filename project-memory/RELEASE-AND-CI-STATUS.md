@@ -3,8 +3,8 @@
 **Checkpoint:** 22 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source/documentation head before this refresh:** `7031cafcd94300421cf314aa6ac3ba3d3ef59651`  
-**Exact-head GitHub Actions:** no workflow run attached; the latest grouped source commits intentionally used `[skip ci]` to conserve Actions minutes. At source baseline `7031caf...`, no GitHub Actions workflow run is attached; Vercel Admin and Web statuses are both FAILURE due to preview-provider rate limiting. The latest actual Actions run is historical #44963271498 on `06cd8fc...` and failed changed-file Prettier.
+**Latest source implementation commit:** `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf` — `feat(mobile): add buyer return lifecycle parity [skip ci]` (the project-memory sync is a documentation-only child commit).
+**Exact-head GitHub Actions:** no workflow run is attached to `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf` because the commit deliberately used `[skip ci]` under the implementation-first decision. At last check, Vercel Admin and Web contexts were PENDING; these preview statuses are not test results. The latest actual Actions run remains #44963271498 on older SHA `06cd8fc1e56dc7ef64a141b97b594adc96ffbece` and failed changed-file Prettier after Flutter passed; dependent API unit, PostgreSQL integration, Web/Admin, migration, build and smoke jobs were skipped.
 
 ## Previous CI run at the 21 November checkpoint (historical)
 
@@ -523,3 +523,12 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Source implementation commit: `0ebce8be9abd89f8370e208698123c9786ae72e6`; documentation sync follows separately.
 - PR #138 remains open, draft and unmerged to `develop`. Focused canonical-target and media-persistence helper tests were added but not executed.
 - No exact-head CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred.
+
+
+## Exact source checkpoint — UX-027 / UX-028 — 22 November 2026
+
+- UX-027 latest Product Studio retry-safety source commits: `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad8315d1f3662db4f2ac8528db0c7bb0`, `9ce77fe3076adeafd58c26cb898bb1c5722d3baf`. Focused helper tests were added but not executed. Existing-offer reconciliation is client-side and does not guarantee atomic deduplication across concurrent clients.
+- UX-028 Flutter buyer-return implementation commit: `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`, with focused model/API tests in `mobile/test/returns_api_test.dart`. Tests have not been executed.
+- Exact-SHA Actions lookup for `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf` returned no workflow runs. Combined Vercel Admin and Web statuses were PENDING at the time checked. This is NOT CI-VERIFIED.
+- PR #138 remains open, draft and unmerged to `develop`. No staging deployment, migration, shared database write, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
+- The following project-memory synchronization is documentation-only and also uses `[skip ci]`; verify the resulting branch SHA and statuses live before making any verification claim.

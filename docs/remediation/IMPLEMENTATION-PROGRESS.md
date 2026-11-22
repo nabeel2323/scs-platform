@@ -1438,3 +1438,10 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - UX-027 source completion now includes target-scoped create retry markers and pre-retry existing-offer reconciliation; nullable current-offer pricing is handled safely. The change does not claim server-side atomic idempotency.
 - UX-028 closes the source-confirmed buyer-return parity gap in Flutter using the existing API lifecycle. Mobile supports owner-scoped request creation on DELIVERED/COMPLETED orders, status display, cancellation and shipped handover.
 - Focused tests: Product Studio helper tests and `mobile/test/returns_api_test.dart`. Not executed; comprehensive test execution remains scheduled for Phase 3.
+
+
+## UX-028 exact source commit — 22 November 2026
+
+- Flutter buyer-return parity is committed in source as `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf` (parent `9ce77fe3076adeafd58c26cb898bb1c5722d3baf`).
+- Focused tests are present in `mobile/test/returns_api_test.dart`; not executed. Exact-head GitHub Actions lookup returned no workflow run because the source commit used `[skip ci]`.
+- PR #138 remains open/draft/unmerged. Comprehensive testing stays in Phase 3; no staging or database action was performed.

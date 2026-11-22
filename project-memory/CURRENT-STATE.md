@@ -3,10 +3,11 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source/documentation baseline before this state refresh:** `7031cafcd94300421cf314aa6ac3ba3d3ef59651` (this state refresh advances the branch; resolve the resulting SHA from GitHub)
-**Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
+**Latest source implementation commit:** `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf` — `feat(mobile): add buyer return lifecycle parity [skip ci]`
+**Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`.
+**Checkpoint note:** this project-memory synchronization is a documentation-only child commit of the source implementation; query the live branch ref for the resulting HEAD.
 
-> This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
+> This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI.
 
 ## Repository and product
 
@@ -18,11 +19,11 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ------------------------------------------------------------------------ |
 | Repository           | nabeel2323/scs-platform                                                  |
 | Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | `7031cafcd94300421cf314aa6ac3ba3d3ef59651` before this state refresh; resulting state-refresh SHA must be resolved live |
-| Latest commit        | `docs(project): checkpoint Admin dispute resolution workflow [skip ci]` |
+| Live branch head     | Source implementation `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`; this documentation checkpoint is a child commit and resulting HEAD must be resolved live |
+| Latest commit        | `feat(mobile): add buyer return lifecycle parity [skip ci]` (source commit; docs sync follows) |
 | PR #138              | Open; draft; not merged                                                  |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
-| Latest exact-head CI | No Actions run for source/docs head `7031caf...`; Vercel Admin and Web statuses are both FAILURE due to preview-provider rate limit; NOT CI-VERIFIED |
+| Latest exact-head CI | No Actions run for `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf` because of `[skip ci]`; Vercel Admin and Web were PENDING at last check; NOT CI-VERIFIED |
 | PR #142 CI           | #44953735602 — passed all executable jobs on `dddff20c...`; disposable PostgreSQL identity test included |
 | PR #138 CI           | Historical #44954371615 passed all executable jobs on `741a09f...`; not transferable to current head |
 
@@ -53,10 +54,10 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 ## Immediate next actions
 
-1. Continue UX-010 source re-audit across remaining Admin, Web and Mobile screens. Record only concrete contract-backed gaps; implement safe fixes in cohesive batches and synchronize the gap register, inventory and work log.
-2. Finish remaining integration and product workflow gaps before the consolidated test campaign. UX-015–UX-021 are implemented in source, but their focused tests have not been executed.
-3. Keep G-001 PARTIAL pending independent security review. Keep G-002 IN PROGRESS pending protected live API/migration identity evidence, refreshed catalog audit, 114-versus-116 physical relation reconciliation, complete operation ownership review and approved transaction-context/RLS design.
-4. Do not run the full test suite after each small change. Add focused regression coverage during implementation; run the comprehensive API/PostgreSQL/migration/Web/Admin/Mobile/concurrency/performance campaign after implementation and integration are complete.
+1. Continue UX-010 source re-audit across remaining Admin, Web and Mobile screens. Trace each visible screen/action against API contracts, active-organization permissions, object ownership, and loading/empty/error/retry behavior. Record only concrete gaps and implement safe related fixes in grouped commits.
+2. Continue integration completion for buyer/merchant/admin workflows, including remaining cross-client order, returns, fulfillment and commercial lifecycle gaps. UX-015–UX-028 are implemented in source; their focused regression tests have not been executed.
+3. Keep G-001 PARTIAL pending independent security review. Keep G-002 IN PROGRESS pending protected live API/migration identity evidence, refreshed catalog audit, 114-versus-116 physical relation reconciliation, complete operation ownership review and an approved transaction-context/RLS design.
+4. Preserve the implementation-first sequence: do not run the comprehensive test suite after each small change. Add targeted regression coverage when needed; execute the coordinated API/PostgreSQL/migration/Web/Admin/Flutter/concurrency/performance campaign only after implementation and integration are complete.
 5. Preserve all merge/deployment/staging/shared-database/grant/RLS/worker restrictions.
 
 ## Safety reminder
@@ -471,3 +472,13 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Product Studio uploaded media is now attached to merchant-owned products using `fetchProductMedia` + `addMedia`, with URL recheck/deduplication for safe retries after partial failure. Canonical product media is untouched.
 - Added focused helper tests for canonical target precedence and media dedupe/no-op. Not executed.
 - Source baseline before docs sync: `0ebce8be9abd89f8370e208698123c9786ae72e6`; docs commit advances branch. PR #138 remains open/draft/unmerged.
+
+
+## Latest implementation checkpoint — UX-027 / UX-028 — 22 November 2026
+
+- Source implementation commit: `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`; parent: `9ce77fe3076adeafd58c26cb898bb1c5722d3baf`. A documentation-only synchronization commit follows this source commit.
+- UX-027: Product Studio offer retry markers are scoped by store/product/variant; before retrying after an uncertain create, the client reconciles existing store offers against intended commercial terms; nullable legacy prices safely do not match. This is client-side sequential retry recovery, not server-side atomic idempotency for concurrent clients.
+- UX-028: Flutter now has buyer-owned returns parity on delivered/completed order detail, using existing P13 endpoints and reason codes. It supports per-item quantities, active status, buyer cancellation, and shipped handover. API ownership, payment, return-window, cumulative-quantity and state-transition rules remain authoritative.
+- Focused tests were added for Product Studio helper behavior and `mobile/test/returns_api_test.dart`; none were executed in this implementation batch. Exact-head Actions lookup for the source commit returned no workflow run; Vercel Admin/Web were PENDING at the time checked.
+- PR #138 remains open, draft and unmerged to `develop`. No merge, deployment, staging operation, database mutation, migration, grant/RLS change, worker activation or provider call occurred.
+- **Next:** continue UX-010 cross-screen source re-audit and remaining integration gaps, then move to the one consolidated test/fix campaign. G-001 remains PARTIAL; G-002 remains IN PROGRESS.

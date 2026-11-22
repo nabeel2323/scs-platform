@@ -371,6 +371,6 @@ Implemented in this batch:
 - Existing REQUESTED / MERCHANT_APPROVED / later states are surfaced; the buyer can cancel only in REQUESTED or MERCHANT_APPROVED and can mark shipped only in MERCHANT_APPROVED, matching the service transition map.
 - `mobile/lib/services/api_service.dart` now wraps the existing buyer return list/detail/create/cancel/shipped routes. `mobile/lib/models/models.dart` parses both list responses (without item/event relations) and detail/mutation responses (with relations).
 - The create flow reconciles a failed/uncertain response by refreshing the caller-scoped list; it does not blindly repeat a write. API owner, payment, return-window, active-request and cumulative-quantity rules remain server-enforced.
-- Added `mobile/test/returns_api_test.dart` for DTO parsing and endpoint/body contracts. Tests are pending the consolidated Phase 3 campaign; source implementation is not yet test-verified.
+- Added `mobile/test/returns_api_test.dart` for DTO parsing and endpoint/body contracts. Source implementation commit: `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`. Tests are pending the consolidated Phase 3 campaign; source implementation is not yet test-verified.
 
 No database, API contract, route permission, worker, staging or deployment changes were made.
