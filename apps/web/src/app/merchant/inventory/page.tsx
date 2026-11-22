@@ -606,7 +606,6 @@ function InventoryPageContent() {
                       setNewWarehouseId(selectedWh || warehouses[0]?.id || '');
                       setVariantSearch('');
                       setShowVariantDrop(false);
-                      setVariantsError('');
                     }}
                     style={{ ...editBtn, background: '#0c2831', color: '#fff', border: 'none' }}
                   >
@@ -678,7 +677,6 @@ function InventoryPageContent() {
                           setNewWarehouseId(selectedWh || warehouses[0]?.id || '');
                           setVariantSearch('');
                           setShowVariantDrop(false);
-                          setVariantsError('');
                         }}
                         style={primaryBtn}
                       >
