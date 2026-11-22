@@ -75,20 +75,21 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN/DRAFT/UNMERGED against `develop`. The latest implementation/test checkpoint before the current documentation synchronization is `3f3b0f6b4d610b24242c44fc75006c509bc7abd7`.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN/DRAFT/UNMERGED against `develop`. The latest implementation/test checkpoint before the current documentation synchronization is `b8c7b1ca75bba1128b7b271d6c5a7f7166c1f721`.
 
-The current Mobile implementation continuation now covers UX-078–UX-090:
+The current Mobile implementation continuation covers UX-078–UX-091:
 - UX-078–UX-086: Buyer Store/Orders/Search/Product Detail/Notifications/Home/Checkout and Merchant Dashboard/Catalog recovery.
 - UX-087: Merchant Offer Detail stale-safe offer/analytics refresh and unavailable-metrics handling.
 - UX-088: Merchant Inventory active-store, inventory-page and warehouse-directory refresh/retry while preserving last-successful data.
 - UX-089: Merchant Pricing list/detail/tier refresh and recovery, including a truthful unavailable tier count on failed initial tier reads.
 - UX-090: Merchant Customers stale-safe directory/statistics, retry and awaited refresh while preserving search/sort state.
+- UX-091: Merchant Orders now awaits active-store/order refresh and supports pull-to-refresh for both populated and successful empty queues while preserving last-successful rows.
 
-Focused tests were added across these slices but have not been executed. They remain TESTING_PENDING for the consolidated Phase 3 campaign. Admin recovery UX-046–UX-058 also remains implemented with focused tests pending execution. No API, permission, offer lifecycle, pricing terms, stock mutation, warehouse transfer, customer/order, schema or database behavior changed in UX-087–UX-090.
+Focused tests were added across these slices but have not been executed. They remain TESTING_PENDING for the consolidated Phase 3 campaign. Admin recovery UX-046–UX-058 also remains implemented with focused tests pending execution. No API, permission, offer lifecycle, pricing terms, stock mutation, warehouse transfer, customer/order transition, fulfillment or database behavior changed in UX-087–UX-091.
 
-**Next implementation:** continue the source-first audit of Mobile Merchant Orders and store/profile route transitions, then complete the remaining Web/Admin route and action permission mapping. Do not repeat UX-078–UX-090 without new source evidence. G-001 remains PARTIAL pending independent security review; G-002 remains IN PROGRESS pending protected runtime identity/catalog evidence and reviewed access design. Phase 3 remains the consolidated full testing campaign.
+**Next implementation:** continue the source-first audit of Mobile Store Profile and remaining merchant route transitions, then complete the remaining Web/Admin route and action permission mapping. Do not repeat UX-078–UX-091 without new source evidence. G-001 remains PARTIAL pending independent security review; G-002 remains IN PROGRESS pending protected runtime identity/catalog evidence and reviewed access design. Phase 3 remains the consolidated full testing campaign.
 
-All implementation/test commits use `[skip ci]`. The exact-head GitHub Actions lookup returned no run for `3f3b0f6`; Vercel Web/Admin both showed external build-rate-limit failures. These are not application test results. PR #138 remains draft and is not release authorization.
+All implementation/test commits use `[skip ci]`. The exact-head GitHub Actions lookup returned no run for `b8c7b1c`; Vercel Web/Admin both showed external build-rate-limit failures. These are not application test results. PR #138 remains draft and is not release authorization.
 
 ## Safety reminder
 
