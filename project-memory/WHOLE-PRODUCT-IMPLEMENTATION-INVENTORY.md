@@ -490,3 +490,16 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 ## 23 November 2026 — Mobile category route/action permission re-audit (UX-094)
 
 The source audit found a mismatch between the merchant category directory and the API's platform-only category mutations. The merchant route is now gated by `catalog:categories:read`, the dashboard launcher uses the same read grant, and merchant create/edit/delete affordances are hidden. The policy helper and route tests are present but not executed; the focused route matrix covers 13 merchant operational deep links. The API remains unchanged: category writes still require ADMIN/MODERATOR plus `catalog:categories:write`. Merchant-owned category CRUD remains a scope/ownership decision; do not relax backend guards until store ownership and active membership semantics are defined.
+
+
+## Web merchant permission and realtime continuation — 23 November 2026
+
+The Web merchant route/action slice is now implemented on PR #138:
+
+- The shared route map covers direct-route permission checks and navigation filtering; dashboard cards use the same active permission projection.
+- Merchant write actions are aligned to operation permissions for products, orders, driver assignment, stores/warehouses and organization management.
+- The merchant workspace remounts when active organization, role or effective permission set changes; dashboard/store/order/catalog reads include request-version protection against stale responses.
+- Web merchant realtime subscribes only with `merchant:orders:read`.
+- The API realtime gateway now authorizes `org:{storeId}` and `order:{orderId}` room joins against active store membership, buyer ownership, driver assignment or platform-staff read grants (G-036).
+
+Focused Web/API tests are added but not executed. This is not a full Admin route/permission audit or comprehensive client verification. Next: complete the Mobile route-permission and organization-context transition audit, then remaining Admin route/action mapping.
