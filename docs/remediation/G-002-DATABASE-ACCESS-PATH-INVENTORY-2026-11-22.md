@@ -81,8 +81,8 @@ The following manually invoked utilities contain direct PostgreSQL/Redis/API acc
 
 ### Outstanding CLI/access-path work
 
-- Apply a consistent local-only safety guard or retire the remaining legacy M5/M6 and migration harness scripts; do not run them against staging/shared databases.
-- Add explicit target-environment confirmation to all staging bootstrap scripts before they are used again.
+- Decide whether to retire obsolete legacy M5/M6 and migration harness scripts after the final consolidated test campaign. They now have explicit local development/test guards; do not run them against staging/shared databases.
+- The five staging bootstrap scripts and db:bootstrap:staging package sequence now require explicit staging environment, exact database name and a second approval token before writes. This is a guard, not authorization to execute.
 - Map any external Render startup command and deployment secret source to the exact migration and seed identity; source-level DATABASE_URL names alone do not prove deployed role identity.
 - Reconcile every script's schema writes with migration ownership and RLS design. A migration/seed/service-role bypass must remain a separate, least-privilege capability.
 

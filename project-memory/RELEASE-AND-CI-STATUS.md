@@ -384,3 +384,12 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Implementation completed since the prior checkpoint: 53 service/worker candidate map, 28-controller callsite map, CLI/migration/bootstrap map, physical database object inventory, read-only audit enhancement, local admin/reset/M6 OTP safety fixes, and ambiguous legacy carrier webhook rejection with focused tests added.
 - No tests were run, no CI was triggered, and no staging/shared DB action, migration, seed, reset, grant, RLS change, deployment, worker activation or provider call occurred. Full testing remains deferred until implementation and integration are ready.
 - Next: harden/retire legacy UAT scripts, add staging bootstrap target confirmation, finish method-level ownership predicates, then seek protected read-only live identity/catalog evidence. RLS activation is not approved.
+
+
+## Current branch and verification checkpoint — 22 November 2026
+
+- PR #138 remains open, draft and unmerged from remediation/phase-0-1-tenant-security to develop. Current branch/PR head: `b78ad3137ecc7820e8a4a0c3816a772bff764c3d`, commit security(staging): require explicit bootstrap target approval [skip ci].
+- No GitHub Actions run is attached to current head. Latest actual branch run #1337 tested 06cd8fc1e56dc7ef64a141b97b594adc96ffbece: Flutter passed; API lint/typecheck steps passed (309 lint warnings, zero errors; nine typecheck tasks successful); changed-file Prettier failed on nine files, skipping API unit/coverage, PostgreSQL integration, Web/Admin, migration, build and smoke jobs.
+- Current head combined statuses: Vercel Admin FAILURE and Vercel Web FAILURE, both reporting the provider build-rate-limit/upgrade gate. These are preview-provider failures, not application test evidence.
+- Implementation since the previous checkpoint: source maps for 53 service/worker candidates and 28 module controllers; CLI/migration/bootstrap and physical DB object inventories; read-only audit enhancement; local admin/reset/M6 OTP safety; ambiguous carrier webhook rejection; shared local UAT guards across legacy scripts; exact-target staging bootstrap guards and package preflight. Guard tests were added but not run.
+- No tests were run, no CI was triggered, and no staging/shared DB action, migration, seed, reset, grant, RLS change, deployment, worker activation or provider call occurred. Full testing remains deferred until implementation and integration are ready.

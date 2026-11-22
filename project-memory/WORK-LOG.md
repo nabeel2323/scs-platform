@@ -486,3 +486,13 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Enhanced apps/api/scripts/audit-db-access.ts (still BEGIN READ ONLY) to enumerate relation kinds, owners, RLS/policy/extension/partition metadata, partition bounds and safe migration/backfill summaries. No audit was run.
 - The 116 historical count remains unresolved; the next protected read-only run must compare relation-kind scopes and enumerate current partitions.
 - Current branch head: 2477a958699a933c71f168d5397f39ca0ab26a34. Current head has no Actions run; Vercel Admin/Web both report build-rate-limit failure. No tests were run.
+
+
+## 2026-11-22 — UAT and staging bootstrap safety completion
+
+- Added apps/api/scripts/local-uat-safety.ts and applied it to 11 M5/M6 TypeScript UAT/diagnostic scripts. The separately hardened m6-env-check.ts retains its explicit local guard. Both b1-migration-test.js and p311-migration-verify.js now require development/test plus explicit UAT confirmation.
+- The shared UAT helper rejects missing/non-development environment, missing SCS_UAT_CONFIRM, and remote DB/API/Redis hosts where targets are supplied. M5 DATABASE_URL overrides can no longer point to a remote DB. It cannot inspect the DB behind a separately running local API; that remains an operator precondition.
+- Added staging-bootstrap-safety.ts and verify-staging-bootstrap-target.ts. All five staging bootstrap scripts call the helper before BEGIN/write; db:bootstrap:staging now runs the target preflight before RBAC seed and bootstrap commands.
+- Staging bootstrap requires SCS_ENVIRONMENT=staging, SCS_STAGING_BOOTSTRAP_CONFIRM=true, exact SCS_STAGING_BOOTSTRAP_DATABASE and SCS_STAGING_BOOTSTRAP_APPROVAL=I_APPROVE_STAGING_BOOTSTRAP:<database>. The connected current_database() is compared before writes.
+- Added unit tests for both guard helpers; tests were not run. No UAT/migration/bootstrap script was executed and no database connection was opened by this implementation.
+- Current branch head: b78ad3137ecc7820e8a4a0c3816a772bff764c3d; no Actions run; Vercel Admin/Web report provider build-rate-limit failures.

@@ -315,3 +315,13 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Remaining implementation: standardize/retire legacy M5/M6 UAT/migration scripts, add uniform staging-bootstrap target confirmation, and complete method-level service-to-table ownership predicates. Live API/migration identities and the protected 114-versus-116 catalog audit remain external evidence gates.
 - Latest actual Actions run #1337 is on 06cd8fc1e56dc7ef64a141b97b594adc96ffbece, not current head. Flutter passed; lint/typecheck steps passed with 309 warnings and zero errors; Prettier failed on nine files. Current head has no Actions run; Vercel Admin/Web both fail due to provider build-rate-limit. No tests or CI were run for current implementation commits.
 - No staging/shared DB command, migration, seed, reset, grant, RLS change, deployment, worker activation, provider call or test execution occurred. Comprehensive testing remains the final consolidated phase.
+
+
+## Latest implementation checkpoint — 22 November 2026
+
+- Current branch/PR head: `b78ad3137ecc7820e8a4a0c3816a772bff764c3d`, PR #138 open/draft/unmerged to develop.
+- Completed G-002 source work: service/worker map (53 candidates), controller-to-service map (28 controllers), direct controller DB and shared scope helper map, CLI/migration/bootstrap map, physical DB object inventory and read-only audit enhancement.
+- Legacy M5/M6 UAT and two migration harnesses now require development/test environment and explicit UAT confirmation; local DB/API/Redis URL validation is applied where supplied. All five staging bootstrap scripts require exact staging DB name and a second target-specific approval; package bootstrap preflight runs before seed writes.
+- Carrier webhook provider-only legacy route now rejects ambiguous active credentials; focused tests are committed but not run.
+- Next: method-level service-to-table owner predicate mapping and worker/outbox/system context review. Live API/migration identities and protected 114-versus-116 catalog evidence remain external read-only gates.
+- Current head has no Actions run; Vercel Admin/Web fail due to provider build-rate-limit. No tests were run, no CI was triggered, and no staging/shared DB action occurred.

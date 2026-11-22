@@ -238,3 +238,8 @@ The source-level physical inventory now reconciles the 19-November 114 public r/
 The controller-to-service callsite map covers all 28 module controllers. A legacy carrier webhook ambiguity was fixed by rejecting provider-only callbacks when multiple active credentials exist; focused tests are committed but not run.
 
 Remaining implementation: guard or retire legacy M5/M6 scripts, add target confirmation to staging bootstrap scripts, and complete method-level owner predicates. Live API/migration identities and protected catalog evidence remain gated. No tests, CI, staging or shared DB actions occurred.
+
+
+## G-002 UAT/staging safety update — 22 November 2026
+
+Legacy M5/M6 UAT scripts and both JavaScript migration harnesses now fail closed unless explicitly in development/test with SCS_UAT_CONFIRM=true; DB/API/Redis targets must be local where supplied. The five staging bootstrap scripts and package sequence now require exact staging environment/database/approval confirmation before writes. Unit tests were added but not run. Remaining source work is method-level ownership-predicate mapping and worker/outbox/system context review; live identities and 114-versus-116 remain protected read-only gates.

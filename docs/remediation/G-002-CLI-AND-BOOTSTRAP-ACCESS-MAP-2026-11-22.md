@@ -46,3 +46,24 @@ No script was executed. No staging write, shared DB mutation, migration, seed, r
 ## Non-Drizzle database object handoff
 
 Migration 0053 creates public.backfill_errors and is the only writer found in the inspected source. It records PRODUCT/VARIANT attribute backfill errors without tenant owner fields or declared FKs; no API reader/writer was found. Treat it as SYSTEM/MIGRATION evidence until a supported operator reader is identified. _migration_log and analytics_events partitions are mapped in the physical object inventory. No table contents were read.
+
+
+## Guard standardization for legacy UAT and staging bootstrap scripts — 22 November 2026
+
+### Local M5/M6 UAT and migration harnesses
+
+Added apps/api/scripts/local-uat-safety.ts and applied it to m5-roundtrip-check.ts, m5-uat-run.ts, m5-uat-verification.ts, m6-clean.ts, m6-diag.ts, m6-fix-cart-constraint.ts, m6-get-otp.ts, m6-restore-admin.ts, m6-uat-run.ts, m6.1-inventory-concurrency.ts and m6.1-security-regression.ts. The independently hardened m6-env-check.ts retains its own equivalent guard. The b1-migration-test.js and p311-migration-verify.js harnesses now require the same explicit development/test environment and UAT confirmation.
+
+Required for TypeScript UAT scripts: SCS_ENVIRONMENT=development or test and SCS_UAT_CONFIRM=true. Database/API/Redis URLs supplied to the shared helper must resolve to local hosts; M5 DATABASE_URL overrides pointing at remote hosts are rejected. The helper cannot inspect the database behind a separately running local API, so the operator must also verify that the API process itself uses a local development/test DATABASE_URL. These scripts were not executed.
+
+### Staging bootstrap scripts
+
+Added apps/api/scripts/staging-bootstrap-safety.ts and verify-staging-bootstrap-target.ts. All five bootstrap-staging platform/merchant/store/staff/RBAC scripts call the guard after connecting and before BEGIN or any write. The package db:bootstrap:staging command now runs the preflight before the RBAC seed and bootstrap sequence.
+
+Required variables:
+- SCS_ENVIRONMENT=staging
+- SCS_STAGING_BOOTSTRAP_CONFIRM=true
+- SCS_STAGING_BOOTSTRAP_DATABASE=<exact database name>
+- SCS_STAGING_BOOTSTRAP_APPROVAL=I_APPROVE_STAGING_BOOTSTRAP:<exact database name>
+
+The guard checks current_database() against the exact approved database and fails closed before writes. The preflight also requires DATABASE_URL and PGSSLROOTCERT. These checks are not permission to run the scripts; no staging bootstrap was executed.

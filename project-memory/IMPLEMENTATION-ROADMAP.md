@@ -162,3 +162,8 @@ Next: map each API controller route to the exact service method and table/raw-SQ
 Completed the source maps for 53 API service/worker candidates, 28 module controllers, direct controller DB access, shared tenant-scope helpers, CLI/migration/bootstrap paths and the 15 non-Drizzle public relations in the 19-November 114-table count. Added a legacy carrier webhook ambiguity fix and enhanced the read-only audit utility.
 
 Next implementation is local-only hardening/retirement of legacy M5/M6 scripts, uniform target confirmation for staging bootstrap scripts, and method-level service-to-table ownership predicates. The live API/migration identities and 114-versus-116 relation count remain protected read-only evidence gates. No tests or Actions were run.
+
+
+## G-002 operator script safety checkpoint — 22 November 2026
+
+Completed shared local-only guard coverage for the legacy M5/M6 UAT scripts and migration harnesses, plus exact-target confirmation for all staging bootstrap scripts and the package preflight. No scripts were executed. Next: method-level service-to-table ownership predicates, worker/outbox/system context review, then protected live identity/catalog verification.
