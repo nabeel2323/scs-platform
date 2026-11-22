@@ -438,3 +438,7 @@ The Merchant Warehouses page conflated failed store lookup with no store and fai
 ## UX-043 — Admin Dashboard — 22 November 2026
 
 Admin Dashboard KPI and organization-update reads previously swallowed failures, and Catalog Imports/Requests shared one error state. The dashboard now has independent retryable reads, suppresses false empty states, shows KPI values as unavailable instead of zero after failed reads, and retains last successful data during failed refreshes. Focused test added but not executed. UX-043 remains TESTING_PENDING for the consolidated campaign. No API or permission change.
+
+## UX-044 — Admin KPI Dashboard — 22 November 2026
+
+The dedicated KPI Dashboard silently swallowed read failures, offered no retry and allowed overlapping date-range reads to race. It now has explicit retryable errors, request-version protection and stale-data preservation; initial failures show unavailable metrics rather than zero defaults. Focused test added but not executed. UX-044 remains TESTING_PENDING for the consolidated campaign. No API or permission change.
