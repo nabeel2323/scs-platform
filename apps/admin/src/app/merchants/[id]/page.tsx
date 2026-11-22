@@ -135,11 +135,11 @@ function MerchantDetailContent({ id }: { id: string }) {
             <AdminDetailSection title="Store Information">
               <AdminKeyValueGrid items={overviewItems} />
             </AdminDetailSection>
-            {(merchant['logoUrl'] || merchant['coverUrl']) && (
+            {(typeof merchant['logoUrl'] === 'string' || typeof merchant['coverUrl'] === 'string') && (
               <AdminDetailSection title="Store Branding">
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
-                  {merchant['logoUrl'] && <div><h3 style={{ fontSize: 13 }}>Logo</h3><PreviewImage reference={String(merchant['logoUrl'])} /></div>}
-                  {merchant['coverUrl'] && <div><h3 style={{ fontSize: 13 }}>Cover image</h3><PreviewImage reference={String(merchant['coverUrl'])} /></div>}
+                  {typeof merchant['logoUrl'] === 'string' && <div><h3 style={{ fontSize: 13 }}>Logo</h3><PreviewImage reference={merchant['logoUrl']} /></div>}
+                  {typeof merchant['coverUrl'] === 'string' && <div><h3 style={{ fontSize: 13 }}>Cover image</h3><PreviewImage reference={merchant['coverUrl']} /></div>}
                 </div>
               </AdminDetailSection>
             )}
