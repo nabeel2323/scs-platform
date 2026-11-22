@@ -792,3 +792,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added explicit error/retry state, request-version protection and stale-data preservation. Initial failures show KPI data as unavailable rather than zero defaults; failed refreshes retain the last successful KPI view with a warning.
 - Added `admin-kpi-recovery.test.tsx` for initial read failure/retry and no fabricated zero values. Test not executed.
 - No API, permission, schema, database or migration change. Commits use `[skip ci]`; no deployment or staging action.
+
+## 2026-11-22 — UX-045 Admin Organizations read recovery
+
+- The Admin Organizations page used one `Promise.all` for the organization directory and update-request queue. A single endpoint failure blocked both datasets and could produce false empty states.
+- Split the reads into independent retryable loaders with separate loading/error states and request-version guards. Failed reads no longer render empty states; the successful list remains usable when the other endpoint fails; previously loaded rows remain visible after failed refreshes.
+- Added `admin-organizations-recovery.test.tsx` for independent failure/retry and empty-state suppression. Test not executed.
+- No API, permission, schema, database or migration change. Commits use `[skip ci]`; no deployment or staging action.
