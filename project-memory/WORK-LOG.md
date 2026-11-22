@@ -405,3 +405,13 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Documented the separate ownership concerns for outbox consumer eligibility, worker/system identity, order/return delegated transitions, user-private notification/device rows, analytics privacy, and dispute/conversation participant ownership.
 - DB-003 remains IN PROGRESS: remaining module services, webhook/CLI/migration paths, exact SQL statement predicates, full FK ownership, non-Drizzle physical relations and the 114-vs-116 discrepancy are still open.
 - No tests, CI, live DB query/write, migration, grants, RLS, staging/deployment, provider call or worker activation occurred.
+
+
+## 2026-11-22 — G-002 schema ownership and predicate candidates
+
+- Reviewed the Drizzle schema declarations for identity, merchant, catalog, taxonomy, orders/cart/shipments, payments, returns, promotions, inventory, pricing, notifications, audit, reviews/disputes, shipping, catalog imports and operations.
+- Created `docs/remediation/G-002-TABLE-OWNERSHIP-AND-PREDICATE-CANDIDATES-2026-11-22.md` with preliminary ownership paths and principal classes: PLATFORM, ORGANIZATION, STORE, BUYER, ORDER, PARENT, SYSTEM and MIXED.
+- Recorded critical multi-owner relationships: buyer/store order participants, store/warehouse/variant inventory, payment/refund/return lineage, assigned-driver shipment access, conversation participants, provider-credential webhook identity and worker/system records.
+- Explicitly separated owner columns from actor-attribution fields such as created_by, uploaded_by, reviewed_by, performed_by and actor_id. Flagged plain UUID references and missing direct org columns for migration/catalog verification.
+- Extended the operation map with AdminService, CatalogImportService, StoreMembershipService, carrier tracking/webhook, reconciliation and operations-control paths. Updated START-HERE and DB-003 evidence links.
+- These are static source observations only. No tests, CI, live DB query/write, migration, grants, RLS, staging, deployment, worker activation or provider call occurred.
