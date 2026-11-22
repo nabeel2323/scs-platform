@@ -56,11 +56,11 @@ final activeOrgIdProvider = StateProvider<String?>((ref) => null);
 /// this call a signed-out device keeps showing the previous user's phone/email
 /// to whoever signs in next. Single helper on purpose — every logout or
 /// session-expiration path must drop phone and email together, never one.
-void resetIdentityProviders(WidgetRef ref) {
-  ref.read(currentUserPhoneProvider.notifier).state = '';
-  ref.read(currentUserEmailProvider.notifier).state = null;
-  ref.read(activeOrgIdProvider.notifier).state = null;
-  invalidateAuthenticatedSessionProviders(ref.container);
+void resetIdentityProviders(ProviderContainer container) {
+  container.read(currentUserPhoneProvider.notifier).state = '';
+  container.read(currentUserEmailProvider.notifier).state = null;
+  container.read(activeOrgIdProvider.notifier).state = null;
+  invalidateAuthenticatedSessionProviders(container);
 }
 
 /// Restores the authentication session from secure storage on cold start.
