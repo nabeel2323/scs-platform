@@ -378,7 +378,7 @@ export class CatalogController {
    */
   @Get('merchant/products/:id/moderation-history')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('merchant:products:read')
+  @RequirePermission('catalog:products:read')
   async getMerchantModerationHistory(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -664,7 +664,7 @@ export class CatalogController {
 
   @Get('stores/:storeId/imports')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('merchant:products:read')
+  @RequirePermission('catalog:products:read')
   async listImportJobs(
     @Param('storeId') storeId: string,
     @CurrentUser() user: JwtPayload,
@@ -677,7 +677,7 @@ export class CatalogController {
 
   @Get('imports/:id')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('merchant:products:read')
+  @RequirePermission('catalog:products:read')
   async getImportJob(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
@@ -759,7 +759,7 @@ export class CatalogController {
 
   @Get('imports/:id/chunks')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('merchant:products:read')
+  @RequirePermission('catalog:products:read')
   async getImportChunks(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
@@ -817,7 +817,7 @@ export class CatalogController {
 
   @Get('imports/:id/errors')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('merchant:products:read')
+  @RequirePermission('catalog:products:read')
   async getImportErrors(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
