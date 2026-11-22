@@ -414,3 +414,9 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - `apps/web/src/app/merchant/inventory/page.tsx` no longer converts a failed `fetchInventoryMovements` request into a successful empty history. The dialog shows a retryable error; “No movements recorded yet” is shown only after a successful empty response.
 - Extracted `readInventoryHistory` into `apps/web/src/lib/inventory-history.ts`.
 - Added `apps/web/src/__tests__/inventory-history-recovery.test.ts` for successful and failed reads. Not executed. No API, permission, schema or DB changes.
+
+## 22 November 2026 — Merchant Inventory and Import History UX re-audit (UX-038 / UX-039)
+
+- Merchant Inventory variant lookup previously swallowed each individual `fetchProductVariants` failure and returned a partial list as if complete. The source now treats the directory read as one complete operation, exposes an explicit retry on failure, and ignores stale requests. Focused helper tests cover paginated success, true empty results and partial failure; not executed.
+- Merchant Import History previously swallowed store lookup errors, could remain in an indefinite loading state when no store resolved, and conflated failed import reads with a successful empty history. Store discovery and job reads now have explicit retry/error/no-store states. Polling is limited to active jobs and avoids overlapping reads. Focused component tests added; not executed.
+- UX-038 and UX-039 are IMPLEMENTED in source and TESTING_PENDING. No API, permission, schema or database behavior changed.
