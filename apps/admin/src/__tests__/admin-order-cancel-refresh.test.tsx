@@ -98,6 +98,7 @@ describe('admin order cancellation refresh recovery', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry order details' }));
     expect(await screen.findByText('Order status: CANCELLED')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toContain('Order cancelled successfully.');
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });

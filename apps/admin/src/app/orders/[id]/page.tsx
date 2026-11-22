@@ -102,7 +102,10 @@ function OrderDetailContent({ id }: { id: string }) {
     setRefreshError('');
     try {
       const data = await fetchAdminOrderDetail(id);
-      if (requestId === requestVersion.current) setOrder(data);
+      if (requestId === requestVersion.current) {
+        setOrder(data);
+        if (cancelCompleted) setActionSuccess('Order cancelled successfully.');
+      }
       return requestId === requestVersion.current;
     } catch (err) {
       if (requestId === requestVersion.current) {
@@ -112,7 +115,7 @@ function OrderDetailContent({ id }: { id: string }) {
     } finally {
       if (requestId === requestVersion.current) setRefreshing(false);
     }
-  }, [id]);
+  }, [id, cancelCompleted]);
 
   const handleCancel = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
