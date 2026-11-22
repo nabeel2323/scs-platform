@@ -116,7 +116,7 @@ export default function ReconciliationPage() {
     if (!hasAccess) return;
     const requestId = ++detailRequestVersion.current;
     setSelectedRunId(id);
-    setSelectedRun(null);
+    if (selectedRunId !== id) setSelectedRun(null);
     setDetailLoading(true);
     setDetailError('');
     try {
@@ -127,7 +127,9 @@ export default function ReconciliationPage() {
     } finally {
       if (requestId === detailRequestVersion.current) setDetailLoading(false);
     }
-  }, [hasAccess]);
+  }, [hasAccess, selectedRunId]);
+
+  useEffect(() => () => { detailRequestVersion.current += 1; }, []);
 
   const handleRun = async () => {
     if (!canWrite) return;
@@ -311,8 +313,18 @@ export default function ReconciliationPage() {
       {detailError && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}><span>{detailError}</span><button onClick={() => selectedRunId && void loadRunDetail(selectedRunId)} style={{ background: '#374151', color: '#fff', border: 0, borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>Retry</button></div>}
       {selectedRun && selectedRun.discrepancies && (
         <div>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
-            Discrepancies for Run {selectedRun.id.slice(0, 8)}... (v{selectedRun.version})
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>
+              Discrepancies for Run {selectedRun.id.slice(0, 8)}... (v{selectedRun.version})
+            </div>
+            <button
+              type="button"
+              onClick={() => selectedRunId && void loadRunDetail(selectedRunId)}
+              disabled={detailLoading}
+              style={{ background: '#374151', color: '#fff', border: 0, borderRadius: 6, padding: '5px 12px', cursor: detailLoading ? 'wait' : 'pointer', fontSize: 12 }}
+            >
+              {detailLoading ? 'Refreshing…' : 'Refresh run details'}
+            </button>
           </div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 12 }}>
             Marking a discrepancy resolved does NOT change financial records. It only records that

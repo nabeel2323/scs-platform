@@ -258,7 +258,7 @@ function RequestsPageContent() {
         </div>
 
         <p style={{ fontSize: 12, color: '#5b6b74', margin: '8px 0' }}>
-          Showing {hasCurrentResults ? requests.length : '—'} request{hasCurrentResults && requests.length !== 1 ? 's' : 's'}
+          Showing {hasCurrentResults ? requests.length : '—'} {hasCurrentResults && requests.length === 1 ? 'request' : 'requests'}
         </p>
 
         {/* Table */}

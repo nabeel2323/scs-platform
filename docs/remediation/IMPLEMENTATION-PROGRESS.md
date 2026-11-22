@@ -1596,3 +1596,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Neither page displays rows from a previous filter as if they belonged to the newly selected filter; failed first reads remain errors rather than successful empty states.
 - Added `admin-settlements-recovery.test.tsx` and `admin-settlement-adjustments-recovery.test.tsx` for initial failure/retry, stale-data preservation and filter isolation.
 - Tests remain pending the consolidated Phase 3 campaign. No settlement/adjustment business actions, payment logic, API, permissions, schema, migration, database, staging or provider behavior changed.
+
+
+## UX-063 — Admin Reconciliation detail recovery — 22 November 2026
+
+- Reconciliation detail refresh now preserves the last successfully loaded discrepancy detail when refreshing the same run. If the refresh fails, the retryable detail error is shown without discarding the last known detail.
+- Added an explicit Refresh run details action and invalidates pending detail requests on unmount. Existing request-generation protection continues to prevent an older selected-run response from overwriting a newer selection.
+- Added `admin-reconciliation-detail-recovery.test.tsx` for successful detail load followed by failed refresh with stale-detail preservation.
+- Corrected the Catalog Requests result-count singular/plural label as a small UX-060 polish fix.
+- No reconciliation execution, discrepancy resolution, financial record, API, permission, schema, migration, database, staging or provider behavior changed. Tests remain pending the consolidated Phase 3 campaign.
