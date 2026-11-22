@@ -10,6 +10,7 @@ import { PageHeader } from '@scs/ui-kit';
 
 export default function WarehousesPage() {
   const { user } = useAuth();
+  const activeOrgId = user?.activeOrgId ?? null;
   const [store, setStore] = useState<Store | null>(null);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +57,8 @@ export default function WarehousesPage() {
     setLoading(true);
     setStoreError('');
     setNoStore(false);
+    setStore(null);
+    setWarehouses([]);
     try {
       const stores = await fetchMyStores();
       if (requestId !== storeRequestRef.current) return;
@@ -76,7 +79,7 @@ export default function WarehousesPage() {
     } finally {
       if (requestId === storeRequestRef.current) setLoading(false);
     }
-  }, [loadWarehouses]);
+  }, [loadWarehouses, activeOrgId]);
 
   useEffect(() => {
     void resolveStore();
