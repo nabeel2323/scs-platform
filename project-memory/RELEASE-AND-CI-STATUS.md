@@ -1,11 +1,12 @@
 # SCS Platform — Release and CI Status
 
-**Checkpoint:** 21 November 2026  
+**Checkpoint:** 22 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Last inspected pre-release-status-update SHA:** `9da572ea16ad205e72cdedd954e153ae1f9a8a89`
+**Latest PR #138 head:** `c30dce7fd126c1ac1b7279cc895e5786a208173a`  
+**Exact-head GitHub Actions:** no workflow run attached; the latest grouped source commits intentionally used `[skip ci]` to conserve Actions minutes. External Vercel statuses are pending and are not GitHub Actions test results.
 
-## Latest CI run
+## Previous CI run at the 21 November checkpoint (historical)
 
 ### CI #1184
 
@@ -320,3 +321,13 @@ Neither PR is merged. CI results are disposable-environment verification only; l
 
 - Source head: `10a890a3a69f7281b93f4a8e80b735f2228825cb`. Lint/typecheck and Flutter analysis/tests passed. The only completed gate failure was Prettier on four project-memory documents. API unit/coverage, PostgreSQL integration, Web/Admin tests, migration, boundary lint, build and smoke jobs were skipped.
 - A repository-locked Prettier correction is being applied to the four documents. Exact-head CI must be rerun after formatting.
+
+
+## Current branch checkpoint — 22 November 2026
+
+- PR #138 remains open/draft/unmerged. Latest branch head: c30dce7fd126c1ac1b7279cc895e5786a208173a.
+- Five grouped implementation/documentation commits after the earlier checkpoint used [skip ci]. Exact-head workflow lookup returned no GitHub Actions run. The current combined statuses contain pending external Vercel web/admin checks; they are not passing test evidence.
+- Grouped source changes include Admin dashboard/commission permission enforcement, cart mutation orders:write enforcement, Aramex provider registry registration, API route/client/permission and worker/provider matrices, and focused regression tests. The new tests have not been executed.
+- PR #142 remains open/draft/unmerged on security/runtime-db-identity-diagnostics at dddff20c170737dc4694008bb807b2b90e177f77. Exact-head CI #1293 (run 44953735602) completed successfully, including the disposable PostgreSQL identity integration test. This does not verify live staging API or migration identities.
+- No staging release, production deployment, shared database mutation, migration 0070/0071 application, grants/default-ACL change, RLS enablement, worker activation, k6 run or Phase 6 E2E campaign is claimed.
+- The Actions-minute conservation decision remains: continue grouped implementation with CI skipped; run one consolidated verification campaign after implementation and documentation are ready.

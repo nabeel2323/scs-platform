@@ -9,7 +9,7 @@
 
 This inventory is derived from the Drizzle schema modules re-exported by apps/api/src/drizzle/schema.ts on the reviewed branch. It names **99 tables across the exported Drizzle schema modules**.
 
-It is not the complete live database inventory. The historical 116-table count came from a 19 November read-only live observation; the remaining tables must be reconciled from a refreshed protected catalog audit. Raw-SQL-only tables, extensions, partitions, views, or objects in other schemas may not appear in the Drizzle export.
+It is not the complete live database inventory. The detailed 19-November catalog report and 21-November Drizzle reconciliation agree on 114 public relations: 99 Drizzle table declarations plus 15 non-Drizzle/partition relations. A separate 116-table count appears in earlier/summary wording, but its scope is not reconciled against the detailed 114-relation inventory. Treat 114 as the last detailed public-schema snapshot, keep the 116 discrepancy open, and refresh the protected catalog audit before using either count as a current total. Raw-SQL-only tables, extensions, partitions, views, or objects in other schemas may not appear in the Drizzle export.
 
 The scope descriptions below are candidate row-ownership models, not verified direct column predicates. They must not be translated mechanically into policies. Exact owner columns, foreign-key paths, route/service operations, worker access, and write semantics still require source and migration inspection.
 
@@ -149,3 +149,8 @@ Before a row is marked policy-ready, add and verify all of the following from so
 ## Safety boundary
 
 This is design evidence only. It does not authorize a staging release, shared-database mutation, migration 0070, grant/default-ACL changes, RLS enablement, worker activation, or deployment.
+
+
+## Relation-count discrepancy — 22 November 2026
+
+The detailed 19-November public-schema inventory records 114 relations (1 partitioned parent, 13 analytics partitions and 100 ordinary tables). The 21-November schema coverage reconciliation maps 99 Drizzle table declarations plus 15 relations without separate Drizzle declarations, also totaling 114. This matrix's earlier 116-table wording is not supported by those detailed lists and its scope is unknown. Do not silently substitute 116 or declare the discrepancy closed: a refreshed protected read-only catalog audit must enumerate schemas, relation kinds, partitions and migration/system objects and explain the two-relation delta, if any.

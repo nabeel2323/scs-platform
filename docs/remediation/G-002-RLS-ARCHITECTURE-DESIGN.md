@@ -133,7 +133,7 @@ For every physical table (including tables not exported through the Drizzle sche
 - required SQL privileges separately from row policies;
 - positive and negative PostgreSQL tests for every role and operation.
 
-The final matrix must reconcile the 99-table Drizzle export with all 116 tables observed in the 19 November live inventory plus any additional objects discovered by a refreshed inventory. The 116 count is historical, not a current count guarantee. The companion matrix deliberately marks every candidate classification as unverified until direct columns, FK paths and operation evidence are added.
+The final matrix must reconcile the 99-table Drizzle export with the last detailed 114-public-relation inventory and resolve the separate 116-table count appearing in older summary wording. The scope of the 116 count is unknown and must not be treated as a verified public-schema total. A refreshed protected catalog audit must enumerate schemas, relation kinds, partitions and migration/system objects before the inventory is marked complete. The companion matrix deliberately marks every candidate classification as unverified until direct columns, FK paths and operation evidence are added.
 
 ## 7. Required isolated PostgreSQL acceptance tests
 
@@ -154,7 +154,7 @@ Required cases:
 
 ## 8. Rollout gates
 
-1. Complete and independently review the 116+ table operation/ownership matrix.
+1. Complete and independently review the refreshed catalog operation/ownership matrix after resolving the 114-versus-116 relation-count discrepancy.
 2. Obtain actual API and migration identity evidence through the protected release path. CI identities are not substitutes.
 3. Implement and test the transaction-bound context mechanism without enabling RLS.
 4. Prove application compatibility under the proposed non-owner API role and minimal grants.

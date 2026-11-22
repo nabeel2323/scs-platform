@@ -239,3 +239,12 @@ A static source pass after the grouped Admin permission and shipping-provider ch
 - Corrected provider fallback semantics: shipment create/cancel/label operations default to manual-driver; the separate CarrierTrackingPoller defaults missing provider keys to aramex. The registry fix covers explicitly configured Aramex operations and tracking polls.
 - Cross-checked worker startup/activation: P13 return-expiration is opt-in and disabled by default; P13Monitor is separate, read-only and always starts on API instances at the configured cadence; other in-process pollers start without the P13 gate and rely on their own claim/lease behavior.
 - No worker was activated, no live credentials used, and no staging/production service was restarted or changed.
+
+
+## Current handover checkpoint — 22 November 2026
+
+- PR #138 is open/draft/unmerged at c30dce7fd126c1ac1b7279cc895e5786a208173a. The grouped implementation commits used [skip ci]; no exact-head GitHub Actions run exists. External Vercel web/admin statuses are pending, not test results.
+- PR #142 is open/draft/unmerged at dddff20c170737dc4694008bb807b2b90e177f77; CI #1293 passed on that exact head against disposable PostgreSQL. Live staging API/migration identities remain unverified.
+- Completed source batches: Admin dashboard/commission permission gates; cart mutation orders:write API enforcement; Aramex provider registry wiring; 28-controller API route-family mapping; Admin/Web/Mobile wrapper-symbol mapping; worker/provider activation mapping. Focused tests are added but not executed.
+- Next high-priority task is G-002 evidence completion: reconcile the 114-vs-116 relation-count discrepancy, finish exact table/operation ownership paths (including migration ledger, backfill_errors and analytics partitions), inventory every DB access path before designing transaction-bound context, and keep RLS disabled until independent review and explicit staging authorization.
+- Do not run repeated CI during implementation. Preserve the single consolidated Phase 3 verification campaign; no staging/production deployment, shared DB mutation, migrations, grant change, RLS enablement or worker activation is authorized or claimed.
