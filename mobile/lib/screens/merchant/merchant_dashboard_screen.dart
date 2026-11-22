@@ -381,7 +381,8 @@ class MerchantDashboardScreen extends ConsumerWidget {
                 accent: (k.lowStockCount ?? 0) > 0 ? TaifTokens.err : null,
                 onTap: () => _open(context, 'inventory', '/merchant/inventory')),
         ],
-      ),
+          ),
+        ],
       ),
     );
   }
