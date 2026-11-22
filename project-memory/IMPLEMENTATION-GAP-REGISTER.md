@@ -608,3 +608,11 @@ The three source commits `d65b1eaf3f2098167c1c404fc7f96f54716d9af4`, `43d38171ad
 - Calendar configuration, holiday and audit reads were coupled. A failed initial calendar read could also render “No business calendar configured”; failures had no retry action. Holiday/audit empty states could be misleading after a failed dependent read, and requests had no stale-response guard.
 - Added request-version protection, explicit Retry calendar, error-aware suppression of the no-calendar/empty holiday/empty audit states, and cleanup invalidation. Calendar list, holidays and audit still use the existing endpoints; no new API contract.
 - Added `admin-calendar-recovery.test.tsx`. Test not executed. No API, permission, schema or database change.
+
+## UX-058 — Admin Attribute Groups and Definitions read recovery — 22 November 2026
+
+**Status: IMPLEMENTED — TESTING_PENDING. Priority: P2.**
+
+- Attribute Groups and Attribute Definitions already exposed retry buttons, but their failed reads could still render empty result rows/counts. Attribute Definitions also issued overlapping filter requests without guarding stale completion.
+- Added request-version guards and cleanup invalidation to both pages, role-aware read guards, explicit alert semantics, and suppression of empty-result rows/counts after failures. Last successful data remains visible during failed refreshes.
+- Added `admin-attribute-groups-recovery.test.tsx` and `admin-attributes-recovery.test.tsx`. Tests not executed. No API, permission, schema or database change.
