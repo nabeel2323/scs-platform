@@ -799,3 +799,11 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Split the reads into independent retryable loaders with separate loading/error states and request-version guards. Failed reads no longer render empty states; the successful list remains usable when the other endpoint fails; previously loaded rows remain visible after failed refreshes.
 - Added `admin-organizations-recovery.test.tsx` for independent failure/retry and empty-state suppression. Test not executed.
 - No API, permission, schema, database or migration change. Commits use `[skip ci]`; no deployment or staging action.
+
+## 2026-11-22 — UX-046 / UX-047 Admin Users and Merchants completion
+
+- Admin User Management: made phone optional in Create User to match the DTO/service; added independent retryable organization/role lookups; prevented partial initial memberships in the form and rejected incomplete org/role pairs at the AdminService boundary. Added API unit cases for organization-only and role-only payloads.
+- User Detail: exposed the existing audited profile-update endpoint, moved membership assignment/removal onto the dedicated detail route, surfaced status controls and added confirmation before suspension/deactivation. Corrected the permissions tab: it now loads each assigned role's configured permissions instead of presenting the global permission catalog as the user's effective permissions.
+- Merchant Detail: added store locale and popularity-badge visibility, logo/cover previews and structured address display using the existing store detail projection.
+- Added focused Admin tests `admin-create-user-recovery.test.tsx`, `admin-user-role-permissions.test.tsx`, `admin-merchant-detail.test.tsx`, plus API `admin-user-creation.spec.ts` coverage. Tests were not executed; full testing remains deferred to Phase 3.
+- No new API routes/permissions, schema/migration/database changes, deployment, staging write, RLS/grant change or worker activation. Implementation/test commits use `[skip ci]`.
