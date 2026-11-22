@@ -1223,3 +1223,30 @@ The ACTIVE-store visibility boundary uses a correlated SQL EXISTS predicate in b
 Mobile merchant pricing is now implemented against the existing pricing API: list/detail routes, price-list create/update/activation, quantity-tier CRUD, product/variant selection, offer linkage and MOQ-tier preflight. Admin order details now return and display product title, variant title and SKU. PricingService variant-tier reads require storeId and enforce the owning store through the priceLists join.
 
 Focused tests are committed but not run. The next source implementation stream is UX-010 re-audit of remaining Admin/Web/Mobile surfaces. G-002 live runtime identity/catalog evidence and transaction-context/RLS design remain protected gates; no global transaction interceptor, RLS or grants are approved.
+
+
+## 40. G-036 — Authorize realtime store and order room subscriptions — 23 November 2026
+
+### Finding
+
+The Socket.IO gateway authenticated the connection and restricted `user:{id}` rooms to the matching user, but it accepted arbitrary authenticated joins to `org:{storeId}` and `order:{orderId}` rooms. The store room broadcasts new-order metadata and order-status events; the order room broadcasts order status. A valid JWT alone did not prove store membership, buyer ownership, driver assignment or the required read permission. This created a cross-tenant realtime subscription path independent of the guarded REST endpoints.
+
+### Remediation implemented
+
+- Preserve the authenticated JWT subject, active organization, role and permission claims on the socket.
+- Validate room names and UUID identifiers; fail closed for malformed, missing or unauthorized targets.
+- Restrict `user:{id}` to the authenticated user.
+- Restrict `org:{storeId}` to an existing store and require `merchant:orders:read` plus active-organization ownership and ACTIVE store membership. Platform-privileged users require `orders:read`.
+- Restrict `order:{id}` to the buyer who owns the sub-order/master-order with `orders:read`, a merchant with `merchant:orders:read` plus active store membership, a driver assigned to the shipment with `fulfillment:shipments:read`, or platform staff with `orders:read`.
+- Make the Web merchant realtime client subscribe only when the active user has `merchant:orders:read`.
+- Add focused gateway regression tests for own/foreign user rooms, merchant permission and membership, foreign organization denial, buyer/master-order ownership, assigned/unassigned drivers and platform-staff grants.
+
+### Acceptance and verification
+
+- No unauthorized room may be joined, even when the socket has a valid JWT.
+- Store and order rooms must be scoped to the current organization and active store membership, buyer ownership or driver assignment as applicable.
+- Missing permissions, missing records, malformed identifiers and database authorization errors must fail closed without disclosing foreign-record existence.
+- Focused API and Web tests are added but have **not been executed**. Exact-head CI and independent security review remain pending; do not mark this finding closed.
+- No shared database privileges, RLS policies, migrations, staging records, worker configuration or deployment were changed.
+
+**Status:** IN PROGRESS — source remediation implemented; focused tests added, not executed; exact-head CI and independent review pending.
