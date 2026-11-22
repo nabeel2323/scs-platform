@@ -216,7 +216,7 @@ export default function MerchantOrganizationPage() {
   }, []);
 
   useEffect(() => {
-    if (addOpen && roles.length === 0 && !rolesLoading) void loadRoles();
+    if (addOpen && roles.length === 0 && !rolesLoading && !rolesError) void loadRoles();
   }, [addOpen, roles.length, rolesLoading, loadRoles]);
 
   const handleSave = async () => {
