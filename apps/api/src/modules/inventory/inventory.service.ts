@@ -449,25 +449,28 @@ export class InventoryService {
     if (input.quantity <= 0) throw new BadRequestException('Transfer quantity must be positive');
     if (input.fromWarehouseId === input.toWarehouseId) throw new BadRequestException('Source and destination warehouses must differ');
 
-    // Resolve the source relationship before authorization. Quantity is still
-    // re-read under FOR UPDATE below; these relationship fields establish the
-    // invariant that a variant can only move between warehouses in its store.
+    let fromStoreId: string | null = null;
+    let toStoreId: string | null = null;
+    let variantStoreId: string | null = null;
+
+    if (caller) {
+      [fromStoreId, toStoreId] = await Promise.all([
+        assertWarehouseMember(this.db, caller, input.fromWarehouseId),
+        assertWarehouseMember(this.db, caller, input.toWarehouseId),
+      ]);
+      // Authorize the existing item before loading its full row.
+      await assertInventoryItemMember(this.db, caller, input.inventoryItemId);
+    }
+
+    // Quantity is re-read under FOR UPDATE below. This read supplies the
+    // variant relationship only after the caller's item-access check.
     const item = await this.getItem(input.inventoryItemId);
     if (item['warehouseId'] !== input.fromWarehouseId) {
       throw new BadRequestException('Inventory item does not belong to source warehouse');
     }
 
-    let fromStoreId: string | null;
-    let toStoreId: string | null;
-    let variantStoreId: string | null;
-
     if (caller) {
-      [fromStoreId, toStoreId, variantStoreId] = await Promise.all([
-        assertWarehouseMember(this.db, caller, input.fromWarehouseId),
-        assertWarehouseMember(this.db, caller, input.toWarehouseId),
-        assertVariantStoreMember(this.db, caller, item['variantId']),
-      ]);
-      await assertInventoryItemMember(this.db, caller, input.inventoryItemId);
+      variantStoreId = await assertVariantStoreMember(this.db, caller, item['variantId']);
     } else {
       // Internal/system callers still preserve the same data invariant even
       // when there is no user membership context to validate.
