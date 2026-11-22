@@ -8,14 +8,14 @@ const { fetchAdminOrderDetail, cancelAdminOrder, hasAccess } = vi.hoisted(() => 
 }));
 
 vi.mock('next/navigation', () => ({ useParams: () => ({ id: 'order-123456789' }) }));
-vi.mock('../../../lib/api', () => ({
+vi.mock('../lib/api', () => ({
   fetchAdminOrderDetail: (...args: unknown[]) => fetchAdminOrderDetail(...args),
   cancelAdminOrder: (...args: unknown[]) => cancelAdminOrder(...args),
 }));
-vi.mock('../../../hooks/useRequirePerms', () => ({
+vi.mock('../hooks/useRequirePerms', () => ({
   useRequirePerms: () => ({ hasAccess: hasAccess(), missingPerms: [] }),
 }));
-vi.mock('../../../components/detail', () => ({
+vi.mock('../components/detail', () => ({
   AdminDetailHeader: ({ status }: { status: string }) => <header>Order status: {status}</header>,
   AdminDetailTabs: () => <nav>Order tabs</nav>,
   AdminDetailSection: ({ title, children }: { title: string; children: React.ReactNode }) => <section><h2>{title}</h2>{children}</section>,
