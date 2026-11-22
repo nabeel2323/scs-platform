@@ -30,6 +30,16 @@ export default function StepMedia({ state, setState }: StepMediaProps) {
   const [uploads, setUploads] = useState<UploadState[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
+  if (state.useExistingProductId) {
+    return (
+      <StepCard title="Product Media" subtitle="Canonical product media is shared across merchants">
+        <p style={{ color: '#5b6b74', margin: 0 }}>
+          Media belongs to the selected canonical product and is not changed when creating a store-specific offer.
+        </p>
+      </StepCard>
+    );
+  }
+
   const addImageUrl = (url: string) => {
     if (!url.trim()) return;
     if (state.mediaItems.length >= MAX_IMAGES) return;

@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { continueProductStudioStep, resolveProductPersistenceTarget } from '../lib/product-studio-flow';
+import { continueProductStudioStep, persistProductStudioMedia, resolveProductPersistenceTarget } from '../lib/product-studio-flow';
 
 
 describe('resolveProductPersistenceTarget', () => {
-  it('uses the selected canonical product instead of creating a duplicate merchant product', () => {
+  it('prefers the selected canonical product over a stale wizard product ID', () => {
     expect(
       resolveProductPersistenceTarget({
-        productId: null,
+        productId: 'stale-wizard-product',
         useExistingProductId: 'canonical-product-1',
       }),
     ).toEqual({
@@ -37,6 +37,42 @@ describe('resolveProductPersistenceTarget', () => {
       productId: null,
       isExistingCanonical: false,
     });
+  });
+});
+
+
+describe('persistProductStudioMedia', () => {
+  it('adds only media URLs not already persisted for the product', async () => {
+    const fetchExisting = vi.fn().mockResolvedValue([{ url: 'https://cdn.example.com/one.jpg' }]);
+    const add = vi.fn().mockResolvedValue({ id: 'media-two' });
+
+    await persistProductStudioMedia(
+      'product-a',
+      [
+        { url: 'https://cdn.example.com/one.jpg', altText: 'Existing' },
+        { url: 'https://cdn.example.com/two.jpg', altText: 'New image' },
+      ],
+      fetchExisting,
+      add,
+    );
+
+    expect(add).toHaveBeenCalledOnce();
+    expect(add).toHaveBeenCalledWith('product-a', {
+      url: 'https://cdn.example.com/two.jpg',
+      mediaType: 'IMAGE',
+      altText: 'New image',
+      sortOrder: 1,
+    });
+  });
+
+  it('does not create media records for an empty media selection', async () => {
+    const fetchExisting = vi.fn();
+    const add = vi.fn();
+
+    await persistProductStudioMedia('product-a', [], fetchExisting, add);
+
+    expect(fetchExisting).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
   });
 });
 

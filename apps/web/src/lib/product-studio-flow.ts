@@ -3,9 +3,36 @@ export function resolveProductPersistenceTarget(input: {
   useExistingProductId: string | null;
 }): { productId: string | null; isExistingCanonical: boolean } {
   return {
-    productId: input.productId ?? input.useExistingProductId,
+    productId: input.useExistingProductId ?? input.productId,
     isExistingCanonical: Boolean(input.useExistingProductId),
   };
+}
+
+export async function persistProductStudioMedia(
+  productId: string,
+  mediaItems: Array<{ url: string; altText: string }>,
+  fetchExisting: (productId: string) => Promise<Array<{ url: string }>>,
+  add: (productId: string, input: { url: string; mediaType: string; altText?: string; sortOrder: number }) => Promise<unknown>,
+): Promise<void> {
+  if (mediaItems.length === 0) return;
+
+  const existing = await fetchExisting(productId);
+  const existingUrls = new Set(existing.map((item) => item.url));
+  let nextSortOrder = existing.length;
+
+  for (const item of mediaItems) {
+    const url = item.url.trim();
+    if (!url || existingUrls.has(url)) continue;
+
+    await add(productId, {
+      url,
+      mediaType: 'IMAGE',
+      altText: item.altText.trim() || undefined,
+      sortOrder: nextSortOrder,
+    });
+    existingUrls.add(url);
+    nextSortOrder += 1;
+  }
 }
 
 export interface ProductStudioContinueOptions {

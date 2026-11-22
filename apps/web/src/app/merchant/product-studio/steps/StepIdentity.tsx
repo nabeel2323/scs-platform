@@ -26,6 +26,7 @@ export default function StepIdentity({
   const [searching, setSearching] = useState(false);
   const [freeTextQuery, setFreeTextQuery] = useState('');
   const [freeTextSearching, setFreeTextSearching] = useState(false);
+  const usingExistingProduct = Boolean(state.useExistingProductId);
 
   const handleIdentifierSearch = async () => {
     if (!state.gtin && !state.ean && !state.mpn) return;
@@ -42,10 +43,23 @@ export default function StepIdentity({
     setState(prev => ({
       ...prev,
       useExistingProductId: product.id,
+      productId: null,
+      productUpdatedAt: null,
       title: product.title,
       titleAr: product.titleAr ?? '',
+      slug: product.slug ?? '',
+      description: 'description' in product ? product.description ?? '' : '',
+      descriptionAr: 'descriptionAr' in product ? product.descriptionAr ?? '' : '',
       categoryId: product.categoryId ?? '',
       brandId: product.brandId ?? '',
+      productTypeId: 'productTypeId' in product ? product.productTypeId ?? '' : '',
+      gtin: product.gtin ?? '',
+      ean: product.ean ?? '',
+      mpn: product.mpn ?? '',
+      attributeValues: {},
+      variantDimensions: {},
+      enabledCombinations: new Set(),
+      mediaItems: [],
       selectedExistingVariantId: null,
     }));
   };
@@ -72,19 +86,19 @@ export default function StepIdentity({
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
         <Field label="Category">
-          <select value={state.categoryId} onChange={e => setState(prev => ({ ...prev, categoryId: e.target.value }))}>
+          <select value={state.categoryId} onChange={e => setState(prev => ({ ...prev, categoryId: e.target.value }))} disabled={usingExistingProduct}>
             <option value="">Select category…</option>
             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </Field>
         <Field label="Brand">
-          <select value={state.brandId} onChange={e => setState(prev => ({ ...prev, brandId: e.target.value }))}>
+          <select value={state.brandId} onChange={e => setState(prev => ({ ...prev, brandId: e.target.value }))} disabled={usingExistingProduct}>
             <option value="">Select brand…</option>
             {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </Field>
         <Field label="Product Type">
-          <select value={state.productTypeId} onChange={e => setState(prev => ({ ...prev, productTypeId: e.target.value }))} disabled={editMode}>
+          <select value={state.productTypeId} onChange={e => setState(prev => ({ ...prev, productTypeId: e.target.value }))} disabled={editMode || usingExistingProduct}>
             <option value="">Select product type…</option>
             {productTypes.filter(pt => !state.categoryId || pt.categoryId === state.categoryId)
               .map(pt => <option key={pt.id} value={pt.id}>{pt.name} (v{pt.version})</option>)}
@@ -93,7 +107,7 @@ export default function StepIdentity({
       </div>
 
       {/* Identifier search — hidden in edit mode */}
-      {!editMode && (
+      {!editMode && !usingExistingProduct && (
       <div style={{ padding: 12, background: '#f7f9fa', borderRadius: 8, border: '1px solid #e5ecf0' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: '#16232b', marginBottom: 8 }}>Find Existing Product (optional)</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
@@ -126,7 +140,7 @@ export default function StepIdentity({
       )}
 
       {/* Free-text canonical product search — hidden in edit mode */}
-      {!editMode && (
+      {!editMode && !usingExistingProduct && (
       <div style={{ padding: 12, background: '#f0f4ff', borderRadius: 8, border: '1px solid #c7d2fe' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: '#1e1b4b', marginBottom: 8 }}>Search Existing Canonical Products</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end' }}>
@@ -172,29 +186,29 @@ export default function StepIdentity({
 
       {state.useExistingProductId && !editMode && (
         <div style={{ padding: 10, background: '#eaf5ef', color: '#1b7a4b', borderRadius: 6, fontSize: 12 }}>
-          ✓ Using existing canonical product. You will create a merchant offer for it.
+          ✓ Using existing canonical product. Its shared identity, specifications and media are read-only here; you will create a store-specific offer for it.
         </div>
       )}
 
       <Field label="Product Title *">
-        <input value={state.title} onChange={e => setState(prev => ({ ...prev, title: e.target.value }))} placeholder="e.g. Dell Latitude 5540 Laptop" />
+        <input value={state.title} onChange={e => setState(prev => ({ ...prev, title: e.target.value }))} placeholder="e.g. Dell Latitude 5540 Laptop" disabled={usingExistingProduct} />
       </Field>
       <Field label="Title (Arabic)">
-        <input value={state.titleAr} onChange={e => setState(prev => ({ ...prev, titleAr: e.target.value }))} dir="rtl" />
+        <input value={state.titleAr} onChange={e => setState(prev => ({ ...prev, titleAr: e.target.value }))} dir="rtl" disabled={usingExistingProduct} />
       </Field>
       <Field label="Slug">
-        <input value={state.slug} onChange={e => setState(prev => ({ ...prev, slug: e.target.value }))} placeholder="auto-generated from title" />
+        <input value={state.slug} onChange={e => setState(prev => ({ ...prev, slug: e.target.value }))} placeholder="auto-generated from title" disabled={usingExistingProduct} />
       </Field>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Field label="Description">
-          <textarea value={state.description} onChange={e => setState(prev => ({ ...prev, description: e.target.value }))} rows={3} />
+          <textarea value={state.description} onChange={e => setState(prev => ({ ...prev, description: e.target.value }))} rows={3} disabled={usingExistingProduct} />
         </Field>
         <Field label="Description (Arabic)">
-          <textarea value={state.descriptionAr} onChange={e => setState(prev => ({ ...prev, descriptionAr: e.target.value }))} rows={3} dir="rtl" />
+          <textarea value={state.descriptionAr} onChange={e => setState(prev => ({ ...prev, descriptionAr: e.target.value }))} rows={3} dir="rtl" disabled={usingExistingProduct} />
         </Field>
       </div>
       <Field label="Condition">
-        <select value={state.condition} onChange={e => setState(prev => ({ ...prev, condition: e.target.value }))}>
+        <select value={state.condition} onChange={e => setState(prev => ({ ...prev, condition: e.target.value }))} disabled={usingExistingProduct}>
           <option value="NEW">New</option>
           <option value="REFURBISHED">Refurbished</option>
           <option value="USED">Used</option>

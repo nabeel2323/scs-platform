@@ -33,6 +33,16 @@ export default function StepSpecifications({ state, setState }: StepSpecificatio
     [allRules, state.attributeValues, allAttrIds],
   );
 
+  if (state.useExistingProductId) {
+    return (
+      <StepCard title="Specifications" subtitle="Canonical product attributes are shared across merchants">
+        <p style={{ color: '#5b6b74', margin: 0 }}>
+          Specifications belong to the selected canonical product and cannot be changed from a merchant offer workflow.
+        </p>
+      </StepCard>
+    );
+  }
+
   if (!schema) {
     return (
       <StepCard title="Specifications" subtitle="Fill in the attributes defined by the product type">

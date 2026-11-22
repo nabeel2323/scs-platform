@@ -4,12 +4,12 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ProductTypeSchemaDetail, fetchProductTypeSchema, fetchCategories, fetchBrandsAdmin,
   Category, Brand, createProduct, updateProduct, upsertProductAttributeValues, createVariant,
-  createMerchantOffer, presignMedia, addMedia, searchCanonicalProducts, Product,
+  createMerchantOffer, presignMedia, addMedia, fetchProductMedia, searchCanonicalProducts, Product,
   searchCanonicalCatalog, CanonicalProductSummary, fetchProductVariants, ProductVariant,
 } from '../lib/buyer-api';
 import { fetchMyStores } from '../lib/api';
 import { generateSku, buildVariantTitle, resolveComboAttributes } from '../lib/sku-utils';
-import { resolveProductPersistenceTarget } from '../lib/product-studio-flow';
+import { persistProductStudioMedia, resolveProductPersistenceTarget } from '../lib/product-studio-flow';
 
 export type Step = 'identity' | 'specifications' | 'variants' | 'offer' | 'media' | 'review';
 
@@ -236,6 +236,18 @@ export function useProductStudio() {
         setState(prev => ({ ...prev, productUpdatedAt }));
       }
 
+      // Persist uploaded/linked media only for merchant-owned products.
+      // Re-read existing rows before inserting so retries after partial failure
+      // do not duplicate media records.
+      if (!isExistingCanonical) {
+        await persistProductStudioMedia(
+          productId,
+          state.mediaItems,
+          fetchProductMedia,
+          addMedia,
+        );
+      }
+
       // Step 2: Save attribute values
       if (!isExistingCanonical && state.productTypeSchema && Object.keys(state.attributeValues).length > 0) {
         const values = Object.entries(state.attributeValues)
@@ -281,7 +293,7 @@ export function useProductStudio() {
       }
 
       // Create the commercial offer only from the final review/save action.
-      // The offer step persists the product first so media and review can proceed.
+      // Existing canonical products are never modified; the offer may target a selected variant.
       if (
         includeOffer &&
         state.basePriceMinor > 0 &&
