@@ -1,0 +1,54 @@
+import { describe, expect, it } from 'vitest';
+import {
+  canAccessMerchantRoute,
+  filterMerchantNavigation,
+  merchantRoutePermission,
+} from '../lib/merchant-route-permissions';
+
+describe('merchant route permission policy', () => {
+  it.each([
+    ['/merchant/catalog', 'catalog:products:read'],
+    ['/merchant/orders', 'merchant:orders:read'],
+    ['/merchant/deliveries', 'fulfillment:shipments:read'],
+    ['/merchant/inventory', 'merchant:inventory:read'],
+    ['/merchant/pricing', 'merchant:pricing:read'],
+    ['/merchant/pricing/list-1', 'merchant:pricing:read'],
+    ['/merchant/offers', 'merchant:stores:read'],
+    ['/merchant/offers/offer-1', 'merchant:stores:read'],
+    ['/merchant/customers', 'merchant:orders:read'],
+    ['/merchant/store', 'merchant:stores:read'],
+    ['/merchant/warehouses', 'merchant:stores:read'],
+    ['/merchant/import', 'catalog:products:read'],
+    ['/merchant/promotions', 'merchant:promotions:write'],
+    ['/merchant/returns', 'merchant:orders:read'],
+    ['/merchant/organization', 'merchant:stores:read'],
+    ['/merchant/requests', 'catalog:offers:write'],
+  ])('maps %s to %s', (path, permission) => {
+    expect(merchantRoutePermission(path)).toBe(permission);
+    expect(canAccessMerchantRoute(path, [permission])).toBe(true);
+    expect(canAccessMerchantRoute(path, [])).toBe(false);
+  });
+
+  it('leaves authenticated onboarding and the merchant dashboard outside feature gates', () => {
+    expect(merchantRoutePermission('/merchant')).toBeNull();
+    expect(merchantRoutePermission('/merchant/register')).toBeNull();
+    expect(merchantRoutePermission('/merchant/onboard')).toBeNull();
+    expect(merchantRoutePermission('/merchant/success')).toBeNull();
+  });
+
+  it('filters navigation using the active organization permission projection', () => {
+    const visible = filterMerchantNavigation([
+      'merchant:orders:read',
+      'merchant:stores:read',
+    ]);
+    expect(visible.map((item) => item.href)).toEqual([
+      '/merchant',
+      '/merchant/orders',
+      '/merchant/customers',
+      '/merchant/store',
+      '/merchant/warehouses',
+      '/merchant/offers',
+      '/merchant/organization',
+    ]);
+  });
+});
