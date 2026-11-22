@@ -10,6 +10,30 @@ import '../../widgets/common_widgets.dart';
 class MerchantPricingScreen extends ConsumerWidget {
   const MerchantPricingScreen({super.key});
 
+  Future<void> _refresh(WidgetRef ref) async {
+    Store? store;
+    try {
+      store = await ref.refresh(activeStoreProvider.future);
+    } catch (_) {
+      // Keep the last successful store and let the store AsyncValue show retry.
+      return;
+    }
+    if (store == null) return;
+    try {
+      await ref.refresh(merchantPriceListsProvider.future);
+    } catch (_) {
+      // The price-list AsyncValue owns its independent error/stale state.
+    }
+  }
+
+  Future<void> _refreshLists(WidgetRef ref) async {
+    try {
+      await ref.refresh(merchantPriceListsProvider.future);
+    } catch (_) {
+      // Preserve the last successful list and show the refresh error below.
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final storeAsync = ref.watch(activeStoreProvider);
@@ -23,8 +47,9 @@ class MerchantPricingScreen extends ConsumerWidget {
         title: const Text('Pricing'),
         actions: [
           IconButton(
+            tooltip: 'Refresh price lists',
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(merchantPriceListsProvider),
+            onPressed: () => _refresh(ref),
           ),
         ],
       ),
@@ -36,10 +61,13 @@ class MerchantPricingScreen extends ConsumerWidget {
             )
           : null,
       body: storeAsync.when(
+        skipLoadingOnRefresh: true,
+        skipError: true,
         loading: () => const LoadingSpinner(),
         error: (e, _) => AppErrorState(
           title: 'Could not load store',
           message: ApiService.errorMessage(e),
+          onRetry: () => ref.invalidate(activeStoreProvider),
         ),
         data: (store) {
           if (store == null) {
@@ -49,7 +77,10 @@ class MerchantPricingScreen extends ConsumerWidget {
               icon: Icons.store_outlined,
             );
           }
-          return listsAsync.when(
+
+          final listContent = listsAsync.when(
+            skipLoadingOnRefresh: true,
+            skipError: true,
             loading: () => const LoadingSpinner(),
             error: (e, _) => AppErrorState(
               title: 'Could not load price lists',
@@ -57,53 +88,121 @@ class MerchantPricingScreen extends ConsumerWidget {
               onRetry: () => ref.invalidate(merchantPriceListsProvider),
             ),
             data: (lists) {
-              if (lists.isEmpty) {
-                return EmptyState(
-                  title: 'No price lists yet',
-                  description: canWrite
-                      ? 'Create a price list, then add quantity tiers for product variants.'
-                      : 'Your store has no configured price lists.',
-                  icon: Icons.price_change_outlined,
-                  actionLabel: canWrite ? 'Create price list' : null,
-                  onAction: canWrite ? () => _createList(context, ref, store) : null,
-                );
-              }
-              return RefreshIndicator(
-                onRefresh: () async => ref.invalidate(merchantPriceListsProvider),
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                  itemCount: lists.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final list = lists[index];
-                    return Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.price_change, color: TaifTokens.info),
-                        title: Text(list.name,
-                            style: const TextStyle(fontWeight: FontWeight.w600)),
-                        subtitle: Text(
-                          '${list.currency} · ${list.channel} · ${list.audience} · Priority ${list.priority}',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+              final listView = lists.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                      children: [
+                        SizedBox(
+                          height: 280,
+                          child: EmptyState(
+                            title: 'No price lists yet',
+                            description: canWrite
+                                ? 'Create a price list, then add quantity tiers for product variants.'
+                                : 'Your store has no configured price lists.',
+                            icon: Icons.price_change_outlined,
+                            actionLabel: canWrite ? 'Create price list' : null,
+                            onAction: canWrite
+                                ? () => _createList(context, ref, store)
+                                : null,
+                          ),
                         ),
-                        trailing: Chip(
-                          label: Text(list.isActive ? 'Active' : 'Inactive'),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        onTap: () => context.push('/merchant/pricing/${list.id}'),
-                      ),
+                      ],
+                    )
+                  : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                      itemCount: lists.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final list = lists[index];
+                        return Card(
+                          child: ListTile(
+                            leading: const Icon(
+                              Icons.price_change,
+                              color: TaifTokens.info,
+                            ),
+                            title: Text(
+                              list.name,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Text(
+                              '${list.currency} · ${list.channel} · ${list.audience} · Priority ${list.priority}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: Chip(
+                              label: Text(list.isActive ? 'Active' : 'Inactive'),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            onTap: () =>
+                                context.push('/merchant/pricing/${list.id}'),
+                          ),
+                        );
+                      },
                     );
-                  },
-                ),
+
+              final content = RefreshIndicator(
+                onRefresh: () => _refreshLists(ref),
+                child: listView,
+              );
+
+              if (!listsAsync.isRefreshing && !listsAsync.hasError) {
+                return content;
+              }
+
+              return Column(
+                children: [
+                  if (listsAsync.isRefreshing)
+                    const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Text(
+                        'Refreshing price lists… showing the last successful results.',
+                        style: TextStyle(fontSize: 12, color: TaifTokens.muted),
+                      ),
+                    ),
+                  if (listsAsync.hasError)
+                    ErrorBanner(
+                      message:
+                          'Could not refresh price lists: ${ApiService.errorMessage(listsAsync.error!)}. Showing the last successful results.',
+                      onRetry: () => ref.invalidate(merchantPriceListsProvider),
+                    ),
+                  Expanded(child: content),
+                ],
               );
             },
+          );
+
+          if (!storeAsync.isRefreshing && !storeAsync.hasError) {
+            return listContent;
+          }
+
+          return Column(
+            children: [
+              if (storeAsync.isRefreshing)
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    'Refreshing store… showing the last successfully loaded store.',
+                    style: TextStyle(fontSize: 12, color: TaifTokens.muted),
+                  ),
+                ),
+              if (storeAsync.hasError)
+                ErrorBanner(
+                  message:
+                      'Could not refresh store: ${ApiService.errorMessage(storeAsync.error!)}. Showing the last successfully loaded store.',
+                  onRetry: () => _refresh(ref),
+                ),
+              Expanded(child: listContent),
+            ],
           );
         },
       ),
     );
   }
 
-  Future<void> _createList(BuildContext context, WidgetRef ref, Store store) async {
+  Future<void> _createList(
+      BuildContext context, WidgetRef ref, Store store) async {
     final draft = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (_) => _PriceListCreateDialog(defaultCurrency: store.currency),
@@ -127,7 +226,10 @@ class MerchantPricingScreen extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ApiService.errorMessage(e)), backgroundColor: TaifTokens.err),
+          SnackBar(
+            content: Text(ApiService.errorMessage(e)),
+            backgroundColor: TaifTokens.err,
+          ),
         );
       }
     }
