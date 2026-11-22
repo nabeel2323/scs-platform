@@ -347,7 +347,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
                       ],
                       if (active.isNotEmpty) ...[
                         _section('Active (${active.length})', TaifTokens.info),
-                        ...active.map((order) => _activeCard(order, canWrite)),
+                        ...active.map((order) => _activeCard(order, canWrite, canAssignDriver)),
                       ],
                       if (done.isNotEmpty) ...[
                         _section('Completed (${done.length})', TaifTokens.muted),
