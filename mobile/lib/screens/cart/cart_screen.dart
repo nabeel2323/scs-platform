@@ -137,6 +137,46 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     return increment > 0 ? increment : 1;
   }
 
+  Widget _cartReadStatus(AsyncValue<Cart> cart) {
+    if (cart.isRefreshing) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(children: [
+          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+          SizedBox(width: 8),
+          Text('Refreshing cart… showing the last successful cart.',
+              style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+        ]),
+      );
+    }
+    if (cart.hasError) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: TaifTokens.err.withValues(alpha: 0.06),
+            border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+            borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+          ),
+          child: Row(children: [
+            Expanded(
+              child: Text(
+                'Could not refresh cart: ${ApiService.errorMessage(cart.error!)}. Showing the last successfully loaded cart.',
+                style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+              ),
+            ),
+            TextButton(
+              onPressed: () => ref.invalidate(cartProvider),
+              child: const Text('Retry'),
+            ),
+          ]),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
   Widget _cartLine(CartItem item) {
     final floor = _floorFor(item);
     final actionsDisabled = _cartActionsDisabled;
@@ -265,6 +305,11 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     final validation = ref.watch(cartValidationProvider);
     return Scaffold(
         appBar: AppBar(title: const Text('Cart'), actions: [
+          IconButton(
+            tooltip: 'Refresh cart',
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.invalidate(cartProvider),
+          ),
           TextButton(
               onPressed: _cartActionsDisabled
                   ? null
@@ -287,14 +332,22 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   style: const TextStyle(color: TaifTokens.err))),
         ]),
         body: cart.when(
+          skipLoadingOnRefresh: true,
+          skipError: true,
           data: (c) {
             if (c.items.isEmpty) {
-              return EmptyState(
-                  title: 'Cart is empty',
-                  description: 'Browse products and add items to your cart',
-                  icon: Icons.shopping_cart_outlined,
-                  onAction: () => context.go('/search'),
-                  actionLabel: 'Browse Products');
+              return Column(children: [
+                if (cart.isRefreshing || cart.hasError) _cartReadStatus(cart),
+                Expanded(
+                  child: EmptyState(
+                    title: 'Cart is empty',
+                    description: 'Browse products and add items to your cart',
+                    icon: Icons.shopping_cart_outlined,
+                    onAction: () => context.go('/search'),
+                    actionLabel: 'Browse Products',
+                  ),
+                ),
+              ]);
             }
             final grouped = <String, List<CartItem>>{};
             for (final item in c.items) {
@@ -311,6 +364,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 currencies.length == 1 ? currencies.first : null;
             final isMixedCurrency = currencies.length > 1;
             return Column(children: [
+              if (cart.isRefreshing || cart.hasError) _cartReadStatus(cart),
               // PHASE 11/12: show stale/repriced banner
               if (validation.hasValue &&
                   (validation.value!['stale'] as List?)?.isNotEmpty == true)

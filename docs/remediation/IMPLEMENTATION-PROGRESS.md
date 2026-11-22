@@ -1674,3 +1674,12 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - A page/store change still uses its own keyed provider result and cannot display a previous page as if it were the new page. Initial errors continue to use the retryable error state.
 - Added `inventory_read_recovery_test.dart` for stale-page preservation after refresh failure and initial failure/retry.
 - No stock adjustment, transfer, low-stock, export, API, permission, schema, migration, database, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-072 — Mobile Cart stale-read recovery — 22 November 2026
+
+- Cart now retains the last successful cart during refresh and after a refresh failure, with explicit stale-data messaging and Retry. The screen exposes a Refresh cart action.
+- The same read status is shown when the last successful cart is empty; the buyer can distinguish a known-empty cart from an unavailable first read.
+- Initial load failures continue to use the existing retryable error state. Cart mutations, idempotency, promo handling, MOQ/step constraints and validation behavior are unchanged.
+- Added `cart_read_recovery_test.dart` for stale-cart preservation after refresh failure and initial failure/retry.
+- No cart/checkout business behavior, API, permission, schema, migration, database, staging or provider behavior changed. Flutter tests remain pending the consolidated Phase 3 campaign.
