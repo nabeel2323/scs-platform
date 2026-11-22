@@ -240,6 +240,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
   /// Promo code input and applied-promotion removal (finding G-019).
   Widget _promoSection(Cart c) {
+    final actionsDisabled = _cartActionsDisabled;
     final applied = c.promoCode != null && c.promoCode!.isNotEmpty;
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 16),
