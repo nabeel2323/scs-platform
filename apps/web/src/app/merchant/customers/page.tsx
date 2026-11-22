@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { fetchMerchantCustomers, CustomerSummary } from '../../../lib/buyer-api';
-import { formatMinor, formatDate, LoadingSpinner, EmptyState } from '../../../components/Shared';
+import { formatMinor, formatDate, LoadingSpinner, EmptyState, ErrorBanner } from '../../../components/Shared';
 import { useMerchantRealtime } from '../../../lib/useMerchantRealtime';
 import { PageHeader, colors, typeScale } from '@scs/ui-kit';
 
 export default function MerchantCustomersPage() {
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'total' | 'orders'>('recent');
@@ -16,12 +17,15 @@ export default function MerchantCustomersPage() {
 
   const loadCustomers = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
+    setLoadError('');
     try {
       const data = await fetchMerchantCustomers();
       setCustomers(data);
       setLastUpdated(new Date());
-    } catch {
-      // Silent fail - show empty state
+    } catch (err: unknown) {
+      setLoadError(
+        err instanceof Error ? err.message : 'Unable to load customers. Please try again.',
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -65,6 +69,8 @@ export default function MerchantCustomersPage() {
         {/* Header Banner */}
         <PageHeader title="My Customers" subtitle="View buyers who have ordered from your store" />
         <div style={{ padding: '20px 24px 48px' }}>
+
+      {loadError && <ErrorBanner message={loadError} onRetry={() => void loadCustomers(true)} />}
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -110,7 +116,7 @@ export default function MerchantCustomersPage() {
         )}
       </div>
 
-      {sorted.length === 0 ? (
+      {sorted.length === 0 && (!loadError || customers.length > 0) ? (
         <EmptyState
           title={search ? 'No customers match your search' : 'No customers yet'}
           description={search ? 'Try a different search term' : 'Customers will appear here once buyers place orders from your store'}
