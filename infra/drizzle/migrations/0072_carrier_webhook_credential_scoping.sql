@@ -36,19 +36,40 @@ WHERE event.shipment_id = shipment.id
     OR shipment.carrier_shipment_id IS DISTINCT FROM event.external_delivery_id
   );
 
-DO $
+-- Also detach historical links whose external reference is ambiguous
+-- inside the credential organization; never preserve a first-match guess.
+UPDATE carrier_webhook_events AS event
+SET shipment_id = NULL,
+    processed = false,
+    processed_at = NULL,
+    processing_error = 'Historical webhook reference is ambiguous within credential organization; manual review required'
+FROM carrier_credentials AS credential
+WHERE event.credential_id = credential.id
+  AND event.shipment_id IS NOT NULL
+  AND EXISTS (
+    SELECT 1
+    FROM shipments AS candidate
+    JOIN stores AS candidate_store ON candidate_store.id = candidate.store_id
+    WHERE candidate.carrier_shipment_id = event.external_delivery_id
+      AND candidate.shipping_provider_key = event.provider_key
+      AND candidate_store.org_id = credential.org_id
+    GROUP BY candidate.carrier_shipment_id, candidate.shipping_provider_key, candidate_store.org_id
+    HAVING COUNT(*) > 1
+  );
+
+DO $block$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conname = 'carrier_webhook_events_credential_id_carrier_credentials_id_fk'
   ) THEN
     ALTER TABLE carrier_webhook_events
-      ADD CONSTRAINT fk_carrier_webhook_events_credential
+      ADD CONSTRAINT carrier_webhook_events_credential_id_carrier_credentials_id_fk
       FOREIGN KEY (credential_id)
       REFERENCES carrier_credentials(id)
       ON DELETE RESTRICT;
   END IF;
-END $$;
+END $block$;
 
 ALTER TABLE carrier_webhook_events
   DROP CONSTRAINT IF EXISTS uq_carrier_webhook_dedup;
