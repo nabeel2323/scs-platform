@@ -464,3 +464,15 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Flagged the absence of composite consistency constraints for multi-parent rows such as verification requests, business documents, cart items, inventory items, merchant offers, order participants, settlement records, carrier configurations, delivery-zone methods and driver-store assignments.
 - Reaffirmed that a child-table RLS predicate must verify every required parent relationship; one valid FK alone does not guarantee all referenced parents belong to the same tenant.
 - No live catalog query or DB mutation occurred; this remains migration-source evidence only.
+
+
+## 2026-11-22 — G-002 service and operator access-path implementation
+
+- Reconciled the API source tree at 06c5f25f1e0a967129ddae8b94b33e060f2e9691 and completed inspection of all 53 service/worker/poller/dispatcher/executor candidates. The operation map records 44 DB-operation paths and identifies 9 DB-independent parser/rule/provider/crypto helpers.
+- Added docs/remediation/G-002-CLI-AND-BOOTSTRAP-ACCESS-MAP-2026-11-22.md, covering runtime startup, migration runners, migration identity/lock helpers, RBAC/catalog/demo seeds, bootstrap token issuance/completion, staging provisioning, read-only audit, reset utilities and legacy UAT/migration harnesses.
+- Hardened scripts/create-admin-user.ts: removed the fixed SUPER_ADMIN password and local DSN fallback; require explicit development/test, local database host, opt-in and caller-supplied credentials; create organization/user/membership in one transaction; never log the password.
+- Hardened infra/drizzle/reset-pg.ts: require explicit environment, exact database name, typed DROP confirmation, local host for development/test and a second approval for staging; verify the connected database identity before dropping tables. The reset was not executed.
+- Hardened scripts/m6-env-check.ts: require development/test and explicit UAT opt-in, validate local API/Redis hosts, read credentials from environment, redact OTP values and avoid logging raw verification responses.
+- Source review found application OTP redaction in IdentityService/OtpDeliveryService with otp-redaction and otp-security-remediation regression tests already present. Deployed staging log verification remains an external runtime gate.
+- Remaining script debt is explicit: legacy M5/M6 UAT and migration harnesses still include direct SQL, fixed local test credentials and/or DATABASE_URL overrides; staging bootstrap scripts need a uniform target-environment confirmation guard. They were not run.
+- No tests or Actions were run. No staging/shared DB command, migration, seed, reset, bootstrap, grant, RLS change, deployment, worker activation or provider call occurred. Next source task is controller-to-service-method-to-table operation mapping.

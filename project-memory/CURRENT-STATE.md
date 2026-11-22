@@ -290,3 +290,15 @@ At the time of this refresh, PR #138 is open/draft/unmerged from remediation/pha
 ## G-002 migration and RBAC evidence refresh — 22 November 2026
 
 The migration FK crosswalk now includes core schema relationships from migrations 0001, 0003, 0004, 0005, 0009, 0010, 0023, 0026, 0034, 0040, 0041, 0043, 0054, 0058–0063, 0070 and 0071. It records deferred FKs, non-FK org_id scope metadata added in 0062, system tables without tenant/user FKs in 0063, platform-level catalog import ownership and the global business-calendar schema limitation. Cross-parent consistency without composite FKs remains a policy-design risk. API-003 is implemented in source: CatalogController reads use catalog:products:read; StoreMembershipController member listing uses merchant:stores:read; MERCHANT_STAFF receives the existing store-read permission. Focused tests were added but not executed. All of this is static source/migration evidence only; no staging catalog query or shared DB change was performed.
+
+
+## Latest current state — 22 November 2026
+
+- Repository: nabeel2323/scs-platform; branch: remediation/phase-0-1-tenant-security; PR #138 open/draft/unmerged to develop.
+- Current branch/PR head: `6b40d43fdfda45d59afaff7a7956c6be98039d0f` — security(g002): map service and operator DB access paths [skip ci].
+- G-002 service mapping now inspects all 53 API service/worker/poller/dispatcher/executor candidates: 44 DB-operation paths and 9 DB-independent helper/provider paths. Added the standalone CLI/migration/bootstrap access map.
+- Source safety changes: local admin creation requires development/test, local DB and explicit confirmation, caller-supplied credentials and a single transaction; reset-pg requires an exact database name and typed confirmation with separate staging approval; m6-env-check no longer embeds credentials or prints OTP/raw verification responses.
+- Application OTP redaction code and regression tests already exist. Runtime staging-log verification remains pending; do not treat source tests as proof of clean deployed logs.
+- Latest actual branch CI is #1337 on 06cd8fc1e56dc7ef64a141b97b594adc96ffbece, not current head. Flutter passed; lint/typecheck tasks passed with 309 lint warnings and zero errors; Prettier failed on nine files; dependent tests/build/migration jobs skipped. Current head has no Actions run; Vercel Admin SUCCESS, Web PENDING.
+- Next: finish controller-to-service-method-to-table operation mapping, then reconcile raw SQL, legacy UAT/staging bootstrap paths and physical DB objects. Keep 114-versus-116 pending protected read-only catalog evidence.
+- No tests were run, no CI was triggered, and no staging/shared database action, migration, grant, RLS change, deployment or worker activation occurred. Comprehensive testing remains the final consolidated phase.

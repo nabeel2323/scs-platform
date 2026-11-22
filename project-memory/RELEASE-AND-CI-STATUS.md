@@ -364,3 +364,13 @@ On exact PR #138 source head caba922e866635fad51e549e095a186f9d9df6cf, both Verc
 ## G-002 migration FK crosswalk update — 22 November 2026
 
 The migration crosswalk now records explicit FK paths from migrations 0001–0071 for core identity, organization/store, catalog, inventory, cart/order, offer, shipment/driver, shipping, payment, return, settlement, carrier and operations tables. It also identifies non-FK org_id metadata added in 0062, system tables without tenant/user FKs in 0063, the platform-only catalog import scope and business calendars without a tenant key. No staging catalog query, migration, DB write, grant, RLS activation or deployment was performed. Current branch documentation commits continue to use [skip ci]; exact-head Actions remains unverified.
+
+
+## Current branch and implementation checkpoint — 22 November 2026
+
+- PR #138 remains open, draft and unmerged from remediation/phase-0-1-tenant-security to develop. Current branch/PR head: `6b40d43fdfda45d59afaff7a7956c6be98039d0f`, commit security(g002): map service and operator DB access paths [skip ci].
+- No GitHub Actions run is attached to current head. The latest actual branch run is [#1337](https://github.com/nabeel2323/scs-platform/actions/runs/44963271498) on `06cd8fc1e56dc7ef64a141b97b594adc96ffbece`: Flutter analysis/tests passed; lint and typecheck steps passed (309 lint warnings, zero errors; nine typecheck tasks successful); changed-file Prettier failed on nine files. API unit/coverage, PostgreSQL integration, Web/Admin, migration, build and smoke jobs were skipped.
+- Current commit combined statuses: Vercel Admin SUCCESS; Vercel Web PENDING. These are preview statuses, not application test evidence.
+- Implementation group completed: 53 API service/worker candidates mapped (44 DB-operation paths, 9 pure helpers/providers); CLI/migration/bootstrap access map added; local admin creation, destructive reset authorization and M6 OTP output hardened. Legacy UAT scripts and staging bootstrap target guards remain open.
+- No tests were run, no CI was triggered, and no staging/shared database action, migration, seed, reset, grant, RLS change, deployment or worker activation occurred. Full testing remains deferred until implementation and integration are ready.
+- Next implementation: controller-to-service-method-to-table mapping, then physical DB-object and protected relation-count reconciliation. G-002 remains IN PROGRESS; no RLS design is approved for activation.

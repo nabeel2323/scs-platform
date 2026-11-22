@@ -74,9 +74,11 @@ For exact statuses, priorities, evidence and dependencies, consult the 35-row re
 
 ## Next action order
 
-1. Obtain independent security review of G-001 using the review packet; record reviewer identity, date, scope, findings and disposition. Keep G-001 PARTIAL until this is complete.
-2. Continue G-002 read-only identity/schema/access design evidence; wait for authorized protected staging audit and do not mutate shared DB state.
-3. Keep PR #138 draft and all release/database restrictions intact.
+1. Continue G-002 source implementation: map every controller route to its service method and concrete table/raw-SQL operations, then reconcile CLI/bootstrap and remaining legacy UAT script safety.
+2. Complete the physical DB-object inventory (migration ledger, backfill_errors, analytics partition parents/children and extension/system objects) from source, then reconcile the 114-versus-116 discrepancy only with an authorized protected read-only catalog snapshot.
+3. Preserve the live API/migration identity and protected staging evidence gates. Do not add global transaction context, enable RLS, alter grants/default ACLs, apply migrations or trigger staging actions until independent review and explicit authorization.
+4. Keep PR #138 draft/unmerged. Defer comprehensive unit/API/PostgreSQL/migration/security/tenant/concurrency/E2E/performance tests until implementation and integration are complete; do not consume repeated Actions runs during implementation.
+
 
 ## G-001 confidentiality follow-up — 21 November 2026
 
@@ -219,3 +221,10 @@ These are implementation candidates, not automatically verified defects or permi
 ## G-002 migration crosswalk — 22 November 2026
 
 Migration-source FK evidence now covers core identity/store/catalog/inventory/cart/order/offer/shipping plus payment/return/financial/carrier/operations paths. Important remaining blockers are still open: verify deployed constraints and all relation objects from a refreshed protected read-only catalog snapshot; validate application-maintained org_id fields added in migration 0062; resolve cross-parent consistency where no composite FK exists; verify live API/migration DB identities; and reconcile 114-versus-116. No live DB changes or RLS activation.
+
+
+## G-002 service and CLI mapping update — 22 November 2026
+
+The operation map now inspects all 53 API service/worker/poller/dispatcher/executor candidates, with 44 DB-operation paths and 9 database-independent helper/provider files. A separate CLI map covers migration/seed/bootstrap/reset/UAT access. Three script-safety corrections were implemented: local admin creation no longer contains or prints a fixed password; reset-pg requires explicit target/typed confirmation and staging approval; M6 environment check uses environment credentials and redacts OTP output.
+
+Remaining work is not closed: complete route-to-service-method-to-table mapping, guard or retire legacy M5/M6 utilities, add uniform staging bootstrap target confirmation, map remaining raw-SQL and physical database objects, and obtain the protected 114-versus-116 catalog evidence. No tests or CI were run, and no staging/shared DB action occurred.

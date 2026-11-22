@@ -148,3 +148,10 @@ Lightweight developer checks continue during implementation; full regression is 
 ## MAP-001 source inventory — 22 November 2026
 
 The first static inventory is documented in [WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md](./WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md). It establishes current API/web/admin/mobile/database/test/documentation surfaces and corrects several stale September UI audit claims. MAP-001 remains IN PROGRESS: the full route-to-contract/permission matrix, all physical database relation operation paths, and worker/provider ownership/activation matrix remain incomplete. Confirmed UI/workflow candidates are now tracked as UX-001–UX-009 in the programme register. Do not start broad regression testing; use targeted source checks during implementation and preserve Phase 3 for the consolidated test campaign.
+
+
+## G-002 service and CLI access mapping — 22 November 2026
+
+The service/worker source map now covers all 53 candidates (44 direct DB-operation paths and 9 database-independent helpers/providers). A separate CLI/bootstrap map records migration runners, startup migrations/seeds, RBAC/catalog/demo seeds, bootstrap token issuance/completion, staging provisioning, audit/reset tools and legacy UAT harnesses. Three script-safety fixes were grouped in commit `6b40d43fdfda45d59afaff7a7956c6be98039d0f`.
+
+Next: map each API controller route to the exact service method and table/raw-SQL operations, then finish physical DB-object and ownership evidence. The 114-versus-116 relation discrepancy, deployed runtime identities and protected staging audit remain open. The implementation-first sequence continues; broad testing is reserved for the final consolidated phase.
