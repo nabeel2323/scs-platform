@@ -690,6 +690,29 @@ const product = {
   store: null,
 };
 describe('management pages and shared product details', () => {
+
+  it('retries product merchant offers instead of presenting a failed read as empty', async () => {
+    let offerAttempts = 0;
+    vi.mocked(adminRequest).mockImplementation(async (path) => {
+      if (path.includes('media-previews')) return { previews: {} };
+      if (path.endsWith('/offers')) {
+        offerAttempts += 1;
+        if (offerAttempts === 1) throw new Error('Offers read unavailable');
+        return [];
+      }
+      return product;
+    });
+
+    render(<ProductDetails id={product.id} fullPage />);
+    await screen.findByText('Complete description');
+    fireEvent.click(screen.getByRole('tab', { name: /Offers/ }));
+    expect(await screen.findByText('Offers read unavailable')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText('No merchant offers yet');
+    expect(offerAttempts).toBe(2);
+  });
+
   it('reuses details in full-page and dialog modes', async () => {
     vi.mocked(adminRequest).mockImplementation(async (path) =>
       path.includes('media-previews') ? { previews: {} } : product,

@@ -200,17 +200,35 @@ export default function ProductDetails({
   const [archived, setArchived] = useState(false);
   const [offers, setOffers] = useState<OfferSummary[]>([]);
   const [offersError, setOffersError] = useState('');
+  const [offersLoading, setOffersLoading] = useState(true);
+  const offersRequestVersion = useRef(0);
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Fetch offers
-  useEffect(() => {
+  // Fetch offers with explicit retry and stale-request protection.
+  const loadOffers = useCallback(async () => {
     if (!id) return;
-    adminRequest(`products/${encodeURIComponent(id)}/offers`)
-      .then((data: unknown) => setOffers(Array.isArray(data) ? (data as OfferSummary[]) : []))
-      .catch((err: unknown) =>
-        setOffersError(err instanceof Error ? err.message : 'Failed to load offers'),
-      );
+    const requestId = ++offersRequestVersion.current;
+    setOffersLoading(true);
+    setOffersError('');
+    setOffers([]);
+    try {
+      const data: unknown = await adminRequest(`products/${encodeURIComponent(id)}/offers`);
+      if (requestId === offersRequestVersion.current) {
+        setOffers(Array.isArray(data) ? (data as OfferSummary[]) : []);
+      }
+    } catch (err) {
+      if (requestId === offersRequestVersion.current) {
+        setOffersError(err instanceof Error ? err.message : 'Failed to load offers');
+      }
+    } finally {
+      if (requestId === offersRequestVersion.current) setOffersLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    void loadOffers();
+    return () => { offersRequestVersion.current += 1; };
+  }, [loadOffers]);
 
   const handleModeration = useCallback(
     (decision: string) => {
@@ -610,21 +628,11 @@ export default function ProductDetails({
             title={`Merchant Offers (${offers.length})`}
             description="Offers represent how merchants sell this product. Pricing, MOQ, and availability are managed here."
           >
-            {offersError && (
-              <div
-                style={{
-                  padding: '8px 12px',
-                  background: '#fbeeec',
-                  color: '#991b1b',
-                  borderRadius: 6,
-                  fontSize: 13,
-                  marginBottom: 12,
-                }}
-              >
-                {offersError}
-              </div>
-            )}
-            {offers.length > 0 ? (
+            {offersLoading ? (
+              <AdminLoadingSkeleton kvRows={3} />
+            ) : offersError ? (
+              <AdminErrorState title="Unable to load merchant offers" message={offersError} onRetry={loadOffers} />
+            ) : offers.length > 0 ? (
               <AdminRelatedTable
                 columns={offerColumns}
                 data={offers as unknown as Record<string, unknown>[]}
