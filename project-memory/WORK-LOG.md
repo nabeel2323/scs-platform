@@ -757,3 +757,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Replaced the silent catch in `openHistory` with an explicit history-read result and error state. Failed reads now expose Retry and cannot be mistaken for “No movements recorded yet.”
 - Added `apps/web/src/lib/inventory-history.ts` and `apps/web/src/__tests__/inventory-history-recovery.test.ts` to test successful and failed reads separately.
 - Tests not executed; no API, permission, schema or database change.
+
+## 2026-11-22 — UX-038 / UX-039 Merchant Inventory and Import History recovery
+
+- UX-038: removed silent per-product variant-fetch suppression from Merchant Inventory. The paginated variant read now fails visibly when any product's variant list is unavailable; the picker has request-version protection, clears stale options, and exposes Retry without converting a failure into an empty directory.
+- UX-039: Merchant Import History now recovers from store-directory failures, distinguishes no store from loading, exposes a retryable import-job read error, preserves previously loaded jobs after failed refreshes, and polls only while a known job is active without overlapping requests.
+- Added `merchant-inventory-variants.test.ts` and `merchant-import-history-recovery.test.tsx`. They cover pagination/partial variant failure and store/job recovery/no-store behavior. Tests are intentionally not executed during the implementation phase.
+- No API contract, permission, schema, migration, database, staging, worker, provider or deployment changes. All implementation/test commits use `[skip ci]` under the Actions-minute budget.
