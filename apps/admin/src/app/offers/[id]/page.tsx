@@ -33,6 +33,7 @@ function OfferDetailContent({ id }: { id: string }) {
   const [ready, setReady] = useState(false);
   const [offer, setOffer] = useState<AdminRecord | null>(null);
   const [inventory, setInventory] = useState<AdminRecord | null>(null);
+  const [inventoryVariantId, setInventoryVariantId] = useState<string | null>(null);
   const [invLoading, setInvLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -42,6 +43,7 @@ function OfferDetailContent({ id }: { id: string }) {
   const inventoryRequestVersion = useRef(0);
 
   const variantId = (offer?.['variantId'] as string | null) ?? null;
+  const hasCurrentInventory = Boolean(variantId && inventory && inventoryVariantId === variantId);
 
   useEffect(() => setReady(true), []);
 
@@ -74,11 +76,13 @@ function OfferDetailContent({ id }: { id: string }) {
     setInventoryError('');
     try {
       const data = await adminRequest<AdminRecord>(`inventory/variant/${encodeURIComponent(variantId)}`);
-      if (requestId === inventoryRequestVersion.current) setInventory(data);
+      if (requestId === inventoryRequestVersion.current) {
+        setInventory(data);
+        setInventoryVariantId(variantId);
+      }
     } catch (err) {
       if (requestId === inventoryRequestVersion.current) {
         setInventoryError(err instanceof Error ? err.message : 'Failed to load inventory');
-        setInventory(null);
       }
     } finally {
       if (requestId === inventoryRequestVersion.current) setInvLoading(false);
@@ -195,16 +199,25 @@ function OfferDetailContent({ id }: { id: string }) {
             title="Inventory & Stock"
             description="Stock levels for this offer's variant across warehouses."
           >
-            {invLoading && <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading inventory data…</div>}
-            {!invLoading && inventoryError && (
-              <AdminErrorState title="Unable to load inventory" message={inventoryError} onRetry={loadInventory} />
-            )}
-            {!invLoading && !inventoryError && !inventory && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+              <button type="button" onClick={() => void loadInventory()} disabled={invLoading || !variantId} style={{ padding: '5px 10px', border: '1px solid #d9e2e6', borderRadius: 6, background: '#fff', cursor: invLoading || !variantId ? 'wait' : 'pointer', fontSize: 12 }}>
+                {invLoading ? 'Refreshing…' : 'Refresh inventory'}
+              </button>
+            </div>
+            {invLoading && !hasCurrentInventory && <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading inventory data…</div>}
+            {invLoading && hasCurrentInventory && <div role="status" style={{ padding: '6px 0', color: '#6b7280', fontSize: 12 }}>Refreshing inventory… showing the last successful result.</div>}
+            {inventoryError && (hasCurrentInventory ? (
+              <div role="alert" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: 10, borderRadius: 6, background: '#fef2f2', color: '#991b1b', fontSize: 12 }}>
+                <span>{inventoryError} Showing the last successfully loaded inventory.</span>
+                <button type="button" onClick={() => void loadInventory()}>Retry inventory</button>
+              </div>
+            ) : <AdminErrorState title="Unable to load inventory" message={inventoryError} onRetry={loadInventory} />)}
+            {!invLoading && !inventoryError && !hasCurrentInventory && (
               <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>
                 {variantId ? 'No inventory data available for this variant.' : 'This offer is not linked to a specific variant.'}
               </div>
             )}
-            {inventory && (
+            {hasCurrentInventory && inventory && (
               <AdminKeyValueGrid items={[
                 { key: 'totalAvailable', label: 'Total Available', value: String(inventory['totalAvailable'] ?? inventory['available'] ?? '—') },
                 { key: 'totalOnHand', label: 'Total On Hand', value: String(inventory['totalOnHand'] ?? inventory['onHand'] ?? '—') },

@@ -1614,3 +1614,11 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - Once the cancellation mutation succeeds, the UI suppresses repeat cancellation controls even if the follow-up read fails, preventing a stale pre-cancellation status from inviting a duplicate action.
 - Added `admin-order-cancel-refresh.test.tsx` for mutation success followed by detail-read failure, truthful success messaging, stale-detail visibility and safe retry.
 - No API, permission, order transition, stock/shipment side effect, schema, migration, database, staging or provider behavior changed. Tests remain pending the consolidated Phase 3 campaign.
+
+
+## UX-065 — Admin Offer Detail inventory recovery — 22 November 2026
+
+- Offer Detail inventory now records the variant ID associated with the last successful inventory response. A variant change cannot display the previous variant's stock as current.
+- Added explicit Refresh inventory, loading feedback, retryable errors and preservation of the last successful inventory values after a same-variant refresh failure. Failed refreshes no longer discard the last successful stock summary.
+- Added `admin-offer-detail-inventory-recovery.test.tsx` for successful inventory load followed by failed refresh with stale-data preservation.
+- No inventory, stock, offer, API, permission, schema, migration, database, staging or provider behavior changed. Tests remain pending the consolidated Phase 3 campaign.
