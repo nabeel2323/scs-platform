@@ -3,7 +3,7 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source/documentation baseline before this state refresh:** `5aed6deee8c45b641c3d443dc6713bdd03b726a1` (the current-state refresh commit itself advances the branch; resolve its resulting SHA from GitHub)
+**Latest source/documentation baseline before this state refresh:** `2345c01946bd31cbc34d63940275af45c312eb98` (the current-state refresh commit itself advances the branch; resolve its resulting SHA from GitHub)
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,11 +18,11 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ------------------------------------------------------------------------ |
 | Repository           | nabeel2323/scs-platform                                                  |
 | Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | `5aed6deee8c45b641c3d443dc6713bdd03b726a1` before this state refresh; resulting state-refresh SHA must be resolved live |
-| Latest commit        | `docs(project-memory): record API-003 CI and release state [skip ci]` |
+| Live branch head     | `2345c01946bd31cbc34d63940275af45c312eb98` before this state refresh; resulting state-refresh SHA must be resolved live |
+| Latest commit        | `docs(remediation): reconcile current G-002 progress head [skip ci]` |
 | PR #138              | Open; draft; not merged                                                  |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
-| Latest exact-head CI | No Actions run for source/docs head `5aed6de...`; combined status contains only Vercel preview failures pointing to external build-rate limit; NOT CI-VERIFIED |
+| Latest exact-head CI | No Actions run for source/docs head `2345c01...`; combined status contains only Vercel preview failures pointing to external build-rate limit; NOT CI-VERIFIED |
 | PR #142 CI           | #44953735602 — passed all executable jobs on `dddff20c...`; disposable PostgreSQL identity test included |
 | PR #138 CI           | Historical #44954371615 passed all executable jobs on `741a09f...`; not transferable to current head |
 
@@ -285,3 +285,8 @@ A static audit of the 28 controller files enumerated in docs/api-route-permissio
 ## Live PR reconciliation — 22 November 2026
 
 At the time of this refresh, PR #138 is open/draft/unmerged from remediation/phase-0-1-tenant-security to develop. The latest inspected source/docs head before this state refresh is 5aed6deee8c45b641c3d443dc6713bdd03b726a1. Exact-head Actions lookup returned no workflow runs; Vercel Admin/Web statuses point to the external build-rate-limit page and are not application CI results. PR #142 remains open/draft/unmerged at dddff20c170737dc4694008bb807b2b90e177f77; its earlier CI #1293 success is disposable-PostgreSQL evidence only. No merge, deployment, protected staging action, shared database change, migration, grant, RLS activation or worker activation occurred.
+
+
+## G-002 migration and RBAC evidence refresh — 22 November 2026
+
+The migration FK crosswalk now includes core schema relationships from migrations 0001, 0003, 0004, 0005, 0009, 0010, 0023, 0026, 0034, 0040, 0041, 0043, 0054, 0058–0063, 0070 and 0071. It records deferred FKs, non-FK org_id scope metadata added in 0062, system tables without tenant/user FKs in 0063, platform-level catalog import ownership and the global business-calendar schema limitation. Cross-parent consistency without composite FKs remains a policy-design risk. API-003 is implemented in source: CatalogController reads use catalog:products:read; StoreMembershipController member listing uses merchant:stores:read; MERCHANT_STAFF receives the existing store-read permission. Focused tests were added but not executed. All of this is static source/migration evidence only; no staging catalog query or shared DB change was performed.
