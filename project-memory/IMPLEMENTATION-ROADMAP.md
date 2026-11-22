@@ -1,7 +1,7 @@
 # SCS Platform — Implementation Roadmap
 
 **Status source:** [Authoritative remediation plan](../docs/remediation/IMPLEMENTATION-PLAN.md) and [progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md).  
-**Last checkpoint:** 21 November 2026.
+**Last checkpoint:** 22 November 2026.
 
 This file is a compact navigation and sequencing view. The remediation plan owns phase definitions, finding scope, acceptance criteria and release gates. The progress tracker owns detailed finding status and evidence. Update this summary whenever those documents change.
 
@@ -45,7 +45,7 @@ Continue evidence gathering and design only within authorized boundaries:
 
 - Verify the actual API and migration runtime identities, not merely a management API identity.
 - Obtain the protected read-only staging audit through the authorized `staging` environment approval.
-- Review table-specific operation and row-ownership predicates, transaction-local tenant context feasibility, and a least-privilege access model.
+- Review table-specific operation and row-ownership predicates, transaction-local tenant context feasibility, and a least-privilege access model. The 22-November source operation map covers 26 service files plus worker/system paths, and a separate schema-backed ownership candidate matrix is recorded; both remain preliminary and are not an approved RLS policy.
 - Preserve the detailed schema coverage reconciliation and DB audit reports in `docs/remediation/`.
 
 Do not make shared database changes as part of this work without explicit approval. G-002 remains IN PROGRESS until the evidence and design gates are satisfied.
