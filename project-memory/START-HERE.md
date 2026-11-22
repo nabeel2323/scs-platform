@@ -390,3 +390,13 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
 - Next: continue remaining buyer-facing Mobile screens and the Web/Admin route audit, implementing only source-confirmed contract-backed gaps.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
+
+
+## Latest UX continuation checkpoint — 23 November 2026 (UX-082)
+
+- Implemented Mobile Notifications read/action recovery: realtime/manual refresh preserves the last successful inbox; explicit refresh and pull-to-refresh; stale-data retry notice; initial failure vs true empty inbox; per-notification mark-read progress/error feedback; guarded Mark All Read with success/failure feedback.
+- Added Flutter widget tests for stale inbox preservation, initial failure/retry and mark-read action failure. Tests have not been executed and remain pending Phase 3.
+- Source commit: `ae9f5c1`; focused tests: `e1bd420`. Both use `[skip ci]`.
+- PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
+- Next: continue buyer-facing Mobile workflow audit and then remaining Web/Admin route audit; implement only source-confirmed contract-backed gaps.
+- No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
