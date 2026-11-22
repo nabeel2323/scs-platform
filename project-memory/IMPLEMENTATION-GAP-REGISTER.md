@@ -719,3 +719,12 @@ Source-confirmed gaps closed in implementation: product pull-to-refresh invalida
 - New login clears the persisted active organization before saving the new user's token, resets in-memory phone/email/org identity, and invalidates authenticated reads. Logout resets the same identity and authenticated cache set; AuthStorage logout already clears the persisted org id.
 - Focused ProviderContainer tests cover active-store org matching, organization-scoped invalidation while preserving buyer-order cache on org-only switch, and session reset invalidating user-level data. Source commits include `b49424e`, `3f4a6a3`, `1f29e7c`, `cd04739`, `fc1f22a`, `b416041`; test commits `a0f308c` / `d0d0b26`. Not executed.
 - No API/backend authorization, permission, DB, migration, RLS, worker or staging behavior changed.
+
+
+## UX-094 — Mobile merchant category permission/contract alignment — 23 November 2026
+
+- Source audit confirmed `CatalogController` category create/update/delete operations require `catalog:categories:write` **and** platform role ADMIN/MODERATOR. The Mobile router's merchant-role gate excludes those platform roles from `/merchant/*`, while the merchant category screen previously displayed New/Edit/Delete controls to merchant owners/staff. Those controls could only fail at the API boundary.
+- The merchant category directory now requires `catalog:categories:read`, the Home/Dashboard entry uses the same read permission, and merchant users see a read-only list with no mutation controls. A pure policy helper mirrors the API's ADMIN/MODERATOR + write-permission condition. No API role guard or permission grant was weakened.
+- Focused route/helper tests were added in `mobile/test/route_permissions_test.dart`; not executed. Commits: `6741baf6f7d47c12ddc79d3ca1f4bbd3f110a39f`, `6f0659299c39952b0c8190a4a8dd520ccd3e3db9`, `bb2e4650534bae0b30bf112500db184c227ccba8`, `7b293273f4aba14429ed226932123678a0892c55`, and explanatory source comment `bd672f0b93de31d6bc669bb7785eeb70a345c302`.
+- Client alignment is IMPLEMENTED / TESTING_PENDING. Actual merchant-owned category CRUD remains BLOCKED pending a product/API ownership decision: either implement store-scoped category ownership and membership authorization, or move category mutation to a dedicated platform-admin surface. Do not expose write controls until that decision and backend contract exist.
+- No API, RBAC seed, role grant, schema, database, migration, RLS, worker, staging or deployment behavior changed.
