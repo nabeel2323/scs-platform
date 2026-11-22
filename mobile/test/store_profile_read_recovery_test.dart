@@ -80,6 +80,8 @@ void main() {
     );
 
     await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -1800));
+    await tester.pumpAndSettle();
     expect(
       find.textContaining('Warehouse directory unavailable'),
       findsOneWidget,
