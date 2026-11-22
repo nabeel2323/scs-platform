@@ -71,11 +71,17 @@ function CategoryDetailContent({ id }: { id: string }) {
   const [attributes, setAttributes] = useState<CategoryAttributeRow[]>([]);
   const [attributesLoading, setAttributesLoading] = useState(false);
   const [ptLoading, setPtLoading] = useState(false);
+  const [productTypesError, setProductTypesError] = useState('');
   const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState('');
+  const [attributesError, setAttributesError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const requestVersion = useRef(0);
+  const productTypesRequestVersion = useRef(0);
+  const productsRequestVersion = useRef(0);
+  const attributesRequestVersion = useRef(0);
 
   useEffect(() => setReady(true), []);
 
@@ -109,76 +115,116 @@ function CategoryDetailContent({ id }: { id: string }) {
     return () => { requestVersion.current += 1; };
   }, [load]);
 
-  // Product Types tab uses the admin endpoint that returns DRAFT rows too,
-  // so admins can see un-published types linked to this category (task §21).
-  useEffect(() => {
-    if (activeTab !== 'productTypes' || !id) return;
+  // Product Types and Attributes tabs share the admin endpoint that includes DRAFT rows.
+  const loadProductTypes = useCallback(async () => {
+    if (!id) return;
+    const requestId = ++productTypesRequestVersion.current;
     setPtLoading(true);
-    fetchCategoryProductTypesForAdmin(id)
-      .then(list => { setProductTypes(list); setPtLoading(false); })
-      .catch(() => { setPtLoading(false); });
-  }, [activeTab, id]);
+    setProductTypesError('');
+    try {
+      const list = await fetchCategoryProductTypesForAdmin(id);
+      if (requestId === productTypesRequestVersion.current) setProductTypes(list);
+    } catch (err) {
+      if (requestId === productTypesRequestVersion.current) {
+        setProductTypesError(err instanceof Error ? err.message : 'Failed to load category product types');
+      }
+    } finally {
+      if (requestId === productTypesRequestVersion.current) setPtLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (activeTab !== 'productTypes' && activeTab !== 'attributes') return;
+    void loadProductTypes();
+    return () => { productTypesRequestVersion.current += 1; };
+  }, [activeTab, loadProductTypes]);
 
   // Products tab: direct + descendant split per task §4.
-  useEffect(() => {
-    if (activeTab !== 'products' || !id) return;
+  const loadProducts = useCallback(async () => {
+    if (!id) return;
+    const requestId = ++productsRequestVersion.current;
     setProductsLoading(true);
-    fetchCategoryProducts(id, 'BOTH')
-      .then(res => {
-        setProducts(res.direct);
-        setDescendantProducts(res.descendant);
-        setProductsLoading(false);
-      })
-      .catch(() => { setProductsLoading(false); });
-  }, [activeTab, id]);
+    setProductsError('');
+    try {
+      const result = await fetchCategoryProducts(id, 'BOTH');
+      if (requestId === productsRequestVersion.current) {
+        setProducts(result.direct);
+        setDescendantProducts(result.descendant);
+      }
+    } catch (err) {
+      if (requestId === productsRequestVersion.current) {
+        setProductsError(err instanceof Error ? err.message : 'Failed to load category products');
+      }
+    } finally {
+      if (requestId === productsRequestVersion.current) setProductsLoading(false);
+    }
+  }, [id]);
 
-  // Attributes tab: derive the union of PTAs across every linked product
-  // type (task §6 "Attributes" panel). There is no M2 API for this yet; if
-  // a dedicated endpoint lands in M4 this loop collapses to one fetch.
   useEffect(() => {
-    if (activeTab !== 'attributes' || productTypes.length === 0) return;
+    if (activeTab !== 'products') return;
+    void loadProducts();
+    return () => { productsRequestVersion.current += 1; };
+  }, [activeTab, loadProducts]);
+
+  // Attributes are a union of product-type schemas. Treat the operation as
+  // complete: a failed schema read must not present a partial union as complete.
+  const loadAttributes = useCallback(async () => {
+    if (productTypes.length === 0 || productTypesError) return;
+    const requestId = ++attributesRequestVersion.current;
     setAttributesLoading(true);
-    Promise.all(productTypes.map(pt => fetchProductTypeSchema(pt.id).catch(() => null)))
-      .then((schemas: (ProductTypeSchema | null)[]) => {
-        const byCode = new Map<string, AttributeAccumulator>();
-        schemas.forEach((s, idx) => {
-          if (!s) return;
-          const pt = productTypes[idx];
-          if (!pt) return;
-          for (const attr of s.attributes ?? []) {
-            const key = attr.definition?.code ?? attr.attributeDefinitionId;
-            const existing = byCode.get(key);
-            if (existing) {
-              existing.productTypeIds.add(pt.id);
-              existing.productTypeCount = existing.productTypeIds.size;
-              if (attr.isRequired) existing.required = true;
-              continue;
-            }
-            byCode.set(key, {
-              attributeDefinitionId: attr.attributeDefinitionId,
-              code: attr.definition?.code ?? '—',
-              name: attr.definition?.name ?? '—',
-              type: attr.definition?.type ?? '—',
-              scope: attr.definition?.scope ?? '—',
-              required: !!attr.isRequired,
-              productTypeCount: 1,
-              productTypeIds: new Set<string>([pt.id]),
-            });
+    setAttributesError('');
+    try {
+      const schemas = await Promise.all(productTypes.map(pt => fetchProductTypeSchema(pt.id)));
+      if (requestId !== attributesRequestVersion.current) return;
+      const byCode = new Map<string, AttributeAccumulator>();
+      schemas.forEach((schema, idx) => {
+        const pt = productTypes[idx];
+        if (!pt) return;
+        for (const attr of schema.attributes ?? []) {
+          const key = attr.definition?.code ?? attr.attributeDefinitionId;
+          const existing = byCode.get(key);
+          if (existing) {
+            existing.productTypeIds.add(pt.id);
+            existing.productTypeCount = existing.productTypeIds.size;
+            if (attr.isRequired) existing.required = true;
+            continue;
           }
-        });
-        const rows: CategoryAttributeRow[] = Array.from(byCode.values()).map(r => ({
-          attributeDefinitionId: r.attributeDefinitionId,
-          code: r.code,
-          name: r.name,
-          type: r.type,
-          scope: r.scope,
-          required: r.required,
-          productTypeCount: r.productTypeCount,
-        }));
-        setAttributes(rows);
-        setAttributesLoading(false);
+          byCode.set(key, {
+            attributeDefinitionId: attr.attributeDefinitionId,
+            code: attr.definition?.code ?? '—',
+            name: attr.definition?.name ?? '—',
+            type: attr.definition?.type ?? '—',
+            scope: attr.definition?.scope ?? '—',
+            required: !!attr.isRequired,
+            productTypeCount: 1,
+            productTypeIds: new Set<string>([pt.id]),
+          });
+        }
       });
-  }, [activeTab, productTypes]);
+      const rows: CategoryAttributeRow[] = Array.from(byCode.values()).map(row => ({
+        attributeDefinitionId: row.attributeDefinitionId,
+        code: row.code,
+        name: row.name,
+        type: row.type,
+        scope: row.scope,
+        required: row.required,
+        productTypeCount: row.productTypeCount,
+      }));
+      setAttributes(rows);
+    } catch (err) {
+      if (requestId === attributesRequestVersion.current) {
+        setAttributesError(err instanceof Error ? err.message : 'Failed to load product-type attributes');
+      }
+    } finally {
+      if (requestId === attributesRequestVersion.current) setAttributesLoading(false);
+    }
+  }, [productTypes, productTypesError]);
+
+  useEffect(() => {
+    if (activeTab !== 'attributes' || productTypes.length === 0 || productTypesError) return;
+    void loadAttributes();
+    return () => { attributesRequestVersion.current += 1; };
+  }, [activeTab, loadAttributes, productTypes.length, productTypesError]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: catalog:categories:write (missing: {missingPerms?.join(', ')})</div>;
@@ -281,8 +327,9 @@ function CategoryDetailContent({ id }: { id: string }) {
 
         {activeTab === 'productTypes' && (
           <AdminDetailSection title={`Product Types (${productTypes.length})`}>
-            {ptLoading && <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading product types…</div>}
-            {!ptLoading && productTypes.length === 0 && (
+            {ptLoading && <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading product types…</div>}
+            {!ptLoading && productTypesError && <AdminErrorState title="Unable to load product types" message={productTypesError} onRetry={loadProductTypes} />}
+            {!ptLoading && !productTypesError && productTypes.length === 0 && (
               <AdminEmptyState title="No product types" description="No product types are linked to this category." />
             )}
             {productTypes.length > 0 && (
@@ -318,7 +365,9 @@ function CategoryDetailContent({ id }: { id: string }) {
           <>
             <AdminDetailSection title={`Direct Products (${products.length})`}>
               {productsLoading ? (
-                <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading products…</div>
+                <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading products…</div>
+              ) : productsError ? (
+                <AdminErrorState title="Unable to load category products" message={productsError} onRetry={loadProducts} />
               ) : products.length === 0 ? (
                 <AdminEmptyState title="No direct products" description="No products are assigned to this exact category." />
               ) : (
@@ -328,7 +377,9 @@ function CategoryDetailContent({ id }: { id: string }) {
 
             <AdminDetailSection title={`Descendant Products (${descendantProducts.length})`}>
               {productsLoading ? (
-                <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading products…</div>
+                <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading products…</div>
+              ) : productsError ? (
+                <AdminErrorState title="Unable to load descendant products" message={productsError} onRetry={loadProducts} />
               ) : descendantProducts.length === 0 ? (
                 <AdminEmptyState title="No descendant products" description="No products are assigned to sub-categories." />
               ) : (
@@ -340,8 +391,12 @@ function CategoryDetailContent({ id }: { id: string }) {
 
         {activeTab === 'attributes' && (
           <AdminDetailSection title={`Attributes (${attributes.length})`}>
-            {attributesLoading ? (
-              <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading attributes…</div>
+            {productTypesError ? (
+              <AdminErrorState title="Unable to load linked product types" message={productTypesError} onRetry={loadProductTypes} />
+            ) : attributesLoading ? (
+              <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading attributes…</div>
+            ) : attributesError ? (
+              <AdminErrorState title="Unable to load product-type attributes" message={attributesError} onRetry={loadAttributes} />
             ) : attributes.length === 0 ? (
               <AdminEmptyState
                 title="No attributes"
