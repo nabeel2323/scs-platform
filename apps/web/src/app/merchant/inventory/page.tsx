@@ -58,6 +58,7 @@ function InventoryPageContent() {
   const [historyItemId, setHistoryItemId] = useState('');
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState('');
 
   // Variant lookup for SKU display + searchable dropdown
   const [variantMap, setVariantMap] = useState<Record<string, ProductVariant>>({});
@@ -260,16 +261,22 @@ function InventoryPageContent() {
     setAdjustReason('');
   };
 
-  const openHistory = async (item: InventoryItem) => {
-    setHistoryItemId(item.id);
+  const loadHistory = async (itemId: string) => {
     setLoadingHistory(true);
+    setHistoryError('');
     try {
-      setMovements(await fetchInventoryMovements(item.id));
-    } catch {
-      setMovements([]);
+      setMovements(await fetchInventoryMovements(itemId));
+    } catch (err: any) {
+      setHistoryError(err.message || 'Failed to load stock movement history');
     } finally {
       setLoadingHistory(false);
     }
+  };
+
+  const openHistory = (item: InventoryItem) => {
+    setHistoryItemId(item.id);
+    setMovements([]);
+    void loadHistory(item.id);
   };
 
   const handleAdjust = async () => {
@@ -865,6 +872,8 @@ function InventoryPageContent() {
                 </h3>
                 {loadingHistory ? (
                   <LoadingSpinner />
+                ) : historyError ? (
+                  <ErrorBanner message={historyError} onRetry={() => void loadHistory(historyItemId)} />
                 ) : movements.length === 0 ? (
                   <p style={{ fontSize: 13, color: '#5b6b74' }}>No movements recorded yet.</p>
                 ) : (
