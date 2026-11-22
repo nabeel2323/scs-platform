@@ -36,6 +36,10 @@ function DisputeDetailContent({ id }: { id: string }) {
   const [events, setEvents] = useState<DisputeEventRecord[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsError, setEventsError] = useState('');
+  const [resolution, setResolution] = useState('');
+  const [resolutionSubmitting, setResolutionSubmitting] = useState(false);
+  const [resolutionError, setResolutionError] = useState('');
+  const [resolutionSuccess, setResolutionSuccess] = useState(false);
   const disputeRequestVersion = useRef(0);
   const eventsRequestVersion = useRef(0);
 
@@ -62,6 +66,30 @@ function DisputeDetailContent({ id }: { id: string }) {
     void loadDispute();
     return () => { disputeRequestVersion.current += 1; };
   }, [loadDispute]);
+
+  const handleResolve = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedResolution = resolution.trim();
+    if (!normalizedResolution || resolutionSubmitting) return;
+
+    setResolutionSubmitting(true);
+    setResolutionError('');
+    setResolutionSuccess(false);
+    try {
+      await adminRequest(`disputes/${encodeURIComponent(id)}/resolve`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resolution: normalizedResolution }),
+      });
+      setResolutionSuccess(true);
+      setResolution('');
+      await loadDispute();
+    } catch (err) {
+      setResolutionError(err instanceof Error ? err.message : 'Failed to resolve dispute');
+    } finally {
+      setResolutionSubmitting(false);
+    }
+  };
 
   const loadEvents = useCallback(async () => {
     if (activeTab !== 'events' || !id) return;
@@ -216,9 +244,52 @@ function DisputeDetailContent({ id }: { id: string }) {
 
       <div style={{ padding: '0 32px 48px', display: 'flex', flexDirection: 'column', gap: 24 }}>
         {activeTab === 'overview' && (
-          <AdminDetailSection title="Dispute Information">
-            <AdminKeyValueGrid items={overviewItems} />
-          </AdminDetailSection>
+          <>
+            <AdminDetailSection title="Dispute Information">
+              <AdminKeyValueGrid items={overviewItems} />
+            </AdminDetailSection>
+            <AdminDetailSection title="Resolution">
+              {status === 'RESOLVED' || status === 'CLOSED' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <AdminStatusBadge status={status} />
+                  <p style={{ margin: 0, color: '#374151', fontSize: 14, whiteSpace: 'pre-wrap' }}>
+                    {String(dispute['resolution'] || 'No resolution note was recorded.')}
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={handleResolve} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+                    Record the decision and supporting explanation. Resolving a dispute is final.
+                  </p>
+                  <label htmlFor="dispute-resolution" style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                    Resolution
+                  </label>
+                  <textarea
+                    id="dispute-resolution"
+                    aria-label="Resolution"
+                    value={resolution}
+                    onChange={(event) => setResolution(event.target.value)}
+                    maxLength={4000}
+                    rows={5}
+                    required
+                    placeholder="Describe the resolution decision and its rationale…"
+                    style={{ width: '100%', boxSizing: 'border-box', padding: 12, border: '1px solid #cbd5e1', borderRadius: 8, font: 'inherit', resize: 'vertical' }}
+                  />
+                  {resolutionError && <p role="alert" style={{ margin: 0, color: '#b91c1c', fontSize: 13 }}>{resolutionError}</p>}
+                  {resolutionSuccess && <p role="status" style={{ margin: 0, color: '#047857', fontSize: 13 }}>Dispute resolution submitted.</p>}
+                  <div>
+                    <button
+                      type="submit"
+                      disabled={resolutionSubmitting || !resolution.trim()}
+                      style={{ padding: '9px 16px', border: 'none', borderRadius: 6, background: '#1e6178', color: '#fff', fontWeight: 600, cursor: resolutionSubmitting || !resolution.trim() ? 'not-allowed' : 'pointer', opacity: resolutionSubmitting || !resolution.trim() ? 0.6 : 1 }}
+                    >
+                      {resolutionSubmitting ? 'Resolving…' : 'Resolve dispute'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </AdminDetailSection>
+          </>
         )}
 
         {activeTab === 'technical' && (

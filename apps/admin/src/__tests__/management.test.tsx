@@ -401,6 +401,34 @@ describe('accessible dialogs and row actions', () => {
   });
 
 
+
+  it('submits the required resolution through the protected dispute endpoint', async () => {
+    vi.mocked(adminRequest).mockResolvedValue({
+      id: 'dispute-1',
+      status: 'OPEN',
+      reason: 'Damaged goods',
+      amountMinor: 1000,
+      currency: 'SAR',
+    });
+    render(<DisputeDetailPage />);
+    await screen.findByText('Dispute #dispute-1');
+
+    const textarea = screen.getByRole('textbox', { name: 'Resolution' });
+    fireEvent.change(textarea, { target: { value: 'Refund the buyer after review.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve dispute' }));
+
+    await waitFor(() => {
+      expect(adminRequest).toHaveBeenCalledWith(
+        'disputes/dispute-1/resolve',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ resolution: 'Refund the buyer after review.' }),
+        }),
+      );
+    });
+    expect(screen.getByRole('status').textContent).toContain('Dispute resolution submitted.');
+  });
+
   it('shows a retryable error for the dispute detail and reloads successfully', async () => {
     vi.mocked(adminRequest)
       .mockRejectedValueOnce(new Error('Dispute read unavailable'))
