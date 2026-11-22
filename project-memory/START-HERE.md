@@ -198,3 +198,14 @@ Merchant registration now persists the organization created or joined to secure 
 ## RBAC seed reconciliation — 22 November 2026
 
 Correction to the earlier onboarding-permission note: staging is not missing `identity:organizations:create`. The connected database migration log confirms `0069_organization_onboarding_permission.sql` was applied on 17 November 2026, and read-only SQL confirms the permission is assigned to BUYER, ADMIN, MERCHANT_OWNER, and SUPER_ADMIN. The defect was canonical seed drift: `apps/api/src/common/database/rbac-seed.data.ts` omitted the permission and its role grants. The seed and a real-seed regression test are now aligned with migration 0069. No staging database mutation was needed.
+
+
+## Admin read-permission alignment — 22 November 2026
+
+- Reconciled the live PR #138 head before implementation: `c660a9276da13a5df17af9161b3d5efc5d6ff0b3`; PR #138 remains open/draft/unmerged to `develop`.
+- Fixed the commission reversal page: `admin:commission:read` is now enforced in the UI, the access-denied state is rendered, and unauthorized users do not trigger the reversal-list request.
+- Fixed dashboard data authorization: KPI data is fetched/rendered only with `admin:kpis:read`; organization-update data is fetched/rendered only with `admin:users:read`. Existing import/catalog-request permissions remain independently enforced.
+- Added focused Admin permission tests for denied and allowed commission access and dashboard KPI/organization data requests. Tests are intentionally not run yet; comprehensive validation remains consolidated in Phase 3.
+- Updated the Admin route matrix and UX-003/UX-006 classifications. UX-006 mobile permission affordances are now classified IMPLEMENTED / NOT VERIFIED rather than pending.
+- This group is committed as one `[skip ci]` commit to conserve the user's remaining GitHub Actions minutes. No permission grants, backend policies, database, staging, migrations, worker activation, deployment, merge or release action changed.
+- Next implementation focus: finish MAP-001 API route-to-contract/client-consumer mapping and worker/provider activation ownership; then consolidate remaining integration work before Phase 3 testing.

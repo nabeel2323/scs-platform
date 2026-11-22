@@ -339,3 +339,13 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Supabase read-only SQL: `public._migration_log` confirms migration 0069 applied on 17 November 2026. Permission-role join confirms `identity:organizations:create` exists for BUYER, ADMIN, MERCHANT_OWNER, and SUPER_ADMIN.
 - Corrected the earlier finding: staging grants were already correct; only `rbac-seed.data.ts` was stale. Aligned PERMISSIONS and the four role grants with migration 0069 and added a regression assertion against the actual `ROLES` seed.
 - No database write, privilege change, deployment, or new migration was performed.
+
+
+## 2026-11-22 — Admin read-permission alignment
+
+- Reconciled PR #138 to exact source head `c660a9276da13a5df17af9161b3d5efc5d6ff0b3` and confirmed it remained open/draft/unmerged. Exact-head Actions lookup returned no workflow run; only external Vercel build-rate-limit statuses were present.
+- Fixed `apps/admin/src/app/commission/page.tsx`: enforce `admin:commission:read`, render AccessDenied, and do not issue the commission-reversal API request without access.
+- Fixed `apps/admin/src/app/page.tsx`: gate KPI fetch/section by `admin:kpis:read` and organization-update fetch/section by `admin:users:read`; preserve existing independent catalog import/request gates and add an organization-update loading state.
+- Added `apps/admin/src/__tests__/dashboard-permissions.test.tsx` covering unauthorized request suppression and permitted access for both dashboard data groups and commission reversals.
+- Updated Admin route matrix and UX-003/UX-006 classifications. UX-006 is IMPLEMENTED / NOT VERIFIED; full role/deep-link/action testing remains Phase 3.
+- Validation intentionally deferred; no Actions workflow was triggered by this grouped `[skip ci]` commit. No backend permission, role grant, DB, staging, migration, worker, deployment or release behavior changed.

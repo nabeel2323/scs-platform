@@ -37,7 +37,10 @@ import {
 export default function AdminHomePage() {
   const [kpis, setKpis] = useState<KpiResponse | null>(null);
   const [updateReqs, setUpdateReqs] = useState<AdminOrgUpdateRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [kpisLoading, setKpisLoading] = useState(true);
+  const [orgUpdatesLoading, setOrgUpdatesLoading] = useState(true);
+  const { hasAccess: canReadKpis } = useRequirePerms(['admin:kpis:read']);
+  const { hasAccess: canReadOrgUpdates } = useRequirePerms(['admin:users:read']);
   const { hasAccess: canManageImports } = useRequirePerms(['catalog:imports:manage']);
   const { hasAccess: canManageRequests } = useRequirePerms(['catalog:requests:manage']);
   const [recentImports, setRecentImports] = useState<CatalogImport[]>([]);
@@ -54,15 +57,29 @@ export default function AdminHomePage() {
   }, []);
 
   useEffect(() => {
-    Promise.all([
+    let active = true;
+    if (canReadKpis) {
+      setKpisLoading(true);
       fetchKpis()
-        .then(setKpis)
-        .catch(() => {}),
+        .then((data) => { if (active) setKpis(data); })
+        .catch(() => {})
+        .finally(() => { if (active) setKpisLoading(false); });
+    } else {
+      setKpis(null);
+      setKpisLoading(false);
+    }
+    if (canReadOrgUpdates) {
+      setOrgUpdatesLoading(true);
       fetchAdminOrgUpdateRequests('PENDING')
-        .then(setUpdateReqs)
-        .catch(() => {}),
-    ]).finally(() => setLoading(false));
-  }, []);
+        .then((rows) => { if (active) setUpdateReqs(rows); })
+        .catch(() => {})
+        .finally(() => { if (active) setOrgUpdatesLoading(false); });
+    } else {
+      setUpdateReqs([]);
+      setOrgUpdatesLoading(false);
+    }
+    return () => { active = false; };
+  }, [canReadKpis, canReadOrgUpdates]);
 
   useEffect(() => {
     let active = true;
@@ -141,6 +158,7 @@ export default function AdminHomePage() {
       {/* ── Content ───────────────────────────────────────── */}
       <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
         {/* KPI Row */}
+        {canReadKpis && (
         <div
           style={{
             display: 'grid',
@@ -152,35 +170,35 @@ export default function AdminHomePage() {
           <KpiCard
             icon={<IconUsers />}
             label="Total Users"
-            value={loading ? '—' : String(kpis?.users.total ?? 0)}
+            value={kpisLoading ? '—' : String(kpis?.users.total ?? 0)}
             accent={colors.brand[700]}
             tint={colors.brand[50]}
           />
           <KpiCard
             icon={<IconShield />}
             label="Verified Merchants"
-            value={loading ? '—' : String(kpis?.merchants.verified ?? 0)}
+            value={kpisLoading ? '—' : String(kpis?.merchants.verified ?? 0)}
             accent={colors.ok}
             tint={colors.okBg}
           />
           <KpiCard
             icon={<IconPackage />}
             label="Pending Merchants"
-            value={loading ? '—' : String(kpis?.merchants.pending ?? 0)}
+            value={kpisLoading ? '—' : String(kpis?.merchants.pending ?? 0)}
             accent={colors.warn}
             tint={colors.warnBg}
           />
           <KpiCard
             icon={<IconPackage />}
             label="Total Orders"
-            value={loading ? '—' : String(kpis?.orders.total ?? 0)}
+            value={kpisLoading ? '—' : String(kpis?.orders.total ?? 0)}
             accent={colors.info}
             tint={colors.infoBg}
           />
           <KpiCard
             icon={<IconDollar />}
             label="Revenue"
-            value={loading ? '—' : `${fmt(kpis?.revenue.totalMinor ?? 0)} SAR`}
+            value={kpisLoading ? '—' : `${fmt(kpis?.revenue.totalMinor ?? 0)} SAR`}
             accent="#7c3aed"
             tint="#f3efff"
           />
@@ -192,8 +210,10 @@ export default function AdminHomePage() {
             tint={colors.okBg}
           />
         </div>
+        )}
 
         {/* Pending Organization Updates Widget */}
+        {canReadOrgUpdates && (
         <div
           style={{
             background: colors.surface,
@@ -230,7 +250,7 @@ export default function AdminHomePage() {
                   borderRadius: radii.full,
                 }}
               >
-                {updateReqs.length}
+                {orgUpdatesLoading ? '…' : updateReqs.length}
               </span>
             </div>
             <Link
@@ -245,7 +265,11 @@ export default function AdminHomePage() {
               View all →
             </Link>
           </div>
-          {updateReqs.length === 0 ? (
+          {orgUpdatesLoading ? (
+            <div style={{ padding: '28px 22px', textAlign: 'center', color: colors.muted, ...typeScale.body }}>
+              Loading organization update requests…
+            </div>
+          ) : updateReqs.length === 0 ? (
             <div
               style={{
                 padding: '28px 22px',
@@ -367,6 +391,7 @@ export default function AdminHomePage() {
             </table>
           )}
         </div>
+        )}
 
         {(canManageImports || canManageRequests) && (
           <>

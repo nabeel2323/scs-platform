@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { adminRequest } from '../../lib/api';
-import { useRequirePerms } from '../../hooks/useRequirePerms';
+import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
 import { PageHeader, Card, colors, radii, typeScale } from '@scs/ui-kit';
 
 interface CommissionReversal {
@@ -44,14 +44,16 @@ function fmtDate(s: string) {
 }
 
 export default function CommissionOversightPage() {
-  useRequirePerms(['admin:commission:read']);
+  const { hasAccess, missingPerms } = useRequirePerms(['admin:commission:read']);
   const [reversals, setReversals] = useState<CommissionReversal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
   const load = useCallback(() => {
+    if (!hasAccess) return;
     setLoading(true);
+    setError('');
     const sp = new URLSearchParams();
     if (statusFilter) sp.set('status', statusFilter);
     const qs = sp.toString();
@@ -59,9 +61,20 @@ export default function CommissionOversightPage() {
       .then(data => setReversals(data))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [statusFilter]);
+  }, [hasAccess, statusFilter]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (hasAccess) load();
+  }, [hasAccess, load]);
+
+  if (!hasAccess) {
+    return (
+      <div style={{ padding: '24px 28px', minHeight: '100vh', background: '#0f1115', color: '#e5e7eb' }}>
+        <PageHeader title="Commission Oversight" subtitle="Commission reversals and responsibility tracking" />
+        <AccessDenied requiredPerms={['admin:commission:read']} missingPerms={missingPerms} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '24px 28px', minHeight: '100vh', background: '#0f1115', color: '#e5e7eb' }}>

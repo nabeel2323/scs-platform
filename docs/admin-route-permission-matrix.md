@@ -22,7 +22,7 @@ This is a source-level UI permission inventory, not a replacement for API author
 | `/carrier` | `admin:carrier:read` for configuration reads; `admin:shipping:recovery` for recovery queue | Recovery action is hidden unless recovery permission is present; no credential/configuration write UI was found |
 | `/catalog-import`, `/catalog-import/[id]` | `catalog:imports:manage` | Import pipeline actions remain under import-management access |
 | `/categories`, `/categories/[id]` | `catalog:categories:write` | Category management surface |
-| `/commission` | `admin:commission:read` | Read-only commission view |
+| `/commission` | `admin:commission:read` | Reversal list request and page content are blocked when permission is missing; read-only commission view |
 | `/data-quality` | `catalog:product-types:manage` | Product-type data-quality surface |
 | `/disputes`, `/disputes/[id]` | `support:disputes:resolve` | Generic list and detail share the dispute-resolution permission |
 | `/kpis`, `/offers-kpis`, `/offers-trend` | `admin:kpis:read` | Read-only KPI/trend surfaces |
@@ -31,7 +31,7 @@ This is a source-level UI permission inventory, not a replacement for API author
 | `/orders` | `admin:orders:read` | Generic order monitor |
 | `/orders/[id]` | `admin:orders:read` | Cancellation additionally requires `orders:cancel` |
 | `/organizations`, `/organizations/[id]` | `admin:users:read` | Organization deactivation/reactivation and update-request review require `admin:users:write` |
-| `/` | AuthGuard; widget-level checks | Catalog import widget: `catalog:imports:manage`; catalog request widget: `catalog:requests:manage` |
+| `/` | AuthGuard; KPI data requires `admin:kpis:read`; organization-update data requires `admin:users:read` | Catalog import widget: `catalog:imports:manage`; catalog request widget: `catalog:requests:manage`; each data request and widget is independently gated |
 | `/payments` | `admin:payments:read` | Verification queue: `admin:payments:verify`; refund queue/approval: `admin:refunds:approve` |
 | `/product-types`, `/product-types/[id]` | `catalog:product-types:manage` | Product-type management |
 | `/products` | `admin:merchants:read` | Generic moderation list; create action requires `catalog:products:write` |
@@ -61,3 +61,12 @@ This is a source-level UI permission inventory, not a replacement for API author
 - This source audit covers all 56 Admin page files and the generic `ManagementPage` configuration. It does not claim every API route or every backend operation has been exhaustively reconciled.
 - Comprehensive role-by-role/deep-link/action verification remains in the consolidated Phase 3 testing campaign.
 - Next mapping work: mobile screen/action permission affordances, remaining web route-to-API mapping, and worker/provider ownership.
+
+
+## Dashboard and commission read-gate correction — 22 November 2026
+
+The dashboard now calls `GET /admin/kpis` only for users with `admin:kpis:read` and calls `GET /admin/org-update-requests` only for users with `admin:users:read`. The corresponding dashboard sections are independently hidden without those permissions, and organization updates have an explicit loading state.
+
+The commission reversal page now renders the shared access-denied state and does not request `GET /admin/commission-reversals` unless `admin:commission:read` is present. These client checks mirror existing API guards; no backend permission or role grant changed.
+
+Focused regression coverage is added in `apps/admin/src/__tests__/dashboard-permissions.test.tsx`. Execution remains deferred to the consolidated Phase 3 campaign.
