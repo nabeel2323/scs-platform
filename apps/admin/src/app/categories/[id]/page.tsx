@@ -363,11 +363,12 @@ function CategoryDetailContent({ id }: { id: string }) {
 
         {activeTab === 'products' && (
           <>
+            {productsError && <AdminErrorState title="Unable to load category products" message={productsError} onRetry={loadProducts} />}
             <AdminDetailSection title={`Direct Products (${products.length})`}>
               {productsLoading ? (
                 <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading products…</div>
               ) : productsError ? (
-                <AdminErrorState title="Unable to load category products" message={productsError} onRetry={loadProducts} />
+                null
               ) : products.length === 0 ? (
                 <AdminEmptyState title="No direct products" description="No products are assigned to this exact category." />
               ) : (
@@ -379,7 +380,7 @@ function CategoryDetailContent({ id }: { id: string }) {
               {productsLoading ? (
                 <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading products…</div>
               ) : productsError ? (
-                <AdminErrorState title="Unable to load descendant products" message={productsError} onRetry={loadProducts} />
+                null
               ) : descendantProducts.length === 0 ? (
                 <AdminEmptyState title="No descendant products" description="No products are assigned to sub-categories." />
               ) : (
