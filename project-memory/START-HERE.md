@@ -264,3 +264,12 @@ A preliminary source inventory of all 53 API module service/worker/provider file
 ## Latest build and verification status — 22 November 2026
 
 Latest actual Actions run #1337 is on `06cd8fc1e56dc7ef64a141b97b594adc96ffbece`, not current head. Flutter passed; API lint/typecheck steps passed (309 lint warnings, zero errors; 9 typecheck tasks successful); changed-file Prettier failed on nine files, skipping dependent tests/build/migration jobs. Current head `b78ad3137ecc7820e8a4a0c3816a772bff764c3d` has no Actions run; Vercel Admin and Web both report FAILURE due to the provider build-rate-limit/upgrade gate. These are not application test results. Comprehensive testing remains deferred to the consolidated phase after implementation and integration.
+
+
+## Latest continuation checkpoint — 22 November 2026
+
+Current branch and PR #138 head: 9d3eaa8f961f2a718f1840b08c8e37dc113ea636. PR #138 remains open/draft/unmerged to develop.
+
+Method-level predicate batches 1–3 are complete: Orders/Payments/Inventory; Catalog/Offers/Taxonomy; Pricing/Merchant/Store Membership. Batch 3 added service-level same-store validation for price-tier relationships, ACTIVE organization membership checks for merchant document/verification reads, and caller-context validation for document uploads and organization-scoped store/customer reads. Focused merchant/pricing tests were added but not run.
+
+**Continue with Returns/Disputes/Reviews method-level mapping and implementation.** Then review carrier/shipping and worker/outbox/bootstrap/system contexts. Do not run tests or CI until the implementation groups are complete, per the implementation-first decision. Do not enable RLS or perform protected live DB actions.

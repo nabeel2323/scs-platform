@@ -393,3 +393,13 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Current head combined statuses: Vercel Admin FAILURE and Vercel Web FAILURE, both reporting the provider build-rate-limit/upgrade gate. These are preview-provider failures, not application test evidence.
 - Implementation since the previous checkpoint: source maps for 53 service/worker candidates and 28 module controllers; CLI/migration/bootstrap and physical DB object inventories; read-only audit enhancement; local admin/reset/M6 OTP safety; ambiguous carrier webhook rejection; shared local UAT guards across legacy scripts; exact-target staging bootstrap guards and package preflight. Guard tests were added but not run.
 - No tests were run, no CI was triggered, and no staging/shared DB action, migration, seed, reset, grant, RLS change, deployment, worker activation or provider call occurred. Full testing remains deferred until implementation and integration are ready.
+
+
+## Current branch and verification checkpoint — 22 November 2026
+
+- PR #138 remains open, draft and unmerged from remediation/phase-0-1-tenant-security to develop. Current branch/PR head: 9d3eaa8f961f2a718f1840b08c8e37dc113ea636, commit style(g002): format merchant and pricing tenant specs [skip ci].
+- No GitHub Actions run is attached to this head. The latest actual branch Actions run remains #1337 on 06cd8fc1e56dc7ef64a141b97b594adc96ffbece; Flutter passed, API lint/typecheck steps passed, but changed-file Prettier failed on nine files and dependent jobs were skipped. This run is not current-head verification.
+- Current head combined statuses: Vercel Admin FAILURE and Vercel Web FAILURE due to the provider build-rate-limit/upgrade gate. These are preview-provider failures, not application test evidence.
+- Implementation batch 3 covers Pricing/Merchant/Store Membership: same-store pricing tier invariants enforced in PricingService; merchant document/verification reads require ACTIVE org membership; document uploads validate caller activeOrg, org membership and optional store/org/membership; organization-scoped store/customer reads revalidate CallerContext. Two focused unit specs added but not run.
+- Next: Returns/Disputes/Reviews, then carrier/shipping, then worker/outbox/bootstrap/system.
+- No tests/CI, database connections/queries/writes, migrations, grants, RLS changes, staging actions, deployments, worker activation or provider calls occurred. Comprehensive testing remains deferred to the consolidated final phase.

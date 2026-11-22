@@ -325,3 +325,14 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Carrier webhook provider-only legacy route now rejects ambiguous active credentials; focused tests are committed but not run.
 - Next: method-level service-to-table owner predicate mapping and worker/outbox/system context review. Live API/migration identities and protected 114-versus-116 catalog evidence remain external read-only gates.
 - Current head has no Actions run; Vercel Admin/Web fail due to provider build-rate-limit. No tests were run, no CI was triggered, and no staging/shared DB action occurred.
+
+
+## Latest implementation checkpoint — 22 November 2026
+
+- Current branch/PR head: 9d3eaa8f961f2a718f1840b08c8e37dc113ea636. PR #138 is open, draft and unmerged from remediation/phase-0-1-tenant-security to develop.
+- Completed method-level ownership batches: Orders/Payments/Inventory; Catalog/Offers/Taxonomy; Pricing/Merchant/Store Membership.
+- Batch 3 fixes: PricingService enforces price-list ↔ variant ↔ product same-store relationships for tier create/update/delete, product-pricing reads and price resolution. Merchant document list/download and organization verification reads now require ACTIVE organization membership. Document upload validates caller activeOrg, ACTIVE org membership, store-to-org ownership and ACTIVE store membership. Organization-scoped store/customer reads receive caller context and revalidate active membership.
+- Added merchant-service-tenant-scope.spec.ts and pricing-service-tenant-scope.spec.ts. They are committed but not run.
+- Latest commit 9d3eaa8f961f2a718f1840b08c8e37dc113ea636 formats the new tenant-scope specs and pricing imports. No GitHub Actions run is attached to this head. Vercel Admin and Web report FAILURE due to provider build-rate-limit; these are preview-provider statuses, not test results.
+- Next method-level implementation batch: Returns/Disputes/Reviews. Then carrier/shipping, followed by worker/outbox/bootstrap/system contexts.
+- No tests/CI, database connections/queries/writes, migrations, grants, RLS changes, staging actions, deployments, worker activation or provider calls occurred. Full testing remains deferred to the consolidated final phase.
