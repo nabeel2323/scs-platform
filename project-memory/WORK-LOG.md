@@ -807,3 +807,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Merchant Detail: added store locale and popularity-badge visibility, logo/cover previews and structured address display using the existing store detail projection.
 - Added focused Admin tests `admin-create-user-recovery.test.tsx`, `admin-user-role-permissions.test.tsx`, `admin-merchant-detail.test.tsx`, plus API `admin-user-creation.spec.ts` coverage. Tests were not executed; full testing remains deferred to Phase 3.
 - No new API routes/permissions, schema/migration/database changes, deployment, staging write, RLS/grant change or worker activation. Implementation/test commits use `[skip ci]`.
+
+## 2026-11-22 — UX-048 / UX-049 Admin Roles and Audit Log recovery
+
+- Roles list now has an explicit retry action and request-version protection with effect cleanup; a failed lookup no longer leaves an unrecoverable error page.
+- Audit Log reads now use request-version guards so an older filter response cannot overwrite a newer one. Cleanup invalidates outstanding requests, and the error banner exposes Retry audit log while preserving the last successful rows.
+- Added `admin-roles-recovery.test.tsx` and `admin-audit-race.test.tsx` for retry and response-order behavior. Tests not executed.
+- No API, permission, schema, database or migration change. Commits use `[skip ci]`; no deployment or staging action.
