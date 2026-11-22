@@ -449,20 +449,66 @@ export class InventoryService {
     if (input.quantity <= 0) throw new BadRequestException('Transfer quantity must be positive');
     if (input.fromWarehouseId === input.toWarehouseId) throw new BadRequestException('Source and destination warehouses must differ');
 
-    if (caller) {
-      await assertWarehouseMember(this.db, caller, input.fromWarehouseId);
-      await assertWarehouseMember(this.db, caller, input.toWarehouseId);
-      await assertInventoryItemMember(this.db, caller, input.inventoryItemId);
-    }
-
-    // P8: Read item inside the transaction with FOR UPDATE to prevent
-    // TOCTOU race with concurrent reserveStock. The availability check
-    // and all mutations happen atomically.
-    // Pre-resolve destination outside the transaction (read-only lookup).
+    // Resolve the source relationship before authorization. Quantity is still
+    // re-read under FOR UPDATE below; these relationship fields establish the
+    // invariant that a variant can only move between warehouses in its store.
     const item = await this.getItem(input.inventoryItemId);
     if (item['warehouseId'] !== input.fromWarehouseId) {
       throw new BadRequestException('Inventory item does not belong to source warehouse');
     }
+
+    let fromStoreId: string | null;
+    let toStoreId: string | null;
+    let variantStoreId: string | null;
+
+    if (caller) {
+      [fromStoreId, toStoreId, variantStoreId] = await Promise.all([
+        assertWarehouseMember(this.db, caller, input.fromWarehouseId),
+        assertWarehouseMember(this.db, caller, input.toWarehouseId),
+        assertVariantStoreMember(this.db, caller, item['variantId']),
+      ]);
+      await assertInventoryItemMember(this.db, caller, input.inventoryItemId);
+    } else {
+      // Internal/system callers still preserve the same data invariant even
+      // when there is no user membership context to validate.
+      const [fromWarehouse, toWarehouse, variant] = await Promise.all([
+        this.db.db.query.warehouses.findFirst({
+          where: eq(warehouses.id, input.fromWarehouseId),
+          columns: { storeId: true },
+        }),
+        this.db.db.query.warehouses.findFirst({
+          where: eq(warehouses.id, input.toWarehouseId),
+          columns: { storeId: true },
+        }),
+        this.db.db.query.productVariants.findFirst({
+          where: eq(productVariants.id, item['variantId']),
+          columns: { productId: true },
+        }),
+      ]);
+      const product = variant
+        ? await this.db.db.query.products.findFirst({
+            where: eq(products.id, variant.productId),
+            columns: { storeId: true },
+          })
+        : null;
+      fromStoreId = fromWarehouse?.storeId ?? null;
+      toStoreId = toWarehouse?.storeId ?? null;
+      variantStoreId = product?.storeId ?? null;
+    }
+
+    if (
+      !fromStoreId ||
+      !toStoreId ||
+      !variantStoreId ||
+      fromStoreId !== toStoreId ||
+      fromStoreId !== variantStoreId
+    ) {
+      throw new BadRequestException(
+        'Source and destination warehouses must belong to the same store as the product variant',
+      );
+    }
+
+    // Pre-resolve destination outside the transaction (read-only lookup).
 
     const destItem = await this.db.db.query.inventoryItems.findFirst({
       where: and(
