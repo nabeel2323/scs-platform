@@ -266,6 +266,9 @@ export interface AdminOrderItem {
   orderId: string;
   productId: string;
   variantId: string | null;
+  productTitle?: string | null;
+  variantSku?: string | null;
+  variantTitle?: string | null;
   quantity: number;
   unitPriceMinor: number;
   totalPriceMinor: number;

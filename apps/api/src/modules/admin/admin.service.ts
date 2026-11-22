@@ -56,7 +56,16 @@ export class AdminService {
 
     if (!orderRows[0]) throw new NotFoundException('Order not found');
 
-    const items = await this.db.db.select().from(orderItems)
+    const items = await this.db.db
+      .select({
+        ...getTableColumns(orderItems),
+        productTitle: products.title,
+        variantSku: productVariants.sku,
+        variantTitle: productVariants.title,
+      })
+      .from(orderItems)
+      .leftJoin(products, eq(orderItems.productId, products.id))
+      .leftJoin(productVariants, eq(orderItems.variantId, productVariants.id))
       .where(eq(orderItems.orderId, orderId));
 
     const history = await this.db.db.select().from(orderStatusHistory)

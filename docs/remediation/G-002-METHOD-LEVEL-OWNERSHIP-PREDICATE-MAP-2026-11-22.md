@@ -322,3 +322,14 @@ P13MonitorService scans globally as a system component on each API instance. A u
 ### OutboxDispatcher
 
 OutboxDispatcher.publish accepts a transaction client so domain outbox inserts can share the business transaction. The generic poller excludes shipping.carrier.* events because those have a dedicated leased worker. The generic dispatcher currently logs event type/aggregate and marks rows dispatched; it does not publish to Kafka/RabbitMQ/SNS or another real bus. Treat that as a deferred integration limitation, not proof of downstream delivery. Carrier provider side effects remain in their dedicated worker path.
+
+
+## Pricing service and Admin order-item presentation — 22 November 2026
+
+### PricingService
+
+The controller validates the variant's store and rejects a caller-supplied mismatched storeId. The no-storeId fallback previously called listTiersByVariant(variantId) and returned tiers from every price list referencing that variant, even if corrupt historical rows linked a foreign-store price list. listTiersByVariant now requires storeId on every path and joins priceLists to enforce priceLists.storeId = storeId, optionally also constraining priceListId. The internal getProductPricing path passes its storeId into the same method. A focused test asserts missing-store fail-closed behavior and the store predicate. This complements listTiersByPriceList's product/variant enrichment for mobile.
+
+### Admin order detail
+
+AdminService.getOrderDetail now enriches order items with productTitle, variantSku and variantTitle through left joins to products and productVariants. The Admin UI displays the product/variant names and SKU rather than opaque UUIDs, with UUID fallback for historical orphaned references. The route remains admin:orders:read guarded; this is presentation enrichment only and does not broaden order access.

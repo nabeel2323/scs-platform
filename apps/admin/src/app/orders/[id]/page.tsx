@@ -208,11 +208,10 @@ function OrderDetailContent({ id }: { id: string }) {
       label: 'Product',
       render: (_val, row) => {
         const pid = String(row['productId'] || '');
-        return pid ? (
+        const title = String(row['productTitle'] || '');
+        return title || (pid ? (
           <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{pid.slice(0, 12)}…</span>
-        ) : (
-          '—'
-        );
+        ) : '—');
       },
     },
     {
@@ -220,10 +219,14 @@ function OrderDetailContent({ id }: { id: string }) {
       label: 'Variant',
       render: (_val, row) => {
         const vid = row['variantId'];
-        return vid ? (
-          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{String(vid).slice(0, 12)}…</span>
-        ) : (
-          '—'
+        const title = String(row['variantTitle'] || '');
+        const sku = String(row['variantSku'] || '');
+        if (!vid && !title && !sku) return '—';
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span>{title || sku || String(vid).slice(0, 12) + '…'}</span>
+            {sku && <span style={{ fontSize: 11, color: '#6b7280' }}>SKU: {sku}</span>}
+          </div>
         );
       },
     },
