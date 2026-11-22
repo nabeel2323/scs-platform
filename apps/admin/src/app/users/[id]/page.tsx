@@ -222,9 +222,7 @@ function UserDetailContent({ id }: { id: string }) {
         )}
 
         {activeTab === 'organizations' && (
-          <AdminDetailSection title={`Organization Memberships (${user.organizations.length})`}>
-            <UserMemberships record={user as unknown as AdminRecord} onDone={() => void loadUser()} />
-          </AdminDetailSection>
+          <UserMemberships record={user as unknown as AdminRecord} onDone={() => void loadUser()} />
         )}
 
         {activeTab === 'permissions' && (
