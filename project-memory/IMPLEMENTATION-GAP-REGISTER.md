@@ -656,3 +656,8 @@ Source-confirmed correctness gap closed in implementation: changing payment meth
 ## UX-085 — Mobile Merchant Dashboard recovery — 23 November 2026
 
 Source-confirmed gaps closed in implementation: dashboard refresh returned before independent reads completed, and profile/active-store refresh failures did not preserve last-successful context. The dashboard now has stale-safe profile/store reads, retry, awaited independent refresh and pull-to-refresh. Focused Flutter test is added but remains TESTING_PENDING. Existing KPI recovery and permission gating are unchanged.
+
+
+## UX-086 — Mobile Merchant Catalog recovery — 23 November 2026
+
+Source-confirmed gaps closed in implementation: product pull-to-refresh invalidated without awaiting; active-store/product reads did not preserve stale data on refresh failure; initial errors and successful empty catalogues needed explicit separation. The screen now awaits current-store refresh, preserves last-successful product rows and filters, and exposes retry. Focused Flutter tests are added but remain TESTING_PENDING. Permission gates and catalog API contract unchanged.
