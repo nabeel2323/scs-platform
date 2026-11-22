@@ -1478,3 +1478,19 @@ The migration crosswalk now includes core schema relationships from migrations 0
 - The existing loader retains the last successful rows when a refresh fails; the error banner remains visible for recovery.
 - Added `apps/web/src/__tests__/merchant-deliveries-recovery.test.tsx`. Not executed; comprehensive testing remains Phase 3.
 - No API, schema, DB, permission, route or migration change.
+
+## UX-033 — Web Merchant Returns store selection and read recovery — 22 November 2026
+
+- Replaced the manual Store ID input with the authenticated store directory from `GET /v1/stores`; the first available store is selected by default and merchants can switch stores.
+- Added distinct retryable store-directory and return-list errors, status filtering, successful-empty-only rendering and stale-request cancellation/version protection.
+- Added retry to Merchant Return Detail.
+- Existing API authorization remains unchanged: list requires `merchant:orders:read`; return transitions require `merchant:orders:write`.
+- Focused tests: `merchant-returns-recovery.test.tsx` and `merchant-return-detail-recovery.test.tsx`. Not run.
+
+## UX-034 — Merchant Organization auxiliary read recovery — 22 November 2026
+
+- Added visible retryable failures for verification history, update requests, store information, warehouses, roles and members; retained last successful auxiliary data across failed refreshes.
+- A failed update-request read blocks verified-organization update submission until pending-request state is known. A primary profile/organization read failure no longer appears as a successful no-organization state.
+- Role loading exposes retry and does not loop automatically after a failure.
+- Focused test: `merchant-organization-recovery.test.tsx`. Not run.
+- No API, permission, route, schema or database change.

@@ -394,3 +394,11 @@ The Merchant Customers page previously swallowed initial and refresh failures an
 ## 22 November 2026 — UX-032 Merchant Deliveries read recovery
 
 The Merchant Deliveries queue now offers Retry on list-read failure and does not present “No deliveries yet” after a failed request. Existing rows remain available if a later refresh fails. Focused test added; not executed.
+
+## 22 November 2026 — UX-033 / UX-034 Merchant Web implementation audit
+
+- `apps/web/src/app/merchant/returns/page.tsx` previously required a manually typed store ID. It now loads the signed-in merchant's available stores through `fetchMyStores`, selects the first by default and supports store/status filters. Store-directory and return-list reads have retryable error states and stale-request protection.
+- `apps/web/src/app/merchant/returns/[id]/page.tsx` now exposes Retry after a failed detail read.
+- The API route remains protected by `merchant:orders:read` and requires `storeId`; return mutations continue to require `merchant:orders:write`. No server permission or ownership logic changed.
+- `apps/web/src/app/merchant/organization/page.tsx` now surfaces retryable failures for verification history, update-request history, store information, warehouses, roles and members. Existing auxiliary data is retained during failed refreshes; verified-organization update submission is blocked when pending-request state is unknown.
+- Focused tests: `merchant-returns-recovery.test.tsx`, `merchant-return-detail-recovery.test.tsx`, `merchant-organization-recovery.test.tsx`. Not executed.
