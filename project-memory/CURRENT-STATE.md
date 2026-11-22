@@ -14,21 +14,20 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 
 ## GitHub checkpoint
 
-| Item                 | Last inspected value                                                     |
-| -------------------- | ------------------------------------------------------------------------ |
-| Repository           | nabeel2323/scs-platform                                                  |
-| Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | Source implementation `b310f4da3ccda31f7a8c815f1d99ed1977329ad6`; documentation sync is a child commit |
-| Latest commit        | `fix(web): preserve self-service read failures and retries [skip ci]` |
-| PR #138              | Open; draft; not merged |
-| PR base              | `develop` |
-| Latest exact-head CI | No Actions run for `b310f4da3ccda31f7a8c815f1d99ed1977329ad6`; Vercel Web and Admin contexts fail at external build-rate-limit page; NOT CI-VERIFIED |
-| PR #142 CI           | Historical CI #44953735602 on `dddff20c...`; not transferable to current source |
-| PR #138 CI           | Historical CI #44954371615 on `741a09f...`; not transferable to current source |
-| PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
-| Latest exact-head CI | No Actions run for `01681d2651d6bb0c384c30f1a04e0f111086af23` because of `[skip ci]`; preview statuses at preceding source check were pending; NOT CI-VERIFIED |
-| PR #142 CI           | #44953735602 — passed all executable jobs on `dddff20c...`; disposable PostgreSQL identity test included |
-| PR #138 CI           | Historical #44954371615 passed all executable jobs on `741a09f...`; not transferable to current head |
+| Item | Last inspected value |
+|---|---|
+| Repository | nabeel2323/scs-platform |
+| Branch | `remediation/phase-0-1-tenant-security` |
+| Live branch head | `dd224b4fbcaac11b9bdefefd5196d3ad9af4ea12` — documentation handoff commit |
+| Latest source implementation | `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` — Web buyer self-service recovery (UX-030) |
+| Latest commit | `docs(project): record UX-030 and refresh handoff [skip ci]` |
+| PR #138 | Open; draft; not merged |
+| PR base | `develop` |
+| Exact-head GitHub Actions | No run for `dd224b4fbcaac11b9bdefefd5196d3ad9af4ea12`; NOT CI-VERIFIED |
+| Exact-head Vercel statuses | Admin PENDING; Web FAILURE (external build-rate-limit page); not application test results |
+| Source-SHA Vercel statuses | On `b310f4da3ccda31f7a8c815f1d99ed1977329ad6`, Web and Admin both reported external build-rate-limit FAILURE |
+| Focused UX-030 tests | Added; not executed |
+| Historical CI evidence | PR #138 #44954371615 on `741a09f...` and PR #142 #44953735602 on `dddff20c...`; not transferable to current head |
 
 ## Current remediation status
 

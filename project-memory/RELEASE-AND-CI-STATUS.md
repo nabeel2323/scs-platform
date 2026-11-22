@@ -4,7 +4,8 @@
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
 **Latest source implementation commit:** `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` — `fix(web): preserve self-service read failures and retries [skip ci]` (the project-memory sync is a documentation-only child commit).
-**Exact-head GitHub Actions:** no workflow run is attached to `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` because the implementation commit used `[skip ci]` under the implementation-first decision. Combined status contexts for this exact SHA show Vercel Web and Admin failure links to the external build-rate-limit page; these are preview-provider statuses, not application test results. Focused Web tests have not been executed.
+**Exact source-SHA checks:** no Actions run is attached to `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` because the implementation commit used `[skip ci]`; Vercel Web and Admin both reported external build-rate-limit failures.  
+**Latest documentation head:** `dd224b4fbcaac11b9bdefefd5196d3ad9af4ea12`; no Actions run is attached. Vercel Admin is PENDING and Web is FAILURE at the external build-rate-limit page. These are preview-provider statuses, not application test results. Focused Web tests have not been executed.
 
 ## Previous CI run at the 21 November checkpoint (historical)
 
