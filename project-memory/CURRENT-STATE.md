@@ -3,8 +3,8 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest implementation/test commit:** `be40978bf90ec479f13a8f852145aecee4ce9df6` — UX-037 inventory movement-history read recovery and helper tests  
-**Previous source increment:** `57df8ab2048058a802422191b2e2c6b46f8eeb13` — Merchant Inventory movement-history recovery (UX-037; later wrapped in tested helper `be40978`)  
+**Latest implementation/test commit:** `bac13a1bbe48a1aac6456a24e545ebf28cabdc7d` — UX-038 Merchant Inventory variant-directory recovery; UX-039 Import History recovery is included in the same source/test batch  
+**Previous source increments:** `01b3ee89723ac5b8ffbb1dfe8c7b017fe60bebc4` — inventory variant read recovery; `495bbec73627bb7ebff04940adc91963f0f27522` — Import History recovery  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commit that follows is documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -20,13 +20,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
 | Live branch head | Resolve from the live GitHub ref at session start; this checkpoint is documentation and does not pin its resulting SHA |
-| Latest implementation/test | `be40978bf90ec479f13a8f852145aecee4ce9df6` — UX-037 inventory movement-history recovery |
+| Latest implementation/test | `bac13a1bbe48a1aac6456a24e545ebf28cabdc7d` — UX-038 inventory variant-directory recovery; UX-039 import history recovery |
 | Previous source implementation | `57df8ab2048058a802422191b2e2c6b46f8eeb13` — UX-037 inventory movement-history recovery |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for `be40978bf90ec479f13a8f852145aecee4ce9df6`; implementation/test commits used `[skip ci]`; NOT CI-VERIFIED |
+| Exact-head GitHub Actions | No run for source head `bac13a1bbe48a1aac6456a24e545ebf28cabdc7d`; implementation/test commits used `[skip ci]`; NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
 | Latest inspected Vercel contexts | Web FAILURE; Admin FAILURE (external build-rate-limit page); not application test results |
-| Focused Web tests | UX-030–037 added; not executed |
+| Focused Web tests | UX-030–039 added; not executed |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
 ## Current remediation status
@@ -41,7 +41,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 
 The complete finding register, phase dashboard and technical evidence live in [IMPLEMENTATION-PROGRESS.md](../docs/remediation/IMPLEMENTATION-PROGRESS.md). The detailed acceptance criteria and release gates live in [IMPLEMENTATION-PLAN.md](../docs/remediation/IMPLEMENTATION-PLAN.md).
 
-## Latest CI and security verification evidence — 22 November 2026
+## Exact-head reconciliation — 22 November 2026
+
+- Source commit checked: `bac13a1bbe48a1aac6456a24e545ebf28cabdc7d`. Associated GitHub Actions workflow lookup returned no runs. Combined status contexts: Vercel Web FAILURE and Vercel Admin FAILURE, both targeting the provider build-rate-limit page. These are external preview-provider failures, not application tests.
+- PR #138 is OPEN and remains DRAFT/unmerged to `develop`. No merge or deployment is authorized.
+- Implementation/test commits used `[skip ci]`; tests were added but not executed. The consolidated test campaign remains deferred.
+
+## Historical CI and security verification evidence — 22 November 2026
 
 - PR #138 CI [#44948332893](https://github.com/nabeel2323/scs-platform/actions/runs/44948332893) passed all 10 executable jobs on branch source SHA `05e7a0ea602913c445e6766a1046fc3b8068be7b`. This includes API unit/coverage, PostgreSQL integration, migration full apply and read-only database-access audit, Web/Admin, Flutter, E6 boundary lint, container smoke, build, contract/codegen and formatting. k6 and protected staging release were skipped.
 - The migration job created a separate `scs_audit` login with no superuser, BYPASSRLS, role-creation or database-creation flags and only database CONNECT, then ran the audit utility. It successfully inspected the disposable PostgreSQL 16 catalog with no application table privileges. This is CI-fixture evidence, not live staging evidence.
@@ -54,12 +60,19 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 [CI #1176](https://github.com/nabeel2323/scs-platform/actions/runs/44856823290) tested 1c1cf2f5032cf789789f0efc527e3c976a9ceb78 and failed only at changed-file Prettier for the G-001 controller test and progress tracker. Lint completed with 0 errors (311 warnings), typecheck succeeded and Flutter analysis/tests passed. API unit/coverage, PostgreSQL integration, migration, Web/Admin, boundary, build/container and contract jobs were skipped because the lint job failed. Formatter run #14 corrected the two files.
 
+## Latest implementation checkpoint — 22 November 2026
+
+- UX-038 Merchant Inventory variant-directory completeness/retry and UX-039 Merchant Import History store/job recovery are implemented in source. The inventory picker no longer silently drops failed per-product variant requests; Import History distinguishes store lookup failure, no store, failed job reads and successful empty history.
+- Focused tests were added in `merchant-inventory-variants.test.ts` and `merchant-import-history-recovery.test.tsx`. They have not been executed. No API, permission, schema, database or migration behavior changed.
+- Exact-head GitHub Actions lookup for source commit `bac13a1bbe48a1aac6456a24e545ebf28cabdc7d` returned no workflow run. Combined statuses contain only Web/Admin Vercel failures pointing to the provider build-rate-limit page; they are not application test results.
+- PR #138 remains open, draft and unmerged to `develop`. PR #142 remains open/draft and separate. No merge, deployment, staging write, shared DB mutation, migration, grants/default-ACL change, RLS enablement, worker activation or provider call occurred.
+
 ## Immediate next actions
 
-1. Continue UX-010 source re-audit across remaining Admin, Web and Mobile screens. UX-033–036 close Merchant Returns, Organization, Orders and Offers recovery gaps; UX-037 makes inventory movement-history failure distinct from an empty history. Continue the same contract, permission, ownership and loading/empty/error/retry audit across inventory variants, imports and remaining merchant/admin/mobile workflows.
-2. Continue integration completion for buyer/merchant/admin workflows, including remaining cross-client order, returns, fulfillment and commercial lifecycle gaps. UX-015–UX-029 are implemented in source; their focused regression tests have not been executed.
+1. Continue UX-010 source re-audit across the Merchant Import wizard and remaining Merchant Inventory workflows, then remaining Admin and Mobile screens. Record only contract-backed gaps; do not repeat UX-030–UX-039.
+2. Continue integration completion for buyer/merchant/admin workflows, including remaining cross-client order, returns, fulfillment and commercial lifecycle gaps. Focused tests for UX-015–UX-039 have been added but are not yet executed.
 3. Keep G-001 PARTIAL pending independent security review. Keep G-002 IN PROGRESS pending protected live API/migration identity evidence, refreshed catalog audit, 114-versus-116 physical relation reconciliation, complete operation ownership review and an approved transaction-context/RLS design.
-4. Preserve the implementation-first sequence: do not run the comprehensive test suite after each small change. Add targeted regression coverage when needed; execute the coordinated API/PostgreSQL/migration/Web/Admin/Flutter/concurrency/performance campaign only after implementation and integration are complete.
+4. Preserve the implementation-first sequence: do not run the comprehensive test suite after each small change. Execute the coordinated API/PostgreSQL/migration/tenant-security/concurrency/Web/Admin/Flutter/performance campaign only after implementation and integration are complete.
 5. Preserve all merge/deployment/staging/shared-database/grant/RLS/worker restrictions.
 
 ## Safety reminder
