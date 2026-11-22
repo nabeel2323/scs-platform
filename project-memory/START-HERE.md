@@ -75,7 +75,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 22 November 2026 confirms branch `remediation/phase-0-1-tenant-security` with latest implementation/test commit `be40978bf90ec479f13a8f852145aecee4ce9df6` (UX-037 inventory movement history recovery). Resolve the documentation HEAD from the live branch ref at session start. PR #138 remains open/draft/unmerged to `develop`. All new implementation/test commits use `[skip ci]`; focused tests are added but not executed. Vercel preview failures are external build-rate-limit results, not application test results. UX-030–UX-037 are implemented at source level; continue UX-010 cross-screen audit and workflow integration. UX-030–UX-034 are implemented at source level. Continue UX-010 cross-screen audit and workflow integration; comprehensive tests remain deferred.
+Live GitHub reconciliation on 22 November 2026 confirms branch `remediation/phase-0-1-tenant-security` with latest implementation/test commit `be40978bf90ec479f13a8f852145aecee4ce9df6` (UX-037 inventory movement history recovery). Resolve the documentation HEAD from the live branch ref at session start. PR #138 remains open/draft/unmerged to `develop`. All new implementation/test commits use `[skip ci]`; focused tests are added but not executed. Vercel preview failures are external build-rate-limit results, not application test results. UX-030–UX-037 are implemented at source level; continue UX-010 cross-screen audit and workflow integration. Comprehensive tests remain deferred until implementation/integration are complete.
 
 ## Safety reminder
 

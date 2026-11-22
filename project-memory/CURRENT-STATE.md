@@ -4,7 +4,7 @@
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
 **Latest implementation/test commit:** `be40978bf90ec479f13a8f852145aecee4ce9df6` — UX-037 inventory movement-history read recovery and helper tests  
-**Previous source increment:** `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — Merchant Customers recovery (UX-031)  
+**Previous source increment:** `57df8ab2048058a802422191b2e2c6b46f8eeb13` — Merchant Inventory movement-history recovery (UX-037; later wrapped in tested helper `be40978`)  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commit that follows is documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -21,7 +21,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Branch | `remediation/phase-0-1-tenant-security` |
 | Live branch head | Resolve from the live GitHub ref at session start; this checkpoint is documentation and does not pin its resulting SHA |
 | Latest implementation/test | `be40978bf90ec479f13a8f852145aecee4ce9df6` — UX-037 inventory movement-history recovery |
-| Previous source implementation | `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` — UX-031 Merchant Customers read recovery |
+| Previous source implementation | `57df8ab2048058a802422191b2e2c6b46f8eeb13` — UX-037 inventory movement-history recovery |
 | PR #138 | Open; draft; not merged; base `develop` |
 | Exact-head GitHub Actions | No run for `be40978bf90ec479f13a8f852145aecee4ce9df6`; implementation/test commits used `[skip ci]`; NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
