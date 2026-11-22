@@ -11,7 +11,7 @@ vi.mock('../../../common/tenant-scope', () => ({
 describe('CatalogOfferService product ownership', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(assertStoreInOrg).mockResolvedValue('store-a');
+    vi.mocked(assertStoreInOrg).mockResolvedValue(undefined);
     vi.mocked(assertStoreMember).mockResolvedValue(undefined);
   });
 
