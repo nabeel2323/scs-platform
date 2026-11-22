@@ -778,3 +778,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added separate store loading/error/retry/no-store states and independent warehouse list loading/error/retry states. Request-version guards prevent stale store/list responses from overwriting newer state. Failed refreshes preserve the last successful warehouse rows.
 - Added `merchant-warehouses-recovery.test.tsx` for store lookup retry, failed warehouse read/retry, empty-state suppression and true no-store handling. Test not executed.
 - No API, permission, schema, database or migration changes. Commit uses `[skip ci]`; no deployment or staging action.
+
+## 2026-11-22 — UX-043 Admin Dashboard read recovery
+
+- Source audit found KPI and pending organization-update errors were swallowed; the Catalog Imports and Catalog Requests widgets shared one error/loading state and could render misleading empty results.
+- Added independent KPI, organization-update, import and catalog-request loaders with retryable errors and request-version guards. Failed KPI reads show unavailable placeholders rather than zero defaults; stale successful data remains visible during failed refreshes; each widget suppresses only its own false empty state.
+- Added `admin-dashboard-recovery.test.tsx` for independent failures, retry and empty-state suppression. Test not executed.
+- No API, permission, schema, database or migration changes. Commits use `[skip ci]`; no deployment or staging action.
