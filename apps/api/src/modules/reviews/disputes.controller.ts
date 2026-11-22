@@ -36,13 +36,21 @@ export class DisputesController {
   }
 
   @Get('disputes/:id')
-  async getDispute(@Param('id') id: string) {
-    return this.disputesService.getDispute(id);
+  async getDispute(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.disputesService.getDispute(id, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Get('disputes/:id/events')
-  async getDisputeEvents(@Param('id') id: string) {
-    return this.disputesService.getDisputeEvents(id);
+  async getDisputeEvents(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.disputesService.getDisputeEvents(id, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Post('disputes/:id/evidence')
@@ -55,14 +63,17 @@ export class DisputesController {
   }
 
   @Post('disputes/:id/response')
-  @UseGuards(PermissionsGuard)
-  @RequirePermission('support:disputes:write')
   async submitResponse(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
     @Body() body: { body: string },
   ) {
-    return this.disputesService.submitResponse(id, user.sub, body.body);
+    return this.disputesService.submitResponse(
+      id,
+      user.sub,
+      body.body,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+    );
   }
 
   @Patch('disputes/:id/resolve')
@@ -73,27 +84,45 @@ export class DisputesController {
     @Param('id') id: string,
     @Body() body: { resolution: string },
   ) {
-    return this.disputesService.resolveDispute(id, user.sub, body.resolution);
+    return this.disputesService.resolveDispute(
+      id,
+      user.sub,
+      body.resolution,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+    );
   }
 
   // ── Conversations ────────────────────────────────────────────
 
   @Post('orders/:orderId/conversation')
   async createConversation(
+    @CurrentUser() user: JwtPayload,
     @Param('orderId') orderId: string,
-    @Body() body: { participant1: string; participant2: string },
+    @Body() body: { participant2: string; participant1?: string },
   ) {
-    return this.disputesService.createOrGetConversation(orderId, body.participant1, body.participant2);
+    return this.disputesService.createOrGetConversation(
+      orderId,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      body.participant2,
+    );
   }
 
   @Get('conversations/:id')
-  async getConversation(@Param('id') id: string) {
-    return this.disputesService.getConversation(id);
+  async getConversation(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.disputesService.getConversation(id, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Get('conversations/:id/messages')
-  async getMessages(@Param('id') id: string) {
-    return this.disputesService.getMessages(id);
+  async getMessages(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.disputesService.getMessages(id, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Post('conversations/:id/messages')
