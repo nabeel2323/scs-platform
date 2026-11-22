@@ -897,3 +897,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source audit found the merchant dashboard refresh only invalidated profile, stores and KPIs and returned immediately; profile and active-store reads did not preserve last-successful values or expose stale refresh failures. KPI reads already had dedicated recovery.
 - Added skip-refresh/reload stale handling and retry for profile/store reads, independent awaited refresh for profile/active-store/KPIs, explicit refresh action and pull-to-refresh on the always-scrollable store hub.
 - Added a widget test for simultaneous profile/store refresh failures. Not run under implementation-first cadence. No org/store lifecycle/API/permission/database/migration/staging behavior changed.
+
+
+## 2026-11-23 — UX-086 Mobile Merchant Catalog recovery
+
+- Source audit found both active-store and product reads lacked stale-safe refresh handling; product pull-to-refresh invalidated and returned immediately. Failed initial product reads were retryable but refresh failures replaced the visible catalogue.
+- Added skip-refresh/reload stale handling for the active store, skip-refresh/skip-error product handling, retry notices, awaited current-store refresh and awaited pull-to-refresh. Kept product search/status filters and create/delete permission gates intact.
+- Added two focused Flutter widget tests. Not run under implementation-first cadence. No catalog API/visibility/permission/database/migration/staging behavior changed.
