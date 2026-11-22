@@ -155,3 +155,10 @@ The first static inventory is documented in [WHOLE-PRODUCT-IMPLEMENTATION-INVENT
 The service/worker source map now covers all 53 candidates (44 direct DB-operation paths and 9 database-independent helpers/providers). A separate CLI/bootstrap map records migration runners, startup migrations/seeds, RBAC/catalog/demo seeds, bootstrap token issuance/completion, staging provisioning, audit/reset tools and legacy UAT harnesses. Three script-safety fixes were grouped in commit `6b40d43fdfda45d59afaff7a7956c6be98039d0f`.
 
 Next: map each API controller route to the exact service method and table/raw-SQL operations, then finish physical DB-object and ownership evidence. The 114-versus-116 relation discrepancy, deployed runtime identities and protected staging audit remain open. The implementation-first sequence continues; broad testing is reserved for the final consolidated phase.
+
+
+## G-002 controller, CLI and physical database inventory checkpoint — 22 November 2026
+
+Completed the source maps for 53 API service/worker candidates, 28 module controllers, direct controller DB access, shared tenant-scope helpers, CLI/migration/bootstrap paths and the 15 non-Drizzle public relations in the 19-November 114-table count. Added a legacy carrier webhook ambiguity fix and enhanced the read-only audit utility.
+
+Next implementation is local-only hardening/retirement of legacy M5/M6 scripts, uniform target confirmation for staging bootstrap scripts, and method-level service-to-table ownership predicates. The live API/migration identities and 114-versus-116 relation count remain protected read-only evidence gates. No tests or Actions were run.

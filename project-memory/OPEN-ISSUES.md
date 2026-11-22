@@ -74,10 +74,11 @@ For exact statuses, priorities, evidence and dependencies, consult the 35-row re
 
 ## Next action order
 
-1. Continue G-002 source implementation: map every controller route to its service method and concrete table/raw-SQL operations, then reconcile CLI/bootstrap and remaining legacy UAT script safety.
-2. Complete the physical DB-object inventory (migration ledger, backfill_errors, analytics partition parents/children and extension/system objects) from source, then reconcile the 114-versus-116 discrepancy only with an authorized protected read-only catalog snapshot.
-3. Preserve the live API/migration identity and protected staging evidence gates. Do not add global transaction context, enable RLS, alter grants/default ACLs, apply migrations or trigger staging actions until independent review and explicit authorization.
-4. Keep PR #138 draft/unmerged. Defer comprehensive unit/API/PostgreSQL/migration/security/tenant/concurrency/E2E/performance tests until implementation and integration are complete; do not consume repeated Actions runs during implementation.
+1. Standardize or retire the remaining legacy M5/M6 UAT and migration harness scripts. Keep them local-only; remove fixed credentials and arbitrary DATABASE_URL overrides, and add explicit environment/confirmation guards.
+2. Add a uniform staging target/approval guard to all bootstrap-staging platform/merchant/store/staff/RBAC scripts before any future invocation.
+3. Complete method-level service-to-table ownership-predicate mapping, including the four direct-DB controllers, shared tenant-scope helpers, provider/webhook, bootstrap, worker and operator contexts.
+4. Use the enhanced audit-db-access utility only after explicit protected read-only authorization to verify live API/migration identities, public relation-kind counts, partition RLS/privileges and the 114-versus-116 discrepancy. Do not apply RLS or change grants before this evidence and independent review.
+5. Keep PR #138 draft/unmerged. Defer comprehensive unit/API/PostgreSQL/migration/security/tenant/concurrency/E2E/performance tests until implementation and integration are complete; do not consume repeated Actions runs during implementation.
 
 
 ## G-001 confidentiality follow-up — 21 November 2026
@@ -228,3 +229,12 @@ Migration-source FK evidence now covers core identity/store/catalog/inventory/ca
 The operation map now inspects all 53 API service/worker/poller/dispatcher/executor candidates, with 44 DB-operation paths and 9 database-independent helper/provider files. A separate CLI map covers migration/seed/bootstrap/reset/UAT access. Three script-safety corrections were implemented: local admin creation no longer contains or prints a fixed password; reset-pg requires explicit target/typed confirmation and staging approval; M6 environment check uses environment credentials and redacts OTP output.
 
 Remaining work is not closed: complete route-to-service-method-to-table mapping, guard or retire legacy M5/M6 utilities, add uniform staging bootstrap target confirmation, map remaining raw-SQL and physical database objects, and obtain the protected 114-versus-116 catalog evidence. No tests or CI were run, and no staging/shared DB action occurred.
+
+
+## G-002 physical inventory and controller map update — 22 November 2026
+
+The source-level physical inventory now reconciles the 19-November 114 public r/p count to 99 Drizzle declarations plus _migration_log, backfill_errors and 13 analytics_events partitions. The read-only audit utility now reports relation kinds and partition/policy metadata, but has not been run. The historical 116 count remains unresolved.
+
+The controller-to-service callsite map covers all 28 module controllers. A legacy carrier webhook ambiguity was fixed by rejecting provider-only callbacks when multiple active credentials exist; focused tests are committed but not run.
+
+Remaining implementation: guard or retire legacy M5/M6 scripts, add target confirmation to staging bootstrap scripts, and complete method-level owner predicates. Live API/migration identities and protected catalog evidence remain gated. No tests, CI, staging or shared DB actions occurred.

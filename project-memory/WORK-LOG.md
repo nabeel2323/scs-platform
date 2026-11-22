@@ -476,3 +476,13 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Source review found application OTP redaction in IdentityService/OtpDeliveryService with otp-redaction and otp-security-remediation regression tests already present. Deployed staging log verification remains an external runtime gate.
 - Remaining script debt is explicit: legacy M5/M6 UAT and migration harnesses still include direct SQL, fixed local test credentials and/or DATABASE_URL overrides; staging bootstrap scripts need a uniform target-environment confirmation guard. They were not run.
 - No tests or Actions were run. No staging/shared DB command, migration, seed, reset, bootstrap, grant, RLS change, deployment, worker activation or provider call occurred. Next source task is controller-to-service-method-to-table operation mapping.
+
+
+## 2026-11-22 — G-002 physical database object inventory and read-only audit
+
+- Reconciled the 19-November 114 public ordinary/partitioned table count at source level: 99 Drizzle declarations plus public._migration_log, public.backfill_errors and 13 analytics_events partitions (default plus 12 monthly partitions).
+- Traced _migration_log to the migration runners; traced backfill_errors to migration 0053 only; traced analytics_events parent/partitioning/retention to audit.schema.ts and migrations 0002/0013/0018. Analytics event identity comes from CurrentUser; analytics:read is platform ADMIN/SUPER_ADMIN, not merchant roles.
+- Added docs/remediation/G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md and updated schema coverage, CLI and service operation maps.
+- Enhanced apps/api/scripts/audit-db-access.ts (still BEGIN READ ONLY) to enumerate relation kinds, owners, RLS/policy/extension/partition metadata, partition bounds and safe migration/backfill summaries. No audit was run.
+- The 116 historical count remains unresolved; the next protected read-only run must compare relation-kind scopes and enumerate current partitions.
+- Current branch head: 2477a958699a933c71f168d5397f39ca0ab26a34. Current head has no Actions run; Vercel Admin/Web both report build-rate-limit failure. No tests were run.

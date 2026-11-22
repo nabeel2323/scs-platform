@@ -302,3 +302,16 @@ The migration FK crosswalk now includes core schema relationships from migration
 - Latest actual branch CI is #1337 on 06cd8fc1e56dc7ef64a141b97b594adc96ffbece, not current head. Flutter passed; lint/typecheck tasks passed with 309 lint warnings and zero errors; Prettier failed on nine files; dependent tests/build/migration jobs skipped. Current head has no Actions run; Vercel Admin SUCCESS, Web PENDING.
 - Next: finish controller-to-service-method-to-table operation mapping, then reconcile raw SQL, legacy UAT/staging bootstrap paths and physical DB objects. Keep 114-versus-116 pending protected read-only catalog evidence.
 - No tests were run, no CI was triggered, and no staging/shared database action, migration, grant, RLS change, deployment or worker activation occurred. Comprehensive testing remains the final consolidated phase.
+
+
+## Latest current state — 22 November 2026
+
+- Repository: nabeel2323/scs-platform; branch remediation/phase-0-1-tenant-security; PR #138 open/draft/unmerged to develop.
+- Current branch/PR head: `2477a958699a933c71f168d5397f39ca0ab26a34` — security(g002): inventory physical database objects [skip ci].
+- G-002 source mapping now covers all 53 API service/worker/poller/dispatcher/executor candidates and all 28 module controllers. The map identifies 44 DB-operation paths, 9 pure helper/provider files, four controllers with direct DB access and six controllers using shared tenant-scope helpers.
+- Added standalone CLI/migration/bootstrap mapping and physical database object inventory. The 19-November 114 public r/p count reconciles at source level to 99 Drizzle tables plus 15 non-Drizzle relations: _migration_log, backfill_errors and 13 analytics_events partitions. The historical 116 count remains unresolved.
+- Enhanced the read-only DB audit utility to enumerate public relation kinds, owners, RLS/policy state, partition hierarchy/bounds, extension membership and safe _migration_log/backfill_errors summaries. It was not executed.
+- Security fixes: local admin creation and destructive reset authorization hardened; M6 diagnostic no longer prints OTP; legacy carrier provider-only webhook rejects ambiguous active credentials. Focused webhook tests were added but not run.
+- Remaining implementation: standardize/retire legacy M5/M6 UAT/migration scripts, add uniform staging-bootstrap target confirmation, and complete method-level service-to-table ownership predicates. Live API/migration identities and the protected 114-versus-116 catalog audit remain external evidence gates.
+- Latest actual Actions run #1337 is on 06cd8fc1e56dc7ef64a141b97b594adc96ffbece, not current head. Flutter passed; lint/typecheck steps passed with 309 warnings and zero errors; Prettier failed on nine files. Current head has no Actions run; Vercel Admin/Web both fail due to provider build-rate-limit. No tests or CI were run for current implementation commits.
+- No staging/shared DB command, migration, seed, reset, grant, RLS change, deployment, worker activation, provider call or test execution occurred. Comprehensive testing remains the final consolidated phase.
