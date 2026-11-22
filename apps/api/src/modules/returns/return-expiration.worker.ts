@@ -299,6 +299,12 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
       return { state: this.state, executed: false, skipped: 'acquisition_failed', epoch };
     }
 
+    if (claimedRows.length === 0 && !(await this.leases.renewAndFence(epoch, P13_LEASE_KEY))) {
+      this.epoch = 0;
+      this.state = 'STANDBY';
+      return { state: this.state, executed: false, skipped: 'fence_lost', epoch };
+    }
+
     if (claimedRows.length > 0) {
       this.logger.log(`Return expiration: ${claimedRows.length} return(s) past merchant SLA.`);
     }

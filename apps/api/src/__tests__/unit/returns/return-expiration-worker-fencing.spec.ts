@@ -3,6 +3,32 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import { ReturnExpirationWorker } from '../../../modules/returns/return-expiration.worker';
 
 describe('ReturnExpirationWorker lease fencing', () => {
+
+  it('reports fence loss when the claim statement returns no rows after lease expiry', async () => {
+    const execute = vi.fn().mockResolvedValue({ rows: [] });
+    const renewAndFence = vi.fn()
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    const worker = new ReturnExpirationWorker(
+      { db: { execute } } as any,
+      {} as any,
+      {
+        holderId: 'worker-host-123',
+        renewAndFence,
+      } as any,
+      {} as any,
+      {} as any,
+    );
+    (worker as any).epoch = 42;
+
+    await expect(worker.runBatch()).resolves.toMatchObject({
+      state: 'STANDBY',
+      executed: false,
+      skipped: 'fence_lost',
+    });
+    expect(renewAndFence).toHaveBeenCalledTimes(2);
+  });
+
   it('locks the current lease in the same claim statement', async () => {
     const execute = vi.fn().mockResolvedValue({ rows: [] });
     const leases = {
