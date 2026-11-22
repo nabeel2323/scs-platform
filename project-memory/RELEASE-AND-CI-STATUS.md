@@ -359,3 +359,8 @@ On exact PR #138 source head caba922e866635fad51e549e095a186f9d9df6cf, both Verc
 - Reused existing keys instead of adding a new permission: CatalogController now uses catalog:products:read with existing store/org ownership checks; StoreMembershipController list uses merchant:stores:read; MERCHANT_STAFF now receives the existing store-read permission. Mutations remain merchant:products:write and service-level membership-manager checks.
 - Added focused API tests for route permission metadata, guard behavior and built-in role grants. Tests were not run; no Actions workflow was triggered.
 - No migration, live DB grant, staging change, deployment, worker activation or provider call occurred. API-003 is IMPLEMENTED / NOT VERIFIED pending consolidated validation.
+
+
+## G-002 migration FK crosswalk update — 22 November 2026
+
+The migration crosswalk now records explicit FK paths from migrations 0001–0071 for core identity, organization/store, catalog, inventory, cart/order, offer, shipment/driver, shipping, payment, return, settlement, carrier and operations tables. It also identifies non-FK org_id metadata added in 0062, system tables without tenant/user FKs in 0063, the platform-only catalog import scope and business calendars without a tenant key. No staging catalog query, migration, DB write, grant, RLS activation or deployment was performed. Current branch documentation commits continue to use [skip ci]; exact-head Actions remains unverified.
