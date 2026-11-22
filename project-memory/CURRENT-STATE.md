@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `bfb820ebf6af88a917a7de2b150623a150de85f0` — UX-092 Mobile Store Profile and warehouse recovery; latest focused test commit is `90b2b6b45ee989cff03118a4c08efcd6c90cbea5`  
-**Previous source increments:** UX-091 Merchant Orders source `da19ca1` / `9ecce8a` and focused tests `112bf00` / `b8c7b1c`; UX-090 Customers source/test `b279c263` / `3f3b0f6`  
+**Latest source implementation commit:** `b416041861f23ae8d428f5f3799f329d5566f0cc` — UX-093 new-login active-org reset; supporting cache invalidation and active-store org-filter commits include `b49424e`, `3f4a6a3`, `1f29e7c`, `cd04739`, `fc1f22a`. Latest focused test commit: `d0d0b2642d7a001cd3253d043edb9279a74824aa`  
+**Previous source increments:** UX-092 Store Profile source/test `bfb820e` / `90b2b6b`; UX-091 Merchant Orders source `da19ca1` / `9ecce8a` and focused tests `112bf00` / `b8c7b1c`  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,14 +19,14 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Last verified implementation/test head | `90b2b6b45ee989cff03118a4c08efcd6c90cbea5` (documentation synchronization follows; resolve the live head at session start) |
-| Latest implementation/test | `90b2b6b45ee989cff03118a4c08efcd6c90cbea5` — UX-092 Store Profile and warehouse recovery tests |
+| Last verified implementation/test head | `d0d0b2642d7a001cd3253d043edb9279a74824aa` (documentation synchronization follows; resolve the live head at session start) |
+| Latest implementation/test | `d0d0b2642d7a001cd3253d043edb9279a74824aa` — UX-093 active-store organization scoping tests |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for implementation/test head `90b2b6b45ee989cff03118a4c08efcd6c90cbea5`; commits use `[skip ci]`; NOT CI-VERIFIED |
+| Exact-head GitHub Actions | No run for implementation/test head `d0d0b2642d7a001cd3253d043edb9279a74824aa`; commits use `[skip ci]`; NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest inspected Vercel contexts | At `90b2b6b`: Admin FAILURE and Web FAILURE with external build-rate-limit destination; not application test results |
-| Focused client tests | Admin UX-030–058 and Mobile UX-078–092 added; not executed |
+| Latest inspected Vercel contexts | At `4be4f0d`: Admin FAILURE and Web FAILURE with external build-rate-limit destination; not application test results |
+| Focused client tests | Admin UX-030–058 and Mobile UX-078–093 added; not executed |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
 ## Current remediation status
@@ -687,3 +687,13 @@ Merchant active-store and product reads now preserve last-successful data throug
 - UX-087–UX-092 are IMPLEMENTED / TESTING_PENDING, not automated-test verified or CI verified. No store update, warehouse creation, API, permission, schema, database or migration behavior changed.
 - Next: complete remaining Mobile route-transition and organization/store context audit, then remaining Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
 - PR #138 remains OPEN/DRAFT/UNMERGED. No Actions run was returned for implementation/test head `90b2b6b`; Vercel Web/Admin failures target the external build-rate-limit page. No merge/deployment/staging/shared-database/migration/grant/RLS/worker changes occurred.
+
+
+## Organization/session context continuation — UX-093 — 23 November 2026
+
+- Both organization-switch flows now invalidate organization-scoped provider caches after persisting/installing the replacement token and updating active org. New login clears the persisted previous active org and resets authenticated read caches; logout resets in-memory identity/org and authenticated caches.
+- `activeStoreProvider` matches stores against `activeOrgIdProvider` and returns null if there is no matching store, rather than selecting the first store from another org.
+- Focused ProviderContainer tests are in `mobile/test/organization_scope_invalidation_test.dart` for active-store org matching, organization-only invalidation boundaries, and session identity/user-read reset. Not executed.
+- Source commits include `b49424e`, `3f4a6a3`, `1f29e7c`, `cd04739`, `fc1f22a`, `b416041`; tests `a0f308c` / `d0d0b26`.
+- UX-087–UX-093 are IMPLEMENTED / TESTING_PENDING, not automated-test verified or CI verified. This is client context hygiene, not a replacement for server-side tenant authorization. No API, permission, schema, DB, migration, RLS, worker or staging changes.
+- Next: Mobile route permission and org-context transition audit, then remaining Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
