@@ -603,3 +603,9 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Source/test batch: independent Admin Organizations directory and update-request reads, retry states and empty-state suppression. Focused test was added but not executed.
 - Implementation/test commits use `[skip ci]`; no GitHub Actions run is expected for the exact source head. Do not describe this batch as test-verified or CI-verified.
 - No deployment, Vercel preview validation, staging release/write, database/migration/grant/RLS change or provider action was performed.
+
+## 22 November 2026 — UX-046 / UX-047 Admin Users and Merchants implementation checkpoint
+
+- Source/test batch: Admin User creation recovery and membership-pair validation, User Detail profile/membership/status controls, role-permission projection correction, and Merchant Store Detail presentation. Focused tests were added but not executed.
+- Source/test/documentation commits use `[skip ci]`; no GitHub Actions run is expected for the exact source head. Do not describe this batch as test-verified or CI-verified. Vercel preview failures are external build-rate-limit statuses, not application test results.
+- No deployment, preview validation, staging release/write, database/migration/grant/RLS change, worker activation or provider action was performed.
