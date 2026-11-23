@@ -1198,3 +1198,10 @@ The next full workflow is required to verify these changes.
 - Latest source change: `77c2caaa322836cc8e7d651f6577df715c5e3228` (payment verifier actor propagated to order history).
 - Latest focused test: `8fc1759a9e374f12513c82d301b2c9b934a98840` (FIN-DSH-54 extended to check both payment/order history). Test not executed.
 - No exact-head Actions run is claimed; commits use `[skip ci]` and consolidated Phase 3 validation remains deferred. PR #138 remains OPEN / DRAFT / UNMERGED.
+
+
+## FIN-030 source/test checkpoint — 23 November 2026
+
+- Latest source change: `93a908d4627c804af5d12e20c6a1e7c2811524e9` (reconciliation uses REFUNDED transition timestamp).
+- Latest focused test: `5abae2018b9e6d6a43d5e3b90764ef80560b4ea0` (FIN-DSH-58). Test not executed.
+- No exact-head Actions run is claimed; implementation commits use `[skip ci]` and consolidated Phase 3 validation remains deferred. PR #138 remains OPEN / DRAFT / UNMERGED.
