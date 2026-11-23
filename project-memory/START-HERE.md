@@ -854,3 +854,17 @@ Next: audit settlement listing and reconciliation projections for primary versus
 ### FIN-042/043 test assertion follow-up
 
 FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.
+
+
+## Live correction — 23 November 2026, financial continuation
+
+This live checkpoint supersedes any older SHA or FIN-031 starting-point text retained in the historical checkpoint sections above. The branch currently contains FIN-041–FIN-043 and the subsequent adjustment-lineage/UI fixes; always refresh the live branch ref before acting.
+
+- Live source checkpoint before this memory sync: `62bf7cf1991ff7974a8762c0e57eea148fcc53b4`; this source batch is followed by a documentation-only checkpoint commit.
+- PR #138 remains OPEN / DRAFT / UNMERGED against `develop`.
+- FIN-044 closes the follow-on issue where a paid adjustment could be selected as the parent of another adjustment. Both adjustment posting and primary settlement calculation now exclude metadata-linked and legacy notes-prefixed adjustment rows.
+- Adjustment payout preserves the legacy notes marker so rows without metadata remain distinguishable after transition to PAID.
+- Admin Settlements now has an ADJUSTMENT filter/status treatment and allows the existing Mark Paid action for ADJUSTMENT rows.
+- FIN-DSH-68/69 extends PostgreSQL coverage for legacy marker retention and multiple adjustment parent linkage; Admin recovery coverage includes adjustment payout visibility. These tests are added, not executed.
+- No exact-head Actions run is claimed. The previous Vercel contexts pointed to the external build-rate-limit page. All implementation commits in this batch use `[skip ci]` under the recorded consolidated-testing cadence.
+- Next: continue source-first audit of merchant settlement projections, admin reconciliation/report exports and ledger visibility; then complete implementation audit before the consolidated Phase 3 test campaign.

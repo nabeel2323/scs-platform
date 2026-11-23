@@ -1292,3 +1292,14 @@ Source/test follow-up commit: b63376cf26240d3dc21b6f26782158a09674c1c7. The reco
 ### FIN-042/043 test assertion follow-up
 
 FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.
+
+
+## 23 November 2026 — FIN-044 adjustment lineage and Admin payout follow-up
+
+- Source commits: `233e49a12352a4e157f455040a2bdcc4c16c1828` and `62bf7cf1991ff7974a8762c0e57eea148fcc53b4`.
+- The adjustment posting parent lookup now excludes ADJUSTMENT rows in ADJUSTMENT or PAID state using adjustmentId metadata and the legacy notes-prefix fallback. Adjustment payout retains the legacy notes marker.
+- Admin Settlements exposes the ADJUSTMENT filter, status styling and Mark Paid action.
+- FIN-DSH-68/69 and the Admin settlement recovery regression test were added/updated. They were not executed.
+- Both implementation commits used `[skip ci]` to conserve Actions minutes for the planned consolidated verification. No exact-head Actions run or test pass is claimed.
+- The last inspected status contexts were Vercel Web/Admin external build-rate-limit failures; they are not application test outcomes. Refresh the exact live head and statuses at the next checkpoint.
+- PR #138 remains draft/unmerged. No migration, shared/staging DB write, environment mutation, worker activation, RLS/ACL change, deployment or release occurred.

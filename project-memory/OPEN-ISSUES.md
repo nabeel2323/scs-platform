@@ -871,3 +871,10 @@ Remaining source audit: inspect adjustment ledger retrieval and reconciliation l
 ### FIN-042/043 test assertion follow-up
 
 FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.
+
+
+## FIN-044 — adjustment parent isolation and payout visibility — 23 November 2026
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** The adjustment posting parent lookup now excludes metadata-linked adjustment ledger rows and legacy rows with the stable `Posted adjustment ` notes prefix, even after those rows transition to PAID. Adjustment payout preserves the legacy marker. Admin Settlements now filters/styles ADJUSTMENT and enables Mark Paid for that status. FIN-DSH-68/69 covers legacy marker preservation and second-adjustment parent linkage; Admin recovery coverage verifies adjustment payout UI. Commits: `233e49a12352a4e157f455040a2bdcc4c16c1828`, `62bf7cf1991ff7974a8762c0e57eea148fcc53b4`. Tests not executed.
+
+Remaining source audit: verify merchant settlement projection, reconciliation reporting and exports include adjustment rows distinctly and do not double-count primary plus adjustment amounts. Then complete the source audit before the consolidated Phase 3 test campaign.

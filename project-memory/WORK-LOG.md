@@ -1552,3 +1552,15 @@ Reviewed repeated return-state transitions and tightened FIN-040 to use MAX(crea
 ### FIN-042/043 test assertion follow-up
 
 FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.
+
+
+## 23 November 2026 — FIN-044 adjustment parent isolation and Admin payout parity
+
+- Continued the FIN-041–043 settlement-adjustment audit and found that `postAdjustment` still selected the latest settlement row by status. Once a prior ADJUSTMENT row was paid, its status became PAID and it could be incorrectly selected as the parent of a later adjustment.
+- Updated the parent lookup to exclude metadata-linked adjustment rows and legacy rows identified by the stable `Posted adjustment ` notes prefix.
+- Found that `markSettlementPaid` replaced the notes field for adjustment rows, which could erase the only durable marker on legacy rows. Adjustment payout now preserves the marker and appends optional payout notes; primary settlement note behavior remains unchanged.
+- Updated Admin Settlements with ADJUSTMENT status styling/filtering and Mark Paid action.
+- Extended PostgreSQL FIN-DSH-68/69 to simulate a legacy row without metadata, assert its marker survives payout and verify a second adjustment points to the original primary settlement. Added Admin recovery coverage for adjustment payout.
+- Commits: `233e49a12352a4e157f455040a2bdcc4c16c1828` and `62bf7cf1991ff7974a8762c0e57eea148fcc53b4`. Tests added, not executed; `[skip ci]`.
+- No migrations, shared/staging database writes, deployment, merge, environment changes, worker activation or RLS/ACL changes.
+- Next: audit merchant settlement projections and reconciliation/report exports for adjustment visibility and double-counting before the consolidated Phase 3 test campaign.

@@ -705,3 +705,10 @@ Next: audit settlement listing and reconciliation projections for primary versus
 ### FIN-042/043 test assertion follow-up
 
 FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.
+
+
+## Live continuation — 23 November 2026 (FIN-044)
+
+FIN-044 closes a follow-on adjustment-parent integrity gap: when a previous adjustment had been paid, its PAID status made it eligible for the next adjustment's parent lookup. Posting now excludes both metadata-linked adjustment rows and legacy rows identified by the stable notes prefix. Payout preserves that legacy marker. Admin settlement listing now explicitly filters/styles ADJUSTMENT and permits the standard Mark Paid action. FIN-DSH-68/69 and an Admin recovery test are added but not executed.
+
+Next source-first work: inspect merchant settlement projections, admin reconciliation/report views and export/query surfaces for adjustment identity and correct accounting semantics. Continue implementation before the consolidated Phase 3 test campaign. PR #138 remains draft; no merge, deployment, migration or shared database operation is authorized.

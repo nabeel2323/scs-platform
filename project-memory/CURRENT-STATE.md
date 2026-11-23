@@ -1204,3 +1204,16 @@ calculateSettlement now excludes adjustment ledger rows (new metadata marker and
 ### FIN-042/043 test assertion follow-up
 
 FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.
+
+
+## Live exact-head continuation — 23 November 2026 (financial adjustment follow-up)
+
+- Source implementation commits: `233e49a12352a4e157f455040a2bdcc4c16c1828` (adjustment parent isolation and Admin payout UI) and `62bf7cf1991ff7974a8762c0e57eea148fcc53b4` (legacy notes marker preservation and PostgreSQL regression extension).
+- FIN-044: `postAdjustment` now excludes adjustment rows in every state, including PAID, when selecting the primary parent. It uses the same adjustmentId metadata and stable legacy notes-prefix criteria as primary settlement calculation.
+- `markSettlementPaid` preserves the notes prefix on ADJUSTMENT rows, keeping legacy rows identifiable after payout.
+- Admin Settlements now styles and filters ADJUSTMENT rows and exposes Mark Paid for them. Admin regression test added.
+- FIN-DSH-68/69 now simulates a legacy adjustment row without metadata, asserts the note marker survives payout, and verifies a second adjustment references the original primary settlement. Tests remain unexecuted.
+- PR #138 remains OPEN / DRAFT / UNMERGED against `develop`. Do not merge or deploy.
+- Implementation commits use `[skip ci]`; exact-head CI remains NOT VERIFIED. Vercel Web/Admin status contexts on the previous inspected head were external build-rate-limit failures, not application test outcomes.
+- No migrations, shared/staging database writes, environment changes, worker activation, RLS/ACL changes, deployment or release were performed.
+- Next source audit: merchant settlement projections and admin reconciliation/report surfaces, including adjustment row identity and accounting semantics. Keep consolidated Phase 3 tests deferred until the implementation audit is complete.

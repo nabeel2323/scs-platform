@@ -1050,3 +1050,10 @@ Source/test commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0.
 ### FIN-042/043 test assertion follow-up
 
 FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.
+
+
+## FIN-044 — Adjustment parent isolation and payout visibility — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-044 | Keep adjustment payout rows separate from primary settlement lineage and expose their payout workflow | Parent selection excludes new metadata-linked adjustment rows and legacy notes-prefixed rows even after PAID; adjustment payout preserves the legacy marker; Admin Settlements includes ADJUSTMENT filter, status treatment and Mark Paid action. FIN-DSH-68/69 and Admin recovery coverage added. | Execute in consolidated Phase 3; inspect merchant projections and reconciliation/report/export surfaces for distinct adjustment identity and no double counting. | P1 | IMPLEMENTED / TESTING_PENDING | No migration or shared/staging DB changes; PR #138 remains draft. |

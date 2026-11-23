@@ -2361,3 +2361,8 @@ The parity query now aggregates the latest return_request_events.created_at for 
 ### FIN-042/043 test assertion follow-up
 
 FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.
+
+
+## FIN-044 — Adjustment parent isolation and payout visibility — 23 November 2026
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** `postAdjustment` now excludes metadata-linked adjustment rows and legacy rows identified by the stable notes prefix when selecting the primary settlement parent. This prevents a previously paid adjustment (whose status is PAID) from becoming the parent of a later adjustment. `markSettlementPaid` preserves the legacy notes marker on adjustment rows so old rows remain classifiable after payout. Admin Settlements now includes ADJUSTMENT status styling/filtering and allows the existing Mark Paid action for adjustment rows. PostgreSQL FIN-DSH-68/69 simulates a legacy adjustment without metadata, verifies marker preservation and checks that a second adjustment references the original primary settlement; Admin recovery coverage verifies adjustment payout UI. Commits: `233e49a12352a4e157f455040a2bdcc4c16c1828`, `62bf7cf1991ff7974a8762c0e57eea148fcc53b4`. Tests added, not executed. No migration or shared/staging DB action.

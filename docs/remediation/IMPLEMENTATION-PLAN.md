@@ -1414,3 +1414,8 @@ PaymentsService.requestRefund now accepts an optional caller-owned transaction c
 ## FIN-035 — Atomic return-refund and return-ledger transition — 23 November 2026
 
 Return refund creation previously committed the payment refund/event/outbox first, then linked the refund and advanced the return request in a second transaction. It now locks the payment and performs refund creation (reusing PaymentsService's caller-owned transaction), return linkage, REFUND_PENDING state/history and return outbox in one transaction. The existing idempotency recovery path remains for legacy split-transaction rows. PostgreSQL FIN-DSH-61 injects failure at return outbox persistence and asserts that refund, payment event/outbox and return changes all roll back. Source commit: e462c256be710a81e42b2f2d4093d4700abe1818; test commit: f5d38d5a4af42ec29fa38040d8ba184e5dcbcdff, with scoped outbox assertion correction 4ad18e1eab3495030c6fff719607b5101337edb4 and test index update ac266c2c365d23c3ef3e58032616bb118d037715. Tests not executed.
+
+
+## FIN-044 — Adjustment parent isolation and payout visibility — 23 November 2026
+
+Implementation follow-up: adjustment parent selection must exclude all adjustment ledger rows, not merely rows currently in ADJUSTMENT status. Because payout transitions an adjustment row to PAID, the query also excludes rows carrying `metadata.adjustmentId` and legacy rows identified by the stable posted-adjustment notes prefix. Payout preserves that legacy marker. The Admin Settlements screen now exposes ADJUSTMENT filtering and the standard payout action. FIN-DSH-68/69 and Admin recovery coverage are added; execution remains part of the consolidated Phase 3 verification campaign.
