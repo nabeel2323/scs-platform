@@ -354,6 +354,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       database,
       new AuditService(database),
       new OpsAlertService(database),
+      {} as never,
+      {} as never,
     );
     returnsService = new ReturnsService(
       database,
