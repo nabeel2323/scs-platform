@@ -34,8 +34,8 @@
  *   FIN-DSH-30  COD payments are excluded from stale-payment expiry
  *   FIN-DSH-31  Return refund allocation and delivery exception currency
  *   FIN-DSH-32  Concurrent return creation preserves one-active-return invariant
- *   FIN-DSH-33  Commission reversal adjustment posts as a merchant credit
- *   FIN-DSH-34  Adjustment cannot be posted without a primary settlement
+ *   FIN-DSH-34  Commission reversal adjustment posts as a merchant credit
+ *   FIN-DSH-35  Adjustment cannot be posted without a primary settlement
  *   FIN-DSH-33  Return request idempotent retry and payload integrity
  *
  * All assertions are against persisted database state, not code inspection.
