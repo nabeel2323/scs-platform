@@ -7,7 +7,7 @@
 **Repository:** `nabeel2323/scs-platform`
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`
 <!-- prettier-ignore -->
-**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 remains OPEN / DRAFT / UNMERGED to develop. Latest source/test checkpoint: `6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac` (FIN-016 COD expiry PostgreSQL regression); tests are added but not executed. FIN-DSH-11–30 plus unit coverage are pending consolidated Phase 3 validation. CI #1434 on earlier SHA `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` passed lint/typecheck and Flutter analysis/tests but failed changed-file Prettier; dependent Web/Admin/API/PostgreSQL/migration/build/boundary/release jobs were skipped. No exact-head Actions run is attached to current source/test commits. Vercel Web/Admin rate-limit statuses are external provider failures, not application test results. G-002 remains open: runtime identities, protected read-only catalog audit, exact FK/operation predicates and transaction-bound context proof remain outstanding. No staging deployment, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement or worker activation is authorized or claimed.
+**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; latest live head before this tracker synchronization is `e6823ee9b1c68f5b71229ffbda17c9f525b66565`. Latest focused source/test checkpoint is `e6823ee9b1c68f5b71229ffbda17c9f525b66565` (FIN-017 exact return refund allocation and delivery-fee currency); tests added but not executed. FIN-004–FIN-017 financial safeguards are IMPLEMENTED / TESTING_PENDING. CI #1434 on earlier SHA `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` passed lint/typecheck and Flutter but failed changed-file Prettier; API/PostgreSQL/Web/Admin and dependent jobs skipped. CI #1436 was cancelled after subsequent pushes. No exact-head Actions verification exists for FIN-014–017. G-002 remains open: runtime identities, protected read-only catalog audit, exact FK/operation predicates and transaction-bound context proof remain outstanding. No staging deployment, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement or worker activation is authorized or claimed.
 
 ---
 
@@ -2127,3 +2127,12 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - **Regression coverage:** FIN-DSH-30 creates a 365-day-old COD payment on a DELIVERED order, asserts it is absent from stale candidates, calls expirePayment directly, and verifies no payment expiry event or order/payment state mutation. Test added but **not executed**.
 - **Source commit:** 68b5251200f9f3765a0568b796db056a18cd878e; **test commit:** 6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, payout, staging or shared DB change.
+
+
+## FIN-017 — Exact return refund allocation and payment-currency delivery adjustments — 23 November 2026
+
+- **Finding:** return request calculations used floating-point discount/VAT ratios with `Math.round`, creating minor-unit precision risk for large values. Partial-return delivery-fee exception adjustments also hardcoded SYP despite the return's payment currency being available.
+- **Implementation:** `roundProportionalMinorUnits` now performs validated half-up allocation using BigInt. Return line discounts, VAT and delivery-fee VAT use exact minor-unit arithmetic with safe-integer bounds. Delivery-fee exception adjustments inherit `payment.currency`.
+- **Regression coverage:** FIN-DSH-31 verifies a partial return with products 3000, discount 600, tax 240 and delivery fee 450 yields refund 880 and a 495 USD delivery-fee adjustment. Unit tests cover half-up allocation and an intermediate product beyond safe Number precision. Tests added, not executed.
+- **Source commit:** `122edb4bf1dc67ba01bfc33b97809cc037781f87`; unit/integration test commit: `e6823ee9b1c68f5b71229ffbda17c9f525b66565`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, provider, staging, shared DB or deployment behavior changed.

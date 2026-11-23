@@ -1078,3 +1078,28 @@ The next full workflow is required to verify these changes.
 - Source commit: 68b5251200f9f3765a0568b796db056a18cd878e; PostgreSQL test commit: 6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac.
 - No GitHub Actions run is attached to FIN-016. The latest completed run #1434 tested earlier SHA 31a0f17fa3f9ab6b8f9a7d6a435967f31f251231: lint/typecheck and Flutter passed; changed-file formatting failed; Web/Admin/API/PostgreSQL/migration/build/release jobs were skipped.
 - PR #138 remains OPEN / DRAFT / UNMERGED. Vercel Web/Admin rate-limit failures are external provider statuses. No merge, deployment, staging write, shared DB change, migration, grants, RLS, worker activation, provider, gateway or payout action occurred.
+
+
+## FIN-017 — Exact return refund allocation and payment-currency delivery adjustments — 23 November 2026
+
+- **Finding:** return request calculations used floating-point discount/VAT ratios with `Math.round`, creating minor-unit precision risk for large values. Partial-return delivery-fee exception adjustments also hardcoded SYP despite the return's payment currency being available.
+- **Implementation:** `roundProportionalMinorUnits` now performs validated half-up allocation using BigInt. Return line discounts, VAT and delivery-fee VAT use exact minor-unit arithmetic with safe-integer bounds. Delivery-fee exception adjustments inherit `payment.currency`.
+- **Regression coverage:** FIN-DSH-31 verifies a partial return with products 3000, discount 600, tax 240 and delivery fee 450 yields refund 880 and a 495 USD delivery-fee adjustment. Unit tests cover half-up allocation and an intermediate product beyond safe Number precision. Tests added, not executed.
+- **Source commit:** `122edb4bf1dc67ba01bfc33b97809cc037781f87`; unit/integration test commit: `e6823ee9b1c68f5b71229ffbda17c9f525b66565`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, provider, staging, shared DB or deployment behavior changed.
+
+
+## FIN-017 — Exact return refund allocation and payment-currency delivery adjustments — 23 November 2026
+
+- **Finding:** return request calculations used floating-point discount/VAT ratios with `Math.round`, creating minor-unit precision risk for large values. Partial-return delivery-fee exception adjustments also hardcoded SYP despite the return's payment currency being available.
+- **Implementation:** `roundProportionalMinorUnits` now performs validated half-up allocation using BigInt. Return line discounts, VAT and delivery-fee VAT use exact minor-unit arithmetic with safe-integer bounds. Delivery-fee exception adjustments inherit `payment.currency`.
+- **Regression coverage:** FIN-DSH-31 verifies a partial return with products 3000, discount 600, tax 240 and delivery fee 450 yields refund 880 and a 495 USD delivery-fee adjustment. Unit tests cover half-up allocation and an intermediate product beyond safe Number precision. Tests added, not executed.
+- **Source commit:** `122edb4bf1dc67ba01bfc33b97809cc037781f87`; unit/integration test commit: `e6823ee9b1c68f5b71229ffbda17c9f525b66565`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, provider, staging, shared DB or deployment behavior changed.
+
+
+## FIN-017 validation checkpoint — 23 November 2026
+
+- FIN-017 source `122edb4bf1dc67ba01bfc33b97809cc037781f87`; test commit `e6823ee9b1c68f5b71229ffbda17c9f525b66565`. FIN-DSH-31 plus unit rounding tests added, not executed.
+- No exact-head Actions run is attached because the commits use `[skip ci]`. CI #1434 predates FIN-014–017; CI #1436 was cancelled.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No merge, deployment, staging write, shared DB change, migration, grants/RLS, worker activation, gateway/provider or payout action occurred.
