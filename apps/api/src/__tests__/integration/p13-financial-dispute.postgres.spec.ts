@@ -1670,9 +1670,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   }, 60_000);
 
 
-  // ── FIN-DSH-33: Commission reversal adjustment net sign ─────────
+  // ── FIN-DSH-34: Commission reversal adjustment net sign ─────────
 
-  it('FIN-DSH-33: posts a commission reversal as a positive merchant credit', async () => {
+  it('FIN-DSH-34: posts a commission reversal as a positive merchant credit', async () => {
     const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
     const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
 
@@ -1721,9 +1721,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   }, 60_000);
 
 
-  // ── FIN-DSH-34: Posting requires a primary settlement ledger ────
+  // ── FIN-DSH-35: Posting requires a primary settlement ledger ────
 
-  it('FIN-DSH-34: keeps an approved adjustment unposted until a primary settlement exists', async () => {
+  it('FIN-DSH-35: keeps an approved adjustment unposted until a primary settlement exists', async () => {
     const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
     const adjustment = await settlementAdjService.createAdjustment({
       subOrderId: orderId,
