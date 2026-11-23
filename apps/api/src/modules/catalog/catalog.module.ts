@@ -13,6 +13,7 @@ import { MerchantXlsxParserService } from './merchant-xlsx-parser.service';
 import { ImportValidationService } from './import-validation.service';
 import { ProductGovernanceService } from './product-governance.service';
 import { CatalogPricingLookupService } from './catalog-pricing-lookup.service';
+import { CatalogReviewLookupService } from './catalog-review-lookup.service';
 import { AuditModule } from '../audit/index';
 
 @Module({
@@ -34,6 +35,7 @@ import { AuditModule } from '../audit/index';
     ImportValidationService,
     ProductGovernanceService,
     CatalogPricingLookupService,
+    CatalogReviewLookupService,
   ],
   exports: [
     CatalogService,
@@ -46,6 +48,7 @@ import { AuditModule } from '../audit/index';
     ImportValidationService,
     ProductGovernanceService,
     CatalogPricingLookupService,
+    CatalogReviewLookupService,
   ],
 })
 export class CatalogModule {}
