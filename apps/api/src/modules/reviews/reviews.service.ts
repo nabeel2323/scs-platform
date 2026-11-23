@@ -8,15 +8,15 @@ import {
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { reviews, trustSnapshots } from './reviews.schema';
-import { orders, orderItems } from '../orders/orders.schema';
-import { productVariants } from '../catalog/catalog.schema';
+import { OrdersService } from '../orders/index';
+import { CatalogReviewLookupService } from '../catalog/index';
 import {
   CallerContext,
   assertStoreInOrg,
   assertStoreMember,
   isTenantPrivileged,
 } from '../../common/tenant-scope';
-import { eq, and, desc, avg, count, inArray } from 'drizzle-orm';
+import { eq, and, desc, avg, count } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**
@@ -31,14 +31,13 @@ export class ReviewsService {
   constructor(
     private readonly db: DatabaseService,
     private readonly outbox: OutboxDispatcher,
+    private readonly orders: OrdersService,
+    private readonly catalogLookup: CatalogReviewLookupService,
   ) {}
 
   async createReview(input: CreateReviewInput) {
     // Verify order exists and is in reviewable state
-    const order = await this.db.db.query.orders.findFirst({
-      where: eq(orders.id, input.orderId),
-    });
-    if (!order) throw new NotFoundException('Order not found');
+    const order = await this.orders.getOrder(input.orderId);
 
     const reviewable = ['DELIVERED', 'COMPLETED'];
     if (!reviewable.includes(order['status'])) {
@@ -56,21 +55,14 @@ export class ReviewsService {
         throw new BadRequestException('A store review must target the store on the order');
       }
     } else if (subjectType === 'PRODUCT') {
-      const purchasedItems = await this.db.db.query.orderItems.findMany({
-        where: eq(orderItems.orderId, input.orderId),
-        columns: { variantId: true },
-      });
-      const purchasedVariantIds = purchasedItems.map((item) => item.variantId);
+      const purchasedVariantIds = await this.orders.listPurchasedVariantIds(input.orderId);
       if (purchasedVariantIds.length === 0) {
         throw new BadRequestException('The order contains no reviewable product lines');
       }
-      const purchasedProduct = await this.db.db.query.productVariants.findFirst({
-        where: and(
-          inArray(productVariants.id, purchasedVariantIds),
-          eq(productVariants.productId, input.subjectId),
-        ),
-        columns: { id: true },
-      });
+      const purchasedProduct = await this.catalogLookup.hasVariantForProduct(
+        purchasedVariantIds,
+        input.subjectId,
+      );
       if (!purchasedProduct) {
         throw new BadRequestException(
           'A product review must target a product included in the order',
@@ -135,11 +127,7 @@ export class ReviewsService {
   }
 
   async getReviewsByOrder(orderId: string, caller: CallerContext) {
-    const order = await this.db.db.query.orders.findFirst({
-      where: eq(orders.id, orderId),
-      columns: { buyerId: true, storeId: true },
-    });
-    if (!order) throw new NotFoundException('Order not found');
+    const order = await this.orders.getOrder(orderId);
 
     if (!isTenantPrivileged(caller) && order.buyerId !== caller.sub) {
       await assertStoreInOrg(this.db, caller, order.storeId);
