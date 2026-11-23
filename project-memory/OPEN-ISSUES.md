@@ -789,3 +789,8 @@ No migration is required. Tests remain pending the consolidated Phase 3 campaign
 ## FIN-028 — Settlement calculation actor attribution
 
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Admin-only settlement calculation now records ADMIN rather than SYSTEM in immutable payment event history. FIN-DSH-57 is added but not executed. No migration is required. Execute the regression during the consolidated Phase 3 campaign and continue reviewing the remaining payment/refund/reconciliation event producers.
+
+
+## FIN-029 — Payment confirmation order-history actor parity
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Payment verification's linked order status history now records the authenticated ADMIN/MERCHANT actor class instead of SYSTEM. FIN-DSH-54 asserts both ledger entries. Test remains unexecuted pending Phase 3.
