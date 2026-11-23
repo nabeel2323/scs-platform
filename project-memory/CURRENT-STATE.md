@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source/test implementation commit:** `60bf231f950dec8ede3c8945f76b22bc8e4b4451` — FIN-002 settlement calculation idempotency and paid-settlement protection; FIN-DSH-13–15 added but not executed.
-**Latest source/test checkpoint:** `60bf231f950dec8ede3c8945f76b22bc8e4b4451` (FIN-002); this commit uses `[skip ci]` and is not CI-verified.  
+**Latest source/test implementation commit:** `f554617c592ff57db296e0ca88614ac246468194` — FIN-002 settlement calculation idempotency and paid-settlement protection; FIN-DSH-13–16 added but not executed.
+**Latest source/test checkpoint:** `f554617c592ff57db296e0ca88614ac246468194` (FIN-002); this commit uses `[skip ci]` and is not CI-verified.  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,11 +19,11 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation checkpoint head | `60bf231f950dec8ede3c8945f76b22bc8e4b4451` (FIN-002 source + PostgreSQL regression tests; not executed) |
-| Latest implementation/test | UX-100–105 Admin workflow/action/read-gate improvements, FIN-001 refund approval serialization/idempotency and FIN-002 settlement idempotency/confirmed-funds guard. FIN-DSH-11–15 added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
+| Latest implementation checkpoint head | `f554617c592ff57db296e0ca88614ac246468194` (FIN-002 source + PostgreSQL regression tests; not executed) |
+| Latest implementation/test | UX-100–105 Admin workflow/action/read-gate improvements, FIN-001 refund approval serialization/idempotency and FIN-002 settlement idempotency/confirmed-funds guard. FIN-DSH-11–16 added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for FIN-002 source/test head `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; latest Actions run #1425 tested earlier docs head `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint and Flutter passed, typecheck failed; formatting and dependent Web/Admin/API/PostgreSQL/migration/build jobs skipped |
+| Exact-head GitHub Actions | No run for FIN-002 source/test head `f554617c592ff57db296e0ca88614ac246468194`; latest Actions run #1425 tested earlier docs head `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint and Flutter passed, typecheck failed; formatting and dependent Web/Admin/API/PostgreSQL/migration/build jobs skipped |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
 | Latest live PR head before this memory refresh | `e5aca0d99a0b0051216b4fd0d77b352c50bece88` — documentation-only FIN-002 source/CI reconciliation; no Actions run expected |
 | Latest inspected preview status | Admin FAILURE due external deployment rate limit; not an application test result |
@@ -856,7 +856,7 @@ Merchant active-store and product reads now preserve last-successful data throug
 
 ## FIN-002 — Settlement calculation idempotency — 23 November 2026
 
-- Source/test commit: `60bf231f950dec8ede3c8945f76b22bc8e4b4451`.
+- Source/test commit: `f554617c592ff57db296e0ca88614ac246468194`.
 - `calculateSettlement` locks the payment row, serializing calculation with refund requests/approvals and concurrent settlement attempts.
 - Existing PENDING/CALCULATED/DUE settlement is returned instead of inserting another payable record. Existing PAID/ADJUSTMENT history causes a conflict and requires the explicit adjustment workflow.
 - Added PostgreSQL scenarios FIN-DSH-13/14/15 for concurrent calculation idempotency, rejection after PAID, and prevention of settlement before payment confirmation. Not executed.
@@ -865,14 +865,22 @@ Merchant active-store and product reads now preserve last-successful data throug
 
 ## FIN-002 implementation follow-up — 23 November 2026
 
-- Source/test checkpoint: `60bf231f950dec8ede3c8945f76b22bc8e4b4451`.
+- Source/test checkpoint: `f554617c592ff57db296e0ca88614ac246468194`.
 - Settlement calculation is serialized on the payment row, reuses an active settlement for retries, rejects recalculation after PAID/ADJUSTMENT history, and requires a confirmed/captured/refunded payment state before creating a settlement.
 - FIN-DSH-13/14/15 cover concurrent idempotency, post-PAID rejection and pre-confirmation denial. Not executed.
-- CI #1425 ran on earlier docs head `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint passed, typecheck failed, Flutter passed; downstream Web/Admin, API tests, PostgreSQL integration, formatting and release jobs were skipped. The typecheck failures included possible-undefined settlement return values in the new service/test code and existing P12 integration assertions. A result-narrowing guard was added in `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; no CI rerun is claimed.
+- CI #1425 ran on earlier docs head `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint passed, typecheck failed, Flutter passed; downstream Web/Admin, API tests, PostgreSQL integration, formatting and release jobs were skipped. The typecheck failures included possible-undefined settlement return values in the new service/test code and existing P12 integration assertions. A result-narrowing guard was added in `f554617c592ff57db296e0ca88614ac246468194`; no CI rerun is claimed.
 
 ## Exact FIN-002 validation checkpoint — 23 November 2026
 
-- Source/test commit: `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; no Actions run is attached because it uses `[skip ci]`.
+- Source/test commit: `f554617c592ff57db296e0ca88614ac246468194`; no Actions run is attached because it uses `[skip ci]`.
 - CI #1425 [workflow](https://github.com/nabeel2323/scs-platform/actions/runs/45161885419) tested earlier SHA `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint passed; TypeScript typecheck failed; Flutter analysis/tests passed; changed-file formatting and downstream Web/Admin, API unit/coverage, PostgreSQL integration, migration, boundary, build/container, contract and release jobs skipped.
-- The typecheck log included possible-undefined settlement insert/result values in the new service and P12/P13 integration test call sites. Added an explicit insert-result guard in `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; no rerun or verification is claimed.
+- The typecheck log included possible-undefined settlement insert/result values in the new service and P12/P13 integration test call sites. Added an explicit insert-result guard in `f554617c592ff57db296e0ca88614ac246468194`; no rerun or verification is claimed.
 - Current PR head before this memory sync: `a6057735ea13d75579119994e0f8e2d1f286a8db`. PR #138 OPEN / DRAFT / UNMERGED.
+
+## FIN-003 — Minor-unit amount validation — 23 November 2026
+
+- Source/test commit: `f554617c592ff57db296e0ca88614ac246468194`.
+- Added shared positive-safe-integer validation for verified bank-transfer amounts, COD cash-collected amounts, refund requests and settlement confirmed amounts. This rejects zero, negative, fractional, NaN/Infinity and unsafe integer values before financial state changes or database writes.
+- No maximum/equality rule was introduced for actual received amounts; the existing manual-verification contract remains unchanged.
+- PostgreSQL regression FIN-DSH-16 verifies invalid fractional/zero inputs are rejected and payment statuses remain unchanged for verification/COD; it also covers fractional refund rejection. Not executed.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema, migration, provider, gateway, payout, staging, shared DB or deployment change.

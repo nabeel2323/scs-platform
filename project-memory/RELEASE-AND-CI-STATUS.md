@@ -974,3 +974,11 @@ The next full workflow is required to verify these changes.
 - [Workflow run](https://github.com/nabeel2323/scs-platform/actions/runs/45161885419) tested `994fee9a332f4c553fa09687101d8f6ecdec3103`.
 - Lint passed; TypeScript typecheck failed; Flutter analysis/tests passed. Typecheck reported possible-undefined settlement insert/result values in `payments.service.ts` and P12/P13 PostgreSQL integration tests. Changed-file Prettier and downstream Web/Admin, API unit/coverage, PostgreSQL integration, migration, boundary, build/container, contract and release jobs were skipped.
 - Added an explicit settlement insert-result guard in source commit `60bf231f950dec8ede3c8945f76b22bc8e4b4451`. That commit uses `[skip ci]`; exact-head typecheck remains pending.
+
+## FIN-003 source checkpoint — 23 November 2026
+
+- Source/test commit: `f554617c592ff57db296e0ca88614ac246468194` (`fix(payments): validate all minor-unit money inputs [skip ci]`).
+- No Actions run is expected for this source commit; no typecheck, test or CI verification is claimed.
+- Added PostgreSQL regression FIN-DSH-16 for fractional verification/refund amounts and zero COD collection, including unchanged payment status after rejected attempts. Not executed.
+- Latest historical CI remains #1425 on `994fee9a332f4c553fa09687101d8f6ecdec3103`; it failed typecheck before the subsequent result guard and FIN-003 changes. It does not validate the current source.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No merge, staging, shared DB, migration, gateway, payout, provider, deployment or worker action occurred.

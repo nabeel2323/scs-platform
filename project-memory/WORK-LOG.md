@@ -1182,3 +1182,11 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - `calculateSettlement` now serializes on the payment row, returns an existing PENDING/CALCULATED/DUE settlement for retries, rejects a new payable settlement after PAID/ADJUSTMENT history, and refuses calculation until payment is CONFIRMED, CAPTURED, PARTIALLY_REFUNDED or REFUNDED.
 - FIN-DSH-13–15 cover concurrent calculation, post-PAID denial and pre-confirmation denial. Tests not executed.
 - CI #1425 on `994fee9` passed lint and Flutter but failed typecheck; logs identified possible-undefined settlement insert result and test result types. Added an explicit insert-result guard in source commit `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; exact-head validation pending.
+
+## 2026-11-23 — FIN-003 minor-unit amount validation
+
+- Source audit found that manual verification, COD cash confirmation and refund request paths did not consistently reject fractional or unsafe JavaScript numbers before writing PostgreSQL BIGINT minor-unit columns. Negative/zero verified and collected values were not rejected at the service boundary.
+- Added shared `assertPositiveMinorAmount` validation to payment verification, COD cash confirmation, refund request and settlement confirmed-amount calculation. It requires positive safe integers in minor units; it does not impose a new upper bound or require actual received amount to equal the order amount.
+- Added PostgreSQL regression FIN-DSH-16 for fractional verification/refund amounts and zero COD collection; asserts verification/COD statuses remain unchanged. Not executed.
+- Source/test commit: `f554617c592ff57db296e0ca88614ac246468194`; `[skip ci]` used to preserve the consolidated validation plan.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, payout, staging, shared DB or deployment change.

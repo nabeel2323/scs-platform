@@ -76,7 +76,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest source/test checkpoint is `60bf231f950dec8ede3c8945f76b22bc8e4b4451` (FIN-002); FIN-DSH-11–15 were added but not executed. No Actions run is attached to that `[skip ci]` commit. Latest Actions run #1425 tested earlier SHA `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint and Flutter passed, typecheck failed, and changed-file formatting plus downstream Web/Admin/API/PostgreSQL/migration/build/release gates were skipped. A settlement insert-result type guard was added in `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; no rerun is claimed. Re-fetch live PR head/status before the next action.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest source/test checkpoint is `f554617c592ff57db296e0ca88614ac246468194` (FIN-003); FIN-DSH-11–16 were added but not executed. No Actions run is attached to that `[skip ci]` commit. Latest Actions run #1425 tested earlier SHA `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint and Flutter passed, typecheck failed, and changed-file formatting plus downstream Web/Admin/API/PostgreSQL/migration/build/release gates were skipped. A settlement insert-result type guard was added in `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; FIN-003 adds safe-integer amount validation in `f554617c592ff57db296e0ca88614ac246468194`. No rerun is claimed. Re-fetch live PR head/status before the next action.
 
 ### Exact stopping point
 
@@ -566,3 +566,10 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - FIN-DSH-13/14/15 cover concurrent idempotency, post-PAID rejection and pre-confirmation denial. Tests are added but not executed.
 - Source/test commit: `60bf231f950dec8ede3c8945f76b22bc8e4b4451`.
 - Next: continue source-first financial correctness review. Keep automatic gateway/payout out of scope.
+
+### FIN-003 — Minor-unit amount validation
+
+- Verified bank-transfer amount, COD collected amount, refund amount and settlement confirmed amount must be positive safe integers in minor units.
+- Added FIN-DSH-16 to reject fractional/zero inputs and confirm rejected verification/COD attempts leave payment state unchanged. Not executed.
+- Source/test commit: `f554617c592ff57db296e0ca88614ac246468194`.
+- No business rule was added for overpayment/underpayment or exact equality; no gateway/payout scope change.

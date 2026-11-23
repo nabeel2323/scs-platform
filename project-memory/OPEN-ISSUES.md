@@ -616,3 +616,7 @@ Source implementation is complete at `117614884ff1e0d50ca116f0b28f249fd83761c0`.
 **Status: IMPLEMENTED / TESTING_PENDING.** The settlement calculation now locks the payment row and reuses an existing active settlement instead of creating a duplicate. If a settlement has reached PAID or an adjustment record exists, recalculation is rejected and the explicit settlement-adjustment workflow remains required. PostgreSQL scenarios FIN-DSH-13–15 are added but not executed. The service also refuses settlement calculation until payment is CONFIRMED, CAPTURED, PARTIALLY_REFUNDED or REFUNDED. No schema/migration or payout behavior changed.
 
 Next: continue source-first review of payment and settlement transitions; keep automatic gateway/payout scope unchanged.
+
+### FIN-003 — Minor-unit amount validation
+
+**Status: IMPLEMENTED / TESTING_PENDING.** Manual payment verification, COD cash confirmation, refund requests and settlement confirmed amounts now require positive safe integers in minor units. This prevents zero, negative, fractional and unsafe-number values from entering financial records. No new maximum/equality rule was added for received amounts. FIN-DSH-16 covers invalid values and unchanged payment state; not executed.
