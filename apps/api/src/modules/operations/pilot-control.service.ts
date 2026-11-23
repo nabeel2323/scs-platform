@@ -24,7 +24,7 @@
  */
 
 import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { and, eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { AuditService } from '../audit/audit.service';
 import { OpsAlertService } from './ops-alert.service';
@@ -32,8 +32,8 @@ import { recordOpsCounter, getOpsCounter } from './ops-counters';
 import { firstRow, readRows } from './raw-result';
 import { featureFlags } from '../audit/audit.schema';
 import { p13PilotAllowlist } from './operations.schema';
-import { organizations } from '../identity/identity.schema';
-import { stores } from '../merchant/merchant.schema';
+import { IdentityService } from '../identity/index';
+import { MerchantService } from '../merchant/index';
 import { P13_PILOT_FLAG_KEY, resolveP13OpsConfig, type P13PilotMode } from './p13-ops.config';
 
 export interface PilotEligibility {
@@ -69,6 +69,8 @@ export class PilotControlService {
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
     private readonly alerts: OpsAlertService,
+    private readonly identity: IdentityService,
+    private readonly merchant: MerchantService,
   ) {
     this.mode = resolveP13OpsConfig().pilotMode;
   }
@@ -224,18 +226,19 @@ export class PilotControlService {
   }): Promise<void> {
     if (!input.orgId) throw new ForbiddenException('orgId is required for an allowlist entry');
 
-    const organization = await this.db.db.query.organizations.findFirst({
-      where: eq(organizations.id, input.orgId),
-      columns: { id: true },
-    });
-    if (!organization) throw new NotFoundException('Organization not found');
+    await this.identity.getOrg(input.orgId);
 
     if (input.storeId) {
-      const store = await this.db.db.query.stores.findFirst({
-        where: and(eq(stores.id, input.storeId), eq(stores.orgId, input.orgId)),
-        columns: { id: true },
-      });
-      if (!store) {
+      let store: Awaited<ReturnType<MerchantService['getStore']>>;
+      try {
+        store = await this.merchant.getStore(input.storeId);
+      } catch (error) {
+        if (error instanceof NotFoundException) {
+          throw new NotFoundException('Store not found in the target organization');
+        }
+        throw error;
+      }
+      if (store.orgId !== input.orgId) {
         throw new NotFoundException('Store not found in the target organization');
       }
     }
