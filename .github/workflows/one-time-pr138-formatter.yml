@@ -1,4 +1,4 @@
-name: One-time PR #138 formatter
+name: One-time PR #138 formatter (final memory pass)
 
 on:
   push:
