@@ -70,7 +70,7 @@ describe('admin product type product read recovery', () => {
     fetchAttributes.mockResolvedValue([]);
     adminRequest.mockResolvedValue({ canPublish: true, errors: [], warnings: [], products: [], totalCount: 0, totalVariantCount: 0 });
   });
-  afterEach(() => cleanup());
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 
   it('does not publish a dirty product type when saving its configuration fails', async () => {
@@ -85,7 +85,7 @@ describe('admin product type product read recovery', () => {
 
     render(<ProductTypeBuilderPage />);
     expect(await screen.findByRole('heading', { name: 'Laptop' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Builder' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Attribute Builder' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add test attribute' }));
     fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
 
