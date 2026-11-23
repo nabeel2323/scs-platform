@@ -2081,10 +2081,11 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   }, 60_000);
   it('FIN-DSH-42: two outbox dispatcher instances cannot claim and dispatch the same pending event', async () => {
     const eventId = randomUUID();
+    const aggregateId = randomUUID();
     await pool.query(
       `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, metadata, status)
        VALUES ($1, 'test.concurrent_claim', $2, '{}'::jsonb, '{}'::jsonb, 'PENDING')`,
-      [eventId, randomUUID()],
+      [eventId, aggregateId],
     );
 
     const dispatcherA = new OutboxDispatcher({ db } as DatabaseService);
@@ -2096,6 +2097,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     await Promise.all([(dispatcherA as any).poll(), (dispatcherB as any).poll()]);
 
     expect(dispatchA.mock.calls.length + dispatchB.mock.calls.length).toBe(1);
+    const dispatchedEvent = dispatchA.mock.calls[0]?.[0] ?? dispatchB.mock.calls[0]?.[0];
+    expect(dispatchedEvent).toMatchObject({ eventType: 'test.concurrent_claim', aggregateId });
     const persisted = await pool.query(
       `SELECT status, locked_at, locked_by FROM outbox_events WHERE id = $1`, [eventId],
     );

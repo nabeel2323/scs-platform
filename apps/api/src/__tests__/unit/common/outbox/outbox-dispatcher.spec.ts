@@ -21,6 +21,7 @@ describe('OutboxDispatcher cross-instance claim safety', () => {
     expect(query.sql).toContain('locked_at');
     expect(query.sql).toContain('locked_by');
     expect(query.sql).toContain('not like');
+    expect(query.sql).toContain('AS "eventType"');
     expect(query.params).toContain('shipping.carrier.%');
   });
 
