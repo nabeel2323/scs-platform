@@ -356,7 +356,7 @@ export class ReconciliationService {
     discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
     const inFlightReturns = await db
-      .selectDistinct({
+      .select({
         id: returnRequests.id,
         status: returnRequests.status,
         requestedRefundMinor: returnRequests.requestedRefundMinor,
@@ -371,19 +371,22 @@ export class ReconciliationService {
       ))
       .where(and(
         inArray(returnRequests.status, ['REFUND_FAILED', 'REFUND_PENDING']),
-        // Attribute the finding to the current return-state transition. Legacy
-        // rows without a matching event retain the created_at compatibility path.
-        sql`(
-          (${returnRequestEvents.id} IS NOT NULL
-            AND ${returnRequestEvents.createdAt} >= ${startDate}
-            AND ${returnRequestEvents.createdAt} <= ${endDate})
-          OR
-          (${returnRequestEvents.id} IS NULL
-            AND ${returnRequests.createdAt} >= ${startDate}
-            AND ${returnRequests.createdAt} <= ${endDate})
-        )`,
         orgId ? eq(stores.orgId, orgId) : undefined,
-      ));
+      ))
+      .groupBy(
+        returnRequests.id,
+        returnRequests.status,
+        returnRequests.requestedRefundMinor,
+        returnRequests.refundId,
+        returnRequests.createdAt,
+      )
+      .having(sql`COALESCE(
+        MAX(${returnRequestEvents.createdAt}),
+        ${returnRequests.createdAt}
+      ) >= ${startDate} AND COALESCE(
+        MAX(${returnRequestEvents.createdAt}),
+        ${returnRequests.createdAt}
+      ) <= ${endDate}`);
 
     for (const ret of inFlightReturns) {
       if (!ret.refundId) {

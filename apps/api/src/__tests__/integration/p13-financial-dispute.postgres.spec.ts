@@ -3208,7 +3208,23 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const payment = (await pool.query(
       `SELECT currency FROM payment_records WHERE order_id = $1`, [orderId],
     )).rows[0];
-    const period = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const currentPeriodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+      .toISOString().slice(0, 10);
+    const currentPeriodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0))
+      .toISOString().slice(0, 10);
+    const previousPeriodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+      .toISOString().slice(0, 10);
+    const previousPeriodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0))
+      .toISOString().slice(0, 10);
+
+    // Place the first REFUND_PENDING event in the prior month to prove that a
+    // later re-entry into REFUND_PENDING is attributed to its newest transition.
+    await pool.query(
+      `UPDATE return_request_events SET created_at = $2
+       WHERE return_request_id = $1 AND to_status = 'REFUND_PENDING'`,
+      [pendingReturn.id, `${previousPeriodEnd}T12:00:00.000Z`],
+    );
 
     // Legacy divergence: the return was marked failed but its payment refund
     // remained REQUESTED and therefore still appeared as an active obligation.
@@ -3225,7 +3241,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
 
     const failedRun = await reconciliationService.executeReconciliation(
-      period, period, payment.currency, adminA, orgA,
+      currentPeriodStart, currentPeriodEnd, payment.currency, adminA, orgA,
     );
     const failedMismatch = await pool.query(
       `SELECT discrepancy_type, expected_minor, actual_minor, description
@@ -3258,8 +3274,19 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [randomUUID(), pendingReturn.id, adminA],
     );
 
+    const priorPeriodRun = await reconciliationService.executeReconciliation(
+      previousPeriodStart, previousPeriodEnd, payment.currency, adminA, orgA,
+    );
+    const priorPeriodMismatch = await pool.query(
+      `SELECT id FROM reconciliation_discrepancies
+       WHERE run_id = $1 AND source_ref = $2
+         AND discrepancy_type = 'REFUND_STATUS_MISMATCH'`,
+      [priorPeriodRun.runId, `return:${pendingReturn.id}:refund:${pendingReturn.refundId}`],
+    );
+    expect(priorPeriodMismatch.rows).toHaveLength(0);
+
     const retryRun = await reconciliationService.executeReconciliation(
-      period, period, payment.currency, adminA, orgA,
+      currentPeriodStart, currentPeriodEnd, payment.currency, adminA, orgA,
     );
     const retryMismatch = await pool.query(
       `SELECT discrepancy_type, expected_minor, actual_minor, description
