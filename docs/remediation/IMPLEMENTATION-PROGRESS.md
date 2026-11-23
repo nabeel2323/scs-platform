@@ -2285,3 +2285,12 @@ CI #1446 failed at lint on two parse errors in `returns.service.ts` and `settlem
 - **Regression coverage:** FIN-DSH-58 backdates return creation but leaves refund completion in the current period, verifying that refund-status and missing-commission-reversal discrepancies are detected.
 - **Source commit:** `93a908d4627c804af5d12e20c6a1e7c2811524e9`. **Test commit:** `5abae2018b9e6d6a43d5e3b90764ef80560b4ea0`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. Test not executed; include in consolidated Phase 3 PostgreSQL campaign. No migration or shared DB action.
+
+
+## FIN-031 — Cross-period duplicate refund detection — 23 November 2026
+
+- **Finding:** Duplicate-refund reconciliation used return-request creation time and counted only successful refunds within the same period. It could miss a duplicate when the return predates the period or one duplicate refund succeeded in an earlier period.
+- **Implementation:** Identify tenant-scoped return IDs with at least one SUCCEEDED refund updated in the target period, then count every SUCCEEDED refund for those returns across periods.
+- **Regression coverage:** FIN-DSH-59 creates two SUCCEEDED refunds for a return created in an earlier period, with one refund updated in the current period, and expects a DUPLICATE_REFUND discrepancy with count 2.
+- **Source commit:** `6089a1fd821c35c0dcd9f0cde849e145326905e1`. **Test commit:** `4bdd2935d48ea2c6ef3d633aa6af2f3fe39369ab`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. Test not executed; include in consolidated Phase 3 PostgreSQL campaign. No migration or shared DB action.
