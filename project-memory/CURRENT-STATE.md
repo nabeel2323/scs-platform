@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `91d69e43351a44bb80a9169cef561fecd550b957` — UX-099 shared Admin mutation permission callbacks; supporting source commits include `262f2d1`, `d52acd6`, `93ec686`, `20447d2`, `bed844f`, `9313b85`, `5ea1145`. Latest focused tests: `57d3a251b34b891e49a05e3f9b70756be1b4dbb7` (shared mutation permission loss); earlier UX-099 test `046160d094ee723c895da987fa0ef2c41da4212d`.
-**Latest implementation checkpoint head:** `57d3a251b34b891e49a05e3f9b70756be1b4dbb7` (latest UX-099 focused test commit; PR #138 head before this documentation synchronization).  
+**Latest source implementation commit:** `14c8c5caa908a2194c8a3ec903de08f15e0db50e` — UX-100 settlement adjustment rejection UI; latest focused tests: `e471e6b49e6f60a7c2c1b3719a96fcd7892f6ade`. Earlier UX-099 shared Admin mutation permission callbacks are recorded below.
+**Latest implementation checkpoint head:** `e471e6b49e6f60a7c2c1b3719a96fcd7892f6ade` (UX-100 focused test commit; subsequent documentation-only commits synchronize this checkpoint).  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
