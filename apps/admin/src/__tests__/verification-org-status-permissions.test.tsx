@@ -89,27 +89,27 @@ afterEach(() => {
 
 describe('Verification organization status action permissions', () => {
   it('rechecks admin:users:write before deactivating after permission loss', async () => {
-    render(<VerificationReviewPage />);
+    const { rerender } = render(<VerificationReviewPage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Deactivate Merchant' }));
     expect(screen.getByRole('dialog')).toBeTruthy();
 
     mocks.perms = [REVIEW];
-    render(<VerificationReviewPage />);
+    rerender(<VerificationReviewPage />);
 
-    fireEvent.click(screen.getByRole('dialog').querySelector('button:last-child')!);
+    fireEvent.click(screen.getByRole('button', { name: 'Deactivate', exact: true }));
     await waitFor(() => expect(mocks.deactivateAdminOrganization).not.toHaveBeenCalled());
   });
 
   it('rechecks admin:users:write before reactivating after permission loss', async () => {
     mocks.orgIsActive = false;
-    render(<VerificationReviewPage />);
+    const { rerender } = render(<VerificationReviewPage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Reactivate Merchant' }));
     expect(screen.getByRole('dialog')).toBeTruthy();
 
     mocks.perms = [REVIEW];
-    render(<VerificationReviewPage />);
+    rerender(<VerificationReviewPage />);
 
-    fireEvent.click(screen.getByRole('dialog').querySelector('button:last-child')!);
+    fireEvent.click(screen.getByRole('button', { name: 'Reactivate', exact: true }));
     await waitFor(() => expect(mocks.deactivateAdminOrganization).not.toHaveBeenCalled());
   });
 });
