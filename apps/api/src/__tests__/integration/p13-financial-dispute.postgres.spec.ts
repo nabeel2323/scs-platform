@@ -18,6 +18,8 @@
  *   FIN-DSH-14  Recalculation after settlement PAID is rejected
  *   FIN-DSH-15  Settlement is blocked until payment is confirmed
  *   FIN-DSH-16  Payment verification, COD confirmation and refund amounts must be positive safe integers
+
+ *   FIN-DSH-24  Refund adjustment serializes with settlement payment
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -1134,6 +1136,93 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     expect(obx.rows[0].n).toBe(1);
   }, 90_000);
+
+  // ── FIN-DSH-24: Refund adjustment vs concurrent settlement payment ─
+
+  it('FIN-DSH-24: preserves the paid settlement and creates an adjustment when refund completion races payment', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const pendingRet = await advanceReturnToRefundPending(
+      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+    );
+    const refundId = pendingRet.refundId as string;
+    const refundMinor = Number(
+      (await pool.query(`SELECT amount_minor FROM refunds WHERE id = $1`, [refundId])).rows[0].amount_minor,
+    );
+    const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
+    const original = {
+      gross: settlement.grossMinor,
+      refund: settlement.refundMinor,
+      commission: settlement.commissionMinor,
+      fee: settlement.feeMinor,
+      net: settlement.netMinor,
+    };
+
+    await paymentsService.approveRefund(refundId, adminA, adminCaller);
+
+    const lockClient = await pool.connect();
+    let transition: Promise<any> | undefined;
+    try {
+      await lockClient.query('BEGIN');
+      await lockClient.query(
+        `SELECT id FROM settlement_records WHERE id = $1 FOR UPDATE`,
+        [settlement.id],
+      );
+
+      transition = returnsService.transitionReturn(pendingRet.id, 'REFUNDED', adminCaller);
+
+      let waitingForSettlementLock = false;
+      for (let attempt = 0; attempt < 200; attempt += 1) {
+        const activity = await pool.query(
+          `SELECT count(*)::int AS count
+           FROM pg_stat_activity
+           WHERE pid <> $1
+             AND wait_event_type = 'Lock'
+             AND query ILIKE '%settlement_records%'`,
+          [lockClient.processID],
+        );
+        if (activity.rows[0].count > 0) {
+          waitingForSettlementLock = true;
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      expect(waitingForSettlementLock).toBe(true);
+
+      await lockClient.query(
+        `UPDATE settlement_records SET status = 'PAID', paid_at = now() WHERE id = $1`,
+        [settlement.id],
+      );
+      await lockClient.query('COMMIT');
+    } catch (error) {
+      await lockClient.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      lockClient.release();
+    }
+
+    const refundedReturn = await transition;
+    expect(refundedReturn.status).toBe('REFUNDED');
+
+    const paidSettlement = await pool.query(
+      `SELECT status, gross_minor::int AS gross, refund_minor::int AS refund,
+              commission_minor::int AS commission, fee_minor::int AS fee, net_minor::int AS net
+       FROM settlement_records WHERE id = $1`,
+      [settlement.id],
+    );
+    expect(paidSettlement.rows).toEqual([{ status: 'PAID', ...original }]);
+
+    const adjustments = await pool.query(
+      `SELECT status, refund_minor::int AS refund, net_minor::int AS net
+       FROM settlement_records
+       WHERE sub_order_id = $1 AND status = 'ADJUSTMENT'`,
+      [orderId],
+    );
+    expect(adjustments.rows).toEqual([{
+      status: 'ADJUSTMENT',
+      refund: refundMinor,
+      net: -refundMinor,
+    }]);
+  }, 60_000);
 
   // ── FIN-DSH-10: Rollback under a losing REFUNDED race ────────────
 

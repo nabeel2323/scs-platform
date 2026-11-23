@@ -1069,12 +1069,21 @@ export class ReturnsService {
   // ═══════════════════════════════════════════════════════════════
 
   private async adjustSettlement(tx: any, ret: any, refundAmountMinor: number) {
-    // Find existing settlement for this sub-order
-    const settlement = await tx.query.settlementRecords.findFirst({
-      where: eq(settlementRecords.subOrderId, ret.subOrderId),
-    });
+    // Serialize against markSettlementPaid. Lock the primary settlement and
+    // re-read its status after acquiring the lock so a concurrent PAID transition
+    // cannot be overwritten by an in-place refund update.
+    const [settlement] = await tx
+      .select()
+      .from(settlementRecords)
+      .where(and(
+        eq(settlementRecords.subOrderId, ret.subOrderId),
+        inArray(settlementRecords.status, ['PENDING', 'CALCULATED', 'DUE', 'PAID']),
+      ))
+      .orderBy(desc(settlementRecords.createdAt))
+      .limit(1)
+      .for('update');
 
-    if (!settlement) return;  // no settlement yet; next calculateSettlement picks up refund
+    if (!settlement) return;  // no primary settlement yet; calculation will include the refund
 
     // ── Phase 3: Calculate proportional commission reversal ──────────
     // The ADJUSTMENT settlement must reflect the commission credit so that
