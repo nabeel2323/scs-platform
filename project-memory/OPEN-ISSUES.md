@@ -851,3 +851,16 @@ The merchant and Admin settlement screens now expose adjustment rows and disting
 - The touched outbox-dispatcher test exposed a case-sensitive SQL assertion against PostgreSQL's uppercase NOT LIKE; corrected to compare lowercased SQL in commit 3ef930973014bdb43e10a62c337a61831835c174. The latest CI run is the exact-head recheck for this correction.
 - FIN-047 remains IMPLEMENTED / TESTING_PENDING. Do not merge/deploy. No migration or shared/staging DB write, environment mutation, worker activation, RLS/ACL change, or production operation was performed.
 - Next: finish collecting CI #45257284797 API coverage and PostgreSQL integration results; run the Admin settlement recovery tests independently because the Web suite currently fails before Admin is reached; then address the 14 modular-boundary violations and _migration_log audit grant through their proper owners/reviewed changes. Do not change test expectations or weaken gates to hide failures.
+
+## Live continuation — 23 November 2026
+
+- **FIN-047:** pagination and consumer audit are implemented. Tests remain TESTING_PENDING until exact-head verification. CI #45257284797 was a failed broad verification attempt, not a FIN-047 pass.
+- **Read-only DB audit:** corrected at source checkpoint `954200f` to check SELECT capability before reading `_migration_log` and `backfill_errors`. No SELECT grant should be added to the least-privilege audit login. Await CI #45260954714.
+- **Carrier tests:** two unit fixtures now include `stores.findFirst` returning the owning organization; unit and PostgreSQL tenant assertions match the production store-mismatch diagnostic. Await CI #45260954714.
+- **Outbox test:** now inspects the literal carrier exclusion in generated SQL; await CI.
+- **Admin finance tests:** the workflow runs focused Admin suites after dependency installation/contracts build regardless of the Web test outcome. The Web failure remains fatal to the overall job.
+- **G-015 boundary debt:** 14 new violations remain against the 193-entry reviewed baseline. Resolve through injected contracts and ownership boundaries; do not add them to the baseline or evade the rule with schema re-export barrels.
+- **Broad regression debt:** 9 Web tests, 89 API coverage tests and 41 PostgreSQL integration assertions failed on CI #45257284797. This run included 1,599/1,706 integration tests passed and 4,634 API tests passed (with 176 skipped).
+- **Next:** inspect CI #45260954714 against exact source SHA `954200f`; address directly attributable failures, then resume G-015 and G-002 source mapping. G-001 independent review, G-036 verification and Phase 6 remain open.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No merge, deployment, protected staging audit, shared database mutation, migration, grant/default-ACL change, RLS or worker activation is authorized.
+
