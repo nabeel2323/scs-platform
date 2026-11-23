@@ -329,7 +329,7 @@ function ReturnActionsPanel({ id, exceptionStatus, exceptionType, onDone }: {
     hasAccess && eligible ? `shipments/${encodeURIComponent(id)}/return-eligibility` : null,
     hasAccess && eligible,
   );
-  const action = useAdminMutation(onDone, () => hasAccess);
+  const action = useAdminMutation(onDone, () => hasAccess && eligible);
   const [qtys, setQtys] = useState<Record<string, number>>({});
   const [conds, setConds] = useState<Record<string, string>>({});
 
