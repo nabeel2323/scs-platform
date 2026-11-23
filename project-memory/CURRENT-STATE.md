@@ -4,7 +4,7 @@
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
 **Latest feature implementation:** `5a7dfd6ea67de61bb016cc7a7ef31749760955d8` — FIN-028 settlement actor attribution (FIN-027 source: `6ae8aba762215f69f42e74e4608a4fa31a02543b`). **Latest focused test commit:** `05799cde897871ab9752af07bf70830ac834edbf` — FIN-DSH-57; FIN-DSH-56/57 added, not executed. **Latest syntax correction:** `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`. 
-**Latest focused test commit:** `5b636df49155ea523bc730852ed900720a858a88` — FIN-DSH-56 for APPROVED refund balance and BIGINT aggregate safety; tests not executed. No exact-head Actions run is attached. 
+**Previous focused test commit:** `5b636df49155ea523bc730852ed900720a858a88` — FIN-DSH-56 for APPROVED refund balance and BIGINT aggregate safety; added, not executed. Latest focused test commit is FIN-DSH-57 at `05799cde897871ab9752af07bf70830ac834edbf`. 
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
