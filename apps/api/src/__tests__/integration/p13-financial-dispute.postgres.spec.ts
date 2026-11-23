@@ -61,6 +61,8 @@
  *   FIN-DSH-57  Admin settlement calculation records ADMIN actor attribution
  *   FIN-DSH-58  Reconciliation period follows refund completion event, not return creation
  *   FIN-DSH-59  Duplicate return refunds remain detectable across accounting periods
+ *   FIN-DSH-60  Adjustment reconciliation uses posting period and ignores unposted drafts
+ *   FIN-DSH-61  Return refund, return state/history and both outbox events roll back together
  *
  * All assertions are against persisted database state, not code inspection.
  */
