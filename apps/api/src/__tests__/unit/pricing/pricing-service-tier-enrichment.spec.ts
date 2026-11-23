@@ -1,40 +1,43 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PricingService } from '../../../modules/pricing/pricing.service';
-import { priceTiers } from '../../../modules/pricing/pricing.schema';
-import { products, productVariants } from '../../../modules/catalog/catalog.schema';
 
 describe('PricingService price-list tier enrichment', () => {
   it('returns product and variant labels with each price tier', async () => {
-    const rows = [
+    const tier = {
+      id: 'tier-a',
+      priceListId: 'list-a',
+      variantId: 'variant-a',
+      minQty: 1,
+      maxQty: null,
+      unitPriceMinor: 1250,
+    };
+    const priceTierFindMany = vi.fn().mockResolvedValue([tier]);
+    const catalogLookup = {
+      getVariantPricingDetails: vi.fn().mockResolvedValue([
+        {
+          variantId: 'variant-a',
+          variantSku: 'SKU-A',
+          variantTitle: 'Blue / Large',
+          productTitle: 'Cotton Shirt',
+          storeId: 'store-a',
+        },
+      ]),
+    };
+    const service = new PricingService(
+      { db: { query: { priceTiers: { findMany: priceTierFindMany } } } } as any,
+      {} as any,
+      catalogLookup as any,
+    );
+
+    await expect(service.listTiersByPriceList('list-a')).resolves.toEqual([
       {
-        id: 'tier-a',
-        priceListId: 'list-a',
-        variantId: 'variant-a',
-        minQty: 1,
-        maxQty: null,
-        unitPriceMinor: 1250,
+        ...tier,
         variantSku: 'SKU-A',
         variantTitle: 'Blue / Large',
         productTitle: 'Cotton Shirt',
       },
-    ];
-    const orderBy = vi.fn().mockResolvedValue(rows);
-    const where = vi.fn().mockReturnValue({ orderBy });
-    const productsJoin = vi.fn().mockReturnValue({ where });
-    const variantsJoin = vi.fn().mockReturnValue({ innerJoin: productsJoin });
-    const from = vi.fn().mockReturnValue({ innerJoin: variantsJoin });
-    const select = vi.fn().mockReturnValue({ from });
-    const service = new PricingService({ db: { select } } as any, {} as any);
-
-    await expect(service.listTiersByPriceList('list-a')).resolves.toEqual(rows);
-    expect(select).toHaveBeenCalledWith(
-      expect.objectContaining({
-        variantSku: productVariants.sku,
-        variantTitle: productVariants.title,
-        productTitle: products.title,
-      }),
-    );
-    expect(from).toHaveBeenCalledWith(priceTiers);
-    expect(where).toHaveBeenCalledOnce();
+    ]);
+    expect(priceTierFindMany).toHaveBeenCalledOnce();
+    expect(catalogLookup.getVariantPricingDetails).toHaveBeenCalledWith(['variant-a']);
   });
 });
