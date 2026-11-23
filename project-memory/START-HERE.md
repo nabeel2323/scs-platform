@@ -190,7 +190,6 @@ Confirmed current-source UX candidates are now listed in the gap register: Admin
 - PR #138 head `10a890a3a69f7281b93f4a8e80b735f2228825cb` completed CI run #44961723564. Lint and TypeScript typecheck passed; Flutter analysis and tests passed. The changed-file Prettier gate failed on four handover documents. API unit/coverage, PostgreSQL integration, web/admin tests, migration, boundary lint, build and smoke jobs were skipped.
 - Those four documents are being normalized with repository-locked Prettier 3.9.6. Require a fresh exact-head CI run after the formatter commit; do not treat this run as implementation verification.
 
-
 ## GitHub Actions budget — user instruction, 22 November 2026
 
 The user reports that about 90% of the GitHub Actions minutes allowance is already consumed. Batch related source, focused tests, documentation and project-memory changes into cohesive commits; avoid per-change CI runs and repeated temporary formatter workflows; keep developer checks narrow and reserve the comprehensive campaign for the consolidated testing phase. Never disable required checks, bypass approvals or claim skipped jobs passed.
@@ -204,7 +203,6 @@ The user reports that about 90% of the GitHub Actions minutes allowance is alrea
 - UX-009 is IMPLEMENTED at source level; full role/deep-link/action regression remains in Phase 3. UX-006 mobile permission affordances and remaining MAP-001 mapping remain outstanding.
 - No database, staging, deployment, migration, grants, RLS, worker activation or release restrictions changed.
 
-
 ## Continuation checkpoint — 22 November 2026
 
 - Repository: `nabeel2323/scs-platform`; branch: `remediation/phase-0-1-tenant-security`; PR #138 remains open and unmerged.
@@ -214,21 +212,17 @@ The user reports that about 90% of the GitHub Actions minutes allowance is alrea
 - Focused Flutter permission tests and the mobile route/action matrix are added. Test execution is intentionally deferred until the implementation batch is complete. Do not trigger CI for small follow-up edits.
 - Outstanding RBAC policy issue: `identity:organizations:create` is checked by the organization creation flow but is absent from the inspected permission seed/default grants. Do not silently grant it before organization-type and creator-role semantics are reconciled.
 
-
 ## Mobile permission review refinements — 22 November 2026
 
 A follow-up code review tightened Home discovery visibility, registration step guards, flat-variant/offer Add-to-Cart buttons, and the merchant low-stock KPI destination. The registration wizard now distinguishes organization creation from invitation-based joining and checks `merchant:stores:write` before store creation and verification submission. These refinements are grouped into one follow-up implementation commit; validation remains deferred to the consolidated phase.
-
 
 ## Registration active-organization correction — 22 November 2026
 
 Merchant registration now persists the organization created or joined to secure storage and updates `activeOrgIdProvider` before refreshing `profileProvider`. This ensures the subsequent store-write check uses the newly selected organization's permissions rather than stale permissions from the previous/no active organization. Store and warehouse caches are invalidated after creation. The follow-up remains unvalidated until the consolidated test phase.
 
-
 ## RBAC seed reconciliation — 22 November 2026
 
 Correction to the earlier onboarding-permission note: staging is not missing `identity:organizations:create`. The connected database migration log confirms `0069_organization_onboarding_permission.sql` was applied on 17 November 2026, and read-only SQL confirms the permission is assigned to BUYER, ADMIN, MERCHANT_OWNER, and SUPER_ADMIN. The defect was canonical seed drift: `apps/api/src/common/database/rbac-seed.data.ts` omitted the permission and its role grants. The seed and a real-seed regression test are now aligned with migration 0069. No staging database mutation was needed.
-
 
 ## Admin read-permission alignment — 22 November 2026
 
@@ -240,7 +234,6 @@ Correction to the earlier onboarding-permission note: staging is not missing `id
 - This group is committed as one `[skip ci]` commit to conserve the user's remaining GitHub Actions minutes. No permission grants, backend policies, database, staging, migrations, worker activation, deployment, merge or release action changed.
 - Next implementation focus: finish MAP-001 API route-to-contract/client-consumer mapping and worker/provider activation ownership; then consolidate remaining integration work before Phase 3 testing.
 
-
 ## Cart API permission parity — 22 November 2026
 
 - Source review found that `CartController` had JWT authentication and user-scoped service methods but did not enforce `orders:write` on mutations, unlike the mobile route policy and order checkout API.
@@ -249,7 +242,6 @@ Correction to the earlier onboarding-permission note: staging is not missing `id
 - Updated the API route matrix, mobile permission matrix and programme gap register. No role grant, database, migration, staging, deployment or worker change was needed.
 - MAP-001 now has its first controller-level route/client/permission matrix. Exact call-site mapping, physical relation reconciliation and worker/provider activation mapping remain outstanding.
 
-
 ## Aramex provider registry wiring — 22 November 2026
 
 - Source audit found a DI/registry mismatch: `AramexProvider` was a ShippingModule provider/export, but `ShippingService.onModuleInit` registered only `manual-driver`. The carrier worker resolves explicitly configured provider keys and otherwise uses `manual-driver` for shipment operations; `CarrierTrackingPoller` separately falls back to `aramex`.
@@ -257,11 +249,9 @@ Correction to the earlier onboarding-permission note: staging is not missing `id
 - Added a focused provider-registration test. Execution remains deferred to the consolidated Phase 3 campaign; no live carrier credentials or requests were used.
 - Updated the outbox ownership map, API route matrix and gap register. Actual Aramex execution still requires valid store-scoped configuration and active encrypted organization credentials; no staging or production activation is claimed.
 
-
 ## Post-implementation source review — 22 November 2026
 
 A static source pass after the grouped Admin permission and shipping-provider changes caught one remaining dashboard KPI loading reference that still used the removed shared `loading` state. It now uses `kpisLoading`; the two independently gated dashboard sections are also formatted as proper nested JSX. The new test mocks include the commission page's UI-kit imports, and the Aramex test uses a deliberate `unknown` cast for the lightweight provider stub. These corrections are source-reviewed only; test execution remains in Phase 3.
-
 
 ## API wrapper and worker activation mapping — 22 November 2026
 
@@ -269,7 +259,6 @@ A static source pass after the grouped Admin permission and shipping-provider ch
 - Corrected provider fallback semantics: shipment create/cancel/label operations default to manual-driver; the separate CarrierTrackingPoller defaults missing provider keys to aramex. The registry fix covers explicitly configured Aramex operations and tracking polls.
 - Cross-checked worker startup/activation: P13 return-expiration is opt-in and disabled by default; P13Monitor is separate, read-only and always starts on API instances at the configured cadence; other in-process pollers start without the P13 gate and rely on their own claim/lease behavior.
 - No worker was activated, no live credentials used, and no staging/production service was restarted or changed.
-
 
 ## Current handover checkpoint — 22 November 2026
 
@@ -287,11 +276,9 @@ A static source pass after the grouped Admin permission and shipping-provider ch
 
 A preliminary source inventory of all 53 API module service/worker/provider files plus shared database, audit middleware/service, guards and application bootstrap is now documented at docs/remediation/G-002-DATABASE-ACCESS-PATH-INVENTORY-2026-11-22.md. It confirms a singleton Drizzle handle, existing nested service transactions, asynchronous post-response audit writes, and workers/monitors outside HTTP request context. The inventory also records the separate development/test migration PoolClient path and the unverified live staging runtime role. Do not add a global request transaction or enable RLS until exact table/operation ownership, the 114-versus-116 relation count, worker/system context, audit context, nested transactions and live runtime/migration identities are proven.
 
-
 ## Latest build and verification status — 22 November 2026
 
 Latest actual Actions run #1337 is on `06cd8fc1e56dc7ef64a141b97b594adc96ffbece`, not current head. Flutter passed; API lint/typecheck steps passed (309 lint warnings, zero errors; 9 typecheck tasks successful); changed-file Prettier failed on nine files, skipping dependent tests/build/migration jobs. Current head `b78ad3137ecc7820e8a4a0c3816a772bff764c3d` has no Actions run; Vercel Admin and Web both report FAILURE due to the provider build-rate-limit/upgrade gate. These are not application test results. Comprehensive testing remains deferred to the consolidated phase after implementation and integration.
-
 
 ## Latest continuation checkpoint — 22 November 2026
 
@@ -300,7 +287,6 @@ Current branch and PR #138 head: 9d3eaa8f961f2a718f1840b08c8e37dc113ea636. PR #1
 Method-level predicate batches 1–3 are complete: Orders/Payments/Inventory; Catalog/Offers/Taxonomy; Pricing/Merchant/Store Membership. Batch 3 added service-level same-store validation for price-tier relationships, ACTIVE organization membership checks for merchant document/verification reads, and caller-context validation for document uploads and organization-scoped store/customer reads. Focused merchant/pricing tests were added but not run.
 
 **Continue with Returns/Disputes/Reviews method-level mapping and implementation.** Then review carrier/shipping and worker/outbox/bootstrap/system contexts. Do not run tests or CI until the implementation groups are complete, per the implementation-first decision. Do not enable RLS or perform protected live DB actions.
-
 
 ## Latest continuation checkpoint — 22 November 2026
 
@@ -311,7 +297,6 @@ G-002 bounded method-level source mapping now covers Orders/Payments/Inventory; 
 UX-012 is implemented in source: merchant mobile price-list/tier management and offer linkage. UX-013 is implemented in source: Admin order detail shows product/variant labels and SKU instead of only UUIDs. Focused tests were added but not executed; keep the consolidated testing phase at the end of implementation.
 
 **Next implementation task:** continue the UX-010 source re-audit across remaining Admin, Web and Mobile screens. Record only concrete, source-confirmed gaps and fix safe items in grouped commits. UX-007 support-ticket scope and UX-008 geospatial/location policy remain blocked on product decisions. The generic OutboxDispatcher remains a log-only sink until an event-bus contract is approved.
-
 
 ## Latest continuation checkpoint — 22 November 2026 (supersedes older checkpoints above)
 
@@ -372,7 +357,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Next: continue UX-010 across remaining Admin users/merchants workflows, then Mobile. Do not repeat UX-030–UX-045.
 - PR #138 remains open/draft/unmerged to `develop`. All commits use `[skip ci]`; exact-head CI must be checked live. No merge/deployment, staging/shared DB write, migration, grant/default-ACL change, RLS activation or worker activation occurred.
 
-
 ## Latest UX continuation checkpoint — 23 November 2026 (UX-078)
 
 - Implemented Mobile Buyer Store Directory and Store Detail read recovery: explicit refresh/pull-to-refresh, same-screen stale-data preservation, retryable initial errors and truthful empty states.
@@ -383,7 +367,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Next: continue UX-010 source audit through remaining buyer-facing Mobile screens and remaining Web/Admin routes; implement only source-confirmed, contract-backed gaps. Keep Phase 3 consolidated testing deferred until implementation/integration completion.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
 
-
 ## Latest UX continuation checkpoint — 23 November 2026 (UX-079)
 
 - Implemented Mobile Buyer Order History read recovery: explicit refresh/pull-to-refresh, awaited provider refresh, last-successful list preservation, stale-data retry messaging and truthful initial error/empty states. Existing client-side order status filters remain applied to the retained list.
@@ -393,7 +376,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Next: continue the buyer-facing Mobile source audit, especially Search request ordering and stale-result context, then remaining Web/Admin routes. Keep comprehensive testing deferred until implementation/integration completion.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
 
-
 ## Latest UX continuation checkpoint — 23 November 2026 (UX-080)
 
 - Implemented Mobile Search correctness: attribute facet selections now serialize to the existing API `attrFilters` query contract; request generations prevent stale query/filter/page responses from replacing current results; explicit Refresh search is available; same-query refresh preserves last successful results; failed different-query reads cannot display previous results as current or show a false no-results state.
@@ -402,7 +384,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
 - Next: continue the Mobile UX-010 source audit for remaining buyer discovery and product-detail flows, then re-audit remaining Web/Admin routes. Keep comprehensive testing deferred until implementation/integration completion.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
-
 
 ## Latest UX continuation checkpoint — 23 November 2026 (UX-081)
 
@@ -414,7 +395,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Next: continue remaining buyer-facing Mobile screens and the Web/Admin route audit, implementing only source-confirmed contract-backed gaps.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
 
-
 ## Latest UX continuation checkpoint — 23 November 2026 (UX-082)
 
 - Implemented Mobile Notifications read/action recovery: realtime/manual refresh preserves the last successful inbox; explicit refresh and pull-to-refresh; stale-data retry notice; initial failure vs true empty inbox; per-notification mark-read progress/error feedback; guarded Mark All Read with success/failure feedback.
@@ -423,7 +403,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
 - Next: continue buyer-facing Mobile workflow audit and then remaining Web/Admin route audit; implement only source-confirmed contract-backed gaps.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
-
 
 ## Latest UX continuation checkpoint — 23 November 2026 (UX-083)
 
@@ -435,7 +414,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Next: continue remaining Mobile buyer workflow reads/actions and then Web/Admin route audit, implementing only source-confirmed contract-backed gaps.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
 
-
 ## Latest UX continuation checkpoint — 23 November 2026 (UX-084)
 
 - Implemented Mobile Checkout idempotency-key payload alignment. Identical retries reuse the same key; changing payment method on the Review step now rotates the key so a different checkout payload cannot reuse the old request identity.
@@ -444,7 +422,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - PR #138 remains open, draft and unmerged to `develop`. No exact-head Actions result is claimed.
 - Next: continue Mobile buyer workflow audit and then remaining Web/Admin route audit, implementing only source-confirmed contract-backed gaps.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
-
 
 ## Latest UX continuation checkpoint — 23 November 2026 (UX-085)
 
@@ -456,7 +433,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Next: continue Mobile merchant operational screens, then remaining Web/Admin routes. Implement only source-confirmed contract-backed gaps.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
 
-
 ## Latest UX continuation checkpoint — 23 November 2026 (UX-086)
 
 - Implemented Mobile Merchant Catalog recovery: active-store and product reads preserve last-successful data through refresh/reload failures; explicit refresh and pull-to-refresh await the correct current-store product read; stale notices/retry; initial errors remain separate from successful empty catalogues.
@@ -467,7 +443,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Next: continue remaining merchant operational screens and then Web/Admin routes; implement only source-confirmed contract-backed gaps.
 - No merge, deployment, staging/shared database write, migration, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
 
-
 ## Latest continuation checkpoint — 23 November 2026
 
 - Live branch head: `89561501099a75f02d344eef97a373d861413c5a`; PR #138 is OPEN / DRAFT / UNMERGED to `develop`.
@@ -475,7 +450,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - UX-095 Web merchant route/action permission alignment and G-036 realtime store/order room authorization are implemented in source. See [CURRENT-STATE.md](./CURRENT-STATE.md), [WORK-LOG.md](./WORK-LOG.md), [G-036 plan section](../docs/remediation/IMPLEMENTATION-PLAN.md) and [progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md).
 - No merge, deployment, staging operation, shared database change, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
 - **Next task:** finish the Mobile route-permission and organization-context transition audit following UX-094, then complete remaining Admin route/action permission mapping. Comprehensive testing remains deferred to the dedicated testing phase.
-
 
 ## Latest continuation checkpoint — 23 November 2026 (Mobile UX-096)
 
@@ -486,7 +460,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - No merge, deployment, staging operation, shared database change, migration, grant/default-ACL change, RLS enablement or worker activation occurred.
 - **Next task:** finish the remaining Admin route/action permission mapping. Keep comprehensive testing deferred to Phase 3.
 
-
 ## Latest continuation — 23 November 2026 (Admin UX-100)
 
 - Implemented the missing approver-only settlement-adjustment Reject action with required reason and the API's exact `{ reason }` payload.
@@ -495,7 +468,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Custom financial route/action permission mapping was compared with API controller decorators for reconciliation, settlement adjustments, settlements, payments and role permission updates. The reviewed permission predicates match the endpoint guards.
 - PR #138 remains open/draft/unmerged. No exact-head Actions run or test pass is claimed.
 - Next: continue direct custom mutation handler audit; batch comprehensive formatting and testing in Phase 3. No database, staging, migration, grants, RLS, worker or deployment action occurred.
-
 
 ## Latest continuation — 23 November 2026 (Admin UX-101)
 
@@ -506,14 +478,12 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - PR #138 remains open/draft/unmerged; exact-head CI must be refreshed. No database, staging, migration, grants, RLS, worker or deployment action occurred.
 - Next: continue the Admin operational UX/source audit beyond permission mapping; Phase 3 remains the consolidated formatter and test campaign.
 
-
 ## Latest continuation — 23 November 2026 (Admin UX-102)
 
 - Shared ProductForm Save now checks `catalog:products:write` and prevents duplicate create/update dispatches; both route wrappers pass the capability.
 - Source commit: `383ea13c589d9023aab24d3b2d15c5c0db2cd751`.
 - CI #1417 passed lint/typecheck and Flutter analysis/tests; changed-file formatting failed across 251 files, and dependent Web/Admin test jobs were skipped. It predates UX-102.
 - Next: continue Admin operational UX/source audit beyond permission mapping; Phase 3 remains the consolidated formatter/test campaign.
-
 
 ## Latest continuation — 23 November 2026 (Admin UX-103)
 
@@ -523,7 +493,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - No focused UX-103 test was added. Comprehensive testing remains Phase 3.
 - Next: continue Admin operational UX/source audit beyond permission mapping.
 
-
 ## Latest continuation — 23 November 2026 (Admin UX-104 / UX-105)
 
 - Catalog Requests Approve/Reject now enforce the route capability at action time and prevent duplicate submissions. Tests added for approval single-flight and rejection payload.
@@ -531,7 +500,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Source/test commits: `00427e5f0cdd183aa7b8c910a93b8edd2e0d0723` and `8474b7acd264872a01d305bef515009eded104ed`.
 - CI #1420/#1421: lint/typecheck and Flutter checks passed; formatting gate failed (254 / 255 files); Web/Admin tests and dependent gates skipped.
 - Next: continue Admin operational UX/source audit beyond permission mapping; Phase 3 remains the consolidated formatter and test campaign.
-
 
 ## FIN-001 — Payment refund concurrency and idempotency — 23 November 2026
 
@@ -585,7 +553,6 @@ Positive safe-integer validation now covers verified payment amount, COD cash co
 - Source/test commit: `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`.
 - Status: IMPLEMENTED / TESTING_PENDING. No schema/migration or staging/shared database/deployment action.
 
-
 ## FIN-009–FIN-013 financial audit continuation — 23 November 2026
 
 - FIN-009: dispute resolution compare-and-set prevents duplicate resolution events/outbox messages; source/test `2b8e2fa7cf2aab87d4186153a61748bc82805c52`.
@@ -596,19 +563,16 @@ Positive safe-integer validation now covers verified payment amount, COD cash co
 - Additional payment confirmation fail-closed behavior for missing financial breakdown is in `cdb189e95dd7022793af33352a18c31f81117059`.
 - FIN-DSH-11–28 are added but not executed. Keep all these items IMPLEMENTED / TESTING_PENDING until the consolidated PostgreSQL integration campaign passes.
 
-
 ### Latest financial correctness continuation — FIN-014 and FIN-015
 
 - FIN-014 prorates order-level discounts over returned goods and preserves payment currency in both commission reversal and settlement adjustment ledgers. FIN-DSH-29 covers a partial discounted return. Source commits: 6221c9c10bba4652b19c1aeaca59a8d1c3d9c79d and 00da339e62dbeef87a55434b3ed5ea1a85cb6508.
 - FIN-015 replaces unsafe Number multiplication in proportional commission reversal with exact BigInt arithmetic in both service paths. A unit regression proves a one-minor-unit floating-point over-reversal is avoided. Source commits: 917397ffd5491d6fe52a18063c0266e831b67c38, e2338cf1e50e825bd1c22becbeab0a6a4757a5e4, a596d49a752973cdc1b7039f3b325f0421252c9c; unit test: 4e67e5ef7541e87ef5d9698e3abad7529cd07219.
 - Tests are added but not executed. No schema/migration, gateway, payout, staging, shared DB or deployment change. G-012 remains OPEN.
 
-
 ### FIN-016 — COD expiry protection
 
 Stale-payment discovery excludes CASH_ON_DELIVERY, and expirePayment itself refuses to expire COD even if called directly. COD remains collectible at delivery regardless of the bank-transfer expiry window. FIN-DSH-30 covers a 365-day-old COD payment on a DELIVERED order and asserts payment status, order status and expiry events remain unchanged. Source commit 68b5251200f9f3765a0568b796db056a18cd878e; test commit 6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac. Not executed.
 
-
 ## FIN-017 — Exact return refund allocation and payment-currency delivery adjustments — 23 November 2026
 
 - **Finding:** return request calculations used floating-point discount/VAT ratios with `Math.round`, creating minor-unit precision risk for large values. Partial-return delivery-fee exception adjustments also hardcoded SYP despite the return's payment currency being available.
@@ -617,7 +581,6 @@ Stale-payment discovery excludes CASH_ON_DELIVERY, and expirePayment itself refu
 - **Source commit:** `122edb4bf1dc67ba01bfc33b97809cc037781f87`; unit/integration test commit: `e6823ee9b1c68f5b71229ffbda17c9f525b66565`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, provider, staging, shared DB or deployment behavior changed.
 
-
 ## FIN-017 — Exact return refund allocation and payment-currency delivery adjustments — 23 November 2026
 
 - **Finding:** return request calculations used floating-point discount/VAT ratios with `Math.round`, creating minor-unit precision risk for large values. Partial-return delivery-fee exception adjustments also hardcoded SYP despite the return's payment currency being available.
@@ -625,7 +588,6 @@ Stale-payment discovery excludes CASH_ON_DELIVERY, and expirePayment itself refu
 - **Regression coverage:** FIN-DSH-31 verifies a partial return with products 3000, discount 600, tax 240 and delivery fee 450 yields refund 880 and a 495 USD delivery-fee adjustment. Unit tests cover half-up allocation and an intermediate product beyond safe Number precision. Tests added, not executed.
 - **Source commit:** `122edb4bf1dc67ba01bfc33b97809cc037781f87`; unit/integration test commit: `e6823ee9b1c68f5b71229ffbda17c9f525b66565`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, provider, staging, shared DB or deployment behavior changed.
-
 
 ### FIN-017 and FIN-018 — Return workflow hardening
 
@@ -633,7 +595,6 @@ Stale-payment discovery excludes CASH_ON_DELIVERY, and expirePayment itself refu
 - FIN-018 serializes return creation on the payment row and rechecks active-return, returned-quantity and refundable-amount invariants inside the transaction. FIN-DSH-32 proves two concurrent requests produce exactly one active return. Not executed.
 - Source/test commits: FIN-017 `122edb4bf1dc67ba01bfc33b97809cc037781f87` / `e6823ee9b1c68f5b71229ffbda17c9f525b66565`; FIN-018 `8a8364899f08180da9213be4d897a65fac9a897d` / `705609fa2928d6e12e393b59bb990cfe0cf2343c`.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No exact-head Actions run. Tests await consolidated Phase 3.
-
 
 ## FIN-019 — Settlement adjustment posting integrity — 23 November 2026
 
@@ -643,11 +604,9 @@ Stale-payment discovery excludes CASH_ON_DELIVERY, and expirePayment itself refu
 - Added unit cases for credit/debit sign and PostgreSQL FIN-DSH-34/35 for commission reversal net and no-settlement posting rejection. Tests not executed.
 - Source commits: `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`. Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, staging, shared DB, grant/RLS, deployment or worker changes.
 
-
 ## FIN-019 test scenario numbering correction — 23 November 2026
 
 The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent retry. The new settlement-adjustment cases are uniquely numbered FIN-DSH-34 (commission reversal credit sign) and FIN-DSH-35 (no primary settlement blocks posting). Test-only correction commit: `b9f9728659e71d3788cc58aa2b5ad9df29ab9731`. Tests remain unexecuted.
-
 
 ## Latest continuation checkpoint — 23 November 2026 (FIN-020)
 
@@ -660,7 +619,6 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - Existing gates remain: G-001 PARTIAL; G-002 IN PROGRESS and protected/read-only; G-036 IN PROGRESS; Phases 0–5 IN PROGRESS; Phase 6 not started. PR #138 stays draft/unmerged.
 - **Next task FIN-021:** audit reconciliation-run versioning and failure semantics before modifying them: verify the intended direction of `superseded_by`, align unique-version scope with organization scope, handle concurrent version allocation, and prevent failed runs from leaving incomplete discrepancy records. Then continue the persisted financial history/outbox audit. Do not assume the semantics; inspect schema, migrations, callers and existing tests first.
 - Follow the recorded implementation-first cadence: group related source/tests/docs, keep focused regressions pending the consolidated Phase 3 campaign, and do not use protected staging or shared DB for tests.
-
 
 ## Latest continuation checkpoint — 23 November 2026 (FIN-021)
 
@@ -675,7 +633,6 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - Existing G-001 PARTIAL, G-002 IN PROGRESS/protected, G-036 IN PROGRESS; Phases 0–5 remain IN PROGRESS; Phase 6 NOT STARTED. PR #138 stays draft.
 - **Next FIN-022:** audit immutable financial event/history and transactional outbox consistency across payment, settlement, refund, return, dispute and settlement-adjustment transitions. Inspect producers, transaction boundaries, event payloads, outbox deduplication/aggregate identity and consumer ownership before modifying; add focused PostgreSQL concurrency/rollback cases. Keep implementation-first cadence and the consolidated Phase 3 test campaign.
 
-
 ## Latest continuation checkpoint — 23 November 2026 (FIN-022)
 
 - Live repository/branch: `nabeel2323/scs-platform`, `remediation/phase-0-1-tenant-security`; PR #138 remains OPEN / DRAFT / UNMERGED to `develop`.
@@ -688,7 +645,6 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - G-001 PARTIAL; G-002 IN PROGRESS/protected; G-036 IN PROGRESS; Phases 0–5 IN PROGRESS; Phase 6 NOT STARTED. PR #138 stays draft.
 - **Next FIN-023:** close the remaining checkout/refund transaction-boundary audit. In particular, checkout commits order/payment creation before the BANK_TRANSFER post-commit order/payment status transitions; a swallowed transition failure can leave order PAYMENT_PENDING while payment remains CREATED. Inspect recovery/idempotency paths and add rollback/concurrency regressions before changing it. Also review dispute-refund recovery where refund request and dispute resolution intentionally span separate transactions. Keep the consolidated Phase 3 validation cadence.
 
-
 ## Latest continuation checkpoint — 23 November 2026 (FIN-023)
 
 - Active branch `remediation/phase-0-1-tenant-security`; PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. Current source/test HEAD: `71c8acb5a890a8b7350915cc4eca80dd6104874c`.
@@ -699,7 +655,6 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - No shared/staging DB write, migration, grant/RLS, worker activation, provider/gateway/payout, deployment or merge action. PR #138 remains draft.
 - FIN-023 status: IMPLEMENTED / TESTING_PENDING. Existing G-001 PARTIAL; G-002 IN PROGRESS/protected; G-036 IN PROGRESS; Phases 0–5 IN PROGRESS; Phase 6 NOT STARTED.
 - **Next FIN-024:** audit payment proof upload lifecycle: storage upload occurs before the payment proof DB transaction; inspect orphan cleanup on DB failure, retries, file replacement and authorization. Add storage/DB rollback tests and safe cleanup without deleting a previously committed proof.
-
 
 ## Latest continuation checkpoint — 23 November 2026 (FIN-024)
 
@@ -712,13 +667,11 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - No migration, shared/staging DB write, grant/RLS, worker activation, provider/gateway/payout, deployment or merge action. PR remains draft.
 - **Next FIN-025:** design durable payment-proof upload intent/recovery and orphan cleanup that can survive process crashes and retries without deleting any key referenced by a committed payment row. Include cleanup lease/retry, age threshold and tests; do not add a broad bucket-list delete operation.
 
-
 ## FIN-024 follow-up — 23 November 2026
 
 - Latest proof-upload source/test head: `847647c424097e5ace69236d0c3b4592f85d30e9`.
 - Payment transition validation now occurs before object upload. If the object-store request times out after the server accepted the object, the service checks the unique generated key and compensates by deleting it when it exists. FIN-DSH-48 covers this uncertain-upload response case.
 - FIN-DSH-46/47/48 are added but not executed. Residual process-crash window after upload but before DB transaction remains; FIN-025 must add durable upload-intent/recovery and bounded cleanup.
-
 
 ## Latest continuation checkpoint — 23 November 2026 (FIN-025)
 
@@ -730,13 +683,11 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - No shared/staging database write, migration execution, grants/RLS, worker activation, environment change, provider/gateway/payout, deployment or merge action. PR remains draft.
 - **Next:** continue the FIN-025 source audit for lease fencing and crash windows, then review remaining payment/refund recovery gaps. Keep implementation and focused tests pending the single consolidated Phase 3 test campaign.
 
-
 ## FIN-025 follow-up — storage error classification — 23 November 2026
 
 - Latest source correction commit: `ff67348b950b51a482fa4cf624549a146551c383`.
 - S3-compatible not-found detection now checks HTTP 404 plus all provider error-name/code fields instead of letting a generic error name mask a provider `NotFound` code. Generic storage failures remain retryable and are never treated as proof that an object is absent.
 - No tests were executed. Exact-head GitHub Actions lookup returned no run; Vercel Web/Admin statuses are external build-rate-limit failures.
-
 
 ## Latest continuation checkpoint — 23 November 2026 (FIN-026)
 
@@ -760,7 +711,6 @@ FIN-001–FIN-031 remain completed in source and must not be repeated. FIN-032 c
 
 **Next implementation:** continue source-first review of payment/refund retry contracts and cross-ledger state/event/outbox parity beyond FIN-033. Keep consolidated Phase 3 testing deferred until implementation and integration are complete.
 
-
 ## FIN-032/033 continuation checkpoint — 23 November 2026
 
 - FIN-032 source: 0c65476d1135d18504ae910083299683fdb8d072; PostgreSQL regression FIN-DSH-60: 39a8ee35e81e919601e49d0564fee023d5a39871.
@@ -768,13 +718,11 @@ FIN-001–FIN-031 remain completed in source and must not be repeated. FIN-032 c
 - Current exact branch head before documentation: 115b0dab007e4071f6a32ee1e564427a86732249. No GitHub Actions workflow run is attached to this head; combined status contains only Vercel Web/Admin build-rate-limit failures. Tests have not been executed.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No migration, shared DB/staging operation, worker activation, deployment or merge.
 
-
 ## Latest continuation — FIN-032–035 — 23 November 2026
 
 FIN-032 corrects adjustment reconciliation posting-period semantics; FIN-033 makes payment-side refund/settlement aggregates exact; FIN-034 restores caller-owned transaction support for PaymentsService.requestRefund; FIN-035 makes return-refund creation and the return state/history/outbox transition atomic. FIN-DSH-60/61 and focused aggregate unit coverage are added but not executed. Do not repeat FIN-001–FIN-035.
 
 **Next:** continue payment/refund retry, idempotency and cross-ledger audit beyond FIN-035. Keep comprehensive Phase 3 tests deferred until implementation/integration is complete.
-
 
 ## FIN-034/035 continuation checkpoint — 23 November 2026
 
@@ -783,15 +731,13 @@ FIN-032 corrects adjustment reconciliation posting-period semantics; FIN-033 mak
 - FIN-001–FIN-035 are implemented in source; tests are pending consolidated Phase 3. Current branch head before docs: ac266c2c365d23c3ef3e58032616bb118d037715. No exact-head Actions run; Web/Admin statuses are external Vercel build-rate-limit failures.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No shared DB/staging operations, migrations, worker activation, deployment or merge.
 
-
 ## Exact latest branch checkpoint — 23 November 2026
 
 Branch: remediation/phase-0-1-tenant-security. Exact HEAD: 56e583338bfe405009e74cab6630626108d5ec96. PR #138: OPEN / DRAFT / UNMERGED, head matches this SHA, base develop. Exact-head GitHub Actions workflow lookup returned no run. Combined status contains only Vercel Web/Admin build-rate-limit failures; these are external preview-provider statuses, not application tests. FIN-001–FIN-035 source changes are implemented; regression tests remain unexecuted pending consolidated Phase 3. No migration/shared DB/staging operation, grant/RLS change, worker activation, deployment or merge.
 
-
 ## Live continuation checkpoint — 23 November 2026
 
-- Current source/test commit:  d84489f185cfc864074406f0c9029bc28f40dc94 (FIN-036); PR #138 remains OPEN / DRAFT / UNMERGED against develop.
+- Current source/test commit: d84489f185cfc864074406f0c9029bc28f40dc94 (FIN-036); PR #138 remains OPEN / DRAFT / UNMERGED against develop.
 - FIN-001–FIN-035 are implemented; FIN-036 adds locked payment/refund/return lineage and exact amount validation before return finalization. FIN-DSH-62 is added but not executed.
 - CI #1449 on prior memory head 3b87fc9985fcbb96081a5affccd303a598591cd9 failed API TypeScript typecheck. Lint and Flutter passed; dependent API unit/coverage, PostgreSQL integration, migration, Web/Admin, boundary, build/container, contract and k6 jobs were skipped. Vercel Web/Admin failures are external preview build-rate-limit statuses.
 - Typecheck blockers were addressed in 8f4962a16b4e14ddd5af590377ca2686f9e90fe4 and a follow-up source correction in 988b2fcd468f38c70c0f8910534640e5f2ca6151 fixed malformed newline insertion and nullable orgId handling in both RUNNING/FAILED reconciliation inserts. FIN-036 source and regression test are in d84489f185cfc864074406f0c9029bc28f40dc94. These commits use [skip ci]; no exact-head verification is claimed.
@@ -855,7 +801,6 @@ Next: audit settlement listing and reconciliation projections for primary versus
 
 FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.
 
-
 ## Live correction — 23 November 2026, financial continuation
 
 This live checkpoint supersedes any older SHA or FIN-031 starting-point text retained in the historical checkpoint sections above. The branch currently contains FIN-041–FIN-043 and the subsequent adjustment-lineage/UI fixes; always refresh the live branch ref before acting.
@@ -869,7 +814,6 @@ This live checkpoint supersedes any older SHA or FIN-031 starting-point text ret
 - No exact-head Actions run is claimed. The previous Vercel contexts pointed to the external build-rate-limit page. All implementation commits in this batch use `[skip ci]` under the recorded consolidated-testing cadence.
 - Next: continue source-first audit of merchant settlement projections, admin reconciliation/report exports and ledger visibility; then complete implementation audit before the consolidated Phase 3 test campaign.
 
-
 ## Live correction — 23 November 2026, FIN-045/046
 
 This checkpoint supersedes earlier next-action notes that only called for a generic settlement-list audit. Current source commits after the FIN-044 checkpoint are:
@@ -880,9 +824,6 @@ This checkpoint supersedes earlier next-action notes that only called for a gene
 - Tests added/updated but not executed. Implementation commits use `[skip ci]`; no exact-head Actions pass is claimed.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No deployment, migration or shared database operation was performed.
 - Next: continue source-first review of settlement listing limits, accounting exports and any aggregate financial KPIs that may include both primary and adjustment ledger rows. Preserve explicit adjustment identity and avoid double counting.
-
-
-
 
 ## Live continuation — 23 November 2026, settlement pagination
 
@@ -911,11 +852,9 @@ Live branch/PR/CI reconciliation immediately before this documentation sync:
 - All tests described in the FIN-044–046 continuation are added/updated but unexecuted. No CI pass is claimed. Implementation and docs commits use `[skip ci]` under the agreed consolidated-testing cadence.
 - Next: audit the 100-row settlement listing cap, exports and any financial aggregates that could combine primary and adjustment ledger rows. Existing Admin revenue KPI is order-total sourced; it is not a settlement ledger sum. Keep PR draft and all shared/staging/deployment restrictions in force.
 
-
 ## Current exact source pointer
 
 Newest implementation commit: ee6bf2f84803f2eb1f80ae931d9415923a760ff3. The following memory sync commit is documentation-only. Read the FIN-047 entry above before continuing.
-
 
 ## CI #45243772955 — first consolidated verification findings
 

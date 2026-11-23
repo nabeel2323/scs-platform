@@ -1,15 +1,53 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, InternalServerErrorException, Logger, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  InternalServerErrorException,
+  Logger,
+  ForbiddenException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { CatalogService, CreateProductInput, UpdateProductInput, CreateVariantInput } from '../catalog/catalog.service';
+import {
+  CatalogService,
+  CreateProductInput,
+  UpdateProductInput,
+  CreateVariantInput,
+} from '../catalog/catalog.service';
 import { CatalogTaxonomyService, AttributeValueInput } from '../catalog/catalog.taxonomy.service';
 import { ProductGovernanceService } from '../catalog/product-governance.service';
 import { orders, orderItems, orderStatusHistory } from '../orders/orders.schema';
-import { stores, warehouses, businessDocuments, verificationRequests } from '../merchant/merchant.schema';
-import { users, organizations, organizationMembers, organizationUpdateRequests, roles, permissions, rolePermissions } from '../identity/identity.schema';
+import {
+  stores,
+  warehouses,
+  businessDocuments,
+  verificationRequests,
+} from '../merchant/merchant.schema';
+import {
+  users,
+  organizations,
+  organizationMembers,
+  organizationUpdateRequests,
+  roles,
+  permissions,
+  rolePermissions,
+} from '../identity/identity.schema';
 import { products, productMedia, productVariants } from '../catalog/catalog.schema';
 import { merchantOffers } from '../catalog/catalog.offer.schema';
-import { eq, and, isNull, sql, gte, lte, inArray, desc, asc, count, getTableColumns } from 'drizzle-orm';
+import {
+  eq,
+  and,
+  isNull,
+  sql,
+  gte,
+  lte,
+  inArray,
+  desc,
+  asc,
+  count,
+  getTableColumns,
+} from 'drizzle-orm';
 import { disputes, disputeEvents } from '../reviews/support.schema';
 import { StorageService } from '../../common/storage/storage.service';
 import { imageReferences, isProductMediaKey } from '../catalog/product-images';
@@ -48,9 +86,16 @@ export class AdminService {
   }
 
   async getOrderDetail(orderId: string) {
-    const orderRows = await this.db.db.select({ ...getTableColumns(orders), storeName: stores.displayName,
-      storeSlug: stores.slug, buyerName: users.fullName }).from(orders)
-      .leftJoin(stores, eq(orders.storeId, stores.id)).leftJoin(users, eq(orders.buyerId, users.id))
+    const orderRows = await this.db.db
+      .select({
+        ...getTableColumns(orders),
+        storeName: stores.displayName,
+        storeSlug: stores.slug,
+        buyerName: users.fullName,
+      })
+      .from(orders)
+      .leftJoin(stores, eq(orders.storeId, stores.id))
+      .leftJoin(users, eq(orders.buyerId, users.id))
       .where(eq(orders.id, orderId))
       .limit(1);
 
@@ -68,7 +113,9 @@ export class AdminService {
       .leftJoin(productVariants, eq(orderItems.variantId, productVariants.id))
       .where(eq(orderItems.orderId, orderId));
 
-    const history = await this.db.db.select().from(orderStatusHistory)
+    const history = await this.db.db
+      .select()
+      .from(orderStatusHistory)
       .where(eq(orderStatusHistory.orderId, orderId))
       .orderBy(orderStatusHistory.createdAt);
 
@@ -120,52 +167,72 @@ export class AdminService {
       this.db.db.select({ count: sql<number>`count(*)` }).from(users),
 
       // Verified merchants (stores)
-      this.db.db.select({ count: sql<number>`count(*)` }).from(stores)
+      this.db.db
+        .select({ count: sql<number>`count(*)` })
+        .from(stores)
         .where(eq(stores.verificationStatus, 'VERIFIED')),
 
       // Pending merchants
-      this.db.db.select({ count: sql<number>`count(*)` }).from(stores)
+      this.db.db
+        .select({ count: sql<number>`count(*)` })
+        .from(stores)
         .where(eq(stores.verificationStatus, 'PENDING')),
 
       // Total orders in period
-      this.db.db.select({ count: sql<number>`count(*)` }).from(orders)
+      this.db.db
+        .select({ count: sql<number>`count(*)` })
+        .from(orders)
         .where(and(gte(orders.createdAt, dateFrom), lte(orders.createdAt, dateTo))),
 
       // Completed orders
-      this.db.db.select({ count: sql<number>`count(*)` }).from(orders)
-        .where(and(
-          eq(orders.status, 'COMPLETED'),
-          gte(orders.createdAt, dateFrom),
-          lte(orders.createdAt, dateTo),
-        )),
+      this.db.db
+        .select({ count: sql<number>`count(*)` })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.status, 'COMPLETED'),
+            gte(orders.createdAt, dateFrom),
+            lte(orders.createdAt, dateTo),
+          ),
+        ),
 
       // Cancelled orders
-      this.db.db.select({ count: sql<number>`count(*)` }).from(orders)
-        .where(and(
-          inArray(orders.status, ['CANCELLED', 'REJECTED']),
-          gte(orders.createdAt, dateFrom),
-          lte(orders.createdAt, dateTo),
-        )),
+      this.db.db
+        .select({ count: sql<number>`count(*)` })
+        .from(orders)
+        .where(
+          and(
+            inArray(orders.status, ['CANCELLED', 'REJECTED']),
+            gte(orders.createdAt, dateFrom),
+            lte(orders.createdAt, dateTo),
+          ),
+        ),
 
       // Total revenue (sum of total_minor) — A2-4 residual: grouped by currency
       // so the admin dashboard never presents a mixed-currency figure as a single
       // total. Legacy rows with currency NULL are bucketed as 'UNKNOWN'.
-      this.db.db.select({
-        currency: sql<string>`coalesce(currency, 'UNKNOWN')`,
-        total: sql<number>`coalesce(sum(total_minor), 0)`,
-      }).from(orders)
-        .where(and(
-          inArray(orders.status, ['DELIVERED', 'COMPLETED']),
-          gte(orders.createdAt, dateFrom),
-          lte(orders.createdAt, dateTo),
-        ))
+      this.db.db
+        .select({
+          currency: sql<string>`coalesce(currency, 'UNKNOWN')`,
+          total: sql<number>`coalesce(sum(total_minor), 0)`,
+        })
+        .from(orders)
+        .where(
+          and(
+            inArray(orders.status, ['DELIVERED', 'COMPLETED']),
+            gte(orders.createdAt, dateFrom),
+            lte(orders.createdAt, dateTo),
+          ),
+        )
         .groupBy(sql`coalesce(currency, 'UNKNOWN')`),
 
       // Repeat buyers (users with >1 completed order)
-      this.db.db.select({
-        buyerId: orders.buyerId,
-        orderCount: sql<number>`count(*)`,
-      }).from(orders)
+      this.db.db
+        .select({
+          buyerId: orders.buyerId,
+          orderCount: sql<number>`count(*)`,
+        })
+        .from(orders)
         .where(eq(orders.status, 'COMPLETED'))
         .groupBy(orders.buyerId)
         .having(({ orderCount }: any) => sql`${orderCount} > 1`),
@@ -183,7 +250,7 @@ export class AdminService {
     // A2-4 residual: revenue is now an array of { currency, totalMinor } pairs
     // rather than a single mixed-currency figure. The admin dashboard can sum
     // for display but must label the result as multi-currency.
-    const revenueByCurrency = (revenueResult as any[]).map(r => ({
+    const revenueByCurrency = (revenueResult as any[]).map((r) => ({
       currency: r.currency,
       totalMinor: Number(r.total),
     }));
@@ -193,9 +260,8 @@ export class AdminService {
     const completionRate = totalOrdersCount > 0 ? (completedCount / totalOrdersCount) * 100 : 0;
     const cancellationRate = totalOrdersCount > 0 ? (cancelledCount / totalOrdersCount) * 100 : 0;
     const repeatRate = totalUsersCount > 0 ? (repeatBuyersCount / totalUsersCount) * 100 : 0;
-    const firstOrderConversion = totalUsersCount > 0
-      ? (totalOrdersCount / totalUsersCount) * 100
-      : 0;
+    const firstOrderConversion =
+      totalUsersCount > 0 ? (totalOrdersCount / totalUsersCount) * 100 : 0;
 
     return {
       period: { from: dateFrom.toISOString(), to: dateTo.toISOString() },
@@ -222,23 +288,31 @@ export class AdminService {
     const [registered, verified, catalogReady, firstOrder, repeatThree] = await Promise.all([
       this.db.db.select({ count: sql<number>`count(*)` }).from(organizations),
 
-      this.db.db.select({ count: sql<number>`count(*)` }).from(stores)
+      this.db.db
+        .select({ count: sql<number>`count(*)` })
+        .from(stores)
         .where(eq(stores.verificationStatus, 'VERIFIED')),
 
       // Stores with ≥ 20 products
-      this.db.db.select({ count: sql<number>`count(distinct store_id)` }).from(
-        sql`(SELECT store_id, COUNT(*) as product_count FROM products GROUP BY store_id HAVING COUNT(*) >= 20) as qualified`,
-      ),
+      this.db.db
+        .select({ count: sql<number>`count(distinct store_id)` })
+        .from(
+          sql`(SELECT store_id, COUNT(*) as product_count FROM products GROUP BY store_id HAVING COUNT(*) >= 20) as qualified`,
+        ),
 
       // Users with at least 1 completed order
-      this.db.db.select({ count: sql<number>`count(distinct buyer_id)` }).from(orders)
+      this.db.db
+        .select({ count: sql<number>`count(distinct buyer_id)` })
+        .from(orders)
         .where(eq(orders.status, 'COMPLETED')),
 
       // Users with ≥ 3 completed orders
-      this.db.db.select({
-        buyerId: orders.buyerId,
-        orderCount: sql<number>`count(*)`,
-      }).from(orders)
+      this.db.db
+        .select({
+          buyerId: orders.buyerId,
+          orderCount: sql<number>`count(*)`,
+        })
+        .from(orders)
         .where(eq(orders.status, 'COMPLETED'))
         .groupBy(orders.buyerId)
         .having(({ orderCount }: any) => sql`${orderCount} >= 3`),
@@ -324,7 +398,7 @@ export class AdminService {
       .orderBy(desc(sql`SUM(${orderItems.lineTotalMinor})`))
       .limit(limit);
 
-    const perOffer = rows.map(r => ({
+    const perOffer = rows.map((r) => ({
       offerId: r.offerId as string,
       storeId: r.storeId,
       storeName: r.storeName ?? null,
@@ -341,13 +415,20 @@ export class AdminService {
     // Cross-cutting totals for the KPI header cards. Group by currency so a
     // mixed-currency platform total is never presented as a single number
     // (mirrors the A2-4 residual policy already used in `getKpis`).
-    const totalsByCurrency = new Map<string, { revenueMinor: number; unitsSold: number; ordersCountSet: Set<string> }>();
+    const totalsByCurrency = new Map<
+      string,
+      { revenueMinor: number; unitsSold: number; ordersCountSet: Set<string> }
+    >();
     // Recompute ordersCount from the aggregate; a single order can hit multiple
     // offers so summing perOffer.ordersCount would over-count. Fall back to the
     // per-offer figures for the label — this is acceptable for the KPI tile
     // because it is showing engagement (offer-touches) not unique-order count.
     for (const r of perOffer) {
-      const bucket = totalsByCurrency.get(r.currency) ?? { revenueMinor: 0, unitsSold: 0, ordersCountSet: new Set<string>() };
+      const bucket = totalsByCurrency.get(r.currency) ?? {
+        revenueMinor: 0,
+        unitsSold: 0,
+        ordersCountSet: new Set<string>(),
+      };
       bucket.revenueMinor += r.revenueMinor;
       bucket.unitsSold += r.unitsSold;
       totalsByCurrency.set(r.currency, bucket);
@@ -463,13 +544,15 @@ export class AdminService {
             .groupBy(merchantOffers.storeId, stores.displayName)
             .orderBy(desc(sql`SUM(${orderItems.lineTotalMinor})`))
             .limit(Math.min(20, Math.max(1, filters.topStores ?? 5)))
-        : Promise.resolve([] as Array<{
-            storeId: string;
-            storeName: string | null;
-            ordersCount: number;
-            unitsSold: string;
-            revenueMinor: string;
-          }>),
+        : Promise.resolve(
+            [] as Array<{
+              storeId: string;
+              storeName: string | null;
+              ordersCount: number;
+              unitsSold: string;
+              revenueMinor: string;
+            }>,
+          ),
     ]);
 
     return {
@@ -482,13 +565,13 @@ export class AdminService {
         status: filters.status ?? null,
         topStores: filters.topStores ?? 0,
       },
-      buckets: buckets.map(b => ({
+      buckets: buckets.map((b) => ({
         bucket: b.bucket,
         ordersCount: Number(b.ordersCount ?? 0),
         unitsSold: Number(b.unitsSold ?? 0),
         revenueMinor: Number(b.revenueMinor ?? 0),
       })),
-      topStores: topStoreRows.map(t => ({
+      topStores: topStoreRows.map((t) => ({
         storeId: t.storeId,
         storeName: t.storeName ?? null,
         ordersCount: Number(t.ordersCount ?? 0),
@@ -535,25 +618,44 @@ export class AdminService {
   async getDisputeDetail(id: string) {
     const dispute = await this.db.db.query.disputes.findFirst({ where: eq(disputes.id, id) });
     if (!dispute) throw new NotFoundException('Dispute not found');
-    const events = await this.db.db.select().from(disputeEvents).where(eq(disputeEvents.disputeId, id)).orderBy(disputeEvents.createdAt);
-    const people = await this.db.db.select({ id: users.id, name: users.fullName }).from(users)
+    const events = await this.db.db
+      .select()
+      .from(disputeEvents)
+      .where(eq(disputeEvents.disputeId, id))
+      .orderBy(disputeEvents.createdAt);
+    const people = await this.db.db
+      .select({ id: users.id, name: users.fullName })
+      .from(users)
       .where(inArray(users.id, [dispute.raisedBy, dispute.againstId]));
-    return { ...dispute, events, raisedByName: people.find(p => p.id === dispute.raisedBy)?.name ?? null,
-      againstName: people.find(p => p.id === dispute.againstId)?.name ?? null };
+    return {
+      ...dispute,
+      events,
+      raisedByName: people.find((p) => p.id === dispute.raisedBy)?.name ?? null,
+      againstName: people.find((p) => p.id === dispute.againstId)?.name ?? null,
+    };
   }
 
   async productMediaPreviews(id: string) {
-    const product = await this.db.db.query.products.findFirst({ where: and(eq(products.id, id), isNull(products.deletedAt)) });
+    const product = await this.db.db.query.products.findFirst({
+      where: and(eq(products.id, id), isNull(products.deletedAt)),
+    });
     if (!product) throw new NotFoundException('Product not found');
     const [media, variants] = await Promise.all([
       this.db.db.select().from(productMedia).where(eq(productMedia.productId, id)),
       this.db.db.select().from(productVariants).where(eq(productVariants.productId, id)),
     ]);
-    const references = [...new Set([...imageReferences(product.images, media),
-      ...variants.flatMap(v => imageReferences(v.images))])].filter(isProductMediaKey);
+    const references = [
+      ...new Set([
+        ...imageReferences(product.images, media),
+        ...variants.flatMap((v) => imageReferences(v.images)),
+      ]),
+    ].filter(isProductMediaKey);
     const previews: Record<string, string> = {};
     for (const key of references) {
-      previews[key] = await this.storage.createPresignedGetUrl(process.env['S3_MEDIA_BUCKET'] || 'scs-media', key);
+      previews[key] = await this.storage.createPresignedGetUrl(
+        process.env['S3_MEDIA_BUCKET'] || 'scs-media',
+        key,
+      );
     }
     return { previews };
   }
@@ -562,20 +664,19 @@ export class AdminService {
 
   private async actorEffectivePermissions(actorId: string) {
     const memberships = await this.db.db.query.organizationMembers.findMany({
-      where: and(
-        eq(organizationMembers.userId, actorId),
-        eq(organizationMembers.status, 'ACTIVE'),
-      ),
+      where: and(eq(organizationMembers.userId, actorId), eq(organizationMembers.status, 'ACTIVE')),
       with: { role: { columns: { id: true, key: true, name: true } } },
     });
 
-    const roleIds = [...new Set(memberships.map(m => m.role?.id).filter((id): id is string => Boolean(id)))];
+    const roleIds = [
+      ...new Set(memberships.map((m) => m.role?.id).filter((id): id is string => Boolean(id))),
+    ];
     const permissionKeys = new Set<string>();
     if (roleIds.length > 0) {
       const rolePerms = await this.db.db.query.rolePermissions.findMany({
         where: inArray(rolePermissions.roleId, roleIds),
       });
-      const permIds = [...new Set(rolePerms.map(rp => rp.permissionId))];
+      const permIds = [...new Set(rolePerms.map((rp) => rp.permissionId))];
       if (permIds.length > 0) {
         const perms = await this.db.db.query.permissions.findMany({
           where: inArray(permissions.id, permIds),
@@ -584,8 +685,10 @@ export class AdminService {
       }
     }
 
-    const roleKeys = new Set(memberships.map(m => m.role?.key).filter((key): key is string => Boolean(key)));
-    const orgIds = memberships.map(m => m.orgId);
+    const roleKeys = new Set(
+      memberships.map((m) => m.role?.key).filter((key): key is string => Boolean(key)),
+    );
+    const orgIds = memberships.map((m) => m.orgId);
 
     return {
       permissions: permissionKeys,
@@ -599,12 +702,12 @@ export class AdminService {
     const rolePerms = await this.db.db.query.rolePermissions.findMany({
       where: eq(rolePermissions.roleId, roleId),
     });
-    const permIds = rolePerms.map(rp => rp.permissionId);
+    const permIds = rolePerms.map((rp) => rp.permissionId);
     if (permIds.length === 0) return [];
     const perms = await this.db.db.query.permissions.findMany({
       where: inArray(permissions.id, permIds),
     });
-    return perms.map(p => p.key);
+    return perms.map((p) => p.key);
   }
 
   // ── User Management ──────────────────────────────────────────
@@ -626,19 +729,36 @@ export class AdminService {
   }
 
   async getUserDetail(userId: string) {
-    const [user] = await this.db.db.select(safeUserFields).from(users).where(eq(users.id, userId)).limit(1);
+    const [user] = await this.db.db
+      .select(safeUserFields)
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
     if (!user) throw new NotFoundException('User not found');
-    const orgDetails = await this.db.db.select({
-      orgId: organizationMembers.orgId, orgName: organizations.name, orgType: organizations.type,
-      roleId: organizationMembers.roleId, roleKey: roles.key, roleName: roles.name,
-      membershipStatus: organizationMembers.status, joinedAt: organizationMembers.createdAt,
-    }).from(organizationMembers).leftJoin(organizations, eq(organizationMembers.orgId, organizations.id))
-      .leftJoin(roles, eq(organizationMembers.roleId, roles.id)).where(eq(organizationMembers.userId, userId));
+    const orgDetails = await this.db.db
+      .select({
+        orgId: organizationMembers.orgId,
+        orgName: organizations.name,
+        orgType: organizations.type,
+        roleId: organizationMembers.roleId,
+        roleKey: roles.key,
+        roleName: roles.name,
+        membershipStatus: organizationMembers.status,
+        joinedAt: organizationMembers.createdAt,
+      })
+      .from(organizationMembers)
+      .leftJoin(organizations, eq(organizationMembers.orgId, organizations.id))
+      .leftJoin(roles, eq(organizationMembers.roleId, roles.id))
+      .where(eq(organizationMembers.userId, userId));
     return { ...user, organizations: orgDetails };
   }
 
-  async updateUserStatus(userId: string, status: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE', actorId: string) {
-    return this.db.db.transaction(async tx => {
+  async updateUserStatus(
+    userId: string,
+    status: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE',
+    actorId: string,
+  ) {
+    return this.db.db.transaction(async (tx) => {
       // Lock the target user row to prevent concurrent modifications
       const lockedUser = await tx.execute(sql`
         SELECT id, status FROM users WHERE id = ${userId} FOR UPDATE
@@ -660,14 +780,15 @@ export class AdminService {
           FOR UPDATE
         `);
 
-        if (superAdminMemberships.rows.length <= 1 && superAdminMemberships.rows[0]?.['user_id'] === userId) {
+        if (
+          superAdminMemberships.rows.length <= 1 &&
+          superAdminMemberships.rows[0]?.['user_id'] === userId
+        ) {
           throw new BadRequestException('Cannot deactivate the last active SUPER_ADMIN');
         }
       }
 
-      await tx.update(users)
-        .set({ status, updatedAt: new Date() })
-        .where(eq(users.id, userId));
+      await tx.update(users).set({ status, updatedAt: new Date() }).where(eq(users.id, userId));
 
       // Record audit event (outside row locks, non-throwing)
       await this.audit.record({
@@ -702,7 +823,8 @@ export class AdminService {
       const existingPhone = await this.db.db.query.users.findFirst({
         where: eq(users.phone, dto.phone),
       });
-      if (existingPhone) throw new ConflictException('A user with this phone number already exists');
+      if (existingPhone)
+        throw new ConflictException('A user with this phone number already exists');
     }
 
     // Validate organization if provided
@@ -720,14 +842,14 @@ export class AdminService {
       });
       if (!role) throw new NotFoundException('Role not found');
       if (role.key === 'SUPER_ADMIN') {
-        const actorMemberships = await this.db.db.select({ roleKey: roles.key })
+        const actorMemberships = await this.db.db
+          .select({ roleKey: roles.key })
           .from(organizationMembers)
           .leftJoin(roles, eq(organizationMembers.roleId, roles.id))
-          .where(and(
-            eq(organizationMembers.userId, actorId),
-            eq(organizationMembers.status, 'ACTIVE'),
-          ));
-        const isActorSuperAdmin = actorMemberships.some(m => m.roleKey === 'SUPER_ADMIN');
+          .where(
+            and(eq(organizationMembers.userId, actorId), eq(organizationMembers.status, 'ACTIVE')),
+          );
+        const isActorSuperAdmin = actorMemberships.some((m) => m.roleKey === 'SUPER_ADMIN');
         if (!isActorSuperAdmin) {
           throw new BadRequestException('Only SUPER_ADMIN can assign SUPER_ADMIN role');
         }
@@ -735,18 +857,21 @@ export class AdminService {
     }
 
     // Create user within a transaction
-    const [createdUser] = await this.db.db.transaction(async tx => {
-      const [user] = await tx.insert(users).values({
-        id: crypto.randomUUID(),
-        email: dto.email,
-        phone: dto.phone ?? null,
-        fullName: dto.fullName,
-        locale: dto.locale || 'en',
-        status: dto.status || 'ACTIVE',
-        emailVerifiedAt: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }).returning();
+    const [createdUser] = await this.db.db.transaction(async (tx) => {
+      const [user] = await tx
+        .insert(users)
+        .values({
+          id: crypto.randomUUID(),
+          email: dto.email,
+          phone: dto.phone ?? null,
+          fullName: dto.fullName,
+          locale: dto.locale || 'en',
+          status: dto.status || 'ACTIVE',
+          emailVerifiedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
 
       if (!user) throw new InternalServerErrorException('Failed to create user');
 
@@ -793,7 +918,12 @@ export class AdminService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    const before = { fullName: user.fullName, email: user.email, phone: user.phone, locale: user.locale };
+    const before = {
+      fullName: user.fullName,
+      email: user.email,
+      phone: user.phone,
+      locale: user.locale,
+    };
 
     // Check email uniqueness if changing
     if (dto.email && dto.email !== user.email) {
@@ -811,7 +941,8 @@ export class AdminService {
       if (existing) throw new ConflictException('A user with this phone number already exists');
     }
 
-    const [updated] = await this.db.db.update(users)
+    const [updated] = await this.db.db
+      .update(users)
       .set({
         fullName: dto.fullName ?? user.fullName,
         email: dto.email ?? user.email,
@@ -833,11 +964,22 @@ export class AdminService {
       resourceId: userId,
       metadata: {
         before,
-        after: { fullName: updated.fullName, email: updated.email, phone: updated.phone, locale: updated.locale },
+        after: {
+          fullName: updated.fullName,
+          email: updated.email,
+          phone: updated.phone,
+          locale: updated.locale,
+        },
       },
     });
 
-    return { id: updated.id, fullName: updated.fullName, email: updated.email, phone: updated.phone, locale: updated.locale };
+    return {
+      id: updated.id,
+      fullName: updated.fullName,
+      email: updated.email,
+      phone: updated.phone,
+      locale: updated.locale,
+    };
   }
 
   // ── Permission Catalog ─────────────────────────────────────────
@@ -849,7 +991,13 @@ export class AdminService {
     const byDomain = new Map<string, Array<{ key: string; description: string }>>();
     for (const p of allPermissions) {
       const domain = p.key.split(':')[0] ?? 'general';
-      const entry = { key: p.key, description: p.key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()) };
+      const entry = {
+        key: p.key,
+        description: p.key
+          .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+          .replace(/_/g, ' ')
+          .replace(/^./, (c) => c.toUpperCase()),
+      };
       const existing = byDomain.get(domain) ?? [];
       existing.push(entry);
       byDomain.set(domain, existing);
@@ -884,7 +1032,8 @@ export class AdminService {
     }
 
     // Count members with this role
-    const [memberCount] = await this.db.db.select({ count: sql<number>`count(*)` })
+    const [memberCount] = await this.db.db
+      .select({ count: sql<number>`count(*)` })
       .from(organizationMembers)
       .where(eq(organizationMembers.roleId, roleId));
 
@@ -900,7 +1049,7 @@ export class AdminService {
   // ── Role-Permission Management ─────────────────────────────────
 
   async updateRolePermissions(roleId: string, permissionIds: string[], actorId: string) {
-    return this.db.db.transaction(async tx => {
+    return this.db.db.transaction(async (tx) => {
       // Lock the role row to serialize concurrent permission updates using raw SQL FOR UPDATE.
       // Without this, two concurrent administrators could both read the same "before" state,
       // then both write their own "after" state, with the second silently overwriting the first.
@@ -915,14 +1064,16 @@ export class AdminService {
 
       // Protect SUPER_ADMIN role from permission changes
       if (roleKey === 'SUPER_ADMIN') {
-        throw new BadRequestException('SUPER_ADMIN role permissions are protected and cannot be modified');
+        throw new BadRequestException(
+          'SUPER_ADMIN role permissions are protected and cannot be modified',
+        );
       }
 
       // Validate all permission IDs exist
       const validPermIds = new Set<string>();
       const allPerms = await tx.select().from(permissions);
       for (const p of allPerms) validPermIds.add(p.id);
-      const permKeyById = new Map(allPerms.map(p => [p.id, p.key]));
+      const permKeyById = new Map(allPerms.map((p) => [p.id, p.key]));
       for (const pid of permissionIds) {
         if (!validPermIds.has(pid)) throw new NotFoundException(`Permission not found: ${pid}`);
       }
@@ -943,23 +1094,25 @@ export class AdminService {
         .where(eq(rolePermissions.roleId, roleId));
       const beforeKeys = new Set<string>();
       for (const cp of currentPerms) {
-        const perm = allPerms.find(p => p.id === cp.permissionId);
+        const perm = allPerms.find((p) => p.id === cp.permissionId);
         if (perm) beforeKeys.add(perm.key);
       }
 
       // Replace role permissions within the transaction (already locked)
       await tx.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
       if (permissionIds.length > 0) {
-        await tx.insert(rolePermissions).values(
-          permissionIds.map(pid => ({ roleId, permissionId: pid }))
-        );
+        await tx
+          .insert(rolePermissions)
+          .values(permissionIds.map((pid) => ({ roleId, permissionId: pid })));
       }
 
       // Get after permissions for audit
-      const afterKeys = new Set(permissionIds.map(pid => {
-        const perm = allPerms.find(p => p.id === pid);
-        return perm ? perm.key : pid;
-      }));
+      const afterKeys = new Set(
+        permissionIds.map((pid) => {
+          const perm = allPerms.find((p) => p.id === pid);
+          return perm ? perm.key : pid;
+        }),
+      );
 
       // Record audit event (non-throwing)
       await this.audit.record({
@@ -1014,7 +1167,9 @@ export class AdminService {
     const hasPlatformRolesWrite = actorPerms.has('admin:roles:write');
     const actorInTargetOrg = actorOrgIds.includes(orgId);
     if (!hasPlatformRolesWrite && !actorInTargetOrg) {
-      throw new ForbiddenException('Actor must be a member of the target organization or hold admin:roles:write');
+      throw new ForbiddenException(
+        'Actor must be a member of the target organization or hold admin:roles:write',
+      );
     }
 
     // S-001 #3: platform role assignment requires admin:roles:write and the actor
@@ -1026,7 +1181,9 @@ export class AdminService {
       const assignedPerms = await this.rolePermissionKeys(role.id);
       for (const p of assignedPerms) {
         if (!actorPerms.has(p)) {
-          throw new ForbiddenException('Actor cannot assign role ' + role.key + ': missing permission ' + p);
+          throw new ForbiddenException(
+            'Actor cannot assign role ' + role.key + ': missing permission ' + p,
+          );
         }
       }
     }
@@ -1048,23 +1205,18 @@ export class AdminService {
 
     // Check if membership exists
     const existing = await this.db.db.query.organizationMembers.findFirst({
-      where: and(
-        eq(organizationMembers.orgId, orgId),
-        eq(organizationMembers.userId, userId),
-      ),
+      where: and(eq(organizationMembers.orgId, orgId), eq(organizationMembers.userId, userId)),
       with: { role: { columns: { key: true } } },
     });
 
     // SUPER_ADMIN demotion protection: cannot change a SUPER_ADMIN's role away
     // from SUPER_ADMIN if they are the last active one
     if (existing && existing.role.key === 'SUPER_ADMIN' && roleId !== existing.roleId) {
-      const superAdminCount = await this.db.db.select({ count: sql<number>`count(*)` })
+      const superAdminCount = await this.db.db
+        .select({ count: sql<number>`count(*)` })
         .from(organizationMembers)
         .leftJoin(roles, eq(organizationMembers.roleId, roles.id))
-        .where(and(
-          eq(organizationMembers.status, 'ACTIVE'),
-          eq(roles.key, 'SUPER_ADMIN'),
-        ));
+        .where(and(eq(organizationMembers.status, 'ACTIVE'), eq(roles.key, 'SUPER_ADMIN')));
       const count = Number(superAdminCount[0]?.count ?? 0);
       if (count <= 1) {
         throw new BadRequestException('Cannot change the last active SUPER_ADMIN to another role');
@@ -1073,7 +1225,8 @@ export class AdminService {
 
     if (existing) {
       // Update existing membership role
-      await this.db.db.update(organizationMembers)
+      await this.db.db
+        .update(organizationMembers)
         .set({ roleId })
         .where(eq(organizationMembers.id, existing.id));
       return { orgId, userId, roleId, action: 'updated' };
@@ -1096,22 +1249,25 @@ export class AdminService {
    * admin role-assignment picker.
    */
   async listOrganizations() {
-    return this.db.db.select({
-      id: organizations.id,
-      name: organizations.name,
-      type: organizations.type,
-      legalName: organizations.legalName,
-      taxId: organizations.taxId,
-      country: organizations.country,
-      verificationStatus: organizations.verificationStatus,
-      isActive: organizations.isActive,
-      inviteCode: organizations.inviteCode,
-      createdAt: organizations.createdAt,
-      updatedAt: organizations.updatedAt,
-      memberCount: sql<number>`(select count(*)::integer from ${organizationMembers} where ${organizationMembers.orgId} = ${organizations.id})`,
-      storeCount: sql<number>`(select count(*)::integer from ${stores} where ${stores.orgId} = ${organizations.id})`,
-      pendingVerificationCount: sql<number>`(select count(*)::integer from ${verificationRequests} where ${verificationRequests.orgId} = ${organizations.id} and ${verificationRequests.status} = 'SUBMITTED')`,
-    }).from(organizations).orderBy(organizations.name);
+    return this.db.db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        type: organizations.type,
+        legalName: organizations.legalName,
+        taxId: organizations.taxId,
+        country: organizations.country,
+        verificationStatus: organizations.verificationStatus,
+        isActive: organizations.isActive,
+        inviteCode: organizations.inviteCode,
+        createdAt: organizations.createdAt,
+        updatedAt: organizations.updatedAt,
+        memberCount: sql<number>`(select count(*)::integer from ${organizationMembers} where ${organizationMembers.orgId} = ${organizations.id})`,
+        storeCount: sql<number>`(select count(*)::integer from ${stores} where ${stores.orgId} = ${organizations.id})`,
+        pendingVerificationCount: sql<number>`(select count(*)::integer from ${verificationRequests} where ${verificationRequests.orgId} = ${organizations.id} and ${verificationRequests.status} = 'SUBMITTED')`,
+      })
+      .from(organizations)
+      .orderBy(organizations.name);
   }
 
   /**
@@ -1136,21 +1292,31 @@ export class AdminService {
       }),
       this.db.db.query.organizationMembers.findMany({
         where: eq(organizationMembers.orgId, orgId),
-        with: { user: { columns: { id: true, fullName: true, phone: true, email: true } }, role: { columns: { id: true, name: true, key: true } } },
+        with: {
+          user: { columns: { id: true, fullName: true, phone: true, email: true } },
+          role: { columns: { id: true, name: true, key: true } },
+        },
         orderBy: [organizationMembers.createdAt],
       }),
     ]);
 
     // Warehouses belong to stores, not directly to orgs — collect via store IDs
-    const storeIds = orgStores.map(s => s.id);
-    const orgWarehouses = storeIds.length > 0
-      ? await this.db.db.query.warehouses.findMany({
-          where: inArray(warehouses.storeId, storeIds),
-          orderBy: [warehouses.createdAt],
-        })
-      : [];
+    const storeIds = orgStores.map((s) => s.id);
+    const orgWarehouses =
+      storeIds.length > 0
+        ? await this.db.db.query.warehouses.findMany({
+            where: inArray(warehouses.storeId, storeIds),
+            orderBy: [warehouses.createdAt],
+          })
+        : [];
 
-    return { ...org, stores: orgStores, warehouses: orgWarehouses, documents: orgDocuments, members: orgMembers };
+    return {
+      ...org,
+      stores: orgStores,
+      warehouses: orgWarehouses,
+      documents: orgDocuments,
+      members: orgMembers,
+    };
   }
 
   /**
@@ -1161,7 +1327,8 @@ export class AdminService {
       where: eq(organizations.id, orgId),
     });
     if (!org) throw new NotFoundException('Organization not found');
-    await this.db.db.update(organizations)
+    await this.db.db
+      .update(organizations)
       .set({ isActive, updatedAt: new Date() })
       .where(eq(organizations.id, orgId));
     return { success: true, orgId, isActive };
@@ -1172,18 +1339,19 @@ export class AdminService {
    * Optional status filter ('PENDING' | 'APPROVED' | 'REJECTED'); newest first.
    */
   async listOrgUpdateRequests(status?: string) {
-    const rows = await this.db.db.select({
-      id: organizationUpdateRequests.id,
-      orgId: organizationUpdateRequests.orgId,
-      orgName: organizations.name,
-      requestedBy: organizationUpdateRequests.requestedBy,
-      payload: organizationUpdateRequests.payload,
-      status: organizationUpdateRequests.status,
-      decisionNotes: organizationUpdateRequests.decisionNotes,
-      decidedBy: organizationUpdateRequests.decidedBy,
-      decidedAt: organizationUpdateRequests.decidedAt,
-      createdAt: organizationUpdateRequests.createdAt,
-    })
+    const rows = await this.db.db
+      .select({
+        id: organizationUpdateRequests.id,
+        orgId: organizationUpdateRequests.orgId,
+        orgName: organizations.name,
+        requestedBy: organizationUpdateRequests.requestedBy,
+        payload: organizationUpdateRequests.payload,
+        status: organizationUpdateRequests.status,
+        decisionNotes: organizationUpdateRequests.decisionNotes,
+        decidedBy: organizationUpdateRequests.decidedBy,
+        decidedAt: organizationUpdateRequests.decidedAt,
+        createdAt: organizationUpdateRequests.createdAt,
+      })
       .from(organizationUpdateRequests)
       .leftJoin(organizations, eq(organizationUpdateRequests.orgId, organizations.id))
       .orderBy(desc(organizationUpdateRequests.createdAt));
@@ -1226,12 +1394,14 @@ export class AdminService {
         throw new BadRequestException('Update request payload contains no applicable fields');
       }
       updates['updatedAt'] = new Date();
-      await this.db.db.update(organizations)
+      await this.db.db
+        .update(organizations)
         .set(updates)
         .where(eq(organizations.id, request.orgId));
     }
 
-    const [updated] = await this.db.db.update(organizationUpdateRequests)
+    const [updated] = await this.db.db
+      .update(organizationUpdateRequests)
       .set({
         status: decision,
         decisionNotes: notes ?? null,
@@ -1267,7 +1437,7 @@ export class AdminService {
    *   deactivations from dropping below one active SUPER_ADMIN.
    */
   async removeRole(orgId: string, userId: string, actorId: string) {
-    return this.db.db.transaction(async tx => {
+    return this.db.db.transaction(async (tx) => {
       // Load the actor's effective permissions, roles and organizations
       const actor = await this.actorEffectivePermissions(actorId);
       const { permissions: actorPerms, orgIds: actorOrgIds, isMerchant } = actor;
@@ -1305,13 +1475,17 @@ export class AdminService {
       const hasPlatformRolesWrite = actorPerms.has('admin:roles:write');
       const actorInTargetOrg = actorOrgIds.includes(orgId);
       if (!hasPlatformRolesWrite && !actorInTargetOrg) {
-        throw new ForbiddenException('Actor must be a member of the target organization or hold admin:roles:write');
+        throw new ForbiddenException(
+          'Actor must be a member of the target organization or hold admin:roles:write',
+        );
       }
 
       // Prevent privilege escalation: removing a SUPER_ADMIN membership requires
       // admin:roles:write (platform-level authority)
       if (roleKey === 'SUPER_ADMIN' && !hasPlatformRolesWrite) {
-        throw new ForbiddenException('admin:roles:write is required to remove SUPER_ADMIN membership');
+        throw new ForbiddenException(
+          'admin:roles:write is required to remove SUPER_ADMIN membership',
+        );
       }
 
       // Last SUPER_ADMIN protection: cannot remove the only active SUPER_ADMIN membership
@@ -1331,8 +1505,7 @@ export class AdminService {
         }
       }
 
-      await tx.delete(organizationMembers)
-        .where(eq(organizationMembers.id, membershipId));
+      await tx.delete(organizationMembers).where(eq(organizationMembers.id, membershipId));
 
       // Record audit event (non-throwing)
       await this.audit.record({
@@ -1370,7 +1543,12 @@ export class AdminService {
     return result;
   }
 
-  async moderateProduct(id: string, decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED', reason?: string, clientUpdatedAt?: string) {
+  async moderateProduct(
+    id: string,
+    decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED',
+    reason?: string,
+    clientUpdatedAt?: string,
+  ) {
     // Step 1: Verify product exists and is eligible for moderation.
     // This is only for 404 detection — the actual concurrency guard is the
     // atomic conditional UPDATE below (BD-13 remediation).
@@ -1413,12 +1591,14 @@ export class AdminService {
       const [updated] = await this.db.db
         .update(products)
         .set(updates)
-        .where(and(
-          eq(products.id, id),
-          eq(products.updatedAt, clientDate),
-          isNull(products.deletedAt),
-          sql`${products.status} <> 'ARCHIVED'`,
-        ))
+        .where(
+          and(
+            eq(products.id, id),
+            eq(products.updatedAt, clientDate),
+            isNull(products.deletedAt),
+            sql`${products.status} <> 'ARCHIVED'`,
+          ),
+        )
         .returning({ id: products.id, status: products.status, isAvailable: products.isAvailable });
 
       if (!updated) {
@@ -1435,17 +1615,33 @@ export class AdminService {
         });
       }
 
-      return { id, decision, status: updated.status, isAvailable: updated.isAvailable, reason, moderatedAt: new Date() };
+      return {
+        id,
+        decision,
+        status: updated.status,
+        isAvailable: updated.isAvailable,
+        reason,
+        moderatedAt: new Date(),
+      };
     }
 
     // Legacy path: no optimistic locking (backward-compatible)
     const [updated] = await this.db.db
       .update(products)
       .set(updates)
-      .where(and(eq(products.id, id), isNull(products.deletedAt), sql`${products.status} <> 'ARCHIVED'`))
+      .where(
+        and(eq(products.id, id), isNull(products.deletedAt), sql`${products.status} <> 'ARCHIVED'`),
+      )
       .returning({ id: products.id, status: products.status, isAvailable: products.isAvailable });
     if (!updated) throw new NotFoundException('Product not found');
-    return { id, decision, status: updated.status, isAvailable: updated.isAvailable, reason, moderatedAt: new Date() };
+    return {
+      id,
+      decision,
+      status: updated.status,
+      isAvailable: updated.isAvailable,
+      reason,
+      moderatedAt: new Date(),
+    };
   }
 
   // ── Admin Product CRUD (PHASE 4 P3) ─────────────────────────
@@ -1562,7 +1758,12 @@ export class AdminService {
    * P11: Start reviewing a submitted product.
    * SUBMITTED → UNDER_REVIEW
    */
-  async startProductReview(productId: string, actorUserId: string, actorRole: string, clientUpdatedAt?: string) {
+  async startProductReview(
+    productId: string,
+    actorUserId: string,
+    actorRole: string,
+    clientUpdatedAt?: string,
+  ) {
     return this.governance.startReview(productId, actorUserId, actorRole, clientUpdatedAt);
   }
 
@@ -1609,5 +1810,3 @@ export class AdminService {
     return this.governance.getModerationHistory(productId);
   }
 }
-
-

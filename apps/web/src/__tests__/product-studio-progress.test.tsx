@@ -5,13 +5,7 @@ import ProgressIndicator from '../app/merchant/product-studio/components/Progres
 describe('Product Studio progress navigation', () => {
   it('allows only the next sequential step and completed steps', () => {
     const onStepClick = vi.fn();
-    render(
-      <ProgressIndicator
-        currentStep="offer"
-        stepIndex={3}
-        onStepClick={onStepClick}
-      />,
-    );
+    render(<ProgressIndicator currentStep="offer" stepIndex={3} onStepClick={onStepClick} />);
 
     const media = screen.getByRole('button', { name: /Media/ });
     const review = screen.getByRole('button', { name: /Review/ });
@@ -28,15 +22,10 @@ describe('Product Studio progress navigation', () => {
   });
 
   it('disables every step while the product is being saved', () => {
-    render(
-      <ProgressIndicator
-        currentStep="offer"
-        stepIndex={3}
-        onStepClick={vi.fn()}
-        disabled
-      />,
-    );
+    render(<ProgressIndicator currentStep="offer" stepIndex={3} onStepClick={vi.fn()} disabled />);
 
-    expect(screen.getAllByRole('button').every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
+    expect(
+      screen.getAllByRole('button').every((button) => (button as HTMLButtonElement).disabled),
+    ).toBe(true);
   });
 });

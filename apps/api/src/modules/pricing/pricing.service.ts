@@ -167,11 +167,13 @@ export class PricingService {
       })
       .from(priceTiers)
       .innerJoin(priceLists, eq(priceTiers.priceListId, priceLists.id))
-      .where(and(
-        eq(priceTiers.variantId, variantId),
-        eq(priceLists.storeId, storeId),
-        ...(priceListId ? [eq(priceTiers.priceListId, priceListId)] : []),
-      ))
+      .where(
+        and(
+          eq(priceTiers.variantId, variantId),
+          eq(priceLists.storeId, storeId),
+          ...(priceListId ? [eq(priceTiers.priceListId, priceListId)] : []),
+        ),
+      )
       .orderBy(desc(priceLists.priority), asc(priceTiers.minQty));
   }
 
@@ -203,7 +205,11 @@ export class PricingService {
    * Resolve the unit price for a variant in a price list at a given quantity.
    * Finds the tier where min_qty <= qty AND (max_qty IS NULL OR qty < max_qty).
    */
-  async resolvePrice(variantId: string, priceListId: string, qty: number): Promise<{ unitPriceMinor: number; tierId: string }> {
+  async resolvePrice(
+    variantId: string,
+    priceListId: string,
+    qty: number,
+  ): Promise<{ unitPriceMinor: number; tierId: string }> {
     const list = await this.getPriceList(priceListId);
     await this.assertVariantBelongsToStore(variantId, list.storeId);
 
@@ -238,10 +244,7 @@ export class PricingService {
   async getProductPricing(variantId: string, storeId: string) {
     await this.assertVariantBelongsToStore(variantId, storeId);
     const lists = await this.db.db.query.priceLists.findMany({
-      where: and(
-        eq(priceLists.storeId, storeId),
-        eq(priceLists.isActive, true),
-      ),
+      where: and(eq(priceLists.storeId, storeId), eq(priceLists.isActive, true)),
       orderBy: [desc(priceLists.priority)],
     });
 
@@ -263,7 +266,7 @@ export class PricingService {
           channel: list['channel'],
           audience: list['audience'],
           currency: list['currency'],
-          tiers: tiers.map(t => ({
+          tiers: tiers.map((t) => ({
             minQty: t['minQty'],
             maxQty: t['maxQty'] ?? null,
             unitPriceMinor: t['unitPriceMinor'],

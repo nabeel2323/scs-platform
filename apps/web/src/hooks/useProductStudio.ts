@@ -2,14 +2,36 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
-  ProductTypeSchemaDetail, fetchProductTypeSchema, fetchCategories, fetchBrandsAdmin,
-  Category, Brand, createProduct, updateProduct, upsertProductAttributeValues, createVariant,
-  createMerchantOffer, fetchMerchantOffers, presignMedia, addMedia, listMedia, searchCanonicalProducts, Product,
-  searchCanonicalCatalog, CanonicalProductSummary, fetchProductVariants, ProductVariant,
+  ProductTypeSchemaDetail,
+  fetchProductTypeSchema,
+  fetchCategories,
+  fetchBrandsAdmin,
+  Category,
+  Brand,
+  createProduct,
+  updateProduct,
+  upsertProductAttributeValues,
+  createVariant,
+  createMerchantOffer,
+  fetchMerchantOffers,
+  presignMedia,
+  addMedia,
+  listMedia,
+  searchCanonicalProducts,
+  Product,
+  searchCanonicalCatalog,
+  CanonicalProductSummary,
+  fetchProductVariants,
+  ProductVariant,
 } from '../lib/buyer-api';
 import { fetchMyStores } from '../lib/api';
 import { generateSku, buildVariantTitle, resolveComboAttributes } from '../lib/sku-utils';
-import { buildOfferTargetKey, matchesExistingProductStudioOffer, persistProductStudioMedia, resolveProductPersistenceTarget } from '../lib/product-studio-flow';
+import {
+  buildOfferTargetKey,
+  matchesExistingProductStudioOffer,
+  persistProductStudioMedia,
+  resolveProductPersistenceTarget,
+} from '../lib/product-studio-flow';
 
 export type Step = 'identity' | 'specifications' | 'variants' | 'offer' | 'media' | 'review';
 
@@ -60,13 +82,33 @@ export interface StudioState {
 }
 
 const INITIAL: StudioState = {
-  storeId: '', categoryId: '', brandId: '', productTypeId: '', productTypeSchema: null,
-  title: '', titleAr: '', slug: '', description: '', descriptionAr: '',
-  gtin: '', ean: '', mpn: '', condition: 'NEW', useExistingProductId: null,
+  storeId: '',
+  categoryId: '',
+  brandId: '',
+  productTypeId: '',
+  productTypeSchema: null,
+  title: '',
+  titleAr: '',
+  slug: '',
+  description: '',
+  descriptionAr: '',
+  gtin: '',
+  ean: '',
+  mpn: '',
+  condition: 'NEW',
+  useExistingProductId: null,
   selectedExistingVariantId: null,
-  attributeValues: {}, variantDimensions: {}, enabledCombinations: new Set(),
-  currency: 'SAR', basePriceMinor: 0, moq: 1, leadTimeDays: 3, warehouseId: '',
-  mediaItems: [], productId: null, productUpdatedAt: null,
+  attributeValues: {},
+  variantDimensions: {},
+  enabledCombinations: new Set(),
+  currency: 'SAR',
+  basePriceMinor: 0,
+  moq: 1,
+  leadTimeDays: 3,
+  warehouseId: '',
+  mediaItems: [],
+  productId: null,
+  productUpdatedAt: null,
 };
 
 export function useProductStudio() {
@@ -79,7 +121,9 @@ export function useProductStudio() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const [canonicalMatches, setCanonicalMatches] = useState<Product[]>([]);
-  const [canonicalSearchResults, setCanonicalSearchResults] = useState<CanonicalProductSummary[]>([]);
+  const [canonicalSearchResults, setCanonicalSearchResults] = useState<CanonicalProductSummary[]>(
+    [],
+  );
   const [existingVariants, setExistingVariants] = useState<ProductVariant[]>([]);
   const [offerCreatedForTargetKey, setOfferCreatedForTargetKey] = useState<string | null>(null);
 
@@ -130,53 +174,70 @@ export function useProductStudio() {
         setCategories(cats);
         setBrands(brs);
         if (myStores.length > 0) {
-          setState(prev => ({ ...prev, storeId: (myStores[0] as any).id }));
+          setState((prev) => ({ ...prev, storeId: (myStores[0] as any).id }));
         }
-      } catch { /* auth redirect handles */ }
+      } catch {
+        /* auth redirect handles */
+      }
     })();
   }, []);
 
   // Load product type schema when productTypeId changes
   useEffect(() => {
-    if (!state.productTypeId) { setState(prev => ({ ...prev, productTypeSchema: null })); return; }
+    if (!state.productTypeId) {
+      setState((prev) => ({ ...prev, productTypeSchema: null }));
+      return;
+    }
     fetchProductTypeSchema(state.productTypeId)
-      .then((schema: ProductTypeSchemaDetail) => setState(prev => ({ ...prev, productTypeSchema: schema })))
-      .catch(() => setState(prev => ({ ...prev, productTypeSchema: null })));
+      .then((schema: ProductTypeSchemaDetail) =>
+        setState((prev) => ({ ...prev, productTypeSchema: schema })),
+      )
+      .catch(() => setState((prev) => ({ ...prev, productTypeSchema: null })));
   }, [state.productTypeId]);
 
   const update = useCallback(<K extends keyof StudioState>(key: K, value: StudioState[K]) => {
-    setState(prev => ({ ...prev, [key]: value }));
+    setState((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  const stepIndex = STEPS.findIndex(s => s.key === step);
-  const goNext = () => { setError(''); if (stepIndex < STEPS.length - 1) setStep(STEPS[stepIndex + 1]!.key); };
-  const goPrev = () => { setError(''); if (stepIndex > 0) setStep(STEPS[stepIndex - 1]!.key); };
+  const stepIndex = STEPS.findIndex((s) => s.key === step);
+  const goNext = () => {
+    setError('');
+    if (stepIndex < STEPS.length - 1) setStep(STEPS[stepIndex + 1]!.key);
+  };
+  const goPrev = () => {
+    setError('');
+    if (stepIndex > 0) setStep(STEPS[stepIndex - 1]!.key);
+  };
 
   // Search canonical products by GTIN/EAN/MPN (legacy identifier match)
-  const searchCanonical = useCallback(async (query: { gtin?: string; ean?: string; mpn?: string; title?: string }) => {
-    try {
-      const results = await searchCanonicalProducts(query);
-      setCanonicalMatches(results);
-      return results;
-    } catch {
-      setCanonicalMatches([]);
-      return [];
-    }
-  }, []);
+  const searchCanonical = useCallback(
+    async (query: { gtin?: string; ean?: string; mpn?: string; title?: string }) => {
+      try {
+        const results = await searchCanonicalProducts(query);
+        setCanonicalMatches(results);
+        return results;
+      } catch {
+        setCanonicalMatches([]);
+        return [];
+      }
+    },
+    [],
+  );
 
   // Free-text search across canonical catalog (Existing Product Selector)
-  const searchCanonicalFreeText = useCallback(async (params: {
-    search?: string; brandId?: string; categoryId?: string;
-  }) => {
-    try {
-      const result = await searchCanonicalCatalog(params);
-      setCanonicalSearchResults(result.items);
-      return result.items;
-    } catch {
-      setCanonicalSearchResults([]);
-      return [];
-    }
-  }, []);
+  const searchCanonicalFreeText = useCallback(
+    async (params: { search?: string; brandId?: string; categoryId?: string }) => {
+      try {
+        const result = await searchCanonicalCatalog(params);
+        setCanonicalSearchResults(result.items);
+        return result.items;
+      } catch {
+        setCanonicalSearchResults([]);
+        return [];
+      }
+    },
+    [],
+  );
 
   // Load existing variants when a canonical product is selected
   const loadExistingVariants = useCallback(async (productId: string) => {
@@ -191,185 +252,187 @@ export function useProductStudio() {
   }, []);
 
   // Save product (creates or updates)
-  const handleSaveProduct = useCallback(async (options: { includeOffer?: boolean } = {}): Promise<string | null> => {
-    const includeOffer = options.includeOffer ?? true;
-    setSaving(true);
-    setError('');
-    setSuccess('');
-    try {
-      if (!state.storeId || !state.title.trim()) {
-        throw new Error('A store and product title are required before saving.');
-      }
-
-      const persistenceTarget = resolveProductPersistenceTarget(state);
-      let productId = persistenceTarget.productId;
-      const isExistingCanonical = persistenceTarget.isExistingCanonical;
-      let productUpdatedAt = state.productUpdatedAt;
-      if (isExistingCanonical && productId && state.productId !== productId) {
-        setState(prev => ({ ...prev, productId }));
-      }
-
-      // Step 1: Create the product once, then update that same product on
-      // subsequent saves so edits made after navigating back are persisted.
-      if (!productId) {
-        const product = await createProduct({
-          storeId: state.storeId,
-          title: state.title,
-          titleAr: state.titleAr || undefined,
-          slug: state.slug || undefined,
-          description: state.description || undefined,
-          descriptionAr: state.descriptionAr || undefined,
-          categoryId: state.categoryId || undefined,
-          brandId: state.brandId || undefined,
-          condition: state.condition,
-          gtin: state.gtin || undefined,
-          ean: state.ean || undefined,
-          mpn: state.mpn || undefined,
-          productTypeId: state.productTypeId || undefined,
-        });
-        productId = product.id;
-        productUpdatedAt = product.updatedAt ?? null;
-        setState(prev => ({ ...prev, productId, productUpdatedAt }));
-      } else if (!isExistingCanonical) {
-        const updatedProduct = await updateProduct(productId, {
-          title: state.title,
-          titleAr: state.titleAr || undefined,
-          slug: state.slug || undefined,
-          description: state.description || undefined,
-          descriptionAr: state.descriptionAr || undefined,
-          categoryId: state.categoryId || undefined,
-          brandId: state.brandId || undefined,
-          condition: state.condition,
-          gtin: state.gtin || null,
-          ean: state.ean || null,
-          mpn: state.mpn || null,
-          productTypeId: state.productTypeId || null,
-          updatedAt: productUpdatedAt || undefined,
-        });
-        productUpdatedAt = updatedProduct.updatedAt ?? productUpdatedAt;
-        setState(prev => ({ ...prev, productUpdatedAt }));
-      }
-
-      // Persist uploaded/linked media only for merchant-owned products.
-      // Re-read existing rows before inserting so retries after partial failure
-      // do not duplicate media records.
-      if (!isExistingCanonical) {
-        await persistProductStudioMedia(
-          productId,
-          state.mediaItems,
-          listMedia,
-          addMedia,
-        );
-      }
-
-      // Step 2: Save attribute values
-      if (!isExistingCanonical && state.productTypeSchema && Object.keys(state.attributeValues).length > 0) {
-        const values = Object.entries(state.attributeValues)
-          .filter(([, v]) => v !== '')
-          .map(([attrId, val]) => ({ attributeDefinitionId: attrId, valueText: val }));
-        if (values.length > 0) {
-          await upsertProductAttributeValues(productId, values);
+  const handleSaveProduct = useCallback(
+    async (options: { includeOffer?: boolean } = {}): Promise<string | null> => {
+      const includeOffer = options.includeOffer ?? true;
+      setSaving(true);
+      setError('');
+      setSuccess('');
+      try {
+        if (!state.storeId || !state.title.trim()) {
+          throw new Error('A store and product title are required before saving.');
         }
-      }
 
-      // Step 3: Create variants for enabled combinations (skip if using existing variant)
-      if (!isExistingCanonical && !state.selectedExistingVariantId) {
-        // Resolve brand name for SKU generation (from the brands loaded at init).
-        const brandName = brands.find(b => b.id === state.brandId)?.name ?? null;
-        if (state.enabledCombinations.size > 0) {
-          // A previous save may have created some variants before another
-          // operation failed. Re-read before retrying so those variants are
-          // not duplicated by a second click on Save.
-          const persistedVariants = await fetchProductVariants(productId);
-          const existingSkus = new Set(persistedVariants.map((variant) => variant.sku));
-          for (const comboKey of state.enabledCombinations) {
-            // Resolve raw attrId/value pairs to human-readable attribute entries
-            // using the product type schema (attribute definition names + option labels).
-            const resolved = resolveComboAttributes(comboKey, state.productTypeSchema);
-            const attrValues = resolved.map(r => r.label);
-            const title = buildVariantTitle(
-              resolved.map(r => ({ name: r.name, value: r.label })),
-            );
-            const sku = generateSku({
-              brand: brandName,
-              productTitle: state.title,
-              attributeValues: attrValues,
-            });
-            if (existingSkus.has(sku)) continue;
-            await createVariant(productId, {
-              sku,
-              title: title || undefined,
-              attributes: JSON.parse(comboKey),
-            });
-            existingSkus.add(sku);
-          }
+        const persistenceTarget = resolveProductPersistenceTarget(state);
+        let productId = persistenceTarget.productId;
+        const isExistingCanonical = persistenceTarget.isExistingCanonical;
+        let productUpdatedAt = state.productUpdatedAt;
+        if (isExistingCanonical && productId && state.productId !== productId) {
+          setState((prev) => ({ ...prev, productId }));
         }
-      }
 
-      // Create the commercial offer only from the final review/save action.
-      // The retry marker is scoped to store + product + variant, not product alone.
-      const offerTargetKey = buildOfferTargetKey({
-        storeId: state.storeId,
-        productId,
-        variantId: state.selectedExistingVariantId,
-      });
-      if (
-        includeOffer &&
-        state.basePriceMinor > 0 &&
-        offerCreatedForTargetKey !== offerTargetKey
-      ) {
-        const desiredOffer = {
-          storeId: state.storeId,
-          productId,
-          variantId: state.selectedExistingVariantId || null,
-          currency: state.currency,
-          basePriceMinor: state.basePriceMinor,
-          moq: state.moq,
-          leadTimeDays: state.leadTimeDays || null,
-          warehouseId: state.warehouseId || null,
-        };
-        // A response can be lost after the server commits. Re-read the store's
-        // offers before retrying so we can recognize that committed result.
-        const existingOffers = await fetchMerchantOffers(state.storeId);
-        const existingOffer = existingOffers.find((offer) =>
-          offer.productId === productId &&
-          (offer.variantId ?? null) === desiredOffer.variantId,
-        );
-        if (existingOffer) {
-          if (!matchesExistingProductStudioOffer(existingOffer, desiredOffer)) {
-            throw new Error(
-              'An offer already exists for this product or variant in this store. Open Merchant Offers to update the existing offer instead of creating a duplicate.',
-            );
-          }
-        } else {
-          await createMerchantOffer({
-            ...desiredOffer,
-            variantId: desiredOffer.variantId ?? undefined,
-            leadTimeDays: desiredOffer.leadTimeDays ?? undefined,
-            warehouseId: desiredOffer.warehouseId ?? undefined,
+        // Step 1: Create the product once, then update that same product on
+        // subsequent saves so edits made after navigating back are persisted.
+        if (!productId) {
+          const product = await createProduct({
+            storeId: state.storeId,
+            title: state.title,
+            titleAr: state.titleAr || undefined,
+            slug: state.slug || undefined,
+            description: state.description || undefined,
+            descriptionAr: state.descriptionAr || undefined,
+            categoryId: state.categoryId || undefined,
+            brandId: state.brandId || undefined,
+            condition: state.condition,
+            gtin: state.gtin || undefined,
+            ean: state.ean || undefined,
+            mpn: state.mpn || undefined,
+            productTypeId: state.productTypeId || undefined,
           });
+          productId = product.id;
+          productUpdatedAt = product.updatedAt ?? null;
+          setState((prev) => ({ ...prev, productId, productUpdatedAt }));
+        } else if (!isExistingCanonical) {
+          const updatedProduct = await updateProduct(productId, {
+            title: state.title,
+            titleAr: state.titleAr || undefined,
+            slug: state.slug || undefined,
+            description: state.description || undefined,
+            descriptionAr: state.descriptionAr || undefined,
+            categoryId: state.categoryId || undefined,
+            brandId: state.brandId || undefined,
+            condition: state.condition,
+            gtin: state.gtin || null,
+            ean: state.ean || null,
+            mpn: state.mpn || null,
+            productTypeId: state.productTypeId || null,
+            updatedAt: productUpdatedAt || undefined,
+          });
+          productUpdatedAt = updatedProduct.updatedAt ?? productUpdatedAt;
+          setState((prev) => ({ ...prev, productUpdatedAt }));
         }
-        setOfferCreatedForTargetKey(offerTargetKey);
-      }
 
-      setSuccess(
-        includeOffer && state.basePriceMinor > 0
-          ? 'Product and offer saved successfully!'
-          : includeOffer
-            ? 'Product saved successfully!'
-            : 'Product details saved. Continue to review to create the offer.',
-      );
-      // P7 Phase 5: reset dirty state after successful save
-      initialRef.current = JSON.stringify({ ...state, productId, productUpdatedAt });
-      setIsDirty(false);
-      return productId;
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Save failed');
-      return null;
-    } finally {
-      setSaving(false);
-    }
-  }, [state, brands, offerCreatedForTargetKey]);
+        // Persist uploaded/linked media only for merchant-owned products.
+        // Re-read existing rows before inserting so retries after partial failure
+        // do not duplicate media records.
+        if (!isExistingCanonical) {
+          await persistProductStudioMedia(productId, state.mediaItems, listMedia, addMedia);
+        }
+
+        // Step 2: Save attribute values
+        if (
+          !isExistingCanonical &&
+          state.productTypeSchema &&
+          Object.keys(state.attributeValues).length > 0
+        ) {
+          const values = Object.entries(state.attributeValues)
+            .filter(([, v]) => v !== '')
+            .map(([attrId, val]) => ({ attributeDefinitionId: attrId, valueText: val }));
+          if (values.length > 0) {
+            await upsertProductAttributeValues(productId, values);
+          }
+        }
+
+        // Step 3: Create variants for enabled combinations (skip if using existing variant)
+        if (!isExistingCanonical && !state.selectedExistingVariantId) {
+          // Resolve brand name for SKU generation (from the brands loaded at init).
+          const brandName = brands.find((b) => b.id === state.brandId)?.name ?? null;
+          if (state.enabledCombinations.size > 0) {
+            // A previous save may have created some variants before another
+            // operation failed. Re-read before retrying so those variants are
+            // not duplicated by a second click on Save.
+            const persistedVariants = await fetchProductVariants(productId);
+            const existingSkus = new Set(persistedVariants.map((variant) => variant.sku));
+            for (const comboKey of state.enabledCombinations) {
+              // Resolve raw attrId/value pairs to human-readable attribute entries
+              // using the product type schema (attribute definition names + option labels).
+              const resolved = resolveComboAttributes(comboKey, state.productTypeSchema);
+              const attrValues = resolved.map((r) => r.label);
+              const title = buildVariantTitle(
+                resolved.map((r) => ({ name: r.name, value: r.label })),
+              );
+              const sku = generateSku({
+                brand: brandName,
+                productTitle: state.title,
+                attributeValues: attrValues,
+              });
+              if (existingSkus.has(sku)) continue;
+              await createVariant(productId, {
+                sku,
+                title: title || undefined,
+                attributes: JSON.parse(comboKey),
+              });
+              existingSkus.add(sku);
+            }
+          }
+        }
+
+        // Create the commercial offer only from the final review/save action.
+        // The retry marker is scoped to store + product + variant, not product alone.
+        const offerTargetKey = buildOfferTargetKey({
+          storeId: state.storeId,
+          productId,
+          variantId: state.selectedExistingVariantId,
+        });
+        if (
+          includeOffer &&
+          state.basePriceMinor > 0 &&
+          offerCreatedForTargetKey !== offerTargetKey
+        ) {
+          const desiredOffer = {
+            storeId: state.storeId,
+            productId,
+            variantId: state.selectedExistingVariantId || null,
+            currency: state.currency,
+            basePriceMinor: state.basePriceMinor,
+            moq: state.moq,
+            leadTimeDays: state.leadTimeDays || null,
+            warehouseId: state.warehouseId || null,
+          };
+          // A response can be lost after the server commits. Re-read the store's
+          // offers before retrying so we can recognize that committed result.
+          const existingOffers = await fetchMerchantOffers(state.storeId);
+          const existingOffer = existingOffers.find(
+            (offer) =>
+              offer.productId === productId && (offer.variantId ?? null) === desiredOffer.variantId,
+          );
+          if (existingOffer) {
+            if (!matchesExistingProductStudioOffer(existingOffer, desiredOffer)) {
+              throw new Error(
+                'An offer already exists for this product or variant in this store. Open Merchant Offers to update the existing offer instead of creating a duplicate.',
+              );
+            }
+          } else {
+            await createMerchantOffer({
+              ...desiredOffer,
+              variantId: desiredOffer.variantId ?? undefined,
+              leadTimeDays: desiredOffer.leadTimeDays ?? undefined,
+              warehouseId: desiredOffer.warehouseId ?? undefined,
+            });
+          }
+          setOfferCreatedForTargetKey(offerTargetKey);
+        }
+
+        setSuccess(
+          includeOffer && state.basePriceMinor > 0
+            ? 'Product and offer saved successfully!'
+            : includeOffer
+              ? 'Product saved successfully!'
+              : 'Product details saved. Continue to review to create the offer.',
+        );
+        // P7 Phase 5: reset dirty state after successful save
+        initialRef.current = JSON.stringify({ ...state, productId, productUpdatedAt });
+        setIsDirty(false);
+        return productId;
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Save failed');
+        return null;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [state, brands, offerCreatedForTargetKey],
+  );
 
   // Compute completeness score (0–100)
   const completeness = useCallback((): number => {
@@ -383,9 +446,18 @@ export function useProductStudio() {
     if (state.gtin || state.ean || state.mpn) score += 5;
     // Specifications (25 pts)
     if (state.productTypeSchema) {
-      const requiredAttrs = state.productTypeSchema.attributes.filter((a: ProductTypeSchemaDetail['attributes'][number]) => a.required && a.definition?.scope === 'PRODUCT');
-      const filledRequired = requiredAttrs.filter((a: ProductTypeSchemaDetail['attributes'][number]) => state.attributeValues[a.attributeDefinitionId]);
-      score += requiredAttrs.length > 0 ? Math.round((filledRequired.length / requiredAttrs.length) * 25) : 25;
+      const requiredAttrs = state.productTypeSchema.attributes.filter(
+        (a: ProductTypeSchemaDetail['attributes'][number]) =>
+          a.required && a.definition?.scope === 'PRODUCT',
+      );
+      const filledRequired = requiredAttrs.filter(
+        (a: ProductTypeSchemaDetail['attributes'][number]) =>
+          state.attributeValues[a.attributeDefinitionId],
+      );
+      score +=
+        requiredAttrs.length > 0
+          ? Math.round((filledRequired.length / requiredAttrs.length) * 25)
+          : 25;
     } else {
       score += 25;
     }
@@ -395,18 +467,35 @@ export function useProductStudio() {
     if (state.currency) score += 5;
     // Media (20 pts)
     if (state.mediaItems.length > 0) score += 15;
-    if (state.mediaItems.some(m => m.isPrimary)) score += 5;
+    if (state.mediaItems.some((m) => m.isPrimary)) score += 5;
 
     return Math.min(score, total);
   }, [state]);
 
   return {
-    step, setStep, stepIndex, state, setState, update,
-    stores, categories, brands,
-    error, setError, saving, success, isDirty,
-    canonicalMatches, searchCanonical,
-    canonicalSearchResults, searchCanonicalFreeText,
-    existingVariants, loadExistingVariants,
-    goNext, goPrev, handleSaveProduct, completeness,
+    step,
+    setStep,
+    stepIndex,
+    state,
+    setState,
+    update,
+    stores,
+    categories,
+    brands,
+    error,
+    setError,
+    saving,
+    success,
+    isDirty,
+    canonicalMatches,
+    searchCanonical,
+    canonicalSearchResults,
+    searchCanonicalFreeText,
+    existingVariants,
+    loadExistingVariants,
+    goNext,
+    goPrev,
+    handleSaveProduct,
+    completeness,
   };
 }

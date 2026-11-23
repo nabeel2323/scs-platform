@@ -4,9 +4,7 @@ import { stores } from '../merchant/merchant.schema';
 import { shipments } from '../orders/shipment.schema';
 
 export type CarrierWebhookShipmentResolution =
-  | { status: 'FOUND'; shipment: any }
-  | { status: 'NOT_FOUND' }
-  | { status: 'AMBIGUOUS' };
+  { status: 'FOUND'; shipment: any } | { status: 'NOT_FOUND' } | { status: 'AMBIGUOUS' };
 
 /**
  * Resolve an external carrier shipment reference only inside the organization

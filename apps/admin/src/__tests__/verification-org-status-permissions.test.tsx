@@ -15,8 +15,14 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
-    <a href={href} {...props}>{children}</a>
+  default: ({
+    href,
+    children,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
   ),
 }));
 
@@ -34,14 +40,45 @@ vi.mock('../lib/api', () => ({
 }));
 
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title, actions }: { title: string; actions?: React.ReactNode }) => <header><h1>{title}</h1>{actions}</header>,
-  Button: ({ children, onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button onClick={onClick} {...props}>{children}</button>,
-  Card: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
-  Modal: ({ open, title, footer, children }: { open: boolean; title: string; footer?: React.ReactNode; children: React.ReactNode }) => (
-    open ? <div role="dialog"><h2>{title}</h2>{children}{footer}</div> : null
+  PageHeader: ({ title, actions }: { title: string; actions?: React.ReactNode }) => (
+    <header>
+      <h1>{title}</h1>
+      {actions}
+    </header>
   ),
+  Button: ({ children, onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button onClick={onClick} {...props}>
+      {children}
+    </button>
+  ),
+  Card: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
+  Modal: ({
+    open,
+    title,
+    footer,
+    children,
+  }: {
+    open: boolean;
+    title: string;
+    footer?: React.ReactNode;
+    children: React.ReactNode;
+  }) =>
+    open ? (
+      <div role="dialog">
+        <h2>{title}</h2>
+        {children}
+        {footer}
+      </div>
+    ) : null,
   BreadcrumbDark: () => null,
-  colors: { err: '#b00', errBg: '#fee', okBg: '#efe', ok: '#080', brand: { DEFAULT: '#123', 700: '#123' }, muted: '#666' },
+  colors: {
+    err: '#b00',
+    errBg: '#fee',
+    okBg: '#efe',
+    ok: '#080',
+    brand: { DEFAULT: '#123', 700: '#123' },
+    muted: '#666',
+  },
   typeScale: { body: {} },
   radii: { sm: 4 },
   shadows: {},

@@ -6,7 +6,13 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
-import { assertJwtConfig, assertOtpHmacConfig, assertProductionConfig, assertBootstrapOwnerEmail, resolveTrustProxy } from './config/env-gate';
+import {
+  assertJwtConfig,
+  assertOtpHmacConfig,
+  assertProductionConfig,
+  assertBootstrapOwnerEmail,
+  resolveTrustProxy,
+} from './config/env-gate';
 import { assertOtpDeliveryConfig } from './config/otp-delivery-gate';
 import {
   DEVICE_TRUST_PROOF_HEADER,
@@ -36,7 +42,9 @@ async function bootstrap() {
   const alertSink = assertProductionConfig();
   new Logger('Bootstrap').log(
     `P13 alert channel: ${alertSink.channel}` +
-      (alertSink.configured ? '' : ' (no webhook configured — alerts are persisted and logged only)'),
+      (alertSink.configured
+        ? ''
+        : ' (no webhook configured — alerts are persisted and logged only)'),
   );
 
   // S-1 remediation: device trust is carried by a server-issued HttpOnly
@@ -115,7 +123,12 @@ async function bootstrap() {
       'X-Device-Id',
       DEVICE_TRUST_PROOF_HEADER,
     ],
-    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'Retry-After'],
+    exposedHeaders: [
+      'X-RateLimit-Limit',
+      'X-RateLimit-Remaining',
+      'X-RateLimit-Reset',
+      'Retry-After',
+    ],
   });
 
   // ── Logging (pino with requestId correlation) ──────────────

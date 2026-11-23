@@ -1233,13 +1233,11 @@ Buyer-facing product offer lists and ranked seller results now require the ownin
 
 The ACTIVE-store visibility boundary uses a correlated SQL EXISTS predicate in both buyer-facing offer queries rather than materializing all active store IDs. This keeps tenant/store visibility filtering in the database and avoids an application-side list of store identifiers. The unit tests assert the query shape; exact-head CI remains the verification gate.
 
-
 ## UX-012/UX-013 implementation continuation — 22 November 2026
 
 Mobile merchant pricing is now implemented against the existing pricing API: list/detail routes, price-list create/update/activation, quantity-tier CRUD, product/variant selection, offer linkage and MOQ-tier preflight. Admin order details now return and display product title, variant title and SKU. PricingService variant-tier reads require storeId and enforce the owning store through the priceLists join.
 
 Focused tests are committed but not run. The next source implementation stream is UX-010 re-audit of remaining Admin/Web/Mobile surfaces. G-002 live runtime identity/catalog evidence and transaction-context/RLS design remain protected gates; no global transaction interceptor, RLS or grants are approved.
-
 
 ## 40. G-036 — Authorize realtime store and order room subscriptions — 23 November 2026
 
@@ -1291,7 +1289,6 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - FIN-013 payment expiry records cancellation history only after the conditional order update succeeds. Source/test commits `028e30e9ebeb626b51b6d80bc28467c9c946c419`, `83550c34c7dc11492fc6e5c5fc6fcb418b79243c`.
 - FIN-DSH-11–28 are added but not executed. Status for all is IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, automatic payout, staging, shared DB, grant/RLS, deployment or worker changes.
 
-
 #### FIN-014 — Discount-adjusted commission reversal and currency integrity
 
 Commission reversal must use the order financial breakdown as the basis for allocating order-level discounts across returned goods. The same returned net-goods basis must drive both the commission reversal ledger and settlement adjustment. Both records must preserve the original payment currency. PostgreSQL FIN-DSH-29 covers a partial discounted return and both persisted ledgers. Implementation is present; test pending Phase 3. No schema/migration or gateway/payout scope change.
@@ -1300,21 +1297,17 @@ Commission reversal must use the order financial breakdown as the basis for allo
 
 Proportional commission reversal must use exact BigInt multiplication/division even when each minor-unit input is a safe JavaScript integer, because the product can exceed Number.MAX_SAFE_INTEGER. The shared helper validates safe-integer inputs, computes floor(original commission × returned net goods / order net goods), and caps the result at remaining commission. Unit coverage includes a case where floating-point arithmetic would overstate reversal by one minor unit. Implementation and test are present; test pending Phase 3. No schema/migration or gateway/payout scope change.
 
-
 #### FIN-016 — COD payment expiry exclusion
 
 Cash on delivery is collected at delivery and must not expire on the bank-transfer payment timeout. Stale-payment discovery must exclude CASH_ON_DELIVERY, and expirePayment must enforce the same rule at the service boundary. FIN-DSH-30 verifies a stale COD payment remains AWAITING_PAYMENT, its delivered order remains unchanged and no PAYMENT_EXPIRED event is emitted. Implementation is present; PostgreSQL test pending Phase 3. No schema/migration or gateway/payout scope change.
 
-
 ## FIN-019 — Settlement adjustment posting integrity — 23 November 2026
 
 Settlement adjustment posting must preserve the financial sign convention `net = gross - refund - commission - fee`: a commission reversal is a merchant credit and therefore increases net, while refund, delivery-fee and balance-debit adjustments reduce net. Amounts must be positive safe integers in minor units. Posting must lock and attach an existing primary settlement; an approved adjustment must not be marked POSTED without a corresponding ledger row. The implementation adds a type-specific net helper, amount validation, primary-settlement row locking and fail-closed behavior when no primary settlement exists. Unit sign tests and PostgreSQL FIN-DSH-34/35 are added; execution remains pending Phase 3. No schema/migration, gateway or payout scope change.
 
-
 ## FIN-019 — Settlement adjustment posting integrity — 23 November 2026
 
 Settlement adjustment posting must preserve the financial sign convention `net = gross - refund - commission - fee`: a commission reversal is a merchant credit and therefore increases net, while refund, delivery-fee and balance-debit adjustments reduce net. Amounts must be positive safe integers in minor units. Posting must lock and attach an existing primary settlement; an approved adjustment must not be marked POSTED without a corresponding ledger row. The implementation adds a type-specific net helper, amount validation, primary-settlement row locking and fail-closed behavior when no primary settlement exists. Unit sign tests and PostgreSQL FIN-DSH-34/35 are added; execution remains pending Phase 3. No schema/migration, gateway or payout scope change.
-
 
 ## FIN-020 — Reconciliation arithmetic and discrepancy type safety — 23 November 2026
 
@@ -1322,13 +1315,11 @@ The reconciliation service now follows the settlement writer's ledger semantics:
 
 Unit regressions and disposable-PostgreSQL FIN-DSH-36 have been added. Source/test commit: `ad478cc53ce40bec86172e881b4f14cea7e6dfac`. Execution remains pending the consolidated Phase 3 campaign; this increment is not CI-verified. No schema/migration, shared database/staging, environment, worker, grant/RLS, gateway or payout changes.
 
-
 ## FIN-021 — Reconciliation run lifecycle integrity — 23 November 2026
 
 Reconciliation run versioning is serialized by a PostgreSQL transaction-scoped advisory lock keyed by tenant, period and currency. The unique index is organization-scoped and treats NULL org_id as one global scope. Supersession links now point from the prior run to its successor; migration 0074 repairs the historical backward links. Run creation, source checks, discrepancy inserts and COMPLETED transition share one transaction. On failure the transaction rolls back all partial rows, then a separate best-effort transaction records a FAILED run with zero discrepancies and a generic execution-error summary.
 
 PostgreSQL FIN-DSH-37/38 cover concurrent tenant version allocation, forward supersession and failure rollback. Tests are added but not executed. Commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`. Migration 0074 is source-only and has not been applied to shared/staging.
-
 
 ## FIN-022 — Financial history and outbox consistency — 23 November 2026
 
@@ -1336,13 +1327,11 @@ Payment creation and CREATED → AWAITING_PAYMENT now publish outbox messages in
 
 PostgreSQL FIN-DSH-39–42 and unit tests cover event parity, dispute rollback, adjustment creation event and two-instance outbox claim. Tests are added but not executed. The generic dispatcher still logs events rather than publishing to an external event bus. Commits: `3784bca3dd9a21fa3123e555aebbdd13addfb21b`, `a77339ab1b50d881fc006a16b9613505458fcd27`, `ccde36322f9bcfd12f2de2bfad22390cd9b7f503`, `5d7eadf07e11801813a606dfeeda60b83c16eb19`, `e761195829d3fcd4bc2d9d0eecfd848188c32d53`.
 
-
 ## FIN-023 — Checkout and dispute-refund transaction boundaries — 23 November 2026
 
 BANK_TRANSFER checkout now updates the order to PAYMENT_PENDING and the payment to AWAITING_PAYMENT, appends both immutable history transitions and publishes matching outbox events inside the original checkout transaction. The post-commit best-effort mutation has been removed; checkout fails closed if the payment service is unavailable. `PaymentsService.requestRefund` accepts an optional transaction client. Dispute resolution now locks the dispute row and includes refund request, payment history/outbox, refund-dispute linkage, dispute RESOLVED state/history/outbox in one transaction. Existing orphan-refund idempotency recovery is retained.
 
 PostgreSQL FIN-DSH-43/44/45 cover success parity and rollback injection. Tests are added but not executed. Commits: `a5fa4806e310159b6f2708d366764ffe4fa3892f`, `442b03a77e4645fba01b8f33d3d2351265365b9d`, `71c8acb5a890a8b7350915cc4eca80dd6104874c`.
-
 
 ## FIN-024 — Payment proof upload lifecycle — 23 November 2026
 
@@ -1356,11 +1345,9 @@ PostgreSQL FIN-DSH-46/47 cover failure compensation and replacement ordering. Te
 
 Design a durable upload-intent/recovery workflow that survives process crashes. Use bounded lease/retry and verify payment-row references before deletion. Never perform broad bucket listing/deletion or delete any object referenced by a committed payment row. Add PostgreSQL and storage-mock tests for crash recovery, retries, concurrent replacement and cleanup failure. No shared/staging DB writes or worker activation.
 
-
 ### FIN-024 follow-up — uncertain upload response
 
 Transition validation now precedes storage upload. If `putObject` times out after object acceptance, the service checks the generated key and deletes the object if present. FIN-DSH-48 covers this path. Commit: `847647c424097e5ace69236d0c3b4592f85d30e9`. Tests not executed. Durable recovery for a process crash between upload and DB transaction remains FIN-025.
-
 
 ## FIN-025 — Durable payment-proof upload recovery — 23 November 2026
 
@@ -1370,56 +1357,45 @@ Each generated proof key now has a durable intent persisted before object storag
 
 verifyPayment, confirmCash and privileged return transitions previously hardcoded actor classes despite allowing privileged overrides. They now record ADMIN versus MERCHANT/BUYER from the authenticated caller. FIN-DSH-54/55 cover merchant verification, admin COD confirmation and privileged return overrides. No migration; tests not executed. Commit: e5733dc4a403c15da27d9064aa8703a89f6ee7f4.
 
-
 ## FIN-027 — Return refund balance aggregation — 23 November 2026
 
 The return-side cumulative refund guard now matches the payment refund guard by counting `APPROVED` as reserved balance. PostgreSQL `SUM(bigint)` is read as exact numeric text and converted through BigInt, avoiding a 32-bit cast overflow and rejecting totals outside JavaScript's safe-integer range. FIN-DSH-56 covers both conditions. Source: `6ae8aba762215f69f42e74e4608a4fa31a02543b`; test: `5b636df49155ea523bc730852ed900720a858a88`. Tests remain pending the consolidated Phase 3 campaign.
-
 
 ## FIN-028 — Settlement calculation actor attribution — 23 November 2026
 
 The admin-only settlement calculation path now persists `PAYMENT_SETTLEMENT_CALCULATED.actor_type = ADMIN` instead of the misleading SYSTEM class. FIN-DSH-57 verifies actor ID and class in PostgreSQL. Source: `5a7dfd6ea67de61bb016cc7a7ef31749760955d8`; test: `05799cde897871ab9752af07bf70830ac834edbf`. Test remains pending Phase 3.
 
-
 ## FIN-029 — Payment confirmation order-history actor parity — 23 November 2026
 
 Payment confirmation now propagates the authenticated ADMIN/MERCHANT actor class into the linked order status history, matching the payment event's actor ID/class. FIN-DSH-54 covers both ledgers. Source: `77c2caaa322836cc8e7d651f6577df715c5e3228`; test: `8fc1759a9e374f12513c82d301b2c9b934a98840`. Test remains pending Phase 3.
-
 
 ## FIN-030 — Refund-completion period attribution — 23 November 2026
 
 Monthly reconciliation now attributes refund and commission-reversal checks to the append-only `REFUNDED` transition timestamp, rather than the original return-request creation timestamp. A fallback preserves legacy rows without a REFUNDED event. FIN-DSH-58 covers a cross-period return/refund. Source: `93a908d4627c804af5d12e20c6a1e7c2811524e9`; test: `5abae2018b9e6d6a43d5e3b90764ef80560b4ea0`. Test pending Phase 3.
 
-
 ## FIN-031 — Cross-period duplicate refund detection — 23 November 2026
 
 Duplicate-refund reconciliation now scopes candidate returns by successful refund `updated_at` in the accounting period, then counts all successful refunds for each candidate return across periods. Tenant scoping is retained. FIN-DSH-59 covers a prior-period duplicate plus a current-period success. Source: `6089a1fd821c35c0dcd9f0cde849e145326905e1`; test: `4bdd2935d48ea2c6ef3d633aa6af2f3fe39369ab`. Test pending Phase 3.
-
 
 ## FIN-032 — Settlement-adjustment accounting-period correctness — 23 November 2026
 
 Reconciliation previously used adjustment creation time for POSTED-adjustment approval and delivery-fee-cap checks. This misattributed adjustments created in an earlier period but posted in the current period; delivery-fee-cap checks also included DRAFT and other unposted adjustments. Both checks now require status POSTED and use the adjustment transition timestamp (updated_at) as the accounting-period timestamp. PostgreSQL FIN-DSH-60 covers a prior-period-created adjustment posted in the current period and confirms that an unposted draft is excluded. Source commit: 0c65476d1135d18504ae910083299683fdb8d072; test commit: 39a8ee35e81e919601e49d0564fee023d5a39871. Test added, not executed.
 
-
 ## FIN-033 — Exact payment refund aggregate arithmetic — 23 November 2026
 
 Three payment-side SUM(bigint) aggregates used for refund reservation, refund approval projection and settlement calculation were exposed as JavaScript numbers without an explicit precision guard. They now return PostgreSQL numeric text, convert through BigInt, and fail closed when negative or outside Number.MAX_SAFE_INTEGER. Unit coverage verifies totals above the 32-bit boundary, unsafe aggregate rejection and malformed/negative values. Source commit: 633d56a06e073ee416e5b7a989167ef5828f13d8; test commit: 115b0dab007e4071f6a32ee1e564427a86732249. Tests added, not executed.
-
 
 ## FIN-034 — Caller-owned refund transaction support — 23 November 2026
 
 PaymentsService.requestRefund now accepts an optional caller-owned transaction client and reuses it rather than opening a nested transaction. This aligns the implementation with the existing dispute-resolution caller, which passes its transaction so refund creation, payment event/outbox, refund linkage and dispute resolution remain atomic. Existing PostgreSQL FIN-DSH-45 covers injected failure rollback; tests remain unexecuted. Source commit: 2c4b4538cc10e3d4e6217ca56967c89e52657fd8.
 
-
 ## FIN-035 — Atomic return-refund and return-ledger transition — 23 November 2026
 
 Return refund creation previously committed the payment refund/event/outbox first, then linked the refund and advanced the return request in a second transaction. It now locks the payment and performs refund creation (reusing PaymentsService's caller-owned transaction), return linkage, REFUND_PENDING state/history and return outbox in one transaction. The existing idempotency recovery path remains for legacy split-transaction rows. PostgreSQL FIN-DSH-61 injects failure at return outbox persistence and asserts that refund, payment event/outbox and return changes all roll back. Source commit: e462c256be710a81e42b2f2d4093d4700abe1818; test commit: f5d38d5a4af42ec29fa38040d8ba184e5dcbcdff, with scoped outbox assertion correction 4ad18e1eab3495030c6fff719607b5101337edb4 and test index update ac266c2c365d23c3ef3e58032616bb118d037715. Tests not executed.
 
-
 ## FIN-044 — Adjustment parent isolation and payout visibility — 23 November 2026
 
 Implementation follow-up: adjustment parent selection must exclude all adjustment ledger rows, not merely rows currently in ADJUSTMENT status. Because payout transitions an adjustment row to PAID, the query also excludes rows carrying `metadata.adjustmentId` and legacy rows identified by the stable posted-adjustment notes prefix. Payout preserves that legacy marker. The Admin Settlements screen now exposes ADJUSTMENT filtering and the standard payout action. FIN-DSH-68/69 and Admin recovery coverage are added; execution remains part of the consolidated Phase 3 verification campaign.
-
 
 ## FIN-045/046 — Adjustment reconciliation and merchant visibility — 23 November 2026
 

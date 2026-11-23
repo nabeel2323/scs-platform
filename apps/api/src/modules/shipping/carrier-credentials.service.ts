@@ -1,6 +1,9 @@
 import {
-  Injectable, Logger,
-  NotFoundException, ForbiddenException, BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { eq, and } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
@@ -94,13 +97,18 @@ export class CarrierCredentialsService {
    * Create a new carrier credential.
    * Only SUPER_ADMIN / ADMIN may create credentials.
    */
-  async create(input: CreateCarrierCredentialInput, caller: CallerContext): Promise<MaskedCredential> {
+  async create(
+    input: CreateCarrierCredentialInput,
+    caller: CallerContext,
+  ): Promise<MaskedCredential> {
     this.assertAdmin(caller);
     await this.assertOrgAccess(input.orgId, caller);
 
     // Validate provider key format
     if (!input.providerKey || !/^[a-z0-9-]{1,40}$/.test(input.providerKey)) {
-      throw new BadRequestException('providerKey must be 1-40 lowercase alphanumeric characters or hyphens');
+      throw new BadRequestException(
+        'providerKey must be 1-40 lowercase alphanumeric characters or hyphens',
+      );
     }
 
     const environment = (input.environment || 'sandbox').toLowerCase();
@@ -121,21 +129,24 @@ export class CarrierCredentialsService {
     const now = new Date();
 
     try {
-      const rows = await this.db.db.insert(carrierCredentials).values({
-        id,
-        orgId: input.orgId,
-        providerKey: input.providerKey,
-        environment,
-        label: input.label.trim(),
-        credentialsEncrypted,
-        endpointUrl: input.endpointUrl?.trim() || null,
-        webhookSecretEncrypted,
-        webhookToken,
-        isActive: true,
-        createdBy: caller.sub,
-        createdAt: now,
-        updatedAt: now,
-      }).returning();
+      const rows = await this.db.db
+        .insert(carrierCredentials)
+        .values({
+          id,
+          orgId: input.orgId,
+          providerKey: input.providerKey,
+          environment,
+          label: input.label.trim(),
+          credentialsEncrypted,
+          endpointUrl: input.endpointUrl?.trim() || null,
+          webhookSecretEncrypted,
+          webhookToken,
+          isActive: true,
+          createdBy: caller.sub,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
 
       const inserted = rows[0];
       if (!inserted) throw new Error('Carrier credential insert returned no rows');
@@ -168,7 +179,8 @@ export class CarrierCredentialsService {
 
     await this.assertOrgAccess(row.orgId, caller);
 
-    const [updated] = await this.db.db.update(carrierCredentials)
+    const [updated] = await this.db.db
+      .update(carrierCredentials)
       .set({ isActive: false, updatedAt: new Date() })
       .where(eq(carrierCredentials.id, id))
       .returning();

@@ -9,8 +9,6 @@
 
 The source operation map now covers 26 service files plus supporting outbox, carrier, tracking, reconciliation, operations-control and worker paths. A separate schema review records candidate owner paths and principal classes across the major tenant, buyer/order, financial, user-private and system tables. These documents are source-only evidence, not an approved policy. Still open: complete the remaining import-executor/carrier recovery/bootstrap/migration/CLI paths; verify FK constraints and plain UUID relationships against migrations/catalog; map exact read/insert/update/delete predicates and route principals; obtain actual API/migration runtime identities and the protected read-only staging catalog snapshot; resolve 114-versus-116. A user-uploaded supplemental note reports 111/111 tables with RLS disabled and 32 public functions with none SECURITY DEFINER, but it lacks timestamp, endpoint, query, connection identity and relation-kind scope. Preserve it as supplemental evidence only; do not substitute 111 for the detailed 114 or historical 116 counts. See [G-002 supplemental audit note](../docs/remediation/G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md). No shared database changes, migration, grants, RLS, deployment or worker activation are authorized.
 
-
-
 ### G-001 — P0 merchant offer authorization
 
 **Status: PARTIAL — do not close yet.**
@@ -41,6 +39,7 @@ The implementation author must not mark their own work independently reviewed.
 **Status: IN PROGRESS — source remediation implemented; focused tests added, not executed.**
 
 The realtime gateway previously accepted arbitrary authenticated joins to `org:{storeId}` and `order:{orderId}` rooms. The server now requires:
+
 - `org:{storeId}`: existing store, `merchant:orders:read`, active-organization ownership and active store membership; platform staff require `orders:read`.
 - `order:{id}`: buyer ownership with `orders:read`, merchant membership with `merchant:orders:read`, assigned shipment with `fulfillment:shipments:read`, or platform-staff `orders:read`.
 - `user:{id}`: the authenticated user's own room only.
@@ -63,8 +62,8 @@ Remaining:
 Do not enable RLS, apply migration 0070, change grants/default ACLs or alter Supabase-managed ownership as part of unapproved work.
 
 ## Other tracked unresolved findings
-The additional P1 realtime room authorization finding G-036 is tracked above; the full 36-finding register remains authoritative.
 
+The additional P1 realtime room authorization finding G-036 is tracked above; the full 36-finding register remains authoritative.
 
 The following are navigation-level reminders, not a replacement for the full finding register:
 
@@ -94,7 +93,6 @@ For exact statuses, priorities, evidence and dependencies, consult the 36-row re
 3. Complete method-level service-to-table ownership-predicate mapping, including the four direct-DB controllers, shared tenant-scope helpers, provider/webhook, bootstrap, worker and operator contexts.
 4. Use the enhanced audit-db-access utility only after explicit protected read-only authorization to verify live API/migration identities, public relation-kind counts, partition RLS/privileges and the 111-versus-114-versus-116 discrepancy. Do not apply RLS or change grants before this evidence and independent review.
 5. Keep PR #138 draft/unmerged. Defer comprehensive unit/API/PostgreSQL/migration/security/tenant/concurrency/E2E/performance tests until implementation and integration are complete; do not consume repeated Actions runs during implementation.
-
 
 ## G-001 confidentiality follow-up — 21 November 2026
 
@@ -233,18 +231,15 @@ See [WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md](./WHOLE-PRODUCT-IMPLEMENTATION-I
 
 These are implementation candidates, not automatically verified defects or permission to expand future-phase scope.
 
-
 ## G-002 migration crosswalk — 22 November 2026
 
 Migration-source FK evidence now covers core identity/store/catalog/inventory/cart/order/offer/shipping plus payment/return/financial/carrier/operations paths. Important remaining blockers are still open: verify deployed constraints and all relation objects from a refreshed protected read-only catalog snapshot; validate application-maintained org_id fields added in migration 0062; resolve cross-parent consistency where no composite FK exists; verify live API/migration DB identities; and reconcile 114-versus-116. No live DB changes or RLS activation.
-
 
 ## G-002 service and CLI mapping update — 22 November 2026
 
 The operation map now inspects all 53 API service/worker/poller/dispatcher/executor candidates, with 44 DB-operation paths and 9 database-independent helper/provider files. A separate CLI map covers migration/seed/bootstrap/reset/UAT access. Three script-safety corrections were implemented: local admin creation no longer contains or prints a fixed password; reset-pg requires explicit target/typed confirmation and staging approval; M6 environment check uses environment credentials and redacts OTP output.
 
 Remaining work is not closed: complete route-to-service-method-to-table mapping, guard or retire legacy M5/M6 utilities, add uniform staging bootstrap target confirmation, map remaining raw-SQL and physical database objects, and obtain the protected 114-versus-116 catalog evidence. No tests or CI were run, and no staging/shared DB action occurred.
-
 
 ## G-002 physical inventory and controller map update — 22 November 2026
 
@@ -254,11 +249,9 @@ The controller-to-service callsite map covers all 28 module controllers. A legac
 
 Remaining implementation: guard or retire legacy M5/M6 scripts, add target confirmation to staging bootstrap scripts, and complete method-level owner predicates. Live API/migration identities and protected catalog evidence remain gated. No tests, CI, staging or shared DB actions occurred.
 
-
 ## G-002 UAT/staging safety update — 22 November 2026
 
 Legacy M5/M6 UAT scripts and both JavaScript migration harnesses now fail closed unless explicitly in development/test with SCS_UAT_CONFIRM=true; DB/API/Redis targets must be local where supplied. The five staging bootstrap scripts and package sequence now require exact staging environment/database/approval confirmation before writes. Unit tests were added but not run. Remaining source work is method-level ownership-predicate mapping and worker/outbox/system context review; live identities and 114-versus-116 remain protected read-only gates.
-
 
 ## G-002 method-level ownership predicate batch 3 — 22 November 2026
 
@@ -266,29 +259,26 @@ Implemented the Pricing/Merchant/Store Membership source batch. PricingService n
 
 Added focused merchant/pricing tenant-scope specs, not run. The method-level map and gap register are synchronized. Next: Returns/Disputes/Reviews, then carrier/shipping, then worker/outbox/bootstrap/system. No tests/CI, live DB, migration, grant/RLS, staging, deployment or worker action occurred.
 
-
 ## G-002 method-level predicate batch 4 — 22 November 2026
 
 Returns/Disputes/Reviews and financial-control services are now mapped. Fixed cross-store inventory restoration in return inspection; settlement adjustment target org/return-request relationships; and the reconciliation discrepancy endpoint's missing financialOrgScope call plus missing tenant predicate on the UPDATE. Focused tests were added but not run. Next: carrier/shipping, then worker/outbox/bootstrap/system. No tests/CI or live DB/staging actions occurred.
 
-
 ## G-002 method-level predicate batch 5 — 22 November 2026
 
 Carrier/shipping review found and fixed an Aramex credential fallback that could select an arbitrary active credential across organizations. Store-bound tracking/rating/location calls now require store context and resolve only the store's org configuration; unscoped address validation is restricted to PLATFORM credentials. Carrier configuration resolution verifies store and linked credential organization. Shipping/carrier management now checks ACTIVE organization membership; shipment operations and outbox worker verify store/org context; webhook retry requires an active credential. Tests added/updated but not run. Next: worker/outbox/bootstrap/system method-level predicates and protected DB evidence. No worker activation or provider call occurred.
-
 
 ## G-002 worker/system/operator source review — 22 November 2026
 
 The bounded source review now covers return-expiration and auto-completion workers, shipping carrier worker/poller/reconciliation paths, WorkerLeaseService, OpsControlService, P13MonitorService, OpsAlertService, PilotControlService, BootstrapService, AuditService/AuditLogMiddleware and OutboxDispatcher.
 
 Corrections committed:
+
 - ReturnExpirationWorker's lease fence is validated and locked in the claim and escalation mutation transactions.
 - WorkerLeaseService no longer allows an expired holder to renew, appear live, record poll success/failure or release the expired lease.
 - PilotControlService rejects non-existent organizations and store IDs that do not belong to the target organization.
 - OpsAlertService uses an atomic SENDING delivery claim and stale-claim recovery across API instances; migration 0073 updates the open-alert index.
 
 Focused tests were added but not run. Generic OutboxDispatcher currently logs and marks events dispatched; it does not publish to a real event bus. This remains a known functional limitation, not a verified delivery integration. No RLS or DB grants are approved. Live runtime identity/catalog evidence and final testing remain open.
-
 
 ## UX-012/UX-013 and PricingService store-scope follow-up — 22 November 2026
 
@@ -297,7 +287,6 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - PricingService variant-tier reads now fail closed without storeId and filter through priceLists.storeId, including the internal product-pricing resolver.
 - Next: continue UX-010 re-audit for other concrete, source-confirmed Admin/Web/Mobile gaps. G-002 live identity/catalog evidence and transaction-context/RLS design remain protected gates; no global interceptor, RLS or grants are authorized.
 
-
 ## UX-015 Product Studio save-flow correction — 22 November 2026
 
 - Fixed a concrete wizard correctness defect: Offer-step navigation previously advanced even when the product save returned null, and the intermediate save created the offer before the final Review save ran the same routine again.
@@ -305,13 +294,11 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Added focused tests, not executed. UX-005's warehouse selector was already implemented; stale raw-ID inventory wording is corrected.
 - Remaining: continue UX-010 Admin/Web/Mobile re-audit; keep protected G-002 identity/catalog/RLS gates and consolidated test/release campaign open.
 
-
 ## UX-016 buyer cart mutation recovery — 22 November 2026
 
 - Cart quantity/remove/clear requests previously had no local error handling or in-flight lock. Cart read failure could fall through to cart=null and render the empty state.
 - Added recoverable mutation feedback and action serialization; failed reads now preserve prior cart data and show a retry action. Focused helper tests added but not executed.
 - Next: continue UX-010 source audit on Admin/Web/Mobile screens and integrate remaining workflow gaps. Comprehensive tests remain deferred.
-
 
 ## UX-017 Admin returns oversight recovery — 22 November 2026
 
@@ -319,13 +306,11 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Added shared retryable error states, detail loading/empty states and request-version protection. The return detail reload now resolves asynchronously for the escalation workflow.
 - Added focused tests, not executed. Continue remaining UX-010 source audit and implementation; comprehensive test campaign remains deferred.
 
-
 ## UX-018 Mobile cart mutation locking — 22 November 2026
 
 - Mobile cart quantity/remove requests could overlap and the quantity stepper stayed editable during pending writes. Failed quantity writes could leave optimistic text in the field.
 - Added shared mutation locking, busy-row feedback, disabled quantity editor and provider-backed reset on failure. Added Flutter widget tests, not executed.
 - Continue remaining Admin/Web/Mobile source audit; full test campaign remains deferred.
-
 
 ## UX-019 Admin dispute and evidence timeline recovery — 22 November 2026
 
@@ -333,20 +318,17 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Added shared retryable error states, request-version guards and stale evidence clearing. Focused tests added, not executed.
 - Continue remaining UX-010 Admin/Web/Mobile source audit and integration; full test campaign remains deferred.
 
-
 ## UX-020 Admin identity/organization detail recovery — 22 November 2026
 
 - User, merchant and organization details previously had non-retryable read failures and no stale-response guard.
 - Added retryable error states and request-version protection; user permission catalog failures are isolated to the Permissions tab.
 - Added focused tests, not executed. Continue UX-010 re-audit; full tests remain deferred.
 
-
 ## UX-021 Admin dispute resolution workflow — 22 November 2026
 
 - Admin dispute detail previously had no way to invoke the existing resolve API. Added a required resolution form, pending/error/success feedback and resolved-state display using the existing `PATCH /v1/disputes/:id/resolve` contract.
 - Service-level platform-admin authorization remains in place; UI does not introduce unsupported refund fields. Focused test added, not executed.
 - Continue remaining UX-010 audit; comprehensive test campaign remains deferred.
-
 
 ## Live open-work checkpoint — 22 November 2026
 
@@ -356,19 +338,16 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - UX-007 support-ticket scope and UX-008 geospatial/location policy remain blocked on product decisions. OutboxDispatcher remains log-only pending event-bus contract.
 - Phase 3 full test campaign and Phase 4 stabilization are still pending.
 
-
 ## UX-022 Admin detail recovery expansion — 22 November 2026
 
 - Remaining Admin catalog/order/role detail screens now have retryable primary read states; import errors and offer inventory tabs distinguish read failures from empty results.
 - Role permission-save errors are isolated to the detail page rather than replacing it. Focused tests added but not executed.
 - Continue remaining UX-010 Admin/Web/Mobile audit; consolidated tests remain deferred.
 
-
 ## UX-023 Admin ProductDetails offers recovery — 22 November 2026
 
 - Product detail offers read now has a retryable error state and loading state; only a successful empty response renders the empty-offers message. Added request-version protection and a focused test, not executed.
 - Continue remaining UX-010 audit; full test campaign remains deferred.
-
 
 ## UX-024 Admin financial read recovery — 22 November 2026
 
@@ -376,13 +355,11 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Added stale-request protection for tabs/filters and retryable reconciliation run detail. Four focused tests added, not executed.
 - Continue UX-010 audit and integration; comprehensive test campaign remains deferred.
 
-
 ## UX-025 Product Studio update/identifier integrity — 22 November 2026
 
 - Existing Product Studio products now receive PATCH updates on later saves, using optimistic-lock `updatedAt`; create/update payloads persist productTypeId and GTIN/EAN/MPN. Save validates store/title.
 - Progress navigation is sequential and uses the same save guard; no direct jump can bypass Offer-step persistence.
 - Focused tests added, not executed. Full test campaign remains deferred.
-
 
 ## UX-026 / UX-027 Product Studio canonical and media integrity — 22 November 2026
 
@@ -390,33 +367,27 @@ Focused tests were added but not run. Generic OutboxDispatcher currently logs an
 - Uploaded media is now attached to merchant-owned products with retry-safe URL deduplication; canonical media is untouched. Focused tests added, not executed.
 - Comprehensive test campaign remains deferred.
 
-
 ## UX-027 / UX-028 current UX continuation — 22 November 2026
 
 - UX-027's latest Product Studio source work scopes retry identity to store/product/variant and reconciles existing store offers after uncertain creates; nullable existing prices are handled safely. Helper tests are added but not executed.
 - UX-028 mobile buyer returns parity has been implemented in source: Flutter now uses existing buyer return endpoints and mirrors Web reason/quantity collection plus buyer cancel/ship transitions. Model/API tests are added but not executed.
 - Continue the UX-010 cross-screen audit and integration mapping. The whole-product test campaign remains deferred until the implementation batch is complete.
 
-
 ## UX-028 exact implementation checkpoint — 22 November 2026
 
 Flutter buyer-return parity is committed as `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`. Focused DTO/API tests were added but not executed; continue the remaining UX-010 source audit and implementation/integration phase before the consolidated test campaign.
-
 
 ## UX-029 — mobile return detail/history parity — 22 November 2026
 
 Source gap: Web's buyer return-detail page presents refund, item, inspection/merchant-note and event-history details, while Flutter initially exposed only a summary. Implemented a retryable detail sheet within the existing Order Detail route using the current owner-authorized endpoint. Focused DTO assertions were added but not executed. No route or permission expansion is required.
 
-
 ## UX-030 — Web buyer self-service recovery — 22 November 2026
 
 The Web Notifications, Favorites, Saved Suppliers and Profile Sessions pages previously hid some read failures or could misreport an empty result. Source implementation `b310f4da3ccda31f7a8c815f1d99ed1977329ad6` adds retryable error states; removal failures remain visible and do not remove rows; notification optimistic-read rollback restores its original state. Focused tests are added but not executed. Continue remaining UX-010 Web/Merchant route audit; do not begin the consolidated test campaign until implementation/integration are complete.
 
-
 ## UX-031 — Merchant Customers read recovery — 22 November 2026
 
 Merchant Customers previously swallowed list-read failures and could show a false empty directory. Source commit `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8` adds a retryable error and preserves previously loaded customers on refresh failure. Focused tests are added but not executed. Continue the remaining UX-010 Web/Merchant screen and permission-affordance audit.
-
 
 ## UX-032 — Merchant Deliveries read recovery — 22 November 2026
 
@@ -544,7 +515,6 @@ Organization switching now invalidates merchant/store-scoped client caches in bo
 
 **Next implementation:** finish the Mobile route permission and organization-context transition audit (including route guards and remaining route refresh semantics), then complete the outstanding Web/Admin route and action permission mapping. Do not reopen UX-078–UX-093 without new source evidence.
 
-
 ## API typecheck correction batch — 23 November 2026
 
 The API TypeScript diagnostics exposed by CI #1380 have source/test corrections committed on PR #138. The fixes cover explicit P13 escalation authority in integration tests, the worker's fenced-lease outcome union, the Admin order-item product join, two test fixture typings/contracts, and authoritative order → store organization resolution for settlement adjustments. This work is **IMPLEMENTED / NOT VERIFIED**: no typecheck or tests were run after the correction batch, and the current head has no CI run because the commits use `[skip ci]`. Keep the consolidated Phase 3 validation gate. Do not treat CI #1380 as passing or as verification of the corrective commits.
@@ -567,13 +537,11 @@ The merchant category directory is now read-only for merchant roles and requires
 - G-036 realtime store/order room authorization is implemented in source with focused gateway tests added but not executed.
 - **Next:** finish the remaining Admin route/action permission mapping. Comprehensive testing remains deferred to the consolidated testing phase.
 
-
 ## UX-100 — Admin settlement adjustment rejection action — 23 November 2026
 
 The Admin settlement-adjustment page now exposes the existing API rejection operation for pending-approval adjustments. Only users with `admin:adjustments:approve` see the Reject action; submission requires a reason and sends the API's `{ reason }` payload. This closes a UI workflow omission without changing backend permission or financial transition logic. Focused tests cover the rejection request and read-only visibility but have not been executed; UX-100 remains IMPLEMENTED / TESTING_PENDING for Phase 3.
 
 **Next implementation:** continue the remaining Admin custom action-handler audit, especially direct mutation handlers outside the shared `useAdminMutation` path. Do not repeat the completed 56-page route audit or UX-097–UX-100.
-
 
 ## UX-101 — Catalog governance action guards and Product Type publish correctness — 23 November 2026
 
@@ -581,20 +549,17 @@ Product Type list/create/category-update and Builder save/publish handlers now r
 
 **Next implementation:** continue the remaining Admin operational UX/source audit beyond permission mapping. Do not repeat UX-097–UX-101.
 
-
 ## UX-102 — Product editor action-time permission guard — 23 November 2026
 
 The shared ProductForm used by Admin product create/edit routes now receives and rechecks `catalog:products:write` at Save dispatch and prevents duplicate create/update submissions with a ref-backed guard. The API continues enforcing the same permission. No ProductForm-specific test was added; UX-102 remains IMPLEMENTED / TESTING_PENDING for Phase 3.
 
 **Next implementation:** continue the remaining Admin operational UX/source audit beyond permission mapping. Do not repeat UX-097–UX-102.
 
-
 ## UX-103 — Product Type stale-response suppression — 23 November 2026
 
 Product Type list/filter and selected-schema reads now use request-version guards so stale responses cannot overwrite the current selection. Product Type Builder schema/attribute/readiness loads invalidate stale requests on route-ID or access changes. No focused regression test was added. CI #1419 passed lint/typecheck and Flutter analysis/tests but failed the accumulated Prettier gate (254 files); Web/Admin tests and dependent gates were skipped. UX-103 remains IMPLEMENTED / TESTING_PENDING for Phase 3.
 
 **Next implementation:** continue the remaining Admin operational UX/source audit beyond permission mapping. Do not repeat UX-097–UX-103.
-
 
 ## UX-104 — Catalog Requests action guards — 23 November 2026
 
@@ -605,7 +570,6 @@ Catalog Requests Approve/Reject now recheck `catalog:requests:manage` at dispatc
 Data Quality and KPI Dashboard now check their respective route permissions before starting initial reads or retries, and invalidate stale requests on access changes. Tests assert unauthorized users do not trigger the protected API reads; they have not been executed. UX-105 remains IMPLEMENTED / TESTING_PENDING.
 
 **Next implementation:** continue the remaining Admin operational UX/source audit beyond permission mapping. Do not repeat UX-097–UX-105.
-
 
 ## FIN-001 — Refund approval serialization and idempotency — 23 November 2026
 
@@ -639,18 +603,15 @@ Next: continue source-first review of payment and settlement transitions; keep a
 
 **Next:** continue source-first audit of financial state transitions and their event/outbox semantics. Do not expand automatic gateway or payout scope.
 
-
 ## FIN-006 — Dispute refund idempotency payload integrity — 23 November 2026
 
 FIN-006 is IMPLEMENTED / TESTING_PENDING. The dispute-resolution recovery path now reuses an orphan refund only when payment/order, amount, reason, requester, currency and dispute link match the retry. FIN-DSH-20 adds PostgreSQL cases for amount and reason mismatch; tests not executed. Source/test commit: `9899113a4f574d2733b957d2f1b489e35a71fe0f`. No schema, migration, provider, payout, staging or shared database changes.
 
 **Next:** continue source-first financial and operational correctness review; keep the full test campaign grouped in Phase 3.
 
-
 ## FIN-007 — Refund approval order payment projection — 23 November 2026
 
 FIN-007 is IMPLEMENTED / TESTING_PENDING. Refund approval now updates the denormalized order payment state atomically with the payment/refund transition, while preserving order fulfillment state. FIN-DSH-21/22 add PostgreSQL coverage for partial/full refunds; tests not executed. Source/test commit: `5b68edac4d148f68656b4331a9612cd1752eab3d`. No schema, migration, provider, payout, staging or shared DB changes.
-
 
 ## FIN-008 — Return refund idempotency payload integrity — 23 November 2026
 
@@ -669,7 +630,6 @@ FIN-008 is IMPLEMENTED / TESTING_PENDING. Return orphan-refund recovery now reus
 
 **Next implementation:** continue the source-first financial and operational correctness audit beyond FIN-013. FIN-DSH-11–28 remain unexecuted; consolidate formatting and full API/PostgreSQL/Web/Admin/mobile validation in Phase 3 after implementation gaps are complete.
 
-
 ## FIN-014 — Discount-adjusted commission reversal and currency integrity
 
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Return commission reversal now allocates order-level discounts proportionally over returned goods and preserves the original payment currency in the commission reversal and settlement adjustment records. PostgreSQL FIN-DSH-29 covers a partial discounted return and verifies both ledgers. Test not executed. Source commits: 6221c9c10bba4652b19c1aeaca59a8d1c3d9c79d and 00da339e62dbeef87a55434b3ed5ea1a85cb6508.
@@ -680,13 +640,11 @@ FIN-008 is IMPLEMENTED / TESTING_PENDING. Return orphan-refund recovery now reus
 
 Next: continue the source-first financial and commercial correctness audit, especially settlement/reversal reconciliation and persisted financial event consistency. Keep all automated validation grouped in Phase 3; do not expand automatic gateway or payout scope.
 
-
 ## FIN-016 — COD excluded from stale-payment expiry
 
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Stale-payment reconciliation previously selected every AWAITING_PAYMENT/AWAITING_VERIFICATION record, including CASH_ON_DELIVERY. Because COD is collected at delivery, it must not expire after the bank-transfer payment window. The candidate query now excludes COD and expirePayment independently rejects direct COD expiry. FIN-DSH-30 covers a stale COD payment on a DELIVERED order, unchanged payment/order state and absence of PAYMENT_EXPIRED events. Source commit 68b5251200f9f3765a0568b796db056a18cd878e; test commit 6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac. Test not executed.
 
 Next: continue the source-first payment and return lifecycle audit; keep Phase 3 formatter and full API/PostgreSQL verification grouped. Do not introduce gateways or automated payouts.
-
 
 ## FIN-017 — Exact return refund allocation and delivery-fee currency
 
@@ -698,7 +656,6 @@ Next: continue the source-first payment and return lifecycle audit; keep Phase 3
 
 Next: continue the source-first returns/payment lifecycle audit. Keep the full formatter, API unit and PostgreSQL verification grouped in Phase 3; do not expand gateway or automatic payout scope.
 
-
 ## FIN-019 — Settlement adjustment posting integrity
 
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Posting a COMMISSION_REVERSAL previously wrote a negative settlement net despite representing a merchant credit. Posting could also mark an adjustment POSTED without a primary settlement ledger row. The service now applies type-specific sign semantics, validates positive safe-integer minor-unit amounts, locks the primary settlement row, and rejects posting until that ledger exists. FIN-DSH-33 verifies positive commission-reversal net; FIN-DSH-34 verifies an approved adjustment remains unposted/unlinked when no settlement exists. Unit cases cover credit/debit signs. Tests not executed.
@@ -707,11 +664,9 @@ Source commits: `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0e
 
 **Next:** continue source-first financial and operational correctness review beyond FIN-019. Keep the consolidated formatter/API/PostgreSQL/Web/Admin/mobile campaign grouped in Phase 3; preserve the G-012 manual-payment-only scope.
 
-
 ## FIN-019 scenario IDs
 
 Settlement-adjustment regression cases are FIN-DSH-34 (commission reversal positive net) and FIN-DSH-35 (posting blocked without a primary settlement); FIN-DSH-33 remains the pre-existing return-idempotency case. Tests are added, not executed. Continue source-first financial correctness review beyond FIN-019; preserve consolidated Phase 3 validation and the G-012 manual-payment-only scope.
-
 
 ## FIN-020 — Reconciliation arithmetic and discrepancy persistence
 
@@ -720,7 +675,6 @@ Settlement-adjustment regression cases are FIN-DSH-34 (commission reversal posit
 The implementation is in `ad478cc53ce40bec86172e881b4f14cea7e6dfac`. It applies row-status-aware ledger signs, BigInt-safe reversal aggregation, the shared half-up delivery-fee allocator, covers both delivery-fee refund adjustment types, validates source minor-unit values, and keeps refund status evidence non-monetary. Unit tests and PostgreSQL FIN-DSH-36 are added but **not executed**. No schema/migration or shared DB/staging mutation.
 
 **Next:** FIN-021 audit reconciliation run version allocation, `superseded_by` direction, concurrent execution, and failure/partial-record handling. Verify the intended semantics before changing persisted history.
-
 
 ## FIN-021 — Reconciliation run lifecycle integrity
 
@@ -732,7 +686,6 @@ Implementation commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`. The service n
 
 **Next:** FIN-022 immutable financial event/history and transactional outbox consistency audit across payment, settlement, refund, return, dispute and settlement-adjustment transitions.
 
-
 ## FIN-022 — Financial history/outbox consistency
 
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** The audit found missing outbox messages for payment creation and the CREATED → AWAITING_PAYMENT transition, non-transactional dispute open/evidence/response history writes, missing dispute evidence/response outbox events, missing settlement-adjustment creation notification, and a generic outbox poller that did not claim rows across instances.
@@ -741,7 +694,6 @@ The changes add transactional producer/history/outbox parity for those paths and
 
 **Next:** FIN-023 — inspect BANK_TRANSFER checkout's post-commit order/payment state transition and dispute-refund split transaction recovery. Confirm idempotency and crash/retry behavior before refactoring.
 
-
 ## FIN-023 — Checkout and dispute-refund atomicity
 
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** BANK_TRANSFER checkout previously committed the order/payment creation, then changed order and payment states in best-effort post-commit operations; a failure could leave PAYMENT_PENDING order with CREATED payment. Dispute refund creation and dispute resolution also used separate transactions, allowing an orphan refund if the final dispute/outbox write failed.
@@ -749,7 +701,6 @@ The changes add transactional producer/history/outbox parity for those paths and
 Implementation commits: `a5fa4806e310159b6f2708d366764ffe4fa3892f`, `442b03a77e4645fba01b8f33d3d2351265365b9d`, `71c8acb5a890a8b7350915cc4eca80dd6104874c`. BANK_TRANSFER state/history/outbox now commit with checkout. Dispute resolution locks the dispute and calls requestRefund using the same transaction client; refund/payment event/outbox and dispute state/history/outbox commit or roll back together. Legacy orphan-refund idempotency recovery remains supported. FIN-DSH-43/44/45 added; tests not executed.
 
 **Next:** FIN-024 — audit payment proof storage upload versus DB transaction failure, orphan cleanup, retry and replacement semantics. Cleanup must never delete a previously committed proof.
-
 
 ## FIN-024 — Payment proof upload lifecycle
 
@@ -762,7 +713,6 @@ Commits: `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7
 ### FIN-024 follow-up — uncertain upload response
 
 FIN-024 moved payment transition validation ahead of storage writes. FIN-DSH-48 now verifies that an uncertain putObject response leaves a durable cleanup intent; FIN-025 provides the bounded recovery path. Test not executed.
-
 
 ## FIN-025 — Durable payment-proof upload recovery
 
@@ -778,53 +728,43 @@ Migration 0075 is source-only. The cleanup method is not registered with a sched
 
 No migration is required. Tests remain pending the consolidated Phase 3 campaign.
 
-
 ## FIN-027 — Return refund balance aggregation
 
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Return-side refund aggregation now includes APPROVED reservations and avoids PostgreSQL 32-bit SUM(bigint) overflow using exact BigInt handling. FIN-DSH-56 is added but not executed. CI #1446 syntax blockers in the returns and settlement-adjustment services were corrected; no exact-head CI rerun has been performed.
 
 **Remaining:** run FIN-DSH-56 and review other refund/reconciliation aggregate consumers during the consolidated Phase 3 campaign. Do not apply migrations or change shared database state.
 
-
 ## FIN-028 — Settlement calculation actor attribution
 
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Admin-only settlement calculation now records ADMIN rather than SYSTEM in immutable payment event history. FIN-DSH-57 is added but not executed. No migration is required. Execute the regression during the consolidated Phase 3 campaign and continue reviewing the remaining payment/refund/reconciliation event producers.
-
 
 ## FIN-029 — Payment confirmation order-history actor parity
 
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Payment verification's linked order status history now records the authenticated ADMIN/MERCHANT actor class instead of SYSTEM. FIN-DSH-54 asserts both ledger entries. Test remains unexecuted pending Phase 3.
 
-
 ## FIN-030 — Refund-completion period attribution
 
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Reconciliation now uses the REFUNDED event timestamp for missing-refund and commission-reversal checks, with a compatibility fallback for legacy rows lacking that event. FIN-DSH-58 is added but not executed. Review remaining reconciliation checks for source-event time semantics during continued implementation.
-
 
 ## FIN-031 — Cross-period duplicate refund detection
 
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Duplicate-refund reconciliation now selects returns by in-period successful refund updates and counts all successful refunds across periods. FIN-DSH-59 is added but not executed. Review remaining reconciliation checks for accounting-period attribution during continued implementation.
 
-
 ## FIN-032 — Settlement-adjustment accounting-period correctness — 23 November 2026
 
 Reconciliation previously used adjustment creation time for POSTED-adjustment approval and delivery-fee-cap checks. This misattributed adjustments created in an earlier period but posted in the current period; delivery-fee-cap checks also included DRAFT and other unposted adjustments. Both checks now require status POSTED and use the adjustment transition timestamp (updated_at) as the accounting-period timestamp. PostgreSQL FIN-DSH-60 covers a prior-period-created adjustment posted in the current period and confirms that an unposted draft is excluded. Source commit: 0c65476d1135d18504ae910083299683fdb8d072; test commit: 39a8ee35e81e919601e49d0564fee023d5a39871. Test added, not executed.
-
 
 ## FIN-033 — Exact payment refund aggregate arithmetic — 23 November 2026
 
 Three payment-side SUM(bigint) aggregates used for refund reservation, refund approval projection and settlement calculation were exposed as JavaScript numbers without an explicit precision guard. They now return PostgreSQL numeric text, convert through BigInt, and fail closed when negative or outside Number.MAX_SAFE_INTEGER. Unit coverage verifies totals above the 32-bit boundary, unsafe aggregate rejection and malformed/negative values. Source commit: 633d56a06e073ee416e5b7a989167ef5828f13d8; test commit: 115b0dab007e4071f6a32ee1e564427a86732249. Tests added, not executed.
 
-
 ## FIN-034 — Caller-owned refund transaction support — 23 November 2026
 
 PaymentsService.requestRefund now accepts an optional caller-owned transaction client and reuses it rather than opening a nested transaction. This aligns the implementation with the existing dispute-resolution caller, which passes its transaction so refund creation, payment event/outbox, refund linkage and dispute resolution remain atomic. Existing PostgreSQL FIN-DSH-45 covers injected failure rollback; tests remain unexecuted. Source commit: 2c4b4538cc10e3d4e6217ca56967c89e52657fd8.
 
-
 ## FIN-035 — Atomic return-refund and return-ledger transition — 23 November 2026
 
 Return refund creation previously committed the payment refund/event/outbox first, then linked the refund and advanced the return request in a second transaction. It now locks the payment and performs refund creation (reusing PaymentsService's caller-owned transaction), return linkage, REFUND_PENDING state/history and return outbox in one transaction. The existing idempotency recovery path remains for legacy split-transaction rows. PostgreSQL FIN-DSH-61 injects failure at return outbox persistence and asserts that refund, payment event/outbox and return changes all roll back. Source commit: e462c256be710a81e42b2f2d4093d4700abe1818; test commit: f5d38d5a4af42ec29fa38040d8ba184e5dcbcdff, with scoped outbox assertion correction 4ad18e1eab3495030c6fff719607b5101337edb4 and test index update ac266c2c365d23c3ef3e58032616bb118d037715. Tests not executed.
-
 
 ## FIN-036 — Return refund finalization lineage and amount integrity
 
@@ -872,13 +812,11 @@ Remaining source audit: inspect adjustment ledger retrieval and reconciliation l
 
 FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.
 
-
 ## FIN-044 — adjustment parent isolation and payout visibility — 23 November 2026
 
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** The adjustment posting parent lookup now excludes metadata-linked adjustment ledger rows and legacy rows with the stable `Posted adjustment ` notes prefix, even after those rows transition to PAID. Adjustment payout preserves the legacy marker. Admin Settlements now filters/styles ADJUSTMENT and enables Mark Paid for that status. FIN-DSH-68/69 covers legacy marker preservation and second-adjustment parent linkage; Admin recovery coverage verifies adjustment payout UI. Commits: `233e49a12352a4e157f455040a2bdcc4c16c1828`, `62bf7cf1991ff7974a8762c0e57eea148fcc53b4`. Tests not executed.
 
 Remaining source audit: verify merchant settlement projection, reconciliation reporting and exports include adjustment rows distinctly and do not double-count primary plus adjustment amounts. Then complete the source audit before the consolidated Phase 3 test campaign.
-
 
 ## FIN-045 — Paid adjustment reconciliation semantics — 23 November 2026
 
@@ -890,11 +828,9 @@ Remaining source audit: verify merchant settlement projection, reconciliation re
 
 Remaining audit: verify settlement listing limits, financial exports and aggregate KPI/report queries do not double-count primary and adjustment ledger rows. Keep PR #138 draft/unmerged and defer the consolidated Phase 3 test campaign until the implementation audit is complete.
 
-
 ## Remaining settlement projection audit — 23 November 2026
 
 The merchant and Admin settlement screens now expose adjustment rows and distinguish paid adjustments. The underlying list services still return at most 100 rows per request and do not yet expose offset/cursor pagination. Before deciding whether pagination or export work is required, inspect real product requirements and all settlement consumers; do not silently change report definitions or add an automatic payout scope. Admin revenue KPI aggregation is based on orders.total_minor, not settlement_records. Next audit: confirm whether any export or finance report aggregates the settlement ledger, and ensure primary plus adjustment rows are not double-counted.
-
 
 ## FIN-047 — Settlement history pagination — 23 November 2026
 

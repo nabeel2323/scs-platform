@@ -1,17 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-const {
-  fetchKpis,
-  fetchAdminOrgUpdateRequests,
-  fetchCatalogImports,
-  fetchAdminCatalogRequests,
-} = vi.hoisted(() => ({
-  fetchKpis: vi.fn(),
-  fetchAdminOrgUpdateRequests: vi.fn(),
-  fetchCatalogImports: vi.fn(),
-  fetchAdminCatalogRequests: vi.fn(),
-}));
+const { fetchKpis, fetchAdminOrgUpdateRequests, fetchCatalogImports, fetchAdminCatalogRequests } =
+  vi.hoisted(() => ({
+    fetchKpis: vi.fn(),
+    fetchAdminOrgUpdateRequests: vi.fn(),
+    fetchCatalogImports: vi.fn(),
+    fetchAdminCatalogRequests: vi.fn(),
+  }));
 
 vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => (
@@ -28,8 +24,16 @@ vi.mock('../hooks/useRequirePerms', () => ({
   useRequirePerms: () => ({ hasAccess: true }),
 }));
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
-  KpiCard: ({ label, value }: { label: string; value: string }) => <div>{label}:{value}</div>,
+  PageHeader: ({ title }: { title: string }) => (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  ),
+  KpiCard: ({ label, value }: { label: string; value: string }) => (
+    <div>
+      {label}:{value}
+    </div>
+  ),
   QuickLink: ({ title }: { title: string }) => <div>{title}</div>,
   IconUsers: () => null,
   IconShield: () => null,
@@ -41,9 +45,18 @@ vi.mock('@scs/ui-kit', () => ({
   IconRefresh: () => null,
   colors: {
     brand: { 50: '#eee', 300: '#ddd', 500: '#aaa', 700: '#333' },
-    ok: '#080', okBg: '#efe', warn: '#880', warnBg: '#ffe',
-    info: '#008', infoBg: '#eef', muted: '#888', surface: '#fff',
-    border: '#ddd', borderLight: '#eee', bgSubtle: '#fafafa', err: '#b00',
+    ok: '#080',
+    okBg: '#efe',
+    warn: '#880',
+    warnBg: '#ffe',
+    info: '#008',
+    infoBg: '#eef',
+    muted: '#888',
+    surface: '#fff',
+    border: '#ddd',
+    borderLight: '#eee',
+    bgSubtle: '#fafafa',
+    err: '#b00',
   },
   typeScale: { caption: {}, body: {}, bodySm: {}, label: {}, h4: {} },
   shadows: { md: '' },
@@ -75,7 +88,9 @@ describe('admin dashboard read recovery', () => {
 
   it('keeps KPI, organization update and catalog operation failures independent and retryable', async () => {
     fetchKpis.mockRejectedValueOnce(new Error('KPI service unavailable'));
-    fetchAdminOrgUpdateRequests.mockRejectedValueOnce(new Error('Organization updates unavailable'));
+    fetchAdminOrgUpdateRequests.mockRejectedValueOnce(
+      new Error('Organization updates unavailable'),
+    );
     fetchCatalogImports.mockRejectedValueOnce(new Error('Catalog imports unavailable'));
     fetchAdminCatalogRequests.mockRejectedValueOnce(new Error('Catalog requests unavailable'));
 

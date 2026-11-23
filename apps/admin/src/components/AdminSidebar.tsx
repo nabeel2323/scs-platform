@@ -31,7 +31,13 @@ import {
 } from '@scs/ui-kit';
 
 /** Navigation grouped by the operational domain while preserving each route's permission contract. */
-type NavItem = { href: string; label: string; icon: React.ReactNode; perms: string[]; anyPerms?: string[] };
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  perms: string[];
+  anyPerms?: string[];
+};
 const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: 'Overview',

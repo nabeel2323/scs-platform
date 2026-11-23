@@ -17,7 +17,9 @@ describe('MerchantController store detail access', () => {
   it('requires active-org and store membership before returning an internal store record', async () => {
     const merchantService = {
       resolveStoreId: vi.fn().mockResolvedValue('store-a'),
-      getStore: vi.fn().mockResolvedValue({ id: 'store-a', orgId: 'org-a', metadata: { internal: true } }),
+      getStore: vi
+        .fn()
+        .mockResolvedValue({ id: 'store-a', orgId: 'org-a', metadata: { internal: true } }),
     };
     const db = {};
     const controller = new MerchantController(merchantService as any, {} as any, db as any);
@@ -44,17 +46,16 @@ describe('MerchantController store detail access', () => {
     const controller = new MerchantController(merchantService as any, {} as any, {} as any);
 
     await expect(
-      controller.getStore(
-        { sub: 'buyer-a', role: 'BUYER', activeOrg: 'org-a' } as any,
-        'store-a',
-      ),
+      controller.getStore({ sub: 'buyer-a', role: 'BUYER', activeOrg: 'org-a' } as any, 'store-a'),
     ).rejects.toThrow('not a member');
     expect(merchantService.getStore).not.toHaveBeenCalled();
   });
 
   it('uses the public projection for slug-based storefront reads', async () => {
     const merchantService = {
-      getPublicStoreBySlug: vi.fn().mockResolvedValue({ id: 'store-a', slug: 'store-a', displayName: 'Store A' }),
+      getPublicStoreBySlug: vi
+        .fn()
+        .mockResolvedValue({ id: 'store-a', slug: 'store-a', displayName: 'Store A' }),
     };
     const controller = new MerchantController(merchantService as any, {} as any, {} as any);
 

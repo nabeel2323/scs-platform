@@ -1,6 +1,12 @@
 import {
-  Injectable, Logger, OnModuleInit, Optional,
-  NotFoundException, ForbiddenException, BadRequestException, ConflictException,
+  Injectable,
+  Logger,
+  OnModuleInit,
+  Optional,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { eq, and, inArray } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
@@ -9,14 +15,19 @@ import { ManualDeliveryProvider } from './providers/manual-delivery.provider';
 import { AramexProvider } from './aramex/aramex.provider';
 import { ShippingProvider } from './shipping-provider';
 import { CreateShipmentRequest, CreateShipmentResult } from './shipping.types';
+import { shippingMethods, deliveryZones, deliveryZoneMethods } from './shipping.schema';
 import {
-  shippingMethods, deliveryZones, deliveryZoneMethods,
-} from './shipping.schema';
-import {
-  resolveShippingCost, matchDeliveryZone,
-  ShippingCostResult, DeliveryZoneRow, ZoneMatchInput,
+  resolveShippingCost,
+  matchDeliveryZone,
+  ShippingCostResult,
+  DeliveryZoneRow,
+  ZoneMatchInput,
 } from './shipping-cost.resolver';
-import { assertActiveOrgMembership, isTenantPrivileged, type CallerContext } from '../../common/tenant-scope';
+import {
+  assertActiveOrgMembership,
+  isTenantPrivileged,
+  type CallerContext,
+} from '../../common/tenant-scope';
 import { stores } from '../merchant/merchant.schema';
 
 // ── Input / Output types ────────────────────────────────────────────────────
@@ -128,7 +139,9 @@ export class ShippingService implements OnModuleInit {
     this.registry.register(this.manualProvider, true);
     if (this.aramexProvider) {
       this.registry.register(this.aramexProvider);
-      this.logger.log('ShippingService initialised — manual-driver default and Aramex carrier provider registered.');
+      this.logger.log(
+        'ShippingService initialised — manual-driver default and Aramex carrier provider registered.',
+      );
       return;
     }
     this.logger.log('ShippingService initialised — manual-driver provider registered.');
@@ -172,7 +185,10 @@ export class ShippingService implements OnModuleInit {
     await this.assertStoreInOrg(input.storeId, caller);
 
     // Validate key format
-    const key = input.key.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    const key = input.key
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '-');
     if (!key) throw new BadRequestException('Key is required and must be alphanumeric');
 
     // M7.2.3-A: Provider binding validation
@@ -186,7 +202,7 @@ export class ShippingService implements OnModuleInit {
     if (input.shippingProviderKey && !this.registry.hasProvider(input.shippingProviderKey)) {
       throw new BadRequestException(
         `Unknown shipping provider: '${input.shippingProviderKey}'. ` +
-        `Registered: [${this.registry.listProviderKeys().join(', ')}]`,
+          `Registered: [${this.registry.listProviderKeys().join(', ')}]`,
       );
     }
 
@@ -198,12 +214,18 @@ export class ShippingService implements OnModuleInit {
     if (input.freeAboveMinor != null && input.freeAboveMinor < 0) {
       throw new BadRequestException('freeAboveMinor must be >= 0');
     }
-    if (input.minOrderMinor != null && input.freeAboveMinor != null
-        && input.minOrderMinor > input.freeAboveMinor) {
+    if (
+      input.minOrderMinor != null &&
+      input.freeAboveMinor != null &&
+      input.minOrderMinor > input.freeAboveMinor
+    ) {
       throw new BadRequestException('minOrderMinor cannot exceed freeAboveMinor');
     }
-    if (input.estimatedDaysMin != null && input.estimatedDaysMax != null
-        && input.estimatedDaysMax < input.estimatedDaysMin) {
+    if (
+      input.estimatedDaysMin != null &&
+      input.estimatedDaysMax != null &&
+      input.estimatedDaysMax < input.estimatedDaysMin
+    ) {
       throw new BadRequestException('estimatedDaysMax must be >= estimatedDaysMin');
     }
 
@@ -211,32 +233,37 @@ export class ShippingService implements OnModuleInit {
     const id = crypto.randomUUID();
 
     try {
-      const [inserted] = await this.db.db.insert(shippingMethods).values({
-        id,
-        storeId: input.storeId,
-        key,
-        name: input.name.trim(),
-        description: input.description?.trim() || null,
-        fulfillmentMethod: input.fulfillmentMethod,
-        carrierType: carrierType,
-        type: input.type || 'STANDARD',
-        baseFeeMinor: input.baseFeeMinor,
-        minOrderMinor: input.minOrderMinor ?? null,
-        freeAboveMinor: input.freeAboveMinor ?? null,
-        estimatedDaysMin: input.estimatedDaysMin ?? null,
-        estimatedDaysMax: input.estimatedDaysMax ?? null,
-        currency: input.currency || 'SAR',
-        shippingProviderKey: input.shippingProviderKey ?? null,
-        carrierServiceCode: input.carrierServiceCode ?? null,
-        metadata: input.metadata || {},
-        createdAt: now,
-        updatedAt: now,
-      }).returning();
+      const [inserted] = await this.db.db
+        .insert(shippingMethods)
+        .values({
+          id,
+          storeId: input.storeId,
+          key,
+          name: input.name.trim(),
+          description: input.description?.trim() || null,
+          fulfillmentMethod: input.fulfillmentMethod,
+          carrierType: carrierType,
+          type: input.type || 'STANDARD',
+          baseFeeMinor: input.baseFeeMinor,
+          minOrderMinor: input.minOrderMinor ?? null,
+          freeAboveMinor: input.freeAboveMinor ?? null,
+          estimatedDaysMin: input.estimatedDaysMin ?? null,
+          estimatedDaysMax: input.estimatedDaysMax ?? null,
+          currency: input.currency || 'SAR',
+          shippingProviderKey: input.shippingProviderKey ?? null,
+          carrierServiceCode: input.carrierServiceCode ?? null,
+          metadata: input.metadata || {},
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
 
       return inserted;
     } catch (err: any) {
       if (err?.code === '23505') {
-        throw new ConflictException(`Shipping method with key '${key}' already exists for this store`);
+        throw new ConflictException(
+          `Shipping method with key '${key}' already exists for this store`,
+        );
       }
       throw err;
     }
@@ -276,10 +303,13 @@ export class ShippingService implements OnModuleInit {
     if (input.isActive !== undefined) updates['isActive'] = input.isActive;
     if (input.metadata !== undefined) updates['metadata'] = input.metadata;
     // M7.2.3-A: provider binding updates
-    if (input.shippingProviderKey !== undefined) updates['shippingProviderKey'] = input.shippingProviderKey;
-    if (input.carrierServiceCode !== undefined) updates['carrierServiceCode'] = input.carrierServiceCode;
+    if (input.shippingProviderKey !== undefined)
+      updates['shippingProviderKey'] = input.shippingProviderKey;
+    if (input.carrierServiceCode !== undefined)
+      updates['carrierServiceCode'] = input.carrierServiceCode;
 
-    const [updated] = await this.db.db.update(shippingMethods)
+    const [updated] = await this.db.db
+      .update(shippingMethods)
       .set(updates)
       .where(eq(shippingMethods.id, id))
       .returning();
@@ -313,18 +343,21 @@ export class ShippingService implements OnModuleInit {
 
     const id = crypto.randomUUID();
     const now = new Date();
-    const [inserted] = await this.db.db.insert(deliveryZones).values({
-      id,
-      storeId: input.storeId,
-      name: input.name.trim(),
-      city: input.city?.trim() || null,
-      region: input.region?.trim() || null,
-      postalCode: input.postalCode?.trim() || null,
-      country: input.country || 'SA',
-      metadata: input.metadata || {},
-      createdAt: now,
-      updatedAt: now,
-    }).returning();
+    const [inserted] = await this.db.db
+      .insert(deliveryZones)
+      .values({
+        id,
+        storeId: input.storeId,
+        name: input.name.trim(),
+        city: input.city?.trim() || null,
+        region: input.region?.trim() || null,
+        postalCode: input.postalCode?.trim() || null,
+        country: input.country || 'SA',
+        metadata: input.metadata || {},
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
 
     return inserted;
   }
@@ -341,7 +374,8 @@ export class ShippingService implements OnModuleInit {
     if (input.isActive !== undefined) updates['isActive'] = input.isActive;
     if (input.metadata !== undefined) updates['metadata'] = input.metadata;
 
-    const [updated] = await this.db.db.update(deliveryZones)
+    const [updated] = await this.db.db
+      .update(deliveryZones)
       .set(updates)
       .where(eq(deliveryZones.id, id))
       .returning();
@@ -354,7 +388,12 @@ export class ShippingService implements OnModuleInit {
 
   // ── Zone ↔ Method Association ───────────────────────────────────────────
 
-  async attachMethodToZone(zoneId: string, methodId: string, overrideFeeMinor: number | null, caller: CallerContext) {
+  async attachMethodToZone(
+    zoneId: string,
+    methodId: string,
+    overrideFeeMinor: number | null,
+    caller: CallerContext,
+  ) {
     const zone = await this.getDeliveryZone(zoneId, caller);
     const method = await this.getShippingMethod(methodId, caller);
 
@@ -386,11 +425,14 @@ export class ShippingService implements OnModuleInit {
       throw new NotFoundException('Zone and shipping method association not found');
     }
 
-    await this.db.db.delete(deliveryZoneMethods)
-      .where(and(
-        eq(deliveryZoneMethods.zoneId, zoneId),
-        eq(deliveryZoneMethods.shippingMethodId, methodId),
-      ));
+    await this.db.db
+      .delete(deliveryZoneMethods)
+      .where(
+        and(
+          eq(deliveryZoneMethods.zoneId, zoneId),
+          eq(deliveryZoneMethods.shippingMethodId, methodId),
+        ),
+      );
 
     return { success: true };
   }
@@ -398,34 +440,32 @@ export class ShippingService implements OnModuleInit {
   async listMethodsForZone(zoneId: string, caller: CallerContext) {
     const zone = await this.getDeliveryZone(zoneId, caller);
 
-    const rows = await this.db.db.select().from(deliveryZoneMethods)
+    const rows = await this.db.db
+      .select()
+      .from(deliveryZoneMethods)
       .where(eq(deliveryZoneMethods.zoneId, zoneId));
 
-    const methodIds = rows.map(r => r.shippingMethodId);
+    const methodIds = rows.map((r) => r.shippingMethodId);
     if (methodIds.length === 0) return [];
 
     return this.db.db.query.shippingMethods.findMany({
-      where: and(
-        inArray(shippingMethods.id, methodIds),
-        eq(shippingMethods.storeId, zone.storeId),
-      ),
+      where: and(inArray(shippingMethods.id, methodIds), eq(shippingMethods.storeId, zone.storeId)),
     });
   }
 
   async listZonesForMethod(methodId: string, caller: CallerContext) {
     const method = await this.getShippingMethod(methodId, caller);
 
-    const rows = await this.db.db.select().from(deliveryZoneMethods)
+    const rows = await this.db.db
+      .select()
+      .from(deliveryZoneMethods)
       .where(eq(deliveryZoneMethods.shippingMethodId, methodId));
 
-    const zoneIds = rows.map(r => r.zoneId);
+    const zoneIds = rows.map((r) => r.zoneId);
     if (zoneIds.length === 0) return [];
 
     return this.db.db.query.deliveryZones.findMany({
-      where: and(
-        inArray(deliveryZones.id, zoneIds),
-        eq(deliveryZones.storeId, method.storeId),
-      ),
+      where: and(inArray(deliveryZones.id, zoneIds), eq(deliveryZones.storeId, method.storeId)),
     });
   }
 
@@ -444,7 +484,7 @@ export class ShippingService implements OnModuleInit {
       where: eq(shippingMethods.storeId, storeId),
     });
 
-    const activeMethods = methods.filter(m => m.isActive);
+    const activeMethods = methods.filter((m) => m.isActive);
 
     // Zone matching — check if delivery is available at all
     const storeZones = await this.db.db.query.deliveryZones.findMany({
@@ -459,16 +499,18 @@ export class ShippingService implements OnModuleInit {
     // If a zone matched, filter methods to those available in that zone
     let eligibleMethods = activeMethods;
     if (matchedZone) {
-      const zoneMethodRows = await this.db.db.select().from(deliveryZoneMethods)
+      const zoneMethodRows = await this.db.db
+        .select()
+        .from(deliveryZoneMethods)
         .where(eq(deliveryZoneMethods.zoneId, matchedZone.id));
-      const zoneMethodIds = new Set(zoneMethodRows.map(r => r.shippingMethodId));
+      const zoneMethodIds = new Set(zoneMethodRows.map((r) => r.shippingMethodId));
       // If zone has method associations, only those methods are eligible
       if (zoneMethodIds.size > 0) {
-        eligibleMethods = activeMethods.filter(m => zoneMethodIds.has(m.id));
+        eligibleMethods = activeMethods.filter((m) => zoneMethodIds.has(m.id));
       }
     }
 
-    const estimateItems: ShippingEstimateItem[] = eligibleMethods.map(m => {
+    const estimateItems: ShippingEstimateItem[] = eligibleMethods.map((m) => {
       const cost = resolveShippingCost({
         subtotalMinor,
         baseFeeMinor: m.baseFeeMinor,
@@ -515,10 +557,7 @@ export class ShippingService implements OnModuleInit {
     subtotalMinor: number,
   ): Promise<{ feeMinor: number; currency: string; methodId: string }> {
     const method = await this.db.db.query.shippingMethods.findFirst({
-      where: and(
-        eq(shippingMethods.id, shippingMethodId),
-        eq(shippingMethods.storeId, storeId),
-      ),
+      where: and(eq(shippingMethods.id, shippingMethodId), eq(shippingMethods.storeId, storeId)),
     });
 
     if (!method) throw new BadRequestException('Shipping method not found for this store');
@@ -581,10 +620,7 @@ export class ShippingService implements OnModuleInit {
 
     // ── Resolve the shipping method ─────────────────────────────────────
     const method = await this.db.db.query.shippingMethods.findFirst({
-      where: and(
-        eq(shippingMethods.id, shippingMethodId),
-        eq(shippingMethods.storeId, storeId),
-      ),
+      where: and(eq(shippingMethods.id, shippingMethodId), eq(shippingMethods.storeId, storeId)),
     });
 
     if (!method) {
@@ -617,10 +653,7 @@ export class ShippingService implements OnModuleInit {
     const hasZones = storeZones.length > 0;
 
     if (hasZones) {
-      const matchedZone = matchDeliveryZone(
-        storeZones as DeliveryZoneRow[],
-        deliveryAddress,
-      );
+      const matchedZone = matchDeliveryZone(storeZones as DeliveryZoneRow[], deliveryAddress);
 
       if (!matchedZone) {
         throw new BadRequestException(
@@ -632,11 +665,13 @@ export class ShippingService implements OnModuleInit {
       // If the matched zone has method associations, the selected method
       // must be among them.  If the zone has NO associations, all active
       // methods are eligible (zone only constrains geography).
-      const zoneMethodRows = await this.db.db.select().from(deliveryZoneMethods)
+      const zoneMethodRows = await this.db.db
+        .select()
+        .from(deliveryZoneMethods)
         .where(eq(deliveryZoneMethods.zoneId, matchedZone.id));
 
       if (zoneMethodRows.length > 0) {
-        const availableMethodIds = new Set(zoneMethodRows.map(r => r.shippingMethodId));
+        const availableMethodIds = new Set(zoneMethodRows.map((r) => r.shippingMethodId));
         if (!availableMethodIds.has(shippingMethodId)) {
           throw new BadRequestException(
             `Shipping method ${method.name} is not available in delivery zone ${matchedZone.name} (store ${storeId})`,
@@ -653,7 +688,10 @@ export class ShippingService implements OnModuleInit {
 
   // ── Provider Registry (from M7.2.1) ─────────────────────────────────────
 
-  async createShipment(request: CreateShipmentRequest, providerKey?: string): Promise<CreateShipmentResult> {
+  async createShipment(
+    request: CreateShipmentRequest,
+    providerKey?: string,
+  ): Promise<CreateShipmentResult> {
     const provider = providerKey
       ? this.registry.getProvider(providerKey)
       : this.registry.getDefaultProvider();

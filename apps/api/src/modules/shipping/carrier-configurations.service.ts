@@ -1,6 +1,9 @@
 import {
-  Injectable, Logger,
-  NotFoundException, ForbiddenException, BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { eq, and, isNull } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
@@ -83,7 +86,7 @@ export class CarrierConfigurationsService {
       ),
     });
     if (storeConfig) {
-      return await this.hasActiveOrgCredential(storeConfig.credentialId, orgId)
+      return (await this.hasActiveOrgCredential(storeConfig.credentialId, orgId))
         ? storeConfig
         : null;
     }
@@ -96,9 +99,7 @@ export class CarrierConfigurationsService {
       ),
     });
     if (!orgDefault) return null;
-    return await this.hasActiveOrgCredential(orgDefault.credentialId, orgId)
-      ? orgDefault
-      : null;
+    return (await this.hasActiveOrgCredential(orgDefault.credentialId, orgId)) ? orgDefault : null;
   }
 
   /**
@@ -158,25 +159,28 @@ export class CarrierConfigurationsService {
     const now = new Date();
 
     try {
-      const [inserted] = await this.db.db.insert(carrierConfigurations).values({
-        id,
-        orgId: input.orgId,
-        credentialId: input.credentialId,
-        storeId: input.storeId ?? null,
-        providerKey: input.providerKey,
-        defaultServiceCode: input.defaultServiceCode ?? null,
-        defaultPackageType: input.defaultPackageType ?? null,
-        pickupAddress: input.pickupAddress ?? null,
-        isActive: true,
-        createdAt: now,
-        updatedAt: now,
-      }).returning();
+      const [inserted] = await this.db.db
+        .insert(carrierConfigurations)
+        .values({
+          id,
+          orgId: input.orgId,
+          credentialId: input.credentialId,
+          storeId: input.storeId ?? null,
+          providerKey: input.providerKey,
+          defaultServiceCode: input.defaultServiceCode ?? null,
+          defaultPackageType: input.defaultPackageType ?? null,
+          pickupAddress: input.pickupAddress ?? null,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
 
       if (!inserted) throw new Error('Carrier configuration insert returned no rows');
 
       this.logger.log(
         `Carrier configuration created: ${inserted.providerKey} ` +
-        `(store: ${inserted.storeId || 'org-wide'}) for org ${inserted.orgId}`,
+          `(store: ${inserted.storeId || 'org-wide'}) for org ${inserted.orgId}`,
       );
 
       return inserted;
@@ -198,12 +202,15 @@ export class CarrierConfigurationsService {
     this.assertWritePermission(caller);
 
     const updates: Record<string, any> = { updatedAt: new Date() };
-    if (input.defaultServiceCode !== undefined) updates['defaultServiceCode'] = input.defaultServiceCode;
-    if (input.defaultPackageType !== undefined) updates['defaultPackageType'] = input.defaultPackageType;
+    if (input.defaultServiceCode !== undefined)
+      updates['defaultServiceCode'] = input.defaultServiceCode;
+    if (input.defaultPackageType !== undefined)
+      updates['defaultPackageType'] = input.defaultPackageType;
     if (input.pickupAddress !== undefined) updates['pickupAddress'] = input.pickupAddress;
     if (input.isActive !== undefined) updates['isActive'] = input.isActive;
 
-    const rows = await this.db.db.update(carrierConfigurations)
+    const rows = await this.db.db
+      .update(carrierConfigurations)
       .set(updates)
       .where(eq(carrierConfigurations.id, id))
       .returning();

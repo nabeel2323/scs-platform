@@ -5,7 +5,10 @@
  * Uses integer minor-unit arithmetic throughout.
  */
 import { describe, it, expect } from 'vitest';
-import { calculateProportionalCommissionReversalMinor, roundProportionalMinorUnits } from '../../../modules/returns/returns-financials';
+import {
+  calculateProportionalCommissionReversalMinor,
+  roundProportionalMinorUnits,
+} from '../../../modules/returns/returns-financials';
 
 // ─── Pure calculation helpers (mirrors service logic) ────────────
 
@@ -198,7 +201,6 @@ describe('Commission Reversal — Edge Cases', () => {
     expect(reversal).toBeLessThanOrEqual(commission);
   });
 });
-
 
 describe('Return refund minor-unit allocation', () => {
   it('allocates discount and VAT with exact half-up integer arithmetic', () => {

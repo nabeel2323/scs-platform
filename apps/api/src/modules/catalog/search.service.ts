@@ -6,7 +6,12 @@ import { timeQuery, recordCacheHit, recordCacheMiss } from '../../common/query-m
 import { products, productVariants, brands, categories } from './catalog.schema';
 import { merchantOffers } from './catalog.offer.schema';
 import { searchQueries } from './search.schema';
-import { attributeDefinitions, productTypeAttributes, productAttributeValues, productTypes } from './catalog.taxonomy.schema';
+import {
+  attributeDefinitions,
+  productTypeAttributes,
+  productAttributeValues,
+  productTypes,
+} from './catalog.taxonomy.schema';
 import { eq, and, isNull, or, sql, desc, asc, inArray } from 'drizzle-orm';
 import { createMediaRefResolver, enrichProductCards } from './product-card';
 import crypto from 'node:crypto';
@@ -41,10 +46,7 @@ export class SearchService {
     if (!query || !query.trim()) {
       const limit = options?.limit || 20;
       const offset = options?.offset || 0;
-      const conditions = [
-        isNull(products.deletedAt),
-        eq(products.status, 'ACTIVE'),
-      ];
+      const conditions = [isNull(products.deletedAt), eq(products.status, 'ACTIVE')];
       if (options?.storeId) conditions.push(eq(products.storeId, options.storeId));
       if (options?.categoryId) conditions.push(eq(products.categoryId, options.categoryId));
       if (options?.brandId) conditions.push(eq(products.brandId, options.brandId));
@@ -63,9 +65,15 @@ export class SearchService {
       // P9: price range filter (EXISTS — semantically equivalent to MIN check)
       // P9: price range filter
       if (options?.priceMin != null || options?.priceMax != null) {
-        const priceConditions = [sql`mo.product_id = ${products.id}`, sql`mo.status = 'ACTIVE'`, sql`mo.base_price_minor IS NOT NULL`];
-        if (options?.priceMin != null) priceConditions.push(sql`mo.base_price_minor >= ${options.priceMin}`);
-        if (options?.priceMax != null) priceConditions.push(sql`mo.base_price_minor <= ${options.priceMax}`);
+        const priceConditions = [
+          sql`mo.product_id = ${products.id}`,
+          sql`mo.status = 'ACTIVE'`,
+          sql`mo.base_price_minor IS NOT NULL`,
+        ];
+        if (options?.priceMin != null)
+          priceConditions.push(sql`mo.base_price_minor >= ${options.priceMin}`);
+        if (options?.priceMax != null)
+          priceConditions.push(sql`mo.base_price_minor <= ${options.priceMax}`);
         conditions.push(sql`EXISTS (
           SELECT 1 FROM merchant_offers mo
           WHERE ${sql.join(priceConditions, sql` AND `)}
@@ -124,7 +132,7 @@ export class SearchService {
       return {
         items: await enrichProductCards(
           this.db.db,
-          rows.map(row => ({
+          rows.map((row) => ({
             id: row.id,
             storeId: row.storeId,
             categoryId: row.categoryId,
@@ -148,7 +156,8 @@ export class SearchService {
         total,
         matchType: 'all',
         query: '',
-        facets: options?.includeFacets === false ? undefined : await this.getFacets(options?.categoryId),
+        facets:
+          options?.includeFacets === false ? undefined : await this.getFacets(options?.categoryId),
       };
     }
 
@@ -189,53 +198,57 @@ export class SearchService {
       // otherwise scanning the SKU of a DRAFT or SUSPENDED listing exposes it to
       // any buyer who happens to have its code.
       if (product) {
-        const hasMatchingOffer = !options?.hasOffers || Boolean(
-          await this.db.db.query.merchantOffers.findFirst({
-            where: and(
-              eq(merchantOffers.productId, product.id),
-              eq(merchantOffers.status, 'ACTIVE'),
-              eq(merchantOffers.isAvailable, true),
-            ),
-            columns: { id: true },
-          }),
-        );
+        const hasMatchingOffer =
+          !options?.hasOffers ||
+          Boolean(
+            await this.db.db.query.merchantOffers.findFirst({
+              where: and(
+                eq(merchantOffers.productId, product.id),
+                eq(merchantOffers.status, 'ACTIVE'),
+                eq(merchantOffers.isAvailable, true),
+              ),
+              columns: { id: true },
+            }),
+          );
         if (hasMatchingOffer) {
           // A5-2 residual: use the same explicit projection as the other two
           // paths so no client can depend on matchedVariant being present.
           return {
-          items: await enrichProductCards(this.db.db, [
-            {
-              id: product.id,
-              storeId: product.storeId,
-              categoryId: product.categoryId,
-              brandId: product.brandId,
-              slug: product.slug,
-              title: product.title,
-              titleAr: product.titleAr,
-              description: product.description,
-              status: product.status,
-              condition: product.condition,
-              isAvailable: product.isAvailable,
-              moq: product.moq,
-              images: product.images,
-              attributes: product.attributes,
-              createdAt: product.createdAt,
-              updatedAt: product.updatedAt,
-              score: null,
-            },
-          ], { resolveImage: this.resolveImage }),
-          total: 1,
-          matchType: 'exact',
-          query,
+            items: await enrichProductCards(
+              this.db.db,
+              [
+                {
+                  id: product.id,
+                  storeId: product.storeId,
+                  categoryId: product.categoryId,
+                  brandId: product.brandId,
+                  slug: product.slug,
+                  title: product.title,
+                  titleAr: product.titleAr,
+                  description: product.description,
+                  status: product.status,
+                  condition: product.condition,
+                  isAvailable: product.isAvailable,
+                  moq: product.moq,
+                  images: product.images,
+                  attributes: product.attributes,
+                  createdAt: product.createdAt,
+                  updatedAt: product.updatedAt,
+                  score: null,
+                },
+              ],
+              { resolveImage: this.resolveImage },
+            ),
+            total: 1,
+            matchType: 'exact',
+            query,
           };
         }
       }
     }
 
     // 2. Full-text search with trigram fallback via raw SQL
-    const conditions = [
-      sql`${products.deletedAt} IS NULL`,
-    ];
+    const conditions = [sql`${products.deletedAt} IS NULL`];
 
     if (options?.storeId) {
       conditions.push(eq(products.storeId, options.storeId));
@@ -256,8 +269,10 @@ export class SearchService {
     const extraFilters: ReturnType<typeof sql>[] = [];
     if (options?.priceMin != null || options?.priceMax != null) {
       let priceSql = sql`AND EXISTS (SELECT 1 FROM merchant_offers mo WHERE mo.product_id = p.id AND mo.status = 'ACTIVE' AND mo.base_price_minor IS NOT NULL`;
-      if (options?.priceMin != null) priceSql = sql`${priceSql} AND mo.base_price_minor >= ${options.priceMin}`;
-      if (options?.priceMax != null) priceSql = sql`${priceSql} AND mo.base_price_minor <= ${options.priceMax}`;
+      if (options?.priceMin != null)
+        priceSql = sql`${priceSql} AND mo.base_price_minor >= ${options.priceMin}`;
+      if (options?.priceMax != null)
+        priceSql = sql`${priceSql} AND mo.base_price_minor <= ${options.priceMax}`;
       priceSql = sql`${priceSql})`;
       extraFilters.push(priceSql);
     }
@@ -343,7 +358,7 @@ export class SearchService {
 
     const rows = (results as any).rows ?? results;
     const countRows = (countResult as any).rows ?? countResult;
-    const items = (rows as any[]).map(row => ({
+    const items = (rows as any[]).map((row) => ({
       id: row.id,
       storeId: row.store_id,
       categoryId: row.category_id,
@@ -373,7 +388,8 @@ export class SearchService {
       total,
       matchType: items.length > 0 ? 'fuzzy' : 'none',
       query,
-      facets: options?.includeFacets === false ? undefined : await this.getFacets(options?.categoryId),
+      facets:
+        options?.includeFacets === false ? undefined : await this.getFacets(options?.categoryId),
     };
   }
 
@@ -437,7 +453,10 @@ export class SearchService {
     const conditions: ReturnType<typeof sql>[] = [];
     for (const [code, values] of Object.entries(filters)) {
       if (!values || values.length === 0) continue;
-      const placeholders = sql.join(values.map(v => sql`${v}`), sql`, `);
+      const placeholders = sql.join(
+        values.map((v) => sql`${v}`),
+        sql`, `,
+      );
       conditions.push(sql`EXISTS (
         SELECT 1 FROM product_attribute_values pav
         JOIN attribute_definitions ad ON ad.id = pav.attribute_definition_id
@@ -459,7 +478,10 @@ export class SearchService {
     const parts: ReturnType<typeof sql>[] = [];
     for (const [code, values] of Object.entries(filters)) {
       if (!values || values.length === 0) continue;
-      const placeholders = sql.join(values.map(v => sql`${v}`), sql`, `);
+      const placeholders = sql.join(
+        values.map((v) => sql`${v}`),
+        sql`, `,
+      );
       parts.push(sql`AND EXISTS (
         SELECT 1 FROM product_attribute_values pav
         JOIN attribute_definitions ad ON ad.id = pav.attribute_definition_id
@@ -480,15 +502,24 @@ export class SearchService {
     const key = SearchService.FACETS_CACHE_PREFIX + (categoryId ?? 'all');
     try {
       const hit = await this.redis.client.get(key);
-      if (hit) { recordCacheHit('facets'); return JSON.parse(hit); }
+      if (hit) {
+        recordCacheHit('facets');
+        return JSON.parse(hit);
+      }
       recordCacheMiss('facets');
-    } catch { recordCacheMiss('facets'); }
+    } catch {
+      recordCacheMiss('facets');
+    }
 
-    const facets = await timeQuery(`getFacets:${categoryId ?? 'all'}`, () => this.getFacets(categoryId));
+    const facets = await timeQuery(`getFacets:${categoryId ?? 'all'}`, () =>
+      this.getFacets(categoryId),
+    );
 
     try {
       await this.redis.client.set(key, JSON.stringify(facets), 'EX', SearchService.FACETS_TTL_S);
-    } catch { /* non-blocking */ }
+    } catch {
+      /* non-blocking */
+    }
 
     return facets;
   }
@@ -508,7 +539,7 @@ export class SearchService {
         columns: { id: true },
       });
       if (types.length === 0) return [];
-      const typeIds = types.map(t => t.id);
+      const typeIds = types.map((t) => t.id);
 
       // 2. Find filterable attributes for these types
       const filterableAttrs = await this.db.db
@@ -518,13 +549,18 @@ export class SearchService {
           type: attributeDefinitions.type,
         })
         .from(productTypeAttributes)
-        .innerJoin(attributeDefinitions, eq(productTypeAttributes.attributeDefinitionId, attributeDefinitions.id))
-        .where(and(
-          inArray(productTypeAttributes.productTypeId, typeIds),
-          eq(productTypeAttributes.filterable, true),
-        ));
+        .innerJoin(
+          attributeDefinitions,
+          eq(productTypeAttributes.attributeDefinitionId, attributeDefinitions.id),
+        )
+        .where(
+          and(
+            inArray(productTypeAttributes.productTypeId, typeIds),
+            eq(productTypeAttributes.filterable, true),
+          ),
+        );
       if (filterableAttrs.length === 0) return [];
-      const attrCodes = filterableAttrs.map(a => a.code);
+      const attrCodes = filterableAttrs.map((a) => a.code);
 
       // 3. Aggregate distinct values for each filterable attribute via raw SQL
       const attrDefs = await this.db.db.query.attributeDefinitions.findMany({
@@ -546,13 +582,15 @@ export class SearchService {
           LIMIT 20
         `);
         const rows = (result as any).rows ?? result;
-        const def = filterableAttrs.find(f => f.code === attr.code);
+        const def = filterableAttrs.find((f) => f.code === attr.code);
         if (def && Array.isArray(rows) && rows.length > 0) {
           facets.push({
             code: def.code,
             label: def.name,
             type: def.type,
-            values: rows.filter((r: any) => r.val != null).map((r: any) => ({ value: String(r.val), count: Number(r.cnt) })),
+            values: rows
+              .filter((r: any) => r.val != null)
+              .map((r: any) => ({ value: String(r.val), count: Number(r.cnt) })),
           });
         }
       }

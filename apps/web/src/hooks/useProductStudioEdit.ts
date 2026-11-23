@@ -2,12 +2,31 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import {
-  ProductTypeSchemaDetail, fetchProductTypeSchema, fetchCategories, fetchBrandsAdmin,
-  Category, Brand, updateProduct, UpdateProductInput, upsertProductAttributeValues,
-  updateVariant, listVariants, listMedia, fetchProduct, Product, ProductVariant,
-  MediaItem, fetchProductAttributeValues, fetchVariantAttributeValues,
-  upsertVariantAttributeValues, createVariant, addMedia, removeMedia,
-  reorderProductMedia, TypedAttributeValue, TypedVariantAttributeValue,
+  ProductTypeSchemaDetail,
+  fetchProductTypeSchema,
+  fetchCategories,
+  fetchBrandsAdmin,
+  Category,
+  Brand,
+  updateProduct,
+  UpdateProductInput,
+  upsertProductAttributeValues,
+  updateVariant,
+  listVariants,
+  listMedia,
+  fetchProduct,
+  Product,
+  ProductVariant,
+  MediaItem,
+  fetchProductAttributeValues,
+  fetchVariantAttributeValues,
+  upsertVariantAttributeValues,
+  createVariant,
+  addMedia,
+  removeMedia,
+  reorderProductMedia,
+  TypedAttributeValue,
+  TypedVariantAttributeValue,
 } from '../lib/buyer-api';
 import { fetchMyStores } from '../lib/api';
 import { generateSku, buildVariantTitle, resolveComboAttributes } from '../lib/sku-utils';
@@ -26,7 +45,9 @@ export function useProductStudioEdit(productId: string) {
   const [state, setState] = useState<StudioState | null>(null);
   const [loadStatus, setLoadStatus] = useState<EditLoadStatus>('loading');
   const [loadError, setLoadError] = useState('');
-  const [stores, setStores] = useState<Array<{ id: string; displayName: string; currency?: string }>>([]);
+  const [stores, setStores] = useState<
+    Array<{ id: string; displayName: string; currency?: string }>
+  >([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [error, setError] = useState('');
@@ -36,7 +57,9 @@ export function useProductStudioEdit(productId: string) {
   const [isDirty, setIsDirty] = useState(false);
   const [existingVariants, setExistingVariants] = useState<ProductVariant[]>([]);
   const [existingMedia, setExistingMedia] = useState<MediaItem[]>([]);
-  const [variantAttributeValues, setVariantAttributeValues] = useState<Record<string, Record<string, string>>>({});
+  const [variantAttributeValues, setVariantAttributeValues] = useState<
+    Record<string, Record<string, string>>
+  >({});
 
   const productUpdatedAtRef = useRef<string>('');
   const cleanStateRef = useRef<string>('');
@@ -60,7 +83,12 @@ export function useProductStudioEdit(productId: string) {
         setCategories(cats);
         setBrands(brs);
 
-        const p = product as Product & { updatedAt?: string; gtin?: string | null; ean?: string | null; mpn?: string | null };
+        const p = product as Product & {
+          updatedAt?: string;
+          gtin?: string | null;
+          ean?: string | null;
+          mpn?: string | null;
+        };
 
         // Populate StudioState from loaded product
         const initialState: StudioState = {
@@ -108,22 +136,24 @@ export function useProductStudioEdit(productId: string) {
         // Map attribute values to the StudioState format (attributeDefinitionId → valueText)
         const attrMap: Record<string, string> = {};
         for (const av of attrValues) {
-          const val = av.valueText ?? (av.valueNumber != null ? String(av.valueNumber) : '')
-            ?? (av.valueBoolean != null ? String(av.valueBoolean) : '')
-            ?? (av.optionValue || '')
-            ?? '';
+          const val =
+            av.valueText ??
+            (av.valueNumber != null ? String(av.valueNumber) : '') ??
+            (av.valueBoolean != null ? String(av.valueBoolean) : '') ??
+            (av.optionValue || '') ??
+            '';
           attrMap[av.attributeDefinitionId] = val;
         }
 
         // Map media items
-        const mediaItems = media.map(m => ({
+        const mediaItems = media.map((m) => ({
           storageKey: m.url || '',
           url: m.displayUrl || m.url || '',
           altText: m.altText || '',
           isPrimary: m.sortOrder === 0,
         }));
 
-        setState(prev => {
+        setState((prev) => {
           if (!prev) return prev;
           const next = {
             ...prev,
@@ -145,14 +175,18 @@ export function useProductStudioEdit(productId: string) {
               const vAttrs = await fetchVariantAttributeValues(productId, v.id);
               const vAttrMap: Record<string, string> = {};
               for (const va of vAttrs) {
-                const val = va.valueText ?? (va.valueNumber != null ? String(va.valueNumber) : '')
-                  ?? (va.valueBoolean != null ? String(va.valueBoolean) : '')
-                  ?? (va.optionValue || '')
-                  ?? '';
+                const val =
+                  va.valueText ??
+                  (va.valueNumber != null ? String(va.valueNumber) : '') ??
+                  (va.valueBoolean != null ? String(va.valueBoolean) : '') ??
+                  (va.optionValue || '') ??
+                  '';
                 vAttrMap[va.attributeDefinitionId] = val;
               }
               varAttrMap[v.id] = vAttrMap;
-            } catch { /* variant attrs may not exist */ }
+            } catch {
+              /* variant attrs may not exist */
+            }
           }),
         );
         if (!cancelled) {
@@ -172,15 +206,21 @@ export function useProductStudioEdit(productId: string) {
         }
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [productId]);
 
   // Load product type schema when productTypeId is available
   useEffect(() => {
     if (!state?.productTypeId) return;
     fetchProductTypeSchema(state.productTypeId)
-      .then((schema: ProductTypeSchemaDetail) => setState(prev => prev ? { ...prev, productTypeSchema: schema } : prev))
-      .catch(() => { /* schema may not exist */ });
+      .then((schema: ProductTypeSchemaDetail) =>
+        setState((prev) => (prev ? { ...prev, productTypeSchema: schema } : prev)),
+      )
+      .catch(() => {
+        /* schema may not exist */
+      });
   }, [state?.productTypeId]);
 
   // Track dirty state
@@ -202,12 +242,18 @@ export function useProductStudioEdit(productId: string) {
   }, [isDirty]);
 
   const update = useCallback(<K extends keyof StudioState>(key: K, value: StudioState[K]) => {
-    setState(prev => prev ? { ...prev, [key]: value } : prev);
+    setState((prev) => (prev ? { ...prev, [key]: value } : prev));
   }, []);
 
-  const stepIndex = STEPS.findIndex(s => s.key === step);
-  const goNext = () => { setError(''); if (stepIndex < STEPS.length - 1) setStep(STEPS[stepIndex + 1]!.key); };
-  const goPrev = () => { setError(''); if (stepIndex > 0) setStep(STEPS[stepIndex - 1]!.key); };
+  const stepIndex = STEPS.findIndex((s) => s.key === step);
+  const goNext = () => {
+    setError('');
+    if (stepIndex < STEPS.length - 1) setStep(STEPS[stepIndex + 1]!.key);
+  };
+  const goPrev = () => {
+    setError('');
+    if (stepIndex > 0) setStep(STEPS[stepIndex - 1]!.key);
+  };
 
   // Reload product data after conflict
   const handleReload = useCallback(async () => {
@@ -223,18 +269,25 @@ export function useProductStudioEdit(productId: string) {
         listMedia(productId).catch(() => [] as MediaItem[]),
       ]);
 
-      const p = product as Product & { updatedAt?: string; gtin?: string | null; ean?: string | null; mpn?: string | null };
+      const p = product as Product & {
+        updatedAt?: string;
+        gtin?: string | null;
+        ean?: string | null;
+        mpn?: string | null;
+      };
 
       const attrMap: Record<string, string> = {};
       for (const av of attrValues) {
-        const val = av.valueText ?? (av.valueNumber != null ? String(av.valueNumber) : '')
-          ?? (av.valueBoolean != null ? String(av.valueBoolean) : '')
-          ?? (av.optionValue || '')
-          ?? '';
+        const val =
+          av.valueText ??
+          (av.valueNumber != null ? String(av.valueNumber) : '') ??
+          (av.valueBoolean != null ? String(av.valueBoolean) : '') ??
+          (av.optionValue || '') ??
+          '';
         attrMap[av.attributeDefinitionId] = val;
       }
 
-      const mediaItems = media.map(m => ({
+      const mediaItems = media.map((m) => ({
         storageKey: m.url || '',
         url: m.displayUrl || m.url || '',
         altText: m.altText || '',
@@ -334,7 +387,7 @@ export function useProductStudioEdit(productId: string) {
       }
 
       // Step 3: Update clean state reference
-      setState(prev => {
+      setState((prev) => {
         if (!prev) return prev;
         cleanStateRef.current = JSON.stringify(prev);
         return prev;
@@ -350,7 +403,9 @@ export function useProductStudioEdit(productId: string) {
           resourceId: productId,
           currentUpdatedAt: err.currentUpdatedAt || '',
         });
-        setError('This product was modified by someone else. Please reload or discard your changes.');
+        setError(
+          'This product was modified by someone else. Please reload or discard your changes.',
+        );
       } else {
         setError(e instanceof Error ? e.message : 'Save failed');
       }
@@ -361,100 +416,128 @@ export function useProductStudioEdit(productId: string) {
   }, [state, productId]);
 
   // Save variant updates
-  const handleSaveVariant = useCallback(async (
-    variantId: string,
-    updates: Partial<{ sku: string; title: string; titleAr: string; barcode: string; unit: string; weightGrams: number; isActive: boolean }>,
-    variantUpdatedAt: string,
-  ): Promise<boolean> => {
-    if (!state?.productId) return false;
-    try {
-      await updateVariant(state.productId, variantId, { ...updates, updatedAt: variantUpdatedAt } as any);
-      return true;
-    } catch (e: unknown) {
-      const err = e as { status?: number; currentUpdatedAt?: string };
-      if (err?.status === 409) {
-        setConflict({
-          resourceType: 'variant',
-          resourceId: variantId,
-          currentUpdatedAt: err.currentUpdatedAt || '',
-        });
-        setError('This variant was modified by someone else. Please reload.');
-      } else {
-        setError(e instanceof Error ? e.message : 'Variant update failed');
+  const handleSaveVariant = useCallback(
+    async (
+      variantId: string,
+      updates: Partial<{
+        sku: string;
+        title: string;
+        titleAr: string;
+        barcode: string;
+        unit: string;
+        weightGrams: number;
+        isActive: boolean;
+      }>,
+      variantUpdatedAt: string,
+    ): Promise<boolean> => {
+      if (!state?.productId) return false;
+      try {
+        await updateVariant(state.productId, variantId, {
+          ...updates,
+          updatedAt: variantUpdatedAt,
+        } as any);
+        return true;
+      } catch (e: unknown) {
+        const err = e as { status?: number; currentUpdatedAt?: string };
+        if (err?.status === 409) {
+          setConflict({
+            resourceType: 'variant',
+            resourceId: variantId,
+            currentUpdatedAt: err.currentUpdatedAt || '',
+          });
+          setError('This variant was modified by someone else. Please reload.');
+        } else {
+          setError(e instanceof Error ? e.message : 'Variant update failed');
+        }
+        return false;
       }
-      return false;
-    }
-  }, [state?.productId]);
+    },
+    [state?.productId],
+  );
 
   // Save variant attribute values
-  const handleSaveVariantAttributes = useCallback(async (
-    variantId: string,
-    attrs: Record<string, string>,
-  ): Promise<boolean> => {
-    if (!state?.productId) return false;
-    try {
-      const values = Object.entries(attrs)
-        .filter(([, v]) => v !== '')
-        .map(([attrId, val]) => ({ attributeDefinitionId: attrId, valueText: val }));
-      await upsertVariantAttributeValues(state.productId, variantId, values);
-      setVariantAttributeValues(prev => ({ ...prev, [variantId]: attrs }));
-      return true;
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Variant attributes update failed');
-      return false;
-    }
-  }, [state?.productId]);
+  const handleSaveVariantAttributes = useCallback(
+    async (variantId: string, attrs: Record<string, string>): Promise<boolean> => {
+      if (!state?.productId) return false;
+      try {
+        const values = Object.entries(attrs)
+          .filter(([, v]) => v !== '')
+          .map(([attrId, val]) => ({ attributeDefinitionId: attrId, valueText: val }));
+        await upsertVariantAttributeValues(state.productId, variantId, values);
+        setVariantAttributeValues((prev) => ({ ...prev, [variantId]: attrs }));
+        return true;
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Variant attributes update failed');
+        return false;
+      }
+    },
+    [state?.productId],
+  );
 
   // Media operations
-  const handleAddMedia = useCallback(async (url: string, altText?: string): Promise<boolean> => {
-    if (!state?.productId) return false;
-    try {
-      const media = await addMedia(state.productId, { url, altText });
-      setExistingMedia(prev => [...prev, media]);
-      setState(prev => {
-        if (!prev) return prev;
-        const items = [...prev.mediaItems, {
-          storageKey: media.url || '',
-          url: media.displayUrl || media.url || '',
-          altText: media.altText || altText || '',
-          isPrimary: prev.mediaItems.length === 0,
-        }];
-        return { ...prev, mediaItems: items };
-      });
-      return true;
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Add media failed');
-      return false;
-    }
-  }, [state?.productId]);
+  const handleAddMedia = useCallback(
+    async (url: string, altText?: string): Promise<boolean> => {
+      if (!state?.productId) return false;
+      try {
+        const media = await addMedia(state.productId, { url, altText });
+        setExistingMedia((prev) => [...prev, media]);
+        setState((prev) => {
+          if (!prev) return prev;
+          const items = [
+            ...prev.mediaItems,
+            {
+              storageKey: media.url || '',
+              url: media.displayUrl || media.url || '',
+              altText: media.altText || altText || '',
+              isPrimary: prev.mediaItems.length === 0,
+            },
+          ];
+          return { ...prev, mediaItems: items };
+        });
+        return true;
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Add media failed');
+        return false;
+      }
+    },
+    [state?.productId],
+  );
 
-  const handleRemoveMedia = useCallback(async (mediaId: string): Promise<boolean> => {
-    if (!state?.productId) return false;
-    try {
-      await removeMedia(state.productId, mediaId);
-      setExistingMedia(prev => prev.filter(m => m.id !== mediaId));
-      setState(prev => {
-        if (!prev) return prev;
-        const items = prev.mediaItems.filter(m => m.storageKey !== mediaId && m.url !== mediaId);
-        return { ...prev, mediaItems: items };
-      });
-      return true;
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Remove media failed');
-      return false;
-    }
-  }, [state?.productId]);
+  const handleRemoveMedia = useCallback(
+    async (mediaId: string): Promise<boolean> => {
+      if (!state?.productId) return false;
+      try {
+        await removeMedia(state.productId, mediaId);
+        setExistingMedia((prev) => prev.filter((m) => m.id !== mediaId));
+        setState((prev) => {
+          if (!prev) return prev;
+          const items = prev.mediaItems.filter(
+            (m) => m.storageKey !== mediaId && m.url !== mediaId,
+          );
+          return { ...prev, mediaItems: items };
+        });
+        return true;
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Remove media failed');
+        return false;
+      }
+    },
+    [state?.productId],
+  );
 
-  const handleReorderMedia = useCallback(async (order: string[]): Promise<boolean> => {
-    if (!state?.productId) return false;
-    try {
-      await reorderProductMedia(state.productId, order);
-      return true;
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Reorder media failed');
-      return false;
-    }
-  }, [state?.productId]);
+  const handleReorderMedia = useCallback(
+    async (order: string[]): Promise<boolean> => {
+      if (!state?.productId) return false;
+      try {
+        await reorderProductMedia(state.productId, order);
+        return true;
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Reorder media failed');
+        return false;
+      }
+    },
+    [state?.productId],
+  );
 
   // Compute completeness score
   const completeness = useCallback((): number => {
@@ -466,32 +549,59 @@ export function useProductStudioEdit(productId: string) {
     if (state.productTypeId) score += 5;
     if (state.gtin || state.ean || state.mpn) score += 5;
     if (state.productTypeSchema) {
-      const requiredAttrs = state.productTypeSchema.attributes.filter((a) => a.required && a.definition?.scope === 'PRODUCT');
-      const filledRequired = requiredAttrs.filter((a) => state.attributeValues[a.attributeDefinitionId]);
-      score += requiredAttrs.length > 0 ? Math.round((filledRequired.length / requiredAttrs.length) * 25) : 25;
+      const requiredAttrs = state.productTypeSchema.attributes.filter(
+        (a) => a.required && a.definition?.scope === 'PRODUCT',
+      );
+      const filledRequired = requiredAttrs.filter(
+        (a) => state.attributeValues[a.attributeDefinitionId],
+      );
+      score +=
+        requiredAttrs.length > 0
+          ? Math.round((filledRequired.length / requiredAttrs.length) * 25)
+          : 25;
     } else {
       score += 25;
     }
     if (existingVariants.length > 0) score += 15;
     if (state.mediaItems.length > 0) score += 15;
-    if (state.mediaItems.some(m => m.isPrimary)) score += 5;
+    if (state.mediaItems.some((m) => m.isPrimary)) score += 5;
     score += 10; // Edit mode baseline
     return Math.min(score, 100);
   }, [state, existingVariants]);
 
   return {
-    step, setStep, stepIndex, state, setState, update,
-    stores, categories, brands,
-    error, setError, saving, success, setSuccess,
-    loadStatus, loadError,
-    conflict, handleReload, handleDiscard,
+    step,
+    setStep,
+    stepIndex,
+    state,
+    setState,
+    update,
+    stores,
+    categories,
+    brands,
+    error,
+    setError,
+    saving,
+    success,
+    setSuccess,
+    loadStatus,
+    loadError,
+    conflict,
+    handleReload,
+    handleDiscard,
     isDirty,
-    existingVariants, setExistingVariants,
+    existingVariants,
+    setExistingVariants,
     existingMedia,
     variantAttributeValues,
-    goNext, goPrev,
-    handleSaveProduct, handleSaveVariant, handleSaveVariantAttributes,
-    handleAddMedia, handleRemoveMedia, handleReorderMedia,
+    goNext,
+    goPrev,
+    handleSaveProduct,
+    handleSaveVariant,
+    handleSaveVariantAttributes,
+    handleAddMedia,
+    handleRemoveMedia,
+    handleReorderMedia,
     completeness,
   };
 }

@@ -322,7 +322,6 @@ Neither PR is merged. CI results are disposable-environment verification only; l
 - Source head: `10a890a3a69f7281b93f4a8e80b735f2228825cb`. Lint/typecheck and Flutter analysis/tests passed. The only completed gate failure was Prettier on four project-memory documents. API unit/coverage, PostgreSQL integration, Web/Admin tests, migration, boundary lint, build and smoke jobs were skipped.
 - A repository-locked Prettier correction is being applied to the four documents. Exact-head CI must be rerun after formatting.
 
-
 ## Current branch checkpoint — 22 November 2026
 
 - PR #138 remains open/draft/unmerged. Latest branch head: c30dce7fd126c1ac1b7279cc895e5786a208173a.
@@ -332,16 +331,13 @@ Neither PR is merged. CI results are disposable-environment verification only; l
 - No staging release, production deployment, shared database mutation, migration 0070/0071 application, grants/default-ACL change, RLS enablement, worker activation, k6 run or Phase 6 E2E campaign is claimed.
 - The Actions-minute conservation decision remains: continue grouped implementation with CI skipped; run one consolidated verification campaign after implementation and documentation are ready.
 
-
 ## Database access-path inventory checkpoint — 22 November 2026
 
 The latest source baseline for this status update is d8f9941e9f517c93b9fbcb22bae1a1eeb384bce2. A bounded static inventory of 53 API module service/worker/provider files plus shared DB/audit/guard/bootstrap code is now recorded in docs/remediation/G-002-DATABASE-ACCESS-PATH-INVENTORY-2026-11-22.md. This is source-only evidence: no live staging DB query, migration, role change or RLS enablement was performed. The inventory identifies the singleton Drizzle handle, nested service transactions, asynchronous audit writes and worker/system contexts that must be accounted for before G-002 implementation.
 
-
 ## Latest Vercel status refresh — 22 November 2026
 
 On exact PR #138 source head caba922e866635fad51e549e095a186f9d9df6cf, both Vercel – scs-platform-admin and Vercel – scs-platform-web report SUCCESS. Exact-head GitHub Actions workflow lookup returns no run because the grouped commit uses [skip ci]. This does not substitute for the consolidated unit/integration/E2E campaign, which remains deferred.
-
 
 ## G-002 source mapping checkpoint — 22 November 2026
 
@@ -351,7 +347,6 @@ On exact PR #138 source head caba922e866635fad51e549e095a186f9d9df6cf, both Verc
 - No test or CI run was triggered. No staging release, shared database query/write, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment occurred.
 - The final full verification campaign remains deferred until implementation is ready, consistent with the Actions-minute conservation decision.
 
-
 ## API-003 canonical permission alignment — 22 November 2026
 
 - Static audit compared method-level permission decorators across the 28 API controller files listed in docs/api-route-permission-matrix.md against the canonical PERMISSIONS seed and role grants.
@@ -360,11 +355,9 @@ On exact PR #138 source head caba922e866635fad51e549e095a186f9d9df6cf, both Verc
 - Added focused API tests for route permission metadata, guard behavior and built-in role grants. Tests were not run; no Actions workflow was triggered.
 - No migration, live DB grant, staging change, deployment, worker activation or provider call occurred. API-003 is IMPLEMENTED / NOT VERIFIED pending consolidated validation.
 
-
 ## G-002 migration FK crosswalk update — 22 November 2026
 
 The migration crosswalk now records explicit FK paths from migrations 0001–0071 for core identity, organization/store, catalog, inventory, cart/order, offer, shipment/driver, shipping, payment, return, settlement, carrier and operations tables. It also identifies non-FK org_id metadata added in 0062, system tables without tenant/user FKs in 0063, the platform-only catalog import scope and business calendars without a tenant key. No staging catalog query, migration, DB write, grant, RLS activation or deployment was performed. Current branch documentation commits continue to use [skip ci]; exact-head Actions remains unverified.
-
 
 ## Current branch and implementation checkpoint — 22 November 2026
 
@@ -375,7 +368,6 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - No tests were run, no CI was triggered, and no staging/shared database action, migration, seed, reset, grant, RLS change, deployment or worker activation occurred. Full testing remains deferred until implementation and integration are ready.
 - Next implementation: controller-to-service-method-to-table mapping, then physical DB-object and protected relation-count reconciliation. G-002 remains IN PROGRESS; no RLS design is approved for activation.
 
-
 ## Current branch and verification checkpoint — 22 November 2026
 
 - PR #138 remains open, draft and unmerged from remediation/phase-0-1-tenant-security to develop. Current branch/PR head: `2477a958699a933c71f168d5397f39ca0ab26a34`, commit security(g002): inventory physical database objects [skip ci].
@@ -385,7 +377,6 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - No tests were run, no CI was triggered, and no staging/shared DB action, migration, seed, reset, grant, RLS change, deployment, worker activation or provider call occurred. Full testing remains deferred until implementation and integration are ready.
 - Next: harden/retire legacy UAT scripts, add staging bootstrap target confirmation, finish method-level ownership predicates, then seek protected read-only live identity/catalog evidence. RLS activation is not approved.
 
-
 ## Current branch and verification checkpoint — 22 November 2026
 
 - PR #138 remains open, draft and unmerged from remediation/phase-0-1-tenant-security to develop. Current branch/PR head: `b78ad3137ecc7820e8a4a0c3816a772bff764c3d`, commit security(staging): require explicit bootstrap target approval [skip ci].
@@ -393,7 +384,6 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Current head combined statuses: Vercel Admin FAILURE and Vercel Web FAILURE, both reporting the provider build-rate-limit/upgrade gate. These are preview-provider failures, not application test evidence.
 - Implementation since the previous checkpoint: source maps for 53 service/worker candidates and 28 module controllers; CLI/migration/bootstrap and physical DB object inventories; read-only audit enhancement; local admin/reset/M6 OTP safety; ambiguous carrier webhook rejection; shared local UAT guards across legacy scripts; exact-target staging bootstrap guards and package preflight. Guard tests were added but not run.
 - No tests were run, no CI was triggered, and no staging/shared DB action, migration, seed, reset, grant, RLS change, deployment, worker activation or provider call occurred. Full testing remains deferred until implementation and integration are ready.
-
 
 ## Current branch and verification checkpoint — 22 November 2026
 
@@ -403,7 +393,6 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Implementation batch 3 covers Pricing/Merchant/Store Membership: same-store pricing tier invariants enforced in PricingService; merchant document/verification reads require ACTIVE org membership; document uploads validate caller activeOrg, org membership and optional store/org/membership; organization-scoped store/customer reads revalidate CallerContext. Two focused unit specs added but not run.
 - Next: Returns/Disputes/Reviews, then carrier/shipping, then worker/outbox/bootstrap/system.
 - No tests/CI, database connections/queries/writes, migrations, grants, RLS changes, staging actions, deployments, worker activation or provider calls occurred. Comprehensive testing remains deferred to the consolidated final phase.
-
 
 ## Current branch and verification checkpoint — 22 November 2026
 
@@ -415,7 +404,6 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - No migration was applied, no staging/shared DB action, no deployment, no worker activation, no grant/RLS change and no external provider call occurred.
 - Remaining release gates: consolidated unit/integration/typecheck/lint/format/build tests; review/apply migrations only after explicit DB-target confirmation; protected live API/migration identity evidence; reconcile the 114-versus-116 physical relation count; and review transaction-context/RLS architecture. RLS activation is not approved.
 
-
 ## Current branch and verification checkpoint — 22 November 2026
 
 - PR #138 remains open, draft and unmerged from remediation/phase-0-1-tenant-security to develop. Exact branch/PR head: adbc386470e37329e8357be9908b4bfbe6c6fee0.
@@ -426,7 +414,6 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - No migration was applied, no staging/shared DB action, no deployment, no worker activation, no grant/RLS change and no external provider call occurred.
 - Remaining gates: UX-010 screen re-audit; protected API/migration identity evidence; 114-versus-116 physical relation reconciliation; transaction-context/RLS architecture review; and the consolidated final test/CI/release campaign.
 
-
 ## Exact source checkpoint — Product Studio UX-015 — 22 November 2026
 
 - Source implementation commit: `3adb376515137bf49da4b44699e1b3c731389504` (Product Studio save-flow implementation). The following documentation synchronization commit advances the branch; verify the live SHA before relying on this note.
@@ -435,7 +422,6 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - The last recorded actual CI workflow remains run #1337 on SHA `06cd8fc1e56dc7ef64a141b97b594adc96ffbece`; it failed the changed-file Prettier gate, so dependent jobs were skipped. It does not verify UX-015.
 - Focused UX-015 tests were added but not run. No comprehensive tests, CI rerun, staging action, database query/write, migration, deployment, worker activation, grant/RLS change or provider call occurred.
 
-
 ## Exact source checkpoint — UX-016 buyer cart recovery — 22 November 2026
 
 - Source implementation commit: `c04b722528d70c1c85261b5d160f14ad422b1f64`. The following project-memory sync commit advances the branch; resolve the resulting SHA from GitHub.
@@ -443,13 +429,11 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Exact-head check-runs on `c04b722...`: no GitHub Actions CI workflow run; Vercel Preview Comments passed. Vercel Web preview was pending deployment and Admin preview was skipped/not affected. These are not application test evidence.
 - Focused cart-action tests were added but not run. No comprehensive suite, staging action, database mutation, migration, deployment, worker activation, grant/RLS change or provider call occurred.
 
-
 ## Exact source checkpoint — UX-017 Admin returns recovery — 22 November 2026
 
 - Source implementation commit: `d581d7b649139b04be62f1fbe7fed72cc6a11546`; documentation sync follows as a separate commit.
 - PR #138 remains open, draft and unmerged to `develop`.
 - Focused Admin queue/detail retry tests were added but not executed. No full CI, staging action, DB mutation, migration, deployment, worker activation, grant/RLS change or provider call occurred.
-
 
 ## Exact source checkpoint — UX-018 mobile cart — 22 November 2026
 
@@ -458,7 +442,6 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - No GitHub Actions CI run was attached to the source SHA. Vercel Admin and Web combined statuses both failed with “Deployment rate limited — retry in 24 hours”; these are preview-provider failures, not test results.
 - Focused Flutter widget tests were added but not run. No staging/database/migration/deployment/worker/grant/RLS/provider action occurred.
 
-
 ## Exact source checkpoint — UX-019 Admin dispute recovery — 22 November 2026
 
 - Source implementation commit: `344c4b1300a20b2ec33dfc264d975aff27c4da57`; documentation sync follows separately.
@@ -466,20 +449,17 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - No GitHub Actions CI run was triggered for the source commit. Vercel Admin/Web preview failures are rate-limited provider statuses, not application test results.
 - Focused Admin tests were added but not run. No staging/database/migration/deployment/worker/grant/RLS/provider action occurred.
 
-
 ## Exact source checkpoint — UX-020 Admin identity detail recovery — 22 November 2026
 
 - Source implementation commit: `b20bdbfea47365bd8478f06cfa7ed4e73ce6d613`; documentation sync follows separately.
 - PR #138 remains open, draft and unmerged to `develop`.
 - Focused Admin tests were added but not run. No GitHub Actions CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred as part of this source batch.
 
-
 ## Exact source checkpoint — UX-021 Admin dispute resolution — 22 November 2026
 
 - Source implementation commit: `e6c56d1c32a0e7d496db62e4ae69025d9e624ccd`; documentation sync follows separately.
 - PR #138 remains open, draft and unmerged to `develop`.
 - Focused Admin component test was added but not run. No GitHub Actions CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred as part of this change.
-
 
 ## Latest live reconciliation — 22 November 2026
 
@@ -490,19 +470,16 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Next: finish implementation/integration; execute one consolidated formatter + API unit/coverage + PostgreSQL integration + migration + Web/Admin + Flutter + boundary/security + build + performance campaign, then stabilize failures and request independent review. Staging release remains a separate protected action.
 - No merge, deployment, staging/shared DB writes, migrations, grants/default ACL changes, RLS enablement, worker activation or provider calls occurred.
 
-
 ## Exact source checkpoint — UX-022 Admin detail recovery — 22 November 2026
 
 - Source implementation commit: `9578040e4d28b327c451618f2111ba3ae8819493`; documentation sync follows separately.
 - PR #138 remains open, draft and unmerged to `develop`.
 - Focused Admin tests for attribute, order and import-error-tab retry were added but not run. No exact-head CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred.
 
-
 ## Exact source checkpoint — UX-023 ProductDetails offers — 22 November 2026
 
 - Source implementation commit: `486650b19040c8e4d974e7fb7875f8a47cb46d9c`; documentation sync follows separately.
 - PR #138 remains open, draft and unmerged to `develop`. Focused ProductDetails test added but not executed. No exact-head CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred.
-
 
 ## Exact source checkpoint — UX-024 Admin financial recovery — 22 November 2026
 
@@ -510,20 +487,17 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - PR #138 remains open, draft and unmerged to `develop`. Four focused Admin financial read-retry tests were added but not executed.
 - No exact-head CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred.
 
-
 ## Exact source checkpoint — UX-025 Product Studio updates — 22 November 2026
 
 - Source implementation commit: `49b28054855fa3e18ade7e17aca0395124713a6f`; documentation sync follows separately.
 - PR #138 remains open, draft and unmerged to `develop`. Focused Product Studio stepper/update tests were added but not run.
 - No exact-head CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred.
 
-
 ## Exact source checkpoint — UX-026 / UX-027 Product Studio canonical/media integrity — 22 November 2026
 
 - Source implementation commit: `0ebce8be9abd89f8370e208698123c9786ae72e6`; documentation sync follows separately.
 - PR #138 remains open, draft and unmerged to `develop`. Focused canonical-target and media-persistence helper tests were added but not executed.
 - No exact-head CI, staging/database/migration/deployment/worker/grant/RLS/provider action occurred.
-
 
 ## Exact source checkpoint — UX-027 / UX-028 — 22 November 2026
 
@@ -533,14 +507,12 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - PR #138 remains open, draft and unmerged to `develop`. No staging deployment, migration, shared database write, grant/default-ACL change, RLS activation, worker activation or provider call occurred.
 - The following project-memory synchronization is documentation-only and also uses `[skip ci]`; verify the resulting branch SHA and statuses live before making any verification claim.
 
-
 ## UX-029 exact source checkpoint — 22 November 2026
 
 - UX-029 source commit: `01681d2651d6bb0c384c30f1a04e0f111086af23`, parent `dc0f9a5b6e8513b70530f03da6fb71c29051d9e0`. Mobile return detail/history uses existing buyer-owner-authorized API; no new API/schema/route/permission.
 - UX-028 source commit: `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`; mobile return creation, item quantities, active-state visibility, buyer cancellation and shipped handover.
 - Focused Flutter tests are present/extended in `mobile/test/returns_api_test.dart`; not executed. Exact-head Actions lookup returned no run because of `[skip ci]`.
 - PR #138 remains open, draft and unmerged to `develop`. Continue UX-010 implementation/integration; retain G-001 PARTIAL and G-002 IN PROGRESS. No staging or shared DB action.
-
 
 ## UX-030 exact source checkpoint — 22 November 2026
 
@@ -549,14 +521,12 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Focused tests were added but not run. Exact-head Actions lookup returned no run due to `[skip ci]`; Vercel Web/Admin contexts point to external build-rate-limit failures.
 - PR #138 remains open/draft/unmerged. No staging/deployment/database/worker operation.
 
-
 ## UX-031 exact source checkpoint — 22 November 2026
 
 - Source commit: `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8`; parent `0ac5142cc8959d973e77a738a8fc3df05cfe4e05`.
 - Merchant Customers no longer converts a failed directory read into “No customers yet”; it shows a retryable error and retains the last successful rows when refresh fails.
 - Focused tests added in `apps/web/src/__tests__/merchant-customer-recovery.test.tsx`; not executed. Exact-head Actions lookup must be checked live; source commit used `[skip ci]`.
 - PR #138 remains open/draft/unmerged. No API/DB/permission/schema/deployment/staging/worker change.
-
 
 ## UX-032 exact source checkpoint — 22 November 2026
 
@@ -633,7 +603,6 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Focused tests were added but not executed. Commits use `[skip ci]`; no GitHub Actions run is expected for the exact source head. Do not claim test or CI verification.
 - No deployment, preview validation, staging write, database/migration/grant/RLS change, worker activation or provider action was performed.
 
-
 ## UX-078 verification boundary — 23 November 2026
 
 - Implementation commits: provider `bbf78ff`; buyer Store Directory `aaf04f3` with interpolation correction `83f68ab`; buyer Store Detail `8876ecc`; focused tests `c9a9c3b`.
@@ -642,13 +611,11 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - PR #138 remains open/draft/unmerged to `develop`. Vercel preview statuses, if present, are external provider signals and not application test results.
 - No staging deployment/write, shared database mutation, migration, grants/default-ACL change, RLS activation, worker activation or provider call occurred.
 
-
 ## UX-079 verification boundary — 23 November 2026
 
 - Source commits: buyer order history `0bdc925`, theme/empty-state cleanup `35ef98a`, collection syntax correction `fe218e8`; focused tests `c8924b1` with label assertion correction `b7bae42`.
 - All commits use `[skip ci]`. Flutter widget tests have not been executed. No exact-head Actions test result is claimed.
 - PR #138 remains open/draft/unmerged to `develop`. No staging deployment/write, shared database mutation, migration, grants/default-ACL change, RLS activation, worker activation or provider call occurred.
-
 
 ## UX-080 verification boundary — 23 November 2026
 
@@ -657,14 +624,12 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - All commits use `[skip ci]`. No Flutter or ApiService tests were executed; no exact-head CI result is claimed.
 - PR #138 remains open/draft/unmerged to `develop`. No backend, database, migration, staging, grant/RLS, worker or provider action occurred.
 
-
 ## UX-081 verification boundary — 23 November 2026
 
 - Source commits: product detail provider `57144ad`; stable Product Detail/retry implementation `420dae6`; seller-review retry `400b1ac`.
 - Focused Flutter tests: `mobile/test/product_detail_read_recovery_test.dart` at `222a47f`.
 - All commits use `[skip ci]`. No Flutter tests or exact-head CI jobs have been executed for this increment.
 - PR #138 remains open/draft/unmerged to `develop`. No backend route, permission, database, migration, staging, grant/RLS, worker or provider action occurred.
-
 
 ## UX-082 verification boundary — 23 November 2026
 
@@ -673,14 +638,12 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - Both commits use `[skip ci]`. No Flutter tests or exact-head CI jobs have been executed for this increment.
 - PR #138 remains open/draft/unmerged to `develop`. No realtime, provider, backend, database, migration, staging, grant/RLS, worker or outbound notification operation occurred.
 
-
 ## UX-083 verification boundary — 23 November 2026
 
 - Source implementation: `mobile/lib/screens/home/home_screen.dart` commit `326e35b`.
 - Focused Flutter tests: `mobile/test/home_discovery_read_recovery_test.dart` commit `d317129`.
 - Both commits use `[skip ci]`. No Flutter tests or exact-head CI jobs have been executed for this increment.
 - PR #138 remains open/draft/unmerged to `develop`. No API, permission, database, migration, staging, grant/RLS, worker or provider action occurred.
-
 
 ## UX-084 verification boundary — 23 November 2026
 
@@ -689,14 +652,12 @@ The migration crosswalk now records explicit FK paths from migrations 0001–007
 - All commits use `[skip ci]`. No Flutter tests or exact-head CI jobs have been executed for this increment.
 - PR #138 remains open/draft/unmerged to `develop`. No backend checkout/idempotency contract, database, migration, staging, grant/RLS, worker or provider action occurred.
 
-
 ## UX-085 verification boundary — 23 November 2026
 
 - Source implementation: `mobile/lib/screens/merchant/merchant_dashboard_screen.dart` commit `39deb8b`.
 - Focused Flutter test: `mobile/test/merchant_dashboard_read_recovery_test.dart` commit `3781af6`.
 - Both commits use `[skip ci]`. No Flutter tests or exact-head CI jobs have been executed for this increment.
 - PR #138 remains open/draft/unmerged to `develop`. No org/store lifecycle, permission, API, database, migration, staging, grant/RLS, worker or provider action occurred.
-
 
 ## UX-086 verification boundary — 23 November 2026
 
@@ -774,6 +735,7 @@ The first complete workflow on the earlier source/documentation checkpoint expos
 ## Second CI remediation checkpoint — 23 November 2026
 
 The prior validation run reached both lint and Flutter analysis and identified:
+
 - One remaining Flutter nullability error in the order-return detail callback (corrected by preserving the non-null assertion inside the callback).
 - Six ESLint `no-unsafe-function-type` errors in three API permission test files (replaced broad `Function` annotations with explicit callable handler types and `unknown[]` metadata arrays).
 
@@ -782,17 +744,19 @@ The rest of the earlier Flutter compile errors and Admin JSX parse error were co
 ## Third CI checkpoint — focused widget-test corrections — 23 November 2026
 
 The second workflow passed Flutter analysis but reported 24 widget-test failures and one remaining ESLint unsafe-function annotation. The source/test corrections now include:
+
 - Added the missing `clearActiveOrgId` stub to the shared mobile auth test harness.
 - Corrected Checkout tests to target the actual `TextField` widgets.
 - Fixed a real 10px category-tile overflow on Home.
 - Updated Merchant Dashboard/Inventory refresh tooltips and error-state assertions.
 - Adjusted Customer, Pricing and Store Profile recovery tests to match rendered content and scrollable form sections.
 - Corrected the remaining broad function metadata annotation in the API permission tests.
-The next workflow is the verification gate for these corrections; results are not yet known.
+  The next workflow is the verification gate for these corrections; results are not yet known.
 
 ## Fourth CI checkpoint — remaining widget and typecheck corrections — 23 November 2026
 
 The third workflow passed Flutter analysis and API lint, and ran 257 Mobile tests: 254 passed and 3 failed. The remaining failures were:
+
 - Merchant Customers stale list assertion after the refresh error changed the list's scroll position.
 - Checkout idempotency did not rotate the key when the payment method changed.
 - Home category tile still overflowed vertically.
@@ -806,6 +770,7 @@ The same workflow also exposed two Admin TypeScript errors: an attribute-group d
 The fourth workflow reported 256 Mobile tests passing and one failing: the payment-method control was below the viewport, so the test tap never changed the selected method. The test now scrolls the control into view, and checkout key rotation is driven only by a stable fingerprint of the complete logical request. The Home overflow and Customer stale-list fixes are included in that run.
 
 Web typecheck failures from the same run have also been corrected:
+
 - Use the exported `listMedia` API for Product Studio media de-duplication and remove a stale callback dependency name.
 - Populate the required `productUpdatedAt` field in both Product Studio edit-state constructors.
 - Narrow imported product records to objects with string IDs before loading variants.
@@ -814,7 +779,6 @@ Web typecheck failures from the same run have also been corrected:
 
 The next full workflow is required to verify these changes.
 
-
 ## API typecheck correction checkpoint — 23 November 2026
 
 - Live PR #138 head before this correction batch was `de9eeafb3852822552c667d13ad1e0c27fa8d28f`. GitHub Actions run [#1380](https://github.com/nabeel2323/scs-platform/actions/runs/45081889002) failed in `Lint & Typecheck` at API TypeScript checking. API lint passed and Mobile analysis/tests passed; unit/coverage, Web/Admin tests, boundary lint, migration, contracts, container, integration and build jobs were skipped after the typecheck failure. Vercel Web/Admin statuses pointed to the external build-rate-limit page and are not application test results.
@@ -822,7 +786,6 @@ The next full workflow is required to verify these changes.
 - Source/test correction commits: `0c6ad31cbb7635bddb702a2fe85006eb7aee6db5`, `caf8088d113ccb14808fb150365b234031cd790e`, `b21b9f1df445cb89360eed625e83a6f64cf918be`, `db6cac84259993f12cbdbf845079613c001bb4e8`, `40e6cf67cb98a1649b2aa171f523a300b5879fb7`, `9113c4aa31260034a6f53cb4b76f2ec04955d28c`.
 - No tests or typecheck were executed after these corrections. The new code head is therefore **IMPLEMENTED / NOT VERIFIED**; no CI pass is claimed. The commits use `[skip ci]` under the Actions-minute budget. Comprehensive verification remains deferred to Phase 3.
 - PR #138 remains OPEN/DRAFT/UNMERGED to `develop`. No staging deployment/write, shared database mutation, migration, grants/default-ACL change, RLS enablement, worker activation, provider call or release action occurred.
-
 
 ## UX-094 route matrix and latest PR-head reconciliation — 23 November 2026
 
@@ -833,7 +796,6 @@ The next full workflow is required to verify these changes.
 - The prior CI #1380 API typecheck failure on `de9eeafb3852822552c667d13ad1e0c27fa8d28f` remains historical failure evidence. Corrective API changes exist on this branch but are not CI-verified.
 - No merge, deployment, staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
 
-
 ## Exact-head reconciliation — 23 November 2026 (UX-095 / G-036)
 
 - Repository: `nabeel2323/scs-platform`; branch: `remediation/phase-0-1-tenant-security`.
@@ -841,7 +803,6 @@ The next full workflow is required to verify these changes.
 - GitHub Actions workflow-run lookup for the exact head returned no runs. The combined status reports Vercel Web FAILURE and Vercel Admin FAILURE at the external build-rate-limit destination. These are preview-provider failures, not application test results.
 - UX-095 Web merchant route/action and active-organization permission alignment is implemented. G-036 realtime store/order room authorization is implemented in source. Focused Web/API tests were added/updated but not executed.
 - k6 and protected staging release remain unrun. No merge, deployment, protected staging operation, shared database mutation, migration, grants/default ACL change, RLS enablement or worker activation occurred.
-
 
 ## Exact-head reconciliation — 23 November 2026 (Mobile UX-096)
 
@@ -851,7 +812,6 @@ The next full workflow is required to verify these changes.
 - Mobile UX-096 route/action and organization-context changes are implemented; focused tests were added but not executed. UX-095 and G-036 remain implemented but unverified.
 - k6 and protected staging release remain unrun. No merge, deployment, protected staging operation, shared database mutation, migration, grants/default ACL change, RLS enablement or worker activation occurred.
 
-
 ## CI #1395 failure and follow-up corrections — 23 November 2026
 
 - CI [#1395](https://github.com/nabeel2323/scs-platform/actions/runs/45086755579) ran on PR #138 head `ff304ce6c0bcf63a654ff8fbd04130254cdb669e` and failed in two jobs. `Lint & Typecheck` failed API typecheck with TS2345 at `realtime.gateway.ts` because validated regex capture `id` remained possibly undefined. `Mobile (flutter analyze · test)` failed on nullable `UserProfile.role` passed to a non-null String parameter and a non-constant EmptyState whose description depends on runtime permission state.
@@ -859,7 +819,6 @@ The next full workflow is required to verify these changes.
 - Corrected API narrowing in `0d4644f634d65bd5fbe4fec818c6f8439023254e` and Mobile nullability/const handling in `5f08755ce69edfcbae5ca84462ffda245bfc1eb4`.
 - Subsequent Admin UX-097 action-handler permission checks and focused tests were committed through `856d527aeb65abc9feeb565f1dbc8c07df7d5331`. No workflow run is currently claimed for those commits; tests/typecheck/analyze remain pending.
 - Vercel Web/Admin statuses are external preview-provider statuses and do not replace application CI. No staging release, merge, deployment, shared database mutation, migration, grant/default-ACL change, RLS enablement or worker activation occurred.
-
 
 ## CI #1408 — typecheck/mobile pass, changed-file formatting blocker — 23 November 2026
 
@@ -871,7 +830,6 @@ The next full workflow is required to verify these changes.
 - Subsequent UX-098 commits (`07ff19c`, `d504ace`, `f303153`, `14214f0`, `89624f6`) use `[skip ci]`; they are not covered by #1408. No automated test, typecheck or CI pass is claimed for UX-098.
 - Plan: batch one repository-locked Prettier pass across the accumulated PR diff with the consolidated implementation-complete validation; do not create repeated formatter workflows. Preserve the remaining Actions-minute budget. No protected staging release, merge, deployment or shared database mutation occurred.
 
-
 ## UX-100 exact-head and validation checkpoint — 23 November 2026
 
 - Source commit: `14c8c5caa908a2194c8a3ec903de08f15e0db50e`; focused test commit: `e471e6b49e6f60a7c2c1b3719a96fcd7892f6ade`. Subsequent commits synchronize project documentation.
@@ -880,14 +838,12 @@ The next full workflow is required to verify these changes.
 - Live PR #138 head after the documentation batch: `ea8015ba5f5cf239a3a34304645326bc9ec51038`; PR remains OPEN / DRAFT / UNMERGED to `develop`. Exact-head workflow lookup returned no Actions run. Combined statuses are Vercel Web and Admin FAILURE, both `Deployment rate limited — retry in 24 hours` and linking to the provider build-rate-limit page; these are not application test results.
 - No merge, deployment, protected staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
 
-
 ## UX-101 exact-head and validation checkpoint — 23 November 2026
 
 - Source checkpoint: `8e795c3eee12d42938d525f2aaf2894b3b47e382`; focused test checkpoint: `3d59ae9b4b5f7d2f6316bb432836f66131edb1d7`.
 - Focused tests have not been executed. No automated test/typecheck/formatting pass is claimed for UX-101.
 - CI #1408 remains the latest confirmed historical application run on earlier SHA `a76b0bef436af8bde2d9329b1cd6ee5980f593fc`; it passed lint/typecheck and Flutter analysis/tests but failed changed-file Prettier across 245 PR files, causing dependent jobs to skip. It does not verify UX-101.
 - No merge, deployment, protected staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
-
 
 ## UX-102 and CI #1417 validation checkpoint — 23 November 2026
 
@@ -896,7 +852,6 @@ The next full workflow is required to verify these changes.
 - Earlier CI #1416 had a TypeScript failure in the newly added Product Type regression test; the test mock typing was corrected in `0b7da6170bdf01f1da441eb9789e566dfec1c76c`.
 - No automated test result is claimed for UX-102. Comprehensive formatting and tests remain grouped in Phase 3.
 
-
 ## UX-103 and CI #1419 validation checkpoint — 23 November 2026
 
 - UX-103 source commit: `892bb24f4522988c89dea507cb848d80fb4dbe2e`.
@@ -904,14 +859,12 @@ The next full workflow is required to verify these changes.
 - No focused UX-103 test was added. The new source changes are not verified by the skipped Web/Admin test job.
 - Comprehensive formatting and tests remain grouped in Phase 3.
 
-
 ## Live PR #138 checkpoint after UX-103 docs sync — 23 November 2026
 
 - PR #138 remains OPEN / DRAFT / UNMERGED against `develop`.
 - Branch `remediation/phase-0-1-tenant-security` live head: `a451ad9ba16d3abd499fe4900ad1c8c78cee06d2` (`docs(project): record Product Type UX-103 checkpoint [skip ci]`).
 - No Actions run is attached to the documentation-only head. Latest source run is CI #1419 on `892bb24f4522988c89dea507cb848d80fb4dbe2e`: lint/typecheck and Flutter analysis/tests passed; Prettier failed across 254 files; Web/Admin tests and dependent jobs skipped.
 - Vercel Admin and Web contexts are FAILURE with external deployment build-rate-limit notices; these are not application test results.
-
 
 ## UX-104 / UX-105 and CI #1420 / #1421 validation checkpoint — 23 November 2026
 
@@ -921,14 +874,12 @@ The next full workflow is required to verify these changes.
 - The focused Admin tests added in UX-104/105 were not executed by these runs because the Web/Admin test job is downstream of the formatting gate.
 - No merge, deployment, protected staging operation, database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
 
-
 ## Final live-state note before memory synchronization — 23 November 2026
 
 - Last live PR head refreshed: `fa97365b06f639446661e70a2ebb87a5351e55dd`; PR #138 OPEN / DRAFT / UNMERGED to `develop`.
 - No Actions run is attached to that documentation commit. Latest source CI is #1421 on UX-105: lint/typecheck and Flutter analysis/tests passed; Prettier failed with 255 files; Web/Admin tests and dependent gates skipped.
 - Vercel Web and Admin contexts are FAILURE due external provider build-rate-limit notices, not application test results.
 - Re-fetch the live PR head/status before any further source edit because this memory synchronization itself advances the branch.
-
 
 ## FIN-001 source checkpoint and validation — 23 November 2026
 
@@ -937,7 +888,6 @@ The next full workflow is required to verify these changes.
 - Latest Actions run #1421: [workflow](https://github.com/nabeel2323/scs-platform/actions/runs/45143101050), tested `8474b7acd264872a01d305bef515009eded104ed`. Lint and TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed with 255 files needing formatting. Web/Admin tests, API unit/coverage, PostgreSQL integration, boundary, build, migration, codegen, container, k6 and staging release jobs were skipped.
 - FIN-DSH-11/12 PostgreSQL integration tests are added but not executed. Do not claim CI or automated-test verification for FIN-001.
 - No merge, deployment, protected staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
-
 
 ## FIN-001 — refund concurrency/idempotency source checkpoint — 23 November 2026
 
@@ -1003,7 +953,6 @@ The next full workflow is required to verify these changes.
 - At last refresh the run was IN_PROGRESS; no job result is claimed.
 - Commits FIN-004/FIN-005 use `[skip ci]` for the earlier FIN-004 source/test commits, while FIN-005 triggered #1427. FIN-DSH-11–18 remain TESTING_PENDING until the relevant PostgreSQL integration job passes on an exact applicable SHA.
 
-
 ## FIN-006 validation status — 23 November 2026
 
 - Source/test commit: `9899113a4f574d2733b957d2f1b489e35a71fe0f`.
@@ -1011,14 +960,12 @@ The next full workflow is required to verify these changes.
 - No exact-head CI result is claimed here; refresh GitHub Actions for the latest branch head.
 - No deployment, staging operation, shared database mutation, schema migration, grant/default-ACL change or RLS enablement occurred.
 
-
 ## FIN-007 validation status — 23 November 2026
 
 - Source/test commit: `5b68edac4d148f68656b4331a9612cd1752eab3d`.
 - FIN-DSH-21/22 were added but not executed. Status: IMPLEMENTED / TESTING_PENDING.
 - No exact-head CI result is claimed until Actions evidence is refreshed.
 - No deployment, staging operation, shared DB mutation, schema migration, grants/default-ACL change or RLS enablement occurred.
-
 
 ## FIN-008 validation status — 23 November 2026
 
@@ -1055,7 +1002,6 @@ The next full workflow is required to verify these changes.
 - This run does not execute FIN-DSH-11–28. They remain IMPLEMENTED / TESTING_PENDING.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No deployment or staging action occurred.
 
-
 ## CI #1432 / #1434 — FIN-008 and typecheck correction — 23 November 2026
 
 - CI #1432 [run](https://github.com/nabeel2323/scs-platform/actions/runs/45165010516) on `72927529e64a719741b94b864f6adba7cafd4f0d` failed TypeScript compilation because the PostgreSQL test accessed `PoolClient.processID`, which is not exposed by the installed pg typings. Flutter analysis/tests passed; downstream Web/Admin/API/PostgreSQL/migration/build/release jobs were skipped.
@@ -1064,7 +1010,6 @@ The next full workflow is required to verify these changes.
 - FIN-DSH-11–28 remain added but not executed. Later source commits after `31a0f17` are not covered by CI #1434.
 - PR #138 remains OPEN / DRAFT / UNMERGED. Vercel Admin/Web rate-limit failures are external provider statuses, not application test results.
 
-
 ## FIN-014 / FIN-015 validation checkpoint — 23 November 2026
 
 - FIN-014 source: 6221c9c10bba4652b19c1aeaca59a8d1c3d9c79d and 00da339e62dbeef87a55434b3ed5ea1a85cb6508; PostgreSQL FIN-DSH-29 added, not executed.
@@ -1072,14 +1017,12 @@ The next full workflow is required to verify these changes.
 - No GitHub Actions run is attached to the current source/test head. CI #1434 on earlier SHA 31a0f17fa3f9ab6b8f9a7d6a435967f31f251231 passed lint/typecheck and Flutter, failed changed-file formatting, and skipped dependent application tests/build/release jobs.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No merge, deployment, staging write, shared DB change, migration, grant, RLS, worker activation, provider, gateway or payout action occurred.
 
-
 ## FIN-016 validation checkpoint — 23 November 2026
 
 - Source commit: 68b5251200f9f3765a0568b796db056a18cd878e; PostgreSQL test commit: 6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac.
 - No GitHub Actions run is attached to FIN-016. The latest completed run #1434 tested earlier SHA 31a0f17fa3f9ab6b8f9a7d6a435967f31f251231: lint/typecheck and Flutter passed; changed-file formatting failed; Web/Admin/API/PostgreSQL/migration/build/release jobs were skipped.
 - PR #138 remains OPEN / DRAFT / UNMERGED. Vercel Web/Admin rate-limit failures are external provider statuses. No merge, deployment, staging write, shared DB change, migration, grants, RLS, worker activation, provider, gateway or payout action occurred.
 
-
 ## FIN-017 — Exact return refund allocation and payment-currency delivery adjustments — 23 November 2026
 
 - **Finding:** return request calculations used floating-point discount/VAT ratios with `Math.round`, creating minor-unit precision risk for large values. Partial-return delivery-fee exception adjustments also hardcoded SYP despite the return's payment currency being available.
@@ -1088,7 +1031,6 @@ The next full workflow is required to verify these changes.
 - **Source commit:** `122edb4bf1dc67ba01bfc33b97809cc037781f87`; unit/integration test commit: `e6823ee9b1c68f5b71229ffbda17c9f525b66565`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, provider, staging, shared DB or deployment behavior changed.
 
-
 ## FIN-017 — Exact return refund allocation and payment-currency delivery adjustments — 23 November 2026
 
 - **Finding:** return request calculations used floating-point discount/VAT ratios with `Math.round`, creating minor-unit precision risk for large values. Partial-return delivery-fee exception adjustments also hardcoded SYP despite the return's payment currency being available.
@@ -1096,14 +1038,12 @@ The next full workflow is required to verify these changes.
 - **Regression coverage:** FIN-DSH-31 verifies a partial return with products 3000, discount 600, tax 240 and delivery fee 450 yields refund 880 and a 495 USD delivery-fee adjustment. Unit tests cover half-up allocation and an intermediate product beyond safe Number precision. Tests added, not executed.
 - **Source commit:** `122edb4bf1dc67ba01bfc33b97809cc037781f87`; unit/integration test commit: `e6823ee9b1c68f5b71229ffbda17c9f525b66565`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, provider, staging, shared DB or deployment behavior changed.
-
 
 ## FIN-017 validation checkpoint — 23 November 2026
 
 - FIN-017 source `122edb4bf1dc67ba01bfc33b97809cc037781f87`; test commit `e6823ee9b1c68f5b71229ffbda17c9f525b66565`. FIN-DSH-31 plus unit rounding tests added, not executed.
 - No exact-head Actions run is attached because the commits use `[skip ci]`. CI #1434 predates FIN-014–017; CI #1436 was cancelled.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No merge, deployment, staging write, shared DB change, migration, grants/RLS, worker activation, gateway/provider or payout action occurred.
-
 
 ## CI #1437 and FIN-019 checkpoint — 23 November 2026
 
@@ -1113,13 +1053,11 @@ The next full workflow is required to verify these changes.
 - FIN-019 source/test commits `968fa110fb77efcc98c5a892c5ed69029347fc8e` and `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae` use `[skip ci]`; no exact-head Actions run or test execution is claimed.
 - PR #138 remains OPEN / DRAFT / UNMERGED. Vercel Web/Admin rate-limit statuses are external provider failures. No merge, deployment, staging write, shared DB change, migration, grant/RLS, worker activation, provider, gateway or payout action occurred.
 
-
 ## FIN-019 regression ID correction — 23 November 2026
 
 - FIN-DSH-33 remains the pre-existing return idempotent-retry scenario.
 - New settlement-adjustment tests are FIN-DSH-34 (commission reversal positive net) and FIN-DSH-35 (no-primary-settlement posting rejection).
 - Test numbering correction commit: `b9f9728659e71d3788cc58aa2b5ad9df29ab9731`. Tests remain unexecuted.
-
 
 ## FIN-020 exact-head verification checkpoint — 23 November 2026
 
@@ -1129,7 +1067,6 @@ The next full workflow is required to verify these changes.
 - PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. No staging release, shared DB write, migration, grants/default ACL, RLS, environment change, worker activation, provider, gateway, payout or deployment occurred.
 - Full formatter, API unit/coverage and PostgreSQL integration validation remains grouped for Phase 3. Phase 6 has not started.
 
-
 ## FIN-021 exact-head checkpoint — 23 November 2026
 
 - Source/test/migration commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`.
@@ -1137,7 +1074,6 @@ The next full workflow is required to verify these changes.
 - FIN-DSH-37/38 are added but not executed. FIN-021 remains IMPLEMENTED / TESTING_PENDING.
 - Migration 0074 is committed as source but has not been applied to shared/staging. No shared database writes, migration execution, grants/default ACL, RLS, environment, worker, provider, payout, deployment or merge action occurred.
 - PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. Full formatter, API unit/coverage, PostgreSQL integration, Web/Admin/mobile and migration validation remain grouped in Phase 3; Phase 6 has not started.
-
 
 ## FIN-022 exact-head checkpoint — 23 November 2026
 
@@ -1147,7 +1083,6 @@ The next full workflow is required to verify these changes.
 - No migration, shared/staging DB write, grant/default-ACL/RLS change, worker activation, provider/gateway/payout, environment, deployment or merge action occurred. Outbox dispatcher is still logging-only, not an external event-bus integration.
 - PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. Full formatter, API unit/coverage, PostgreSQL integration, Web/Admin/mobile and migration verification remain grouped in Phase 3; Phase 6 has not started.
 
-
 ## FIN-023 exact-head checkpoint — 23 November 2026
 
 - Latest source/test commit: `71c8acb5a890a8b7350915cc4eca80dd6104874c`.
@@ -1155,7 +1090,6 @@ The next full workflow is required to verify these changes.
 - FIN-DSH-43/44/45 are committed but not executed. FIN-023 remains IMPLEMENTED / TESTING_PENDING.
 - No migration/shared DB/staging write, grant/default-ACL/RLS change, worker activation, provider/gateway/payout, environment, deployment or merge action occurred.
 - PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. Full formatter, API unit/coverage, PostgreSQL integration, Web/Admin/mobile and migration verification remain grouped in Phase 3; Phase 6 has not started.
-
 
 ## FIN-024 exact-head checkpoint — 23 November 2026
 
@@ -1165,13 +1099,11 @@ The next full workflow is required to verify these changes.
 - No migration/shared DB/staging write, grant/RLS, worker activation, environment, provider/gateway/payout, deployment or merge action occurred. Process-crash orphan cleanup remains open for FIN-025.
 - PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; consolidated Phase 3 validation and Phase 6 release gates remain outstanding.
 
-
 ### FIN-024 follow-up exact-head checkpoint — 23 November 2026
 
 - Latest source/test commit: `847647c424097e5ace69236d0c3b4592f85d30e9`; FIN-DSH-48 added for uncertain object-store upload timeout compensation.
 - FIN-DSH-46/47/48 are committed but not executed. Exact-head Actions lookup remains no-run; Vercel Web/Admin failures are external build-rate-limit statuses, not test evidence.
 - Process-crash orphan recovery remains open as FIN-025. No shared DB, migration, worker, staging, deployment or merge action.
-
 
 ## CI #1446 — 23 November 2026
 
@@ -1184,7 +1116,6 @@ The next full workflow is required to verify these changes.
 - Vercel Web/Admin FAILURE statuses point to external build-rate limits and are not application test results. No staging release, deployment or database operation occurred.
 - PR #138 remains OPEN / DRAFT / UNMERGED. Comprehensive Phase 3 validation remains deferred until implementation is complete.
 
-
 ## FIN-028 source/test checkpoint — 23 November 2026
 
 - Latest source change: `5a7dfd6ea67de61bb016cc7a7ef31749760955d8` (admin settlement calculation actor class).
@@ -1192,13 +1123,11 @@ The next full workflow is required to verify these changes.
 - The syntax corrections for CI #1446 are included in the branch; no exact-head Actions run has been triggered because these implementation commits use `[skip ci]` and the consolidated campaign remains deferred.
 - PR #138 remains OPEN / DRAFT / UNMERGED. Vercel build-rate-limit contexts are external preview-provider failures, not application tests. No staging release, shared DB change, migration execution or deployment.
 
-
 ## FIN-029 source/test checkpoint — 23 November 2026
 
 - Latest source change: `77c2caaa322836cc8e7d651f6577df715c5e3228` (payment verifier actor propagated to order history).
 - Latest focused test: `8fc1759a9e374f12513c82d301b2c9b934a98840` (FIN-DSH-54 extended to check both payment/order history). Test not executed.
 - No exact-head Actions run is claimed; commits use `[skip ci]` and consolidated Phase 3 validation remains deferred. PR #138 remains OPEN / DRAFT / UNMERGED.
-
 
 ## FIN-030 source/test checkpoint — 23 November 2026
 
@@ -1206,13 +1135,11 @@ The next full workflow is required to verify these changes.
 - Latest focused test: `5abae2018b9e6d6a43d5e3b90764ef80560b4ea0` (FIN-DSH-58). Test not executed.
 - No exact-head Actions run is claimed; implementation commits use `[skip ci]` and consolidated Phase 3 validation remains deferred. PR #138 remains OPEN / DRAFT / UNMERGED.
 
-
 ## FIN-031 source/test checkpoint — 23 November 2026
 
 - Latest source change: `6089a1fd821c35c0dcd9f0cde849e145326905e1` (cross-period duplicate refund detection).
 - Latest focused test: `4bdd2935d48ea2c6ef3d633aa6af2f3fe39369ab` (FIN-DSH-59). Test not executed.
 - No exact-head Actions run is claimed; implementation commits use `[skip ci]` and consolidated Phase 3 validation remains deferred. PR #138 remains OPEN / DRAFT / UNMERGED.
-
 
 ## FIN-032/033 continuation checkpoint — 23 November 2026
 
@@ -1221,7 +1148,6 @@ The next full workflow is required to verify these changes.
 - Current exact branch head before documentation: 115b0dab007e4071f6a32ee1e564427a86732249. No GitHub Actions workflow run is attached to this head; combined status contains only Vercel Web/Admin build-rate-limit failures. Tests have not been executed.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No migration, shared DB/staging operation, worker activation, deployment or merge.
 
-
 ## FIN-034/035 continuation checkpoint — 23 November 2026
 
 - FIN-034: requestRefund now reuses an optional caller-owned transaction; source commit 2c4b4538cc10e3d4e6217ca56967c89e52657fd8.
@@ -1229,11 +1155,9 @@ The next full workflow is required to verify these changes.
 - FIN-001–FIN-035 are implemented in source; tests are pending consolidated Phase 3. Current branch head before docs: ac266c2c365d23c3ef3e58032616bb118d037715. No exact-head Actions run; Web/Admin statuses are external Vercel build-rate-limit failures.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No shared DB/staging operations, migrations, worker activation, deployment or merge.
 
-
 ## Exact latest branch checkpoint — 23 November 2026
 
 Branch: remediation/phase-0-1-tenant-security. Exact HEAD: 56e583338bfe405009e74cab6630626108d5ec96. PR #138: OPEN / DRAFT / UNMERGED, head matches this SHA, base develop. Exact-head GitHub Actions workflow lookup returned no run. Combined status contains only Vercel Web/Admin build-rate-limit failures; these are external preview-provider statuses, not application tests. FIN-001–FIN-035 source changes are implemented; regression tests remain unexecuted pending consolidated Phase 3. No migration/shared DB/staging operation, grant/RLS change, worker activation, deployment or merge.
-
 
 ## Exact CI and source checkpoint — 23 November 2026
 
@@ -1242,7 +1166,6 @@ Branch: remediation/phase-0-1-tenant-security. Exact HEAD: 56e583338bfe405009e74
 - Typecheck correction commit: 8f4962a16b4e14ddd5af590377ca2686f9e90fe4. FIN-036 implementation and FIN-DSH-62 test commit: d84489f185cfc864074406f0c9029bc28f40dc94. Both use [skip ci]; neither has exact-head CI verification.
 - FIN-DSH-62 and all prior FIN regression tests remain pending the consolidated Phase 3 campaign. Do not claim tests passed.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No staging release, shared database mutation, migration, grants/default ACL change, RLS enablement, worker activation, deployment or merge occurred.
-
 
 ## Typecheck correction follow-up — 23 November 2026
 
@@ -1293,7 +1216,6 @@ Source/test follow-up commit: b63376cf26240d3dc21b6f26782158a09674c1c7. The reco
 
 FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.
 
-
 ## 23 November 2026 — FIN-044 adjustment lineage and Admin payout follow-up
 
 - Source commits: `233e49a12352a4e157f455040a2bdcc4c16c1828` and `62bf7cf1991ff7974a8762c0e57eea148fcc53b4`.
@@ -1304,14 +1226,12 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - The last inspected status contexts were Vercel Web/Admin external build-rate-limit failures; they are not application test outcomes. Refresh the exact live head and statuses at the next checkpoint.
 - PR #138 remains draft/unmerged. No migration, shared/staging DB write, environment mutation, worker activation, RLS/ACL change, deployment or release occurred.
 
-
 ## 23 November 2026 — FIN-045/046 paid adjustment accounting and merchant visibility
 
 - FIN-045 source commit: `23fc0f5f6cfd017c281e498a0843b11e82ca0a3e`. Reconciliation identifies adjustment rows from metadata/legacy notes, preserving commission-reversal credit semantics after payout status becomes PAID. FIN-DSH-36 and unit coverage were extended.
 - FIN-046 source commit: `4615e05bb0c0df98ec2015387262a146bc13f6a4`; follow-up: `3373c36930744c911300699b770d05c4428a313c`. Added merchant read-only settlement history, filters, payout reference display and adjustment identity labels; added route, dashboard, Admin and merchant regression coverage.
 - All tests added/updated but not executed. Commits use `[skip ci]` under the agreed Actions-minute budget. Do not claim exact-head CI or runtime verification.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No migration, shared/staging DB write, environment mutation, deployment, worker activation, RLS/ACL change or merge occurred.
-
 
 ## Exact-head status before final memory sync — 23 November 2026
 
@@ -1322,7 +1242,6 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - No tests were executed for FIN-044–046. The consolidated Phase 3 campaign remains pending.
 - No merge, deployment, migration, shared/staging DB write, environment mutation, worker activation or RLS/ACL change.
 
-
 ## 23 November 2026 — FIN-047 settlement history pagination
 
 - Source commit: ee6bf2f84803f2eb1f80ae931d9415923a760ff3.
@@ -1330,7 +1249,6 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Added Admin and Merchant pagination UI plus API and UI regression tests. Tests, typechecks, builds and lint have NOT been run; no pass is claimed.
 - Commit used [skip ci] under the consolidated-testing cadence. Exact-head Actions status must be refreshed; prior Vercel Web/Admin statuses were external rate-limit failures.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No migration, shared/staging DB write, environment mutation, deployment, worker activation or RLS/ACL change.
-
 
 ## FIN-047 audit closure and consolidated verification checkpoint — 23 November 2026
 
@@ -1342,13 +1260,11 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - The next CI run is the consolidated Phase 3 verification attempt. Tests are still NOT VERIFIED until exact-head jobs finish. k6, protected staging release, staging E2E and provider sandboxes remain out of scope for this PR run.
 - No merge, deployment, migration, shared/staging DB write, environment mutation, worker activation, RLS enablement or grant/default-ACL change.
 
-
 ## 23 November 2026 — CI #45243772955 typecheck diagnosis
 
 - Exact head `c036e7a483f634c9fad537c50fc8fc9dddb851a0`: lint passed; typecheck failed on two legacy `fetchAdminSettlements` mocks in `management.test.tsx` (array response instead of `PaginatedResult`) and one `metadata.adjustmentId` index-signature access in Admin Settlements.
 - The mocks now return `{ data, total, limit, offset }`, and the UI uses bracket notation. The preceding CI #45243520666 exposed one invalid escaped SQL template-literal delimiter in `p13-financial-dispute.postgres.spec.ts`; corrected in `c036e7a`.
 - The next grouped commit carries these fixes and must be checked by exact-head CI. No tests are claimed passed beyond lint on #45243772955.
-
 
 ## FIN-047 consolidated CI — 23 November 2026
 

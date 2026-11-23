@@ -28,14 +28,18 @@ describe('staging bootstrap target guard', () => {
   it('rejects a non-staging environment before querying', async () => {
     vi.stubEnv('SCS_ENVIRONMENT', 'production');
     const client = { query: vi.fn() };
-    await expect(assertStagingBootstrapTarget(client as any, 'test-bootstrap')).rejects.toThrow(/must explicitly be staging/);
+    await expect(assertStagingBootstrapTarget(client as any, 'test-bootstrap')).rejects.toThrow(
+      /must explicitly be staging/,
+    );
     expect(client.query).not.toHaveBeenCalled();
   });
 
   it('requires the second explicit approval value', async () => {
     vi.stubEnv('SCS_STAGING_BOOTSTRAP_APPROVAL', 'wrong-target');
     const client = { query: vi.fn() };
-    await expect(assertStagingBootstrapTarget(client as any, 'test-bootstrap')).rejects.toThrow(/APPROVAL/);
+    await expect(assertStagingBootstrapTarget(client as any, 'test-bootstrap')).rejects.toThrow(
+      /APPROVAL/,
+    );
     expect(client.query).not.toHaveBeenCalled();
   });
 
@@ -45,6 +49,8 @@ describe('staging bootstrap target guard', () => {
         rows: [{ current_database: 'scs_production', current_user: 'bootstrap_operator' }],
       }),
     };
-    await expect(assertStagingBootstrapTarget(client as any, 'test-bootstrap')).rejects.toThrow(/does not match/);
+    await expect(assertStagingBootstrapTarget(client as any, 'test-bootstrap')).rejects.toThrow(
+      /does not match/,
+    );
   });
 });

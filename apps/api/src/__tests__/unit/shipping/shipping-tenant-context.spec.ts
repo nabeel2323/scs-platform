@@ -20,9 +20,9 @@ describe('Shipping and carrier tenant context', () => {
     const findFirst = vi.fn().mockResolvedValue(null);
     const db = { db: { query: { organizationMembers: { findFirst } } } };
 
-    await expect(
-      assertActiveOrgMembership(db as any, caller, 'org-a'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(assertActiveOrgMembership(db as any, caller, 'org-a')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
 
     const compiled = new PgDialect().sqlToQuery(findFirst.mock.calls[0]?.[0].where);
     expect(compiled.params).toContain('ACTIVE');
@@ -44,9 +44,9 @@ describe('Shipping and carrier tenant context', () => {
       },
     };
 
-    await expect(
-      service.listShippingMethods('store-a', caller),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.listShippingMethods('store-a', caller)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(methodFindMany).not.toHaveBeenCalled();
   });
 
@@ -63,9 +63,7 @@ describe('Shipping and carrier tenant context', () => {
       },
     };
 
-    await expect(
-      service.listForOrg('org-a', caller),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.listForOrg('org-a', caller)).rejects.toBeInstanceOf(ForbiddenException);
     expect(credentialFindMany).not.toHaveBeenCalled();
   });
 
@@ -82,9 +80,7 @@ describe('Shipping and carrier tenant context', () => {
       },
     };
 
-    await expect(
-      service.resolveForStore('org-a', 'store-b'),
-    ).resolves.toBeNull();
+    await expect(service.resolveForStore('org-a', 'store-b')).resolves.toBeNull();
     expect(configFindFirst).not.toHaveBeenCalled();
   });
 
@@ -107,9 +103,7 @@ describe('Shipping and carrier tenant context', () => {
       },
     };
 
-    await expect(
-      service.resolveForStore('org-a', 'store-a'),
-    ).resolves.toBeNull();
+    await expect(service.resolveForStore('org-a', 'store-a')).resolves.toBeNull();
     expect(credentialFindFirst).toHaveBeenCalled();
   });
 
@@ -125,9 +119,7 @@ describe('Shipping and carrier tenant context', () => {
     };
     service.crypto = { decrypt: vi.fn() };
 
-    await expect(
-      service.decryptWebhookSecret('credential-a'),
-    ).resolves.toBeNull();
+    await expect(service.decryptWebhookSecret('credential-a')).resolves.toBeNull();
     expect(service.crypto.decrypt).not.toHaveBeenCalled();
   });
 
@@ -141,9 +133,9 @@ describe('Shipping and carrier tenant context', () => {
     provider.configurations = { resolveForStore };
     provider.credentials = { decryptCredentials: vi.fn() };
 
-    await expect(
-      provider.resolveCredentials('store-a'),
-    ).rejects.toBeInstanceOf(NonRetryableCarrierError);
+    await expect(provider.resolveCredentials('store-a')).rejects.toBeInstanceOf(
+      NonRetryableCarrierError,
+    );
 
     expect(resolveForStore).toHaveBeenCalledWith('org-a', 'store-a');
     expect(provider.credentials.decryptCredentials).not.toHaveBeenCalled();
@@ -165,9 +157,9 @@ describe('Shipping and carrier tenant context', () => {
     provider.configurations = { resolveForStore: configFindFirst };
     provider.credentials = { decryptCredentials: vi.fn() };
 
-    await expect(
-      provider.resolveCredentials('store-a'),
-    ).rejects.toBeInstanceOf(NonRetryableCarrierError);
+    await expect(provider.resolveCredentials('store-a')).rejects.toBeInstanceOf(
+      NonRetryableCarrierError,
+    );
 
     expect(credentialFindFirst).toHaveBeenCalled();
     expect(provider.credentials.decryptCredentials).not.toHaveBeenCalled();
@@ -176,9 +168,9 @@ describe('Shipping and carrier tenant context', () => {
   it('requires store context for Aramex tracking', async () => {
     const provider = Object.create(AramexProvider.prototype) as any;
 
-    await expect(
-      provider.getTrackingInfo('AWB-123'),
-    ).rejects.toBeInstanceOf(NonRetryableCarrierError);
+    await expect(provider.getTrackingInfo('AWB-123')).rejects.toBeInstanceOf(
+      NonRetryableCarrierError,
+    );
   });
 
   it('rejects outbox events whose store metadata does not match their shipment', async () => {

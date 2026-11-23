@@ -2,7 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { MerchantService } from '../../../modules/merchant/merchant.service';
 import { products } from '../../../modules/catalog/catalog.schema';
-import { stores, storeMembers, verificationRequests } from '../../../modules/merchant/merchant.schema';
+import {
+  stores,
+  storeMembers,
+  verificationRequests,
+} from '../../../modules/merchant/merchant.schema';
 import { organizations } from '../../../modules/identity/identity.schema';
 import { PgDialect } from 'drizzle-orm/pg-core';
 
@@ -40,16 +44,27 @@ function createMocks() {
 describe('MerchantService.reviewVerification', () => {
   function setup(status = 'SUBMITTED', missing?: 'request' | 'store', mismatch = false) {
     const request = { id: 'request', storeId: 'store', orgId: 'org', status };
-    const lock = vi.fn().mockResolvedValueOnce(missing === 'request' ? [] : [request])
-      .mockResolvedValueOnce(missing === 'store' ? [] : [{ id: 'store', orgId: mismatch ? 'wrong' : 'org' }]);
+    const lock = vi
+      .fn()
+      .mockResolvedValueOnce(missing === 'request' ? [] : [request])
+      .mockResolvedValueOnce(
+        missing === 'store' ? [] : [{ id: 'store', orgId: mismatch ? 'wrong' : 'org' }],
+      );
     const updates: { table: unknown; values: any; predicate: any }[] = [];
     const insert = vi.fn().mockResolvedValue(undefined);
     const tx = {
       select: () => ({ from: () => ({ where: () => ({ for: lock }) }) }),
-      update: (table: unknown) => ({ set: (values: any) => ({ where: (predicate: any) => {
-        updates.push({ table, values, predicate });
-        return { returning: async () => table === verificationRequests ? [{ ...request, ...values }] : [{ id: 'product' }] };
-      } }) }),
+      update: (table: unknown) => ({
+        set: (values: any) => ({
+          where: (predicate: any) => {
+            updates.push({ table, values, predicate });
+            return {
+              returning: async () =>
+                table === verificationRequests ? [{ ...request, ...values }] : [{ id: 'product' }],
+            };
+          },
+        }),
+      }),
       insert: () => ({ values: insert }),
     };
     const transaction = vi.fn(async (callback: any) => callback(tx));
@@ -59,54 +74,85 @@ describe('MerchantService.reviewVerification', () => {
   }
   it('locks request/store, batches scoped activation, and inserts transactional outbox', async () => {
     const test = setup();
-    const result = await test.service.reviewVerification('request', 'reviewer', 'APPROVED', 'Reviewed');
+    const result = await test.service.reviewVerification(
+      'request',
+      'reviewer',
+      'APPROVED',
+      'Reviewed',
+    );
     expect(test.lock.mock.calls).toEqual([['update'], ['update']]);
     expect(result.autoActivatedProductCount).toBe(1);
-    const productUpdate = test.updates.find(update => update.table === products)!;
-    expect(productUpdate.values).toMatchObject({ status: 'ACTIVE', isAvailable: true, updatedAt: result.reviewedAt });
+    const productUpdate = test.updates.find((update) => update.table === products)!;
+    expect(productUpdate.values).toMatchObject({
+      status: 'ACTIVE',
+      isAvailable: true,
+      updatedAt: result.reviewedAt,
+    });
     const query = new PgDialect().sqlToQuery(productUpdate.predicate);
     expect(query.params).toContain('store');
     expect(query.params).toContain('DRAFT');
     expect(query.sql).toContain('"products"."deleted_at" is null');
     expect(query.sql).toContain('count(distinct ref)');
-    expect(test.updates.find(update => update.table === stores)?.values.updatedAt).toBe(result.reviewedAt);
-    expect(test.updates.some(update => update.table === organizations)).toBe(true);
-    expect(test.insert).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ autoActivatedProductCount: 1 }) }));
+    expect(test.updates.find((update) => update.table === stores)?.values.updatedAt).toBe(
+      result.reviewedAt,
+    );
+    expect(test.updates.some((update) => update.table === organizations)).toBe(true);
+    expect(test.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ autoActivatedProductCount: 1 }),
+      }),
+    );
     expect(test.outbox.publish).not.toHaveBeenCalled();
   });
-  it.each(['REJECTED', 'REVISION'] as const)('%s does not activate products', async decision => {
+  it.each(['REJECTED', 'REVISION'] as const)('%s does not activate products', async (decision) => {
     const test = setup();
     const result = await test.service.reviewVerification('request', 'reviewer', decision);
     expect(result.autoActivatedProductCount).toBe(0);
-    expect(test.updates.some(update => update.table === products)).toBe(false);
+    expect(test.updates.some((update) => update.table === products)).toBe(false);
     expect(result.resolvedAt === null).toBe(decision === 'REVISION');
   });
-  it.each(['APPROVED', 'REJECTED'])('refuses already %s requests', async status => {
+  it.each(['APPROVED', 'REJECTED'])('refuses already %s requests', async (status) => {
     const test = setup(status);
-    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED')).rejects.toThrow('already resolved');
+    await expect(
+      test.service.reviewVerification('request', 'reviewer', 'APPROVED'),
+    ).rejects.toThrow('already resolved');
     expect(test.updates).toHaveLength(0);
   });
-  it.each(['request', 'store'] as const)('rejects missing %s without writes', async missing => {
+  it.each(['request', 'store'] as const)('rejects missing %s without writes', async (missing) => {
     const test = setup('SUBMITTED', missing);
-    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED')).rejects.toThrow('not found');
+    await expect(
+      test.service.reviewVerification('request', 'reviewer', 'APPROVED'),
+    ).rejects.toThrow('not found');
     expect(test.updates).toHaveLength(0);
   });
   it('rejects organization mismatch', async () => {
     const test = setup('SUBMITTED', undefined, true);
-    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED')).rejects.toThrow('does not match');
+    await expect(
+      test.service.reviewVerification('request', 'reviewer', 'APPROVED'),
+    ).rejects.toThrow('does not match');
     expect(test.updates).toHaveLength(0);
   });
   it('validates decisions and bounded notes before opening a transaction', async () => {
     const test = setup();
-    await expect(test.service.reviewVerification('request', 'reviewer', 'INVALID' as any)).rejects.toThrow();
-    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED', 'x'.repeat(5001))).rejects.toThrow();
-    await expect(test.service.reviewVerification('request', 'reviewer', 'REJECTED', undefined, ['x'.repeat(501)])).rejects.toThrow();
+    await expect(
+      test.service.reviewVerification('request', 'reviewer', 'INVALID' as any),
+    ).rejects.toThrow();
+    await expect(
+      test.service.reviewVerification('request', 'reviewer', 'APPROVED', 'x'.repeat(5001)),
+    ).rejects.toThrow();
+    await expect(
+      test.service.reviewVerification('request', 'reviewer', 'REJECTED', undefined, [
+        'x'.repeat(501),
+      ]),
+    ).rejects.toThrow();
     expect(test.transaction).not.toHaveBeenCalled();
   });
   it('propagates an outbox failure to the transaction', async () => {
     const test = setup();
     test.insert.mockRejectedValue(new Error('outbox unavailable'));
-    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED')).rejects.toThrow('outbox unavailable');
+    await expect(
+      test.service.reviewVerification('request', 'reviewer', 'APPROVED'),
+    ).rejects.toThrow('outbox unavailable');
   });
 });
 
@@ -124,10 +170,7 @@ describe('MerchantService.getCustomersByOrg', () => {
 
   it('aggregates Drizzle order rows into per-buyer camelCase summaries', async () => {
     const mocks = createMocks();
-    mocks.db.db.query.stores.findMany.mockResolvedValue([
-      { id: 'store-1' },
-      { id: 'store-2' },
-    ]);
+    mocks.db.db.query.stores.findMany.mockResolvedValue([{ id: 'store-1' }, { id: 'store-2' }]);
     // The service now uses Drizzle's query builder and aggregates in JS.
     // Each row represents a single order with buyer contact info.
     const selectFn = vi.fn().mockReturnValue({
@@ -343,18 +386,19 @@ describe('MerchantService.presignForMerchant', () => {
     const doc = { id: 'doc-1', orgId: 'org-1', storageKey: 'docs/org-1/doc-1/cr.pdf' };
     const { service } = setup(doc, null);
 
-    await expect(service.presignForMerchant('doc-1', 'intruder'))
-      .rejects.toThrow(ForbiddenException);
+    await expect(service.presignForMerchant('doc-1', 'intruder')).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('throws NotFoundException when document does not exist', async () => {
     const { service } = setup(null, null);
 
-    await expect(service.presignForMerchant('nonexistent', 'user-1'))
-      .rejects.toThrow(NotFoundException);
+    await expect(service.presignForMerchant('nonexistent', 'user-1')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });
-
 
 describe('MerchantService.createStore', () => {
   it('creates the store, initial OWNER membership and outbox event in one transaction', async () => {
@@ -364,7 +408,8 @@ describe('MerchantService.createStore', () => {
       slug: 'new-store',
       displayName: 'New Store',
     };
-    const storesFindFirst = vi.fn()
+    const storesFindFirst = vi
+      .fn()
       .mockResolvedValueOnce(null) // slug uniqueness check
       .mockResolvedValueOnce(createdStore); // read-back after commit
     const inserted: Array<{ table: unknown; values: unknown }> = [];
@@ -376,7 +421,9 @@ describe('MerchantService.createStore', () => {
         },
       }),
     };
-    const transaction = vi.fn(async (callback: (transactionClient: typeof tx) => Promise<unknown>) => callback(tx));
+    const transaction = vi.fn(
+      async (callback: (transactionClient: typeof tx) => Promise<unknown>) => callback(tx),
+    );
     const db = {
       db: {
         transaction,
@@ -434,7 +481,9 @@ describe('MerchantService.createStore', () => {
         },
       }),
     };
-    const transaction = vi.fn(async (callback: (transactionClient: typeof tx) => Promise<unknown>) => callback(tx));
+    const transaction = vi.fn(
+      async (callback: (transactionClient: typeof tx) => Promise<unknown>) => callback(tx),
+    );
     const db = {
       db: {
         transaction,

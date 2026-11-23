@@ -1,10 +1,12 @@
-import {
-  Controller, Get, Post, Patch, Param, Body, Query, UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { DisputesService } from './disputes.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
+import {
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
+} from '../../common/guards/current-user.decorator';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -28,10 +30,7 @@ export class DisputesController {
   }
 
   @Get('disputes')
-  async listDisputes(
-    @CurrentUser() user: JwtPayload,
-    @Query('status') status?: string,
-  ) {
+  async listDisputes(@CurrentUser() user: JwtPayload, @Query('status') status?: string) {
     return this.disputesService.listDisputes(user.sub, status);
   }
 
@@ -68,12 +67,11 @@ export class DisputesController {
     @Param('id') id: string,
     @Body() body: { body: string },
   ) {
-    return this.disputesService.submitResponse(
-      id,
-      user.sub,
-      body.body,
-      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
-    );
+    return this.disputesService.submitResponse(id, user.sub, body.body, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Patch('disputes/:id/resolve')
@@ -84,12 +82,11 @@ export class DisputesController {
     @Param('id') id: string,
     @Body() body: { resolution: string },
   ) {
-    return this.disputesService.resolveDispute(
-      id,
-      user.sub,
-      body.resolution,
-      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
-    );
+    return this.disputesService.resolveDispute(id, user.sub, body.resolution, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   // ── Conversations ────────────────────────────────────────────
@@ -135,10 +132,7 @@ export class DisputesController {
   }
 
   @Patch('conversations/:id/read')
-  async markRead(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async markRead(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.disputesService.markMessagesRead(id, user.sub);
   }
 }

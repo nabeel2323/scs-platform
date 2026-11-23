@@ -19,14 +19,53 @@ vi.mock('../components/detail', () => ({
   }: {
     tabs: { key: string; label: string }[];
     onChange: (key: string) => void;
-  }) => <nav>{tabs.map((tab) => <button key={tab.key} onClick={() => onChange(tab.key)}>{tab.label}</button>)}</nav>,
-  AdminDetailSection: ({ title, children }: { title: string; children: React.ReactNode }) => <section><h2>{title}</h2>{children}</section>,
-  AdminKeyValueGrid: ({ items }: { items: { key: string; label: string; value: React.ReactNode }[] }) => <div>{items.map((item) => <div key={item.key}>{item.label}:{item.value}</div>)}</div>,
+  }) => (
+    <nav>
+      {tabs.map((tab) => (
+        <button key={tab.key} onClick={() => onChange(tab.key)}>
+          {tab.label}
+        </button>
+      ))}
+    </nav>
+  ),
+  AdminDetailSection: ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <section>
+      <h2>{title}</h2>
+      {children}
+    </section>
+  ),
+  AdminKeyValueGrid: ({
+    items,
+  }: {
+    items: { key: string; label: string; value: React.ReactNode }[];
+  }) => (
+    <div>
+      {items.map((item) => (
+        <div key={item.key}>
+          {item.label}:{item.value}
+        </div>
+      ))}
+    </div>
+  ),
   AdminStatusBadge: ({ status }: { status: string }) => <span>{status}</span>,
   AdminEntityLink: () => null,
   AdminCopyButton: () => null,
   AdminLoadingSkeleton: () => <div>Loading offer</div>,
-  AdminErrorState: ({ title, message, onRetry }: { title: string; message: string; onRetry: () => void }) => <div role="alert"><strong>{title}</strong><span>{message}</span><button onClick={onRetry}>Retry inventory</button></div>,
+  AdminErrorState: ({
+    title,
+    message,
+    onRetry,
+  }: {
+    title: string;
+    message: string;
+    onRetry: () => void;
+  }) => (
+    <div role="alert">
+      <strong>{title}</strong>
+      <span>{message}</span>
+      <button onClick={onRetry}>Retry inventory</button>
+    </div>
+  ),
   formatDate: (value: string) => value,
   formatCurrency: (value: number, currency: string) => `${value} ${currency}`,
   formatBoolean: (value: boolean) => String(value),
@@ -79,7 +118,9 @@ describe('admin offer detail inventory recovery', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh inventory' }));
 
-    expect((await screen.findByRole('alert')).textContent).toContain('Inventory service unavailable');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Inventory service unavailable',
+    );
     expect(screen.getByText('Total Available:7')).toBeTruthy();
     expect(screen.getByRole('alert').textContent).toContain('last successfully loaded inventory');
   });

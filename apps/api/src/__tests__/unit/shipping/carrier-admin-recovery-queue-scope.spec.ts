@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { CarrierAdminController } from '../../../modules/shipping/carrier-admin.controller';
 
 describe('CarrierAdminController recovery queue tenant scope', () => {
-
   it('rejects non-privileged recovery queue access without an active organization', async () => {
     const storeFindMany = vi.fn();
     const controller = new CarrierAdminController(
@@ -23,5 +22,4 @@ describe('CarrierAdminController recovery queue tenant scope', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(storeFindMany).not.toHaveBeenCalled();
   });
-
 });

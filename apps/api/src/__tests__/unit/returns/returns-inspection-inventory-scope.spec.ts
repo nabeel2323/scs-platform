@@ -34,9 +34,7 @@ describe('ReturnsService — inspection inventory tenant scope', () => {
     const db = {
       db: {
         select,
-        transaction: vi.fn(
-          async (callback: (tx: any) => Promise<unknown>) => callback(tx),
-        ),
+        transaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback(tx)),
         query: {
           orders: { findFirst: ordersFindFirst },
           orderItems: { findMany: orderItemsFindMany },

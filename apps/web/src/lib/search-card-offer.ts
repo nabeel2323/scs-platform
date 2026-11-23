@@ -51,12 +51,8 @@ export function getSearchCardDisplay(product: SearchCardProduct): SearchCardDisp
     priceMinor: usesOffer
       ? (product.lowestOfferPriceMinor ?? null)
       : (product.priceFromMinor ?? null),
-    currency: usesOffer
-      ? (product.lowestOfferCurrency ?? null)
-      : (product.priceCurrency ?? null),
-    seller: usesOffer
-      ? (product.lowestOfferStore ?? null)
-      : (product.store ?? null),
+    currency: usesOffer ? (product.lowestOfferCurrency ?? null) : (product.priceCurrency ?? null),
+    seller: usesOffer ? (product.lowestOfferStore ?? null) : (product.store ?? null),
     usesOffer,
     offerId: usesOffer ? (product.lowestOfferId ?? null) : null,
     offerStoreId: usesOffer ? (product.lowestOfferStoreId ?? null) : null,

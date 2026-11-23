@@ -44,7 +44,7 @@ for (const mod of MODULES) {
           const relFile = path.relative(MODULES_DIR, file);
           errors.push(
             `BOUNDARY VIOLATION: ${relFile} imports "${imp}" from module "${otherMod}" internals. ` +
-            `Cross-module imports must go through ${otherMod}.module.ts or shared contracts.`
+              `Cross-module imports must go through ${otherMod}.module.ts or shared contracts.`,
           );
         }
       }
@@ -67,8 +67,8 @@ const resolvedErrors = [...baseline].filter((error) => !current.includes(error))
 
 console.log(
   `Boundary lint: ${MODULES.length} modules; ${current.length} current violations; ` +
-  `${resolvedErrors.length} baseline violations resolved; ${newErrors.length} new violations ` +
-  `against the ${baseline.size}-entry reviewed baseline.`,
+    `${resolvedErrors.length} baseline violations resolved; ${newErrors.length} new violations ` +
+    `against the ${baseline.size}-entry reviewed baseline.`,
 );
 
 if (newErrors.length > 0) {

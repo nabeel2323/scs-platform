@@ -32,7 +32,15 @@ export class StoreMembershipService {
   async listMembers(storeId: string) {
     return this.db.db.query.storeMembers.findMany({
       where: eq(storeMembers.storeId, storeId),
-      columns: { id: true, storeId: true, userId: true, role: true, status: true, createdAt: true, updatedAt: true },
+      columns: {
+        id: true,
+        storeId: true,
+        userId: true,
+        role: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
       orderBy: (members, { asc }) => [asc(members.createdAt)],
     });
   }
@@ -47,12 +55,7 @@ export class StoreMembershipService {
 
   // ── Add Member ────────────────────────────────────────────────
 
-  async addMember(
-    storeId: string,
-    targetUserId: string,
-    role: string,
-    caller: CallerContext,
-  ) {
+  async addMember(storeId: string, targetUserId: string, role: string, caller: CallerContext) {
     if (!['OWNER', 'ADMIN', 'MEMBER'].includes(role)) {
       throw new BadRequestException(`Invalid role: ${role}`);
     }
@@ -90,7 +93,8 @@ export class StoreMembershipService {
           throw new ConflictException('User is already an active member of this store');
         }
         // Reactivate inactive membership
-        const [updated] = await tx.update(storeMembers)
+        const [updated] = await tx
+          .update(storeMembers)
           .set({ status: 'ACTIVE', role, updatedAt: new Date() })
           .where(eq(storeMembers.id, existing.id))
           .returning();
@@ -98,7 +102,12 @@ export class StoreMembershipService {
         await this.outbox.publish(
           'store_member.activated',
           storeId,
-          { target_user_id: targetUserId, actor_user_id: caller.sub, new_status: 'ACTIVE', new_role: role },
+          {
+            target_user_id: targetUserId,
+            actor_user_id: caller.sub,
+            new_status: 'ACTIVE',
+            new_role: role,
+          },
           { organization_id: store.orgId, store_id: storeId },
           null,
           tx,
@@ -107,13 +116,16 @@ export class StoreMembershipService {
       }
 
       const id = crypto.randomUUID();
-      const [created] = await tx.insert(storeMembers).values({
-        id,
-        storeId,
-        userId: targetUserId,
-        role,
-        status: 'ACTIVE',
-      }).returning();
+      const [created] = await tx
+        .insert(storeMembers)
+        .values({
+          id,
+          storeId,
+          userId: targetUserId,
+          role,
+          status: 'ACTIVE',
+        })
+        .returning();
 
       await this.outbox.publish(
         'store_member.added',
@@ -132,13 +144,16 @@ export class StoreMembershipService {
   async removeMember(storeId: string, targetUserId: string, caller: CallerContext) {
     return this.db.db.transaction(async (tx) => {
       // Lock all ACTIVE OWNER rows for this store
-      const activeOwners = await tx.select({ id: storeMembers.id, userId: storeMembers.userId })
+      const activeOwners = await tx
+        .select({ id: storeMembers.id, userId: storeMembers.userId })
         .from(storeMembers)
-        .where(and(
-          eq(storeMembers.storeId, storeId),
-          eq(storeMembers.role, 'OWNER'),
-          eq(storeMembers.status, 'ACTIVE'),
-        ))
+        .where(
+          and(
+            eq(storeMembers.storeId, storeId),
+            eq(storeMembers.role, 'OWNER'),
+            eq(storeMembers.status, 'ACTIVE'),
+          ),
+        )
         .for('update');
 
       const target = await tx.query.storeMembers.findFirst({
@@ -155,13 +170,19 @@ export class StoreMembershipService {
       await tx.delete(storeMembers).where(eq(storeMembers.id, target.id));
 
       const store = await tx.query.stores.findFirst({
-        where: eq(stores.id, storeId), columns: { orgId: true },
+        where: eq(stores.id, storeId),
+        columns: { orgId: true },
       });
 
       await this.outbox.publish(
         'store_member.removed',
         storeId,
-        { target_user_id: targetUserId, actor_user_id: caller.sub, previous_role: target.role, previous_status: target.status },
+        {
+          target_user_id: targetUserId,
+          actor_user_id: caller.sub,
+          previous_role: target.role,
+          previous_status: target.status,
+        },
         { organization_id: store?.orgId, store_id: storeId },
         null,
         tx,
@@ -184,13 +205,16 @@ export class StoreMembershipService {
 
     return this.db.db.transaction(async (tx) => {
       // Lock ACTIVE OWNER rows
-      const activeOwners = await tx.select({ id: storeMembers.id, userId: storeMembers.userId })
+      const activeOwners = await tx
+        .select({ id: storeMembers.id, userId: storeMembers.userId })
         .from(storeMembers)
-        .where(and(
-          eq(storeMembers.storeId, storeId),
-          eq(storeMembers.role, 'OWNER'),
-          eq(storeMembers.status, 'ACTIVE'),
-        ))
+        .where(
+          and(
+            eq(storeMembers.storeId, storeId),
+            eq(storeMembers.role, 'OWNER'),
+            eq(storeMembers.status, 'ACTIVE'),
+          ),
+        )
         .for('update');
 
       const target = await tx.query.storeMembers.findFirst({
@@ -208,12 +232,14 @@ export class StoreMembershipService {
         throw new ConflictException('Cannot demote the last active owner of a store');
       }
 
-      await tx.update(storeMembers)
+      await tx
+        .update(storeMembers)
         .set({ role: newRole, updatedAt: new Date() })
         .where(eq(storeMembers.id, target.id));
 
       const store = await tx.query.stores.findFirst({
-        where: eq(stores.id, storeId), columns: { orgId: true },
+        where: eq(stores.id, storeId),
+        columns: { orgId: true },
       });
 
       await this.outbox.publish(
@@ -246,12 +272,14 @@ export class StoreMembershipService {
         throw new ConflictException('Member is already active');
       }
 
-      await tx.update(storeMembers)
+      await tx
+        .update(storeMembers)
         .set({ status: 'ACTIVE', updatedAt: new Date() })
         .where(eq(storeMembers.id, target.id));
 
       const store = await tx.query.stores.findFirst({
-        where: eq(stores.id, storeId), columns: { orgId: true },
+        where: eq(stores.id, storeId),
+        columns: { orgId: true },
       });
 
       await this.outbox.publish(
@@ -276,13 +304,16 @@ export class StoreMembershipService {
   async deactivateMember(storeId: string, targetUserId: string, caller: CallerContext) {
     return this.db.db.transaction(async (tx) => {
       // Lock ACTIVE OWNER rows
-      const activeOwners = await tx.select({ id: storeMembers.id, userId: storeMembers.userId })
+      const activeOwners = await tx
+        .select({ id: storeMembers.id, userId: storeMembers.userId })
         .from(storeMembers)
-        .where(and(
-          eq(storeMembers.storeId, storeId),
-          eq(storeMembers.role, 'OWNER'),
-          eq(storeMembers.status, 'ACTIVE'),
-        ))
+        .where(
+          and(
+            eq(storeMembers.storeId, storeId),
+            eq(storeMembers.role, 'OWNER'),
+            eq(storeMembers.status, 'ACTIVE'),
+          ),
+        )
         .for('update');
 
       const target = await tx.query.storeMembers.findFirst({
@@ -299,12 +330,14 @@ export class StoreMembershipService {
         throw new ConflictException('Cannot deactivate the last active owner of a store');
       }
 
-      await tx.update(storeMembers)
+      await tx
+        .update(storeMembers)
         .set({ status: 'INACTIVE', updatedAt: new Date() })
         .where(eq(storeMembers.id, target.id));
 
       const store = await tx.query.stores.findFirst({
-        where: eq(stores.id, storeId), columns: { orgId: true },
+        where: eq(stores.id, storeId),
+        columns: { orgId: true },
       });
 
       await this.outbox.publish(
@@ -450,7 +483,7 @@ export class StoreMembershipService {
       where: eq(storeMembers.storeId, storeId),
       columns: { userId: true },
     });
-    const existingIds = new Set(existingMembers.map(m => m.userId));
+    const existingIds = new Set(existingMembers.map((m) => m.userId));
 
     // Get all org members
     const orgMembers = await this.db.db.query.organizationMembers.findMany({
@@ -460,14 +493,17 @@ export class StoreMembershipService {
 
     // Filter out existing members
     const eligibleIds = orgMembers
-      .filter(m => m.status === 'ACTIVE' && !existingIds.has(m.userId))
-      .map(m => m.userId);
+      .filter((m) => m.status === 'ACTIVE' && !existingIds.has(m.userId))
+      .map((m) => m.userId);
 
     if (eligibleIds.length === 0) return [];
 
     // Fetch user details
     const eligibleUsers = await this.db.db.query.users.findMany({
-      where: sql`${users.id} IN (${sql.join(eligibleIds.map(id => sql`${id}`), sql`, `)})`,
+      where: sql`${users.id} IN (${sql.join(
+        eligibleIds.map((id) => sql`${id}`),
+        sql`, `,
+      )})`,
       columns: { id: true, email: true, fullName: true },
     });
 

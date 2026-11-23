@@ -17,7 +17,12 @@ describe('resolveShipmentForCredential', () => {
     };
 
     await expect(
-      resolveShipmentForCredential(db as any, { orgId: 'org-a', providerKey: 'aramex' }, 'aramex', 'external-a'),
+      resolveShipmentForCredential(
+        db as any,
+        { orgId: 'org-a', providerKey: 'aramex' },
+        'aramex',
+        'external-a',
+      ),
     ).resolves.toEqual({ status: 'FOUND', shipment });
 
     expect(storesFindMany).toHaveBeenCalledOnce();
@@ -28,7 +33,6 @@ describe('resolveShipmentForCredential', () => {
     expect(compiled.params).toContain('store-a');
     expect(compiled.params).toContain('store-b');
   });
-
 
   it('rejects a credential whose provider does not match the event provider', async () => {
     const storesFindMany = vi.fn();
@@ -56,10 +60,9 @@ describe('resolveShipmentForCredential', () => {
 
   it('returns AMBIGUOUS instead of selecting the first of multiple matches', async () => {
     const storesFindMany = vi.fn().mockResolvedValue([{ id: 'store-a' }]);
-    const shipmentsFindMany = vi.fn().mockResolvedValue([
-      { id: 'shipment-a' },
-      { id: 'shipment-b' },
-    ]);
+    const shipmentsFindMany = vi
+      .fn()
+      .mockResolvedValue([{ id: 'shipment-a' }, { id: 'shipment-b' }]);
     const db = {
       db: {
         query: {
@@ -70,7 +73,12 @@ describe('resolveShipmentForCredential', () => {
     };
 
     await expect(
-      resolveShipmentForCredential(db as any, { orgId: 'org-a', providerKey: 'aramex' }, 'aramex', 'external-a'),
+      resolveShipmentForCredential(
+        db as any,
+        { orgId: 'org-a', providerKey: 'aramex' },
+        'aramex',
+        'external-a',
+      ),
     ).resolves.toEqual({ status: 'AMBIGUOUS' });
   });
 
@@ -87,7 +95,12 @@ describe('resolveShipmentForCredential', () => {
     };
 
     await expect(
-      resolveShipmentForCredential(db as any, { orgId: 'org-empty', providerKey: 'aramex' }, 'aramex', 'external-a'),
+      resolveShipmentForCredential(
+        db as any,
+        { orgId: 'org-empty', providerKey: 'aramex' },
+        'aramex',
+        'external-a',
+      ),
     ).resolves.toEqual({ status: 'NOT_FOUND' });
     expect(shipmentsFindMany).not.toHaveBeenCalled();
   });

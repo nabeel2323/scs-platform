@@ -102,30 +102,32 @@ export class InventoryService {
       // Only active memberships in the caller's active organization are visible.
       if (!caller.activeOrg) return [];
       const memberships = await this.db.db.query.storeMembers.findMany({
-        where: and(
-          eq(storeMembers.userId, caller.sub),
-          eq(storeMembers.status, 'ACTIVE'),
-        ),
+        where: and(eq(storeMembers.userId, caller.sub), eq(storeMembers.status, 'ACTIVE')),
         columns: { storeId: true },
       });
       const memberStoreIds = [...new Set(memberships.map((membership) => membership.storeId))];
       if (memberStoreIds.length === 0) return [];
 
       const memberStores = await this.db.db.query.stores.findMany({
-        where: and(
-          eq(stores.orgId, caller.activeOrg),
-          inArray(stores.id, memberStoreIds),
-        ),
+        where: and(eq(stores.orgId, caller.activeOrg), inArray(stores.id, memberStoreIds)),
         columns: { id: true },
       });
       if (memberStores.length === 0) return [];
 
       const memberWarehouses = await this.db.db.query.warehouses.findMany({
-        where: inArray(warehouses.storeId, memberStores.map((store) => store.id)),
+        where: inArray(
+          warehouses.storeId,
+          memberStores.map((store) => store.id),
+        ),
         columns: { id: true },
       });
       if (memberWarehouses.length === 0) return [];
-      conditions.push(inArray(inventoryItems.warehouseId, memberWarehouses.map((warehouse) => warehouse.id)));
+      conditions.push(
+        inArray(
+          inventoryItems.warehouseId,
+          memberWarehouses.map((warehouse) => warehouse.id),
+        ),
+      );
     }
 
     return this.db.db.query.inventoryItems.findMany({
@@ -135,7 +137,11 @@ export class InventoryService {
 
   // ── Store-level queries ──────────────────────────────────────
 
-  async listByStore(storeId: string, paging?: { limit: number; offset: number }, caller?: CallerContext) {
+  async listByStore(
+    storeId: string,
+    paging?: { limit: number; offset: number },
+    caller?: CallerContext,
+  ) {
     if (caller) {
       await assertStoreInOrg(this.db, caller, storeId);
       await assertStoreMember(this.db, caller, storeId);
@@ -145,14 +151,17 @@ export class InventoryService {
       columns: { id: true },
     });
     if (whs.length === 0) return { data: [], total: 0 };
-    const whIds = whs.map(w => w.id);
+    const whIds = whs.map((w) => w.id);
     const [data, totalRows] = await Promise.all([
       this.db.db.query.inventoryItems.findMany({
         where: inArray(inventoryItems.warehouseId, whIds),
         limit: paging?.limit ?? 50,
         offset: paging?.offset ?? 0,
       }),
-      this.db.db.select({ count: count() }).from(inventoryItems).where(inArray(inventoryItems.warehouseId, whIds)),
+      this.db.db
+        .select({ count: count() })
+        .from(inventoryItems)
+        .where(inArray(inventoryItems.warehouseId, whIds)),
     ]);
     return { data, total: totalRows[0]?.count ?? 0 };
   }
@@ -203,7 +212,11 @@ export class InventoryService {
     return this.getItem(id);
   }
 
-  async bulkAdjustStock(items: Array<{ inventoryItemId: string; quantity: number; reason?: string }>, userId?: string, caller?: CallerContext) {
+  async bulkAdjustStock(
+    items: Array<{ inventoryItemId: string; quantity: number; reason?: string }>,
+    userId?: string,
+    caller?: CallerContext,
+  ) {
     // ADVERSARIAL FIX: each adjustment is wrapped in its own transaction so a
     // movement write failure cannot leave qty changed without a ledger row.
     const results: Array<{ inventoryItemId: string; newQty: number }> = [];
@@ -217,7 +230,8 @@ export class InventoryService {
           `Insufficient stock for ${item.inventoryItemId}: ${inv['qtyOnHand']} on hand, ${inv['qtyReserved']} reserved`,
         );
       }
-      if (newQty < 0) throw new BadRequestException(`Insufficient stock for ${item.inventoryItemId}`);
+      if (newQty < 0)
+        throw new BadRequestException(`Insufficient stock for ${item.inventoryItemId}`);
 
       await this.db.db.transaction(async (tx) => {
         await tx
@@ -251,43 +265,50 @@ export class InventoryService {
     if (whs.length === 0) return 'Warehouse,SKU,Product,On Hand,Reserved,Available,Reorder Point\n';
 
     const items = await this.db.db.query.inventoryItems.findMany({
-      where: inArray(inventoryItems.warehouseId, whs.map(w => w.id)),
+      where: inArray(
+        inventoryItems.warehouseId,
+        whs.map((w) => w.id),
+      ),
     });
 
-    const whById = new Map(whs.map(w => [w.id, w]));
+    const whById = new Map(whs.map((w) => [w.id, w]));
 
     // Batch-fetch variant + product info
-    const variantIds = [...new Set(items.map(i => i['variantId']))];
-    const variantRows = variantIds.length > 0
-      ? await this.db.db.query.productVariants.findMany({
-          where: inArray(productVariants.id, variantIds),
-        })
-      : [];
-    const variantById = new Map(variantRows.map(v => [v.id, v]));
+    const variantIds = [...new Set(items.map((i) => i['variantId']))];
+    const variantRows =
+      variantIds.length > 0
+        ? await this.db.db.query.productVariants.findMany({
+            where: inArray(productVariants.id, variantIds),
+          })
+        : [];
+    const variantById = new Map(variantRows.map((v) => [v.id, v]));
 
-    const productIds = [...new Set(variantRows.map(v => v['productId']))];
-    const productRows = productIds.length > 0
-      ? await this.db.db.query.products.findMany({
-          where: inArray(products.id, productIds),
-        })
-      : [];
-    const productById = new Map(productRows.map(p => [p.id, p]));
+    const productIds = [...new Set(variantRows.map((v) => v['productId']))];
+    const productRows =
+      productIds.length > 0
+        ? await this.db.db.query.products.findMany({
+            where: inArray(products.id, productIds),
+          })
+        : [];
+    const productById = new Map(productRows.map((p) => [p.id, p]));
 
-    const escape = (s: string) => s.includes(',') ? `"${s}"` : s;
+    const escape = (s: string) => (s.includes(',') ? `"${s}"` : s);
     const lines = ['Warehouse,SKU,Product,On Hand,Reserved,Available,Reorder Point'];
     for (const item of items) {
       const wh = whById.get(item['warehouseId']);
       const variant = variantById.get(item['variantId']);
       const product = variant ? productById.get(variant['productId']) : undefined;
-      lines.push([
-        escape(wh?.name ?? ''),
-        escape(variant?.sku ?? ''),
-        escape(product?.title ?? ''),
-        String(item['qtyOnHand']),
-        String(item['qtyReserved']),
-        String(item['qtyOnHand'] - item['qtyReserved']),
-        String(item['reorderPoint']),
-      ].join(','));
+      lines.push(
+        [
+          escape(wh?.name ?? ''),
+          escape(variant?.sku ?? ''),
+          escape(product?.title ?? ''),
+          String(item['qtyOnHand']),
+          String(item['qtyReserved']),
+          String(item['qtyOnHand'] - item['qtyReserved']),
+          String(item['reorderPoint']),
+        ].join(','),
+      );
     }
     return lines.join('\n');
   }
@@ -365,12 +386,17 @@ export class InventoryService {
 
       const available = locked.qtyOnHand - locked.qtyReserved;
       if (available < input.quantity) {
-        throw new BadRequestException(`Insufficient available stock: ${available} < ${input.quantity}`);
+        throw new BadRequestException(
+          `Insufficient available stock: ${available} < ${input.quantity}`,
+        );
       }
 
       await tx
         .update(inventoryItems)
-        .set({ qtyReserved: sql`${inventoryItems.qtyReserved} + ${input.quantity}`, updatedAt: new Date() })
+        .set({
+          qtyReserved: sql`${inventoryItems.qtyReserved} + ${input.quantity}`,
+          updatedAt: new Date(),
+        })
         .where(eq(inventoryItems.id, input.inventoryItemId));
 
       const movementId = crypto.randomUUID();
@@ -447,7 +473,8 @@ export class InventoryService {
    */
   async transferStock(input: TransferStockInput, caller?: CallerContext) {
     if (input.quantity <= 0) throw new BadRequestException('Transfer quantity must be positive');
-    if (input.fromWarehouseId === input.toWarehouseId) throw new BadRequestException('Source and destination warehouses must differ');
+    if (input.fromWarehouseId === input.toWarehouseId)
+      throw new BadRequestException('Source and destination warehouses must differ');
 
     let fromStoreId: string | null = null;
     let toStoreId: string | null = null;
@@ -583,7 +610,11 @@ export class InventoryService {
         performedBy: input.userId || null,
       });
 
-      return { sourceNewQty: sourceQty, destId, destNewQty: destItem ? destItem['qtyOnHand'] + input.quantity : input.quantity };
+      return {
+        sourceNewQty: sourceQty,
+        destId,
+        destNewQty: destItem ? destItem['qtyOnHand'] + input.quantity : input.quantity,
+      };
     });
 
     // Emit outbox event for notifications / audit (after commit)
@@ -614,50 +645,53 @@ export class InventoryService {
     });
     if (whs.length === 0) return 'Movement Type,SKU,Product,Warehouse,Quantity,Reason,Date\n';
 
-    const whIds = whs.map(w => w.id);
+    const whIds = whs.map((w) => w.id);
     const items = await this.db.db.query.inventoryItems.findMany({
       where: inArray(inventoryItems.warehouseId, whIds),
     });
     if (items.length === 0) return 'Movement Type,SKU,Product,Warehouse,Quantity,Reason,Date\n';
 
-    const itemIds = items.map(i => i.id);
+    const itemIds = items.map((i) => i.id);
     const movements = await this.db.db.query.stockMovements.findMany({
       where: inArray(stockMovements.inventoryItemId, itemIds),
       orderBy: [desc(stockMovements.createdAt)],
       limit: 5000,
     });
 
-    const itemById = new Map(items.map(i => [i.id, i]));
-    const whById = new Map(whs.map(w => [w.id, w]));
+    const itemById = new Map(items.map((i) => [i.id, i]));
+    const whById = new Map(whs.map((w) => [w.id, w]));
 
     // Batch-fetch variant + product info
-    const variantIds = [...new Set(items.map(i => i['variantId']))];
+    const variantIds = [...new Set(items.map((i) => i['variantId']))];
     const variantRows = await this.db.db.query.productVariants.findMany({
       where: inArray(productVariants.id, variantIds),
     });
-    const variantById = new Map(variantRows.map(v => [v.id, v]));
-    const productIds = [...new Set(variantRows.map(v => v['productId']))];
-    const productRows = productIds.length > 0
-      ? await this.db.db.query.products.findMany({ where: inArray(products.id, productIds) })
-      : [];
-    const productById = new Map(productRows.map(p => [p.id, p]));
+    const variantById = new Map(variantRows.map((v) => [v.id, v]));
+    const productIds = [...new Set(variantRows.map((v) => v['productId']))];
+    const productRows =
+      productIds.length > 0
+        ? await this.db.db.query.products.findMany({ where: inArray(products.id, productIds) })
+        : [];
+    const productById = new Map(productRows.map((p) => [p.id, p]));
 
-    const escape = (s: string) => s.includes(',') ? `"${s}"` : s;
+    const escape = (s: string) => (s.includes(',') ? `"${s}"` : s);
     const lines = ['Movement Type,SKU,Product,Warehouse,Quantity,Reason,Date'];
     for (const m of movements) {
       const item = itemById.get(m['inventoryItemId']);
       const variant = item ? variantById.get(item['variantId']) : undefined;
       const product = variant ? productById.get(variant['productId']) : undefined;
       const wh = item ? whById.get(item['warehouseId']) : undefined;
-      lines.push([
-        m['movementType'],
-        escape(variant?.sku ?? ''),
-        escape(product?.title ?? ''),
-        escape(wh?.name ?? ''),
-        String(m['quantity']),
-        escape(m['reason'] ?? ''),
-        m['createdAt'] instanceof Date ? m['createdAt'].toISOString() : String(m['createdAt']),
-      ].join(','));
+      lines.push(
+        [
+          m['movementType'],
+          escape(variant?.sku ?? ''),
+          escape(product?.title ?? ''),
+          escape(wh?.name ?? ''),
+          String(m['quantity']),
+          escape(m['reason'] ?? ''),
+          m['createdAt'] instanceof Date ? m['createdAt'].toISOString() : String(m['createdAt']),
+        ].join(','),
+      );
     }
     return lines.join('\n');
   }
@@ -681,10 +715,15 @@ export class InventoryService {
     if (whs.length === 0) return [];
 
     const items = await this.db.db.query.inventoryItems.findMany({
-      where: inArray(inventoryItems.warehouseId, whs.map(w => w.id)),
+      where: inArray(
+        inventoryItems.warehouseId,
+        whs.map((w) => w.id),
+      ),
     });
 
-    const lowItems = items.filter(i => i['lowStockAlert'] && i['qtyOnHand'] - i['qtyReserved'] <= i['reorderPoint']);
+    const lowItems = items.filter(
+      (i) => i['lowStockAlert'] && i['qtyOnHand'] - i['qtyReserved'] <= i['reorderPoint'],
+    );
 
     for (const item of lowItems) {
       await this.outbox.publish('inventory.low_stock', item.id, {
@@ -719,7 +758,7 @@ export interface UpdateInventoryInput {
 
 export interface AdjustStockInput {
   inventoryItemId: string;
-  quantity: number;  // positive = add, negative = remove
+  quantity: number; // positive = add, negative = remove
   reason?: string;
   userId?: string;
 }

@@ -19,7 +19,13 @@ async function main(): Promise<void> {
   await client.connect();
   try {
     const identity = await assertStagingBootstrapTarget(client, 'staging-bootstrap-preflight');
-    console.log('Staging bootstrap target confirmed: ' + identity.current_database + ' (role ' + identity.current_user + ').');
+    console.log(
+      'Staging bootstrap target confirmed: ' +
+        identity.current_database +
+        ' (role ' +
+        identity.current_user +
+        ').',
+    );
   } finally {
     await client.end();
   }

@@ -52,13 +52,16 @@ function AttributeDetailContent({ id }: { id: string }) {
 
   useEffect(() => {
     void load();
-    return () => { requestVersion.current += 1; };
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [load]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied.</div>;
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error) return <AdminErrorState title="Unable to load attribute" message={error} onRetry={load} />;
+  if (error)
+    return <AdminErrorState title="Unable to load attribute" message={error} onRetry={load} />;
   if (!attr) return null;
 
   const attrType = String(attr['type'] || 'TEXT').toUpperCase();

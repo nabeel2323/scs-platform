@@ -5,19 +5,26 @@ assertLocalUatExecution('m6-fix-cart-constraint', { databaseUrl: DB_URL });
 const p = new Pool({ connectionString: DB_URL });
 async function main() {
   // Check existing cart_items constraints
-  const r = await p.query("SELECT conname, contype, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'cart_items'::regclass");
+  const r = await p.query(
+    "SELECT conname, contype, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'cart_items'::regclass",
+  );
   console.log('cart_items constraints:');
-  for (const row of r.rows) console.log(`  ${row.conname} (${row.contype}): ${row.pg_get_constraintdef}`);
+  for (const row of r.rows)
+    console.log(`  ${row.conname} (${row.contype}): ${row.pg_get_constraintdef}`);
 
   // Check existing indexes
-  const idx = await p.query("SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'cart_items'");
+  const idx = await p.query(
+    "SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'cart_items'",
+  );
   console.log('\ncart_items indexes:');
   for (const row of idx.rows) console.log(`  ${row.indexname}: ${row.indexdef}`);
 
   // Fix: drop old unique constraint on (cart_id, variant_id) and add new one with offer_id
   console.log('\n--- Fixing cart_items unique constraint ---');
   try {
-    await p.query('ALTER TABLE cart_items DROP CONSTRAINT IF EXISTS cart_items_cart_id_variant_id_key');
+    await p.query(
+      'ALTER TABLE cart_items DROP CONSTRAINT IF EXISTS cart_items_cart_id_variant_id_key',
+    );
     console.log('  Dropped cart_items_cart_id_variant_id_key');
   } catch (e: any) {
     console.log('  Drop failed:', e.message);
@@ -49,10 +56,15 @@ async function main() {
   }
 
   // Verify
-  const idx2 = await p.query("SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'cart_items'");
+  const idx2 = await p.query(
+    "SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'cart_items'",
+  );
   console.log('\nUpdated cart_items indexes:');
   for (const row of idx2.rows) console.log(`  ${row.indexname}: ${row.indexdef}`);
 
   await p.end();
 }
-main().catch(e => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

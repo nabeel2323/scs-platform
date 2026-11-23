@@ -188,7 +188,6 @@ Required cases:
 - Both PRs remain open, draft and unmerged. CI verification is limited to disposable environments. Actual staging API/migration identities remain unverified.
 - G-001 remains PARTIAL pending independent security review. G-002 remains IN PROGRESS pending live identity evidence, refreshed protected read-only inventory, completed operation matrix, transaction-bound context, isolated RLS tests and approval.
 
-
 ## Initial database access-path inventory — 22 November 2026
 
 A bounded static review of all 53 module service/worker/provider files plus DatabaseService, audit middleware/service, guards, AppModule and main.ts is recorded in docs/remediation/G-002-DATABASE-ACCESS-PATH-INVENTORY-2026-11-22.md. The reviewed module queries consistently use the singleton DatabaseService.db Drizzle handle, including raw db.execute(sql...) operations; several services already open nested transactions. AuditLogMiddleware writes asynchronously after response completion, and workers/monitors/bootstrap paths run outside HTTP request context. DatabaseService uses a separate PoolClient for development/test migrations and RBAC seeding; the runtime identity diagnostic logs role flags, but live staging identity remains unverified. This inventory is preliminary: it does not prove all CLI/script paths or exact per-table operation ownership. Do not implement a global request transaction or enable RLS until the blockers in the inventory are closed.

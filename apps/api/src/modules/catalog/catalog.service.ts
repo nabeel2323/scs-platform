@@ -21,7 +21,14 @@ import {
 import { enrichProductCards } from './product-card';
 import { imageReferences } from './product-images';
 import { createMediaRefResolver } from './product-card';
-import { productAttributeValues, variantAttributeValues, attributeDefinitions, productTypeAttributes, productTypes, attributeOptions } from './catalog.taxonomy.schema';
+import {
+  productAttributeValues,
+  variantAttributeValues,
+  attributeDefinitions,
+  productTypeAttributes,
+  productTypes,
+  attributeOptions,
+} from './catalog.taxonomy.schema';
 import { organizations } from '../identity/identity.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
@@ -95,7 +102,9 @@ export class CatalogService {
   private readonly resolveMediaRef: (ref: string | null | undefined) => Promise<string | null>;
 
   /** Resolve every image reference of one media row (url + thumbUrl). */
-  private async resolveMediaRow<T extends { url: string; thumbUrl: string | null }>(row: T): Promise<T & { displayUrl: string | null; thumbSrc: string | null }> {
+  private async resolveMediaRow<T extends { url: string; thumbUrl: string | null }>(
+    row: T,
+  ): Promise<T & { displayUrl: string | null; thumbSrc: string | null }> {
     const [displayUrl, thumbSrc] = await Promise.all([
       this.resolveMediaRef(row.url),
       this.resolveMediaRef(row.thumbUrl),
@@ -147,7 +156,12 @@ export class CatalogService {
     return cat;
   }
 
-  async listCategories(filters?: { storeId?: string; parentId?: string; isActive?: boolean; all?: boolean }) {
+  async listCategories(filters?: {
+    storeId?: string;
+    parentId?: string;
+    isActive?: boolean;
+    all?: boolean;
+  }) {
     const conditions = [];
     if (filters?.storeId) conditions.push(eq(categories.storeId, filters.storeId));
     // When `all` is true, skip the parentId filter so the client gets the full
@@ -167,20 +181,23 @@ export class CatalogService {
     // M5 remediation: attach per-category canonical product count so the
     // Admin UI can display accurate counts without a separate request.
     if (cats.length > 0) {
-      const catIds = cats.map(c => c.id);
-      const countRows = await this.db.db.select({
-        categoryId: products.categoryId,
-        count: sql<number>`count(*)::int`,
-      })
+      const catIds = cats.map((c) => c.id);
+      const countRows = await this.db.db
+        .select({
+          categoryId: products.categoryId,
+          count: sql<number>`count(*)::int`,
+        })
         .from(products)
-        .where(and(
-          inArray(products.categoryId, catIds),
-          isNull(products.storeId),
-          isNull(products.deletedAt),
-        ))
+        .where(
+          and(
+            inArray(products.categoryId, catIds),
+            isNull(products.storeId),
+            isNull(products.deletedAt),
+          ),
+        )
         .groupBy(products.categoryId);
-      const countMap = new Map(countRows.map(r => [r.categoryId as string, r.count] as const));
-      return cats.map(c => ({ ...c, productCount: countMap.get(c.id) ?? 0 }));
+      const countMap = new Map(countRows.map((r) => [r.categoryId as string, r.count] as const));
+      return cats.map((c) => ({ ...c, productCount: countMap.get(c.id) ?? 0 }));
     }
 
     return cats;
@@ -267,15 +284,14 @@ export class CatalogService {
     if (!cat) throw new NotFoundException('Category not found');
 
     const platformCats = await this.loadPlatformCategoryNodes();
-    const byId = new Map(platformCats.map(c => [c.id, c] as const));
+    const byId = new Map(platformCats.map((c) => [c.id, c] as const));
     const parentInfo = cat.parentId ? byId.get(cat.parentId) : null;
-    const childNodes = platformCats.filter(c => c.parentId === cat.id);
+    const childNodes = platformCats.filter((c) => c.parentId === cat.id);
     const descendantIds = collectDescendantIds(platformCats, cat.id);
 
     const directCount = await this.countProductsInCategories([cat.id]);
-    const descendantCount = descendantIds.size > 0
-      ? await this.countProductsInCategories([...descendantIds])
-      : 0;
+    const descendantCount =
+      descendantIds.size > 0 ? await this.countProductsInCategories([...descendantIds]) : 0;
 
     // Product-type count for a category = union of
     //   (a) product types explicitly linked to this category via
@@ -283,28 +299,31 @@ export class CatalogService {
     //   (b) product types referenced by products directly in this category
     //       or in its descendants (task §4 "what product types does this
     //       category contain").
-    const linkedTypes = await this.db.db.select({ id: productTypes.id })
+    const linkedTypes = await this.db.db
+      .select({ id: productTypes.id })
       .from(productTypes)
-      .where(and(
-        eq(productTypes.categoryId, cat.id),
-        eq(productTypes.status, 'PUBLISHED'),
-      ));
-    const typesByProducts = await this.db.db.selectDistinct({ productTypeId: products.productTypeId })
+      .where(and(eq(productTypes.categoryId, cat.id), eq(productTypes.status, 'PUBLISHED')));
+    const typesByProducts = await this.db.db
+      .selectDistinct({ productTypeId: products.productTypeId })
       .from(products)
-      .where(and(
-        isNull(products.storeId),
-        isNull(products.deletedAt),
-        eq(products.status, 'ACTIVE'),
-        inArray(products.categoryId, [cat.id, ...descendantIds]),
-      ));
+      .where(
+        and(
+          isNull(products.storeId),
+          isNull(products.deletedAt),
+          eq(products.status, 'ACTIVE'),
+          inArray(products.categoryId, [cat.id, ...descendantIds]),
+        ),
+      );
     const typeIdSet = new Set<string>();
     for (const r of linkedTypes) typeIdSet.add(r.id);
     for (const r of typesByProducts) if (r.productTypeId) typeIdSet.add(r.productTypeId);
 
     return {
       ...cat,
-      parent: parentInfo ? { id: parentInfo.id, slug: parentInfo.slug, name: parentInfo.name } : null,
-      children: childNodes.map(c => ({ id: c.id, slug: c.slug, name: c.name })),
+      parent: parentInfo
+        ? { id: parentInfo.id, slug: parentInfo.slug, name: parentInfo.name }
+        : null,
+      children: childNodes.map((c) => ({ id: c.id, slug: c.slug, name: c.name })),
       productTypeCount: typeIdSet.size,
       directProductCount: directCount,
       descendantProductCount: descendantCount,
@@ -320,19 +339,20 @@ export class CatalogService {
     const nodes = await this.loadPlatformCategoryNodes();
 
     // One group-by pass for direct product counts across every category.
-    const counts = await this.db.db.select({
-      categoryId: products.categoryId,
-      count: sql<number>`count(*)::int`,
-    })
+    const counts = await this.db.db
+      .select({
+        categoryId: products.categoryId,
+        count: sql<number>`count(*)::int`,
+      })
       .from(products)
-      .where(and(
-        isNull(products.storeId),
-        isNull(products.deletedAt),
-        eq(products.status, 'ACTIVE'),
-      ))
+      .where(
+        and(isNull(products.storeId), isNull(products.deletedAt), eq(products.status, 'ACTIVE')),
+      )
       .groupBy(products.categoryId);
     const countByCat = new Map<string, number>(
-      counts.filter(c => c.categoryId != null).map(c => [c.categoryId as string, c.count] as const),
+      counts
+        .filter((c) => c.categoryId != null)
+        .map((c) => [c.categoryId as string, c.count] as const),
     );
 
     type Node = {
@@ -390,10 +410,7 @@ export class CatalogService {
    * Products belonging to a category, with direct vs descendant clearly
    * separated (task §4 "Do not mix these counts without labeling them").
    */
-  async getCategoryProducts(
-    id: string,
-    opts?: { scope?: 'DIRECT' | 'DESCENDANT' | 'BOTH' },
-  ) {
+  async getCategoryProducts(id: string, opts?: { scope?: 'DIRECT' | 'DESCENDANT' | 'BOTH' }) {
     const scope = opts?.scope ?? 'BOTH';
     const cat = await this.db.db.query.categories.findFirst({ where: eq(categories.id, id) });
     if (!cat) throw new NotFoundException('Category not found');
@@ -408,10 +425,12 @@ export class CatalogService {
       eq(products.status, 'ACTIVE'),
     ];
 
-    const directRows = scope === 'DESCENDANT' ? [] : await this.queryCategoryProductRows(baseConditions, [cat.id]);
-    const descendantRows = scope === 'DIRECT' || descendantIds.size === 0
-      ? []
-      : await this.queryCategoryProductRows(baseConditions, [...descendantIds]);
+    const directRows =
+      scope === 'DESCENDANT' ? [] : await this.queryCategoryProductRows(baseConditions, [cat.id]);
+    const descendantRows =
+      scope === 'DIRECT' || descendantIds.size === 0
+        ? []
+        : await this.queryCategoryProductRows(baseConditions, [...descendantIds]);
 
     return {
       categoryId: cat.id,
@@ -431,72 +450,83 @@ export class CatalogService {
    * plus variant and attribute counts per task §6).
    */
   async listCategoryProductTypesForAdmin(categoryId: string) {
-    const cat = await this.db.db.query.categories.findFirst({ where: eq(categories.id, categoryId) });
+    const cat = await this.db.db.query.categories.findFirst({
+      where: eq(categories.id, categoryId),
+    });
     if (!cat) throw new NotFoundException('Category not found');
 
-    const pts = await this.db.db.select({
-      id: productTypes.id,
-      code: productTypes.code,
-      name: productTypes.name,
-      nameAr: productTypes.nameAr,
-      description: productTypes.description,
-      status: productTypes.status,
-      version: productTypes.version,
-      publishedAt: productTypes.publishedAt,
-      variantDimensions: productTypes.variantDimensions,
-    })
+    const pts = await this.db.db
+      .select({
+        id: productTypes.id,
+        code: productTypes.code,
+        name: productTypes.name,
+        nameAr: productTypes.nameAr,
+        description: productTypes.description,
+        status: productTypes.status,
+        version: productTypes.version,
+        publishedAt: productTypes.publishedAt,
+        variantDimensions: productTypes.variantDimensions,
+      })
       .from(productTypes)
       .where(eq(productTypes.categoryId, categoryId))
       .orderBy(asc(productTypes.name));
 
     if (pts.length === 0) return [];
 
-    const ptIds = pts.map(p => p.id);
+    const ptIds = pts.map((p) => p.id);
 
     // Variant count = number of variants attached to any product in this
     // category whose productTypeId matches. Attribute count = PTA rows.
-    const variantCounts = await this.db.db.select({
-      productTypeId: products.productTypeId,
-      count: sql<number>`count(*)::int`,
-    })
+    const variantCounts = await this.db.db
+      .select({
+        productTypeId: products.productTypeId,
+        count: sql<number>`count(*)::int`,
+      })
       .from(productVariants)
       .innerJoin(products, eq(productVariants.productId, products.id))
-      .where(and(
-        inArray(products.productTypeId, ptIds),
-        eq(products.categoryId, categoryId),
-        isNull(products.storeId),
-        isNull(products.deletedAt),
-      ))
+      .where(
+        and(
+          inArray(products.productTypeId, ptIds),
+          eq(products.categoryId, categoryId),
+          isNull(products.storeId),
+          isNull(products.deletedAt),
+        ),
+      )
       .groupBy(products.productTypeId);
-    const variantByPt = new Map(variantCounts.map(v => [v.productTypeId as string, v.count] as const));
+    const variantByPt = new Map(
+      variantCounts.map((v) => [v.productTypeId as string, v.count] as const),
+    );
 
-    const attrCounts = await this.db.db.select({
-      productTypeId: productTypeAttributes.productTypeId,
-      count: sql<number>`count(*)::int`,
-    })
+    const attrCounts = await this.db.db
+      .select({
+        productTypeId: productTypeAttributes.productTypeId,
+        count: sql<number>`count(*)::int`,
+      })
       .from(productTypeAttributes)
       .where(inArray(productTypeAttributes.productTypeId, ptIds))
       .groupBy(productTypeAttributes.productTypeId);
-    const attrByPt = new Map(attrCounts.map(a => [a.productTypeId, a.count] as const));
+    const attrByPt = new Map(attrCounts.map((a) => [a.productTypeId, a.count] as const));
 
-    return pts.map(p => ({
+    return pts.map((p) => ({
       ...p,
       variantCount: variantByPt.get(p.id) ?? 0,
       attributeCount: attrByPt.get(p.id) ?? 0,
-      publishStatus: p.status === 'PUBLISHED' ? 'PUBLISHED' : p.status === 'DRAFT' ? 'NOT_PUBLISHED' : p.status,
+      publishStatus:
+        p.status === 'PUBLISHED' ? 'PUBLISHED' : p.status === 'DRAFT' ? 'NOT_PUBLISHED' : p.status,
     }));
   }
 
   /** Load the small set of platform-level categories used for tree/count traversal. */
   private async loadPlatformCategoryNodes() {
-    return this.db.db.select({
-      id: categories.id,
-      parentId: categories.parentId,
-      slug: categories.slug,
-      name: categories.name,
-      nameAr: categories.nameAr,
-      sortOrder: categories.sortOrder,
-    })
+    return this.db.db
+      .select({
+        id: categories.id,
+        parentId: categories.parentId,
+        slug: categories.slug,
+        name: categories.name,
+        nameAr: categories.nameAr,
+        sortOrder: categories.sortOrder,
+      })
       .from(categories)
       .where(isNull(categories.storeId))
       .orderBy(asc(categories.sortOrder));
@@ -505,14 +535,17 @@ export class CatalogService {
   /** Count non-deleted canonical products assigned to any of the given category ids. */
   private async countProductsInCategories(categoryIds: string[]): Promise<number> {
     if (categoryIds.length === 0) return 0;
-    const rows = await this.db.db.select({ count: sql<number>`count(*)::int` })
+    const rows = await this.db.db
+      .select({ count: sql<number>`count(*)::int` })
       .from(products)
-      .where(and(
-        inArray(products.categoryId, categoryIds),
-        isNull(products.storeId),
-        isNull(products.deletedAt),
-        eq(products.status, 'ACTIVE'),
-      ));
+      .where(
+        and(
+          inArray(products.categoryId, categoryIds),
+          isNull(products.storeId),
+          isNull(products.deletedAt),
+          eq(products.status, 'ACTIVE'),
+        ),
+      );
     return rows[0]?.count ?? 0;
   }
 
@@ -520,21 +553,22 @@ export class CatalogService {
    *  brand / product-type / category natural keys needed for the admin table. */
   private async queryCategoryProductRows(baseConditions: unknown[], oneOfCategoryIds: string[]) {
     if (oneOfCategoryIds.length === 0) return [];
-    return this.db.db.select({
-      id: products.id,
-      slug: products.slug,
-      title: products.title,
-      titleAr: products.titleAr,
-      status: products.status,
-      condition: products.condition,
-      categoryId: products.categoryId,
-      categorySlug: categories.slug,
-      categoryName: categories.name,
-      brandSlug: brands.slug,
-      brandName: brands.name,
-      productTypeCode: productTypes.code,
-      productTypeName: productTypes.name,
-    })
+    return this.db.db
+      .select({
+        id: products.id,
+        slug: products.slug,
+        title: products.title,
+        titleAr: products.titleAr,
+        status: products.status,
+        condition: products.condition,
+        categoryId: products.categoryId,
+        categorySlug: categories.slug,
+        categoryName: categories.name,
+        brandSlug: brands.slug,
+        brandName: brands.name,
+        productTypeCode: productTypes.code,
+        productTypeName: productTypes.name,
+      })
       .from(products)
       .leftJoin(brands, eq(products.brandId, brands.id))
       .leftJoin(productTypes, eq(products.productTypeId, productTypes.id))
@@ -553,36 +587,40 @@ export class CatalogService {
     });
     if (!pt) throw new NotFoundException('Product type not found');
 
-    const rows = await this.db.db.select({
-      id: products.id,
-      slug: products.slug,
-      title: products.title,
-      titleAr: products.titleAr,
-      status: products.status,
-      condition: products.condition,
-      brandSlug: brands.slug,
-      brandName: brands.name,
-      categorySlug: categories.slug,
-      categoryName: categories.name,
-    })
+    const rows = await this.db.db
+      .select({
+        id: products.id,
+        slug: products.slug,
+        title: products.title,
+        titleAr: products.titleAr,
+        status: products.status,
+        condition: products.condition,
+        brandSlug: brands.slug,
+        brandName: brands.name,
+        categorySlug: categories.slug,
+        categoryName: categories.name,
+      })
       .from(products)
       .leftJoin(brands, eq(products.brandId, brands.id))
       .leftJoin(categories, eq(products.categoryId, categories.id))
-      .where(and(
-        eq(products.productTypeId, productTypeId),
-        isNull(products.storeId),
-        isNull(products.deletedAt),
-      ))
+      .where(
+        and(
+          eq(products.productTypeId, productTypeId),
+          isNull(products.storeId),
+          isNull(products.deletedAt),
+        ),
+      )
       .orderBy(asc(products.title));
 
     // Enrich with variant counts
-    const productIds = rows.map(r => r.id);
+    const productIds = rows.map((r) => r.id);
     const variantCountMap = new Map<string, number>();
     if (productIds.length > 0) {
-      const vRows = await this.db.db.select({
-        productId: productVariants.productId,
-        count: sql<number>`count(*)::int`,
-      })
+      const vRows = await this.db.db
+        .select({
+          productId: productVariants.productId,
+          count: sql<number>`count(*)::int`,
+        })
         .from(productVariants)
         .where(inArray(productVariants.productId, productIds))
         .groupBy(productVariants.productId);
@@ -593,7 +631,7 @@ export class CatalogService {
       productTypeId,
       productTypeCode: pt.code,
       productTypeName: pt.name,
-      products: rows.map(r => ({
+      products: rows.map((r) => ({
         ...r,
         variantCount: variantCountMap.get(r.id) ?? 0,
       })),
@@ -608,15 +646,16 @@ export class CatalogService {
    * Returns full details so the admin can review before any migration.
    */
   async findCorruptedVariants() {
-    const rows = await this.db.db.select({
-      id: productVariants.id,
-      sku: productVariants.sku,
-      title: productVariants.title,
-      productId: productVariants.productId,
-      productSlug: products.slug,
-      productTitle: products.title,
-      createdAt: productVariants.createdAt,
-    })
+    const rows = await this.db.db
+      .select({
+        id: productVariants.id,
+        sku: productVariants.sku,
+        title: productVariants.title,
+        productId: productVariants.productId,
+        productSlug: products.slug,
+        productTitle: products.title,
+        createdAt: productVariants.createdAt,
+      })
       .from(productVariants)
       .innerJoin(products, eq(productVariants.productId, products.id))
       .where(like(productVariants.sku, 'SKU-[%'))
@@ -624,20 +663,32 @@ export class CatalogService {
 
     // Enrich with variant attribute values so the admin can see what the
     // variant actually represents before approving a SKU migration.
-    const variantIds = rows.map(r => r.id);
-    const attrMap = new Map<string, Array<{ attributeCode: string; valueText: string | null; valueNumber: string | null; optionValue: string | null }>>();
+    const variantIds = rows.map((r) => r.id);
+    const attrMap = new Map<
+      string,
+      Array<{
+        attributeCode: string;
+        valueText: string | null;
+        valueNumber: string | null;
+        optionValue: string | null;
+      }>
+    >();
     if (variantIds.length > 0) {
       const { variantAttributeValues } = await import('../catalog/catalog.taxonomy.schema');
       const { attributeDefinitions } = await import('../catalog/catalog.taxonomy.schema');
-      const vaRows = await this.db.db.select({
-        variantId: variantAttributeValues.variantId,
-        attributeCode: attributeDefinitions.code,
-        valueText: variantAttributeValues.valueText,
-        valueNumber: variantAttributeValues.valueNumber,
-        optionValue: variantAttributeValues.optionValue,
-      })
+      const vaRows = await this.db.db
+        .select({
+          variantId: variantAttributeValues.variantId,
+          attributeCode: attributeDefinitions.code,
+          valueText: variantAttributeValues.valueText,
+          valueNumber: variantAttributeValues.valueNumber,
+          optionValue: variantAttributeValues.optionValue,
+        })
         .from(variantAttributeValues)
-        .innerJoin(attributeDefinitions, eq(variantAttributeValues.attributeDefinitionId, attributeDefinitions.id))
+        .innerJoin(
+          attributeDefinitions,
+          eq(variantAttributeValues.attributeDefinitionId, attributeDefinitions.id),
+        )
         .where(inArray(variantAttributeValues.variantId, variantIds));
       for (const r of vaRows) {
         if (!attrMap.has(r.variantId)) attrMap.set(r.variantId, []);
@@ -652,7 +703,7 @@ export class CatalogService {
 
     return {
       count: rows.length,
-      variants: rows.map(r => ({
+      variants: rows.map((r) => ({
         ...r,
         attributes: attrMap.get(r.id) ?? [],
       })),
@@ -711,7 +762,9 @@ export class CatalogService {
     const productCounts = await this.db.db.execute<{
       brand_id: string;
       product_count: string;
-    }>(sql`SELECT brand_id, COUNT(*)::text AS product_count FROM products WHERE brand_id IS NOT NULL GROUP BY brand_id`);
+    }>(
+      sql`SELECT brand_id, COUNT(*)::text AS product_count FROM products WHERE brand_id IS NOT NULL GROUP BY brand_id`,
+    );
 
     const merchantCounts = await this.db.db.execute<{
       brand_id: string;
@@ -724,10 +777,10 @@ export class CatalogService {
       GROUP BY p.brand_id
     `);
 
-    const pcMap = new Map(productCounts.rows.map(r => [r.brand_id, Number(r.product_count)]));
-    const mcMap = new Map(merchantCounts.rows.map(r => [r.brand_id, Number(r.merchant_count)]));
+    const pcMap = new Map(productCounts.rows.map((r) => [r.brand_id, Number(r.product_count)]));
+    const mcMap = new Map(merchantCounts.rows.map((r) => [r.brand_id, Number(r.merchant_count)]));
 
-    return brandRows.map(b => ({
+    return brandRows.map((b) => ({
       ...b,
       productCount: pcMap.get(b.id) ?? 0,
       merchantCount: mcMap.get(b.id) ?? 0,
@@ -739,7 +792,12 @@ export class CatalogService {
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (input.name !== undefined) {
       updates['name'] = input.name;
-      updates['slug'] = input.slug || input.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      updates['slug'] =
+        input.slug ||
+        input.name
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, '');
     }
     if (input.nameAr !== undefined) updates['nameAr'] = input.nameAr || null;
     if (input.logoUrl !== undefined) updates['logoUrl'] = input.logoUrl || null;
@@ -759,7 +817,9 @@ export class CatalogService {
     // PHASE 7: Check for existing canonical product with same identifiers
     if (input.gtin || input.ean || input.mpn) {
       const existing = await this.findProductByIdentifiers({
-        gtin: input.gtin, ean: input.ean, mpn: input.mpn,
+        gtin: input.gtin,
+        ean: input.ean,
+        mpn: input.mpn,
       });
       if (existing) {
         // Return the match so the caller can attach an offer to it
@@ -843,7 +903,11 @@ export class CatalogService {
     if (!match) {
       // Fallback: try remaining identifiers individually
       const primaryIdentifier = gtin ? 'gtin' : ean ? 'ean' : 'mpn';
-      const remaining: Array<{ col: typeof products.gtin | typeof products.ean | typeof products.mpn; val: string; label: 'gtin' | 'ean' | 'mpn' }> = [];
+      const remaining: Array<{
+        col: typeof products.gtin | typeof products.ean | typeof products.mpn;
+        val: string;
+        label: 'gtin' | 'ean' | 'mpn';
+      }> = [];
       if (gtin) remaining.push({ col: products.gtin, val: gtin, label: 'gtin' });
       if (ean) remaining.push({ col: products.ean, val: ean, label: 'ean' });
       if (mpn) remaining.push({ col: products.mpn, val: mpn, label: 'mpn' });
@@ -863,7 +927,7 @@ export class CatalogService {
       }
       return null;
     }
-    const matched = gtin ? 'gtin' as const : ean ? 'ean' as const : 'mpn' as const;
+    const matched = gtin ? ('gtin' as const) : ean ? ('ean' as const) : ('mpn' as const);
     return { id: match.id, title: match.title, slug: match.slug, matched };
   }
 
@@ -896,7 +960,7 @@ export class CatalogService {
       const q = `%${filters.search}%`;
       conditions.push(
         // Title match OR identifier match
-        ilike(products.title, q)
+        ilike(products.title, q),
       );
     }
     if (filters.brandId) conditions.push(eq(products.brandId, filters.brandId));
@@ -926,7 +990,7 @@ export class CatalogService {
       .offset(offset);
 
     // Enrich with variant count and active offer count per product.
-    const productIds = rows.map(r => r.id);
+    const productIds = rows.map((r) => r.id);
     const variantCounts = new Map<string, number>();
     const offerCounts = new Map<string, number>();
 
@@ -941,16 +1005,15 @@ export class CatalogService {
       const oRows = await this.db.db
         .select({ productId: merchantOffers.productId, count: sql<number>`count(*)::int` })
         .from(merchantOffers)
-        .where(and(
-          inArray(merchantOffers.productId, productIds),
-          eq(merchantOffers.status, 'ACTIVE'),
-        ))
+        .where(
+          and(inArray(merchantOffers.productId, productIds), eq(merchantOffers.status, 'ACTIVE')),
+        )
         .groupBy(merchantOffers.productId);
       for (const r of oRows) offerCounts.set(r.productId, r.count);
     }
 
     return {
-      items: rows.map(r => ({
+      items: rows.map((r) => ({
         ...r,
         variantCount: variantCounts.get(r.id) ?? 0,
         activeOfferCount: offerCounts.get(r.id) ?? 0,
@@ -978,7 +1041,9 @@ export class CatalogService {
       incompleteOffers,
     ] = await Promise.all([
       // Total active products
-      this.db.db.execute(sql`SELECT COUNT(*)::int AS count FROM products WHERE deleted_at IS NULL AND status = 'ACTIVE'`),
+      this.db.db.execute(
+        sql`SELECT COUNT(*)::int AS count FROM products WHERE deleted_at IS NULL AND status = 'ACTIVE'`,
+      ),
       // Products with no media entries
       this.db.db.execute(sql`
         SELECT COUNT(*)::int AS count FROM products p
@@ -1098,19 +1163,35 @@ export class CatalogService {
   async getProductDetail(id: string, includeInactiveVariants = true) {
     // Keep studio and buyer cache entries separate: merchant callers may see
     // inactive variants, while public product reads must not.
-    const cacheKey = CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id + (includeInactiveVariants ? '' : ':public');
+    const cacheKey =
+      CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id + (includeInactiveVariants ? '' : ':public');
     try {
       const cached = await this.redis.client.get(cacheKey);
-      if (cached) { recordCacheHit('product_detail'); return JSON.parse(cached); }
+      if (cached) {
+        recordCacheHit('product_detail');
+        return JSON.parse(cached);
+      }
       recordCacheMiss('product_detail');
-    } catch { recordCacheMiss('product_detail'); }
+    } catch {
+      recordCacheMiss('product_detail');
+    }
 
-    const result = await timeQuery(`getProductDetail:${id}:${includeInactiveVariants ? 'studio' : 'public'}`, () => this._getProductDetailUncached(id, includeInactiveVariants));
+    const result = await timeQuery(
+      `getProductDetail:${id}:${includeInactiveVariants ? 'studio' : 'public'}`,
+      () => this._getProductDetailUncached(id, includeInactiveVariants),
+    );
 
     // Fire-and-forget cache write
     try {
-      await this.redis.client.set(cacheKey, JSON.stringify(result), 'EX', CatalogService.PRODUCT_DETAIL_TTL_S);
-    } catch { /* non-blocking */ }
+      await this.redis.client.set(
+        cacheKey,
+        JSON.stringify(result),
+        'EX',
+        CatalogService.PRODUCT_DETAIL_TTL_S,
+      );
+    } catch {
+      /* non-blocking */
+    }
 
     return result;
   }
@@ -1123,7 +1204,9 @@ export class CatalogService {
         this.redis.client.del(CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id + ':public'),
         this.redis.client.del(CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id),
       ]);
-    } catch { /* non-blocking */ }
+    } catch {
+      /* non-blocking */
+    }
   }
 
   private async _getProductDetailUncached(id: string, includeInactiveVariants = true) {
@@ -1131,34 +1214,52 @@ export class CatalogService {
     const productStoreId = product.storeId;
     const [storeRows, media, variants, labels] = await Promise.all([
       productStoreId
-        ? this.db.db.select({ id: stores.id, displayName: stores.displayName, name: stores.displayName,
-            slug: stores.slug, currency: stores.currency, status: stores.status,
-            verificationStatus: stores.verificationStatus, orgId: stores.orgId, orgName: organizations.name,
-          }).from(stores).leftJoin(organizations, eq(stores.orgId, organizations.id)).where(eq(stores.id, productStoreId))
+        ? this.db.db
+            .select({
+              id: stores.id,
+              displayName: stores.displayName,
+              name: stores.displayName,
+              slug: stores.slug,
+              currency: stores.currency,
+              status: stores.status,
+              verificationStatus: stores.verificationStatus,
+              orgId: stores.orgId,
+              orgName: organizations.name,
+            })
+            .from(stores)
+            .leftJoin(organizations, eq(stores.orgId, organizations.id))
+            .where(eq(stores.id, productStoreId))
         : Promise.resolve([] as any[]),
       this.listMediaByProduct(id),
       this.listVariantsByProduct(id, includeInactiveVariants),
-      this.db.db.select({ categoryName: categories.name, brandName: brands.name }).from(products)
-        .leftJoin(categories, eq(products.categoryId, categories.id)).leftJoin(brands, eq(products.brandId, brands.id))
+      this.db.db
+        .select({ categoryName: categories.name, brandName: brands.name })
+        .from(products)
+        .leftJoin(categories, eq(products.categoryId, categories.id))
+        .leftJoin(brands, eq(products.brandId, brands.id))
         .where(eq(products.id, id)),
     ]);
     // A5-1: attach per-variant pricing via the shared resolver so the buyer
     // detail page and the cart agree on what a unit costs. MOQ is offer-owned;
     // resolve at quantity=1 for display (cart uses actual offer MOQ).
-    const activeVariants = variants.filter(v => v['isActive']);
-    const variantIds = activeVariants.map(v => v['id']);
-    const pricingMap = variantIds.length > 0 && productStoreId
-      ? await resolveOfferPrices(this.db.db, productStoreId, variantIds, 1, { ladder: true })
-      : new Map();
-    const variantsWithPricing = variants.map(v => ({
+    const activeVariants = variants.filter((v) => v['isActive']);
+    const variantIds = activeVariants.map((v) => v['id']);
+    const pricingMap =
+      variantIds.length > 0 && productStoreId
+        ? await resolveOfferPrices(this.db.db, productStoreId, variantIds, 1, { ladder: true })
+        : new Map();
+    const variantsWithPricing = variants.map((v) => ({
       ...v,
       pricing: pricingMap.get(v['id']) ?? null,
     }));
 
     // Attach stock status per variant: sum available across all store warehouses.
     // Wrapped in try-catch so test environments with partial mock DBs still work.
-    const allVariantIds = variants.map(v => v['id']);
-    const stockByVariant: Record<string, { totalAvailable: number; totalOnHand: number; warehouseCount: number }> = {};
+    const allVariantIds = variants.map((v) => v['id']);
+    const stockByVariant: Record<
+      string,
+      { totalAvailable: number; totalOnHand: number; warehouseCount: number }
+    > = {};
     try {
       if (allVariantIds.length > 0 && product['storeId']) {
         const storeWarehouses = await this.db.db.query.warehouses.findMany({
@@ -1166,7 +1267,7 @@ export class CatalogService {
           columns: { id: true },
         });
         if (storeWarehouses.length > 0) {
-          const whIds = storeWarehouses.map(w => w.id);
+          const whIds = storeWarehouses.map((w) => w.id);
           const invRows = await this.db.db.query.inventoryItems.findMany({
             where: and(
               inArray(inventoryItems.warehouseId, whIds),
@@ -1175,7 +1276,11 @@ export class CatalogService {
           });
           for (const row of invRows) {
             const vid = row['variantId'];
-            const prev = stockByVariant[vid] ?? { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 };
+            const prev = stockByVariant[vid] ?? {
+              totalAvailable: 0,
+              totalOnHand: 0,
+              warehouseCount: 0,
+            };
             const available = row['qtyOnHand'] - row['qtyReserved'];
             stockByVariant[vid] = {
               totalAvailable: prev.totalAvailable + available,
@@ -1188,14 +1293,14 @@ export class CatalogService {
     } catch {
       // Stock tables may not be available in all environments (e.g. test mocks)
     }
-    const variantsWithStock = variantsWithPricing.map(v => ({
+    const variantsWithStock = variantsWithPricing.map((v) => ({
       ...v,
       stock: stockByVariant[v['id']] ?? { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 },
     }));
 
     // Resolve storage keys to signed URLs so the buyer page can render
     // product photos directly; failures degrade to null (placeholder shown).
-    const resolvedMedia = await Promise.all(media.map(m => this.resolveMediaRow(m)));
+    const resolvedMedia = await Promise.all(media.map((m) => this.resolveMediaRow(m)));
 
     // PHASE 5e: structured attribute values for specs display
     let attributeValues: Array<{ code: string; label: string; value: unknown }> = [];
@@ -1211,18 +1316,30 @@ export class CatalogService {
           valueJson: productAttributeValues.valueJson,
         })
         .from(productAttributeValues)
-        .innerJoin(attributeDefinitions, eq(productAttributeValues.attributeDefinitionId, attributeDefinitions.id))
+        .innerJoin(
+          attributeDefinitions,
+          eq(productAttributeValues.attributeDefinitionId, attributeDefinitions.id),
+        )
         .where(eq(productAttributeValues.productId, id));
-      attributeValues = rows.map(r => ({
+      attributeValues = rows.map((r) => ({
         code: r.code,
         label: r.label,
-        value: r.valueText ?? r.valueNumber ?? r.valueBoolean ?? r.optionValue ?? r.valueJson ?? null,
+        value:
+          r.valueText ?? r.valueNumber ?? r.valueBoolean ?? r.optionValue ?? r.valueJson ?? null,
       }));
-    } catch { /* taxonomy tables may not be available in all envs */ }
+    } catch {
+      /* taxonomy tables may not be available in all envs */
+    }
 
-    return { ...product, ...labels[0], store: storeRows[0] ?? null, media: resolvedMedia, variants: variantsWithStock,
+    return {
+      ...product,
+      ...labels[0],
+      store: storeRows[0] ?? null,
+      media: resolvedMedia,
+      variants: variantsWithStock,
       attributeValues,
-      imageCount: imageReferences(product.images, media).length };
+      imageCount: imageReferences(product.images, media).length,
+    };
   }
 
   async listProductsByStore(
@@ -1235,10 +1352,7 @@ export class CatalogService {
       offset?: number;
     },
   ) {
-    const conditions = [
-      eq(products.storeId, storeId),
-      isNull(products.deletedAt),
-    ];
+    const conditions = [eq(products.storeId, storeId), isNull(products.deletedAt)];
 
     if (filters?.status) {
       conditions.push(eq(products.status, filters.status));
@@ -1255,16 +1369,12 @@ export class CatalogService {
     const where = and(...conditions);
 
     const limit =
-      typeof filters?.limit === 'number' &&
-      Number.isFinite(filters.limit) &&
-      filters.limit > 0
+      typeof filters?.limit === 'number' && Number.isFinite(filters.limit) && filters.limit > 0
         ? Math.min(Math.floor(filters.limit), 500)
         : undefined;
 
     const offset =
-      typeof filters?.offset === 'number' &&
-      Number.isFinite(filters.offset) &&
-      filters.offset >= 0
+      typeof filters?.offset === 'number' && Number.isFinite(filters.offset) && filters.offset >= 0
         ? Math.floor(filters.offset)
         : undefined;
 
@@ -1282,7 +1392,7 @@ export class CatalogService {
     });
 
     const enrichedItems = await enrichProductCards(this.db.db, items, {
-      resolveImage: ref => this.resolveMediaRef(ref),
+      resolveImage: (ref) => this.resolveMediaRef(ref),
     });
 
     return {
@@ -1315,7 +1425,8 @@ export class CatalogService {
     });
     const valuesByAttrId = new Map<string, unknown>();
     for (const v of valRows) {
-      const val = v.valueText ?? v.valueNumber ?? v.valueBoolean ?? v.optionValue ?? v.valueJson ?? null;
+      const val =
+        v.valueText ?? v.valueNumber ?? v.valueBoolean ?? v.optionValue ?? v.valueJson ?? null;
       valuesByAttrId.set(v.attributeDefinitionId, val);
     }
 
@@ -1342,7 +1453,9 @@ export class CatalogService {
         const val = valuesByAttrId.get(pta.attributeDefinitionId);
         if (val === null || val === undefined || val === '') {
           // Only report if not already reported by conditional evaluation
-          const alreadyReported = evaluation.errors.some(e => e.attributeId === pta.attributeDefinitionId);
+          const alreadyReported = evaluation.errors.some(
+            (e) => e.attributeId === pta.attributeDefinitionId,
+          );
           if (!alreadyReported) {
             errors.push({
               attributeId: pta.attributeDefinitionId,
@@ -1355,7 +1468,7 @@ export class CatalogService {
 
     // 6. Merge conditionally-required errors (only PRODUCT-scope targets)
     const productScopeAttrIds = new Set(
-      ptaRows.filter(pta => pta.scope === 'PRODUCT').map(pta => pta.attributeDefinitionId),
+      ptaRows.filter((pta) => pta.scope === 'PRODUCT').map((pta) => pta.attributeDefinitionId),
     );
     for (const err of evaluation.errors) {
       if (productScopeAttrIds.has(err.attributeId)) {
@@ -1426,8 +1539,9 @@ export class CatalogService {
     if (input.mpn !== undefined) changedFields.add('mpn');
     if (input.images !== undefined) changedFields.add('images');
 
-    const hasHighRiskChanges = Array.from(changedFields).some(f => HIGH_RISK_FIELDS.has(f));
-    const needsReReview = hasHighRiskChanges && (currentStatus === 'APPROVED' || currentStatus === 'PUBLISHED');
+    const hasHighRiskChanges = Array.from(changedFields).some((f) => HIGH_RISK_FIELDS.has(f));
+    const needsReReview =
+      hasHighRiskChanges && (currentStatus === 'APPROVED' || currentStatus === 'PUBLISHED');
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
@@ -1468,8 +1582,7 @@ export class CatalogService {
     // ── PHASE 4 P2: Product type change detection ──
     const currentProductTypeId = (product['productTypeId'] as string | null) ?? null;
     const isProductTypeChanging =
-      input.productTypeId !== undefined &&
-      (input.productTypeId ?? null) !== currentProductTypeId;
+      input.productTypeId !== undefined && (input.productTypeId ?? null) !== currentProductTypeId;
 
     if (isProductTypeChanging) {
       const newPtId = input.productTypeId ?? null;
@@ -1505,7 +1618,8 @@ export class CatalogService {
       // P11: If re-review is needed, wrap in transaction with governance trigger
       if (needsReReview) {
         return this.db.db.transaction(async (tx) => {
-          const [updated] = await tx.update(products)
+          const [updated] = await tx
+            .update(products)
             .set(updates)
             .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
             .returning();
@@ -1524,8 +1638,13 @@ export class CatalogService {
 
           // Trigger re-review (APPROVED/PUBLISHED → UNDER_REVIEW)
           await this.governance.triggerReReviewIfNeeded(
-            tx, id, changedFields, false, false,
-            product['storeId'] || 'system', 'MERCHANT',
+            tx,
+            id,
+            changedFields,
+            false,
+            false,
+            product['storeId'] || 'system',
+            'MERCHANT',
           );
 
           await this.invalidateProductCache(id);
@@ -1533,7 +1652,8 @@ export class CatalogService {
         });
       }
 
-      const [updated] = await this.db.db.update(products)
+      const [updated] = await this.db.db
+        .update(products)
         .set(updates)
         .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
         .returning();
@@ -1578,8 +1698,13 @@ export class CatalogService {
       return this.db.db.transaction(async (tx) => {
         await tx.update(products).set(updates).where(eq(products.id, id));
         await this.governance.triggerReReviewIfNeeded(
-          tx, id, changedFields, false, false,
-          product['storeId'] || 'system', 'MERCHANT',
+          tx,
+          id,
+          changedFields,
+          false,
+          false,
+          product['storeId'] || 'system',
+          'MERCHANT',
         );
         await this.invalidateProductCache(id);
         return this.getProduct(id);
@@ -1629,7 +1754,8 @@ export class CatalogService {
     try {
       await this.db.db.transaction(async (tx) => {
         // 1. Lock product row exclusively
-        const [locked] = await tx.select({ id: products.id })
+        const [locked] = await tx
+          .select({ id: products.id })
           .from(products)
           .where(eq(products.id, id))
           .for('update')
@@ -1637,7 +1763,8 @@ export class CatalogService {
         if (!locked) throw new NotFoundException('Product not found');
 
         // 2. Guard: variant count must be 0
-        const [vc] = await tx.select({ count: sql<number>`count(*)::int` })
+        const [vc] = await tx
+          .select({ count: sql<number>`count(*)::int` })
           .from(productVariants)
           .where(eq(productVariants.productId, id));
         if (vc && vc.count > 0) {
@@ -1645,7 +1772,8 @@ export class CatalogService {
         }
 
         // 3. Guard: ALL merchant offers count must be 0 (not just ACTIVE)
-        const [oc] = await tx.select({ count: sql<number>`count(*)::int` })
+        const [oc] = await tx
+          .select({ count: sql<number>`count(*)::int` })
           .from(merchantOffers)
           .where(eq(merchantOffers.productId, id));
         if (oc && oc.count > 0) {
@@ -1658,7 +1786,8 @@ export class CatalogService {
           if (isNaN(clientDate.getTime())) {
             throw new BadRequestException('Invalid updatedAt timestamp');
           }
-          const [updated] = await tx.update(products)
+          const [updated] = await tx
+            .update(products)
             .set(updates)
             .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
             .returning();
@@ -1675,13 +1804,19 @@ export class CatalogService {
       });
     } catch (err) {
       // Translate DB unique constraint violations to clean HTTP 400
-      if (err instanceof BadRequestException || err instanceof ConflictException || err instanceof NotFoundException) {
+      if (
+        err instanceof BadRequestException ||
+        err instanceof ConflictException ||
+        err instanceof NotFoundException
+      ) {
         throw err;
       }
       if (err && typeof err === 'object' && 'code' in err && (err as any).code === '23505') {
         const constraint = (err as any).constraint;
-        if (constraint === 'uq_products_gtin') throw new BadRequestException('GTIN already exists on another product');
-        if (constraint === 'uq_products_ean') throw new BadRequestException('EAN already exists on another product');
+        if (constraint === 'uq_products_gtin')
+          throw new BadRequestException('GTIN already exists on another product');
+        if (constraint === 'uq_products_ean')
+          throw new BadRequestException('EAN already exists on another product');
         throw new BadRequestException('Identifier already exists on another product');
       }
       throw err;
@@ -1752,7 +1887,8 @@ export class CatalogService {
       // PHASE 4 P2: Acquire FOR SHARE lock before creating variants.
       // Allows concurrent variant creations; blocks productTypeId changes.
       await this.db.db.transaction(async (tx) => {
-        await tx.select({ id: products.id })
+        await tx
+          .select({ id: products.id })
           .from(products)
           .where(eq(products.id, productId))
           .for('share')
@@ -1777,15 +1913,20 @@ export class CatalogService {
         });
         // PHASE 3: Write typed attributes if provided
         if (input.attributes && Object.keys(input.attributes).length > 0) {
-          const typedInput = Object.entries(input.attributes).map(([attributeDefinitionId, value]) => ({
-            attributeDefinitionId,
-            value: value as string | number | boolean | string[] | null,
-          }));
+          const typedInput = Object.entries(input.attributes).map(
+            ([attributeDefinitionId, value]) => ({
+              attributeDefinitionId,
+              value: value as string | number | boolean | string[] | null,
+            }),
+          );
           try {
             await this.taxonomyService.setVariantAttributeValues(productId, id, typedInput);
           } catch (err) {
             // Roll back this variant if attribute write failed
-            await this.db.db.delete(productVariants).where(eq(productVariants.id, id)).catch(() => {});
+            await this.db.db
+              .delete(productVariants)
+              .where(eq(productVariants.id, id))
+              .catch(() => {});
             throw err;
           }
         }
@@ -1801,7 +1942,9 @@ export class CatalogService {
     if (ops.deleteIds?.length) {
       await this.db.db
         .delete(productVariants)
-        .where(and(eq(productVariants.productId, productId), inArray(productVariants.id, ops.deleteIds)));
+        .where(
+          and(eq(productVariants.productId, productId), inArray(productVariants.id, ops.deleteIds)),
+        );
       deleted.push(...ops.deleteIds);
     }
 
@@ -1828,7 +1971,11 @@ export class CatalogService {
   ) {
     // Verify all products belong to this store
     const existing = await this.db.db.query.products.findMany({
-      where: and(inArray(products.id, ids), eq(products.storeId, storeId), isNull(products.deletedAt)),
+      where: and(
+        inArray(products.id, ids),
+        eq(products.storeId, storeId),
+        isNull(products.deletedAt),
+      ),
     });
     const validIds = existing.map((p) => p['id']);
     if (validIds.length === 0) return { affected: 0 };
@@ -1877,7 +2024,7 @@ export class CatalogService {
       return 'title,titleAr,description,category,brand,status,sku,barcode,variantTitle,unit,priceMinor';
     }
 
-    const productIds = prods.map(p => p.id);
+    const productIds = prods.map((p) => p.id);
 
     // 2. Batch-fetch variants, categories, brands, product-scope attributes
     const variantsQuery = this.db.db.query.productVariants.findMany({
@@ -1887,22 +2034,28 @@ export class CatalogService {
       ),
       orderBy: [asc(productVariants.createdAt)],
     });
-    const categoriesQuery = this.db.db.select({ id: categories.id, name: categories.name })
+    const categoriesQuery = this.db.db
+      .select({ id: categories.id, name: categories.name })
       .from(categories)
-      .where(inArray(categories.id, prods.map(p => p.categoryId).filter(Boolean) as string[]));
-    const brandsQuery = this.db.db.select({ id: brands.id, name: brands.name })
+      .where(inArray(categories.id, prods.map((p) => p.categoryId).filter(Boolean) as string[]));
+    const brandsQuery = this.db.db
+      .select({ id: brands.id, name: brands.name })
       .from(brands)
-      .where(inArray(brands.id, prods.map(p => p.brandId).filter(Boolean) as string[]));
+      .where(inArray(brands.id, prods.map((p) => p.brandId).filter(Boolean) as string[]));
     const productAttrsQuery = this.db.db.query.productAttributeValues.findMany({
       where: inArray(productAttributeValues.productId, productIds),
     });
     const [allVariants, categoryRows, brandRows, allProductAttrs] = await Promise.all([
-      variantsQuery, categoriesQuery, brandsQuery, productAttrsQuery,
+      variantsQuery,
+      categoriesQuery,
+      brandsQuery,
+      productAttrsQuery,
     ]);
 
     // 3. Batch-fetch variant-scope data (depends on variant IDs from step 2)
-    const variantIds = allVariants.map(v => v.id);
-    const variantIdParam = variantIds.length > 0 ? variantIds : ['00000000-0000-0000-0000-000000000000'];
+    const variantIds = allVariants.map((v) => v.id);
+    const variantIdParam =
+      variantIds.length > 0 ? variantIds : ['00000000-0000-0000-0000-000000000000'];
     const [allVariantAttrs, allPriceTiers] = await Promise.all([
       // Variant-scope typed attributes
       this.db.db.query.variantAttributeValues.findMany({
@@ -1910,15 +2063,12 @@ export class CatalogService {
       }),
       // Base price tiers (min_qty=1) for all variants
       this.db.db.query.priceTiers.findMany({
-        where: and(
-          inArray(priceTiers.variantId, variantIdParam),
-          eq(priceTiers.minQty, 1),
-        ),
+        where: and(inArray(priceTiers.variantId, variantIdParam), eq(priceTiers.minQty, 1)),
       }),
     ]);
 
     // 3. Build lookup maps
-    const variantsByProduct = new Map<string, typeof allVariants[number][]>();
+    const variantsByProduct = new Map<string, (typeof allVariants)[number][]>();
     for (const v of allVariants) {
       const list = variantsByProduct.get(v.productId) ?? [];
       list.push(v);
@@ -1955,8 +2105,20 @@ export class CatalogService {
 
     // 5. Build CSV
     const esc = (v: string) => `"${(v ?? '').replace(/"/g, '""')}"`;
-    const fixedHeader = ['title', 'titleAr', 'description', 'category', 'brand', 'status', 'sku', 'barcode', 'variantTitle', 'unit', 'priceMinor'];
-    const attrHeader = attrColumns.map(c => `attr:${c.code}`);
+    const fixedHeader = [
+      'title',
+      'titleAr',
+      'description',
+      'category',
+      'brand',
+      'status',
+      'sku',
+      'barcode',
+      'variantTitle',
+      'unit',
+      'priceMinor',
+    ];
+    const attrHeader = attrColumns.map((c) => `attr:${c.code}`);
     const header = [...fixedHeader, ...attrHeader].join(',');
 
     const rows: string[] = [header];
@@ -1970,11 +2132,19 @@ export class CatalogService {
       if (variants.length === 0) {
         // Product with no active variants → one row with empty variant fields
         const fixedCols = [
-          esc(p.title), esc(p.titleAr ?? ''), esc(p.description ?? ''),
-          esc(catName), esc(brandName), p.status,
-          '', '', '', '', '',
+          esc(p.title),
+          esc(p.titleAr ?? ''),
+          esc(p.description ?? ''),
+          esc(catName),
+          esc(brandName),
+          p.status,
+          '',
+          '',
+          '',
+          '',
+          '',
         ];
-        const attrCols = attrColumns.map(c => esc(prodAttrMap.get(c.id) ?? ''));
+        const attrCols = attrColumns.map((c) => esc(prodAttrMap.get(c.id) ?? ''));
         rows.push([...fixedCols, ...attrCols].join(','));
       } else {
         for (const v of variants) {
@@ -1982,14 +2152,21 @@ export class CatalogService {
           const varAttrMap = variantAttrsByVariant.get(v.id) ?? new Map();
 
           const fixedCols = [
-            esc(p.title), esc(p.titleAr ?? ''), esc(p.description ?? ''),
-            esc(catName), esc(brandName), p.status,
-            esc(v.sku), esc(v.barcode ?? ''), esc(v.title ?? ''), esc(v.unit),
+            esc(p.title),
+            esc(p.titleAr ?? ''),
+            esc(p.description ?? ''),
+            esc(catName),
+            esc(brandName),
+            p.status,
+            esc(v.sku),
+            esc(v.barcode ?? ''),
+            esc(v.title ?? ''),
+            esc(v.unit),
             price,
           ];
 
           // Merge product + variant attrs; variant takes precedence for same code
-          const attrCols = attrColumns.map(c => {
+          const attrCols = attrColumns.map((c) => {
             const val = varAttrMap.get(c.id) ?? prodAttrMap.get(c.id) ?? '';
             return esc(val);
           });
@@ -2006,7 +2183,13 @@ export class CatalogService {
    * P9: Serialize a typed attribute value row back to its CSV string representation.
    * Compatible with the P8 import coerceAttributeValue() deserialization.
    */
-  private serializeAttributeValue(row: { valueText: string | null; valueNumber: string | null; valueBoolean: boolean | null; optionValue: string | null; valueJson: any }): string {
+  private serializeAttributeValue(row: {
+    valueText: string | null;
+    valueNumber: string | null;
+    valueBoolean: boolean | null;
+    optionValue: string | null;
+    valueJson: any;
+  }): string {
     if (row.valueText != null) return row.valueText;
     if (row.valueNumber != null) return String(row.valueNumber);
     if (row.valueBoolean != null) return row.valueBoolean ? 'true' : 'false';
@@ -2033,7 +2216,10 @@ export class CatalogService {
     if (productIds.length === 0) return [];
 
     // Find attribute definition IDs that have values in these products (either scope)
-    const productIdList = sql.join(productIds.map(id => sql`${id}`), sql`, `);
+    const productIdList = sql.join(
+      productIds.map((id) => sql`${id}`),
+      sql`, `,
+    );
     const attrDefsInScope = await this.db.db.execute(sql`
       SELECT DISTINCT ad.id, ad.code
       FROM attribute_definitions ad
@@ -2092,7 +2278,7 @@ export class CatalogService {
       }
     }
 
-    const typeAttrIds = new Set(typeAttrOrder.map(t => t.attrId));
+    const typeAttrIds = new Set(typeAttrOrder.map((t) => t.attrId));
 
     // Sort: type-associated attrs by display_order, then remaining by code ASC
     const result: Array<{ id: string; code: string }> = [];
@@ -2121,11 +2307,13 @@ export class CatalogService {
     const storeProducts = await this.db.db
       .select({ id: products.id })
       .from(products)
-      .where(and(
-        eq(products.storeId, storeId),
-        isNull(products.deletedAt),
-        ...(includeInactive ? [] : [eq(products.status, 'ACTIVE')]),
-      ));
+      .where(
+        and(
+          eq(products.storeId, storeId),
+          isNull(products.deletedAt),
+          ...(includeInactive ? [] : [eq(products.status, 'ACTIVE')]),
+        ),
+      );
 
     const productIds = storeProducts.map((p) => p.id);
     if (productIds.length === 0) return [];
@@ -2160,7 +2348,9 @@ export class CatalogService {
    * JSON number so API consumers see `{ "weight_grams": 9.7 }` not
    * `{ "weight_grams": "9.70" }`.  Locked by BD-01 / Phase 1.
    */
-  private coerceVariantNumeric<V extends { weightGrams?: string | number | null } | undefined>(v: V): V {
+  private coerceVariantNumeric<V extends { weightGrams?: string | number | null } | undefined>(
+    v: V,
+  ): V {
     if (v && v.weightGrams != null) {
       (v as any).weightGrams = Number(v.weightGrams);
     }
@@ -2188,7 +2378,8 @@ export class CatalogService {
       // PHASE 4 P2: Transaction with FOR SHARE product-row lock (BD-06).
       // FOR SHARE allows concurrent variant creations but blocks productTypeId changes.
       await this.db.db.transaction(async (tx) => {
-        await tx.select({ id: products.id })
+        await tx
+          .select({ id: products.id })
           .from(products)
           .where(eq(products.id, productId))
           .for('share')
@@ -2217,7 +2408,10 @@ export class CatalogService {
       }
     } catch (err) {
       // Roll back: remove the variant if attribute write failed
-      await this.db.db.delete(productVariants).where(eq(productVariants.id, id)).catch(() => {});
+      await this.db.db
+        .delete(productVariants)
+        .where(eq(productVariants.id, id))
+        .catch(() => {});
       throw err;
     }
 
@@ -2235,7 +2429,12 @@ export class CatalogService {
    * dedicated typed endpoint PUT /v1/products/:productId/variants/:variantId/attribute-values.
    * If a client sends `attributes` here, reject with a clear redirect.
    */
-  async updateVariant(productId: string, variantId: string, input: Partial<CreateVariantInput>, clientUpdatedAt?: string) {
+  async updateVariant(
+    productId: string,
+    variantId: string,
+    input: Partial<CreateVariantInput>,
+    clientUpdatedAt?: string,
+  ) {
     // PHASE 3: Reject attribute mutation via updateVariant — direct to typed endpoint
     if (input['attributes'] !== undefined) {
       throw new BadRequestException(
@@ -2255,7 +2454,8 @@ export class CatalogService {
     if (input['title'] !== undefined) updates['title'] = input['title'] || null;
     if (input['titleAr'] !== undefined) updates['titleAr'] = input['titleAr'] || null;
     if (input['unit'] !== undefined) updates['unit'] = input['unit'];
-    if (input['weightGrams'] !== undefined) updates['weightGrams'] = input['weightGrams'] != null ? String(input['weightGrams']) : null;
+    if (input['weightGrams'] !== undefined)
+      updates['weightGrams'] = input['weightGrams'] != null ? String(input['weightGrams']) : null;
 
     // PHASE 4 P1 — Optimistic locking via updatedAt comparison (BD-08).
     if (clientUpdatedAt !== undefined) {
@@ -2264,13 +2464,16 @@ export class CatalogService {
         throw new BadRequestException('Invalid updatedAt timestamp');
       }
 
-      const [updated] = await this.db.db.update(productVariants)
+      const [updated] = await this.db.db
+        .update(productVariants)
         .set(updates)
-        .where(and(
-          eq(productVariants.id, variantId),
-          eq(productVariants.productId, productId),
-          eq(productVariants.updatedAt, clientDate),
-        ))
+        .where(
+          and(
+            eq(productVariants.id, variantId),
+            eq(productVariants.productId, productId),
+            eq(productVariants.updatedAt, clientDate),
+          ),
+        )
         .returning();
 
       if (!updated) {
@@ -2296,12 +2499,10 @@ export class CatalogService {
 
     // Legacy path: no optimistic locking, but retain the product relationship
     // in the UPDATE predicate to close the gap between preflight and write.
-    const [updated] = await this.db.db.update(productVariants)
+    const [updated] = await this.db.db
+      .update(productVariants)
       .set(updates)
-      .where(and(
-        eq(productVariants.id, variantId),
-        eq(productVariants.productId, productId),
-      ))
+      .where(and(eq(productVariants.id, variantId), eq(productVariants.productId, productId)))
       .returning();
     // PHASE 4 P6: Audit — variant updated by merchant
     await this.audit.record({
@@ -2323,43 +2524,60 @@ export class CatalogService {
   }
 
   async listVariantsByProduct(productId: string, includeInactive = true) {
-    const variants = await this.db.db.query.productVariants.findMany({
-      where: and(
-        eq(productVariants.productId, productId),
-        ...(includeInactive ? [] : [eq(productVariants.isActive, true)]),
-      ),
-      orderBy: [productVariants.createdAt],
-    }).then(rows => rows.map(r => this.coerceVariantNumeric(r)));
+    const variants = await this.db.db.query.productVariants
+      .findMany({
+        where: and(
+          eq(productVariants.productId, productId),
+          ...(includeInactive ? [] : [eq(productVariants.isActive, true)]),
+        ),
+        orderBy: [productVariants.createdAt],
+      })
+      .then((rows) => rows.map((r) => this.coerceVariantNumeric(r)));
     // Attach stock status per variant (same shape as getProductDetail)
     // Wrapped in try-catch so test environments with partial mock DBs still work.
     try {
       const product = await this.getProduct(productId).catch(() => null);
       if (!product || variants.length === 0) return variants;
-      if (!product['storeId']) return variants.map(v => ({ ...v, stock: { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 } }));
+      if (!product['storeId'])
+        return variants.map((v) => ({
+          ...v,
+          stock: { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 },
+        }));
       const storeWarehouses = await this.db.db.query.warehouses.findMany({
         where: eq(warehouses.storeId, product['storeId']),
         columns: { id: true },
       });
-      if (storeWarehouses.length === 0) return variants.map(v => ({ ...v, stock: { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 } }));
-      const whIds = storeWarehouses.map(w => w.id);
-      const variantIds = variants.map(v => v['id']);
+      if (storeWarehouses.length === 0)
+        return variants.map((v) => ({
+          ...v,
+          stock: { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 },
+        }));
+      const whIds = storeWarehouses.map((w) => w.id);
+      const variantIds = variants.map((v) => v['id']);
       const invRows = await this.db.db.query.inventoryItems.findMany({
         where: and(
           inArray(inventoryItems.warehouseId, whIds),
           inArray(inventoryItems.variantId, variantIds),
         ),
       });
-      const stockByVariant: Record<string, { totalAvailable: number; totalOnHand: number; warehouseCount: number }> = {};
+      const stockByVariant: Record<
+        string,
+        { totalAvailable: number; totalOnHand: number; warehouseCount: number }
+      > = {};
       for (const row of invRows) {
         const vid = row['variantId'];
-        const prev = stockByVariant[vid] ?? { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 };
+        const prev = stockByVariant[vid] ?? {
+          totalAvailable: 0,
+          totalOnHand: 0,
+          warehouseCount: 0,
+        };
         stockByVariant[vid] = {
           totalAvailable: prev.totalAvailable + (row['qtyOnHand'] - row['qtyReserved']),
           totalOnHand: prev.totalOnHand + row['qtyOnHand'],
           warehouseCount: prev.warehouseCount + 1,
         };
       }
-      return variants.map(v => ({
+      return variants.map((v) => ({
         ...v,
         stock: stockByVariant[v['id']] ?? { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 },
       }));
@@ -2385,22 +2603,21 @@ export class CatalogService {
 
     // 1. Load VARIANT-scope attribute configs for this product type
     const ptAttrs = await this.db.db.query.productTypeAttributes.findMany({
-      where: and(
-        eq(productTypeAttributes.productTypeId, productTypeId),
-      ),
+      where: and(eq(productTypeAttributes.productTypeId, productTypeId)),
     });
 
     // 2. Load definitions to determine scope
-    const attrDefIds = ptAttrs.map(c => c['attributeDefinitionId']);
-    const defs = attrDefIds.length > 0
-      ? await this.db.db.query.attributeDefinitions.findMany({
-          where: inArray(attributeDefinitions.id, attrDefIds),
-        })
-      : [];
-    const defById = new Map(defs.map(d => [d['id'], d]));
+    const attrDefIds = ptAttrs.map((c) => c['attributeDefinitionId']);
+    const defs =
+      attrDefIds.length > 0
+        ? await this.db.db.query.attributeDefinitions.findMany({
+            where: inArray(attributeDefinitions.id, attrDefIds),
+          })
+        : [];
+    const defById = new Map(defs.map((d) => [d['id'], d]));
 
     const variantDims = ptAttrs
-      .filter(c => {
+      .filter((c) => {
         const def = defById.get(c['attributeDefinitionId']);
         return def && def['scope'] === 'VARIANT';
       })
@@ -2411,12 +2628,13 @@ export class CatalogService {
     }
 
     // 3. Load attribute options for each dimension
-    const allOptionAttrIds = variantDims.map(c => c['attributeDefinitionId']);
-    const allOptions = allOptionAttrIds.length > 0
-      ? await this.db.db.query.attributeOptions.findMany({
-          where: inArray(attributeOptions.attributeId, allOptionAttrIds),
-        })
-      : [];
+    const allOptionAttrIds = variantDims.map((c) => c['attributeDefinitionId']);
+    const allOptions =
+      allOptionAttrIds.length > 0
+        ? await this.db.db.query.attributeOptions.findMany({
+            where: inArray(attributeOptions.attributeId, allOptionAttrIds),
+          })
+        : [];
     const optionsByAttr = new Map<string, typeof allOptions>();
     for (const opt of allOptions) {
       const key = opt['attributeId'];
@@ -2425,10 +2643,11 @@ export class CatalogService {
     }
 
     // 4. Build dimension descriptors
-    const dimensions = variantDims.map(c => {
+    const dimensions = variantDims.map((c) => {
       const def = defById.get(c['attributeDefinitionId']);
-      const opts = (optionsByAttr.get(c['attributeDefinitionId']) ?? [])
-        .sort((a, b) => (a['sortOrder'] ?? 0) - (b['sortOrder'] ?? 0));
+      const opts = (optionsByAttr.get(c['attributeDefinitionId']) ?? []).sort(
+        (a, b) => (a['sortOrder'] ?? 0) - (b['sortOrder'] ?? 0),
+      );
       return {
         attributeDefinitionId: c['attributeDefinitionId'],
         code: def?.['code'] ?? '',
@@ -2436,7 +2655,7 @@ export class CatalogService {
         nameAr: def?.['nameAr'] ?? null,
         unit: def?.['unit'] ?? null,
         displayOrder: c['displayOrder'] ?? 0,
-        options: opts.map(o => o['value']),
+        options: opts.map((o) => o['value']),
       };
     });
 
@@ -2540,7 +2759,7 @@ export class CatalogService {
       where: eq(productMedia.productId, productId),
       orderBy: [productMedia.sortOrder],
     });
-    return Promise.all(rows.map(r => this.resolveMediaRow(r)));
+    return Promise.all(rows.map((r) => this.resolveMediaRow(r)));
   }
 
   async removeMedia(productId: string, mediaId: string) {
@@ -2608,8 +2827,17 @@ export class CatalogService {
   buildSuggestedMapping(headers: string[]): Record<string, string> {
     const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9_:]/g, '');
     const targets = [
-      'name', 'nameAr', 'sku', 'barcode', 'category', 'brand',
-      'unit', 'priceMinor', 'moq', 'description', 'stock',
+      'name',
+      'nameAr',
+      'sku',
+      'barcode',
+      'category',
+      'brand',
+      'unit',
+      'priceMinor',
+      'moq',
+      'description',
+      'stock',
     ];
     const mapping: Record<string, string> = {};
     for (const target of targets) {
@@ -2694,9 +2922,7 @@ export class CatalogService {
       throw new BadRequestException('columnMapping must be an object.');
     }
     if (!mapping['name'] || !mapping['sku'] || !mapping['priceMinor']) {
-      throw new BadRequestException(
-        'Column mapping must include at least: name, sku, priceMinor.',
-      );
+      throw new BadRequestException('Column mapping must include at least: name, sku, priceMinor.');
     }
     await this.db.db
       .update(importJobs)
@@ -2739,9 +2965,7 @@ export class CatalogService {
    * - XLSX: parse the stored workbook (rows keyed by normalized header).
    * - CSV : read rows staged in Redis (rows keyed by original header).
    */
-  private async resolveJobRows(
-    job: Record<string, any>,
-  ): Promise<Record<string, string | null>[]> {
+  private async resolveJobRows(job: Record<string, any>): Promise<Record<string, string | null>[]> {
     if ((job['fileType'] || 'CSV') === 'XLSX') {
       const buffer = await this.readImportFileBuffer(job);
       const parsed = await this.xlsxParser.parse(buffer, job['fileName']);
@@ -2846,12 +3070,7 @@ export class CatalogService {
         totalRows: rows.length,
         updatedAt: new Date(),
       })
-      .where(
-        and(
-          eq(importJobs.id, id),
-          inArray(importJobs.status, ['READY', 'FAILED']),
-        ),
-      )
+      .where(and(eq(importJobs.id, id), inArray(importJobs.status, ['READY', 'FAILED'])))
       .returning({ id: importJobs.id });
 
     if (claimed.length === 0) {
@@ -2872,7 +3091,10 @@ export class CatalogService {
         if (chunk['status'] === 'COMPLETED') continue;
 
         // Check max attempts
-        if (chunk['status'] === 'FAILED' && chunk['attemptCount'] >= CatalogService.MAX_CHUNK_ATTEMPTS) {
+        if (
+          chunk['status'] === 'FAILED' &&
+          chunk['attemptCount'] >= CatalogService.MAX_CHUNK_ATTEMPTS
+        ) {
           continue; // Skip exhausted chunks
         }
 
@@ -2889,7 +3111,10 @@ export class CatalogService {
 
       // P8: Aggregate chunk results into job stats
       const finalChunks = await this.getChunks(id);
-      let totalCreated = 0, totalUpdated = 0, totalSkipped = 0, totalErrors = 0;
+      let totalCreated = 0,
+        totalUpdated = 0,
+        totalSkipped = 0,
+        totalErrors = 0;
       const allErrors: Array<{ row: number; field: string; message: string }> = [];
 
       for (const c of finalChunks) {
@@ -2897,14 +3122,18 @@ export class CatalogService {
         totalUpdated += c['updatedCount'];
         totalSkipped += c['skippedCount'];
         totalErrors += c['errorCount'];
-        const chunkErrors = (c['errorLog'] || []) as Array<{ row: number; field: string; message: string }>;
+        const chunkErrors = (c['errorLog'] || []) as Array<{
+          row: number;
+          field: string;
+          message: string;
+        }>;
         for (const err of chunkErrors) {
           if (allErrors.length < 500) allErrors.push(err);
         }
       }
 
       const processedRows = finalChunks.reduce((sum, c) => sum + c['processedRows'], 0);
-      const hasFailedChunks = finalChunks.some(c => c['status'] === 'FAILED');
+      const hasFailedChunks = finalChunks.some((c) => c['status'] === 'FAILED');
 
       const finalStatus = hasFailedChunks ? 'FAILED' : 'COMPLETED';
 
@@ -3042,13 +3271,22 @@ export class CatalogService {
     try {
       // P8: One transaction per chunk
       await this.db.db.transaction(async (tx) => {
-        let created = 0, updated = 0, skipped = 0;
+        let created = 0,
+          updated = 0,
+          skipped = 0;
         const errorLog: Array<{ row: number; field: string; message: string }> = [];
 
         for (let i = 0; i < rows.length; i++) {
           const rowNum = chunk['startRow'] + i + 2; // +2: 0-based + header row
           try {
-            const outcome = await this.importRow(storeId, priceListId, mapping, rows[i]!, rowNum, tx);
+            const outcome = await this.importRow(
+              storeId,
+              priceListId,
+              mapping,
+              rows[i]!,
+              rowNum,
+              tx,
+            );
             if (outcome === 'created') created++;
             else if (outcome === 'updated') updated++;
             else skipped++;
@@ -3168,7 +3406,10 @@ export class CatalogService {
       const eligibility = await this.governance.checkImportEligibility(match.productId);
       if (!eligibility.eligible) {
         // Product is SUBMITTED or UNDER_REVIEW — skip this row
-        throw new ImportRowError('status', `Row ${rowNum}: product is ${eligibility.currentStatus} and cannot be modified by import`);
+        throw new ImportRowError(
+          'status',
+          `Row ${rowNum}: product is ${eligibility.currentStatus} and cannot be modified by import`,
+        );
       }
 
       await this.upsertBasePrice(priceListId, match.variantId, priceMinor, db);
@@ -3179,7 +3420,9 @@ export class CatalogService {
       if (categoryId) importChangedFields.add('categoryId');
       if (brandId) importChangedFields.add('brandId');
 
-      const hasHighRiskImportChanges = Array.from(importChangedFields).some(f => HIGH_RISK_FIELDS.has(f));
+      const hasHighRiskImportChanges = Array.from(importChangedFields).some((f) =>
+        HIGH_RISK_FIELDS.has(f),
+      );
       const needsImportReReview = hasHighRiskImportChanges && eligibility.action === 're-review';
 
       if (needsImportReReview) {
@@ -3196,8 +3439,13 @@ export class CatalogService {
           .where(eq(products.id, match.productId));
 
         await this.governance.triggerReReviewIfNeeded(
-          txClient, match.productId, importChangedFields, false, false,
-          'system', 'SYSTEM',
+          txClient,
+          match.productId,
+          importChangedFields,
+          false,
+          false,
+          'system',
+          'SYSTEM',
         );
       } else {
         await db
@@ -3313,14 +3561,13 @@ export class CatalogService {
     if (attrEntries.length === 0) return;
 
     // Resolve attribute definitions
-    const codes = attrEntries.map(e => e.code);
+    const codes = attrEntries.map((e) => e.code);
     const defs: any[] = await db
       .select()
       .from(attributeDefinitions)
-      .where(and(
-        inArray(attributeDefinitions.code, codes),
-        isNull(attributeDefinitions.deletedAt),
-      ));
+      .where(
+        and(inArray(attributeDefinitions.code, codes), isNull(attributeDefinitions.deletedAt)),
+      );
 
     const defByCode = new Map(defs.map((d: any) => [d.code, d]));
 
@@ -3330,7 +3577,10 @@ export class CatalogService {
     for (const entry of attrEntries) {
       const def = defByCode.get(entry.code);
       if (!def) {
-        throw new ImportRowError(`attr:${entry.code}`, `Row ${rowNum}: unknown attribute '${entry.code}'`);
+        throw new ImportRowError(
+          `attr:${entry.code}`,
+          `Row ${rowNum}: unknown attribute '${entry.code}'`,
+        );
       }
 
       try {
@@ -3348,12 +3598,15 @@ export class CatalogService {
     // Write product-scope attributes
     if (productValues.length > 0) {
       // Delete existing values for these attributes, then insert
-      const attrIds = productValues.map(v => v.attributeDefinitionId);
-      await db.delete(productAttributeValues)
-        .where(and(
-          eq(productAttributeValues.productId, productId),
-          inArray(productAttributeValues.attributeDefinitionId, attrIds),
-        ));
+      const attrIds = productValues.map((v) => v.attributeDefinitionId);
+      await db
+        .delete(productAttributeValues)
+        .where(
+          and(
+            eq(productAttributeValues.productId, productId),
+            inArray(productAttributeValues.attributeDefinitionId, attrIds),
+          ),
+        );
 
       for (const pv of productValues) {
         const def = defs.find((d: any) => d.id === pv.attributeDefinitionId);
@@ -3369,12 +3622,15 @@ export class CatalogService {
 
     // Write variant-scope attributes
     if (variantValues.length > 0) {
-      const attrIds = variantValues.map(v => v.attributeDefinitionId);
-      await db.delete(variantAttributeValues)
-        .where(and(
-          eq(variantAttributeValues.variantId, variantId),
-          inArray(variantAttributeValues.attributeDefinitionId, attrIds),
-        ));
+      const attrIds = variantValues.map((v) => v.attributeDefinitionId);
+      await db
+        .delete(variantAttributeValues)
+        .where(
+          and(
+            eq(variantAttributeValues.variantId, variantId),
+            inArray(variantAttributeValues.attributeDefinitionId, attrIds),
+          ),
+        );
 
       for (const vv of variantValues) {
         const def = defs.find((d: any) => d.id === vv.attributeDefinitionId);
@@ -3426,7 +3682,10 @@ export class CatalogService {
         return raw; // validated against options in importTypedAttributes
       case 'MULTI_SELECT': {
         // Comma-separated values → deduplicated array
-        const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
+        const parts = raw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
         return [...new Set(parts)];
       }
       default:
@@ -3564,7 +3823,12 @@ export class CatalogService {
   }
 
   /** Upsert the min-qty-1 price tier for a variant in a price list. */
-  private async upsertBasePrice(priceListId: string, variantId: string, priceMinor: number, db?: any) {
+  private async upsertBasePrice(
+    priceListId: string,
+    variantId: string,
+    priceMinor: number,
+    db?: any,
+  ) {
     const client = db || this.db.db;
     const existing = await client.query.priceTiers.findFirst({
       where: and(
@@ -3606,12 +3870,7 @@ export class CatalogService {
     await this.db.db
       .update(importJobs)
       .set({ status: 'CANCELLED', updatedAt: new Date() })
-      .where(
-        and(
-          eq(importJobs.id, jobId),
-          inArray(importJobs.status, cancelable),
-        ),
-      );
+      .where(and(eq(importJobs.id, jobId), inArray(importJobs.status, cancelable)));
 
     return this.getImportJob(jobId);
   }
@@ -3630,12 +3889,7 @@ export class CatalogService {
     await this.db.db
       .update(importJobChunks)
       .set({ status: 'PENDING', updatedAt: new Date() })
-      .where(
-        and(
-          eq(importJobChunks.importJobId, jobId),
-          eq(importJobChunks.status, 'FAILED'),
-        ),
-      );
+      .where(and(eq(importJobChunks.importJobId, jobId), eq(importJobChunks.status, 'FAILED')));
 
     // Reset job to READY
     await this.db.db
@@ -3692,11 +3946,13 @@ export class CatalogService {
         const allBatches = await this.redis.client.lrange(key, 0, -1);
         for (const batch of allBatches) {
           const parsed = JSON.parse(batch) as Record<string, string>[];
-          rows.push(...parsed.map(r => {
-            const converted: Record<string, string | null> = {};
-            for (const [k, v] of Object.entries(r)) converted[k] = v;
-            return converted;
-          }));
+          rows.push(
+            ...parsed.map((r) => {
+              const converted: Record<string, string | null> = {};
+              for (const [k, v] of Object.entries(r)) converted[k] = v;
+              return converted;
+            }),
+          );
         }
         detectedHeaders = Object.values(mapping).filter((v): v is string => !!v);
       }
@@ -3739,15 +3995,22 @@ export class CatalogService {
       // Distinguish a precondition failure (file not uploaded) — which is
       // retryable and must NOT mark the job FAILED — from a genuinely malformed
       // workbook, which is recorded as a fatal preview failure.
-      if (
-        err instanceof BadRequestException &&
-        !err.message.startsWith('FILE_NOT_UPLOADED')
-      ) {
+      if (err instanceof BadRequestException && !err.message.startsWith('FILE_NOT_UPLOADED')) {
         await this.db.db
           .update(importJobs)
           .set({
             status: 'FAILED',
-            errorLog: [{ rowNumber: 0, field: 'file', errorCode: 'MALFORMED_FILE', severity: 'ERROR', message: err.message, suggestedFix: 'Re-check the workbook: only .xlsx (no macros) within 25 MB, with a header row and at least one data row.' }] as any,
+            errorLog: [
+              {
+                rowNumber: 0,
+                field: 'file',
+                errorCode: 'MALFORMED_FILE',
+                severity: 'ERROR',
+                message: err.message,
+                suggestedFix:
+                  'Re-check the workbook: only .xlsx (no macros) within 25 MB, with a header row and at least one data row.',
+              },
+            ] as any,
             updatedAt: new Date(),
           })
           .where(eq(importJobs.id, id));
@@ -3779,7 +4042,11 @@ export class CatalogService {
     // Collect processing errors from chunks
     const chunks = await this.getChunks(id);
     for (const chunk of chunks) {
-      const chunkErrors = (chunk['errorLog'] || []) as Array<{ row: number; field: string; message: string }>;
+      const chunkErrors = (chunk['errorLog'] || []) as Array<{
+        row: number;
+        field: string;
+        message: string;
+      }>;
       for (const ce of chunkErrors) {
         allErrors.push({
           rowNumber: ce.row,
@@ -3838,10 +4105,7 @@ export class CatalogService {
       .select({ id: importJobs.id })
       .from(importJobs)
       .where(
-        and(
-          eq(importJobs.status, 'PROCESSING'),
-          sql`${importJobs.lockedAt} < ${staleThreshold}`,
-        ),
+        and(eq(importJobs.status, 'PROCESSING'), sql`${importJobs.lockedAt} < ${staleThreshold}`),
       );
 
     const resetIds: string[] = [];
@@ -3857,10 +4121,7 @@ export class CatalogService {
         .update(importJobChunks)
         .set({ status: 'PENDING', updatedAt: new Date() })
         .where(
-          and(
-            eq(importJobChunks.importJobId, j.id),
-            eq(importJobChunks.status, 'PROCESSING'),
-          ),
+          and(eq(importJobChunks.importJobId, j.id), eq(importJobChunks.status, 'PROCESSING')),
         );
 
       resetIds.push(j.id);

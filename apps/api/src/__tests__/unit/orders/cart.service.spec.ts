@@ -79,29 +79,39 @@ describe('CartService.addItem selected offer pricing', () => {
     builder['from'] = () => builder;
     builder['innerJoin'] = () => builder;
     builder['where'] = () => builder;
-    builder['then'] = (resolve: (rows: unknown[]) => unknown) => Promise.resolve([
-      {
-        priceListId: 'price-list-seller',
-        priceListStoreId: 'store-seller',
-        priceListName: 'Seller price book',
-        currency: 'SAR',
-        variantId: 'variant-1',
-        minQty: 5,
-        maxQty: null,
-        unitPriceMinor: 950,
-      },
-    ]).then(resolve);
+    builder['then'] = (resolve: (rows: unknown[]) => unknown) =>
+      Promise.resolve([
+        {
+          priceListId: 'price-list-seller',
+          priceListStoreId: 'store-seller',
+          priceListName: 'Seller price book',
+          currency: 'SAR',
+          variantId: 'variant-1',
+          minQty: 5,
+          maxQty: null,
+          unitPriceMinor: 950,
+        },
+      ]).then(resolve);
 
     const db = {
       query: {
-        productVariants: { findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1', isActive: true })) },
+        productVariants: {
+          findFirst: vi.fn(async () => ({
+            id: 'variant-1',
+            productId: 'product-1',
+            isActive: true,
+          })),
+        },
         products: { findFirst: vi.fn(async () => ({ id: 'product-1', storeId: 'owner-store' })) },
         merchantOffers: { findFirst: vi.fn(async () => offer) },
         cartItems: { findFirst: vi.fn(async () => null) },
       },
       select: vi.fn(() => builder),
       insert: vi.fn(() => ({
-        values: vi.fn(async (value: unknown) => { inserted.push(value); return []; }),
+        values: vi.fn(async (value: unknown) => {
+          inserted.push(value);
+          return [];
+        }),
       })),
       update: vi.fn(),
     };
@@ -138,14 +148,26 @@ describe('CartService.addItem selected offer pricing', () => {
     builder['innerJoin'] = () => builder;
     builder['where'] = () => builder;
     builder['orderBy'] = () => builder;
-    builder['then'] = (resolve: (rows: unknown[]) => unknown) => Promise.resolve([
-      { variantId: 'variant-1', minQty: 1, unitPriceMinor: 1000, priceListId: 'owner-list', priceListName: 'Owner', currency: 'SAR' },
-    ]).then(resolve);
+    builder['then'] = (resolve: (rows: unknown[]) => unknown) =>
+      Promise.resolve([
+        {
+          variantId: 'variant-1',
+          minQty: 1,
+          unitPriceMinor: 1000,
+          priceListId: 'owner-list',
+          priceListName: 'Owner',
+          currency: 'SAR',
+        },
+      ]).then(resolve);
 
     const db = {
       query: {
         productVariants: {
-          findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1', isActive: true })),
+          findFirst: vi.fn(async () => ({
+            id: 'variant-1',
+            productId: 'product-1',
+            isActive: true,
+          })),
           findMany: vi.fn(async () => [{ id: 'variant-1', productId: 'product-1' }]),
         },
         products: { findFirst: vi.fn(async () => ({ id: 'product-1', storeId: 'owner-store' })) },
@@ -194,7 +216,14 @@ describe('CartService.listCartItems', () => {
     const svc = service(
       [
         {
-          item: line({ id: 'ci-1', storeId: 'st-1', variantId: 'v-1', quantity: 2, priceMinor: 1500, lineTotalMinor: 3000 }),
+          item: line({
+            id: 'ci-1',
+            storeId: 'st-1',
+            variantId: 'v-1',
+            quantity: 2,
+            priceMinor: 1500,
+            lineTotalMinor: 3000,
+          }),
           variantTitle: null,
           productTitle: 'Rice 5kg',
           sku: 'SKU-RICE-5',
@@ -236,7 +265,13 @@ describe('CartService.listCartItems', () => {
     const svc = service(
       [
         {
-          item: line({ id: 'ci-3', storeId: 'st-3', variantId: 'v-3', quantity: 5, lineTotalMinor: 500 }),
+          item: line({
+            id: 'ci-3',
+            storeId: 'st-3',
+            variantId: 'v-3',
+            quantity: 5,
+            lineTotalMinor: 500,
+          }),
           variantTitle: null,
           productTitle: null,
           sku: null,
@@ -293,7 +328,7 @@ describe('CartService.addItems', () => {
 
     expect(result.added).toEqual([]);
     expect(result.skipped).toHaveLength(2);
-    expect(result.skipped.every(s => s.reason === 'Invalid quantity')).toBe(true);
+    expect(result.skipped.every((s) => s.reason === 'Invalid quantity')).toBe(true);
     // The variant lookup should never be called for invalid quantities.
     expect(db.query.productVariants.findFirst).not.toHaveBeenCalled();
   });
@@ -322,7 +357,13 @@ describe('CartService MOQ and order-increment enforcement', () => {
   it('rejects an invalid final quantity when adding to a selected offer', async () => {
     const db = {
       query: {
-        productVariants: { findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1', isActive: true })) },
+        productVariants: {
+          findFirst: vi.fn(async () => ({
+            id: 'variant-1',
+            productId: 'product-1',
+            isActive: true,
+          })),
+        },
         products: { findFirst: vi.fn(async () => ({ id: 'product-1', storeId: 'store-1' })) },
         merchantOffers: { findFirst: vi.fn(async () => offer) },
         cartItems: { findFirst: vi.fn(async () => ({ id: 'line-1', quantity: 5 })) },
@@ -333,8 +374,9 @@ describe('CartService MOQ and order-increment enforcement', () => {
     const svc = new CartService({ db } as any, {} as any);
     (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
 
-    await expect(svc.addItem('buyer-1', { variantId: 'variant-1', quantity: 1, offerId: 'offer-1' }))
-      .rejects.toThrow('increments of 3');
+    await expect(
+      svc.addItem('buyer-1', { variantId: 'variant-1', quantity: 1, offerId: 'offer-1' }),
+    ).rejects.toThrow('increments of 3');
     expect(db.select).not.toHaveBeenCalled();
     expect(db.insert).not.toHaveBeenCalled();
   });
@@ -342,7 +384,13 @@ describe('CartService MOQ and order-increment enforcement', () => {
   it('skips an invalid batch-added quantity without persisting it', async () => {
     const db = {
       query: {
-        productVariants: { findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1', isActive: true })) },
+        productVariants: {
+          findFirst: vi.fn(async () => ({
+            id: 'variant-1',
+            productId: 'product-1',
+            isActive: true,
+          })),
+        },
         products: { findFirst: vi.fn(async () => ({ id: 'product-1', storeId: 'store-1' })) },
         merchantOffers: { findFirst: vi.fn(async () => offer) },
         cartItems: { findFirst: vi.fn(async () => ({ id: 'line-1', quantity: 5 })) },
@@ -354,7 +402,9 @@ describe('CartService MOQ and order-increment enforcement', () => {
     (svc as any).recalculateTotal = vi.fn(async () => undefined);
     (svc as any).getActiveCartWithItems = vi.fn(async () => ({ id: 'cart-1', items: [] }));
 
-    const result = await svc.addItems('buyer-1', [{ variantId: 'variant-1', quantity: 1, offerId: 'offer-1' }]);
+    const result = await svc.addItems('buyer-1', [
+      { variantId: 'variant-1', quantity: 1, offerId: 'offer-1' },
+    ]);
     expect(result.added).toEqual([]);
     expect(result.skipped[0]?.reason).toContain('increments of 3');
     expect(db.insert).not.toHaveBeenCalled();
@@ -364,7 +414,15 @@ describe('CartService MOQ and order-increment enforcement', () => {
     const db = {
       query: {
         carts: { findFirst: vi.fn(async () => ({ id: 'cart-1' })) },
-        cartItems: { findFirst: vi.fn(async () => ({ id: 'line-1', cartId: 'cart-1', variantId: 'variant-1', storeId: 'store-1', offerId: 'offer-1' })) },
+        cartItems: {
+          findFirst: vi.fn(async () => ({
+            id: 'line-1',
+            cartId: 'cart-1',
+            variantId: 'variant-1',
+            storeId: 'store-1',
+            offerId: 'offer-1',
+          })),
+        },
         merchantOffers: { findFirst: vi.fn(async () => offer) },
       },
       select: vi.fn(),
@@ -387,7 +445,9 @@ describe('CartService MOQ and order-increment enforcement', () => {
     };
     const svc = new CartService({ db } as any, {} as any);
     (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
-    await expect(svc.updateItemQuantity('buyer-1', 'line-1', 2.5)).rejects.toThrow('positive integer');
+    await expect(svc.updateItemQuantity('buyer-1', 'line-1', 2.5)).rejects.toThrow(
+      'positive integer',
+    );
   });
 
   it('rejects negative quantity updates without deleting the cart line', async () => {
@@ -397,8 +457,9 @@ describe('CartService MOQ and order-increment enforcement', () => {
     const remove = vi.fn();
     (svc as any).removeItem = remove;
 
-    await expect(svc.updateItemQuantity('buyer-1', 'line-1', -1))
-      .rejects.toThrow('positive integer or zero');
+    await expect(svc.updateItemQuantity('buyer-1', 'line-1', -1)).rejects.toThrow(
+      'positive integer or zero',
+    );
     expect(remove).not.toHaveBeenCalled();
   });
 
@@ -409,11 +470,12 @@ describe('CartService MOQ and order-increment enforcement', () => {
     const remove = vi.fn(async () => ({ removed: true }));
     (svc as any).removeItem = remove;
 
-    await expect(svc.updateItemQuantity('buyer-1', 'line-1', 0)).resolves.toEqual({ removed: true });
+    await expect(svc.updateItemQuantity('buyer-1', 'line-1', 0)).resolves.toEqual({
+      removed: true,
+    });
     expect(remove).toHaveBeenCalledWith('buyer-1', 'line-1');
   });
 });
-
 
 describe('CartService.removePromoCode', () => {
   it('clears both the promo code and resolved promotion id for the active buyer cart', async () => {
@@ -423,16 +485,21 @@ describe('CartService.removePromoCode', () => {
     const svc = new CartService({ db: { update } } as any, {} as any);
     vi.spyOn(svc, 'getOrCreateCart').mockResolvedValue({ id: 'cart-1' } as any);
     vi.spyOn(svc, 'getActiveCartWithItems').mockResolvedValue({
-      id: 'cart-1', promoCode: null, promotionId: null, items: [],
+      id: 'cart-1',
+      promoCode: null,
+      promotionId: null,
+      items: [],
     } as any);
 
     const result = await svc.removePromoCode('buyer-1');
 
     expect(update).toHaveBeenCalledOnce();
-    expect(set).toHaveBeenCalledWith(expect.objectContaining({
-      promoCode: null,
-      promotionId: null,
-    }));
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        promoCode: null,
+        promotionId: null,
+      }),
+    );
     expect(where).toHaveBeenCalledOnce();
     expect(result).toMatchObject({ id: 'cart-1', promoCode: null, promotionId: null });
   });

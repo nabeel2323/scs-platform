@@ -23,8 +23,10 @@ function validatePeriod(periodStart: string, periodEnd: string): string | null {
 
 /** Classify a discrepancy by type. */
 function classifyDiscrepancy(
-  hasRefund: boolean, refundStatus: string,
-  hasReversal: boolean, responsibilityCategory: string | null,
+  hasRefund: boolean,
+  refundStatus: string,
+  hasReversal: boolean,
+  responsibilityCategory: string | null,
 ): string[] {
   const issues: string[] = [];
 
@@ -34,7 +36,10 @@ function classifyDiscrepancy(
     issues.push('REFUND_STATUS_MISMATCH');
   }
 
-  if (responsibilityCategory && ['MERCHANT', 'PLATFORM', 'CARRIER_DAMAGE'].includes(responsibilityCategory)) {
+  if (
+    responsibilityCategory &&
+    ['MERCHANT', 'PLATFORM', 'CARRIER_DAMAGE'].includes(responsibilityCategory)
+  ) {
     if (!hasReversal) {
       issues.push('MISSING_COMMISSION_REVERSAL');
     }
@@ -45,7 +50,10 @@ function classifyDiscrepancy(
 
 /** Check if adjustment has sufficient approvals. */
 function hasSufficientApprovals(
-  requiresDual: boolean, total: number, financeCount: number, adminCount: number,
+  requiresDual: boolean,
+  total: number,
+  financeCount: number,
+  adminCount: number,
 ): boolean {
   if (requiresDual) {
     return financeCount >= 1 && adminCount >= 1 && total >= 2;
@@ -71,7 +79,9 @@ describe('Reconciliation — Period Validation', () => {
   });
 
   it('start after end rejected', () => {
-    expect(validatePeriod('2026-02-01', '2026-01-31')).toBe('Period start must be before period end');
+    expect(validatePeriod('2026-02-01', '2026-01-31')).toBe(
+      'Period start must be before period end',
+    );
   });
 
   it('same day period accepted', () => {
@@ -111,14 +121,18 @@ describe('Reconciliation — Settlement Formula Verification', () => {
   });
 
   it('rejects source values or results outside the safe minor-unit range', () => {
-    expect(calculateExpectedSettlementNetMinor('CALCULATED', Number.MAX_SAFE_INTEGER + 1, 0, 0, 0)).toBeNull();
-    expect(calculateExpectedSettlementNetMinor(
-      'CALCULATED',
-      0,
-      Number.MAX_SAFE_INTEGER,
-      Number.MAX_SAFE_INTEGER,
-      Number.MAX_SAFE_INTEGER,
-    )).toBeNull();
+    expect(
+      calculateExpectedSettlementNetMinor('CALCULATED', Number.MAX_SAFE_INTEGER + 1, 0, 0, 0),
+    ).toBeNull();
+    expect(
+      calculateExpectedSettlementNetMinor(
+        'CALCULATED',
+        0,
+        Number.MAX_SAFE_INTEGER,
+        Number.MAX_SAFE_INTEGER,
+        Number.MAX_SAFE_INTEGER,
+      ),
+    ).toBeNull();
   });
 
   it('zero settlement passes', () => {
@@ -128,8 +142,9 @@ describe('Reconciliation — Settlement Formula Verification', () => {
 
 describe('Reconciliation — Exact Minor-unit Checks', () => {
   it('sums safe integer source rows exactly even when the aggregate exceeds Number.MAX_SAFE_INTEGER', () => {
-    expect(sumSafeMinorUnitAmounts([Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER]))
-      .toBe(BigInt(Number.MAX_SAFE_INTEGER) * 2n);
+    expect(sumSafeMinorUnitAmounts([Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER])).toBe(
+      BigInt(Number.MAX_SAFE_INTEGER) * 2n,
+    );
   });
 
   it('rejects unsafe source rows rather than rounding them', () => {

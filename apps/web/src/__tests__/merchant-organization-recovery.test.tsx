@@ -26,30 +26,54 @@ const { api } = vi.hoisted(() => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
 }));
-vi.mock('../components/AuthProvider', () => ({ useAuth: () => ({ user: { perms: [] }, loading: false }) }));
-vi.mock('../lib/api', () => Object.fromEntries(
-  Object.entries(api).map(([key, fn]) => [key, (...args: unknown[]) => fn(...args)]),
-));
+vi.mock('../components/AuthProvider', () => ({
+  useAuth: () => ({ user: { perms: [] }, loading: false }),
+}));
+vi.mock('../lib/api', () =>
+  Object.fromEntries(
+    Object.entries(api).map(([key, fn]) => [key, (...args: unknown[]) => fn(...args)]),
+  ),
+);
 vi.mock('@scs/contracts', () => ({
   DOCUMENT_STATUS_LABELS: {},
   UPDATE_REQUEST_STATUS_LABELS: {},
 }));
 vi.mock('../components/Shared', () => ({
   LoadingSpinner: () => <div>Loading</div>,
-  EmptyState: ({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) => (
-    <section><h2>{title}</h2>{description ? <p>{description}</p> : null}{action}</section>
+  EmptyState: ({
+    title,
+    description,
+    action,
+  }: {
+    title: string;
+    description?: string;
+    action?: React.ReactNode;
+  }) => (
+    <section>
+      <h2>{title}</h2>
+      {description ? <p>{description}</p> : null}
+      {action}
+    </section>
   ),
   ErrorBanner: ({ message, onRetry }: { message: string; onRetry?: () => void }) => (
-    <div role="alert"><span>{message}</span>{onRetry ? <button onClick={onRetry}>Retry</button> : null}</div>
+    <div role="alert">
+      <span>{message}</span>
+      {onRetry ? <button onClick={onRetry}>Retry</button> : null}
+    </div>
   ),
   StatusBadge: ({ status }: { status: string }) => <span>{status}</span>,
   formatDate: (value: string) => value,
 }));
 vi.mock('@scs/ui-kit', () => ({
   PageHeader: ({ title, subtitle }: { title: string; subtitle?: string }) => (
-    <header><h1>{title}</h1>{subtitle ? <p>{subtitle}</p> : null}</header>
+    <header>
+      <h1>{title}</h1>
+      {subtitle ? <p>{subtitle}</p> : null}
+    </header>
   ),
 }));
 
@@ -108,9 +132,7 @@ describe('merchant organization auxiliary read recovery', () => {
 
     render(<MerchantOrganizationPage />);
 
-    expect((await screen.findByRole('alert')).textContent).toContain(
-      'Update requests unavailable',
-    );
+    expect((await screen.findByRole('alert')).textContent).toContain('Update requests unavailable');
     expect(screen.queryByText('Update Requests')).toBeTruthy();
     expect(screen.queryByText('No update requests')).toBeNull();
   });
@@ -120,8 +142,6 @@ describe('merchant organization auxiliary read recovery', () => {
 
     render(<MerchantOrganizationPage />);
 
-    expect((await screen.findByRole('alert')).textContent).toContain(
-      'Store directory unavailable',
-    );
+    expect((await screen.findByRole('alert')).textContent).toContain('Store directory unavailable');
   });
 });

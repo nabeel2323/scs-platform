@@ -8,28 +8,28 @@ The CI gate now blocks any violation not present in `infra/ci/boundary-lint-base
 
 ## Largest remaining module-to-module import groups
 
-| Source module | Target module | Baseline violations |
-|---|---|---:|
-| shipping | orders | 13 |
-| catalog-import | catalog | 12 |
-| admin | catalog | 11 |
-| orders | catalog | 8 |
-| returns | operations | 8 |
-| returns | payments | 8 |
-| catalog | merchant | 7 |
-| returns | orders | 7 |
-| shipping | merchant | 7 |
-| orders | merchant | 6 |
-| catalog | identity | 5 |
-| catalog | pricing | 5 |
-| orders | identity | 5 |
-| shipping | audit | 5 |
-| identity | notifications | 4 |
-| orders | promotions | 4 |
-| returns | merchant | 4 |
-| reviews | orders | 4 |
-| merchant | identity | 3 |
-| operations | audit | 3 |
+| Source module  | Target module | Baseline violations |
+| -------------- | ------------- | ------------------: |
+| shipping       | orders        |                  13 |
+| catalog-import | catalog       |                  12 |
+| admin          | catalog       |                  11 |
+| orders         | catalog       |                   8 |
+| returns        | operations    |                   8 |
+| returns        | payments      |                   8 |
+| catalog        | merchant      |                   7 |
+| returns        | orders        |                   7 |
+| shipping       | merchant      |                   7 |
+| orders         | merchant      |                   6 |
+| catalog        | identity      |                   5 |
+| catalog        | pricing       |                   5 |
+| orders         | identity      |                   5 |
+| shipping       | audit         |                   5 |
+| identity       | notifications |                   4 |
+| orders         | promotions    |                   4 |
+| returns        | merchant      |                   4 |
+| reviews        | orders        |                   4 |
+| merchant       | identity      |                   3 |
+| operations     | audit         |                   3 |
 
 ## Three PR-introduced violations corrected
 
@@ -52,6 +52,5 @@ The CI gate now blocks any violation not present in `infra/ci/boundary-lint-base
 3. Replace admin cross-module schema/service imports with module APIs or dedicated admin query services.
 4. Reduce returns dependencies on operations, payments, orders and merchant internals.
 5. Keep the baseline blocking while reducing it incrementally; do not claim zero E6 violations until the baseline is empty.
-
 
 The repository-wide `pnpm format:check` passed in CI #738, so the CI workflow now treats formatting as a blocking gate as well. The boundary gate is also blocking, with the 193-entry legacy baseline described above.

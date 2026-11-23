@@ -10,11 +10,7 @@ import {
 describe('Supported payment method boundary', () => {
   it('retains DIGITAL for historical persistence but excludes it from new transactions', () => {
     expect(PAYMENT_METHODS).toContain('DIGITAL');
-    expect(SUPPORTED_PAYMENT_METHODS).toEqual([
-      'BANK_TRANSFER',
-      'CASH_ON_DELIVERY',
-      'VOUCHER',
-    ]);
+    expect(SUPPORTED_PAYMENT_METHODS).toEqual(['BANK_TRANSFER', 'CASH_ON_DELIVERY', 'VOUCHER']);
     expect(isSupportedPaymentMethod('DIGITAL')).toBe(false);
   });
 
@@ -27,20 +23,21 @@ describe('Supported payment method boundary', () => {
     const service = new PaymentsService({} as any, {} as any, registry as any);
     const tx = { insert: vi.fn() };
 
-    await expect(service.createPaymentInTransaction(
-      tx,
-      'order-1',
-      10000,
-      'SAR',
-      'DIGITAL' as PaymentMethod,
-      'idem-1',
-    )).rejects.toThrow('Unsupported payment method: DIGITAL');
+    await expect(
+      service.createPaymentInTransaction(
+        tx,
+        'order-1',
+        10000,
+        'SAR',
+        'DIGITAL' as PaymentMethod,
+        'idem-1',
+      ),
+    ).rejects.toThrow('Unsupported payment method: DIGITAL');
 
     expect(registry.getDefault).not.toHaveBeenCalled();
     expect(tx.insert).not.toHaveBeenCalled();
   });
 });
-
 
 describe('Payment minor-unit aggregate precision', () => {
   it('converts PostgreSQL numeric text without 32-bit truncation', () => {
@@ -48,14 +45,17 @@ describe('Payment minor-unit aggregate precision', () => {
   });
 
   it('rejects aggregates outside JavaScript safe-integer range', () => {
-    expect(() => toSafeMinorUnitTotal('9007199254740992', 'Refunded amount'))
-      .toThrow('aggregate exceeds the supported safe integer range');
+    expect(() => toSafeMinorUnitTotal('9007199254740992', 'Refunded amount')).toThrow(
+      'aggregate exceeds the supported safe integer range',
+    );
   });
 
   it('rejects negative or malformed aggregate values', () => {
-    expect(() => toSafeMinorUnitTotal('-1', 'Refunded amount'))
-      .toThrow('aggregate exceeds the supported safe integer range');
-    expect(() => toSafeMinorUnitTotal('not-a-number', 'Refunded amount'))
-      .toThrow('aggregate is not a valid integer');
+    expect(() => toSafeMinorUnitTotal('-1', 'Refunded amount')).toThrow(
+      'aggregate exceeds the supported safe integer range',
+    );
+    expect(() => toSafeMinorUnitTotal('not-a-number', 'Refunded amount')).toThrow(
+      'aggregate is not a valid integer',
+    );
   });
 });

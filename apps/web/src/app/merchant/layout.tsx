@@ -21,7 +21,6 @@ import { colors, typeScale, transitions } from '@scs/ui-kit';
  * user can become a merchant.
  */
 
-
 export default function MerchantLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -77,18 +76,18 @@ export default function MerchantLayout({ children }: { children: React.ReactNode
   return (
     <Fragment key={accessScopeKey}>
       {!isOpenPath && (
-        <nav style={{
-          background: colors.surface,
-          borderBottom: `1px solid ${colors.border}`,
-          padding: '0 24px',
-          overflowX: 'auto',
-          display: 'flex',
-          gap: 0,
-        }}>
-          {visibleNav.map(item => {
-            const isActive = item.exact
-              ? pathname === item.href
-              : pathname.startsWith(item.href);
+        <nav
+          style={{
+            background: colors.surface,
+            borderBottom: `1px solid ${colors.border}`,
+            padding: '0 24px',
+            overflowX: 'auto',
+            display: 'flex',
+            gap: 0,
+          }}
+        >
+          {visibleNav.map((item) => {
+            const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}

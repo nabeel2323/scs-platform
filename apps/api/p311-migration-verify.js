@@ -20,7 +20,6 @@ if (process.env.SCS_UAT_CONFIRM !== 'true') {
   throw new Error('Set SCS_UAT_CONFIRM=true to confirm disposable local migration testing.');
 }
 
-
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
 
@@ -45,16 +44,26 @@ function assert(condition, label) {
 }
 
 async function applyMigrations() {
-  const files = fs.readdirSync(MIGRATIONS_DIR)
-    .filter(f => f.endsWith('.sql') && !EXCLUDED.has(f))
+  const files = fs
+    .readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
     .sort();
 
-  await pool.query('CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())');
-  const appliedSet = new Set((await pool.query('SELECT name FROM _migration_log')).rows.map(r => r.name));
+  await pool.query(
+    'CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())',
+  );
+  const appliedSet = new Set(
+    (await pool.query('SELECT name FROM _migration_log')).rows.map((r) => r.name),
+  );
 
-  let applied = 0, skipped = 0, failedMig = 0;
+  let applied = 0,
+    skipped = 0,
+    failedMig = 0;
   for (const file of files) {
-    if (appliedSet.has(file)) { skipped++; continue; }
+    if (appliedSet.has(file)) {
+      skipped++;
+      continue;
+    }
     const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
     try {
       await pool.query('BEGIN');
@@ -83,7 +92,10 @@ async function verifySchema() {
       AND column_name = 'org_id'
     ORDER BY table_name
   `);
-  assert(cols.rows.length === 4, `org_id columns exist on all 4 financial tables (found ${cols.rows.length})`);
+  assert(
+    cols.rows.length === 4,
+    `org_id columns exist on all 4 financial tables (found ${cols.rows.length})`,
+  );
 
   // 2. Verify reconciliation versioning columns
   const verCols = await pool.query(`
@@ -92,7 +104,10 @@ async function verifySchema() {
     WHERE table_name = 'reconciliation_runs'
       AND column_name IN ('version', 'superseded_by')
   `);
-  assert(verCols.rows.length === 2, `reconciliation_runs has version and superseded_by columns (found ${verCols.rows.length})`);
+  assert(
+    verCols.rows.length === 2,
+    `reconciliation_runs has version and superseded_by columns (found ${verCols.rows.length})`,
+  );
 
   // 3. Verify settlement_adjustments fx_evidence and approval_hash
   const fxCols = await pool.query(`
@@ -101,7 +116,10 @@ async function verifySchema() {
     WHERE table_name = 'settlement_adjustments'
       AND column_name IN ('fx_evidence', 'approval_hash')
   `);
-  assert(fxCols.rows.length === 2, `settlement_adjustments has fx_evidence and approval_hash (found ${fxCols.rows.length})`);
+  assert(
+    fxCols.rows.length === 2,
+    `settlement_adjustments has fx_evidence and approval_hash (found ${fxCols.rows.length})`,
+  );
 
   // 4. Verify CHECK constraint includes DELIVERY_FEE_EXCEPTION
   const chk = await pool.query(`
@@ -110,7 +128,10 @@ async function verifySchema() {
     WHERE conname = 'chk_settlement_adjustments_type'
   `);
   const def = chk.rows[0]?.definition || '';
-  assert(def.includes('DELIVERY_FEE_EXCEPTION'), `chk_settlement_adjustments_type includes DELIVERY_FEE_EXCEPTION`);
+  assert(
+    def.includes('DELIVERY_FEE_EXCEPTION'),
+    `chk_settlement_adjustments_type includes DELIVERY_FEE_EXCEPTION`,
+  );
 
   // 5. Verify unique indexes
   const idxs = await pool.query(`
@@ -130,7 +151,10 @@ async function verifySchema() {
     SELECT tablename FROM pg_tables
     WHERE tablename IN ('commission_reversals', 'settlement_adjustments', 'settlement_adjustment_approvals', 'reconciliation_runs', 'reconciliation_discrepancies')
   `);
-  assert(tables.rows.length === 5, `All 5 Phase 3 financial tables exist (found ${tables.rows.length})`);
+  assert(
+    tables.rows.length === 5,
+    `All 5 Phase 3 financial tables exist (found ${tables.rows.length})`,
+  );
 }
 
 async function verifyConstraints() {
@@ -145,8 +169,12 @@ async function verifyConstraints() {
       FROM pg_constraint WHERE conname = 'chk_settlement_adjustments_type'
     `);
     const types = [
-      'COMMISSION_REVERSAL', 'DELIVERY_FEE_REFUND', 'DELIVERY_FEE_EXCEPTION',
-      'SETTLEMENT_CORRECTION', 'BALANCE_ADJUSTMENT', 'REFUND_SUPPLEMENT'
+      'COMMISSION_REVERSAL',
+      'DELIVERY_FEE_REFUND',
+      'DELIVERY_FEE_EXCEPTION',
+      'SETTLEMENT_CORRECTION',
+      'BALANCE_ADJUSTMENT',
+      'REFUND_SUPPLEMENT',
     ];
     for (const t of types) {
       assert(chk.rows[0].def.includes(t), `  type ${t} in constraint`);
@@ -177,15 +205,39 @@ async function verifyConstraints() {
     )
     ORDER BY conname
   `);
-  const checkNames = checks.rows.map(r => r.conname);
-  assert(checkNames.includes('chk_commission_reversals_status'), 'chk_commission_reversals_status exists');
-  assert(checkNames.includes('chk_commission_reversals_amount'), 'chk_commission_reversals_amount exists');
-  assert(checkNames.includes('chk_commission_reversals_responsibility'), 'chk_commission_reversals_responsibility exists');
-  assert(checkNames.includes('chk_settlement_adjustments_status'), 'chk_settlement_adjustments_status exists');
-  assert(checkNames.includes('chk_settlement_adjustments_type'), 'chk_settlement_adjustments_type exists');
-  assert(checkNames.includes('chk_settlement_adjustments_fx_status'), 'chk_settlement_adjustments_fx_status exists');
-  assert(checkNames.includes('chk_settlement_adjustments_amount'), 'chk_settlement_adjustments_amount exists');
-  assert(checkNames.includes('chk_reconciliation_runs_status'), 'chk_reconciliation_runs_status exists');
+  const checkNames = checks.rows.map((r) => r.conname);
+  assert(
+    checkNames.includes('chk_commission_reversals_status'),
+    'chk_commission_reversals_status exists',
+  );
+  assert(
+    checkNames.includes('chk_commission_reversals_amount'),
+    'chk_commission_reversals_amount exists',
+  );
+  assert(
+    checkNames.includes('chk_commission_reversals_responsibility'),
+    'chk_commission_reversals_responsibility exists',
+  );
+  assert(
+    checkNames.includes('chk_settlement_adjustments_status'),
+    'chk_settlement_adjustments_status exists',
+  );
+  assert(
+    checkNames.includes('chk_settlement_adjustments_type'),
+    'chk_settlement_adjustments_type exists',
+  );
+  assert(
+    checkNames.includes('chk_settlement_adjustments_fx_status'),
+    'chk_settlement_adjustments_fx_status exists',
+  );
+  assert(
+    checkNames.includes('chk_settlement_adjustments_amount'),
+    'chk_settlement_adjustments_amount exists',
+  );
+  assert(
+    checkNames.includes('chk_reconciliation_runs_status'),
+    'chk_reconciliation_runs_status exists',
+  );
 }
 
 async function verifyIdempotency() {
@@ -201,17 +253,33 @@ async function verifyIdempotency() {
   const afterCount = after.rows.length;
 
   assert(result.applied === 0, `Second run applied 0 migrations (applied=${result.applied})`);
-  assert(result.skipped === result.total, `Second run skipped all ${result.total} migrations (skipped=${result.skipped})`);
-  assert(beforeCount === afterCount, `Migration log count unchanged (before=${beforeCount}, after=${afterCount})`);
+  assert(
+    result.skipped === result.total,
+    `Second run skipped all ${result.total} migrations (skipped=${result.skipped})`,
+  );
+  assert(
+    beforeCount === afterCount,
+    `Migration log count unchanged (before=${beforeCount}, after=${afterCount})`,
+  );
 }
 
 async function verifyExistingRecordsIntact() {
   console.log('\n── Existing records integrity ──');
 
   // Verify core tables still have expected structure
-  const coreTables = ['users', 'organizations', 'orders', 'settlement_records', 'return_requests', 'refunds'];
+  const coreTables = [
+    'users',
+    'organizations',
+    'orders',
+    'settlement_records',
+    'return_requests',
+    'refunds',
+  ];
   for (const table of coreTables) {
-    const res = await pool.query(`SELECT COUNT(*) AS cnt FROM information_schema.columns WHERE table_name = $1`, [table]);
+    const res = await pool.query(
+      `SELECT COUNT(*) AS cnt FROM information_schema.columns WHERE table_name = $1`,
+      [table],
+    );
     const colCount = parseInt(res.rows[0].cnt);
     assert(colCount > 0, `${table} has ${colCount} columns (structure intact)`);
   }
@@ -227,7 +295,10 @@ async function main() {
     // Step 1: Apply all migrations
     console.log('── Step 1: Apply migration chain ──');
     const result = await applyMigrations();
-    assert(result.failed === 0, `All migrations applied without failure (${result.applied} applied, ${result.skipped} skipped)`);
+    assert(
+      result.failed === 0,
+      `All migrations applied without failure (${result.applied} applied, ${result.skipped} skipped)`,
+    );
     assert(result.applied > 0, `${result.applied} migrations applied (fresh database)`);
 
     // Step 2: Verify schema

@@ -4,7 +4,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 const { fetchAuditLogs } = vi.hoisted(() => ({ fetchAuditLogs: vi.fn() }));
 
 vi.mock('next/link', () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
 }));
 vi.mock('../lib/api', () => ({ fetchAuditLogs: (...args: unknown[]) => fetchAuditLogs(...args) }));
 vi.mock('../hooks/useRequirePerms', () => ({ useRequirePerms: () => ({ hasAccess: true }) }));
@@ -16,12 +18,24 @@ vi.mock('../components/detail', () => ({
 import AuditPage from '../app/audit/page';
 
 const oldLog = {
-  id: 'old-log', action: 'UPDATE', resource: 'old-record', resourceId: 'old-resource-id',
-  actorId: 'actor-old', actorType: 'ADMIN', metadata: {}, createdAt: '2026-01-01T00:00:00.000Z',
+  id: 'old-log',
+  action: 'UPDATE',
+  resource: 'old-record',
+  resourceId: 'old-resource-id',
+  actorId: 'actor-old',
+  actorType: 'ADMIN',
+  metadata: {},
+  createdAt: '2026-01-01T00:00:00.000Z',
 };
 const newLog = {
-  id: 'new-log', action: 'CREATE', resource: 'new-record', resourceId: 'new-resource-id',
-  actorId: 'actor-new', actorType: 'ADMIN', metadata: {}, createdAt: '2026-01-02T00:00:00.000Z',
+  id: 'new-log',
+  action: 'CREATE',
+  resource: 'new-record',
+  resourceId: 'new-resource-id',
+  actorId: 'actor-new',
+  actorType: 'ADMIN',
+  metadata: {},
+  createdAt: '2026-01-02T00:00:00.000Z',
 };
 
 describe('admin audit log query ordering', () => {
@@ -33,8 +47,12 @@ describe('admin audit log query ordering', () => {
 
   it('ignores an older filter response that arrives after the newer result', async () => {
     let resolveFirst!: (value: { data: Array<typeof oldLog>; total: number }) => void;
-    const first = new Promise<{ data: typeof oldLog[]; total: number }>(resolve => { resolveFirst = resolve; });
-    fetchAuditLogs.mockImplementationOnce(() => first).mockResolvedValueOnce({ data: [newLog], total: 1 });
+    const first = new Promise<{ data: (typeof oldLog)[]; total: number }>((resolve) => {
+      resolveFirst = resolve;
+    });
+    fetchAuditLogs
+      .mockImplementationOnce(() => first)
+      .mockResolvedValueOnce({ data: [newLog], total: 1 });
 
     render(<AuditPage />);
     await waitFor(() => expect(fetchAuditLogs).toHaveBeenCalledTimes(1));

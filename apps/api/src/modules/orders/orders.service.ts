@@ -26,7 +26,11 @@ import { CartService } from './cart.service';
 import { getOrderQuantityViolation } from './order-quantity';
 import { products, productVariants } from '../catalog/catalog.schema';
 import { merchantOffers } from '../catalog/catalog.offer.schema';
-import { resolveOfferPrices, resolveSelectedOfferPrices, selectedOfferPriceKey } from '../pricing/price-resolution';
+import {
+  resolveOfferPrices,
+  resolveSelectedOfferPrices,
+  selectedOfferPriceKey,
+} from '../pricing/price-resolution';
 import { inventoryItems, stockMovements } from '../inventory/inventory.schema';
 import { outboxEvents } from '../audit/audit.schema';
 import { warehouses, stores } from '../merchant/merchant.schema';
@@ -43,7 +47,12 @@ import {
   DEFAULT_COMMISSION_RATE,
   DEFAULT_PLATFORM_DELIVERY_FEE_MINOR,
 } from './order-pricing';
-import { attachBuyerContacts, attachItemCounts, attachOrderIdentity, totalsByCurrency } from './order-identity';
+import {
+  attachBuyerContacts,
+  attachItemCounts,
+  attachOrderIdentity,
+  totalsByCurrency,
+} from './order-identity';
 import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 import crypto, { createHash } from 'node:crypto';
 import {
@@ -113,11 +122,14 @@ export class OrdersService {
     });
     if (items.length === 0) throw new BadRequestException('Cart is empty');
 
-    const offerIds = [...new Set(items.map(item => item['offerId']).filter(Boolean) as string[])];
-    const offers = offerIds.length > 0
-      ? await this.db.db.query.merchantOffers.findMany({ where: inArray(merchantOffers.id, offerIds) })
-      : [];
-    const offerById = new Map(offers.map(offer => [offer.id, offer]));
+    const offerIds = [...new Set(items.map((item) => item['offerId']).filter(Boolean) as string[])];
+    const offers =
+      offerIds.length > 0
+        ? await this.db.db.query.merchantOffers.findMany({
+            where: inArray(merchantOffers.id, offerIds),
+          })
+        : [];
+    const offerById = new Map(offers.map((offer) => [offer.id, offer]));
     for (const item of items) {
       const variant = await this.db.db.query.productVariants.findFirst({
         where: eq(productVariants.id, item['variantId']),
@@ -129,8 +141,16 @@ export class OrdersService {
       if (!product) throw new BadRequestException('A product in your cart is no longer available');
       const offerId = item['offerId'] as string | null;
       const offer = offerId ? offerById.get(offerId) : undefined;
-      if (offerId && (!offer || offer.status !== 'ACTIVE' || !offer.isAvailable || offer.storeId !== item['storeId'])) {
-        throw new BadRequestException('A seller offer in your cart is no longer available. Please review your cart.');
+      if (
+        offerId &&
+        (!offer ||
+          offer.status !== 'ACTIVE' ||
+          !offer.isAvailable ||
+          offer.storeId !== item['storeId'])
+      ) {
+        throw new BadRequestException(
+          'A seller offer in your cart is no longer available. Please review your cart.',
+        );
       }
       const violation = getOrderQuantityViolation(
         item['quantity'],
@@ -147,16 +167,21 @@ export class OrdersService {
       grouped.get(storeId)!.push(item);
     }
     const storeIds = [...grouped.keys()];
-    const selectionsByStore = new Map<string, { fulfillmentMethod: string; shippingMethodId?: string }>();
+    const selectionsByStore = new Map<
+      string,
+      { fulfillmentMethod: string; shippingMethodId?: string }
+    >();
     if (input.shippingSelections && input.shippingSelections.length > 0) {
-      const selectedIds = input.shippingSelections.map(selection => selection.storeId);
+      const selectedIds = input.shippingSelections.map((selection) => selection.storeId);
       const uniqueIds = new Set(selectedIds);
       if (uniqueIds.size !== selectedIds.length) {
         throw new BadRequestException('Duplicate shipping selections for the same store');
       }
       for (const selection of input.shippingSelections) {
         if (!grouped.has(selection.storeId)) {
-          throw new BadRequestException(`Selection references store ${selection.storeId} not in cart`);
+          throw new BadRequestException(
+            `Selection references store ${selection.storeId} not in cart`,
+          );
         }
         selectionsByStore.set(selection.storeId, {
           fulfillmentMethod: selection.fulfillmentMethod,
@@ -212,7 +237,7 @@ export class OrdersService {
       where: inArray(stores.id, storeIds),
       columns: { id: true, currency: true },
     });
-    const currencyByStore = new Map(storeRows.map(store => [store.id, store.currency]));
+    const currencyByStore = new Map(storeRows.map((store) => [store.id, store.currency]));
     const breakdowns: Array<{
       storeId: string;
       currency: string | null;
@@ -324,31 +349,34 @@ export class OrdersService {
     // on order_items.offer_snapshot so historical orders survive later edits.
     // TRANSACTION FOUNDATION: Offer loading moved before MOQ validation so
     // MOQ is checked against offer.moq (offer layer) instead of product.moq.
-    const offerIds = items.map(i => i['offerId']).filter(Boolean) as string[];
-    const offerSnapshotById = new Map<string, {
-      id: string;
-      storeId: string;
-      priceListId: string | null;
-      warehouseId: string | null;
-      basePriceMinor: number | null;
-      compareAtPriceMinor: number | null;
-      currency: string;
-      moq: number;
-      orderIncrement: number | null;
-      leadTimeDays: number | null;
-      snapshotStatus: string;
-      capturedAt: string;
-    }>();
+    const offerIds = items.map((i) => i['offerId']).filter(Boolean) as string[];
+    const offerSnapshotById = new Map<
+      string,
+      {
+        id: string;
+        storeId: string;
+        priceListId: string | null;
+        warehouseId: string | null;
+        basePriceMinor: number | null;
+        compareAtPriceMinor: number | null;
+        currency: string;
+        moq: number;
+        orderIncrement: number | null;
+        leadTimeDays: number | null;
+        snapshotStatus: string;
+        capturedAt: string;
+      }
+    >();
     if (offerIds.length > 0) {
       const fullOffers = await this.db.db.query.merchantOffers.findMany({
         where: inArray(merchantOffers.id, offerIds),
       });
-      const activeSet = new Set(fullOffers.filter(o => o.status === 'ACTIVE').map(o => o.id));
+      const activeSet = new Set(fullOffers.filter((o) => o.status === 'ACTIVE').map((o) => o.id));
       for (const item of items) {
         const oid = item['offerId'] as string | null;
         if (oid && !activeSet.has(oid)) {
           throw new BadRequestException(
-            'A seller\'s offer for one of your items is no longer active. Please review your cart.',
+            "A seller's offer for one of your items is no longer active. Please review your cart.",
           );
         }
       }
@@ -423,12 +451,15 @@ export class OrdersService {
     // shippingSelections they are validated; otherwise the legacy global
     // fulfillmentMethod is fanned out to every store (backward-compat path).
     const storeIdsInCart = [...grouped.keys()];
-    const selectionsByStore = new Map<string, { fulfillmentMethod: string; shippingMethodId?: string }>();
+    const selectionsByStore = new Map<
+      string,
+      { fulfillmentMethod: string; shippingMethodId?: string }
+    >();
     const resolvedFeeByStore = new Map<string, number>();
 
     if (input.shippingSelections && input.shippingSelections.length > 0) {
       // Validate: exactly one selection per store in the cart
-      const selStoreIds = input.shippingSelections.map(s => s.storeId);
+      const selStoreIds = input.shippingSelections.map((s) => s.storeId);
       const uniqueSelStores = new Set(selStoreIds);
       if (selStoreIds.length !== uniqueSelStores.size) {
         throw new BadRequestException('Duplicate shipping selections for the same store');
@@ -484,7 +515,9 @@ export class OrdersService {
         // M7.2.2: resolve fee from shipping_methods table via ShippingService
         try {
           const result = await this.shipping.resolveAuthoritativeFee(
-            storeId, selection.shippingMethodId, storeSubtotal,
+            storeId,
+            selection.shippingMethodId,
+            storeSubtotal,
           );
           resolvedFeeByStore.set(storeId, result.feeMinor);
         } catch (err: any) {
@@ -569,7 +602,8 @@ export class OrdersService {
     // idempotency_key prevents duplicate inserts.
     const masterId = crypto.randomUUID();
     const subOrderIds: string[] = [];
-    const subOrderData: { id: string; storeId: string; totalMinor: number; itemCount: number }[] = [];
+    const subOrderData: { id: string; storeId: string; totalMinor: number; itemCount: number }[] =
+      [];
     let grandTotalMinor = 0;
 
     // P12: Resolve payment method (default to CASH_ON_DELIVERY for legacy compat)
@@ -580,234 +614,272 @@ export class OrdersService {
       );
     }
     if (paymentMethod === 'BANK_TRANSFER' && !this.payments) {
-      throw new BadRequestException('Bank transfer checkout is unavailable because payment processing is not configured');
+      throw new BadRequestException(
+        'Bank transfer checkout is unavailable because payment processing is not configured',
+      );
     }
 
     try {
-    await this.db.db.transaction(async (tx) => {
-      // Re-read and lock the commercial terms inside the order transaction.
-      // Cart-time validation is for fast feedback; this locked read is the
-      // authoritative checkout gate and prevents a concurrent seller edit
-      // from changing MOQ/increment between validation and order persistence.
-      const checkoutVariantIds = [...new Set(items.map(item => item['variantId'] as string))];
-      const checkoutVariants = await tx.query.productVariants.findMany({
-        where: inArray(productVariants.id, checkoutVariantIds),
-        columns: { id: true, productId: true },
-      });
-      const checkoutProductIds = [...new Set(checkoutVariants.map(variant => variant.productId))];
-      const checkoutProducts = checkoutProductIds.length > 0
-        ? await tx.select().from(products).where(inArray(products.id, checkoutProductIds)).for('update')
-        : [];
-      const checkoutOffers = offerIds.length > 0
-        ? await tx.select().from(merchantOffers).where(inArray(merchantOffers.id, offerIds)).for('update')
-        : [];
-      const checkoutVariantById = new Map(checkoutVariants.map(variant => [variant.id, variant]));
-      const checkoutProductById = new Map(checkoutProducts.map(product => [product.id, product]));
-      const checkoutOfferById = new Map(checkoutOffers.map(offer => [offer.id, offer]));
-      const transactionCapturedAt = new Date().toISOString();
-
-      offerSnapshotById.clear();
-      for (const offer of checkoutOffers) {
-        if (offer.status !== 'ACTIVE' || !offer.isAvailable) {
-          throw new BadRequestException(
-            'A seller\'s offer for one of your items is no longer available. Please review your cart.',
-          );
-        }
-        offerSnapshotById.set(offer.id, {
-          id: offer.id,
-          storeId: offer.storeId,
-          priceListId: offer.priceListId ?? null,
-          warehouseId: offer.warehouseId ?? null,
-          basePriceMinor: offer.basePriceMinor ?? null,
-          compareAtPriceMinor: offer.compareAtPriceMinor ?? null,
-          currency: offer.currency,
-          moq: offer.moq,
-          orderIncrement: offer.orderIncrement ?? null,
-          leadTimeDays: offer.leadTimeDays ?? null,
-          snapshotStatus: offer.status,
-          capturedAt: transactionCapturedAt,
+      await this.db.db.transaction(async (tx) => {
+        // Re-read and lock the commercial terms inside the order transaction.
+        // Cart-time validation is for fast feedback; this locked read is the
+        // authoritative checkout gate and prevents a concurrent seller edit
+        // from changing MOQ/increment between validation and order persistence.
+        const checkoutVariantIds = [...new Set(items.map((item) => item['variantId'] as string))];
+        const checkoutVariants = await tx.query.productVariants.findMany({
+          where: inArray(productVariants.id, checkoutVariantIds),
+          columns: { id: true, productId: true },
         });
-      }
-
-      for (const item of items) {
-        const variant = checkoutVariantById.get(item['variantId'] as string);
-        const product = variant ? checkoutProductById.get(variant.productId) : undefined;
-        if (!variant || !product) {
-          throw new BadRequestException('A product in your cart is no longer available');
-        }
-        const itemOfferId = item['offerId'] as string | null;
-        const offer = itemOfferId ? checkoutOfferById.get(itemOfferId) : undefined;
-        if (itemOfferId && !offer) {
-          throw new BadRequestException('A seller\'s offer for one of your items is no longer available. Please review your cart.');
-        }
-        const violation = getOrderQuantityViolation(
-          item['quantity'],
-          offer?.moq ?? product.moq ?? 1,
-          offer?.orderIncrement ?? null,
+        const checkoutProductIds = [
+          ...new Set(checkoutVariants.map((variant) => variant.productId)),
+        ];
+        const checkoutProducts =
+          checkoutProductIds.length > 0
+            ? await tx
+                .select()
+                .from(products)
+                .where(inArray(products.id, checkoutProductIds))
+                .for('update')
+            : [];
+        const checkoutOffers =
+          offerIds.length > 0
+            ? await tx
+                .select()
+                .from(merchantOffers)
+                .where(inArray(merchantOffers.id, offerIds))
+                .for('update')
+            : [];
+        const checkoutVariantById = new Map(
+          checkoutVariants.map((variant) => [variant.id, variant]),
         );
-        if (violation) {
-          throw new BadRequestException(`${product.title || 'This item'}: ${violation}`);
+        const checkoutProductById = new Map(
+          checkoutProducts.map((product) => [product.id, product]),
+        );
+        const checkoutOfferById = new Map(checkoutOffers.map((offer) => [offer.id, offer]));
+        const transactionCapturedAt = new Date().toISOString();
+
+        offerSnapshotById.clear();
+        for (const offer of checkoutOffers) {
+          if (offer.status !== 'ACTIVE' || !offer.isAvailable) {
+            throw new BadRequestException(
+              "A seller's offer for one of your items is no longer available. Please review your cart.",
+            );
+          }
+          offerSnapshotById.set(offer.id, {
+            id: offer.id,
+            storeId: offer.storeId,
+            priceListId: offer.priceListId ?? null,
+            warehouseId: offer.warehouseId ?? null,
+            basePriceMinor: offer.basePriceMinor ?? null,
+            compareAtPriceMinor: offer.compareAtPriceMinor ?? null,
+            currency: offer.currency,
+            moq: offer.moq,
+            orderIncrement: offer.orderIncrement ?? null,
+            leadTimeDays: offer.leadTimeDays ?? null,
+            snapshotStatus: offer.status,
+            capturedAt: transactionCapturedAt,
+          });
         }
-      }
 
-      await tx.insert(masterOrders).values({
-        id: masterId,
-        buyerId: input.buyerId,
-        status: 'SUBMITTED',
-        deliveryAddress: input.deliveryAddress,
-        notes: input.notes || null,
-        idempotencyKey: input.idempotencyKey || null,
-        requestFingerprint: requestFingerprint || null,
-      });
+        for (const item of items) {
+          const variant = checkoutVariantById.get(item['variantId'] as string);
+          const product = variant ? checkoutProductById.get(variant.productId) : undefined;
+          if (!variant || !product) {
+            throw new BadRequestException('A product in your cart is no longer available');
+          }
+          const itemOfferId = item['offerId'] as string | null;
+          const offer = itemOfferId ? checkoutOfferById.get(itemOfferId) : undefined;
+          if (itemOfferId && !offer) {
+            throw new BadRequestException(
+              "A seller's offer for one of your items is no longer available. Please review your cart.",
+            );
+          }
+          const violation = getOrderQuantityViolation(
+            item['quantity'],
+            offer?.moq ?? product.moq ?? 1,
+            offer?.orderIncrement ?? null,
+          );
+          if (violation) {
+            throw new BadRequestException(`${product.title || 'This item'}: ${violation}`);
+          }
+        }
 
-      for (const [storeId, storeItems] of grouped) {
-        const subOrderId = crypto.randomUUID();
-        const subtotal = storeItems.reduce((sum, i) => sum + i['lineTotalMinor'], 0);
-        const { promo, discount } = promoDataByStore.get(storeId)!;
-        const storeSelection = selectionsByStore.get(storeId)!;
-        const storeDeliveryFee = resolvedFeeByStore.get(storeId) ?? 0;
-
-        const fin = computeOrderFinancials({
-          subtotalMinor: subtotal,
-          discountMinor: discount,
-          deliveryFeeMinor: storeDeliveryFee,
-          vatRate,
-          commissionRate,
-        });
-        grandTotalMinor += fin.totalMinor;
-
-        await tx.insert(orders).values({
-          id: subOrderId,
-          masterOrderId: masterId,
-          storeId,
+        await tx.insert(masterOrders).values({
+          id: masterId,
           buyerId: input.buyerId,
           status: 'SUBMITTED',
-          fulfillmentMethod: storeSelection.fulfillmentMethod,
-          promoCode: promo ? cart['promoCode'] || promo['code'] : null,
-          promotionId: promo ? promo['id'] : null,
-          subtotalMinor: fin.productsMinor,
-          discountMinor: fin.discountMinor,
-          deliveryFeeMinor: fin.deliveryFeeMinor,
-          taxMinor: fin.taxMinor,
-          totalMinor: fin.totalMinor,
-          currency: currencyByStore.get(storeId) ?? null,
-          paymentMethod,
-          paymentStatus: paymentMethod === 'CASH_ON_DELIVERY' ? 'AWAITING_PAYMENT' : (paymentMethod === 'VOUCHER' ? 'AWAITING_VERIFICATION' : 'CREATED'),
-          slaAt: new Date(Date.now() + 12 * 60 * 60 * 1000),
-          metadata: storeSelection.shippingMethodId
-            ? { shippingMethodId: storeSelection.shippingMethodId }
-            : {},
+          deliveryAddress: input.deliveryAddress,
+          notes: input.notes || null,
+          idempotencyKey: input.idempotencyKey || null,
+          requestFingerprint: requestFingerprint || null,
         });
 
-        for (const item of storeItems) {
-          const variant = await tx.query.productVariants.findFirst({
-            where: eq(productVariants.id, item['variantId']),
-          });
-          if (!variant) continue;
+        for (const [storeId, storeItems] of grouped) {
+          const subOrderId = crypto.randomUUID();
+          const subtotal = storeItems.reduce((sum, i) => sum + i['lineTotalMinor'], 0);
+          const { promo, discount } = promoDataByStore.get(storeId)!;
+          const storeSelection = selectionsByStore.get(storeId)!;
+          const storeDeliveryFee = resolvedFeeByStore.get(storeId) ?? 0;
 
-          const itemOfferId = (item['offerId'] as string | null) ?? null;
-          const offerSnapshot = itemOfferId ? offerSnapshotById.get(itemOfferId) ?? null : null;
-          await tx.insert(orderItems).values({
+          const fin = computeOrderFinancials({
+            subtotalMinor: subtotal,
+            discountMinor: discount,
+            deliveryFeeMinor: storeDeliveryFee,
+            vatRate,
+            commissionRate,
+          });
+          grandTotalMinor += fin.totalMinor;
+
+          await tx.insert(orders).values({
+            id: subOrderId,
+            masterOrderId: masterId,
+            storeId,
+            buyerId: input.buyerId,
+            status: 'SUBMITTED',
+            fulfillmentMethod: storeSelection.fulfillmentMethod,
+            promoCode: promo ? cart['promoCode'] || promo['code'] : null,
+            promotionId: promo ? promo['id'] : null,
+            subtotalMinor: fin.productsMinor,
+            discountMinor: fin.discountMinor,
+            deliveryFeeMinor: fin.deliveryFeeMinor,
+            taxMinor: fin.taxMinor,
+            totalMinor: fin.totalMinor,
+            currency: currencyByStore.get(storeId) ?? null,
+            paymentMethod,
+            paymentStatus:
+              paymentMethod === 'CASH_ON_DELIVERY'
+                ? 'AWAITING_PAYMENT'
+                : paymentMethod === 'VOUCHER'
+                  ? 'AWAITING_VERIFICATION'
+                  : 'CREATED',
+            slaAt: new Date(Date.now() + 12 * 60 * 60 * 1000),
+            metadata: storeSelection.shippingMethodId
+              ? { shippingMethodId: storeSelection.shippingMethodId }
+              : {},
+          });
+
+          for (const item of storeItems) {
+            const variant = await tx.query.productVariants.findFirst({
+              where: eq(productVariants.id, item['variantId']),
+            });
+            if (!variant) continue;
+
+            const itemOfferId = (item['offerId'] as string | null) ?? null;
+            const offerSnapshot = itemOfferId ? (offerSnapshotById.get(itemOfferId) ?? null) : null;
+            await tx.insert(orderItems).values({
+              id: crypto.randomUUID(),
+              orderId: subOrderId,
+              variantId: item['variantId'],
+              sku: variant['sku'],
+              title: variant['title'] || variant['sku'],
+              quantity: item['quantity'],
+              unitPriceMinor: item['priceMinor'],
+              tierMinQty: item['tierMinQty'],
+              offerId: itemOfferId,
+              offerSnapshot,
+              promoSnapshot: item['promoSnapshot'] || {},
+              lineTotalMinor: item['lineTotalMinor'],
+            });
+          }
+
+          await tx.insert(orderFinancialBreakdown).values({
             id: crypto.randomUUID(),
             orderId: subOrderId,
-            variantId: item['variantId'],
-            sku: variant['sku'],
-            title: variant['title'] || variant['sku'],
-            quantity: item['quantity'],
-            unitPriceMinor: item['priceMinor'],
-            tierMinQty: item['tierMinQty'],
-            offerId: itemOfferId,
-            offerSnapshot,
-            promoSnapshot: item['promoSnapshot'] || {},
-            lineTotalMinor: item['lineTotalMinor'],
+            productsMinor: fin.productsMinor,
+            discountMinor: fin.discountMinor,
+            deliveryFeeMinor: fin.deliveryFeeMinor,
+            taxMinor: fin.taxMinor,
+            commissionMinor: fin.commissionMinor,
+            merchantNetMinor: fin.merchantNetMinor,
           });
-        }
 
-        await tx.insert(orderFinancialBreakdown).values({
-          id: crypto.randomUUID(),
-          orderId: subOrderId,
-          productsMinor: fin.productsMinor,
-          discountMinor: fin.discountMinor,
-          deliveryFeeMinor: fin.deliveryFeeMinor,
-          taxMinor: fin.taxMinor,
-          commissionMinor: fin.commissionMinor,
-          merchantNetMinor: fin.merchantNetMinor,
-        });
+          // P12: Create payment record per sub-order (inside checkout transaction)
+          if (this.payments) {
+            await this.payments.createPaymentInTransaction(
+              tx,
+              subOrderId,
+              fin.totalMinor,
+              currencyByStore.get(storeId) || 'SYP',
+              paymentMethod as any,
+              input.idempotencyKey ? `${input.idempotencyKey}:${storeId}` : crypto.randomUUID(),
+              input.buyerId,
+            );
+          }
 
-        // P12: Create payment record per sub-order (inside checkout transaction)
-        if (this.payments) {
-          await this.payments.createPaymentInTransaction(
-            tx,
-            subOrderId,
-            fin.totalMinor,
-            currencyByStore.get(storeId) || 'SYP',
-            paymentMethod as any,
-            input.idempotencyKey ? `${input.idempotencyKey}:${storeId}` : crypto.randomUUID(),
-            input.buyerId,
-          );
-        }
-
-        // Inline status history write (uses tx, not this.db.db)
-        await tx.insert(orderStatusHistory).values({
-          id: crypto.randomUUID(),
-          orderId: subOrderId,
-          fromStatus: null,
-          toStatus: 'SUBMITTED',
-          changedBy: input.buyerId,
-          actorType: 'BUYER',
-          reason: 'Checkout',
-        });
-
-        if (paymentMethod === 'BANK_TRANSFER') {
-          await tx.update(orders)
-            .set({
-              status: 'PAYMENT_PENDING',
-              paymentStatus: 'AWAITING_PAYMENT',
-              updatedAt: new Date(),
-            })
-            .where(eq(orders.id, subOrderId));
+          // Inline status history write (uses tx, not this.db.db)
           await tx.insert(orderStatusHistory).values({
             id: crypto.randomUUID(),
             orderId: subOrderId,
-            fromStatus: 'SUBMITTED',
-            toStatus: 'PAYMENT_PENDING',
+            fromStatus: null,
+            toStatus: 'SUBMITTED',
             changedBy: input.buyerId,
-            actorType: 'SYSTEM',
-            reason: 'Awaiting bank transfer proof upload',
+            actorType: 'BUYER',
+            reason: 'Checkout',
           });
-          await this.outbox.publish('order.payment_pending', subOrderId, {
-            orderId: subOrderId,
-            masterOrderId: masterId,
-            buyerId: input.buyerId,
-            paymentMethod: 'BANK_TRANSFER',
-          }, {}, null, tx);
+
+          if (paymentMethod === 'BANK_TRANSFER') {
+            await tx
+              .update(orders)
+              .set({
+                status: 'PAYMENT_PENDING',
+                paymentStatus: 'AWAITING_PAYMENT',
+                updatedAt: new Date(),
+              })
+              .where(eq(orders.id, subOrderId));
+            await tx.insert(orderStatusHistory).values({
+              id: crypto.randomUUID(),
+              orderId: subOrderId,
+              fromStatus: 'SUBMITTED',
+              toStatus: 'PAYMENT_PENDING',
+              changedBy: input.buyerId,
+              actorType: 'SYSTEM',
+              reason: 'Awaiting bank transfer proof upload',
+            });
+            await this.outbox.publish(
+              'order.payment_pending',
+              subOrderId,
+              {
+                orderId: subOrderId,
+                masterOrderId: masterId,
+                buyerId: input.buyerId,
+                paymentMethod: 'BANK_TRANSFER',
+              },
+              {},
+              null,
+              tx,
+            );
+          }
+
+          subOrderIds.push(subOrderId);
+          subOrderData.push({
+            id: subOrderId,
+            storeId,
+            totalMinor: fin.totalMinor,
+            itemCount: storeItems.length,
+          });
         }
 
-        subOrderIds.push(subOrderId);
-        subOrderData.push({ id: subOrderId, storeId, totalMinor: fin.totalMinor, itemCount: storeItems.length });
-      }
+        // Mark cart as CONVERTED
+        await tx
+          .update(carts)
+          .set({ status: 'CONVERTED', updatedAt: new Date() })
+          .where(eq(carts.id, cart['id']));
 
-      // Mark cart as CONVERTED
-      await tx
-        .update(carts)
-        .set({ status: 'CONVERTED', updatedAt: new Date() })
-        .where(eq(carts.id, cart['id']));
-
-      // Write outbox event inside the transaction (transactional outbox pattern)
-      await tx.insert(outboxEvents).values({
-        id: crypto.randomUUID(),
-        eventType: 'order.submitted',
-        aggregateId: masterId,
-        payload: {
-          masterOrderId: masterId,
-          buyerId: input.buyerId,
-          subOrderIds,
-          totalMinor: grandTotalMinor,
-        },
-        metadata: {},
-        status: 'PENDING',
+        // Write outbox event inside the transaction (transactional outbox pattern)
+        await tx.insert(outboxEvents).values({
+          id: crypto.randomUUID(),
+          eventType: 'order.submitted',
+          aggregateId: masterId,
+          payload: {
+            masterOrderId: masterId,
+            buyerId: input.buyerId,
+            subOrderIds,
+            totalMinor: grandTotalMinor,
+          },
+          metadata: {},
+          status: 'PENDING',
+        });
       });
-    });
     } catch (err: any) {
       // TRANSACTION FOUNDATION: Handle idempotency race condition.
       // If two concurrent requests arrive with the same idempotency key, the
@@ -841,7 +913,7 @@ export class OrdersService {
     // Promotion redemption (promotion service manages its own DB connection)
     for (const [storeId, storeItems] of grouped) {
       const { promo, discount } = promoDataByStore.get(storeId)!;
-      const sub = subOrderData.find(s => s.storeId === storeId);
+      const sub = subOrderData.find((s) => s.storeId === storeId);
       if (promo && discount > 0 && sub) {
         try {
           await this.promotions.redeemPromotion(promo['id'], input.buyerId, sub.id, discount);
@@ -1117,7 +1189,12 @@ export class OrdersService {
     return this.getOrder(orderId);
   }
 
-  async rejectOrder(orderId: string, merchantUserId: string, reason: string, caller?: CallerContext) {
+  async rejectOrder(
+    orderId: string,
+    merchantUserId: string,
+    reason: string,
+    caller?: CallerContext,
+  ) {
     const order = await this.getOrder(orderId);
     if (caller) await assertOrderAccessible(this.db, caller, order);
     let currentStatus = order['status'];
@@ -1187,7 +1264,13 @@ export class OrdersService {
     return this.getOrder(orderId);
   }
 
-  async confirmItem(orderId: string, itemId: string, qtyConfirmed: number, merchantUserId: string, caller?: CallerContext) {
+  async confirmItem(
+    orderId: string,
+    itemId: string,
+    qtyConfirmed: number,
+    merchantUserId: string,
+    caller?: CallerContext,
+  ) {
     if (caller) {
       const order = await this.getOrder(orderId);
       await assertOrderAccessible(this.db, caller, order);
@@ -1208,35 +1291,43 @@ export class OrdersService {
   // ── M7.3-B.2: Cancellation Reason Validation ────────────────
 
   private static readonly CANCELLATION_REASONS = new Set([
-    'CUSTOMER_REQUEST', 'DUPLICATE_ORDER', 'MERCHANT_UNABLE_TO_FULFILL',
-    'OUT_OF_STOCK', 'PRICE_ERROR', 'ADDRESS_PROBLEM', 'PAYMENT_PROBLEM',
-    'CARRIER_PROBLEM', 'SYSTEM_ERROR', 'ADMINISTRATIVE', 'OTHER',
+    'CUSTOMER_REQUEST',
+    'DUPLICATE_ORDER',
+    'MERCHANT_UNABLE_TO_FULFILL',
+    'OUT_OF_STOCK',
+    'PRICE_ERROR',
+    'ADDRESS_PROBLEM',
+    'PAYMENT_PROBLEM',
+    'CARRIER_PROBLEM',
+    'SYSTEM_ERROR',
+    'ADMINISTRATIVE',
+    'OTHER',
   ]);
 
   // ── M7.3-B.4: Delivery Exception Constants ──────────────────
 
   private static readonly EXCEPTION_TYPES = new Set([
-    'RECIPIENT_UNAVAILABLE', 'RECIPIENT_REFUSED', 'WRONG_ADDRESS',
-    'DAMAGED', 'LOST', 'CARRIER_EXCEPTION', 'DRIVER_EXCEPTION', 'OTHER',
+    'RECIPIENT_UNAVAILABLE',
+    'RECIPIENT_REFUSED',
+    'WRONG_ADDRESS',
+    'DAMAGED',
+    'LOST',
+    'CARRIER_EXCEPTION',
+    'DRIVER_EXCEPTION',
+    'OTHER',
   ]);
 
-  private static readonly EXCEPTION_NOTE_REQUIRED = new Set([
-    'OTHER', 'DAMAGED', 'LOST',
-  ]);
+  private static readonly EXCEPTION_NOTE_REQUIRED = new Set(['OTHER', 'DAMAGED', 'LOST']);
 
   /**
    * M7.3-B.5: Exception types that make a shipment RTS-eligible.
    */
-  private static readonly RTS_ELIGIBLE_EXCEPTION_TYPES = new Set([
-    'RECIPIENT_REFUSED',
-  ]);
+  private static readonly RTS_ELIGIBLE_EXCEPTION_TYPES = new Set(['RECIPIENT_REFUSED']);
 
   /**
    * M7.3-B.5: Exception types where merchant cannot approve RTS.
    */
-  private static readonly RTS_ADMIN_ONLY_EXCEPTION_TYPES = new Set([
-    'LOST', 'DAMAGED',
-  ]);
+  private static readonly RTS_ADMIN_ONLY_EXCEPTION_TYPES = new Set(['LOST', 'DAMAGED']);
 
   /**
    * M7.3-B.5: All RTS states (for delivery/retry blocking).
@@ -1266,29 +1357,38 @@ export class OrdersService {
    * sellable availability.
    */
   private static readonly RETURN_CONDITIONS = new Set([
-    'GOOD', 'DAMAGED', 'DEFECTIVE', 'UNSALEABLE',
+    'GOOD',
+    'DAMAGED',
+    'DEFECTIVE',
+    'UNSALEABLE',
   ]);
 
   /** M7.3-C: conditions that require a write-off ADJUST-out after the RELEASE. */
   private static readonly RETURN_WRITEOFF_CONDITIONS = new Set([
-    'DAMAGED', 'DEFECTIVE', 'UNSALEABLE',
+    'DAMAGED',
+    'DEFECTIVE',
+    'UNSALEABLE',
   ]);
 
   /**
    * M7.3-B.5: All exception states that cancellation should close.
    */
   private static readonly CANCELLABLE_EXCEPTION_STATES = [
-    'OPEN', 'RETRY_PENDING', 'RTS_PENDING', 'RTS_IN_PROGRESS', 'RTS_COMPLETED',
+    'OPEN',
+    'RETRY_PENDING',
+    'RTS_PENDING',
+    'RTS_IN_PROGRESS',
+    'RTS_COMPLETED',
   ];
 
   private static readonly EXCEPTION_TRANSITIONS: Record<string, string[]> = {
-    'OPEN': ['RETRY_PENDING', 'RESOLVED', 'CLOSED', 'RTS_PENDING'],
-    'RETRY_PENDING': ['OPEN', 'CLOSED'],
-    'RESOLVED': [],
-    'CLOSED': [],
-    'RTS_PENDING': ['RTS_IN_PROGRESS', 'OPEN'],
-    'RTS_IN_PROGRESS': ['RTS_COMPLETED'],
-    'RTS_COMPLETED': ['CLOSED'],
+    OPEN: ['RETRY_PENDING', 'RESOLVED', 'CLOSED', 'RTS_PENDING'],
+    RETRY_PENDING: ['OPEN', 'CLOSED'],
+    RESOLVED: [],
+    CLOSED: [],
+    RTS_PENDING: ['RTS_IN_PROGRESS', 'OPEN'],
+    RTS_IN_PROGRESS: ['RTS_COMPLETED'],
+    RTS_COMPLETED: ['CLOSED'],
   };
 
   // ── M7.3-B.2: Actor Resolution ──────────────────────────────
@@ -1419,9 +1519,7 @@ export class OrdersService {
     }
     // OTHER requires explanatory notes
     if (reason === 'OTHER' && !notes?.trim()) {
-      throw new BadRequestException(
-        'Cancellation reason OTHER requires explanatory notes',
-      );
+      throw new BadRequestException('Cancellation reason OTHER requires explanatory notes');
     }
 
     const order = await this.getOrder(orderId);
@@ -1542,10 +1640,12 @@ export class OrdersService {
             exceptionResolvedAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(and(
-            eq(shipments.id, shipmentId),
-            inArray(shipments.exceptionStatus, OrdersService.CANCELLABLE_EXCEPTION_STATES),
-          ))
+          .where(
+            and(
+              eq(shipments.id, shipmentId),
+              inArray(shipments.exceptionStatus, OrdersService.CANCELLABLE_EXCEPTION_STATES),
+            ),
+          )
           .returning({ id: shipments.id, exceptionStatus: shipments.exceptionStatus });
 
         if (exceptionFlip.length > 0) {
@@ -1617,10 +1717,15 @@ export class OrdersService {
       if (this.payments) {
         try {
           const payment = await this.payments.getPaymentForOrder(orderId);
-          if (payment && !['CONFIRMED', 'EXPIRED', 'CANCELLED', 'REFUNDED'].includes(payment.status)) {
+          if (
+            payment &&
+            !['CONFIRMED', 'EXPIRED', 'CANCELLED', 'REFUNDED'].includes(payment.status)
+          ) {
             await this.payments.cancelPayment(payment.id, userId, tx);
           }
-        } catch { /* best-effort — order cancellation is authoritative */ }
+        } catch {
+          /* best-effort — order cancellation is authoritative */
+        }
       }
     });
 
@@ -1704,16 +1809,24 @@ export class OrdersService {
     // so historical orders remain truthful even after the offer is edited,
     // suspended, or deleted (FK `ON DELETE SET NULL` clears `offer_id` but the
     // snapshot lives on the line forever).
-    const itemOfferIds = items.map(i => i['offerId']).filter(Boolean) as string[];
-    let offerMap: Map<string, { leadTimeDays: number | null; moq: number; status: string; storeId: string }> | null = null;
+    const itemOfferIds = items.map((i) => i['offerId']).filter(Boolean) as string[];
+    let offerMap: Map<
+      string,
+      { leadTimeDays: number | null; moq: number; status: string; storeId: string }
+    > | null = null;
     if (itemOfferIds.length > 0) {
       const offers = await this.db.db.query.merchantOffers.findMany({
         where: inArray(merchantOffers.id, itemOfferIds),
         columns: { id: true, leadTimeDays: true, moq: true, status: true, storeId: true },
       });
-      offerMap = new Map(offers.map(o => [o.id, { leadTimeDays: o.leadTimeDays, moq: o.moq, status: o.status, storeId: o.storeId }]));
+      offerMap = new Map(
+        offers.map((o) => [
+          o.id,
+          { leadTimeDays: o.leadTimeDays, moq: o.moq, status: o.status, storeId: o.storeId },
+        ]),
+      );
     }
-    const enrichedItems = items.map(item => {
+    const enrichedItems = items.map((item) => {
       const oid = item['offerId'] as string | null;
       // Snapshot wins: it reflects what the buyer agreed to at checkout time.
       const snap = item['offerSnapshot'] as
@@ -1835,7 +1948,7 @@ export class OrdersService {
     if (lines.length > 0) {
       const batchResult = await this.cart.addItems(
         buyerId,
-        lines.map(l => ({ variantId: l.variantId, quantity: l.quantity })),
+        lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
       );
       for (const line of lines) {
         if (batchResult.added.includes(line.variantId)) {
@@ -1843,7 +1956,7 @@ export class OrdersService {
         }
       }
       for (const s of batchResult.skipped) {
-        const line = lines.find(l => l.variantId === s.variantId);
+        const line = lines.find((l) => l.variantId === s.variantId);
         skipped.push({ title: line?.title || s.variantId, reason: s.reason });
       }
     }
@@ -1867,23 +1980,26 @@ export class OrdersService {
 
     // Use the same shared resolver that the cart uses (A5-1) so the re-price
     // guard compares apples-to-apples against the checkout snapshot.
-    const variantIds = [...new Set(items.map(i => i['variantId']))];
+    const variantIds = [...new Set(items.map((i) => i['variantId']))];
     if (variantIds.length === 0) return deltas;
 
     // Preserve the exact offer selected at add-to-cart. Re-resolving only by
     // store/variant can silently switch from a product-default offer to a
     // variant-specific offer (or another offer's price book) during checkout.
-    const offerBackedItems = items.filter(item => item['offerId']);
-    const selectedOfferIds = [...new Set(offerBackedItems.map(item => item['offerId'] as string))];
-    const selectedOffers = selectedOfferIds.length > 0
-      ? await this.db.db.query.merchantOffers.findMany({
-          where: inArray(merchantOffers.id, selectedOfferIds),
-        })
-      : [];
+    const offerBackedItems = items.filter((item) => item['offerId']);
+    const selectedOfferIds = [
+      ...new Set(offerBackedItems.map((item) => item['offerId'] as string)),
+    ];
+    const selectedOffers =
+      selectedOfferIds.length > 0
+        ? await this.db.db.query.merchantOffers.findMany({
+            where: inArray(merchantOffers.id, selectedOfferIds),
+          })
+        : [];
     const selectedOfferPrices = await resolveSelectedOfferPrices(
       this.db.db,
       selectedOffers,
-      offerBackedItems.map(item => ({
+      offerBackedItems.map((item) => ({
         offerId: item['offerId'] as string,
         variantId: item['variantId'],
         quantity: item['quantity'],
@@ -1893,10 +2009,14 @@ export class OrdersService {
     // Resolve legacy owner-priced items by their store's normal price book.
     for (const item of items) {
       const tier = item['offerId']
-        ? selectedOfferPrices.get(selectedOfferPriceKey(item['offerId'] as string, item['variantId'], item['quantity']))
-        : (await resolveOfferPrices(
-            this.db.db, storeId, [item['variantId']], item['quantity'], { ladder: false },
-          )).get(item['variantId']);
+        ? selectedOfferPrices.get(
+            selectedOfferPriceKey(item['offerId'] as string, item['variantId'], item['quantity']),
+          )
+        : (
+            await resolveOfferPrices(this.db.db, storeId, [item['variantId']], item['quantity'], {
+              ladder: false,
+            })
+          ).get(item['variantId']);
       if (!tier) continue;
 
       const currentPrice = tier.unitPriceMinor;
@@ -2030,14 +2150,18 @@ export class OrdersService {
     // Order status history
     await this.recordStatusChange(orderId, order['status'], 'ASSIGNED', userId, 'MERCHANT');
     await this.outbox.publish('order.fulfillment.assigned', orderId, {
-      orderId, storeId: order['storeId'], driverId,
+      orderId,
+      storeId: order['storeId'],
+      driverId,
     });
 
     // M7.3-A: Recalculate master order status after driver assignment
     await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
 
     // Realtime notification
-    this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', { orderId, status: 'ASSIGNED' });
+    this.realtime?.server
+      ?.to(`order:${orderId}`)
+      .emit('order:updated', { orderId, status: 'ASSIGNED' });
 
     return this.getOrder(orderId);
   }
@@ -2068,7 +2192,9 @@ export class OrdersService {
       await assertOrderAccessible(this.db, caller, order);
       const DRIVER_ROLES = ['DRIVER', 'ADMIN', 'SUPER_ADMIN'];
       if (caller.role && !DRIVER_ROLES.includes(caller.role)) {
-        throw new ForbiddenException(`Role ${caller.role} cannot perform driver fulfillment actions`);
+        throw new ForbiddenException(
+          `Role ${caller.role} cannot perform driver fulfillment actions`,
+        );
       }
     }
     this.assertTransition(order['status'], 'DELIVERED');
@@ -2086,9 +2212,7 @@ export class OrdersService {
     // M7.3-B.5: Block delivery when RTS is active.
     const excStatus = (shipment as any)['exceptionStatus'] as string | null;
     if (excStatus && excStatus !== 'OPEN' && excStatus !== 'RESOLVED') {
-      throw new ConflictException(
-        `Delivery blocked: RTS active (status: ${excStatus})`,
-      );
+      throw new ConflictException(`Delivery blocked: RTS active (status: ${excStatus})`);
     }
 
     const hasOpenException = excStatus === 'OPEN';
@@ -2176,7 +2300,9 @@ export class OrdersService {
       });
     });
 
-    this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', { orderId, status: 'DELIVERED' });
+    this.realtime?.server
+      ?.to(`order:${orderId}`)
+      .emit('order:updated', { orderId, status: 'DELIVERED' });
 
     // M7.3-A: Schedule auto-completion after the configured window
     const windowHours = parseInt(process.env['ORDER_AUTO_COMPLETE_HOURS'] || '72', 10);
@@ -2227,9 +2353,7 @@ export class OrdersService {
 
     // 2. Notes required for certain types
     if (OrdersService.EXCEPTION_NOTE_REQUIRED.has(exceptionType) && !notes?.trim()) {
-      throw new BadRequestException(
-        `Exception type ${exceptionType} requires explanatory notes`,
-      );
+      throw new BadRequestException(`Exception type ${exceptionType} requires explanatory notes`);
     }
 
     // 3. Load shipment
@@ -2252,14 +2376,14 @@ export class OrdersService {
     // 6. Shipment must not be in terminal state
     const shipmentStatus = shipment.status as string;
     if (['DELIVERED', 'COMPLETED', 'CANCELLED'].includes(shipmentStatus)) {
-      throw new ConflictException(
-        `Cannot report exception: shipment is ${shipmentStatus}`,
-      );
+      throw new ConflictException(`Cannot report exception: shipment is ${shipmentStatus}`);
     }
 
     // 7. Idempotency — same type already OPEN → return existing
-    if ((shipment as any)['exceptionStatus'] === 'OPEN' &&
-        (shipment as any)['exceptionType'] === exceptionType) {
+    if (
+      (shipment as any)['exceptionStatus'] === 'OPEN' &&
+      (shipment as any)['exceptionType'] === exceptionType
+    ) {
       return {
         shipmentId,
         exceptionStatus: 'OPEN',
@@ -2289,9 +2413,7 @@ export class OrdersService {
         columns: { status: true },
       });
       if (!orderCheck || (orderCheck as any)['status'] !== 'OUT_FOR_DELIVERY') {
-        throw new ConflictException(
-          'Order status changed before exception could be recorded',
-        );
+        throw new ConflictException('Order status changed before exception could be recorded');
       }
 
       // Optimistic lock: claim NULL → OPEN
@@ -2304,16 +2426,11 @@ export class OrdersService {
           exceptionAt: now,
           updatedAt: now,
         })
-        .where(and(
-          eq(shipments.id, shipmentId),
-          sql`${shipments.exceptionStatus} IS NULL`,
-        ))
+        .where(and(eq(shipments.id, shipmentId), sql`${shipments.exceptionStatus} IS NULL`))
         .returning({ id: shipments.id });
 
       if (flipResult.length === 0) {
-        throw new ConflictException(
-          'Exception slot already claimed — concurrent report rejected',
-        );
+        throw new ConflictException('Exception slot already claimed — concurrent report rejected');
       }
 
       // Shipment event
@@ -2364,14 +2481,15 @@ export class OrdersService {
    *
    * Transition: OPEN → RETRY_PENDING (optimistic lock)
    */
-  async authorizeShipmentRetry(
-    shipmentId: string,
-    caller: CallerContext,
-  ) {
+  async authorizeShipmentRetry(shipmentId: string, caller: CallerContext) {
     // 1. Authorization: merchant or admin only
     const allowedRoles = [
-      'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT_MANAGER',
-      'ADMIN', 'SUPER_ADMIN', 'MODERATOR',
+      'MERCHANT_OWNER',
+      'MERCHANT_STAFF',
+      'MERCHANT_MANAGER',
+      'ADMIN',
+      'SUPER_ADMIN',
+      'MODERATOR',
     ];
     const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
     if (!privileged && !allowedRoles.includes(caller.role || '')) {
@@ -2398,9 +2516,7 @@ export class OrdersService {
     const attempts = (shipment as any)['deliveryAttempts'] as number;
     const maxAttempts = (shipment as any)['maxDeliveryAttempts'] as number;
     if (attempts >= maxAttempts) {
-      throw new ConflictException(
-        `Maximum delivery attempts reached (${attempts}/${maxAttempts})`,
-      );
+      throw new ConflictException(`Maximum delivery attempts reached (${attempts}/${maxAttempts})`);
     }
 
     // 6. Shipment must not be CANCELLED
@@ -2412,9 +2528,7 @@ export class OrdersService {
     const order = await this.getOrder(shipment.orderId);
     const orderStatus = order['status'] as string;
     if (['CANCELLED', 'DELIVERED', 'COMPLETED', 'DISPUTED'].includes(orderStatus)) {
-      throw new ConflictException(
-        `Cannot retry: order is ${orderStatus}`,
-      );
+      throw new ConflictException(`Cannot retry: order is ${orderStatus}`);
     }
 
     // 8. Idempotency: already RETRY_PENDING → 409
@@ -2431,16 +2545,11 @@ export class OrdersService {
           exceptionStatus: 'RETRY_PENDING',
           updatedAt: now,
         })
-        .where(and(
-          eq(shipments.id, shipmentId),
-          eq(shipments.exceptionStatus, 'OPEN'),
-        ))
+        .where(and(eq(shipments.id, shipmentId), eq(shipments.exceptionStatus, 'OPEN')))
         .returning({ id: shipments.id });
 
       if (flipResult.length === 0) {
-        throw new ConflictException(
-          'Exception status already changed — concurrent retry rejected',
-        );
+        throw new ConflictException('Exception status already changed — concurrent retry rejected');
       }
 
       // Shipment event
@@ -2493,15 +2602,15 @@ export class OrdersService {
    *   Already RTS_PENDING with same context → 200 (return existing)
    *   Different RTS context → 409
    */
-  async requestRTS(
-    shipmentId: string,
-    notes: string | undefined,
-    caller: CallerContext,
-  ) {
+  async requestRTS(shipmentId: string, notes: string | undefined, caller: CallerContext) {
     // 1. Authorization: merchant or admin only (no driver, no buyer)
     const allowedRoles = [
-      'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT_MANAGER',
-      'ADMIN', 'SUPER_ADMIN', 'MODERATOR',
+      'MERCHANT_OWNER',
+      'MERCHANT_STAFF',
+      'MERCHANT_MANAGER',
+      'ADMIN',
+      'SUPER_ADMIN',
+      'MODERATOR',
     ];
     const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
     if (!privileged && !allowedRoles.includes(caller.role || '')) {
@@ -2525,10 +2634,11 @@ export class OrdersService {
     // 5. Load order — must be OUT_FOR_DELIVERY
     const order = await this.getOrder(shipment.orderId);
     const orderStatus = order['status'] as string;
-    if (orderStatus === 'CANCELLED' || ['DELIVERED', 'COMPLETED', 'DISPUTED'].includes(orderStatus)) {
-      throw new ConflictException(
-        `Cannot request RTS: order is ${orderStatus}`,
-      );
+    if (
+      orderStatus === 'CANCELLED' ||
+      ['DELIVERED', 'COMPLETED', 'DISPUTED'].includes(orderStatus)
+    ) {
+      throw new ConflictException(`Cannot request RTS: order is ${orderStatus}`);
     }
 
     const exceptionType = (shipment as any)['exceptionType'] as string;
@@ -2546,9 +2656,7 @@ export class OrdersService {
 
     // 7. If already in further RTS state → 409
     if (exceptionStatus && OrdersService.RTS_ACTIVE_STATES.includes(exceptionStatus)) {
-      throw new ConflictException(
-        `Cannot request RTS: shipment is already in ${exceptionStatus}`,
-      );
+      throw new ConflictException(`Cannot request RTS: shipment is already in ${exceptionStatus}`);
     }
 
     // 8. Exception must be OPEN
@@ -2586,10 +2694,11 @@ export class OrdersService {
         where: eq(orders.id, shipment.orderId),
         columns: { status: true },
       });
-      if (!orderCheck || ['CANCELLED', 'DELIVERED', 'COMPLETED', 'DISPUTED'].includes((orderCheck as any)['status'])) {
-        throw new ConflictException(
-          'Order status changed before RTS could be recorded',
-        );
+      if (
+        !orderCheck ||
+        ['CANCELLED', 'DELIVERED', 'COMPLETED', 'DISPUTED'].includes((orderCheck as any)['status'])
+      ) {
+        throw new ConflictException('Order status changed before RTS could be recorded');
       }
 
       // Optimistic lock: OPEN → RTS_PENDING
@@ -2599,10 +2708,7 @@ export class OrdersService {
           exceptionStatus: 'RTS_PENDING',
           updatedAt: now,
         })
-        .where(and(
-          eq(shipments.id, shipmentId),
-          eq(shipments.exceptionStatus, 'OPEN'),
-        ))
+        .where(and(eq(shipments.id, shipmentId), eq(shipments.exceptionStatus, 'OPEN')))
         .returning({ id: shipments.id });
 
       if (flipResult.length === 0) {
@@ -2653,14 +2759,15 @@ export class OrdersService {
    *
    * LOST special flow: ADMIN can request + approve atomically.
    */
-  async approveRTS(
-    shipmentId: string,
-    caller: CallerContext,
-  ) {
+  async approveRTS(shipmentId: string, caller: CallerContext) {
     // 1. Authorization
     const allowedRoles = [
-      'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT_MANAGER',
-      'ADMIN', 'SUPER_ADMIN', 'MODERATOR',
+      'MERCHANT_OWNER',
+      'MERCHANT_STAFF',
+      'MERCHANT_MANAGER',
+      'ADMIN',
+      'SUPER_ADMIN',
+      'MODERATOR',
     ];
     const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
     if (!privileged && !allowedRoles.includes(caller.role || '')) {
@@ -2714,16 +2821,11 @@ export class OrdersService {
           exceptionStatus: 'RTS_IN_PROGRESS',
           updatedAt: now,
         })
-        .where(and(
-          eq(shipments.id, shipmentId),
-          eq(shipments.exceptionStatus, 'RTS_PENDING'),
-        ))
+        .where(and(eq(shipments.id, shipmentId), eq(shipments.exceptionStatus, 'RTS_PENDING')))
         .returning({ id: shipments.id });
 
       if (flipResult.length === 0) {
-        throw new ConflictException(
-          'RTS status already changed — concurrent approval rejected',
-        );
+        throw new ConflictException('RTS status already changed — concurrent approval rejected');
       }
 
       // Shipment event
@@ -2768,15 +2870,15 @@ export class OrdersService {
    * Notes are mandatory.
    * No outbox event for rejection.
    */
-  async rejectRTS(
-    shipmentId: string,
-    notes: string,
-    caller: CallerContext,
-  ) {
+  async rejectRTS(shipmentId: string, notes: string, caller: CallerContext) {
     // 1. Authorization
     const allowedRoles = [
-      'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT_MANAGER',
-      'ADMIN', 'SUPER_ADMIN', 'MODERATOR',
+      'MERCHANT_OWNER',
+      'MERCHANT_STAFF',
+      'MERCHANT_MANAGER',
+      'ADMIN',
+      'SUPER_ADMIN',
+      'MODERATOR',
     ];
     const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
     if (!privileged && !allowedRoles.includes(caller.role || '')) {
@@ -2818,16 +2920,11 @@ export class OrdersService {
           exceptionStatus: 'OPEN',
           updatedAt: now,
         })
-        .where(and(
-          eq(shipments.id, shipmentId),
-          eq(shipments.exceptionStatus, 'RTS_PENDING'),
-        ))
+        .where(and(eq(shipments.id, shipmentId), eq(shipments.exceptionStatus, 'RTS_PENDING')))
         .returning({ id: shipments.id });
 
       if (flipResult.length === 0) {
-        throw new ConflictException(
-          'RTS status already changed — concurrent rejection rejected',
-        );
+        throw new ConflictException('RTS status already changed — concurrent rejection rejected');
       }
 
       // Shipment event (no outbox event for rejection per spec)
@@ -2863,15 +2960,15 @@ export class OrdersService {
    * Idempotency:
    *   Already RTS_COMPLETED → 200 (return existing)
    */
-  async completeRTS(
-    shipmentId: string,
-    notes: string | undefined,
-    caller: CallerContext,
-  ) {
+  async completeRTS(shipmentId: string, notes: string | undefined, caller: CallerContext) {
     // 1. Authorization
     const allowedRoles = [
-      'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT_MANAGER',
-      'ADMIN', 'SUPER_ADMIN', 'MODERATOR',
+      'MERCHANT_OWNER',
+      'MERCHANT_STAFF',
+      'MERCHANT_MANAGER',
+      'ADMIN',
+      'SUPER_ADMIN',
+      'MODERATOR',
     ];
     const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
     if (!privileged && !allowedRoles.includes(caller.role || '')) {
@@ -2919,16 +3016,11 @@ export class OrdersService {
           exceptionResolvedAt: now,
           updatedAt: now,
         })
-        .where(and(
-          eq(shipments.id, shipmentId),
-          eq(shipments.exceptionStatus, 'RTS_IN_PROGRESS'),
-        ))
+        .where(and(eq(shipments.id, shipmentId), eq(shipments.exceptionStatus, 'RTS_IN_PROGRESS')))
         .returning({ id: shipments.id });
 
       if (flipResult.length === 0) {
-        throw new ConflictException(
-          'RTS status already changed — concurrent completion rejected',
-        );
+        throw new ConflictException('RTS status already changed — concurrent completion rejected');
       }
 
       // Shipment event
@@ -3017,10 +3109,11 @@ export class OrdersService {
     // 7. Load order
     const order = await this.getOrder(shipment.orderId);
     const orderStatus = order['status'] as string;
-    if (orderStatus === 'CANCELLED' || ['DELIVERED', 'COMPLETED', 'DISPUTED'].includes(orderStatus)) {
-      throw new ConflictException(
-        `Cannot request LOST RTS: order is ${orderStatus}`,
-      );
+    if (
+      orderStatus === 'CANCELLED' ||
+      ['DELIVERED', 'COMPLETED', 'DISPUTED'].includes(orderStatus)
+    ) {
+      throw new ConflictException(`Cannot request LOST RTS: order is ${orderStatus}`);
     }
 
     // 8. Atomic: OPEN → RTS_PENDING → RTS_IN_PROGRESS
@@ -3033,20 +3126,18 @@ export class OrdersService {
         where: eq(orders.id, shipment.orderId),
         columns: { status: true },
       });
-      if (!orderCheck || ['CANCELLED', 'DELIVERED', 'COMPLETED', 'DISPUTED'].includes((orderCheck as any)['status'])) {
-        throw new ConflictException(
-          'Order status changed before LOST RTS could be recorded',
-        );
+      if (
+        !orderCheck ||
+        ['CANCELLED', 'DELIVERED', 'COMPLETED', 'DISPUTED'].includes((orderCheck as any)['status'])
+      ) {
+        throw new ConflictException('Order status changed before LOST RTS could be recorded');
       }
 
       // OPEN → RTS_PENDING
       const pendingFlip = await tx
         .update(shipments)
         .set({ exceptionStatus: 'RTS_PENDING', updatedAt: now })
-        .where(and(
-          eq(shipments.id, shipmentId),
-          eq(shipments.exceptionStatus, 'OPEN'),
-        ))
+        .where(and(eq(shipments.id, shipmentId), eq(shipments.exceptionStatus, 'OPEN')))
         .returning({ id: shipments.id });
 
       if (pendingFlip.length === 0) {
@@ -3059,10 +3150,7 @@ export class OrdersService {
       const approvedFlip = await tx
         .update(shipments)
         .set({ exceptionStatus: 'RTS_IN_PROGRESS', updatedAt: now })
-        .where(and(
-          eq(shipments.id, shipmentId),
-          eq(shipments.exceptionStatus, 'RTS_PENDING'),
-        ))
+        .where(and(eq(shipments.id, shipmentId), eq(shipments.exceptionStatus, 'RTS_PENDING')))
         .returning({ id: shipments.id });
 
       if (approvedFlip.length === 0) {
@@ -3097,7 +3185,12 @@ export class OrdersService {
         id: crypto.randomUUID(),
         eventType: 'shipment.rts_requested',
         aggregateId: shipmentId,
-        payload: { shipmentId, orderId: shipment.orderId, exceptionType: 'LOST', investigationNotes },
+        payload: {
+          shipmentId,
+          orderId: shipment.orderId,
+          exceptionType: 'LOST',
+          investigationNotes,
+        },
         metadata: { storeId: shipment.storeId },
         status: 'PENDING',
       });
@@ -3106,7 +3199,12 @@ export class OrdersService {
         id: crypto.randomUUID(),
         eventType: 'shipment.rts_approved',
         aggregateId: shipmentId,
-        payload: { shipmentId, orderId: shipment.orderId, exceptionType: 'LOST', autoApproved: true },
+        payload: {
+          shipmentId,
+          orderId: shipment.orderId,
+          exceptionType: 'LOST',
+          autoApproved: true,
+        },
         metadata: { storeId: shipment.storeId },
         status: 'PENDING',
       });
@@ -3143,18 +3241,27 @@ export class OrdersService {
     for (const it of items) itemById.set(it['id'], it);
 
     const reserveRows = await runner
-      .select({ inventoryItemId: stockMovements.inventoryItemId, quantity: stockMovements.quantity })
+      .select({
+        inventoryItemId: stockMovements.inventoryItemId,
+        quantity: stockMovements.quantity,
+      })
       .from(stockMovements)
-      .where(and(
-        eq(stockMovements.referenceType, 'ORDER'),
-        eq(stockMovements.referenceId, orderId),
-        eq(stockMovements.movementType, 'RESERVE'),
-      ));
+      .where(
+        and(
+          eq(stockMovements.referenceType, 'ORDER'),
+          eq(stockMovements.referenceId, orderId),
+          eq(stockMovements.movementType, 'RESERVE'),
+        ),
+      );
 
     const refIds = [...new Set(reserveRows.map((r: any) => r.inventoryItemId))] as string[];
     const invRows = refIds.length
       ? await runner
-          .select({ id: inventoryItems.id, variantId: inventoryItems.variantId, warehouseId: inventoryItems.warehouseId })
+          .select({
+            id: inventoryItems.id,
+            variantId: inventoryItems.variantId,
+            warehouseId: inventoryItems.warehouseId,
+          })
           .from(inventoryItems)
           .where(inArray(inventoryItems.id, refIds))
       : [];
@@ -3169,23 +3276,34 @@ export class OrdersService {
       const inv = invById.get(rr.inventoryItemId);
       if (!inv) continue;
       if (!invIdByVariant.has(inv.variantId)) invIdByVariant.set(inv.variantId, inv.id);
-      reservedByInv.set(rr.inventoryItemId, (reservedByInv.get(rr.inventoryItemId) ?? 0) + Math.abs(rr.quantity ?? 0));
+      reservedByInv.set(
+        rr.inventoryItemId,
+        (reservedByInv.get(rr.inventoryItemId) ?? 0) + Math.abs(rr.quantity ?? 0),
+      );
     }
 
     // Cumulative already-returned per inventory item: only M7.3-C return
     // RELEASE movements (metadata.return present), never cancellation RELEASEs.
     const returnRows = await runner
-      .select({ inventoryItemId: stockMovements.inventoryItemId, quantity: stockMovements.quantity })
+      .select({
+        inventoryItemId: stockMovements.inventoryItemId,
+        quantity: stockMovements.quantity,
+      })
       .from(stockMovements)
-      .where(and(
-        eq(stockMovements.referenceType, 'ORDER'),
-        eq(stockMovements.referenceId, orderId),
-        eq(stockMovements.movementType, 'RELEASE'),
-        sql`${stockMovements.metadata}->'return' is not null`,
-      ));
+      .where(
+        and(
+          eq(stockMovements.referenceType, 'ORDER'),
+          eq(stockMovements.referenceId, orderId),
+          eq(stockMovements.movementType, 'RELEASE'),
+          sql`${stockMovements.metadata}->'return' is not null`,
+        ),
+      );
     const returnedByInv = new Map<string, number>();
     for (const rr of returnRows) {
-      returnedByInv.set(rr.inventoryItemId, (returnedByInv.get(rr.inventoryItemId) ?? 0) + Math.abs(rr.quantity ?? 0));
+      returnedByInv.set(
+        rr.inventoryItemId,
+        (returnedByInv.get(rr.inventoryItemId) ?? 0) + Math.abs(rr.quantity ?? 0),
+      );
     }
 
     return { itemById, invById, invIdByVariant, reservedByInv, returnedByInv };
@@ -3202,8 +3320,12 @@ export class OrdersService {
    */
   async getReturnEligibility(shipmentId: string, caller: CallerContext) {
     const allowedRoles = [
-      'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT_MANAGER',
-      'ADMIN', 'SUPER_ADMIN', 'MODERATOR',
+      'MERCHANT_OWNER',
+      'MERCHANT_STAFF',
+      'MERCHANT_MANAGER',
+      'ADMIN',
+      'SUPER_ADMIN',
+      'MODERATOR',
     ];
     const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
     if (!privileged && !allowedRoles.includes(caller.role || '')) {
@@ -3285,8 +3407,12 @@ export class OrdersService {
   ) {
     // 1. Authorization (role gating, mirrors completeRTS; DRIVER/BUYER denied)
     const allowedRoles = [
-      'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT_MANAGER',
-      'ADMIN', 'SUPER_ADMIN', 'MODERATOR',
+      'MERCHANT_OWNER',
+      'MERCHANT_STAFF',
+      'MERCHANT_MANAGER',
+      'ADMIN',
+      'SUPER_ADMIN',
+      'MODERATOR',
     ];
     const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
     if (!privileged && !allowedRoles.includes(caller.role || '')) {
@@ -3302,7 +3428,8 @@ export class OrdersService {
       const orderItemId = typeof ln?.orderItemId === 'string' ? ln.orderItemId : '';
       const condition = typeof ln?.condition === 'string' ? ln.condition : '';
       const quantity = ln?.quantity;
-      if (!orderItemId) throw new BadRequestException('orderItemId is required for each return line');
+      if (!orderItemId)
+        throw new BadRequestException('orderItemId is required for each return line');
       if (!Number.isInteger(quantity) || quantity < 1) {
         throw new BadRequestException('Return quantity must be an integer >= 1');
       }
@@ -3355,15 +3482,23 @@ export class OrdersService {
 
       // Resolve each requested line → origin inventoryItemId/warehouseId
       const resolved: Array<{
-        orderItemId: string; inventoryItemId: string; warehouseId: string | null;
-        quantity: number; condition: string; writtenOff: boolean;
+        orderItemId: string;
+        inventoryItemId: string;
+        warehouseId: string | null;
+        quantity: number;
+        condition: string;
+        writtenOff: boolean;
       }> = [];
       const requestedByInv = new Map<string, number>();
       for (const ln of norm) {
         const it = view.itemById.get(ln.orderItemId);
-        if (!it) throw new BadRequestException(`Order item ${ln.orderItemId} does not belong to this shipment`);
+        if (!it)
+          throw new BadRequestException(
+            `Order item ${ln.orderItemId} does not belong to this shipment`,
+          );
         const invId = view.invIdByVariant.get(it['variantId']);
-        if (!invId) throw new ConflictException(`No reservation found for order item ${ln.orderItemId}`);
+        if (!invId)
+          throw new ConflictException(`No reservation found for order item ${ln.orderItemId}`);
         const inv = view.invById.get(invId);
         resolved.push({
           orderItemId: ln.orderItemId,
@@ -3400,11 +3535,13 @@ export class OrdersService {
       const priorEvent = await tx
         .select({ id: shipmentEvents.id, metadata: shipmentEvents.metadata })
         .from(shipmentEvents)
-        .where(and(
-          eq(shipmentEvents.shipmentId, shipmentId),
-          eq(shipmentEvents.eventType, 'RETURN_PROCESSED'),
-          sql`${shipmentEvents.metadata}->'return'->>'fingerprint' = ${fingerprint}`,
-        ))
+        .where(
+          and(
+            eq(shipmentEvents.shipmentId, shipmentId),
+            eq(shipmentEvents.eventType, 'RETURN_PROCESSED'),
+            sql`${shipmentEvents.metadata}->'return'->>'fingerprint' = ${fingerprint}`,
+          ),
+        )
         .limit(1);
       if (priorEvent.length > 0) {
         const prior = priorEvent[0]!;
@@ -3453,7 +3590,17 @@ export class OrdersService {
           referenceId: orderId,
           performedBy,
           reason: `Reservation released on RTS return (order ${orderId})`,
-          metadata: { return: { ...returnBlock, orderItemId: L.orderItemId, inventoryItemId: L.inventoryItemId, warehouseId: L.warehouseId, quantity: L.quantity, condition: L.condition, writtenOff: L.writtenOff } },
+          metadata: {
+            return: {
+              ...returnBlock,
+              orderItemId: L.orderItemId,
+              inventoryItemId: L.inventoryItemId,
+              warehouseId: L.warehouseId,
+              quantity: L.quantity,
+              condition: L.condition,
+              writtenOff: L.writtenOff,
+            },
+          },
         });
       }
 
@@ -3474,7 +3621,17 @@ export class OrdersService {
           quantity: -L.quantity,
           performedBy,
           reason: `Write-off of ${L.condition} returned unit(s) (order ${orderId})`,
-          metadata: { return: { ...returnBlock, orderItemId: L.orderItemId, inventoryItemId: L.inventoryItemId, warehouseId: L.warehouseId, quantity: L.quantity, condition: L.condition, writtenOff: true } },
+          metadata: {
+            return: {
+              ...returnBlock,
+              orderItemId: L.orderItemId,
+              inventoryItemId: L.inventoryItemId,
+              warehouseId: L.warehouseId,
+              quantity: L.quantity,
+              condition: L.condition,
+              writtenOff: true,
+            },
+          },
         });
       }
 
@@ -3508,7 +3665,11 @@ export class OrdersService {
           shipmentId,
           orderId,
           storeId,
-          lines: linesReturned.map((l) => ({ orderItemId: l.orderItemId, quantity: l.quantity, condition: l.condition })),
+          lines: linesReturned.map((l) => ({
+            orderItemId: l.orderItemId,
+            quantity: l.quantity,
+            condition: l.condition,
+          })),
         },
         metadata: { storeId, fingerprint },
         status: 'PENDING',
@@ -3571,7 +3732,7 @@ export class OrdersService {
     });
     if (!masterOrder) throw new NotFoundException('Master order not found');
     if (masterOrder['buyerId'] !== buyerId) {
-      throw new BadRequestException('Cannot access tracking for another buyer\'s order');
+      throw new BadRequestException("Cannot access tracking for another buyer's order");
     }
 
     const subOrders = await this.db.db.query.orders.findMany({
@@ -3592,20 +3753,22 @@ export class OrdersService {
         orderId: so['id'],
         storeId: so['storeId'],
         status: so['status'],
-        shipment: shipment ? {
-          id: shipment['id'],
-          status: shipment['status'],
-          assignedDriverId: shipment['assignedDriverId'],
-          assignedAt: shipment['assignedAt'],
-          pickedUpAt: shipment['pickedUpAt'],
-          outForDeliveryAt: shipment['outForDeliveryAt'],
-          deliveredAt: shipment['deliveredAt'],
-          // M7.3-B.6: surface the operational delivery-exception / RTS state so
-          // the buyer sees accurate status. This is a buyer-safe projection only
-          // (no internal admin fields such as carrier error detail).
-          exceptionStatus: shipment['exceptionStatus'] ?? null,
-          exceptionType: shipment['exceptionType'] ?? null,
-        } : null,
+        shipment: shipment
+          ? {
+              id: shipment['id'],
+              status: shipment['status'],
+              assignedDriverId: shipment['assignedDriverId'],
+              assignedAt: shipment['assignedAt'],
+              pickedUpAt: shipment['pickedUpAt'],
+              outForDeliveryAt: shipment['outForDeliveryAt'],
+              deliveredAt: shipment['deliveredAt'],
+              // M7.3-B.6: surface the operational delivery-exception / RTS state so
+              // the buyer sees accurate status. This is a buyer-safe projection only
+              // (no internal admin fields such as carrier error detail).
+              exceptionStatus: shipment['exceptionStatus'] ?? null,
+              exceptionType: shipment['exceptionType'] ?? null,
+            }
+          : null,
         // M7.3-B.6: filter internal operational event types (RTS_*) from the
         // buyer tracking projection. The buyer already sees the overall RTS
         // state via exceptionStatus + buyerDeliveryNote().
@@ -3667,7 +3830,9 @@ export class OrdersService {
       // M7.1: only merchant roles (or platform admins) may drive fulfillment transitions.
       const MERCHANT_ROLES = ['MERCHANT_OWNER', 'MERCHANT_STAFF', 'ADMIN', 'SUPER_ADMIN'];
       if (caller.role && !MERCHANT_ROLES.includes(caller.role)) {
-        throw new ForbiddenException(`Role ${caller.role} cannot perform merchant fulfillment actions`);
+        throw new ForbiddenException(
+          `Role ${caller.role} cannot perform merchant fulfillment actions`,
+        );
       }
     }
     this.assertTransition(order['status'], newStatus);
@@ -3683,7 +3848,9 @@ export class OrdersService {
       .returning({ id: orders.id });
 
     if (flipResult.length === 0) {
-      throw new ConflictException(`Order status already changed — concurrent ${newStatus} rejected`);
+      throw new ConflictException(
+        `Order status already changed — concurrent ${newStatus} rejected`,
+      );
     }
 
     // Update shipment status
@@ -3696,10 +3863,7 @@ export class OrdersService {
     if (newStatus === 'DELIVERED') shipmentUpdate['deliveredAt'] = new Date();
     if (newStatus === 'COMPLETED') shipmentUpdate['completedAt'] = new Date();
 
-    await this.db.db
-      .update(shipments)
-      .set(shipmentUpdate)
-      .where(eq(shipments.id, shipment['id']));
+    await this.db.db.update(shipments).set(shipmentUpdate).where(eq(shipments.id, shipment['id']));
 
     // Shipment event
     await this.db.db.insert(shipmentEvents).values({
@@ -3716,12 +3880,14 @@ export class OrdersService {
     // Outbox event
     const eventKey = `order.fulfillment.${newStatus.toLowerCase()}`;
     await this.outbox.publish(eventKey, orderId, {
-      orderId, storeId: order['storeId'],
+      orderId,
+      storeId: order['storeId'],
     });
 
     // Realtime
     this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', {
-      orderId, status: newStatus,
+      orderId,
+      status: newStatus,
     });
 
     // M7.3-A: Recalculate master order status after fulfillment transition
@@ -3746,7 +3912,9 @@ export class OrdersService {
       // M7.1: only driver role (or platform admins) may perform driver actions.
       const DRIVER_ROLES = ['DRIVER', 'ADMIN', 'SUPER_ADMIN'];
       if (caller.role && !DRIVER_ROLES.includes(caller.role)) {
-        throw new ForbiddenException(`Role ${caller.role} cannot perform driver fulfillment actions`);
+        throw new ForbiddenException(
+          `Role ${caller.role} cannot perform driver fulfillment actions`,
+        );
       }
     }
     this.assertTransition(order['status'], newStatus);
@@ -3765,7 +3933,9 @@ export class OrdersService {
       .returning({ id: orders.id });
 
     if (flipResult.length === 0) {
-      throw new ConflictException(`Order status already changed — concurrent ${newStatus} rejected`);
+      throw new ConflictException(
+        `Order status already changed — concurrent ${newStatus} rejected`,
+      );
     }
 
     // Update shipment
@@ -3777,10 +3947,7 @@ export class OrdersService {
     if (newStatus === 'OUT_FOR_DELIVERY') shipmentUpdate['outForDeliveryAt'] = new Date();
     if (newStatus === 'DELIVERED') shipmentUpdate['deliveredAt'] = new Date();
 
-    await this.db.db
-      .update(shipments)
-      .set(shipmentUpdate)
-      .where(eq(shipments.id, shipment['id']));
+    await this.db.db.update(shipments).set(shipmentUpdate).where(eq(shipments.id, shipment['id']));
 
     // Shipment event
     await this.db.db.insert(shipmentEvents).values({
@@ -3797,12 +3964,14 @@ export class OrdersService {
     // Outbox
     const eventKey = `order.fulfillment.${newStatus.toLowerCase()}`;
     await this.outbox.publish(eventKey, orderId, {
-      orderId, storeId: order['storeId'],
+      orderId,
+      storeId: order['storeId'],
     });
 
     // Realtime
     this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', {
-      orderId, status: newStatus,
+      orderId,
+      status: newStatus,
     });
 
     // M7.3-A: Recalculate master order status after driver fulfillment transition
@@ -4021,11 +4190,7 @@ export class OrdersService {
         if (quantity <= 0) continue;
 
         await this.db.db.transaction(async (tx) => {
-          await tx
-            .select()
-            .from(inventoryItems)
-            .where(eq(inventoryItems.id, itemId))
-            .for('update');
+          await tx.select().from(inventoryItems).where(eq(inventoryItems.id, itemId)).for('update');
 
           if (releasesStock) {
             await tx
@@ -4091,7 +4256,7 @@ export class OrdersService {
       const bKey = `${b.variantId}|${b.offerId || ''}`;
       return aKey.localeCompare(bKey);
     });
-    const lines = sorted.map(i => `${i.variantId}:${i.quantity}:${i.offerId || ''}`).join(',');
+    const lines = sorted.map((i) => `${i.variantId}:${i.quantity}:${i.offerId || ''}`).join(',');
     const addr = JSON.stringify(deliveryAddress, Object.keys(deliveryAddress).sort());
 
     // M7.2.2: deterministic per-store shipping segment (sorted by storeId)
@@ -4131,7 +4296,13 @@ export class OrdersService {
   private static readonly TRANSITIONS: Record<string, string[]> = {
     DRAFT: ['SUBMITTED'],
     SUBMITTED: ['PENDING_CONFIRMATION', 'PAYMENT_PENDING'], // checkout payment gate
-    PENDING_CONFIRMATION: ['ACCEPTED', 'PARTIALLY_ACCEPTED', 'REJECTED', 'CANCELLED', 'PAYMENT_PENDING'], // merchant + P12 payment gate
+    PENDING_CONFIRMATION: [
+      'ACCEPTED',
+      'PARTIALLY_ACCEPTED',
+      'REJECTED',
+      'CANCELLED',
+      'PAYMENT_PENDING',
+    ], // merchant + P12 payment gate
     ACCEPTED: ['PREPARING', 'CANCELLED'],
     PARTIALLY_ACCEPTED: ['PREPARING', 'CANCELLED'],
     PREPARING: ['READY', 'CANCELLED'],
@@ -4187,14 +4358,15 @@ export class OrdersService {
     const all = (pred: (s: string) => boolean) => subOrderStatuses.every(pred);
     const any = (pred: (s: string) => boolean) => subOrderStatuses.some(pred);
 
-    if (all(s => s === 'COMPLETED')) return 'COMPLETED';
-    if (all(s => s === 'CANCELLED' || s === 'REJECTED')) return 'CANCELLED';
-    if (all(s => s === 'DELIVERED' || s === 'COMPLETED')) return 'DELIVERED';
-    if (any(s => s === 'DISPUTED')) return 'DISPUTED';
-    if (any(s => ['OUT_FOR_DELIVERY', 'ASSIGNED', 'PICKED_UP'].includes(s))) return 'OUT_FOR_DELIVERY';
-    if (any(s => ['PREPARING', 'READY'].includes(s))) return 'PREPARING';
-    if (any(s => ['ACCEPTED', 'PARTIALLY_ACCEPTED'].includes(s))) return 'ACCEPTED';
-    if (any(s => ['SUBMITTED', 'PENDING_CONFIRMATION'].includes(s))) return 'SUBMITTED';
+    if (all((s) => s === 'COMPLETED')) return 'COMPLETED';
+    if (all((s) => s === 'CANCELLED' || s === 'REJECTED')) return 'CANCELLED';
+    if (all((s) => s === 'DELIVERED' || s === 'COMPLETED')) return 'DELIVERED';
+    if (any((s) => s === 'DISPUTED')) return 'DISPUTED';
+    if (any((s) => ['OUT_FOR_DELIVERY', 'ASSIGNED', 'PICKED_UP'].includes(s)))
+      return 'OUT_FOR_DELIVERY';
+    if (any((s) => ['PREPARING', 'READY'].includes(s))) return 'PREPARING';
+    if (any((s) => ['ACCEPTED', 'PARTIALLY_ACCEPTED'].includes(s))) return 'ACCEPTED';
+    if (any((s) => ['SUBMITTED', 'PENDING_CONFIRMATION'].includes(s))) return 'SUBMITTED';
 
     return 'SUBMITTED';
   }
@@ -4215,9 +4387,7 @@ export class OrdersService {
       if (!master) return 'SUBMITTED';
 
       // Lock the row explicitly (Drizzle query may not FOR UPDATE)
-      await tx.execute(
-        sql`SELECT id FROM master_orders WHERE id = ${masterOrderId} FOR UPDATE`
-      );
+      await tx.execute(sql`SELECT id FROM master_orders WHERE id = ${masterOrderId} FOR UPDATE`);
 
       // Load sub-orders
       const subOrders = await tx.query.orders.findMany({
@@ -4225,7 +4395,7 @@ export class OrdersService {
       });
 
       const newStatus = OrdersService.computeMasterStatus(
-        subOrders.map(so => so['status'] as string),
+        subOrders.map((so) => so['status'] as string),
       );
 
       // Only update if changed
@@ -4323,14 +4493,14 @@ export class OrdersService {
 
     // Normalize actor userId — system-level callers (e.g. auto-complete worker)
     // pass 'system' which is not a valid UUID; store null instead.
-    const actorUserId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
-      ? userId : null;
+    const actorUserId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      userId,
+    )
+      ? userId
+      : null;
 
     // Atomic optimistic lock on order status
-    const completionConditions = [
-      eq(orders.id, orderId),
-      eq(orders.status, order['status']),
-    ];
+    const completionConditions = [eq(orders.id, orderId), eq(orders.status, order['status'])];
     if (autoCompleteClaimOwner) {
       // Fencing check: a worker whose lease expired or was reassigned cannot
       // complete the order after another worker has acquired the claim.
@@ -4490,7 +4660,11 @@ export class OrdersService {
           eventType: 'DELIVERY_EXCEPTION_RESOLVED',
           actorType: 'CARRIER',
           notes: 'Auto-resolved: carrier delivery confirmed',
-          metadata: { resolvedBy: 'carrier', exceptionType: (shipment as any)['exceptionType'], source },
+          metadata: {
+            resolvedBy: 'carrier',
+            exceptionType: (shipment as any)['exceptionType'],
+            source,
+          },
         });
 
         await tx.insert(outboxEvents).values({

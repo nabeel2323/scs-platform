@@ -20,7 +20,11 @@ import {
 import { DatabaseService } from '../../common/database/database.service';
 import { stores, storeMembers } from './merchant.schema';
 import { eq, and } from 'drizzle-orm';
-import { assertStoreInOrg, isTenantPrivileged, type CallerContext } from '../../common/tenant-scope';
+import {
+  assertStoreInOrg,
+  isTenantPrivileged,
+  type CallerContext,
+} from '../../common/tenant-scope';
 
 /**
  * Store Membership API (P7)
@@ -63,10 +67,7 @@ export class StoreMembershipController {
   @Get()
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:stores:read')
-  async listMembers(
-    @Param('storeId') storeId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async listMembers(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     const caller = this.buildCaller(user);
     const store = await this.resolveStore(storeId, caller);
 
@@ -91,10 +92,7 @@ export class StoreMembershipController {
   @Get('eligible')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async listEligibleUsers(
-    @Param('storeId') storeId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async listEligibleUsers(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     const caller = this.buildCaller(user);
     const store = await this.resolveStore(storeId, caller);
 
@@ -118,7 +116,12 @@ export class StoreMembershipController {
     // Authorization check
     await this.membershipService.assertCanManageMembers(storeId, caller);
     await this.membershipService.assertCanModifyMember(
-      storeId, caller, body.userId, 'add', undefined, body.role,
+      storeId,
+      caller,
+      body.userId,
+      'add',
+      undefined,
+      body.role,
     );
 
     return this.membershipService.addMember(storeId, body.userId, body.role, caller);
@@ -136,9 +139,7 @@ export class StoreMembershipController {
     await this.resolveStore(storeId, caller);
 
     await this.membershipService.assertCanManageMembers(storeId, caller);
-    await this.membershipService.assertCanModifyMember(
-      storeId, caller, userId, 'remove',
-    );
+    await this.membershipService.assertCanModifyMember(storeId, caller, userId, 'remove');
 
     return this.membershipService.removeMember(storeId, userId, caller);
   }
@@ -160,7 +161,12 @@ export class StoreMembershipController {
     // Get target's current role for authorization
     const target = await this.membershipService.getMember(storeId, userId);
     await this.membershipService.assertCanModifyMember(
-      storeId, caller, userId, 'role_change', target.role, body.role,
+      storeId,
+      caller,
+      userId,
+      'role_change',
+      target.role,
+      body.role,
     );
 
     return this.membershipService.changeRole(storeId, userId, body.role, caller);
@@ -178,9 +184,7 @@ export class StoreMembershipController {
     await this.resolveStore(storeId, caller);
 
     await this.membershipService.assertCanManageMembers(storeId, caller);
-    await this.membershipService.assertCanModifyMember(
-      storeId, caller, userId, 'activate',
-    );
+    await this.membershipService.assertCanModifyMember(storeId, caller, userId, 'activate');
 
     return this.membershipService.activateMember(storeId, userId, caller);
   }
@@ -197,9 +201,7 @@ export class StoreMembershipController {
     await this.resolveStore(storeId, caller);
 
     await this.membershipService.assertCanManageMembers(storeId, caller);
-    await this.membershipService.assertCanModifyMember(
-      storeId, caller, userId, 'deactivate',
-    );
+    await this.membershipService.assertCanModifyMember(storeId, caller, userId, 'deactivate');
 
     return this.membershipService.deactivateMember(storeId, userId, caller);
   }

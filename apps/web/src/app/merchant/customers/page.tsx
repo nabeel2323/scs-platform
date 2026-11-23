@@ -2,7 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { fetchMerchantCustomers, CustomerSummary } from '../../../lib/buyer-api';
-import { formatMinor, formatDate, LoadingSpinner, EmptyState, ErrorBanner } from '../../../components/Shared';
+import {
+  formatMinor,
+  formatDate,
+  LoadingSpinner,
+  EmptyState,
+  ErrorBanner,
+} from '../../../components/Shared';
 import { useMerchantRealtime } from '../../../lib/useMerchantRealtime';
 import { PageHeader, colors, typeScale } from '@scs/ui-kit';
 
@@ -44,13 +50,14 @@ export default function MerchantCustomersPage() {
     loadCustomers(true);
   });
 
-  const filtered = customers.filter((c) =>
-    c.buyerName?.toLowerCase().includes(search.toLowerCase()) ||
-    c.buyerPhone?.includes(search)
+  const filtered = customers.filter(
+    (c) =>
+      c.buyerName?.toLowerCase().includes(search.toLowerCase()) || c.buyerPhone?.includes(search),
   );
 
   const sorted = [...filtered].sort((a, b) => {
-    if (sortBy === 'recent') return new Date(b.lastOrderAt).getTime() - new Date(a.lastOrderAt).getTime();
+    if (sortBy === 'recent')
+      return new Date(b.lastOrderAt).getTime() - new Date(a.lastOrderAt).getTime();
     if (sortBy === 'total') return b.totalSpentMinor - a.totalSpentMinor;
     return b.orderCount - a.orderCount;
   });
@@ -69,128 +76,167 @@ export default function MerchantCustomersPage() {
         {/* Header Banner */}
         <PageHeader title="My Customers" subtitle="View buyers who have ordered from your store" />
         <div style={{ padding: '20px 24px 48px' }}>
+          {loadError && (
+            <ErrorBanner message={loadError} onRetry={() => void loadCustomers(true)} />
+          )}
 
-      {loadError && <ErrorBanner message={loadError} onRetry={() => void loadCustomers(true)} />}
-
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        <input
-          type="text"
-          placeholder="Search by name or phone..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{
-            flex: 1,
-            minWidth: 200,
-            padding: '8px 12px',
-            border: '1px solid #d9e2e6',
-            borderRadius: 6,
-            fontSize: 13,
-          }}
-        />
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as any)}
-          style={{
-            padding: '8px 12px',
-            border: '1px solid #d9e2e6',
-            borderRadius: 6,
-            fontSize: 13,
-            background: '#fff',
-          }}
-        >
-          <option value="recent">Most Recent</option>
-          <option value="total">Highest Spent</option>
-          <option value="orders">Most Orders</option>
-        </select>
-        <button
-          onClick={() => loadCustomers(true)}
-          disabled={refreshing}
-          title="Reload customers"
-          style={{ padding: '8px 14px', border: '1px solid #d9e2e6', borderRadius: 6, fontSize: 13, background: '#fff', color: '#0f3340', cursor: 'pointer', fontWeight: 600 }}
-        >
-          {refreshing ? 'Refreshing…' : '↻ Refresh'}
-        </button>
-        {lastUpdated && (
-          <span style={{ alignSelf: 'center', fontSize: 11, color: '#92400e' }}>Updated {lastUpdated.toLocaleTimeString()}</span>
-        )}
-      </div>
-
-      {sorted.length === 0 && (!loadError || customers.length > 0) ? (
-        <EmptyState
-          title={search ? 'No customers match your search' : 'No customers yet'}
-          description={search ? 'Try a different search term' : 'Customers will appear here once buyers place orders from your store'}
-        />
-      ) : (
-        <>
-          {/* Summary Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
-            <StatCard label="Total Customers" value={sorted.length.toString()} />
-            <StatCard
-              label="Total Revenue"
-              value={formatMinor(sorted.reduce((sum, c) => sum + c.totalSpentMinor, 0))}
+          {/* Filters */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              placeholder="Search by name or phone..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                flex: 1,
+                minWidth: 200,
+                padding: '8px 12px',
+                border: '1px solid #d9e2e6',
+                borderRadius: 6,
+                fontSize: 13,
+              }}
             />
-            <StatCard
-              label="Total Orders"
-              value={sorted.reduce((sum, c) => sum + c.orderCount, 0).toString()}
-            />
-            <StatCard
-              label="Avg Order Value"
-              value={formatMinor(
-                sorted.length > 0
-                  ? sorted.reduce((sum, c) => sum + c.totalSpentMinor, 0) /
-                      sorted.reduce((sum, c) => sum + c.orderCount, 0)
-                  : 0
-              )}
-            />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              style={{
+                padding: '8px 12px',
+                border: '1px solid #d9e2e6',
+                borderRadius: 6,
+                fontSize: 13,
+                background: '#fff',
+              }}
+            >
+              <option value="recent">Most Recent</option>
+              <option value="total">Highest Spent</option>
+              <option value="orders">Most Orders</option>
+            </select>
+            <button
+              onClick={() => loadCustomers(true)}
+              disabled={refreshing}
+              title="Reload customers"
+              style={{
+                padding: '8px 14px',
+                border: '1px solid #d9e2e6',
+                borderRadius: 6,
+                fontSize: 13,
+                background: '#fff',
+                color: '#0f3340',
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              {refreshing ? 'Refreshing…' : '↻ Refresh'}
+            </button>
+            {lastUpdated && (
+              <span style={{ alignSelf: 'center', fontSize: 11, color: '#92400e' }}>
+                Updated {lastUpdated.toLocaleTimeString()}
+              </span>
+            )}
           </div>
 
-          {/* Customer List */}
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(22,35,43,.06), 0 4px 14px rgba(22,35,43,.04)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: 'linear-gradient(135deg, #0f3340 0%, #1a4a5c 100%)' }}>
-                  <th style={thStyle}>Customer</th>
-                  <th style={thStyle}>Phone</th>
-                  <th style={thStyle}>Orders</th>
-                  <th style={thStyle}>Total Spent</th>
-                  <th style={thStyle}>Last Order</th>
-                  <th style={thStyle}>Avg Order</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((c) => (
-                  <tr key={c.buyerId} className="tbl-row" style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={tdStyle}>
-                      <div style={{ fontWeight: 600, color: '#0f3340' }}>{c.buyerName || 'Unknown'}</div>
-                      {c.buyerEmail && (
-                        <div style={{ fontSize: 11, color: '#5b6b74', marginTop: 2 }}>{c.buyerEmail}</div>
-                      )}
-                    </td>
-                    <td style={tdStyle}>{c.buyerPhone || '—'}</td>
-                    <td style={tdStyle}>
-                      <span style={{ fontWeight: 600, color: '#0f3340' }}>{c.orderCount}</span>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={{ fontWeight: 600, color: '#065f46' }}>
-                        {formatMinor(c.totalSpentMinor)}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={{ fontSize: 12, color: '#5b6b74' }}>
-                        {formatDate(c.lastOrderAt)}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      {formatMinor(c.orderCount > 0 ? c.totalSpentMinor / c.orderCount : 0)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+          {sorted.length === 0 && (!loadError || customers.length > 0) ? (
+            <EmptyState
+              title={search ? 'No customers match your search' : 'No customers yet'}
+              description={
+                search
+                  ? 'Try a different search term'
+                  : 'Customers will appear here once buyers place orders from your store'
+              }
+            />
+          ) : (
+            <>
+              {/* Summary Stats */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: 12,
+                  marginBottom: 20,
+                }}
+              >
+                <StatCard label="Total Customers" value={sorted.length.toString()} />
+                <StatCard
+                  label="Total Revenue"
+                  value={formatMinor(sorted.reduce((sum, c) => sum + c.totalSpentMinor, 0))}
+                />
+                <StatCard
+                  label="Total Orders"
+                  value={sorted.reduce((sum, c) => sum + c.orderCount, 0).toString()}
+                />
+                <StatCard
+                  label="Avg Order Value"
+                  value={formatMinor(
+                    sorted.length > 0
+                      ? sorted.reduce((sum, c) => sum + c.totalSpentMinor, 0) /
+                          sorted.reduce((sum, c) => sum + c.orderCount, 0)
+                      : 0,
+                  )}
+                />
+              </div>
+
+              {/* Customer List */}
+              <div
+                style={{
+                  background: '#fff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 14,
+                  overflow: 'hidden',
+                  boxShadow: '0 1px 3px rgba(22,35,43,.06), 0 4px 14px rgba(22,35,43,.04)',
+                }}
+              >
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: 'linear-gradient(135deg, #0f3340 0%, #1a4a5c 100%)' }}>
+                      <th style={thStyle}>Customer</th>
+                      <th style={thStyle}>Phone</th>
+                      <th style={thStyle}>Orders</th>
+                      <th style={thStyle}>Total Spent</th>
+                      <th style={thStyle}>Last Order</th>
+                      <th style={thStyle}>Avg Order</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sorted.map((c) => (
+                      <tr
+                        key={c.buyerId}
+                        className="tbl-row"
+                        style={{ borderBottom: '1px solid #e2e8f0' }}
+                      >
+                        <td style={tdStyle}>
+                          <div style={{ fontWeight: 600, color: '#0f3340' }}>
+                            {c.buyerName || 'Unknown'}
+                          </div>
+                          {c.buyerEmail && (
+                            <div style={{ fontSize: 11, color: '#5b6b74', marginTop: 2 }}>
+                              {c.buyerEmail}
+                            </div>
+                          )}
+                        </td>
+                        <td style={tdStyle}>{c.buyerPhone || '—'}</td>
+                        <td style={tdStyle}>
+                          <span style={{ fontWeight: 600, color: '#0f3340' }}>{c.orderCount}</span>
+                        </td>
+                        <td style={tdStyle}>
+                          <span style={{ fontWeight: 600, color: '#065f46' }}>
+                            {formatMinor(c.totalSpentMinor)}
+                          </span>
+                        </td>
+                        <td style={tdStyle}>
+                          <span style={{ fontSize: 12, color: '#5b6b74' }}>
+                            {formatDate(c.lastOrderAt)}
+                          </span>
+                        </td>
+                        <td style={tdStyle}>
+                          {formatMinor(c.orderCount > 0 ? c.totalSpentMinor / c.orderCount : 0)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </>

@@ -50,12 +50,14 @@ describe('ShipmentOperationsController.requestLabel (G-010)', () => {
     expect(result).toMatchObject({ shipmentId: 'shipment-1', status: 'QUEUED' });
     expect(tx.select).toHaveBeenCalledTimes(3);
     expect(tx.insert).toHaveBeenCalledOnce();
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'shipping.carrier.label',
-      aggregateId: 'shipment-1',
-      metadata: { providerKey: 'aramex' },
-      status: 'PENDING',
-    }));
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'shipping.carrier.label',
+        aggregateId: 'shipment-1',
+        metadata: { providerKey: 'aramex' },
+        status: 'PENDING',
+      }),
+    );
   });
 
   it('returns the existing active label instead of queueing a duplicate', async () => {
@@ -91,8 +93,9 @@ describe('ShipmentOperationsController.requestLabel (G-010)', () => {
       carrierShipmentId: null,
     });
 
-    await expect(controller.requestLabel('shipment-1', caller))
-      .rejects.toThrow('Create the carrier shipment');
+    await expect(controller.requestLabel('shipment-1', caller)).rejects.toThrow(
+      'Create the carrier shipment',
+    );
     expect(tx.select).not.toHaveBeenCalled();
     expect(insertValues).not.toHaveBeenCalled();
   });

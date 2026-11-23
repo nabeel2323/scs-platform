@@ -16,7 +16,12 @@ interface Row {
  * variants, then one candidate-tier query per (store, MOQ) batch. Predicates are
  * ignored — the batch boundaries and the rendered SQL are asserted instead.
  */
-function fakeDb(options: { stores?: Row[]; variants?: Row[]; priceBatches?: Row[][]; offers?: Row[] }) {
+function fakeDb(options: {
+  stores?: Row[];
+  variants?: Row[];
+  priceBatches?: Row[][];
+  offers?: Row[];
+}) {
   const counts = { stores: 0, variants: 0, resolveVariants: 0, prices: 0 };
   const whereSql: string[] = [];
   let variantReadResolved = false;
@@ -100,14 +105,12 @@ describe('enrichProductCards', () => {
         { id: 'v-oil', productId: 'p-oil' },
       ],
       // MOQ is offer-owned; all products in the same store share one batch at qty=1
-      priceBatches: [
-        [tier('v-rice-25kg', 900), tier('v-rice-50kg', 850), tier('v-oil', 1200)],
-      ],
+      priceBatches: [[tier('v-rice-25kg', 900), tier('v-rice-50kg', 850), tier('v-oil', 1200)]],
     });
 
     const items = await enrichProductCards(h.db, LIST);
 
-    expect(items.map(i => i.priceFromMinor)).toEqual([850, 1200]);
+    expect(items.map((i) => i.priceFromMinor)).toEqual([850, 1200]);
     expect(items[0]).toMatchObject({
       store: {
         id: 'store-1',
@@ -189,19 +192,32 @@ describe('enrichProductCards', () => {
       stores: [AL_NOOR, EASTERN],
       variants: [{ id: 'v-rice-25kg', productId: 'p-rice' }],
       priceBatches: [
-        [{ priceListId: 'pl-eastern', priceListStoreId: 'store-2', priceListName: 'Eastern Wholesale', currency: 'SAR', variantId: 'v-rice-25kg', minQty: 5, maxQty: null, unitPriceMinor: 950 }],
+        [
+          {
+            priceListId: 'pl-eastern',
+            priceListStoreId: 'store-2',
+            priceListName: 'Eastern Wholesale',
+            currency: 'SAR',
+            variantId: 'v-rice-25kg',
+            minQty: 5,
+            maxQty: null,
+            unitPriceMinor: 950,
+          },
+        ],
         [tier('v-rice-25kg', 1000)],
       ],
-      offers: [{
-        id: 'offer-eastern-rice',
-        productId: 'p-rice',
-        storeId: 'store-2',
-        variantId: 'v-rice-25kg',
-        basePriceMinor: 900,
-        currency: 'SAR',
-        moq: 5,
-        priceListId: 'pl-eastern',
-      }],
+      offers: [
+        {
+          id: 'offer-eastern-rice',
+          productId: 'p-rice',
+          storeId: 'store-2',
+          variantId: 'v-rice-25kg',
+          basePriceMinor: 900,
+          currency: 'SAR',
+          moq: 5,
+          priceListId: 'pl-eastern',
+        },
+      ],
     });
 
     const [item] = await enrichProductCards(h.db, [LIST[0]!]);
@@ -227,25 +243,30 @@ describe('enrichProductCards', () => {
 
   it('does not select or compare an offer priced in a different currency', async () => {
     const h = fakeDb({
-      stores: [AL_NOOR, {
-        id: 'store-usd',
-        displayName: 'USD Seller',
-        slug: 'usd-seller',
-        verificationStatus: 'VERIFIED',
-        currency: 'USD',
-        status: 'ACTIVE',
-      }],
+      stores: [
+        AL_NOOR,
+        {
+          id: 'store-usd',
+          displayName: 'USD Seller',
+          slug: 'usd-seller',
+          verificationStatus: 'VERIFIED',
+          currency: 'USD',
+          status: 'ACTIVE',
+        },
+      ],
       variants: [{ id: 'v-rice-25kg', productId: 'p-rice' }],
       priceBatches: [[tier('v-rice-25kg', 1000, 'SAR')]],
-      offers: [{
-        id: 'offer-usd-rice',
-        productId: 'p-rice',
-        storeId: 'store-usd',
-        variantId: 'v-rice-25kg',
-        basePriceMinor: 500,
-        currency: 'USD',
-        moq: 1,
-      }],
+      offers: [
+        {
+          id: 'offer-usd-rice',
+          productId: 'p-rice',
+          storeId: 'store-usd',
+          variantId: 'v-rice-25kg',
+          basePriceMinor: 500,
+          currency: 'USD',
+          moq: 1,
+        },
+      ],
     });
 
     const [item] = await enrichProductCards(h.db, [LIST[0]!]);
@@ -259,31 +280,37 @@ describe('enrichProductCards', () => {
 
   it('selects the sole available currency offer for a canonical product without an owner price', async () => {
     const h = fakeDb({
-      stores: [{
-        id: 'store-2',
-        displayName: 'Eastern Foods',
-        slug: 'eastern-foods',
-        verificationStatus: 'VERIFIED',
-        currency: 'USD',
-        status: 'ACTIVE',
-      }],
+      stores: [
+        {
+          id: 'store-2',
+          displayName: 'Eastern Foods',
+          slug: 'eastern-foods',
+          verificationStatus: 'VERIFIED',
+          currency: 'USD',
+          status: 'ACTIVE',
+        },
+      ],
       variants: [{ id: 'v-canonical', productId: 'p-canonical' }],
-      offers: [{
-        id: 'offer-canonical',
-        productId: 'p-canonical',
-        storeId: 'store-2',
-        variantId: null,
-        basePriceMinor: 1250,
-        currency: 'USD',
-        moq: 10,
-      }],
+      offers: [
+        {
+          id: 'offer-canonical',
+          productId: 'p-canonical',
+          storeId: 'store-2',
+          variantId: null,
+          basePriceMinor: 1250,
+          currency: 'USD',
+          moq: 10,
+        },
+      ],
     });
 
-    const [item] = await enrichProductCards(h.db, [{
-      id: 'p-canonical',
-      storeId: null,
-      moq: 1,
-    }]);
+    const [item] = await enrichProductCards(h.db, [
+      {
+        id: 'p-canonical',
+        storeId: null,
+        moq: 1,
+      },
+    ]);
 
     expect(item).toMatchObject({
       priceFromMinor: null,
@@ -296,5 +323,4 @@ describe('enrichProductCards', () => {
       lowestOfferStore: { name: 'Eastern Foods' },
     });
   });
-
 });

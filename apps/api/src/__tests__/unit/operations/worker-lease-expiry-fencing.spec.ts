@@ -41,7 +41,9 @@ describe('WorkerLeaseService expiry fencing', () => {
     const service = new WorkerLeaseService({ db: { execute } } as any);
 
     await service.recordPollSuccess(12, 'claimed=0', 'p13-return-expiration');
-    await expect(service.recordPollFailure(12, 'FAILED', 'p13-return-expiration')).resolves.toBeNull();
+    await expect(
+      service.recordPollFailure(12, 'FAILED', 'p13-return-expiration'),
+    ).resolves.toBeNull();
     await expect(service.release(12, 'p13-return-expiration')).resolves.toBe(false);
 
     const queries = execute.mock.calls.map(([query]) => new PgDialect().sqlToQuery(query as any));

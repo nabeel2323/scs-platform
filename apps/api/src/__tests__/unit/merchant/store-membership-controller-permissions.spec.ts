@@ -40,7 +40,10 @@ describe('StoreMembershipController permission alignment', () => {
   });
 
   it('retains JWT authentication at controller level and permission guard at the route', () => {
-    const classGuards = Reflect.getMetadata(GUARDS_METADATA, StoreMembershipController) as unknown[];
+    const classGuards = Reflect.getMetadata(
+      GUARDS_METADATA,
+      StoreMembershipController,
+    ) as unknown[];
     const methodGuards = Reflect.getMetadata(
       GUARDS_METADATA,
       StoreMembershipController.prototype.listMembers,

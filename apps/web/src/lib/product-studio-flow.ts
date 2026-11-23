@@ -17,14 +17,16 @@ export function matchesExistingProductStudioOffer(
   existing: ProductStudioExistingOffer,
   desired: ProductStudioOfferTarget,
 ): boolean {
-  return existing.storeId === desired.storeId
-    && existing.productId === desired.productId
-    && (existing.variantId ?? null) === desired.variantId
-    && existing.currency === desired.currency
-    && existing.basePriceMinor === desired.basePriceMinor
-    && existing.moq === desired.moq
-    && (existing.leadTimeDays ?? null) === desired.leadTimeDays
-    && (existing.warehouseId ?? null) === desired.warehouseId;
+  return (
+    existing.storeId === desired.storeId &&
+    existing.productId === desired.productId &&
+    (existing.variantId ?? null) === desired.variantId &&
+    existing.currency === desired.currency &&
+    existing.basePriceMinor === desired.basePriceMinor &&
+    existing.moq === desired.moq &&
+    (existing.leadTimeDays ?? null) === desired.leadTimeDays &&
+    (existing.warehouseId ?? null) === desired.warehouseId
+  );
 }
 
 export function buildOfferTargetKey(input: {
@@ -49,7 +51,10 @@ export async function persistProductStudioMedia(
   productId: string,
   mediaItems: Array<{ url: string; altText: string }>,
   fetchExisting: (productId: string) => Promise<Array<{ url: string }>>,
-  add: (productId: string, input: { url: string; mediaType: string; altText?: string; sortOrder: number }) => Promise<unknown>,
+  add: (
+    productId: string,
+    input: { url: string; mediaType: string; altText?: string; sortOrder: number },
+  ) => Promise<unknown>,
 ): Promise<void> {
   if (mediaItems.length === 0) return;
 

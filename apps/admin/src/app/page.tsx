@@ -100,7 +100,9 @@ export default function AdminHomePage() {
       if (requestId === orgUpdatesRequestRef.current) setUpdateReqs(rows);
     } catch (err: unknown) {
       if (requestId === orgUpdatesRequestRef.current) {
-        setOrgUpdatesError(err instanceof Error ? err.message : 'Unable to load organization updates');
+        setOrgUpdatesError(
+          err instanceof Error ? err.message : 'Unable to load organization updates',
+        );
       }
     } finally {
       if (requestId === orgUpdatesRequestRef.current) setOrgUpdatesLoading(false);
@@ -153,22 +155,30 @@ export default function AdminHomePage() {
 
   useEffect(() => {
     void loadKpis();
-    return () => { kpisRequestRef.current += 1; };
+    return () => {
+      kpisRequestRef.current += 1;
+    };
   }, [loadKpis]);
 
   useEffect(() => {
     void loadOrgUpdates();
-    return () => { orgUpdatesRequestRef.current += 1; };
+    return () => {
+      orgUpdatesRequestRef.current += 1;
+    };
   }, [loadOrgUpdates]);
 
   useEffect(() => {
     void loadImports();
-    return () => { importsRequestRef.current += 1; };
+    return () => {
+      importsRequestRef.current += 1;
+    };
   }, [loadImports]);
 
   useEffect(() => {
     void loadRequests();
-    return () => { requestsRequestRef.current += 1; };
+    return () => {
+      requestsRequestRef.current += 1;
+    };
   }, [loadRequests]);
 
   const fmt = (n: number) => (n / 100).toLocaleString(undefined, { minimumFractionDigits: 2 });
@@ -209,63 +219,67 @@ export default function AdminHomePage() {
         {/* KPI Row */}
         {canReadKpis && (
           <>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-              gap: 18,
-              marginBottom: 40,
-            }}
-          >
-            <KpiCard
-              icon={<IconUsers />}
-              label="Total Users"
-              value={kpisLoading && !kpis ? '—' : String(kpis?.users.total ?? '—')}
-              accent={colors.brand[700]}
-              tint={colors.brand[50]}
-            />
-            <KpiCard
-              icon={<IconShield />}
-              label="Verified Merchants"
-              value={kpisLoading && !kpis ? '—' : String(kpis?.merchants.verified ?? '—')}
-              accent={colors.ok}
-              tint={colors.okBg}
-            />
-            <KpiCard
-              icon={<IconPackage />}
-              label="Pending Merchants"
-              value={kpisLoading && !kpis ? '—' : String(kpis?.merchants.pending ?? '—')}
-              accent={colors.warn}
-              tint={colors.warnBg}
-            />
-            <KpiCard
-              icon={<IconPackage />}
-              label="Total Orders"
-              value={kpisLoading && !kpis ? '—' : String(kpis?.orders.total ?? '—')}
-              accent={colors.info}
-              tint={colors.infoBg}
-            />
-            <KpiCard
-              icon={<IconDollar />}
-              label="Revenue"
-              value={kpisLoading && !kpis ? '—' : kpis ? `${fmt(kpis.revenue.totalMinor)} SAR` : '—'}
-              accent="#7c3aed"
-              tint="#f3efff"
-            />
-            <KpiCard
-              icon={<IconActivity />}
-              label="Completion Rate"
-              value={kpisLoading && !kpis ? '—' : kpis ? `${kpis.orders.completionRate}%` : '—'}
-              accent="#047857"
-              tint={colors.okBg}
-            />
-          </div>
-          {kpisError && (
-            <div role="alert" style={{ marginTop: 12, color: colors.err, ...typeScale.bodySm }}>
-              <span>{kpisError}</span>{' '}
-              <button type="button" onClick={() => void loadKpis()}>Retry KPIs</button>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                gap: 18,
+                marginBottom: 40,
+              }}
+            >
+              <KpiCard
+                icon={<IconUsers />}
+                label="Total Users"
+                value={kpisLoading && !kpis ? '—' : String(kpis?.users.total ?? '—')}
+                accent={colors.brand[700]}
+                tint={colors.brand[50]}
+              />
+              <KpiCard
+                icon={<IconShield />}
+                label="Verified Merchants"
+                value={kpisLoading && !kpis ? '—' : String(kpis?.merchants.verified ?? '—')}
+                accent={colors.ok}
+                tint={colors.okBg}
+              />
+              <KpiCard
+                icon={<IconPackage />}
+                label="Pending Merchants"
+                value={kpisLoading && !kpis ? '—' : String(kpis?.merchants.pending ?? '—')}
+                accent={colors.warn}
+                tint={colors.warnBg}
+              />
+              <KpiCard
+                icon={<IconPackage />}
+                label="Total Orders"
+                value={kpisLoading && !kpis ? '—' : String(kpis?.orders.total ?? '—')}
+                accent={colors.info}
+                tint={colors.infoBg}
+              />
+              <KpiCard
+                icon={<IconDollar />}
+                label="Revenue"
+                value={
+                  kpisLoading && !kpis ? '—' : kpis ? `${fmt(kpis.revenue.totalMinor)} SAR` : '—'
+                }
+                accent="#7c3aed"
+                tint="#f3efff"
+              />
+              <KpiCard
+                icon={<IconActivity />}
+                label="Completion Rate"
+                value={kpisLoading && !kpis ? '—' : kpis ? `${kpis.orders.completionRate}%` : '—'}
+                accent="#047857"
+                tint={colors.okBg}
+              />
             </div>
-          )}
+            {kpisError && (
+              <div role="alert" style={{ marginTop: 12, color: colors.err, ...typeScale.bodySm }}>
+                <span>{kpisError}</span>{' '}
+                <button type="button" onClick={() => void loadKpis()}>
+                  Retry KPIs
+                </button>
+              </div>
+            )}
           </>
         )}
 
@@ -323,20 +337,25 @@ export default function AdminHomePage() {
               </Link>
             </div>
             {orgUpdatesError && (
-              <div role="alert" style={{ padding: '12px 22px', color: colors.err, ...typeScale.bodySm }}>
+              <div
+                role="alert"
+                style={{ padding: '12px 22px', color: colors.err, ...typeScale.bodySm }}
+              >
                 <span>{orgUpdatesError}</span>{' '}
-                <button type="button" onClick={() => void loadOrgUpdates()}>Retry organization updates</button>
+                <button type="button" onClick={() => void loadOrgUpdates()}>
+                  Retry organization updates
+                </button>
               </div>
             )}
             {orgUpdatesLoading && updateReqs.length === 0 ? (
-            <div
-              style={{
-                padding: '28px 22px',
-                textAlign: 'center',
-                color: colors.muted,
-                ...typeScale.body,
-              }}
-            >
+              <div
+                style={{
+                  padding: '28px 22px',
+                  textAlign: 'center',
+                  color: colors.muted,
+                  ...typeScale.body,
+                }}
+              >
                 Loading organization update requests…
               </div>
             ) : orgUpdatesError && updateReqs.length === 0 ? null : updateReqs.length === 0 ? (
@@ -414,7 +433,11 @@ export default function AdminHomePage() {
                     return (
                       <tr key={req.id} style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
                         <td
-                          style={{ padding: '12px 18px', color: colors.brand[700], fontWeight: 500 }}
+                          style={{
+                            padding: '12px 18px',
+                            color: colors.brand[700],
+                            fontWeight: 500,
+                          }}
                         >
                           {req.orgName || 'Unknown'}
                         </td>
@@ -510,12 +533,15 @@ export default function AdminHomePage() {
                   {importsError && (
                     <p role="alert" style={{ color: colors.err, ...typeScale.bodySm }}>
                       {importsError}{' '}
-                      <button type="button" onClick={() => void loadImports()}>Retry imports</button>
+                      <button type="button" onClick={() => void loadImports()}>
+                        Retry imports
+                      </button>
                     </p>
                   )}
                   {importsLoading && recentImports.length === 0 ? (
                     <p style={{ color: colors.muted }}>Loading imports…</p>
-                  ) : importsError && recentImports.length === 0 ? null : recentImports.length === 0 ? (
+                  ) : importsError && recentImports.length === 0 ? null : recentImports.length ===
+                    0 ? (
                     <p style={{ color: colors.muted }}>No catalog imports yet.</p>
                   ) : (
                     recentImports.map((item) => (
@@ -595,12 +621,16 @@ export default function AdminHomePage() {
                   {requestsError && (
                     <p role="alert" style={{ color: colors.err, ...typeScale.bodySm }}>
                       {requestsError}{' '}
-                      <button type="button" onClick={() => void loadRequests()}>Retry requests</button>
+                      <button type="button" onClick={() => void loadRequests()}>
+                        Retry requests
+                      </button>
                     </p>
                   )}
                   {requestsLoading && pendingCatalogRequests.length === 0 ? (
                     <p style={{ color: colors.muted }}>Loading requests…</p>
-                  ) : requestsError && pendingCatalogRequests.length === 0 ? null : pendingCatalogRequests.length === 0 ? (
+                  ) : requestsError &&
+                    pendingCatalogRequests.length === 0 ? null : pendingCatalogRequests.length ===
+                    0 ? (
                     <p style={{ color: colors.muted }}>No pending catalog requests.</p>
                   ) : (
                     pendingCatalogRequests.slice(0, 5).map((request) => (

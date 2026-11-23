@@ -7,9 +7,9 @@ describe('NotificationsService OTP persistence boundary', () => {
     const insert = vi.fn();
     const service = new NotificationsService({ db: { insert } } as any);
 
-    await expect(
-      service.send('user-a', 'otp.login', { code: '123456' }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.send('user-a', 'otp.login', { code: '123456' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
     expect(insert).not.toHaveBeenCalled();
   });
 });

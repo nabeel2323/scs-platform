@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildOfferTargetKey, continueProductStudioStep, matchesExistingProductStudioOffer, persistProductStudioMedia, resolveProductPersistenceTarget } from '../lib/product-studio-flow';
-
+import {
+  buildOfferTargetKey,
+  continueProductStudioStep,
+  matchesExistingProductStudioOffer,
+  persistProductStudioMedia,
+  resolveProductPersistenceTarget,
+} from '../lib/product-studio-flow';
 
 describe('matchesExistingProductStudioOffer', () => {
   const desired = {
@@ -19,17 +24,27 @@ describe('matchesExistingProductStudioOffer', () => {
   });
 
   it('does not mistake a different variant or commercial terms for the requested offer', () => {
-    expect(matchesExistingProductStudioOffer({ ...desired, variantId: 'variant-b' }, desired)).toBe(false);
-    expect(matchesExistingProductStudioOffer({ ...desired, basePriceMinor: 260000 }, desired)).toBe(false);
+    expect(matchesExistingProductStudioOffer({ ...desired, variantId: 'variant-b' }, desired)).toBe(
+      false,
+    );
+    expect(matchesExistingProductStudioOffer({ ...desired, basePriceMinor: 260000 }, desired)).toBe(
+      false,
+    );
   });
 });
 
 describe('buildOfferTargetKey', () => {
   it('scopes the offer retry marker by store, product and variant', () => {
-    expect(buildOfferTargetKey({ storeId: 'store-a', productId: 'product-a', variantId: 'variant-a' }))
-      .not.toBe(buildOfferTargetKey({ storeId: 'store-a', productId: 'product-a', variantId: 'variant-b' }));
-    expect(buildOfferTargetKey({ storeId: 'store-a', productId: 'product-a', variantId: null }))
-      .not.toBe(buildOfferTargetKey({ storeId: 'store-b', productId: 'product-a', variantId: null }));
+    expect(
+      buildOfferTargetKey({ storeId: 'store-a', productId: 'product-a', variantId: 'variant-a' }),
+    ).not.toBe(
+      buildOfferTargetKey({ storeId: 'store-a', productId: 'product-a', variantId: 'variant-b' }),
+    );
+    expect(
+      buildOfferTargetKey({ storeId: 'store-a', productId: 'product-a', variantId: null }),
+    ).not.toBe(
+      buildOfferTargetKey({ storeId: 'store-b', productId: 'product-a', variantId: null }),
+    );
   });
 });
 
@@ -70,7 +85,6 @@ describe('resolveProductPersistenceTarget', () => {
     });
   });
 });
-
 
 describe('persistProductStudioMedia', () => {
   it('adds only media URLs not already persisted for the product', async () => {
@@ -195,7 +209,6 @@ describe('continueProductStudioStep', () => {
     expect(saveProduct).not.toHaveBeenCalled();
     expect(goNext).not.toHaveBeenCalled();
   });
-
 
   it('does not advance when an existing product update fails', async () => {
     const saveProduct = vi.fn().mockResolvedValue(null);

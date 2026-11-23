@@ -32,24 +32,31 @@ export default function FavoritesPage() {
     try {
       setFavorites(await fetchFavorites());
     } catch (err: unknown) {
-      setLoadError(err instanceof Error ? err.message : 'Unable to load favorites. Please try again.');
+      setLoadError(
+        err instanceof Error ? err.message : 'Unable to load favorites. Please try again.',
+      );
     } finally {
       setLoading(false);
     }
   }, [user]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  if (authLoading || !user) return <div style={{ textAlign: 'center', padding: 40, color: colors.muted }}>Loading...</div>;
+  if (authLoading || !user)
+    return <div style={{ textAlign: 'center', padding: 40, color: colors.muted }}>Loading...</div>;
 
   const handleRemove = async (productId: string) => {
     setActionError('');
     setRemovingId(productId);
     try {
       await removeFavorite(productId);
-      setFavorites(f => f.filter(fav => fav.productId !== productId));
+      setFavorites((f) => f.filter((fav) => fav.productId !== productId));
     } catch (err: unknown) {
-      setActionError(err instanceof Error ? err.message : 'Could not remove this favorite. Please try again.');
+      setActionError(
+        err instanceof Error ? err.message : 'Could not remove this favorite. Please try again.',
+      );
     } finally {
       setRemovingId(null);
     }
@@ -61,42 +68,103 @@ export default function FavoritesPage() {
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
       <PageHeader title="Favorites" subtitle={`${favorites.length} items saved`} />
       <div style={{ padding: '20px 24px 48px' }}>
-
-      {loadError && <ErrorBanner message={loadError} onRetry={() => void load()} />}
-      {actionError && <ErrorBanner message={actionError} />}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 40, color: colors.muted }}>Loading favorites...</div>
-      ) : favorites.length === 0 && !loadError ? (
-        <div style={{ textAlign: 'center', padding: 60, color: colors.muted }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>♡</div>
-          <p>No favorites yet. Browse products and click the heart icon to save items.</p>
-          <Link href="/search" style={{ color: colors.brand[700], fontWeight: 600, fontSize: 14 }}>Browse Products →</Link>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
-          {favorites.map(fav => (
-            <div key={fav.id} style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 16 }}>
-              {fav.product && (
-                <>
-                  <Link href={`/products/${fav.productId}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700], marginBottom: 4 }}>{fav.product.title}</div>
-                    <div style={{ fontSize: 12, color: colors.muted }}>MOQ: {fav.product.moq}</div>
-                  </Link>
-                  <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Link href={`/products/${fav.productId}`} style={{ fontSize: 13, color: colors.brand[700], fontWeight: 600, textDecoration: 'none' }}>View →</Link>
-                    <button
-                      onClick={() => void handleRemove(fav.productId)}
-                      disabled={removingId === fav.productId}
-                      style={{ padding: '4px 10px', fontSize: 11, background: colors.errBg, color: colors.err, border: `1px solid ${colors.errBorder}`, borderRadius: 4, cursor: removingId === fav.productId ? 'wait' : 'pointer', opacity: removingId === fav.productId ? 0.6 : 1 }}>
-                      {removingId === fav.productId ? 'Removing…' : 'Remove'}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+        {loadError && <ErrorBanner message={loadError} onRetry={() => void load()} />}
+        {actionError && <ErrorBanner message={actionError} />}
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 40, color: colors.muted }}>
+            Loading favorites...
+          </div>
+        ) : favorites.length === 0 && !loadError ? (
+          <div style={{ textAlign: 'center', padding: 60, color: colors.muted }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>♡</div>
+            <p>No favorites yet. Browse products and click the heart icon to save items.</p>
+            <Link
+              href="/search"
+              style={{ color: colors.brand[700], fontWeight: 600, fontSize: 14 }}
+            >
+              Browse Products →
+            </Link>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+              gap: 16,
+            }}
+          >
+            {favorites.map((fav) => (
+              <div
+                key={fav.id}
+                style={{
+                  background: '#fff',
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: 10,
+                  padding: 16,
+                }}
+              >
+                {fav.product && (
+                  <>
+                    <Link
+                      href={`/products/${fav.productId}`}
+                      style={{ textDecoration: 'none', color: 'inherit' }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 600,
+                          color: colors.brand[700],
+                          marginBottom: 4,
+                        }}
+                      >
+                        {fav.product.title}
+                      </div>
+                      <div style={{ fontSize: 12, color: colors.muted }}>
+                        MOQ: {fav.product.moq}
+                      </div>
+                    </Link>
+                    <div
+                      style={{
+                        marginTop: 12,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Link
+                        href={`/products/${fav.productId}`}
+                        style={{
+                          fontSize: 13,
+                          color: colors.brand[700],
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                        }}
+                      >
+                        View →
+                      </Link>
+                      <button
+                        onClick={() => void handleRemove(fav.productId)}
+                        disabled={removingId === fav.productId}
+                        style={{
+                          padding: '4px 10px',
+                          fontSize: 11,
+                          background: colors.errBg,
+                          color: colors.err,
+                          border: `1px solid ${colors.errBorder}`,
+                          borderRadius: 4,
+                          cursor: removingId === fav.productId ? 'wait' : 'pointer',
+                          opacity: removingId === fav.productId ? 0.6 : 1,
+                        }}
+                      >
+                        {removingId === fav.productId ? 'Removing…' : 'Remove'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -43,10 +43,7 @@ describe('merchant route permission policy', () => {
   });
 
   it('filters navigation using the active organization permission projection', () => {
-    const visible = filterMerchantNavigation([
-      'merchant:orders:read',
-      'merchant:stores:read',
-    ]);
+    const visible = filterMerchantNavigation(['merchant:orders:read', 'merchant:stores:read']);
     expect(visible.map((item) => item.href)).toEqual([
       '/merchant',
       '/merchant/orders',

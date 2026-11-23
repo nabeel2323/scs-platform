@@ -3,8 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  AttributeDefinition, AttributeOption, AttributeScope, AttributeType,
-  fetchAttributes, createAttribute, updateAttribute, deleteAttribute, addAttributeOption,
+  AttributeDefinition,
+  AttributeOption,
+  AttributeScope,
+  AttributeType,
+  fetchAttributes,
+  createAttribute,
+  updateAttribute,
+  deleteAttribute,
+  addAttributeOption,
 } from '../../lib/api';
 import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 import { SkeletonTable } from '@scs/ui-kit';
@@ -14,8 +21,20 @@ import styles from '../../components/management.module.css';
 /* ── Constants ─────────────────────────────────────────────── */
 
 const ATTRIBUTE_TYPES: AttributeType[] = [
-  'TEXT', 'LONG_TEXT', 'INTEGER', 'DECIMAL', 'BOOLEAN', 'DATE', 'DATETIME',
-  'SELECT', 'MULTI_SELECT', 'COLOR', 'URL', 'FILE', 'MEASUREMENT', 'CURRENCY',
+  'TEXT',
+  'LONG_TEXT',
+  'INTEGER',
+  'DECIMAL',
+  'BOOLEAN',
+  'DATE',
+  'DATETIME',
+  'SELECT',
+  'MULTI_SELECT',
+  'COLOR',
+  'URL',
+  'FILE',
+  'MEASUREMENT',
+  'CURRENCY',
 ];
 
 const SCOPES: AttributeScope[] = ['PRODUCT', 'VARIANT', 'OFFER'];
@@ -67,61 +86,107 @@ export default function AttributesPage() {
 
   useEffect(() => {
     void load();
-    return () => { requestVersion.current += 1; };
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [load]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return attrs;
     const q = search.toLowerCase();
-    return attrs.filter(a =>
-      a.code.toLowerCase().includes(q) ||
-      a.name.toLowerCase().includes(q) ||
-      (a.nameAr ?? '').toLowerCase().includes(q),
+    return attrs.filter(
+      (a) =>
+        a.code.toLowerCase().includes(q) ||
+        a.name.toLowerCase().includes(q) ||
+        (a.nameAr ?? '').toLowerCase().includes(q),
     );
   }, [attrs, search]);
 
   if (!ready) return <p style={{ padding: 32 }}>Loading…</p>;
-  if (!hasAccess) return <AccessDenied requiredPerms={['catalog:attributes:manage']} missingPerms={missingPerms} />;
+  if (!hasAccess)
+    return (
+      <AccessDenied requiredPerms={['catalog:attributes:manage']} missingPerms={missingPerms} />
+    );
 
   return (
     <div className={styles['shell']}>
       <header className={styles['header']}>
         <h1>Attribute Management</h1>
-        <p>{error ? 'Attribute count unavailable' : `${filtered.length} attribute${filtered.length !== 1 ? 's' : ''} — define the building blocks for product types`}</p>
+        <p>
+          {error
+            ? 'Attribute count unavailable'
+            : `${filtered.length} attribute${filtered.length !== 1 ? 's' : ''} — define the building blocks for product types`}
+        </p>
       </header>
 
       <div className={styles['content']}>
         {/* Toolbar */}
         <div className={styles['toolbar']}>
-          <label>Search
-            <input value={search} maxLength={100} onChange={e => setSearch(e.target.value)} placeholder="Search by code or name…" />
+          <label>
+            Search
+            <input
+              value={search}
+              maxLength={100}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by code or name…"
+            />
           </label>
-          <label>Scope
-            <select value={scopeFilter} onChange={e => setScopeFilter(e.target.value)}>
+          <label>
+            Scope
+            <select value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value)}>
               <option value="">All scopes</option>
-              {SCOPES.map(s => <option key={s} value={s}>{s}</option>)}
+              {SCOPES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
             </select>
           </label>
-          <label>Type
-            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+          <label>
+            Type
+            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
               <option value="">All types</option>
-              {ATTRIBUTE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              {ATTRIBUTE_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
             </select>
           </label>
           <label style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <input type="checkbox" checked={includeDeprecated} onChange={e => setIncludeDeprecated(e.target.checked)} style={{ width: 'auto' }} />
+            <input
+              type="checkbox"
+              checked={includeDeprecated}
+              onChange={(e) => setIncludeDeprecated(e.target.checked)}
+              style={{ width: 'auto' }}
+            />
             Include deprecated
           </label>
-          <button type="button" onClick={load}>Refresh</button>
-          <button type="button" onClick={() => setCreating(true)}>Add attribute</button>
+          <button type="button" onClick={load}>
+            Refresh
+          </button>
+          <button type="button" onClick={() => setCreating(true)}>
+            Add attribute
+          </button>
         </div>
 
         {/* Error / loading */}
-        {error && <div role="alert" className={styles['error']}>{error} <button type="button" onClick={() => void load()} style={{ marginLeft: 8 }}>Retry</button></div>}
-        {loading ? <SkeletonTable rows={6} cols={7} /> : (
+        {error && (
+          <div role="alert" className={styles['error']}>
+            {error}{' '}
+            <button type="button" onClick={() => void load()} style={{ marginLeft: 8 }}>
+              Retry
+            </button>
+          </div>
+        )}
+        {loading ? (
+          <SkeletonTable rows={6} cols={7} />
+        ) : (
           <div className={styles['tableWrap']}>
             <table>
-              <caption style={{ textAlign: 'left', padding: 12 }}>Attributes — {error ? 'unavailable' : `${filtered.length} results`}</caption>
+              <caption style={{ textAlign: 'left', padding: 12 }}>
+                Attributes — {error ? 'unavailable' : `${filtered.length} results`}
+              </caption>
               <thead>
                 <tr>
                   <th scope="col">Code</th>
@@ -134,29 +199,63 @@ export default function AttributesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(attr => (
-                  <tr key={attr.id} onClick={e => {
-                    if (e.target instanceof Element && !e.target.closest('button,a,input,select')) {
-                      setEditing(attr);
-                    }
-                  }}>
-                    <td><code style={{ fontSize: 12, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4 }}>{attr.code}</code></td>
+                {filtered.map((attr) => (
+                  <tr
+                    key={attr.id}
+                    onClick={(e) => {
+                      if (
+                        e.target instanceof Element &&
+                        !e.target.closest('button,a,input,select')
+                      ) {
+                        setEditing(attr);
+                      }
+                    }}
+                  >
+                    <td>
+                      <code
+                        style={{
+                          fontSize: 12,
+                          background: '#f0f4f6',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                        }}
+                      >
+                        {attr.code}
+                      </code>
+                    </td>
                     <td>
                       {attr.name}
-                      {attr.nameAr && <small className={styles['muted']} dir="rtl">{attr.nameAr}</small>}
+                      {attr.nameAr && (
+                        <small className={styles['muted']} dir="rtl">
+                          {attr.nameAr}
+                        </small>
+                      )}
                     </td>
-                    <td>{attr.type}{attr.unit && <small className={styles['muted']}>({attr.unit})</small>}</td>
-                    <td><ScopeBadge scope={attr.scope} /></td>
-                    <td><StatusBadge status={attr.status} /></td>
+                    <td>
+                      {attr.type}
+                      {attr.unit && <small className={styles['muted']}>({attr.unit})</small>}
+                    </td>
+                    <td>
+                      <ScopeBadge scope={attr.scope} />
+                    </td>
+                    <td>
+                      <StatusBadge status={attr.status} />
+                    </td>
                     <td>{HAS_OPTIONS.has(attr.type) ? (attr.options?.length ?? 0) : '—'}</td>
                     <td>
                       <div className={styles['actions']}>
-                        <Link href={`/attributes/${attr.id}`} className={styles['viewLink']}>View / Edit</Link>
+                        <Link href={`/attributes/${attr.id}`} className={styles['viewLink']}>
+                          View / Edit
+                        </Link>
                       </div>
                     </td>
                   </tr>
                 ))}
-                {!loading && !error && !filtered.length && <tr><td colSpan={7}>No attributes found.</td></tr>}
+                {!loading && !error && !filtered.length && (
+                  <tr>
+                    <td colSpan={7}>No attributes found.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -168,7 +267,10 @@ export default function AttributesPage() {
             <AttributeForm
               mode="create"
               canManage={hasAccess}
-              onDone={() => { setCreating(false); load(); }}
+              onDone={() => {
+                setCreating(false);
+                load();
+              }}
               onCancel={() => setCreating(false)}
             />
           </DetailDialog>
@@ -181,7 +283,10 @@ export default function AttributesPage() {
               mode="edit"
               attribute={editing}
               canManage={hasAccess}
-              onDone={() => { setEditing(null); load(); }}
+              onDone={() => {
+                setEditing(null);
+                load();
+              }}
               onCancel={() => setEditing(null)}
             />
           </DetailDialog>
@@ -201,7 +306,16 @@ function ScopeBadge({ scope }: { scope: AttributeScope }) {
   };
   const c = colors[scope];
   return (
-    <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: c.bg, color: c.fg }}>
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        padding: '2px 8px',
+        borderRadius: 10,
+        background: c.bg,
+        color: c.fg,
+      }}
+    >
       {scope}
     </span>
   );
@@ -210,11 +324,16 @@ function ScopeBadge({ scope }: { scope: AttributeScope }) {
 function StatusBadge({ status }: { status: string }) {
   const isActive = status === 'ACTIVE';
   return (
-    <span style={{
-      fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10,
-      background: isActive ? '#dcfce7' : '#fee2e2',
-      color: isActive ? '#166534' : '#991b1b',
-    }}>
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        padding: '2px 8px',
+        borderRadius: 10,
+        background: isActive ? '#dcfce7' : '#fee2e2',
+        color: isActive ? '#166534' : '#991b1b',
+      }}
+    >
       {status}
     </span>
   );
@@ -222,7 +341,13 @@ function StatusBadge({ status }: { status: string }) {
 
 /* ── Attribute Form (Create / Edit) ────────────────────────── */
 
-function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
+function AttributeForm({
+  mode,
+  attribute,
+  canManage,
+  onDone,
+  onCancel,
+}: {
   mode: 'create' | 'edit';
   canManage: boolean;
   attribute?: AttributeDefinition;
@@ -278,8 +403,16 @@ function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
           validation: parsedValidation,
         });
       } else {
-        if (!code.trim()) { setFormError('Code is required'); setBusy(false); return; }
-        if (!name.trim()) { setFormError('Name is required'); setBusy(false); return; }
+        if (!code.trim()) {
+          setFormError('Code is required');
+          setBusy(false);
+          return;
+        }
+        if (!name.trim()) {
+          setFormError('Name is required');
+          setBusy(false);
+          return;
+        }
         await createAttribute({
           code: code.trim(),
           name: name.trim(),
@@ -301,7 +434,12 @@ function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
 
   const handleDeactivate = async () => {
     if (!canManage || !attribute || busy) return;
-    if (!window.confirm(`Deactivate attribute "${attribute.name}"? It will be hidden from new product types.`)) return;
+    if (
+      !window.confirm(
+        `Deactivate attribute "${attribute.name}"? It will be hidden from new product types.`,
+      )
+    )
+      return;
     if (!canManage || busy) return;
     setBusy(true);
     try {
@@ -325,7 +463,7 @@ function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
           value: newOptValue.trim(),
           label: newOptLabel || undefined,
         });
-        setOptions(prev => [...prev, newOpt]);
+        setOptions((prev) => [...prev, newOpt]);
       } else {
         // Add to local list for new attributes (will be sent with create payload)
         const localOpt: AttributeOption = {
@@ -337,7 +475,7 @@ function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
           sortOrder: options.length,
           isActive: true,
         };
-        setOptions(prev => [...prev, localOpt]);
+        setOptions((prev) => [...prev, localOpt]);
       }
       setNewOptValue('');
       setNewOptLabel('');
@@ -359,7 +497,12 @@ function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
           <div>
             <dt>Code *</dt>
             <dd>
-              <input value={code} onChange={e => setCode(e.target.value)} placeholder="e.g. ram_capacity" maxLength={100} />
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="e.g. ram_capacity"
+                maxLength={100}
+              />
               <small className={styles['muted']}>Unique identifier. Use snake_case.</small>
             </dd>
           </div>
@@ -368,29 +511,61 @@ function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
         {/* Name */}
         <div>
           <dt>Name {isEdit ? '' : '*'}</dt>
-          <dd><input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. RAM Capacity" maxLength={200} /></dd>
+          <dd>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. RAM Capacity"
+              maxLength={200}
+            />
+          </dd>
         </div>
 
         {/* Name (Arabic) */}
         <div>
           <dt>Name (Arabic)</dt>
-          <dd><input value={nameAr} onChange={e => setNameAr(e.target.value)} dir="rtl" placeholder="مثال: سعة الذاكرة" maxLength={200} /></dd>
+          <dd>
+            <input
+              value={nameAr}
+              onChange={(e) => setNameAr(e.target.value)}
+              dir="rtl"
+              placeholder="مثال: سعة الذاكرة"
+              maxLength={200}
+            />
+          </dd>
         </div>
 
         {/* Description */}
         <div>
           <dt>Description</dt>
-          <dd><textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} maxLength={1000} /></dd>
+          <dd>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              maxLength={1000}
+            />
+          </dd>
         </div>
 
         {/* Type */}
         <div>
           <dt>Type {isEdit ? '(read-only)' : ''}</dt>
           <dd>
-            <select value={type} onChange={e => setType(e.target.value as AttributeType)} disabled={isEdit}>
-              {ATTRIBUTE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as AttributeType)}
+              disabled={isEdit}
+            >
+              {ATTRIBUTE_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
             </select>
-            <small className={styles['muted']}>{isEdit ? 'Type cannot be changed after creation.' : 'Data type for this attribute.'}</small>
+            <small className={styles['muted']}>
+              {isEdit ? 'Type cannot be changed after creation.' : 'Data type for this attribute.'}
+            </small>
           </dd>
         </div>
 
@@ -398,8 +573,16 @@ function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
         <div>
           <dt>Scope {isEdit ? '(read-only)' : ''}</dt>
           <dd>
-            <select value={scope} onChange={e => setScope(e.target.value as AttributeScope)} disabled={isEdit}>
-              {SCOPES.map(s => <option key={s} value={s}>{s}</option>)}
+            <select
+              value={scope}
+              onChange={(e) => setScope(e.target.value as AttributeScope)}
+              disabled={isEdit}
+            >
+              {SCOPES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
             </select>
             <small className={styles['muted']}>
               {scope === 'PRODUCT' && 'Describes the product as a whole.'}
@@ -412,7 +595,14 @@ function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
         {/* Unit */}
         <div>
           <dt>Unit</dt>
-          <dd><input value={unit} onChange={e => setUnit(e.target.value)} placeholder="e.g. GB, kg, cm" maxLength={50} /></dd>
+          <dd>
+            <input
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+              placeholder="e.g. GB, kg, cm"
+              maxLength={50}
+            />
+          </dd>
         </div>
 
         {/* Status — edit only */}
@@ -420,7 +610,10 @@ function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
           <div>
             <dt>Status</dt>
             <dd>
-              <select value={status} onChange={e => setStatus(e.target.value as 'ACTIVE' | 'DEPRECATED')}>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as 'ACTIVE' | 'DEPRECATED')}
+              >
                 <option value="ACTIVE">ACTIVE</option>
                 <option value="DEPRECATED">DEPRECATED</option>
               </select>
@@ -431,10 +624,12 @@ function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
 
       {/* Validation JSON */}
       <div style={{ margin: '16px 0' }}>
-        <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: 12 }}>Validation Rules (JSON)</label>
+        <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, fontSize: 12 }}>
+          Validation Rules (JSON)
+        </label>
         <textarea
           value={validationJson}
-          onChange={e => setValidationJson(e.target.value)}
+          onChange={(e) => setValidationJson(e.target.value)}
           rows={4}
           style={{ fontFamily: 'monospace', fontSize: 12, width: '100%' }}
           placeholder='{"min": 1, "max": 128}'
@@ -443,7 +638,15 @@ function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
 
       {/* Options management (SELECT / MULTI_SELECT) */}
       {showOptions && (
-        <div style={{ margin: '16px 0', padding: 16, background: '#f7f9fa', borderRadius: 10, border: '1px solid #d9e2e6' }}>
+        <div
+          style={{
+            margin: '16px 0',
+            padding: 16,
+            background: '#f7f9fa',
+            borderRadius: 10,
+            border: '1px solid #d9e2e6',
+          }}
+        >
           <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>
             Options ({options.length})
           </h3>
@@ -452,11 +655,24 @@ function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
           {options.length > 0 && (
             <div style={{ marginBottom: 12 }}>
               {options.map((opt, i) => (
-                <div key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 13 }}>
+                <div
+                  key={opt.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '4px 0',
+                    fontSize: 13,
+                  }}
+                >
                   <span style={{ color: '#5b6b74', width: 24, textAlign: 'right' }}>{i + 1}.</span>
                   <strong>{opt.value}</strong>
                   {opt.label && <span style={{ color: '#5b6b74' }}>({opt.label})</span>}
-                  {opt.valueAr && <span dir="rtl" style={{ color: '#5b6b74', fontSize: 12 }}>{opt.valueAr}</span>}
+                  {opt.valueAr && (
+                    <span dir="rtl" style={{ color: '#5b6b74', fontSize: 12 }}>
+                      {opt.valueAr}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -466,13 +682,27 @@ function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
           <div style={{ display: 'flex', gap: 8, alignItems: 'end' }}>
             <label style={{ flex: 1 }}>
               Value *
-              <input value={newOptValue} onChange={e => setNewOptValue(e.target.value)} placeholder="e.g. 16" maxLength={100} />
+              <input
+                value={newOptValue}
+                onChange={(e) => setNewOptValue(e.target.value)}
+                placeholder="e.g. 16"
+                maxLength={100}
+              />
             </label>
             <label style={{ flex: 1 }}>
               Label
-              <input value={newOptLabel} onChange={e => setNewOptLabel(e.target.value)} placeholder="e.g. 16 GB" maxLength={200} />
+              <input
+                value={newOptLabel}
+                onChange={(e) => setNewOptLabel(e.target.value)}
+                placeholder="e.g. 16 GB"
+                maxLength={200}
+              />
             </label>
-            <button type="button" disabled={!canManage || busy || !newOptValue.trim()} onClick={handleAddOption}>
+            <button
+              type="button"
+              disabled={!canManage || busy || !newOptValue.trim()}
+              onClick={handleAddOption}
+            >
               Add
             </button>
           </div>
@@ -485,11 +715,18 @@ function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
           {busy ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Attribute'}
         </button>
         {isEdit && attribute?.status === 'ACTIVE' && (
-          <button type="button" disabled={!canManage || busy} onClick={handleDeactivate} style={{ color: '#991b1b' }}>
+          <button
+            type="button"
+            disabled={!canManage || busy}
+            onClick={handleDeactivate}
+            style={{ color: '#991b1b' }}
+          >
             Deactivate
           </button>
         )}
-        <button type="button" onClick={onCancel}>Cancel</button>
+        <button type="button" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
     </div>
   );

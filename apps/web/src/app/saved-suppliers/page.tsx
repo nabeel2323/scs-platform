@@ -36,15 +36,20 @@ export default function SavedSuppliersPage() {
     try {
       setSaved(await fetchSavedSuppliers());
     } catch (err: unknown) {
-      setLoadError(err instanceof Error ? err.message : 'Unable to load saved suppliers. Please try again.');
+      setLoadError(
+        err instanceof Error ? err.message : 'Unable to load saved suppliers. Please try again.',
+      );
     } finally {
       setLoading(false);
     }
   }, [user]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  if (authLoading || !user) return <div style={{ textAlign: 'center', padding: 40, color: colors.muted }}>Loading...</div>;
+  if (authLoading || !user)
+    return <div style={{ textAlign: 'center', padding: 40, color: colors.muted }}>Loading...</div>;
 
   const handleRemove = async (storeId: string) => {
     setActionError('');
@@ -53,7 +58,9 @@ export default function SavedSuppliersPage() {
       await removeSavedSupplier(storeId);
       setSaved((s) => s.filter((x) => x.storeId !== storeId));
     } catch (err: unknown) {
-      setActionError(err instanceof Error ? err.message : 'Could not remove this supplier. Please try again.');
+      setActionError(
+        err instanceof Error ? err.message : 'Could not remove this supplier. Please try again.',
+      );
     } finally {
       setRemovingId(null);
     }
@@ -66,92 +73,101 @@ export default function SavedSuppliersPage() {
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
       <PageHeader title="Saved Suppliers" subtitle={`${saved.length} suppliers saved`} />
       <div style={{ padding: '20px 24px 48px' }}>
-
-      {loadError && <ErrorBanner message={loadError} onRetry={() => void load()} />}
-      {actionError && <ErrorBanner message={actionError} />}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 40, color: colors.muted }}>
-          Loading saved suppliers...
-        </div>
-      ) : saved.length === 0 && !loadError ? (
-        <div style={{ textAlign: 'center', padding: 60, color: colors.muted }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>☆</div>
-          <p>No saved suppliers yet. Open a store and click “Save Supplier” to bookmark it.</p>
-          <Link href="/stores" style={{ color: colors.brand[700], fontWeight: 600, fontSize: 14 }}>
-            Browse Stores →
-          </Link>
-        </div>
-      ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-            gap: 16,
-          }}
-        >
-          {saved.map((s) => (
-            <div
-              key={s.id}
-              style={{
-                background: '#fff',
-                border: `1px solid ${colors.border}`,
-                borderRadius: 10,
-                padding: 16,
-              }}
+        {loadError && <ErrorBanner message={loadError} onRetry={() => void load()} />}
+        {actionError && <ErrorBanner message={actionError} />}
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 40, color: colors.muted }}>
+            Loading saved suppliers...
+          </div>
+        ) : saved.length === 0 && !loadError ? (
+          <div style={{ textAlign: 'center', padding: 60, color: colors.muted }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>☆</div>
+            <p>No saved suppliers yet. Open a store and click “Save Supplier” to bookmark it.</p>
+            <Link
+              href="/stores"
+              style={{ color: colors.brand[700], fontWeight: 600, fontSize: 14 }}
             >
-              <Link
-                href={`/stores/${(s.store?.['slug'] as string) || s.storeId}`}
-                style={{ textDecoration: 'none', color: 'inherit' }}
-              >
-                <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700], marginBottom: 4 }}>
-                  {nameOf(s)}
-                </div>
-                {Boolean(s.store?.['verificationStatus']) && (
-                  <div style={{ fontSize: 12, color: colors.muted }}>
-                    {String(s.store?.['verificationStatus'])}
-                  </div>
-                )}
-              </Link>
+              Browse Stores →
+            </Link>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+              gap: 16,
+            }}
+          >
+            {saved.map((s) => (
               <div
+                key={s.id}
                 style={{
-                  marginTop: 12,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                  background: '#fff',
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: 10,
+                  padding: 16,
                 }}
               >
                 <Link
                   href={`/stores/${(s.store?.['slug'] as string) || s.storeId}`}
-                  style={{
-                    fontSize: 13,
-                    color: colors.brand[700],
-                    fontWeight: 600,
-                    textDecoration: 'none',
-                  }}
+                  style={{ textDecoration: 'none', color: 'inherit' }}
                 >
-                  View →
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: colors.brand[700],
+                      marginBottom: 4,
+                    }}
+                  >
+                    {nameOf(s)}
+                  </div>
+                  {Boolean(s.store?.['verificationStatus']) && (
+                    <div style={{ fontSize: 12, color: colors.muted }}>
+                      {String(s.store?.['verificationStatus'])}
+                    </div>
+                  )}
                 </Link>
-                <button
-                  onClick={() => void handleRemove(s.storeId)}
-                  disabled={removingId === s.storeId}
+                <div
                   style={{
-                    padding: '4px 10px',
-                    fontSize: 11,
-                    background: colors.errBg,
-                    color: colors.err,
-                    border: `1px solid ${colors.errBorder}`,
-                    borderRadius: 4,
-                    cursor: removingId === s.storeId ? 'wait' : 'pointer',
-                    opacity: removingId === s.storeId ? 0.6 : 1,
+                    marginTop: 12,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
                   }}
                 >
-                  {removingId === s.storeId ? 'Removing…' : 'Remove'}
-                </button>
+                  <Link
+                    href={`/stores/${(s.store?.['slug'] as string) || s.storeId}`}
+                    style={{
+                      fontSize: 13,
+                      color: colors.brand[700],
+                      fontWeight: 600,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    View →
+                  </Link>
+                  <button
+                    onClick={() => void handleRemove(s.storeId)}
+                    disabled={removingId === s.storeId}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: 11,
+                      background: colors.errBg,
+                      color: colors.err,
+                      border: `1px solid ${colors.errBorder}`,
+                      borderRadius: 4,
+                      cursor: removingId === s.storeId ? 'wait' : 'pointer',
+                      opacity: removingId === s.storeId ? 0.6 : 1,
+                    }}
+                  >
+                    {removingId === s.storeId ? 'Removing…' : 'Remove'}
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

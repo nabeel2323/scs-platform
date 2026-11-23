@@ -1,16 +1,35 @@
 import {
-  Controller, Get, Post, Patch, Param, Body, Query, UseGuards, HttpCode,
-  Logger, NotFoundException, ForbiddenException,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  HttpCode,
+  Logger,
+  NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { eq, and, or, isNull, inArray } from 'drizzle-orm';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import {
-  CurrentUser, JwtPayload, RequirePermission,
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import { assertActiveOrgMembership, isTenantPrivileged } from '../../common/tenant-scope';
-import { CarrierCredentialsService, CreateCarrierCredentialInput } from './carrier-credentials.service';
-import { CarrierConfigurationsService, CreateCarrierConfigurationInput, UpdateCarrierConfigurationInput } from './carrier-configurations.service';
+import {
+  CarrierCredentialsService,
+  CreateCarrierCredentialInput,
+} from './carrier-credentials.service';
+import {
+  CarrierConfigurationsService,
+  CreateCarrierConfigurationInput,
+  UpdateCarrierConfigurationInput,
+} from './carrier-configurations.service';
 import { CarrierReconciliationService } from './carrier-reconciliation.service';
 import { AuditService } from '../audit/audit.service';
 import { DatabaseService } from '../../common/database/database.service';
@@ -66,10 +85,7 @@ export class CarrierAdminController {
   @Get('credentials')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:carrier:read')
-  async listCredentials(
-    @CurrentUser() user: JwtPayload,
-    @Query('orgId') orgId: string,
-  ) {
+  async listCredentials(@CurrentUser() user: JwtPayload, @Query('orgId') orgId: string) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     const items = await this.credentials.listForOrg(orgId, caller);
     return { credentials: items };
@@ -78,10 +94,7 @@ export class CarrierAdminController {
   @Get('credentials/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:carrier:read')
-  async getCredential(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async getCredential(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.credentials.getById(id, caller);
   }
@@ -101,10 +114,7 @@ export class CarrierAdminController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:carrier:write')
   @HttpCode(200)
-  async deactivateCredential(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async deactivateCredential(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.credentials.deactivate(id, caller);
   }
@@ -114,10 +124,7 @@ export class CarrierAdminController {
   @Get('configurations')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:carrier:read')
-  async listConfigurations(
-    @CurrentUser() user: JwtPayload,
-    @Query('orgId') orgId: string,
-  ) {
+  async listConfigurations(@CurrentUser() user: JwtPayload, @Query('orgId') orgId: string) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     const items = await this.configurations.listForOrg(orgId, caller);
     return { configurations: items };
@@ -126,10 +133,7 @@ export class CarrierAdminController {
   @Get('configurations/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:carrier:read')
-  async getConfiguration(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async getConfiguration(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.configurations.getById(id, caller);
   }
@@ -161,10 +165,7 @@ export class CarrierAdminController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:carrier:write')
   @HttpCode(200)
-  async deactivateConfiguration(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async deactivateConfiguration(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.configurations.deactivate(id, caller);
   }
@@ -188,10 +189,7 @@ export class CarrierAdminController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:shipping:recovery')
   @HttpCode(200)
-  async recoverShipment(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async recoverShipment(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     // Fetch the shipment
     const shipment = await this.db.db.query.shipments.findFirst({
       where: eq(shipments.id, id),
@@ -219,8 +217,12 @@ export class CarrierAdminController {
     // Verify the shipment is in a recoverable state (create or cancel)
     const recoverableCreateStatuses = ['PENDING', 'IN_PROGRESS', 'FAILED', 'RECOVERY_REQUIRED'];
     const recoverableCancelStatuses = ['UNKNOWN', 'RECONCILIATION_REQUIRED'];
-    const isCreateRecoverable = recoverableCreateStatuses.includes(shipment.carrierCreateStatus || '');
-    const isCancelRecoverable = recoverableCancelStatuses.includes(shipment.carrierCancelStatus || '');
+    const isCreateRecoverable = recoverableCreateStatuses.includes(
+      shipment.carrierCreateStatus || '',
+    );
+    const isCancelRecoverable = recoverableCancelStatuses.includes(
+      shipment.carrierCancelStatus || '',
+    );
     if (!isCreateRecoverable && !isCancelRecoverable) {
       throw new NotFoundException(`Shipment ${id} not found`);
     }
@@ -233,10 +235,7 @@ export class CarrierAdminController {
         nextReconciliationAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(and(
-        eq(shipments.id, id),
-        eq(shipments.storeId, shipment.storeId),
-      ));
+      .where(and(eq(shipments.id, id), eq(shipments.storeId, shipment.storeId)));
 
     // M7.2.4-A Phase 8: Re-fetch the shipment after the update so reconciliation
     // sees the authoritative current state (not a stale snapshot).
@@ -287,10 +286,7 @@ export class CarrierAdminController {
   @Get('recovery/queue')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:shipping:recovery')
-  async getRecoveryQueue(
-    @CurrentUser() user: JwtPayload,
-    @Query('limit') limit?: string,
-  ) {
+  async getRecoveryQueue(@CurrentUser() user: JwtPayload, @Query('limit') limit?: string) {
     const maxItems = Math.min(parseInt(limit || '50', 10) || 50, 200);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
 
@@ -299,14 +295,16 @@ export class CarrierAdminController {
     let orgStoreIds: string[] | null = null;
     if (!isTenantPrivileged(caller)) {
       if (!user.activeOrg) {
-        throw new ForbiddenException('An active organization is required to view the recovery queue');
+        throw new ForbiddenException(
+          'An active organization is required to view the recovery queue',
+        );
       }
       await assertActiveOrgMembership(this.db, caller, user.activeOrg);
       const storeRows = await this.db.db.query.stores.findMany({
         where: eq(stores.orgId, user.activeOrg),
         columns: { id: true },
       });
-      orgStoreIds = storeRows.map(s => s.id);
+      orgStoreIds = storeRows.map((s) => s.id);
       // If the org has no stores, return empty queue
       if (orgStoreIds.length === 0) {
         return { queue: [], count: 0, limit: maxItems };

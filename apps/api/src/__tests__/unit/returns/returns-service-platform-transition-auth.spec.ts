@@ -6,7 +6,15 @@ describe('ReturnsService platform transition authorization', () => {
   it.each(['EXPIRED', 'ESCALATED', 'REFUND_PENDING', 'REFUNDED', 'REFUND_FAILED'])(
     'rejects non-platform callers for %s transitions',
     async (status) => {
-      const service = new ReturnsService({ db: { query: {} } } as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
+      const service = new ReturnsService(
+        { db: { query: {} } } as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+      );
       await expect(
         (service as any).assertTransitionAuthorized(
           { id: 'return-a', buyerId: 'buyer-a', subOrderId: 'order-a' },
@@ -30,12 +38,11 @@ describe('ReturnsService platform transition authorization', () => {
     );
 
     await expect(
-      service.resolveEscalation(
-        'return-a',
-        'APPROVE',
-        null,
-        { sub: 'buyer-a', role: 'BUYER', activeOrg: null },
-      ),
+      service.resolveEscalation('return-a', 'APPROVE', null, {
+        sub: 'buyer-a',
+        role: 'BUYER',
+        activeOrg: null,
+      }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(findFirst).not.toHaveBeenCalled();
   });

@@ -8,20 +8,63 @@ vi.mock('../lib/api', () => ({ adminRequest: (...args: unknown[]) => adminReques
 vi.mock('../hooks/useRequirePerms', () => ({ useRequirePerms: () => ({ hasAccess: true }) }));
 vi.mock('../components/RecordFields', () => ({
   PreviewImage: ({ reference }: { reference: string }) => <div>Preview {reference}</div>,
-  RecordFields: ({ record }: { record: Record<string, unknown> }) => <div>Address {Object.values(record).join(', ')}</div>,
+  RecordFields: ({ record }: { record: Record<string, unknown> }) => (
+    <div>Address {Object.values(record).join(', ')}</div>
+  ),
 }));
 vi.mock('../components/detail', () => ({
-  AdminDetailHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
-  AdminDetailTabs: ({ tabs, activeKey, onChange }: { tabs: { key: string; label: string }[]; activeKey: string; onChange: (key: string) => void }) => (
-    <nav>{tabs.map(tab => <button key={tab.key} type="button" aria-pressed={activeKey === tab.key} onClick={() => onChange(tab.key)}>{tab.label}</button>)}</nav>
+  AdminDetailHeader: ({ title }: { title: string }) => (
+    <header>
+      <h1>{title}</h1>
+    </header>
   ),
-  AdminDetailSection: ({ title, children }: { title: string; children: React.ReactNode }) => <section><h2>{title}</h2>{children}</section>,
-  AdminKeyValueGrid: ({ items }: { items: { label: string; value: React.ReactNode }[] }) => <dl>{items.map(item => <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>,
+  AdminDetailTabs: ({
+    tabs,
+    activeKey,
+    onChange,
+  }: {
+    tabs: { key: string; label: string }[];
+    activeKey: string;
+    onChange: (key: string) => void;
+  }) => (
+    <nav>
+      {tabs.map((tab) => (
+        <button
+          key={tab.key}
+          type="button"
+          aria-pressed={activeKey === tab.key}
+          onClick={() => onChange(tab.key)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </nav>
+  ),
+  AdminDetailSection: ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <section>
+      <h2>{title}</h2>
+      {children}
+    </section>
+  ),
+  AdminKeyValueGrid: ({ items }: { items: { label: string; value: React.ReactNode }[] }) => (
+    <dl>
+      {items.map((item) => (
+        <div key={item.label}>
+          <dt>{item.label}</dt>
+          <dd>{item.value}</dd>
+        </div>
+      ))}
+    </dl>
+  ),
   AdminStatusBadge: ({ status }: { status: string }) => <span>{status}</span>,
   AdminEntityLink: ({ name }: { name: string }) => <span>{name}</span>,
   AdminCopyButton: () => null,
   AdminLoadingSkeleton: () => <div role="status">Loading</div>,
-  AdminErrorState: ({ title, message }: { title: string; message: string }) => <div role="alert">{title}: {message}</div>,
+  AdminErrorState: ({ title, message }: { title: string; message: string }) => (
+    <div role="alert">
+      {title}: {message}
+    </div>
+  ),
   formatDate: () => 'Today',
 }));
 

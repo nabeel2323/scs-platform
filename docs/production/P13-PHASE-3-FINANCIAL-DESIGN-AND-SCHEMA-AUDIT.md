@@ -12,7 +12,7 @@
 **Location:** `apps/api/src/modules/orders/order-pricing.ts`
 
 ```typescript
-commissionMinor = Math.round(netGoods * commissionRate)
+commissionMinor = Math.round(netGoods * commissionRate);
 ```
 
 - Commission is calculated on **net goods only** (subtotal − discount), NOT on VAT or delivery
@@ -24,14 +24,14 @@ commissionMinor = Math.round(netGoods * commissionRate)
 
 **Schema:** `settlement_records` (migration 0058)
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| `gross_minor` | bigint | Original confirmed payment amount |
-| `refund_minor` | bigint | Total refunded amount |
-| `commission_minor` | bigint | Original commission (NOT adjusted for returns) |
-| `fee_minor` | bigint | Delivery fees |
-| `net_minor` | bigint | gross − refund − commission − fee |
-| `status` | varchar | PENDING, CALCULATED, DUE, PAID |
+| Column             | Type    | Purpose                                        |
+| ------------------ | ------- | ---------------------------------------------- |
+| `gross_minor`      | bigint  | Original confirmed payment amount              |
+| `refund_minor`     | bigint  | Total refunded amount                          |
+| `commission_minor` | bigint  | Original commission (NOT adjusted for returns) |
+| `fee_minor`        | bigint  | Delivery fees                                  |
+| `net_minor`        | bigint  | gross − refund − commission − fee              |
+| `status`           | varchar | PENDING, CALCULATED, DUE, PAID                 |
 
 **Formula:** `net = gross - refund - commission - fee`
 
@@ -42,18 +42,20 @@ commissionMinor = Math.round(netGoods * commissionRate)
 **Location:** `returns.service.ts` line 898-935
 
 When a return is refunded after settlement is PAID/DUE:
+
 ```typescript
 await tx.insert(settlementRecords).values({
   grossMinor: 0,
   refundMinor: refundAmountMinor,
-  commissionMinor: 0,     // ← DEFECT: should reverse proportional commission
+  commissionMinor: 0, // ← DEFECT: should reverse proportional commission
   feeMinor: 0,
   netMinor: -refundAmountMinor,
-  status: 'ADJUSTMENT',   // ← Note: not in CHECK constraint!
+  status: 'ADJUSTMENT', // ← Note: not in CHECK constraint!
 });
 ```
 
 **Defects identified:**
+
 1. `commissionMinor: 0` — no commission reversal occurs
 2. `status: 'ADJUSTMENT'` — not in the CHECK constraint `chk_settlement_status` (PENDING, CALCULATED, DUE, PAID only)
 3. No responsibility-based logic — all returns get the same treatment regardless of category
@@ -85,11 +87,13 @@ await tx.insert(settlementRecords).values({
 ### 1.7 Roles & Permissions
 
 **Existing relevant permissions:**
+
 - `admin:refunds:approve` — approve refund requests
 - `admin:settlements:write` / `admin:settlements:read` — settlement oversight
 - `admin:returns:read` / `admin:returns:write` — return management
 
 **Missing for Phase 3:**
+
 - No `FINANCE` role (needed for dual-approver threshold)
 - No `admin:commission:read/write` permissions
 - No `admin:reconciliation:read/write` permissions
@@ -107,6 +111,7 @@ await tx.insert(settlementRecords).values({
 ## 2. Schema Gaps Requiring New Migration(s)
 
 ### 2.1 Commission Reversals Table
+
 ```sql
 commission_reversals (
   id, return_request_id, refund_id, settlement_id,
@@ -117,6 +122,7 @@ commission_reversals (
 ```
 
 ### 2.2 Settlement Adjustments Table (Approval Workflow)
+
 ```sql
 settlement_adjustments (
   id, settlement_id, sub_order_id, return_request_id,
@@ -129,6 +135,7 @@ settlement_adjustments (
 ```
 
 ### 2.3 Settlement Adjustment Approvals
+
 ```sql
 settlement_adjustment_approvals (
   id, adjustment_id, approver_id, approver_role,
@@ -138,6 +145,7 @@ settlement_adjustment_approvals (
 ```
 
 ### 2.4 Reconciliation
+
 ```sql
 reconciliation_runs (
   id, period_start, period_end, currency,
@@ -153,6 +161,7 @@ reconciliation_discrepancies (
 ```
 
 ### 2.5 Schema Constraint Fixes
+
 - Add `ADJUSTMENT` to `chk_settlement_status` CHECK constraint
 - Add new permissions to seed data
 - Add FINANCE role
@@ -184,7 +193,6 @@ Based on this audit, the implementation order is:
 6. **Reconciliation service**: Monthly report generation and discrepancy detection
 7. **Admin UI**: Commission, adjustment, reconciliation oversight pages
 8. **Tests**: Unit, integration, concurrency, authorization
-
 
 ## 2026-11-23 — FIN-001 refund concurrency/idempotency source alignment
 

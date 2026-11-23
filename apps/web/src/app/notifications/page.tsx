@@ -53,24 +53,30 @@ export default function NotificationsPage() {
       const data = await fetchNotifications();
       setNotifications(data);
     } catch (err: unknown) {
-      setLoadError(err instanceof Error ? err.message : 'Unable to load notifications. Please try again.');
+      setLoadError(
+        err instanceof Error ? err.message : 'Unable to load notifications. Please try again.',
+      );
     } finally {
       setLoading(false);
     }
   }, [user]);
 
-  useEffect(() => { if (user) void load(); }, [load, user]);
+  useEffect(() => {
+    if (user) void load();
+  }, [load, user]);
 
   // Live in-app notifications over the realtime gateway (WEB-B6) — new items
   // appear without a manual refresh.
   useEffect(() => {
     if (!user) return;
-    return onNotification(() => { void load(); });
+    return onNotification(() => {
+      void load();
+    });
   }, [load, user]);
 
   if (authLoading || !user) return <LoadingSpinner />;
 
-  const unreadCount = notifications.filter(n => !n.readAt).length;
+  const unreadCount = notifications.filter((n) => !n.readAt).length;
 
   // ── Individual toggle ────────────────────────────────────────
   async function toggleRead(n: Notification) {
@@ -79,14 +85,24 @@ export default function NotificationsPage() {
     const originalReadAt = n.readAt;
     const originalStatus = n.status;
     setMutationError('');
-    setWorking(prev => { const s = new Set(prev); s.add(id); return s; });
+    setWorking((prev) => {
+      const s = new Set(prev);
+      s.add(id);
+      return s;
+    });
 
     // Optimistic update
-    setNotifications(prev => prev.map(x =>
-      x.id === id
-        ? { ...x, readAt: wasRead ? null : new Date().toISOString(), status: wasRead ? 'SENT' : 'READ' }
-        : x,
-    ));
+    setNotifications((prev) =>
+      prev.map((x) =>
+        x.id === id
+          ? {
+              ...x,
+              readAt: wasRead ? null : new Date().toISOString(),
+              status: wasRead ? 'SENT' : 'READ',
+            }
+          : x,
+      ),
+    );
 
     try {
       if (wasRead) {
@@ -97,23 +113,35 @@ export default function NotificationsPage() {
       notifyBadgeChanged();
     } catch {
       // Revert on failure and explain that the optimistic change was not saved.
-      setNotifications(prev => prev.map(x =>
-        x.id === id ? { ...x, readAt: originalReadAt, status: originalStatus } : x,
-      ));
+      setNotifications((prev) =>
+        prev.map((x) =>
+          x.id === id ? { ...x, readAt: originalReadAt, status: originalStatus } : x,
+        ),
+      );
       setMutationError('Could not update this notification. Please try again.');
     } finally {
-      setWorking(prev => { const s = new Set(prev); s.delete(id); return s; });
+      setWorking((prev) => {
+        const s = new Set(prev);
+        s.delete(id);
+        return s;
+      });
     }
   }
 
   // ── Mark all read ────────────────────────────────────────────
   async function handleMarkAllRead() {
     setMutationError('');
-    setWorking(prev => { const s = new Set(prev); s.add('__all__'); return s; });
+    setWorking((prev) => {
+      const s = new Set(prev);
+      s.add('__all__');
+      return s;
+    });
     const prev = notifications;
 
     // Optimistic: mark every unread item as read
-    setNotifications(p => p.map(x => x.readAt ? x : { ...x, readAt: new Date().toISOString(), status: 'READ' }));
+    setNotifications((p) =>
+      p.map((x) => (x.readAt ? x : { ...x, readAt: new Date().toISOString(), status: 'READ' })),
+    );
 
     try {
       await markAllNotificationsRead();
@@ -122,18 +150,23 @@ export default function NotificationsPage() {
       setNotifications(prev);
       setMutationError('Could not mark all notifications as read. Please try again.');
     } finally {
-      setWorking(prev => { const s = new Set(prev); s.delete('__all__'); return s; });
+      setWorking((prev) => {
+        const s = new Set(prev);
+        s.delete('__all__');
+        return s;
+      });
     }
   }
 
   const isAllWorking = working.has('__all__');
 
   // ── Filtered list ────────────────────────────────────────────
-  const visible = filter === 'UNREAD'
-    ? notifications.filter(n => !n.readAt)
-    : filter === 'READ'
-      ? notifications.filter(n => !!n.readAt)
-      : notifications;
+  const visible =
+    filter === 'UNREAD'
+      ? notifications.filter((n) => !n.readAt)
+      : filter === 'READ'
+        ? notifications.filter((n) => !!n.readAt)
+        : notifications;
 
   if (loading) return <LoadingSpinner />;
 
@@ -141,41 +174,73 @@ export default function NotificationsPage() {
     <div style={{ maxWidth: 760, margin: '0 auto' }}>
       <PageHeader
         title="Notifications"
-        subtitle={unreadCount > 0
-          ? `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}`
-          : "You're all caught up!"}
-        actions={unreadCount > 0 ? (
-          <button
-            onClick={() => void handleMarkAllRead()}
-            disabled={isAllWorking}
-            style={{
-              padding: '8px 18px', fontSize: 12, fontWeight: 600,
-              background: isAllWorking ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.15)',
-              color: '#fff',
-              border: '1px solid rgba(255,255,255,0.25)',
-              borderRadius: radii.md, cursor: isAllWorking ? 'wait' : 'pointer',
-              opacity: isAllWorking ? 0.7 : 1,
-            }}
-          >
-            {isAllWorking ? 'Marking…' : `Mark All Read (${unreadCount})`}
-          </button>
-        ) : undefined}
+        subtitle={
+          unreadCount > 0
+            ? `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}`
+            : "You're all caught up!"
+        }
+        actions={
+          unreadCount > 0 ? (
+            <button
+              onClick={() => void handleMarkAllRead()}
+              disabled={isAllWorking}
+              style={{
+                padding: '8px 18px',
+                fontSize: 12,
+                fontWeight: 600,
+                background: isAllWorking ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.15)',
+                color: '#fff',
+                border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: radii.md,
+                cursor: isAllWorking ? 'wait' : 'pointer',
+                opacity: isAllWorking ? 0.7 : 1,
+              }}
+            >
+              {isAllWorking ? 'Marking…' : `Mark All Read (${unreadCount})`}
+            </button>
+          ) : undefined
+        }
       />
 
       <div style={{ padding: '20px 24px 48px' }}>
         {loadError && <ErrorBanner message={loadError} onRetry={() => void load()} />}
         {mutationError && <ErrorBanner message={mutationError} />}
         {/* Filter tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: colors.bgSubtle, borderRadius: radii.lg, padding: 4, width: 'fit-content' }}>
-          {([['ALL', 'All'], ['UNREAD', 'Unread'], ['READ', 'Read']] as const).map(([key, label]) => {
-            const count = key === 'ALL' ? notifications.length : key === 'UNREAD' ? unreadCount : notifications.length - unreadCount;
+        <div
+          style={{
+            display: 'flex',
+            gap: 4,
+            marginBottom: 20,
+            background: colors.bgSubtle,
+            borderRadius: radii.lg,
+            padding: 4,
+            width: 'fit-content',
+          }}
+        >
+          {(
+            [
+              ['ALL', 'All'],
+              ['UNREAD', 'Unread'],
+              ['READ', 'Read'],
+            ] as const
+          ).map(([key, label]) => {
+            const count =
+              key === 'ALL'
+                ? notifications.length
+                : key === 'UNREAD'
+                  ? unreadCount
+                  : notifications.length - unreadCount;
             const active = filter === key;
             return (
               <button
                 key={key}
                 onClick={() => setFilter(key)}
                 style={{
-                  padding: '6px 16px', fontSize: 12, fontWeight: 600, borderRadius: 6, cursor: 'pointer',
+                  padding: '6px 16px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  borderRadius: 6,
+                  cursor: 'pointer',
                   background: active ? '#fff' : 'transparent',
                   color: active ? colors.brand[700] : colors.muted,
                   border: active ? `1px solid ${colors.border}` : '1px solid transparent',
@@ -191,12 +256,22 @@ export default function NotificationsPage() {
 
         {visible.length === 0 && !loadError ? (
           <EmptyState
-            title={filter === 'UNREAD' ? 'No unread notifications' : filter === 'READ' ? 'No read notifications' : 'No notifications'}
-            description={filter === 'UNREAD' ? 'All caught up!' : 'Notifications will appear here as they arrive.'}
+            title={
+              filter === 'UNREAD'
+                ? 'No unread notifications'
+                : filter === 'READ'
+                  ? 'No read notifications'
+                  : 'No notifications'
+            }
+            description={
+              filter === 'UNREAD'
+                ? 'All caught up!'
+                : 'Notifications will appear here as they arrive.'
+            }
           />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {visible.map(n => {
+            {visible.map((n) => {
               const isRead = !!n.readAt;
               const isBusy = working.has(n.id);
               return (
@@ -214,34 +289,104 @@ export default function NotificationsPage() {
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                     {/* Unread dot indicator */}
                     <div style={{ paddingTop: 4, flexShrink: 0 }}>
-                      <div style={{
-                        width: 10, height: 10, borderRadius: '50%',
-                        background: isRead ? 'transparent' : '#3b82f6',
-                        border: isRead ? `2px solid ${colors.border}` : '2px solid #3b82f6',
-                        transition: 'all 0.2s ease',
-                      }} />
+                      <div
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: '50%',
+                          background: isRead ? 'transparent' : '#3b82f6',
+                          border: isRead ? `2px solid ${colors.border}` : '2px solid #3b82f6',
+                          transition: 'all 0.2s ease',
+                        }}
+                      />
                     </div>
 
                     {/* Content */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
-                        <span style={{
-                          fontSize: 13,
-                          fontWeight: isRead ? 500 : 700,
-                          color: isRead ? colors.muted : colors.brand[700],
-                        }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          gap: 8,
+                          marginBottom: 4,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: isRead ? 500 : 700,
+                            color: isRead ? colors.muted : colors.brand[700],
+                          }}
+                        >
                           {n.title || n.template}
                         </span>
-                        <span style={{ fontSize: 11, color: '#a0aec0', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: '#a0aec0',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                          }}
+                        >
                           {formatDate(n.createdAt)}
                         </span>
                       </div>
-                      <div style={{ fontSize: 13, color: isRead ? '#8a9ba5' : colors.muted, lineHeight: 1.5 }}>{n.body}</div>
-                      <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: '#edf2f7', color: '#4a5568', fontWeight: 500 }}>{n.channel}</span>
-                        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: '#edf2f7', color: '#4a5568', fontWeight: 500 }}>{n.type}</span>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: isRead ? '#8a9ba5' : colors.muted,
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {n.body}
+                      </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: 6,
+                          marginTop: 8,
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 10,
+                            padding: '2px 8px',
+                            borderRadius: 8,
+                            background: '#edf2f7',
+                            color: '#4a5568',
+                            fontWeight: 500,
+                          }}
+                        >
+                          {n.channel}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            padding: '2px 8px',
+                            borderRadius: 8,
+                            background: '#edf2f7',
+                            color: '#4a5568',
+                            fontWeight: 500,
+                          }}
+                        >
+                          {n.type}
+                        </span>
                         {isRead && (
-                          <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: '#f0fdf4', color: '#166534', fontWeight: 600 }}>✓ Read</span>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              padding: '2px 8px',
+                              borderRadius: 8,
+                              background: '#f0fdf4',
+                              color: '#166534',
+                              fontWeight: 600,
+                            }}
+                          >
+                            ✓ Read
+                          </span>
                         )}
                       </div>
                     </div>
@@ -250,14 +395,22 @@ export default function NotificationsPage() {
                     <button
                       onClick={() => void toggleRead(n)}
                       disabled={isBusy}
-                      aria-label={isRead ? `Mark "${n.title || n.template}" as unread` : `Mark "${n.title || n.template}" as read`}
+                      aria-label={
+                        isRead
+                          ? `Mark "${n.title || n.template}" as unread`
+                          : `Mark "${n.title || n.template}" as read`
+                      }
                       style={{
-                        padding: '6px 14px', fontSize: 11, fontWeight: 600,
-                        borderRadius: 6, cursor: isBusy ? 'wait' : 'pointer',
+                        padding: '6px 14px',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        borderRadius: 6,
+                        cursor: isBusy ? 'wait' : 'pointer',
                         border: isRead ? `1px solid ${colors.border}` : '1px solid #93c5fd',
                         background: isRead ? '#fff' : '#dbeafe',
                         color: isRead ? colors.muted : '#1e40af',
-                        whiteSpace: 'nowrap', flexShrink: 0,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
                         opacity: isBusy ? 0.6 : 1,
                         transition: 'all 0.15s ease',
                       }}

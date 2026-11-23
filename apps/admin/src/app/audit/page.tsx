@@ -13,8 +13,34 @@ import { fetchAuditLogs, type AuditLog } from '../../lib/api';
 import { useRequirePerms } from '../../hooks/useRequirePerms';
 import { AdminLoadingSkeleton, formatDate } from '../../components/detail';
 
-const ACTIONS = ['CREATE', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT', 'SUSPEND', 'ACTIVATE', 'DEACTIVATE', 'LOGIN', 'LOGOUT', 'ROLE_ASSIGN', 'ROLE_REVOKE'];
-const RESOURCES = ['product', 'offer', 'order', 'user', 'organization', 'category', 'brand', 'attribute', 'product-type', 'store', 'dispute', 'import-job'];
+const ACTIONS = [
+  'CREATE',
+  'UPDATE',
+  'DELETE',
+  'APPROVE',
+  'REJECT',
+  'SUSPEND',
+  'ACTIVATE',
+  'DEACTIVATE',
+  'LOGIN',
+  'LOGOUT',
+  'ROLE_ASSIGN',
+  'ROLE_REVOKE',
+];
+const RESOURCES = [
+  'product',
+  'offer',
+  'order',
+  'user',
+  'organization',
+  'category',
+  'brand',
+  'attribute',
+  'product-type',
+  'store',
+  'dispute',
+  'import-job',
+];
 
 const ACTION_COLORS: Record<string, { bg: string; fg: string }> = {
   CREATE: { bg: '#ecfdf5', fg: '#065f46' },
@@ -32,12 +58,22 @@ const ACTION_COLORS: Record<string, { bg: string; fg: string }> = {
 };
 
 /** Map resource names to admin detail routes. */
-function entityLink(resource: string, resourceId: string | null): { href: string; label: string } | null {
+function entityLink(
+  resource: string,
+  resourceId: string | null,
+): { href: string; label: string } | null {
   if (!resourceId) return null;
   const routeMap: Record<string, string> = {
-    product: '/products', offer: '/offers', order: '/orders', user: '/users',
-    organization: '/organizations', category: '/categories', brand: '/brands',
-    'product-type': '/product-types', store: '/merchants', dispute: '/disputes',
+    product: '/products',
+    offer: '/offers',
+    order: '/orders',
+    user: '/users',
+    organization: '/organizations',
+    category: '/categories',
+    brand: '/brands',
+    'product-type': '/product-types',
+    store: '/merchants',
+    dispute: '/disputes',
     'import-job': '/catalog-import',
   };
   const base = routeMap[resource];
@@ -95,11 +131,16 @@ function AuditContent() {
 
   useEffect(() => {
     void load();
-    return () => { requestVersion.current += 1; };
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [load]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={8} />;
-  if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: admin:audit:read</div>;
+  if (!hasAccess)
+    return (
+      <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: admin:audit:read</div>
+    );
 
   const totalPages = Math.ceil(total / limit);
   const currentPage = Math.floor(offset / limit) + 1;
@@ -114,63 +155,177 @@ function AuditContent() {
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 20, flexWrap: 'wrap' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 12,
+          alignItems: 'flex-end',
+          marginBottom: 20,
+          flexWrap: 'wrap',
+        }}
+      >
         <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>Action</label>
-          <select value={filterAction} onChange={e => { setFilterAction(e.target.value); setOffset(0); }}
-            style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }}>
+          <label
+            style={{
+              display: 'block',
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#6b7280',
+              marginBottom: 4,
+            }}
+          >
+            Action
+          </label>
+          <select
+            value={filterAction}
+            onChange={(e) => {
+              setFilterAction(e.target.value);
+              setOffset(0);
+            }}
+            style={{
+              padding: '6px 10px',
+              border: '1px solid #d1d5db',
+              borderRadius: 6,
+              fontSize: 13,
+              fontFamily: 'inherit',
+            }}
+          >
             <option value="">All actions</option>
-            {ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+            {ACTIONS.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
           </select>
         </div>
         <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>Resource</label>
-          <select value={filterResource} onChange={e => { setFilterResource(e.target.value); setOffset(0); }}
-            style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }}>
+          <label
+            style={{
+              display: 'block',
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#6b7280',
+              marginBottom: 4,
+            }}
+          >
+            Resource
+          </label>
+          <select
+            value={filterResource}
+            onChange={(e) => {
+              setFilterResource(e.target.value);
+              setOffset(0);
+            }}
+            style={{
+              padding: '6px 10px',
+              border: '1px solid #d1d5db',
+              borderRadius: 6,
+              fontSize: 13,
+              fontFamily: 'inherit',
+            }}
+          >
             <option value="">All resources</option>
-            {RESOURCES.map(r => <option key={r} value={r}>{r}</option>)}
+            {RESOURCES.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
           </select>
         </div>
         <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>Actor ID</label>
-          <input type="text" value={filterActor} onChange={e => { setFilterActor(e.target.value); setOffset(0); }}
+          <label
+            style={{
+              display: 'block',
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#6b7280',
+              marginBottom: 4,
+            }}
+          >
+            Actor ID
+          </label>
+          <input
+            type="text"
+            value={filterActor}
+            onChange={(e) => {
+              setFilterActor(e.target.value);
+              setOffset(0);
+            }}
             placeholder="Filter by actor…"
-            style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', width: 180 }} />
+            style={{
+              padding: '6px 10px',
+              border: '1px solid #d1d5db',
+              borderRadius: 6,
+              fontSize: 13,
+              fontFamily: 'inherit',
+              width: 180,
+            }}
+          />
         </div>
-        <button onClick={load}
-          style={{ padding: '6px 16px', fontSize: 13, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit' }}>
+        <button
+          onClick={load}
+          style={{
+            padding: '6px 16px',
+            fontSize: 13,
+            fontWeight: 600,
+            background: '#0f3340',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
           Refresh
         </button>
       </div>
 
       {error && (
-        <div role="alert" style={{ padding: 16, color: '#991b1b', fontSize: 13, background: '#fef2f2', borderRadius: 6, marginBottom: 16 }}>
+        <div
+          role="alert"
+          style={{
+            padding: 16,
+            color: '#991b1b',
+            fontSize: 13,
+            background: '#fef2f2',
+            borderRadius: 6,
+            marginBottom: 16,
+          }}
+        >
           <span>{error}</span>{' '}
-          <button type="button" onClick={() => void load()}>Retry audit log</button>
+          <button type="button" onClick={() => void load()}>
+            Retry audit log
+          </button>
         </div>
       )}
 
-      {loading && <div style={{ padding: 24, color: '#6b7280', fontSize: 13 }}>Loading audit logs…</div>}
+      {loading && (
+        <div style={{ padding: 24, color: '#6b7280', fontSize: 13 }}>Loading audit logs…</div>
+      )}
 
       {!loading && !error && logs.length === 0 && (
-        <div style={{ padding: 24, color: '#6b7280', fontSize: 13, textAlign: 'center' }}>No audit log entries found.</div>
+        <div style={{ padding: 24, color: '#6b7280', fontSize: 13, textAlign: 'center' }}>
+          No audit log entries found.
+        </div>
       )}
 
       {logs.length > 0 && (
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
           {/* Table header */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '140px 100px 110px 120px 1fr 140px 40px',
-            padding: '8px 16px',
-            background: '#f9fafb',
-            borderBottom: '1px solid #e5e7eb',
-            fontSize: 11,
-            fontWeight: 700,
-            color: '#6b7280',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-          }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '140px 100px 110px 120px 1fr 140px 40px',
+              padding: '8px 16px',
+              background: '#f9fafb',
+              borderBottom: '1px solid #e5e7eb',
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#6b7280',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}
+          >
             <span>Timestamp</span>
             <span>Action</span>
             <span>Resource</span>
@@ -188,21 +343,33 @@ function AuditContent() {
             const isExpanded = expandedId === log.id;
             return (
               <div key={log.id}>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: '140px 100px 110px 120px 1fr 140px 40px',
-                  padding: '10px 16px',
-                  borderBottom: '1px solid #f0f4f6',
-                  fontSize: 13,
-                  alignItems: 'center',
-                  background: isExpanded ? '#f0f9ff' : 'transparent',
-                }}>
-                  <span style={{ color: '#6b7280', fontSize: 12 }}>{formatDate(log.createdAt)}</span>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '140px 100px 110px 120px 1fr 140px 40px',
+                    padding: '10px 16px',
+                    borderBottom: '1px solid #f0f4f6',
+                    fontSize: 13,
+                    alignItems: 'center',
+                    background: isExpanded ? '#f0f9ff' : 'transparent',
+                  }}
+                >
+                  <span style={{ color: '#6b7280', fontSize: 12 }}>
+                    {formatDate(log.createdAt)}
+                  </span>
                   <span>
-                    <span style={{
-                      padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700,
-                      background: actionColor.bg, color: actionColor.fg,
-                    }}>{log.action}</span>
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: actionColor.bg,
+                        color: actionColor.fg,
+                      }}
+                    >
+                      {log.action}
+                    </span>
                   </span>
                   <span style={{ fontSize: 12, color: '#374151' }}>{log.resource}</span>
                   <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#6b7280' }}>
@@ -210,7 +377,15 @@ function AuditContent() {
                   </span>
                   <span>
                     {link ? (
-                      <Link href={link.href} style={{ fontSize: 12, fontFamily: 'monospace', color: '#0f3340', textDecoration: 'underline' }}>
+                      <Link
+                        href={link.href}
+                        style={{
+                          fontSize: 12,
+                          fontFamily: 'monospace',
+                          color: '#0f3340',
+                          textDecoration: 'underline',
+                        }}
+                      >
                         {link.label}
                       </Link>
                     ) : (
@@ -224,7 +399,15 @@ function AuditContent() {
                     {hasMeta && (
                       <button
                         onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#6b7280', padding: 0, fontFamily: 'inherit' }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: 14,
+                          color: '#6b7280',
+                          padding: 0,
+                          fontFamily: 'inherit',
+                        }}
                         title="Toggle metadata"
                       >
                         {isExpanded ? '▾' : '▸'}
@@ -233,16 +416,18 @@ function AuditContent() {
                   </span>
                 </div>
                 {isExpanded && hasMeta && (
-                  <div style={{
-                    padding: '12px 16px',
-                    background: '#f0f9ff',
-                    borderBottom: '1px solid #e5e7eb',
-                    fontSize: 12,
-                    fontFamily: 'monospace',
-                    color: '#374151',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-all',
-                  }}>
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      background: '#f0f9ff',
+                      borderBottom: '1px solid #e5e7eb',
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                      color: '#374151',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all',
+                    }}
+                  >
                     <strong>Metadata:</strong>
                     <div style={{ marginTop: 4 }}>{JSON.stringify(log.metadata, null, 2)}</div>
                   </div>
@@ -255,19 +440,49 @@ function AuditContent() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 20, alignItems: 'center' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            justifyContent: 'center',
+            marginTop: 20,
+            alignItems: 'center',
+          }}
+        >
           <button
             onClick={() => setOffset(Math.max(0, offset - limit))}
             disabled={offset === 0}
-            style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, background: offset === 0 ? '#f3f4f6' : '#0f3340', color: offset === 0 ? '#9ca3af' : '#fff', border: 'none', borderRadius: 6, cursor: offset === 0 ? 'default' : 'pointer', fontFamily: 'inherit' }}
+            style={{
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 600,
+              background: offset === 0 ? '#f3f4f6' : '#0f3340',
+              color: offset === 0 ? '#9ca3af' : '#fff',
+              border: 'none',
+              borderRadius: 6,
+              cursor: offset === 0 ? 'default' : 'pointer',
+              fontFamily: 'inherit',
+            }}
           >
             ← Prev
           </button>
-          <span style={{ fontSize: 12, color: '#6b7280' }}>Page {currentPage} of {totalPages}</span>
+          <span style={{ fontSize: 12, color: '#6b7280' }}>
+            Page {currentPage} of {totalPages}
+          </span>
           <button
             onClick={() => setOffset(offset + limit)}
             disabled={offset + limit >= total}
-            style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, background: offset + limit >= total ? '#f3f4f6' : '#0f3340', color: offset + limit >= total ? '#9ca3af' : '#fff', border: 'none', borderRadius: 6, cursor: offset + limit >= total ? 'default' : 'pointer', fontFamily: 'inherit' }}
+            style={{
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 600,
+              background: offset + limit >= total ? '#f3f4f6' : '#0f3340',
+              color: offset + limit >= total ? '#9ca3af' : '#fff',
+              border: 'none',
+              borderRadius: 6,
+              cursor: offset + limit >= total ? 'default' : 'pointer',
+              fontFamily: 'inherit',
+            }}
           >
             Next →
           </button>
@@ -278,5 +493,9 @@ function AuditContent() {
 }
 
 export default function AuditPage() {
-  return <Suspense fallback={<AdminLoadingSkeleton kvRows={8} />}><AuditContent /></Suspense>;
+  return (
+    <Suspense fallback={<AdminLoadingSkeleton kvRows={8} />}>
+      <AuditContent />
+    </Suspense>
+  );
 }

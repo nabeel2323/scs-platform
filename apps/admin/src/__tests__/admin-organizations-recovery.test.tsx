@@ -22,7 +22,9 @@ vi.mock('next/link', () => ({
     <a href={href}>{children}</a>
   ),
 }));
-vi.mock('@scs/contracts', () => ({ UPDATE_REQUEST_STATUS_LABELS: { PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Rejected' } }));
+vi.mock('@scs/contracts', () => ({
+  UPDATE_REQUEST_STATUS_LABELS: { PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Rejected' },
+}));
 vi.mock('../lib/api', () => ({
   fetchAdminOrganizations: (...args: unknown[]) => fetchAdminOrganizations(...args),
   fetchAdminOrgUpdateRequests: (...args: unknown[]) => fetchAdminOrgUpdateRequests(...args),
@@ -36,16 +38,36 @@ vi.mock('../hooks/useRequirePerms', () => ({
   AccessDenied: () => <div>Access denied</div>,
 }));
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
-  Button: ({ children, onClick }: { children: React.ReactNode; onClick: () => void }) => <button onClick={onClick}>{children}</button>,
+  PageHeader: ({ title }: { title: string }) => (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  ),
+  Button: ({ children, onClick }: { children: React.ReactNode; onClick: () => void }) => (
+    <button onClick={onClick}>{children}</button>
+  ),
   Modal: () => null,
   StatusPill: ({ status }: { status: string }) => <span>{status}</span>,
   colors: {
-    errBg: '#fee', err: '#b00', okBg: '#efe', ok: '#080', border: '#ddd',
-    surface: '#fff', brand: { 50: '#eee', 300: '#ddd', 500: '#aaa', 700: '#333' },
-    muted: '#888', warn: '#880', warnBg: '#ffe', bgSubtle: '#fafafa',
+    errBg: '#fee',
+    err: '#b00',
+    okBg: '#efe',
+    ok: '#080',
+    border: '#ddd',
+    surface: '#fff',
+    brand: { 50: '#eee', 300: '#ddd', 500: '#aaa', 700: '#333' },
+    muted: '#888',
+    warn: '#880',
+    warnBg: '#ffe',
+    bgSubtle: '#fafafa',
   },
-  typeScale: { body: { fontSize: 14 }, bodySm: { fontSize: 12 }, caption: { fontSize: 11 }, label: { fontSize: 10 }, h4: { fontSize: 16 } },
+  typeScale: {
+    body: { fontSize: 14 },
+    bodySm: { fontSize: 12 },
+    caption: { fontSize: 11 },
+    label: { fontSize: 10 },
+    h4: { fontSize: 16 },
+  },
   radii: { sm: 6, md: 8, full: 999 },
   shadows: { md: '' },
   transitions: { fast: '100ms' },
@@ -53,16 +75,18 @@ vi.mock('@scs/ui-kit', () => ({
 
 import OrganizationsPage from '../app/organizations/page';
 
-const orgs = [{
-  id: 'org-1',
-  name: 'North Wholesale',
-  legalName: 'North Wholesale LLC',
-  type: 'WHOLESALER',
-  country: 'SA',
-  verificationStatus: 'VERIFIED',
-  isActive: true,
-  createdAt: '2026-01-01T00:00:00.000Z',
-}];
+const orgs = [
+  {
+    id: 'org-1',
+    name: 'North Wholesale',
+    legalName: 'North Wholesale LLC',
+    type: 'WHOLESALER',
+    country: 'SA',
+    verificationStatus: 'VERIFIED',
+    isActive: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+  },
+];
 
 describe('admin organizations independent read recovery', () => {
   beforeEach(() => {

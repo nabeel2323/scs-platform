@@ -71,11 +71,8 @@ export default function AdminPaymentsPage() {
   const [acting, setActing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const canReadCurrentTab = tab === 'queue'
-      ? canVerifyPayments
-      : tab === 'refunds'
-        ? canApproveRefunds
-        : hasAccess;
+    const canReadCurrentTab =
+      tab === 'queue' ? canVerifyPayments : tab === 'refunds' ? canApproveRefunds : hasAccess;
     if (!canReadCurrentTab) {
       const fallbackTab: Tab | null = canVerifyPayments
         ? 'queue'
@@ -120,7 +117,9 @@ export default function AdminPaymentsPage() {
 
   useEffect(() => {
     if (hasAnyPaymentAccess) void load();
-    return () => { requestVersion.current += 1; };
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [load, hasAnyPaymentAccess, tab]);
 
   const handleVerify = async (paymentId: string, decision: 'CONFIRMED' | 'REJECTED') => {
@@ -209,16 +208,43 @@ export default function AdminPaymentsPage() {
       </div>
 
       {loadError && (
-        <div role="alert" style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.sm, color: '#dc2626', marginBottom: 12, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+        <div
+          role="alert"
+          style={{
+            padding: '10px 14px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: radii.sm,
+            color: '#dc2626',
+            marginBottom: 12,
+            fontSize: 13,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
           <span>
             {loadError}
             {hasLoadedCurrentTab ? ' Showing the last successfully loaded results.' : ''}
           </span>
-          <Button size="sm" variant="secondary" onClick={() => void load()}>Retry payments</Button>
+          <Button size="sm" variant="secondary" onClick={() => void load()}>
+            Retry payments
+          </Button>
         </div>
       )}
       {actionError && (
-        <div role="alert" style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.sm, color: '#dc2626', marginBottom: 12, fontSize: 13 }}>
+        <div
+          role="alert"
+          style={{
+            padding: '10px 14px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: radii.sm,
+            color: '#dc2626',
+            marginBottom: 12,
+            fontSize: 13,
+          }}
+        >
           {actionError}
         </div>
       )}

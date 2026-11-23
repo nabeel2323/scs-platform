@@ -863,7 +863,10 @@ function InventoryPageContent() {
                 {loadingHistory ? (
                   <LoadingSpinner />
                 ) : historyError ? (
-                  <ErrorBanner message={historyError} onRetry={() => void loadHistory(historyItemId)} />
+                  <ErrorBanner
+                    message={historyError}
+                    onRetry={() => void loadHistory(historyItemId)}
+                  />
                 ) : movements.length === 0 ? (
                   <p style={{ fontSize: 13, color: '#5b6b74' }}>No movements recorded yet.</p>
                 ) : (
@@ -1075,7 +1078,10 @@ function InventoryPageContent() {
                       </div>
                     )}
                     {variantsError && (
-                      <div role="alert" style={{ fontSize: 11, color: '#991b1b', padding: '4px 0' }}>
+                      <div
+                        role="alert"
+                        style={{ fontSize: 11, color: '#991b1b', padding: '4px 0' }}
+                      >
                         <div>{variantsError}</div>
                         <button type="button" onClick={() => void loadVariants()} style={editBtn}>
                           Retry variants

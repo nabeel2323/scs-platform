@@ -18,7 +18,9 @@ describe('DisputesService participant authorization', () => {
       {} as any,
     );
 
-    await expect(service.getDispute('dispute-a', attacker as any)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getDispute('dispute-a', attacker as any)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('does not return dispute events before participant authorization', async () => {
@@ -29,11 +31,20 @@ describe('DisputesService participant authorization', () => {
     });
     const eventsFindMany = vi.fn();
     const service = new DisputesService(
-      { db: { query: { disputes: { findFirst: disputeFindFirst }, disputeEvents: { findMany: eventsFindMany } } } } as any,
+      {
+        db: {
+          query: {
+            disputes: { findFirst: disputeFindFirst },
+            disputeEvents: { findMany: eventsFindMany },
+          },
+        },
+      } as any,
       {} as any,
     );
 
-    await expect(service.getDisputeEvents('dispute-a', attacker as any)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getDisputeEvents('dispute-a', attacker as any)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     expect(eventsFindMany).not.toHaveBeenCalled();
   });
 
@@ -45,12 +56,23 @@ describe('DisputesService participant authorization', () => {
     });
     const messagesFindMany = vi.fn();
     const service = new DisputesService(
-      { db: { query: { conversations: { findFirst: conversationFindFirst }, messages: { findMany: messagesFindMany } } } } as any,
+      {
+        db: {
+          query: {
+            conversations: { findFirst: conversationFindFirst },
+            messages: { findMany: messagesFindMany },
+          },
+        },
+      } as any,
       {} as any,
     );
 
-    await expect(service.getConversation('conversation-a', attacker as any)).rejects.toBeInstanceOf(NotFoundException);
-    await expect(service.getMessages('conversation-a', attacker as any)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getConversation('conversation-a', attacker as any)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(service.getMessages('conversation-a', attacker as any)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     expect(messagesFindMany).not.toHaveBeenCalled();
   });
 
@@ -68,12 +90,16 @@ describe('DisputesService participant authorization', () => {
       {} as any,
     );
 
-    await expect(service.markMessagesRead('conversation-a', 'buyer-a')).resolves.toEqual({ success: true });
+    await expect(service.markMessagesRead('conversation-a', 'buyer-a')).resolves.toEqual({
+      success: true,
+    });
     const compiled = new PgDialect().sqlToQuery(where.mock.calls[0]?.[0]);
     expect(compiled.params).toContain('buyer-a');
     expect(compiled.sql).toContain('<>');
 
-    await expect(service.markMessagesRead('conversation-a', 'attacker')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.markMessagesRead('conversation-a', 'attacker')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     expect(where).toHaveBeenCalledOnce();
   });
 
@@ -89,7 +115,15 @@ describe('DisputesService participant authorization', () => {
     const storeMemberFindFirst = vi.fn().mockResolvedValue(null);
     const insert = vi.fn();
     const service = new DisputesService(
-      { db: { query: { orders: { findFirst: orderFindFirst }, storeMembers: { findFirst: storeMemberFindFirst } }, insert } } as any,
+      {
+        db: {
+          query: {
+            orders: { findFirst: orderFindFirst },
+            storeMembers: { findFirst: storeMemberFindFirst },
+          },
+          insert,
+        },
+      } as any,
       {} as any,
     );
 
@@ -103,7 +137,6 @@ describe('DisputesService participant authorization', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(insert).not.toHaveBeenCalled();
   });
-
 
   it('rejects conversation creation for a user who is not an order party', async () => {
     const orderFindFirst = vi.fn().mockResolvedValue({

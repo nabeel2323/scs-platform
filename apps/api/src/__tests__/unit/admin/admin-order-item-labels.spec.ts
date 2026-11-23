@@ -6,14 +6,16 @@ import { products, productVariants } from '../../../modules/catalog/catalog.sche
 describe('AdminService order detail item labels', () => {
   it('joins product and variant labels for admin order item rows', async () => {
     const order = { id: 'order-a' };
-    const items = [{
-      id: 'item-a',
-      orderId: 'order-a',
-      variantId: 'variant-a',
-      productTitle: 'Cotton Shirt',
-      variantSku: 'SHIRT-BLU-L',
-      variantTitle: 'Blue / Large',
-    }];
+    const items = [
+      {
+        id: 'item-a',
+        orderId: 'order-a',
+        variantId: 'variant-a',
+        productTitle: 'Cotton Shirt',
+        variantSku: 'SHIRT-BLU-L',
+        variantTitle: 'Blue / Large',
+      },
+    ];
     const history: Array<{ id: string }> = [];
     const orderLimit = vi.fn().mockResolvedValue([order]);
     const orderWhere = vi.fn().mockReturnValue({ limit: orderLimit });
@@ -30,7 +32,8 @@ describe('AdminService order detail item labels', () => {
     const historyWhere = vi.fn().mockReturnValue({ orderBy: historyOrderBy });
     const historyFrom = vi.fn().mockReturnValue({ where: historyWhere });
 
-    const select = vi.fn()
+    const select = vi
+      .fn()
       .mockReturnValueOnce({ from: orderFrom })
       .mockReturnValueOnce({ from: itemFrom })
       .mockReturnValueOnce({ from: historyFrom });
@@ -46,11 +49,14 @@ describe('AdminService order detail item labels', () => {
 
     await expect(service.getOrderDetail('order-a')).resolves.toMatchObject({ items });
 
-    expect(select).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      productTitle: products.title,
-      variantSku: productVariants.sku,
-      variantTitle: productVariants.title,
-    }));
+    expect(select).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        productTitle: products.title,
+        variantSku: productVariants.sku,
+        variantTitle: productVariants.title,
+      }),
+    );
     expect(itemFrom).toHaveBeenCalledWith(orderItems);
   });
 });

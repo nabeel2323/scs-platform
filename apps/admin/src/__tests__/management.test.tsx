@@ -118,10 +118,6 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-
-
-
-
 describe('Admin financial list read recovery', () => {
   it('retries the payment verification queue after a read failure', async () => {
     vi.mocked(fetchPaymentVerificationQueue)
@@ -513,8 +509,6 @@ describe('accessible dialogs and row actions', () => {
     expect(adminRequest).toHaveBeenCalledWith('admin/disputes/dispute-1');
   });
 
-
-
   it('submits the required resolution through the protected dispute endpoint', async () => {
     const openDispute = {
       id: 'dispute-1',
@@ -623,22 +617,27 @@ describe('accessible dialogs and row actions', () => {
 
   it('hides settlement payment action from users with read-only settlement access', async () => {
     navigation.allowedPermissions = ['admin:settlements:read'];
-    vi.mocked(fetchAdminSettlements).mockResolvedValue({ data: [
-      {
-        id: 'settlement-1',
-        subOrderId: 'sub-order-1',
-        merchantStoreId: 'store-1',
-        paymentRecordId: 'payment-1',
-        grossMinor: 1000,
-        refundMinor: 0,
-        commissionMinor: 100,
-        feeMinor: 0,
-        netMinor: 900,
-        currency: 'SAR',
-        status: 'DUE',
-        createdAt: '2026-11-19T10:00:00.000Z',
-      },
-    ], total: 1, limit: 25, offset: 0 });
+    vi.mocked(fetchAdminSettlements).mockResolvedValue({
+      data: [
+        {
+          id: 'settlement-1',
+          subOrderId: 'sub-order-1',
+          merchantStoreId: 'store-1',
+          paymentRecordId: 'payment-1',
+          grossMinor: 1000,
+          refundMinor: 0,
+          commissionMinor: 100,
+          feeMinor: 0,
+          netMinor: 900,
+          currency: 'SAR',
+          status: 'DUE',
+          createdAt: '2026-11-19T10:00:00.000Z',
+        },
+      ],
+      total: 1,
+      limit: 25,
+      offset: 0,
+    });
     render(<AdminSettlementsPage />);
     await screen.findByText('DUE');
     expect(screen.queryByText('Mark Paid')).toBeNull();
@@ -737,7 +736,6 @@ const product = {
   store: null,
 };
 describe('management pages and shared product details', () => {
-
   it('retries product merchant offers instead of presenting a failed read as empty', async () => {
     let offerAttempts = 0;
     vi.mocked(adminRequest).mockImplementation(async (path) => {

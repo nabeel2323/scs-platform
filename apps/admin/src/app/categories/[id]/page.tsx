@@ -112,7 +112,9 @@ function CategoryDetailContent({ id }: { id: string }) {
 
   useEffect(() => {
     void load();
-    return () => { requestVersion.current += 1; };
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [load]);
 
   // Product Types and Attributes tabs share the admin endpoint that includes DRAFT rows.
@@ -126,7 +128,9 @@ function CategoryDetailContent({ id }: { id: string }) {
       if (requestId === productTypesRequestVersion.current) setProductTypes(list);
     } catch (err) {
       if (requestId === productTypesRequestVersion.current) {
-        setProductTypesError(err instanceof Error ? err.message : 'Failed to load category product types');
+        setProductTypesError(
+          err instanceof Error ? err.message : 'Failed to load category product types',
+        );
       }
     } finally {
       if (requestId === productTypesRequestVersion.current) setPtLoading(false);
@@ -136,7 +140,9 @@ function CategoryDetailContent({ id }: { id: string }) {
   useEffect(() => {
     if (activeTab !== 'productTypes' && activeTab !== 'attributes') return;
     void loadProductTypes();
-    return () => { productTypesRequestVersion.current += 1; };
+    return () => {
+      productTypesRequestVersion.current += 1;
+    };
   }, [activeTab, loadProductTypes]);
 
   // Products tab: direct + descendant split per task §4.
@@ -163,7 +169,9 @@ function CategoryDetailContent({ id }: { id: string }) {
   useEffect(() => {
     if (activeTab !== 'products') return;
     void loadProducts();
-    return () => { productsRequestVersion.current += 1; };
+    return () => {
+      productsRequestVersion.current += 1;
+    };
   }, [activeTab, loadProducts]);
 
   // Attributes are a union of product-type schemas. Treat the operation as
@@ -174,7 +182,7 @@ function CategoryDetailContent({ id }: { id: string }) {
     setAttributesLoading(true);
     setAttributesError('');
     try {
-      const schemas = await Promise.all(productTypes.map(pt => fetchProductTypeSchema(pt.id)));
+      const schemas = await Promise.all(productTypes.map((pt) => fetchProductTypeSchema(pt.id)));
       if (requestId !== attributesRequestVersion.current) return;
       const byCode = new Map<string, AttributeAccumulator>();
       schemas.forEach((schema, idx) => {
@@ -201,7 +209,7 @@ function CategoryDetailContent({ id }: { id: string }) {
           });
         }
       });
-      const rows: CategoryAttributeRow[] = Array.from(byCode.values()).map(row => ({
+      const rows: CategoryAttributeRow[] = Array.from(byCode.values()).map((row) => ({
         attributeDefinitionId: row.attributeDefinitionId,
         code: row.code,
         name: row.name,
@@ -213,7 +221,9 @@ function CategoryDetailContent({ id }: { id: string }) {
       setAttributes(rows);
     } catch (err) {
       if (requestId === attributesRequestVersion.current) {
-        setAttributesError(err instanceof Error ? err.message : 'Failed to load product-type attributes');
+        setAttributesError(
+          err instanceof Error ? err.message : 'Failed to load product-type attributes',
+        );
       }
     } finally {
       if (requestId === attributesRequestVersion.current) setAttributesLoading(false);
@@ -223,56 +233,125 @@ function CategoryDetailContent({ id }: { id: string }) {
   useEffect(() => {
     if (activeTab !== 'attributes' || productTypes.length === 0 || productTypesError) return;
     void loadAttributes();
-    return () => { attributesRequestVersion.current += 1; };
+    return () => {
+      attributesRequestVersion.current += 1;
+    };
   }, [activeTab, loadAttributes, productTypes.length, productTypesError]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
-  if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: catalog:categories:write (missing: {missingPerms?.join(', ')})</div>;
+  if (!hasAccess)
+    return (
+      <div style={{ padding: 32, color: '#991b1b' }}>
+        Access denied. Required: catalog:categories:write (missing: {missingPerms?.join(', ')})
+      </div>
+    );
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error) return <AdminErrorState title="Unable to load category" message={error} onRetry={load} />;
+  if (error)
+    return <AdminErrorState title="Unable to load category" message={error} onRetry={load} />;
   if (!category) return null;
 
   const tabs = [
     { key: 'overview', label: 'Overview' },
     { key: 'hierarchy', label: 'Hierarchy', count: category.children.length },
     { key: 'productTypes', label: 'Product Types', count: category.productTypeCount },
-    { key: 'products', label: 'Products', count: category.directProductCount + category.descendantProductCount },
+    {
+      key: 'products',
+      label: 'Products',
+      count: category.directProductCount + category.descendantProductCount,
+    },
     { key: 'attributes', label: 'Attributes' },
   ];
 
   const overviewItems: KVItem[] = [
     { key: 'name', label: 'Name (English)', value: category.name || 'Not set' },
-    { key: 'nameAr', label: 'Name (Arabic)', value: category.nameAr ? <span dir="rtl">{category.nameAr}</span> : 'Not set' },
-    { key: 'slug', label: 'Slug', value: <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{category.slug || 'Not set'}</span> },
-    { key: 'path', label: 'Full Path', value: <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{category.path || 'Not set'}</span> },
-    { key: 'isActive', label: 'Status', value: <AdminStatusBadge status={category.isActive !== false ? 'ACTIVE' : 'INACTIVE'} /> },
-    { key: 'parent', label: 'Parent', value: category.parent ? (
-      <AdminEntityLink type="category" id={category.parent.id} name={category.parent.name} />
-    ) : 'Root category' },
+    {
+      key: 'nameAr',
+      label: 'Name (Arabic)',
+      value: category.nameAr ? <span dir="rtl">{category.nameAr}</span> : 'Not set',
+    },
+    {
+      key: 'slug',
+      label: 'Slug',
+      value: (
+        <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{category.slug || 'Not set'}</span>
+      ),
+    },
+    {
+      key: 'path',
+      label: 'Full Path',
+      value: (
+        <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{category.path || 'Not set'}</span>
+      ),
+    },
+    {
+      key: 'isActive',
+      label: 'Status',
+      value: <AdminStatusBadge status={category.isActive !== false ? 'ACTIVE' : 'INACTIVE'} />,
+    },
+    {
+      key: 'parent',
+      label: 'Parent',
+      value: category.parent ? (
+        <AdminEntityLink type="category" id={category.parent.id} name={category.parent.name} />
+      ) : (
+        'Root category'
+      ),
+    },
     { key: 'sortOrder', label: 'Sort Order', value: String(category.sortOrder ?? 0) },
     { key: 'productTypeCount', label: 'Product Types', value: String(category.productTypeCount) },
-    { key: 'directProductCount', label: 'Direct Products', value: String(category.directProductCount) },
-    { key: 'descendantProductCount', label: 'Descendant Products', value: String(category.descendantProductCount) },
-    { key: 'totalProductCount', label: 'Total Products (Direct + Descendant)', value: String(category.directProductCount + category.descendantProductCount) },
-    { key: 'storeId', label: 'Scope', value: (category as unknown as { storeId?: string | null }).storeId ? 'Store-scoped' : 'Platform' },
+    {
+      key: 'directProductCount',
+      label: 'Direct Products',
+      value: String(category.directProductCount),
+    },
+    {
+      key: 'descendantProductCount',
+      label: 'Descendant Products',
+      value: String(category.descendantProductCount),
+    },
+    {
+      key: 'totalProductCount',
+      label: 'Total Products (Direct + Descendant)',
+      value: String(category.directProductCount + category.descendantProductCount),
+    },
+    {
+      key: 'storeId',
+      label: 'Scope',
+      value: (category as unknown as { storeId?: string | null }).storeId
+        ? 'Store-scoped'
+        : 'Platform',
+    },
     { key: 'createdAt', label: 'Created', value: formatDate(category.createdAt as string) },
     { key: 'updatedAt', label: 'Updated', value: formatDate(category.updatedAt as string) },
-    { key: 'id', label: 'Category ID', value: (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{id}</span>
-        <AdminCopyButton value={id} label="" />
-      </span>
-    )},
+    {
+      key: 'id',
+      label: 'Category ID',
+      value: (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{id}</span>
+          <AdminCopyButton value={id} label="" />
+        </span>
+      ),
+    },
   ];
 
   return (
     <div>
       <AdminDetailHeader
-        breadcrumbs={[{ label: 'Catalog', href: '/categories' }, { label: 'Categories', href: '/categories' }]}
+        breadcrumbs={[
+          { label: 'Catalog', href: '/categories' },
+          { label: 'Categories', href: '/categories' },
+        ]}
         backLabel="Back to Categories"
         backHref="/categories"
         title={category.name || 'Category'}
-        subtitle={category.path ? <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#5b6b74' }}>{category.path}</span> : undefined}
+        subtitle={
+          category.path ? (
+            <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#5b6b74' }}>
+              {category.path}
+            </span>
+          ) : undefined
+        }
         status={category.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
         entityId={id}
       />
@@ -290,36 +369,65 @@ function CategoryDetailContent({ id }: { id: string }) {
           <>
             {category.parent && (
               <AdminDetailSection title="Parent Category">
-                <AdminEntityLink type="category" id={category.parent.id} name={category.parent.name} showIcon />
+                <AdminEntityLink
+                  type="category"
+                  id={category.parent.id}
+                  name={category.parent.name}
+                  showIcon
+                />
               </AdminDetailSection>
             )}
 
             <AdminDetailSection title={`Child Categories (${children.length})`}>
               {children.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {children.map(child => (
+                  {children.map((child) => (
                     <Link
                       key={child.id}
                       href={`/categories/${child.id}`}
                       style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '10px 14px', border: '1px solid #d9e2e6', borderRadius: 8,
-                        textDecoration: 'none', color: '#16232b', transition: 'background 0.12s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        border: '1px solid #d9e2e6',
+                        borderRadius: 8,
+                        textDecoration: 'none',
+                        color: '#16232b',
+                        transition: 'background 0.12s',
                       }}
                     >
                       <div>
                         <span style={{ fontWeight: 500 }}>{String(child['name'])}</span>
-                        {child['slug'] ? <span style={{ marginLeft: 8, fontSize: 12, color: '#5b6b74', fontFamily: 'monospace' }}>{String(child['slug'])}</span> : null}
+                        {child['slug'] ? (
+                          <span
+                            style={{
+                              marginLeft: 8,
+                              fontSize: 12,
+                              color: '#5b6b74',
+                              fontFamily: 'monospace',
+                            }}
+                          >
+                            {String(child['slug'])}
+                          </span>
+                        ) : null}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <AdminStatusBadge status={child['isActive'] !== false ? 'ACTIVE' : 'INACTIVE'} />
-                        <span style={{ fontSize: 12, color: '#5b6b74' }}>{String(child['productCount'] ?? 0)} products</span>
+                        <AdminStatusBadge
+                          status={child['isActive'] !== false ? 'ACTIVE' : 'INACTIVE'}
+                        />
+                        <span style={{ fontSize: 12, color: '#5b6b74' }}>
+                          {String(child['productCount'] ?? 0)} products
+                        </span>
                       </div>
                     </Link>
                   ))}
                 </div>
               ) : (
-                <AdminEmptyState title="No child categories" description="This category has no subcategories." />
+                <AdminEmptyState
+                  title="No child categories"
+                  description="This category has no subcategories."
+                />
               )}
             </AdminDetailSection>
           </>
@@ -327,28 +435,63 @@ function CategoryDetailContent({ id }: { id: string }) {
 
         {activeTab === 'productTypes' && (
           <AdminDetailSection title={`Product Types (${productTypes.length})`}>
-            {ptLoading && <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading product types…</div>}
-            {!ptLoading && productTypesError && <AdminErrorState title="Unable to load product types" message={productTypesError} onRetry={loadProductTypes} />}
+            {ptLoading && (
+              <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>
+                Loading product types…
+              </div>
+            )}
+            {!ptLoading && productTypesError && (
+              <AdminErrorState
+                title="Unable to load product types"
+                message={productTypesError}
+                onRetry={loadProductTypes}
+              />
+            )}
             {!ptLoading && !productTypesError && productTypes.length === 0 && (
-              <AdminEmptyState title="No product types" description="No product types are linked to this category." />
+              <AdminEmptyState
+                title="No product types"
+                description="No product types are linked to this category."
+              />
             )}
             {productTypes.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {productTypes.map(pt => (
+                {productTypes.map((pt) => (
                   <Link
                     key={pt.id}
                     href={`/product-types/${pt.id}`}
                     style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '10px 14px', border: '1px solid #d9e2e6', borderRadius: 8,
-                      textDecoration: 'none', color: '#16232b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      border: '1px solid #d9e2e6',
+                      borderRadius: 8,
+                      textDecoration: 'none',
+                      color: '#16232b',
                     }}
                   >
                     <div>
                       <span style={{ fontWeight: 500 }}>{pt.name}</span>
-                      <span style={{ marginLeft: 8, fontSize: 12, color: '#5b6b74', fontFamily: 'monospace' }}>{pt.code}</span>
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: 12,
+                          color: '#5b6b74',
+                          fontFamily: 'monospace',
+                        }}
+                      >
+                        {pt.code}
+                      </span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: '#5b6b74' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        fontSize: 12,
+                        color: '#5b6b74',
+                      }}
+                    >
                       <AdminStatusBadge status={pt.status} />
                       <span>v{pt.version}</span>
                       <span>{pt.attributeCount} attrs</span>
@@ -363,14 +506,23 @@ function CategoryDetailContent({ id }: { id: string }) {
 
         {activeTab === 'products' && (
           <>
-            {productsError && <AdminErrorState title="Unable to load category products" message={productsError} onRetry={loadProducts} />}
+            {productsError && (
+              <AdminErrorState
+                title="Unable to load category products"
+                message={productsError}
+                onRetry={loadProducts}
+              />
+            )}
             <AdminDetailSection title={`Direct Products (${products.length})`}>
               {productsLoading ? (
-                <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading products…</div>
-              ) : productsError ? (
-                null
-              ) : products.length === 0 ? (
-                <AdminEmptyState title="No direct products" description="No products are assigned to this exact category." />
+                <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>
+                  Loading products…
+                </div>
+              ) : productsError ? null : products.length === 0 ? (
+                <AdminEmptyState
+                  title="No direct products"
+                  description="No products are assigned to this exact category."
+                />
               ) : (
                 <ProductTable rows={products} />
               )}
@@ -378,11 +530,14 @@ function CategoryDetailContent({ id }: { id: string }) {
 
             <AdminDetailSection title={`Descendant Products (${descendantProducts.length})`}>
               {productsLoading ? (
-                <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading products…</div>
-              ) : productsError ? (
-                null
-              ) : descendantProducts.length === 0 ? (
-                <AdminEmptyState title="No descendant products" description="No products are assigned to sub-categories." />
+                <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>
+                  Loading products…
+                </div>
+              ) : productsError ? null : descendantProducts.length === 0 ? (
+                <AdminEmptyState
+                  title="No descendant products"
+                  description="No products are assigned to sub-categories."
+                />
               ) : (
                 <ProductTable rows={descendantProducts} />
               )}
@@ -393,11 +548,21 @@ function CategoryDetailContent({ id }: { id: string }) {
         {activeTab === 'attributes' && (
           <AdminDetailSection title={`Attributes (${attributes.length})`}>
             {productTypesError ? (
-              <AdminErrorState title="Unable to load linked product types" message={productTypesError} onRetry={loadProductTypes} />
+              <AdminErrorState
+                title="Unable to load linked product types"
+                message={productTypesError}
+                onRetry={loadProductTypes}
+              />
             ) : attributesLoading ? (
-              <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading attributes…</div>
+              <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>
+                Loading attributes…
+              </div>
             ) : attributesError ? (
-              <AdminErrorState title="Unable to load product-type attributes" message={attributesError} onRetry={loadAttributes} />
+              <AdminErrorState
+                title="Unable to load product-type attributes"
+                message={attributesError}
+                onRetry={loadAttributes}
+              />
             ) : attributes.length === 0 ? (
               <AdminEmptyState
                 title="No attributes"
@@ -406,7 +571,13 @@ function CategoryDetailContent({ id }: { id: string }) {
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
-                  <tr style={{ textAlign: 'left', color: '#5b6b74', borderBottom: '1px solid #d9e2e6' }}>
+                  <tr
+                    style={{
+                      textAlign: 'left',
+                      color: '#5b6b74',
+                      borderBottom: '1px solid #d9e2e6',
+                    }}
+                  >
                     <th style={{ padding: '8px 12px' }}>Code</th>
                     <th style={{ padding: '8px 12px' }}>Name</th>
                     <th style={{ padding: '8px 12px' }}>Type</th>
@@ -416,9 +587,11 @@ function CategoryDetailContent({ id }: { id: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {attributes.map(a => (
+                  {attributes.map((a) => (
                     <tr key={a.attributeDefinitionId} style={{ borderBottom: '1px solid #eef2f4' }}>
-                      <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 12 }}>{a.code}</td>
+                      <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 12 }}>
+                        {a.code}
+                      </td>
                       <td style={{ padding: '8px 12px' }}>{a.name}</td>
                       <td style={{ padding: '8px 12px' }}>{a.type}</td>
                       <td style={{ padding: '8px 12px' }}>{a.scope}</td>
@@ -449,18 +622,29 @@ function ProductTable({ rows }: { rows: CategoryProductRow[] }) {
         </tr>
       </thead>
       <tbody>
-        {rows.map(r => (
+        {rows.map((r) => (
           <tr key={r.id} style={{ borderBottom: '1px solid #eef2f4' }}>
             <td style={{ padding: '8px 12px' }}>
-              <Link href={`/products/${r.id}`} style={{ color: '#16232b', textDecoration: 'none', fontWeight: 500 }}>
+              <Link
+                href={`/products/${r.id}`}
+                style={{ color: '#16232b', textDecoration: 'none', fontWeight: 500 }}
+              >
                 {r.title}
               </Link>
-              {r.slug ? <span style={{ marginLeft: 8, fontSize: 11, color: '#5b6b74', fontFamily: 'monospace' }}>{r.slug}</span> : null}
+              {r.slug ? (
+                <span
+                  style={{ marginLeft: 8, fontSize: 11, color: '#5b6b74', fontFamily: 'monospace' }}
+                >
+                  {r.slug}
+                </span>
+              ) : null}
             </td>
             <td style={{ padding: '8px 12px' }}>{r.brandName ?? '—'}</td>
             <td style={{ padding: '8px 12px' }}>{r.categoryName ?? '—'}</td>
             <td style={{ padding: '8px 12px' }}>{r.productTypeName ?? '—'}</td>
-            <td style={{ padding: '8px 12px' }}><AdminStatusBadge status={r.status} /></td>
+            <td style={{ padding: '8px 12px' }}>
+              <AdminStatusBadge status={r.status} />
+            </td>
           </tr>
         ))}
       </tbody>
@@ -471,5 +655,9 @@ function ProductTable({ rows }: { rows: CategoryProductRow[] }) {
 export default function CategoryDetailPage() {
   const params = useParams();
   const id = params['id'] as string;
-  return <Suspense fallback={<AdminLoadingSkeleton kvRows={6} />}><CategoryDetailContent id={id} /></Suspense>;
+  return (
+    <Suspense fallback={<AdminLoadingSkeleton kvRows={6} />}>
+      <CategoryDetailContent id={id} />
+    </Suspense>
+  );
 }

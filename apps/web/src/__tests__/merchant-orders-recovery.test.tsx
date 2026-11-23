@@ -19,34 +19,58 @@ const { api, auth } = vi.hoisted(() => ({
 
 vi.mock('../components/AuthProvider', () => ({ useAuth: () => auth }));
 vi.mock('next/link', () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
 }));
-vi.mock('../lib/api', () => ({ fetchMyStores: (...args: unknown[]) => api.fetchMyStores(...args) }));
+vi.mock('../lib/api', () => ({
+  fetchMyStores: (...args: unknown[]) => api.fetchMyStores(...args),
+}));
 vi.mock('../lib/merchant-store', () => ({
   pickStore: (stores: Array<{ id: string }>) => stores[0] ?? null,
   rememberStoreId: vi.fn(),
 }));
 vi.mock('../lib/useMerchantRealtime', () => ({ useMerchantRealtime: () => undefined }));
-vi.mock('../lib/buyer-api', () => Object.fromEntries(
-  Object.entries(api)
-    .filter(([key]) => key !== 'fetchMyStores')
-    .map(([key, fn]) => [key, (...args: unknown[]) => fn(...args)]),
-));
+vi.mock('../lib/buyer-api', () =>
+  Object.fromEntries(
+    Object.entries(api)
+      .filter(([key]) => key !== 'fetchMyStores')
+      .map(([key, fn]) => [key, (...args: unknown[]) => fn(...args)]),
+  ),
+);
 vi.mock('../components/Shared', () => ({
   StatusBadge: ({ status }: { status: string }) => <span>{status}</span>,
   formatMinor: () => '0.00',
   formatDateCompact: () => 'Today',
-  EmptyState: ({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) => (
-    <section><h2>{title}</h2>{description ? <p>{description}</p> : null}{action}</section>
+  EmptyState: ({
+    title,
+    description,
+    action,
+  }: {
+    title: string;
+    description?: string;
+    action?: React.ReactNode;
+  }) => (
+    <section>
+      <h2>{title}</h2>
+      {description ? <p>{description}</p> : null}
+      {action}
+    </section>
   ),
   LoadingSpinner: () => <div>Loading orders</div>,
   ErrorBanner: ({ message, onRetry }: { message: string; onRetry?: () => void }) => (
-    <div role="alert"><span>{message}</span>{onRetry ? <button onClick={onRetry}>Retry</button> : null}</div>
+    <div role="alert">
+      <span>{message}</span>
+      {onRetry ? <button onClick={onRetry}>Retry</button> : null}
+    </div>
   ),
 }));
 vi.mock('@scs/ui-kit', () => ({
   PageHeader: ({ title, subtitle }: { title: string; subtitle?: string }) => (
-    <header><h1>{title}</h1>{subtitle ? <p>{subtitle}</p> : null}</header>
+    <header>
+      <h1>{title}</h1>
+      {subtitle ? <p>{subtitle}</p> : null}
+    </header>
   ),
 }));
 

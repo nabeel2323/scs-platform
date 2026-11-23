@@ -24,7 +24,14 @@ function createService(overrides: Record<string, unknown> = {}) {
     },
   };
   const service = new ReviewsService(db as any, { publish: vi.fn() } as any);
-  return { service, orderFindFirst, orderItemsFindMany, productVariantFindFirst, insert, ...overrides };
+  return {
+    service,
+    orderFindFirst,
+    orderItemsFindMany,
+    productVariantFindFirst,
+    insert,
+    ...overrides,
+  };
 }
 
 describe('ReviewsService order subject ownership', () => {

@@ -83,7 +83,9 @@ export default function AdminSettlementsPage() {
 
   useEffect(() => {
     if (hasAccess) void load();
-    return () => { requestVersion.current += 1; };
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [load, hasAccess]);
 
   const handleMarkPaid = async (id: string) => {
@@ -134,19 +136,57 @@ export default function AdminSettlementsPage() {
           <option value="ADJUSTMENT">Adjustment</option>
           <option value="PAID">Paid</option>
         </select>
-        <Button size="sm" variant="secondary" onClick={() => void load()}>Refresh</Button>
+        <Button size="sm" variant="secondary" onClick={() => void load()}>
+          Refresh
+        </Button>
       </div>
 
       {loadError && (
-        <div role="alert" style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.sm, color: '#dc2626', marginBottom: 12, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-          <span>{loadError}{hasCurrentResults ? ' Showing the last successfully loaded results.' : ''}</span>
-          <Button size="sm" variant="secondary" onClick={() => void load()}>Retry settlements</Button>
+        <div
+          role="alert"
+          style={{
+            padding: '10px 14px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: radii.sm,
+            color: '#dc2626',
+            marginBottom: 12,
+            fontSize: 13,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <span>
+            {loadError}
+            {hasCurrentResults ? ' Showing the last successfully loaded results.' : ''}
+          </span>
+          <Button size="sm" variant="secondary" onClick={() => void load()}>
+            Retry settlements
+          </Button>
         </div>
       )}
-      {actionError && <div role="alert" style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.sm, color: '#dc2626', marginBottom: 12, fontSize: 13 }}>{actionError}</div>}
+      {actionError && (
+        <div
+          role="alert"
+          style={{
+            padding: '10px 14px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: radii.sm,
+            color: '#dc2626',
+            marginBottom: 12,
+            fontSize: 13,
+          }}
+        >
+          {actionError}
+        </div>
+      )}
 
       {loading && hasCurrentResults && (
-        <div role="status" style={{ padding: '6px 0', color: colors.muted, fontSize: 12 }}>Refreshing settlements… showing the last successful results.</div>
+        <div role="status" style={{ padding: '6px 0', color: colors.muted, fontSize: 12 }}>
+          Refreshing settlements… showing the last successful results.
+        </div>
       )}
       {loading && !hasCurrentResults ? (
         <div style={{ padding: 40, textAlign: 'center', color: colors.muted }}>Loading…</div>
@@ -191,11 +231,14 @@ export default function AdminSettlementsPage() {
                     {fmt(s.netMinor, s.currency)}
                   </td>
                   <td style={{ padding: '10px 8px' }}>
-                    <SettlementBadge status={
-                      s.status === 'PAID' && (s.metadata?.['adjustmentId'] || s.notes?.startsWith('Posted adjustment '))
-                        ? 'ADJUSTMENT · PAID'
-                        : s.status
-                    } />
+                    <SettlementBadge
+                      status={
+                        s.status === 'PAID' &&
+                        (s.metadata?.['adjustmentId'] || s.notes?.startsWith('Posted adjustment '))
+                          ? 'ADJUSTMENT · PAID'
+                          : s.status
+                      }
+                    />
                   </td>
                   {canWrite && (
                     <td style={{ padding: '10px 8px', textAlign: 'center' }}>
@@ -220,17 +263,38 @@ export default function AdminSettlementsPage() {
       {hasCurrentResults && total > 0 && (total > SETTLEMENT_PAGE_SIZE || page > 0) && (
         <nav
           aria-label="Settlement pages"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 12, fontSize: 12, color: colors.muted }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            marginTop: 12,
+            fontSize: 12,
+            color: colors.muted,
+          }}
         >
           <span>
-            Showing {page * SETTLEMENT_PAGE_SIZE + 1}–{Math.min((page + 1) * SETTLEMENT_PAGE_SIZE, total)} of {total} settlements
+            Showing {page * SETTLEMENT_PAGE_SIZE + 1}–
+            {Math.min((page + 1) * SETTLEMENT_PAGE_SIZE, total)} of {total} settlements
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Button size="sm" variant="secondary" disabled={loading || page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))}>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={loading || page === 0}
+              onClick={() => setPage((current) => Math.max(0, current - 1))}
+            >
               Previous
             </Button>
-            <span>Page {page + 1} of {Math.max(1, Math.ceil(total / SETTLEMENT_PAGE_SIZE))}</span>
-            <Button size="sm" variant="secondary" disabled={loading || (page + 1) * SETTLEMENT_PAGE_SIZE >= total} onClick={() => setPage((current) => current + 1)}>
+            <span>
+              Page {page + 1} of {Math.max(1, Math.ceil(total / SETTLEMENT_PAGE_SIZE))}
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={loading || (page + 1) * SETTLEMENT_PAGE_SIZE >= total}
+              onClick={() => setPage((current) => current + 1)}
+            >
               Next
             </Button>
           </div>

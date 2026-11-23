@@ -12,7 +12,11 @@ vi.mock('../hooks/useRequirePerms', () => ({
   AccessDenied: () => <div>Access denied</div>,
 }));
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
+  PageHeader: ({ title }: { title: string }) => (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  ),
 }));
 
 import ReconciliationPage from '../app/reconciliation/page';

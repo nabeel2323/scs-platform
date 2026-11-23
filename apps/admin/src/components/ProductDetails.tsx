@@ -227,7 +227,9 @@ export default function ProductDetails({
 
   useEffect(() => {
     void loadOffers();
-    return () => { offersRequestVersion.current += 1; };
+    return () => {
+      offersRequestVersion.current += 1;
+    };
   }, [loadOffers]);
 
   const handleModeration = useCallback(
@@ -631,7 +633,11 @@ export default function ProductDetails({
             {offersLoading ? (
               <AdminLoadingSkeleton kvRows={3} />
             ) : offersError ? (
-              <AdminErrorState title="Unable to load merchant offers" message={offersError} onRetry={loadOffers} />
+              <AdminErrorState
+                title="Unable to load merchant offers"
+                message={offersError}
+                onRetry={loadOffers}
+              />
             ) : offers.length > 0 ? (
               <AdminRelatedTable
                 columns={offerColumns}

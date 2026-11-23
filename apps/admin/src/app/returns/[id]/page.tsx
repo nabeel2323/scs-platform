@@ -32,10 +32,18 @@ interface ReturnDetail {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  REQUESTED: '#f59e0b', MERCHANT_APPROVED: '#3b82f6', BUYER_SHIPPED: '#8b5cf6',
-  RECEIVED: '#06b6d4', INSPECTED: '#6366f1', REFUND_PENDING: '#f97316',
-  REFUNDED: '#22c55e', MERCHANT_REJECTED: '#ef4444', CANCELLED: '#6b7280',
-  EXPIRED: '#6b7280', REJECTED_AFTER_INSPECTION: '#ef4444', REFUND_FAILED: '#ef4444',
+  REQUESTED: '#f59e0b',
+  MERCHANT_APPROVED: '#3b82f6',
+  BUYER_SHIPPED: '#8b5cf6',
+  RECEIVED: '#06b6d4',
+  INSPECTED: '#6366f1',
+  REFUND_PENDING: '#f97316',
+  REFUNDED: '#22c55e',
+  MERCHANT_REJECTED: '#ef4444',
+  CANCELLED: '#6b7280',
+  EXPIRED: '#6b7280',
+  REJECTED_AFTER_INSPECTION: '#ef4444',
+  REFUND_FAILED: '#ef4444',
   ESCALATED: '#dc2626',
 };
 
@@ -48,8 +56,17 @@ const RESPONSIBILITY_OPTIONS = [
 
 function fmtDate(s: string | null) {
   if (!s) return '—';
-  try { return new Date(s).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
-  catch { return s; }
+  try {
+    return new Date(s).toLocaleDateString('en-GB', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return s;
+  }
 }
 
 function ReturnDetailContent({ id }: { id: string }) {
@@ -72,7 +89,10 @@ function ReturnDetailContent({ id }: { id: string }) {
   const showResolveForm = searchParams?.get('resolve') === '1';
 
   const load = useCallback(async () => {
-    if (!hasAccess) { setLoading(false); return null; }
+    if (!hasAccess) {
+      setLoading(false);
+      return null;
+    }
     setLoading(true);
     setError('');
     try {
@@ -87,8 +107,12 @@ function ReturnDetailContent({ id }: { id: string }) {
     }
   }, [id, hasAccess]);
 
-  useEffect(() => { setReady(true); }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    setReady(true);
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,25 +141,60 @@ function ReturnDetailContent({ id }: { id: string }) {
     }
   };
 
-  if (!ready) return <div style={{ padding: '24px 28px', color: 'rgba(255,255,255,0.5)' }}>Loading…</div>;
-  if (!hasAccess) return <div style={{ padding: '24px 28px' }}><AccessDenied requiredPerms={['admin:returns:read']} missingPerms={missingPerms} /></div>;
-  if (loading) return <div style={{ padding: '24px 28px' }}><AdminLoadingSkeleton kvRows={7} /></div>;
-  if (error) return <div style={{ padding: '24px 28px' }}><AdminErrorState title="Unable to load return" message={error} onRetry={load} /></div>;
-  if (!ret) return <div style={{ padding: '24px 28px' }}><AdminEmptyState title="Return not found" description="This return may have been removed or is no longer available." /></div>;
+  if (!ready)
+    return <div style={{ padding: '24px 28px', color: 'rgba(255,255,255,0.5)' }}>Loading…</div>;
+  if (!hasAccess)
+    return (
+      <div style={{ padding: '24px 28px' }}>
+        <AccessDenied requiredPerms={['admin:returns:read']} missingPerms={missingPerms} />
+      </div>
+    );
+  if (loading)
+    return (
+      <div style={{ padding: '24px 28px' }}>
+        <AdminLoadingSkeleton kvRows={7} />
+      </div>
+    );
+  if (error)
+    return (
+      <div style={{ padding: '24px 28px' }}>
+        <AdminErrorState title="Unable to load return" message={error} onRetry={load} />
+      </div>
+    );
+  if (!ret)
+    return (
+      <div style={{ padding: '24px 28px' }}>
+        <AdminEmptyState
+          title="Return not found"
+          description="This return may have been removed or is no longer available."
+        />
+      </div>
+    );
 
   const isEscalated = ret.status === 'ESCALATED';
-  const isOverdue = isEscalated && ret.escalationDeadline && new Date(ret.escalationDeadline) < new Date();
+  const isOverdue =
+    isEscalated && ret.escalationDeadline && new Date(ret.escalationDeadline) < new Date();
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 800 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-        <Link href="/returns" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textDecoration: 'none' }}>
+        <Link
+          href="/returns"
+          style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textDecoration: 'none' }}
+        >
           ← Returns
         </Link>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          marginBottom: 24,
+        }}
+      >
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#fff' }}>
             Return #{ret.id.slice(0, 12)}…
@@ -144,84 +203,142 @@ function ReturnDetailContent({ id }: { id: string }) {
             Sub-order: {ret.subOrderId.slice(0, 16)}…
           </p>
         </div>
-        <span style={{
-          padding: '6px 14px', borderRadius: radii.md, fontSize: 13, fontWeight: 700, color: '#fff',
-          background: STATUS_COLORS[ret.status] || '#6b7280',
-        }}>
+        <span
+          style={{
+            padding: '6px 14px',
+            borderRadius: radii.md,
+            fontSize: 13,
+            fontWeight: 700,
+            color: '#fff',
+            background: STATUS_COLORS[ret.status] || '#6b7280',
+          }}
+        >
           {ret.status}
         </span>
       </div>
 
       {/* Details */}
-      <div style={{
-        border: '1px solid rgba(255,255,255,0.12)', borderRadius: radii.lg,
-        padding: 20, marginBottom: 24,
-        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 32px',
-      }}>
+      <div
+        style={{
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: radii.lg,
+          padding: 20,
+          marginBottom: 24,
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '16px 32px',
+        }}
+      >
         <div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>Reason</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>
+            Reason
+          </div>
           <div style={{ fontSize: 14, color: '#fff' }}>{ret.reason}</div>
         </div>
         <div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>Requested Refund</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>
+            Requested Refund
+          </div>
           <div style={{ fontSize: 14, color: '#fff', fontWeight: 600 }}>
             {(Number(ret.requestedRefundMinor) / 100).toFixed(2)}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>Created</div>
-          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>{fmtDate(ret.createdAt)}</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>
+            Created
+          </div>
+          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>
+            {fmtDate(ret.createdAt)}
+          </div>
         </div>
         <div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>Buyer</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' }}>{ret.buyerId}</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>
+            Buyer
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' }}>
+            {ret.buyerId}
+          </div>
         </div>
         {ret.escalatedAt && (
           <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>Escalated</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>
+              Escalated
+            </div>
             <div style={{ fontSize: 14, color: '#dc2626' }}>{fmtDate(ret.escalatedAt)}</div>
           </div>
         )}
         {ret.escalationDeadline && (
           <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>Admin Deadline</div>
-            <div style={{ fontSize: 14, color: isOverdue ? '#ef4444' : 'rgba(255,255,255,0.8)', fontWeight: isOverdue ? 700 : 400 }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>
+              Admin Deadline
+            </div>
+            <div
+              style={{
+                fontSize: 14,
+                color: isOverdue ? '#ef4444' : 'rgba(255,255,255,0.8)',
+                fontWeight: isOverdue ? 700 : 400,
+              }}
+            >
               {fmtDate(ret.escalationDeadline)} {isOverdue && '(OVERDUE)'}
             </div>
           </div>
         )}
         {ret.responsibilityCategory && (
           <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>Responsibility</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>
+              Responsibility
+            </div>
             <div style={{ fontSize: 14, color: '#fff' }}>{ret.responsibilityCategory}</div>
           </div>
         )}
         {ret.resolvedBy && (
           <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>Resolved By</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' }}>{ret.resolvedBy}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>
+              Resolved By
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' }}>
+              {ret.resolvedBy}
+            </div>
           </div>
         )}
         {ret.resolvedAt && (
           <div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>Resolved At</div>
-            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>{fmtDate(ret.resolvedAt)}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>
+              Resolved At
+            </div>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>
+              {fmtDate(ret.resolvedAt)}
+            </div>
           </div>
         )}
       </div>
 
       {/* Resolution Form (only for ESCALATED returns) */}
       {isEscalated && showResolveForm && canResolve && !submitSuccess && (
-        <div style={{
-          border: '1px solid rgba(220,38,38,0.3)', borderRadius: radii.lg,
-          padding: 20, marginBottom: 24, background: 'rgba(220,38,38,0.05)',
-        }}>
+        <div
+          style={{
+            border: '1px solid rgba(220,38,38,0.3)',
+            borderRadius: radii.lg,
+            padding: 20,
+            marginBottom: 24,
+            background: 'rgba(220,38,38,0.05)',
+          }}
+        >
           <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#fff' }}>
             Resolve Escalated Return
           </h2>
 
           {submitError && (
-            <div style={{ color: '#ef4444', marginBottom: 16, fontSize: 13, padding: '8px 12px', background: 'rgba(239,68,68,0.1)', borderRadius: radii.md }}>
+            <div
+              style={{
+                color: '#ef4444',
+                marginBottom: 16,
+                fontSize: 13,
+                padding: '8px 12px',
+                background: 'rgba(239,68,68,0.1)',
+                borderRadius: radii.md,
+              }}
+            >
               {submitError}
             </div>
           )}
@@ -229,21 +346,44 @@ function ReturnDetailContent({ id }: { id: string }) {
           <form onSubmit={handleSubmit}>
             {/* Action */}
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 6, fontWeight: 600 }}>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: 12,
+                  color: 'rgba(255,255,255,0.7)',
+                  marginBottom: 6,
+                  fontWeight: 600,
+                }}
+              >
                 Resolution Action
               </label>
               <div style={{ display: 'flex', gap: 8 }}>
-                {([
-                  { value: 'APPROVE', label: 'Approve', color: '#3b82f6', desc: '→ MERCHANT_APPROVED' },
-                  { value: 'REJECT', label: 'Reject', color: '#ef4444', desc: '→ MERCHANT_REJECTED' },
-                  { value: 'CANCEL', label: 'Cancel', color: '#6b7280', desc: '→ CANCELLED' },
-                ] as const).map((opt) => (
+                {(
+                  [
+                    {
+                      value: 'APPROVE',
+                      label: 'Approve',
+                      color: '#3b82f6',
+                      desc: '→ MERCHANT_APPROVED',
+                    },
+                    {
+                      value: 'REJECT',
+                      label: 'Reject',
+                      color: '#ef4444',
+                      desc: '→ MERCHANT_REJECTED',
+                    },
+                    { value: 'CANCEL', label: 'Cancel', color: '#6b7280', desc: '→ CANCELLED' },
+                  ] as const
+                ).map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => setAction(opt.value)}
                     style={{
-                      padding: '8px 16px', borderRadius: radii.md, fontSize: 13, fontWeight: 600,
+                      padding: '8px 16px',
+                      borderRadius: radii.md,
+                      fontSize: 13,
+                      fontWeight: 600,
                       border: `2px solid ${action === opt.value ? opt.color : 'rgba(255,255,255,0.15)'}`,
                       background: action === opt.value ? `${opt.color}22` : 'transparent',
                       color: action === opt.value ? opt.color : 'rgba(255,255,255,0.5)',
@@ -251,7 +391,9 @@ function ReturnDetailContent({ id }: { id: string }) {
                     }}
                   >
                     {opt.label}
-                    <span style={{ display: 'block', fontSize: 10, marginTop: 2, opacity: 0.7 }}>{opt.desc}</span>
+                    <span style={{ display: 'block', fontSize: 10, marginTop: 2, opacity: 0.7 }}>
+                      {opt.desc}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -260,20 +402,34 @@ function ReturnDetailContent({ id }: { id: string }) {
             {/* Responsibility Category (not needed for CANCEL) */}
             {action !== 'CANCEL' && (
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 6, fontWeight: 600 }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: 12,
+                    color: 'rgba(255,255,255,0.7)',
+                    marginBottom: 6,
+                    fontWeight: 600,
+                  }}
+                >
                   Responsibility Category
                 </label>
                 <select
                   value={responsibilityCategory}
                   onChange={(e) => setResponsibilityCategory(e.target.value)}
                   style={{
-                    width: '100%', padding: '8px 12px', borderRadius: radii.md,
-                    border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)',
-                    color: '#fff', fontSize: 13,
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: radii.md,
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    background: 'rgba(255,255,255,0.08)',
+                    color: '#fff',
+                    fontSize: 13,
                   }}
                 >
                   {RESPONSIBILITY_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -281,7 +437,15 @@ function ReturnDetailContent({ id }: { id: string }) {
 
             {/* Notes */}
             <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 6, fontWeight: 600 }}>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: 12,
+                  color: 'rgba(255,255,255,0.7)',
+                  marginBottom: 6,
+                  fontWeight: 600,
+                }}
+              >
                 Notes (optional)
               </label>
               <textarea
@@ -291,9 +455,15 @@ function ReturnDetailContent({ id }: { id: string }) {
                 maxLength={1000}
                 placeholder="Reason for this resolution decision…"
                 style={{
-                  width: '100%', padding: '8px 12px', borderRadius: radii.md,
-                  border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)',
-                  color: '#fff', fontSize: 13, resize: 'vertical', fontFamily: 'inherit',
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: radii.md,
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  background: 'rgba(255,255,255,0.08)',
+                  color: '#fff',
+                  fontSize: 13,
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
                 }}
               />
             </div>
@@ -304,10 +474,15 @@ function ReturnDetailContent({ id }: { id: string }) {
                 type="submit"
                 disabled={submitting}
                 style={{
-                  padding: '10px 24px', borderRadius: radii.md, fontSize: 14, fontWeight: 700,
-                  border: 'none', cursor: submitting ? 'not-allowed' : 'pointer',
+                  padding: '10px 24px',
+                  borderRadius: radii.md,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: submitting ? 'not-allowed' : 'pointer',
                   background: submitting ? 'rgba(255,255,255,0.1)' : '#dc2626',
-                  color: '#fff', opacity: submitting ? 0.6 : 1,
+                  color: '#fff',
+                  opacity: submitting ? 0.6 : 1,
                 }}
               >
                 {submitting ? 'Resolving…' : `Confirm ${action}`}
@@ -315,10 +490,16 @@ function ReturnDetailContent({ id }: { id: string }) {
               <Link
                 href={`/returns`}
                 style={{
-                  padding: '10px 24px', borderRadius: radii.md, fontSize: 14, fontWeight: 600,
-                  border: '1px solid rgba(255,255,255,0.2)', background: 'transparent',
-                  color: 'rgba(255,255,255,0.7)', textDecoration: 'none',
-                  display: 'inline-flex', alignItems: 'center',
+                  padding: '10px 24px',
+                  borderRadius: radii.md,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  background: 'transparent',
+                  color: 'rgba(255,255,255,0.7)',
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
                 }}
               >
                 Cancel
@@ -336,11 +517,17 @@ function ReturnDetailContent({ id }: { id: string }) {
 
       {/* Success message */}
       {submitSuccess && (
-        <div style={{
-          border: '1px solid rgba(34,197,94,0.3)', borderRadius: radii.lg,
-          padding: 20, marginBottom: 24, background: 'rgba(34,197,94,0.05)',
-          color: '#22c55e', fontSize: 14,
-        }}>
+        <div
+          style={{
+            border: '1px solid rgba(34,197,94,0.3)',
+            borderRadius: radii.lg,
+            padding: 20,
+            marginBottom: 24,
+            background: 'rgba(34,197,94,0.05)',
+            color: '#22c55e',
+            fontSize: 14,
+          }}
+        >
           Return resolved successfully. New status: <strong>{ret.status}</strong>
         </div>
       )}
@@ -351,8 +538,13 @@ function ReturnDetailContent({ id }: { id: string }) {
           <Link
             href={`/returns/${id}?resolve=1`}
             style={{
-              display: 'inline-block', padding: '10px 20px', borderRadius: radii.md,
-              fontSize: 14, fontWeight: 700, background: '#dc2626', color: '#fff',
+              display: 'inline-block',
+              padding: '10px 20px',
+              borderRadius: radii.md,
+              fontSize: 14,
+              fontWeight: 700,
+              background: '#dc2626',
+              color: '#fff',
               textDecoration: 'none',
             }}
           >
@@ -368,7 +560,11 @@ export default function ReturnDetailPage() {
   const params = useParams();
   const id = params['id'] as string;
   return (
-    <Suspense fallback={<div style={{ padding: '24px 28px', color: 'rgba(255,255,255,0.5)' }}>Loading…</div>}>
+    <Suspense
+      fallback={
+        <div style={{ padding: '24px 28px', color: 'rgba(255,255,255,0.5)' }}>Loading…</div>
+      }
+    >
       <ReturnDetailContent id={id} />
     </Suspense>
   );

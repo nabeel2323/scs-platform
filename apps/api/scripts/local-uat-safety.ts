@@ -1,4 +1,11 @@
-const LOCAL_DATABASE_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]', 'postgres', 'scs-postgres']);
+const LOCAL_DATABASE_HOSTS = new Set([
+  'localhost',
+  '127.0.0.1',
+  '::1',
+  '[::1]',
+  'postgres',
+  'scs-postgres',
+]);
 const LOCAL_SERVICE_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
 export interface LocalUatTargets {
@@ -32,7 +39,8 @@ export function assertLocalUatExecution(scriptName: string, targets: LocalUatTar
   if (process.env['SCS_UAT_CONFIRM'] !== 'true') {
     throw new Error(scriptName + ': set SCS_UAT_CONFIRM=true to confirm local UAT execution.');
   }
-  if (targets.databaseUrl) assertLocalUrl(targets.databaseUrl, 'DATABASE_URL', LOCAL_DATABASE_HOSTS);
+  if (targets.databaseUrl)
+    assertLocalUrl(targets.databaseUrl, 'DATABASE_URL', LOCAL_DATABASE_HOSTS);
   if (targets.apiUrl) assertLocalUrl(targets.apiUrl, 'SCS_UAT_API_URL', LOCAL_SERVICE_HOSTS);
   if (targets.redisUrl) assertLocalUrl(targets.redisUrl, 'SCS_UAT_REDIS_URL', LOCAL_SERVICE_HOSTS);
   console.log('[local UAT safety] ' + scriptName + ' target checks passed (' + environment + ').');

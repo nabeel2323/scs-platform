@@ -52,7 +52,12 @@ describe('CarrierWebhookController tenant credential routing', () => {
       { id: 'credential-org-b', orgId: 'org-b' },
     ]);
 
-    await (harness.controller as any).processWebhook('aramex', null, harness.request, harness.response);
+    await (harness.controller as any).processWebhook(
+      'aramex',
+      null,
+      harness.request,
+      harness.response,
+    );
 
     expect(harness.db.db.query.carrierCredentials.findMany).toHaveBeenCalledOnce();
     expect(harness.db.db.query.carrierCredentials.findFirst).not.toHaveBeenCalled();
@@ -67,7 +72,12 @@ describe('CarrierWebhookController tenant credential routing', () => {
   it('keeps the legacy route available when exactly one active credential exists', async () => {
     const harness = createHarness([{ id: 'credential-org-a', orgId: 'org-a' }]);
 
-    await (harness.controller as any).processWebhook('aramex', null, harness.request, harness.response);
+    await (harness.controller as any).processWebhook(
+      'aramex',
+      null,
+      harness.request,
+      harness.response,
+    );
 
     expect(harness.db.db.query.carrierCredentials.findMany).toHaveBeenCalledOnce();
     expect(harness.credentials.decryptWebhookSecret).toHaveBeenCalledWith('credential-org-a');
@@ -77,7 +87,12 @@ describe('CarrierWebhookController tenant credential routing', () => {
   it('uses exact provider-and-token lookup for the tenant-specific route', async () => {
     const harness = createHarness([{ id: 'credential-org-a', orgId: 'org-a' }]);
 
-    await (harness.controller as any).processWebhook('aramex', 'tenant-token-a', harness.request, harness.response);
+    await (harness.controller as any).processWebhook(
+      'aramex',
+      'tenant-token-a',
+      harness.request,
+      harness.response,
+    );
 
     expect(harness.db.db.query.carrierCredentials.findFirst).toHaveBeenCalledOnce();
     expect(harness.db.db.query.carrierCredentials.findMany).not.toHaveBeenCalled();

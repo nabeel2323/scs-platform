@@ -27,7 +27,6 @@ export function calculateReturnNetGoodsMinor(
   return result;
 }
 
-
 /**
  * Calculate the cumulative-target commission reversal in exact minor units.
  * BigInt multiplication is required even when each input is a safe integer:
@@ -45,30 +44,24 @@ export function calculateProportionalCommissionReversalMinor(
     returnNetGoodsMinor,
     alreadyReversedMinor,
   ];
-  if (amounts.some(amount => !Number.isSafeInteger(amount))) {
+  if (amounts.some((amount) => !Number.isSafeInteger(amount))) {
     throw new RangeError('Commission reversal inputs must be safe integer minor-unit amounts');
   }
   if (alreadyReversedMinor < 0) {
     throw new RangeError('Already-reversed commission cannot be negative');
   }
-  if (
-    originalCommissionMinor <= 0 ||
-    orderNetGoodsMinor <= 0 ||
-    returnNetGoodsMinor <= 0
-  ) {
+  if (originalCommissionMinor <= 0 || orderNetGoodsMinor <= 0 || returnNetGoodsMinor <= 0) {
     return 0;
   }
 
   const remaining = originalCommissionMinor - alreadyReversedMinor;
   if (remaining <= 0) return 0;
 
-  const raw = (
-    BigInt(originalCommissionMinor) * BigInt(returnNetGoodsMinor)
-  ) / BigInt(orderNetGoodsMinor);
+  const raw =
+    (BigInt(originalCommissionMinor) * BigInt(returnNetGoodsMinor)) / BigInt(orderNetGoodsMinor);
   const capped = raw > BigInt(remaining) ? BigInt(remaining) : raw;
   return Number(capped);
 }
-
 
 /**
  * Round a proportional minor-unit allocation to the nearest integer using

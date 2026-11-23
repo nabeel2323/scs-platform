@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
-const { fetchAdminCatalogRequests, approveCatalogRequest, rejectCatalogRequest, hasAccess } = vi.hoisted(() => ({
-  fetchAdminCatalogRequests: vi.fn(),
-  approveCatalogRequest: vi.fn(),
-  rejectCatalogRequest: vi.fn(),
-  hasAccess: vi.fn(),
-}));
+const { fetchAdminCatalogRequests, approveCatalogRequest, rejectCatalogRequest, hasAccess } =
+  vi.hoisted(() => ({
+    fetchAdminCatalogRequests: vi.fn(),
+    approveCatalogRequest: vi.fn(),
+    rejectCatalogRequest: vi.fn(),
+    hasAccess: vi.fn(),
+  }));
 
 vi.mock('../lib/api', () => ({
   fetchAdminCatalogRequests: (...args: unknown[]) => fetchAdminCatalogRequests(...args),
@@ -62,7 +63,12 @@ describe('admin catalog requests read recovery', () => {
   it('ignores a slower response from the previously selected filter', async () => {
     let resolveInitial!: (value: ReturnType<typeof request>[]) => void;
     fetchAdminCatalogRequests
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveInitial = resolve; }))
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveInitial = resolve;
+          }),
+      )
       .mockResolvedValueOnce([request('new-category', 'CATEGORY', 'New Category')]);
 
     render(<RequestsPage />);
@@ -77,9 +83,10 @@ describe('admin catalog requests read recovery', () => {
     expect(screen.getByText('New Category')).toBeTruthy();
   });
 
-
   it('approves a pending request once and refreshes the list', async () => {
-    fetchAdminCatalogRequests.mockResolvedValueOnce([request('request-approve', 'CATEGORY', 'Office Supplies')]);
+    fetchAdminCatalogRequests.mockResolvedValueOnce([
+      request('request-approve', 'CATEGORY', 'Office Supplies'),
+    ]);
     render(<RequestsPage />);
 
     expect(await screen.findByText('Office Supplies')).toBeTruthy();
@@ -93,7 +100,9 @@ describe('admin catalog requests read recovery', () => {
   });
 
   it('rejects a pending request with a reason and sends the reviewer identity', async () => {
-    fetchAdminCatalogRequests.mockResolvedValueOnce([request('request-reject', 'BRAND', 'Example Brand')]);
+    fetchAdminCatalogRequests.mockResolvedValueOnce([
+      request('request-reject', 'BRAND', 'Example Brand'),
+    ]);
     render(<RequestsPage />);
 
     expect(await screen.findByText('Example Brand')).toBeTruthy();
@@ -103,11 +112,13 @@ describe('admin catalog requests read recovery', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Reject Request' }));
 
-    await waitFor(() => expect(rejectCatalogRequest).toHaveBeenCalledWith(
-      'request-reject',
-      'reviewer-1',
-      'Insufficient evidence',
-    ));
+    await waitFor(() =>
+      expect(rejectCatalogRequest).toHaveBeenCalledWith(
+        'request-reject',
+        'reviewer-1',
+        'Insufficient evidence',
+      ),
+    );
     expect(await screen.findByText('No requests found')).toBeTruthy();
   });
 

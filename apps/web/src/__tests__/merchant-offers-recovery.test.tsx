@@ -19,29 +19,53 @@ const { api, auth } = vi.hoisted(() => ({
 }));
 
 vi.mock('../components/AuthProvider', () => ({ useAuth: () => auth }));
-vi.mock('../lib/api', () => ({ fetchMyStores: (...args: unknown[]) => api.fetchMyStores(...args) }));
-vi.mock('../lib/merchant-store', () => ({ pickStore: (stores: Array<{ id: string }>) => stores[0] ?? null }));
-vi.mock('../lib/buyer-api', () => Object.fromEntries(
-  Object.entries(api).map(([key, fn]) => [key, (...args: unknown[]) => fn(...args)]),
-));
+vi.mock('../lib/api', () => ({
+  fetchMyStores: (...args: unknown[]) => api.fetchMyStores(...args),
+}));
+vi.mock('../lib/merchant-store', () => ({
+  pickStore: (stores: Array<{ id: string }>) => stores[0] ?? null,
+}));
+vi.mock('../lib/buyer-api', () =>
+  Object.fromEntries(
+    Object.entries(api).map(([key, fn]) => [key, (...args: unknown[]) => fn(...args)]),
+  ),
+);
 vi.mock('../components/Shared', () => ({
   LoadingSpinner: () => <div>Loading</div>,
   ErrorBanner: ({ message, onRetry }: { message: string; onRetry?: () => void }) => (
-    <div role="alert"><span>{message}</span>{onRetry ? <button onClick={onRetry}>Retry</button> : null}</div>
+    <div role="alert">
+      <span>{message}</span>
+      {onRetry ? <button onClick={onRetry}>Retry</button> : null}
+    </div>
   ),
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
-    <section><h2>{title}</h2>{description ? <p>{description}</p> : null}</section>
+    <section>
+      <h2>{title}</h2>
+      {description ? <p>{description}</p> : null}
+    </section>
   ),
   formatMinor: (value: number) => String(value),
 }));
 vi.mock('@scs/ui-kit', () => ({
   PageHeader: ({ title, subtitle }: { title: string; subtitle?: string }) => (
-    <header><h1>{title}</h1>{subtitle ? <p>{subtitle}</p> : null}</header>
+    <header>
+      <h1>{title}</h1>
+      {subtitle ? <p>{subtitle}</p> : null}
+    </header>
   ),
   colors: {
-    bgSubtle: '#eee', muted: '#777', infoBg: '#def', info: '#1565c0',
-    okBg: '#def', ok: '#167', warnBg: '#fed', warn: '#b70',
-    errBg: '#fee', err: '#c00', disabled: '#999', border: '#ddd',
+    bgSubtle: '#eee',
+    muted: '#777',
+    infoBg: '#def',
+    info: '#1565c0',
+    okBg: '#def',
+    ok: '#167',
+    warnBg: '#fed',
+    warn: '#b70',
+    errBg: '#fee',
+    err: '#c00',
+    disabled: '#999',
+    border: '#ddd',
     brand: { 500: '#167', 700: '#123' },
   },
   typeScale: { button: {} },

@@ -298,9 +298,9 @@ export default function MerchantOffersPage() {
         o.basePriceMinor ?? '',
         o.moq,
         o.leadTimeDays ?? '',
-        analyticsError && !a ? '' : a?.ordersCount ?? 0,
-        analyticsError && !a ? '' : a?.unitsSold ?? 0,
-        analyticsError && !a ? '' : a?.revenueMinor ?? 0,
+        analyticsError && !a ? '' : (a?.ordersCount ?? 0),
+        analyticsError && !a ? '' : (a?.unitsSold ?? 0),
+        analyticsError && !a ? '' : (a?.revenueMinor ?? 0),
         o.createdAt,
       ].join(',');
     });
@@ -330,7 +330,10 @@ export default function MerchantOffersPage() {
     return (
       <div style={{ padding: '20px 24px', maxWidth: 1200 }}>
         <PageHeader title="My Offers" subtitle="Manage your product offers for the marketplace" />
-        <EmptyState title="No store yet" description="Create a merchant store before managing offers." />
+        <EmptyState
+          title="No store yet"
+          description="Create a merchant store before managing offers."
+        />
       </div>
     );
   }
@@ -339,7 +342,9 @@ export default function MerchantOffersPage() {
     <div style={{ padding: '20px 24px', maxWidth: 1200 }}>
       <PageHeader title="My Offers" subtitle="Manage your product offers for the marketplace" />
       {error && <ErrorBanner message={error} onRetry={() => void loadOffers()} />}
-      {analyticsError && <ErrorBanner message={analyticsError} onRetry={() => void loadAnalytics()} />}
+      {analyticsError && (
+        <ErrorBanner message={analyticsError} onRetry={() => void loadAnalytics()} />
+      )}
 
       {/* Store selector + filter */}
       <div
@@ -426,7 +431,9 @@ export default function MerchantOffersPage() {
             background: colors.bgSubtle,
           }}
         >
-          {productsError && <ErrorBanner message={productsError} onRetry={() => void loadProducts()} />}
+          {productsError && (
+            <ErrorBanner message={productsError} onRetry={() => void loadProducts()} />
+          )}
           <div
             style={{
               display: 'grid',
@@ -443,7 +450,13 @@ export default function MerchantOffersPage() {
                 disabled={productsLoading || !!productsError || products.length === 0}
                 style={inputStyle}
               >
-                <option value="">{productsLoading ? 'Loading products…' : productsError ? 'Products unavailable' : 'Select…'}</option>
+                <option value="">
+                  {productsLoading
+                    ? 'Loading products…'
+                    : productsError
+                      ? 'Products unavailable'
+                      : 'Select…'}
+                </option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.title}
@@ -621,10 +634,10 @@ export default function MerchantOffersPage() {
                     </td>
                     {/* PHASE 16: performance columns sourced from order_items + offer_snapshot */}
                     <td style={{ padding: '8px 12px', fontVariantNumeric: 'tabular-nums' }}>
-                      {analyticsError && !a ? '—' : a?.ordersCount ?? 0}
+                      {analyticsError && !a ? '—' : (a?.ordersCount ?? 0)}
                     </td>
                     <td style={{ padding: '8px 12px', fontVariantNumeric: 'tabular-nums' }}>
-                      {analyticsError && !a ? '—' : a?.unitsSold ?? 0}
+                      {analyticsError && !a ? '—' : (a?.unitsSold ?? 0)}
                     </td>
                     <td
                       style={{
@@ -866,7 +879,10 @@ function TrendPanel(props: {
 
       {error && (
         <div style={{ color: colors.err, fontSize: 12, marginBottom: 8 }}>
-          {error} <button type="button" onClick={onRetry} style={actionBtn}>Retry</button>
+          {error}{' '}
+          <button type="button" onClick={onRetry} style={actionBtn}>
+            Retry
+          </button>
         </div>
       )}
 

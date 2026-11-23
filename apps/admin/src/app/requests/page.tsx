@@ -193,7 +193,9 @@ function RequestsPageContent() {
 
   useEffect(() => {
     void reload();
-    return () => { requestVersion.current += 1; };
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [reload]);
 
   const handleApprove = async (req: AdminCatalogRequest) => {
@@ -233,12 +235,30 @@ function RequestsPageContent() {
 
       <div style={css.content}>
         {error && (
-          <div role="alert" style={{ ...css.error, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            <span>{error}{hasCurrentResults ? ' Showing the last successfully loaded results.' : ''}</span>
-            <button style={css.btn} onClick={() => void reload()}>Retry requests</button>
+          <div
+            role="alert"
+            style={{
+              ...css.error,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <span>
+              {error}
+              {hasCurrentResults ? ' Showing the last successfully loaded results.' : ''}
+            </span>
+            <button style={css.btn} onClick={() => void reload()}>
+              Retry requests
+            </button>
           </div>
         )}
-        {actionError && <div role="alert" style={css.error}>{actionError}</div>}
+        {actionError && (
+          <div role="alert" style={css.error}>
+            {actionError}
+          </div>
+        )}
 
         {/* Toolbar */}
         <div style={css.toolbar}>
@@ -272,7 +292,8 @@ function RequestsPageContent() {
         </div>
 
         <p style={{ fontSize: 12, color: '#5b6b74', margin: '8px 0' }}>
-          Showing {hasCurrentResults ? requests.length : '—'} {hasCurrentResults && requests.length === 1 ? 'request' : 'requests'}
+          Showing {hasCurrentResults ? requests.length : '—'}{' '}
+          {hasCurrentResults && requests.length === 1 ? 'request' : 'requests'}
         </p>
 
         {/* Table */}
@@ -299,7 +320,9 @@ function RequestsPageContent() {
               ) : !hasCurrentResults ? (
                 <tr>
                   <td colSpan={7} style={{ ...css.td, textAlign: 'center', color: '#5b6b74' }}>
-                    {error ? 'Results are unavailable for the selected filters.' : 'No results loaded for the selected filters.'}
+                    {error
+                      ? 'Results are unavailable for the selected filters.'
+                      : 'No results loaded for the selected filters.'}
                   </td>
                 </tr>
               ) : requests.length === 0 ? (
@@ -318,80 +341,88 @@ function RequestsPageContent() {
                     </tr>
                   )}
                   {requests.map((r) => (
-                  <tr key={r.id}>
-                    <td style={css.td}>
-                      <span style={css.badge('#e5f2f8', '#1e6178')}>
-                        {TYPE_LABELS[r.type] ?? r.type}
-                      </span>
-                    </td>
-                    <td style={css.td}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {Object.entries(r.payload)
-                          .filter(([, v]) => v)
-                          .map(([k, v]) => (
-                            <span
-                              key={k}
-                              style={{
-                                background: '#f7f9fa',
-                                padding: '2px 6px',
-                                borderRadius: 4,
-                                fontSize: 12,
-                              }}
-                            >
-                              <strong>{k}:</strong> {String(v)}
-                            </span>
-                          ))}
-                      </div>
-                    </td>
-                    <td style={css.td}>
-                      <code style={{ fontSize: 11 }}>{r.storeId.slice(0, 8)}…</code>
-                    </td>
-                    <td style={css.td}>
-                      <span
-                        style={css.badge(
-                          STATUS_BADGE[r.status]?.bg ?? '#f7f9fa',
-                          STATUS_BADGE[r.status]?.fg ?? '#5b6b74',
-                        )}
-                      >
-                        {r.status}
-                      </span>
-                    </td>
-                    <td style={css.td}>
-                      <time dateTime={r.createdAt}>
-                        {new Date(r.createdAt).toLocaleDateString()}
-                      </time>
-                    </td>
-                    <td style={css.td}>
-                      {r.reviewedAt ? (
-                        <>
-                          <time dateTime={r.reviewedAt}>
-                            {new Date(r.reviewedAt).toLocaleDateString()}
-                          </time>
-                          {r.reviewReason && (
-                            <div style={{ fontSize: 11, color: '#991b1b', marginTop: 4 }}>
-                              {r.reviewReason}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td style={css.td}>
-                      {r.status === 'PENDING' ? (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button style={css.btnPrimary} disabled={actingId !== null || rejecting !== null} onClick={() => void handleApprove(r)}>
-                            {actingId === r.id ? 'Approving…' : 'Approve'}
-                          </button>
-                          <button style={css.btnDanger} disabled={actingId !== null || rejecting !== null} onClick={() => openRejectDialog(r)}>
-                            Reject
-                          </button>
+                    <tr key={r.id}>
+                      <td style={css.td}>
+                        <span style={css.badge('#e5f2f8', '#1e6178')}>
+                          {TYPE_LABELS[r.type] ?? r.type}
+                        </span>
+                      </td>
+                      <td style={css.td}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {Object.entries(r.payload)
+                            .filter(([, v]) => v)
+                            .map(([k, v]) => (
+                              <span
+                                key={k}
+                                style={{
+                                  background: '#f7f9fa',
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  fontSize: 12,
+                                }}
+                              >
+                                <strong>{k}:</strong> {String(v)}
+                              </span>
+                            ))}
                         </div>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                  </tr>
+                      </td>
+                      <td style={css.td}>
+                        <code style={{ fontSize: 11 }}>{r.storeId.slice(0, 8)}…</code>
+                      </td>
+                      <td style={css.td}>
+                        <span
+                          style={css.badge(
+                            STATUS_BADGE[r.status]?.bg ?? '#f7f9fa',
+                            STATUS_BADGE[r.status]?.fg ?? '#5b6b74',
+                          )}
+                        >
+                          {r.status}
+                        </span>
+                      </td>
+                      <td style={css.td}>
+                        <time dateTime={r.createdAt}>
+                          {new Date(r.createdAt).toLocaleDateString()}
+                        </time>
+                      </td>
+                      <td style={css.td}>
+                        {r.reviewedAt ? (
+                          <>
+                            <time dateTime={r.reviewedAt}>
+                              {new Date(r.reviewedAt).toLocaleDateString()}
+                            </time>
+                            {r.reviewReason && (
+                              <div style={{ fontSize: 11, color: '#991b1b', marginTop: 4 }}>
+                                {r.reviewReason}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td style={css.td}>
+                        {r.status === 'PENDING' ? (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              style={css.btnPrimary}
+                              disabled={actingId !== null || rejecting !== null}
+                              onClick={() => void handleApprove(r)}
+                            >
+                              {actingId === r.id ? 'Approving…' : 'Approve'}
+                            </button>
+                            <button
+                              style={css.btnDanger}
+                              disabled={actingId !== null || rejecting !== null}
+                              onClick={() => openRejectDialog(r)}
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    </tr>
                   ))}
                 </>
               )}
@@ -452,7 +483,11 @@ function RejectDialog({
   };
 
   return (
-    <dialog open style={css.dialog} onClick={(e) => e.target === e.currentTarget && !saving && onClose()}>
+    <dialog
+      open
+      style={css.dialog}
+      onClick={(e) => e.target === e.currentTarget && !saving && onClose()}
+    >
       <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 600 }}>Reject Request</h2>
       <p style={{ margin: '0 0 12px', fontSize: 13, color: '#5b6b74' }}>
         Rejecting request for <strong>{TYPE_LABELS[request.type]}</strong>. Provide a reason for the
@@ -475,7 +510,11 @@ function RejectDialog({
         <button style={css.btn} disabled={saving} onClick={onClose}>
           Cancel
         </button>
-        <button style={css.btnDanger} disabled={!canManage || saving || !reason.trim()} onClick={() => void handleReject()}>
+        <button
+          style={css.btnDanger}
+          disabled={!canManage || saving || !reason.trim()}
+          onClick={() => void handleReject()}
+        >
           {saving ? 'Rejecting…' : 'Reject Request'}
         </button>
       </div>

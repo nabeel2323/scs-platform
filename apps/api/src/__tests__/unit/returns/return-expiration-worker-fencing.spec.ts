@@ -3,12 +3,9 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import { ReturnExpirationWorker } from '../../../modules/returns/return-expiration.worker';
 
 describe('ReturnExpirationWorker lease fencing', () => {
-
   it('reports fence loss when the claim statement returns no rows after lease expiry', async () => {
     const execute = vi.fn().mockResolvedValue({ rows: [] });
-    const renewAndFence = vi.fn()
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false);
+    const renewAndFence = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     const worker = new ReturnExpirationWorker(
       { db: { execute } } as any,
       {} as any,
@@ -50,15 +47,12 @@ describe('ReturnExpirationWorker lease fencing', () => {
     const claim = new PgDialect().sqlToQuery(execute.mock.calls[0]![0]);
     expect(claim.sql).toContain('WITH live_fence AS MATERIALIZED');
     expect(claim.sql).toContain('FOR UPDATE');
-    expect(claim.params).toEqual(expect.arrayContaining([
-      'p13-return-expiration',
-      'worker-host-123',
-      42,
-    ]));
+    expect(claim.params).toEqual(
+      expect.arrayContaining(['p13-return-expiration', 'worker-host-123', 42]),
+    );
     expect(leases.renewAndFence).toHaveBeenCalledWith(42, 'p13-return-expiration');
     expect(leases.recordPollSuccess).toHaveBeenCalledOnce();
   });
-
 
   it('stops the batch when the lease is lost between the pre-check and transactional escalation', async () => {
     const findFirst = vi.fn().mockResolvedValue({ id: 'return-a', status: 'REQUESTED' });

@@ -13,10 +13,14 @@ const { api, auth } = vi.hoisted(() => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
 }));
 vi.mock('../components/AuthProvider', () => ({ useAuth: () => auth }));
-vi.mock('../lib/api', () => ({ fetchMyStores: (...args: unknown[]) => api.fetchMyStores(...args) }));
+vi.mock('../lib/api', () => ({
+  fetchMyStores: (...args: unknown[]) => api.fetchMyStores(...args),
+}));
 vi.mock('../lib/buyer-api', () => ({
   fetchMerchantReturns: (...args: unknown[]) => api.fetchMerchantReturns(...args),
 }));
@@ -24,15 +28,24 @@ vi.mock('../components/Shared', () => ({
   formatDate: (value: string) => value,
   LoadingSpinner: () => <div>Loading</div>,
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
-    <section><h2>{title}</h2>{description ? <p>{description}</p> : null}</section>
+    <section>
+      <h2>{title}</h2>
+      {description ? <p>{description}</p> : null}
+    </section>
   ),
   ErrorBanner: ({ message, onRetry }: { message: string; onRetry?: () => void }) => (
-    <div role="alert"><span>{message}</span>{onRetry ? <button onClick={onRetry}>Retry</button> : null}</div>
+    <div role="alert">
+      <span>{message}</span>
+      {onRetry ? <button onClick={onRetry}>Retry</button> : null}
+    </div>
   ),
 }));
 vi.mock('@scs/ui-kit', () => ({
   PageHeader: ({ title, subtitle }: { title: string; subtitle?: string }) => (
-    <header><h1>{title}</h1>{subtitle ? <p>{subtitle}</p> : null}</header>
+    <header>
+      <h1>{title}</h1>
+      {subtitle ? <p>{subtitle}</p> : null}
+    </header>
   ),
   colors: { border: '#ddd', muted: '#777' },
   radii: { md: 6, lg: 8 },

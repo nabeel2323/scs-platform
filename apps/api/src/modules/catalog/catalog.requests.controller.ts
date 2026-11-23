@@ -16,7 +16,11 @@ import {
 } from './catalog.requests.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
+import {
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
+} from '../../common/guards/current-user.decorator';
 import { DatabaseService } from '../../common/database/database.service';
 import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 
@@ -47,10 +51,7 @@ export class CatalogRequestsController {
   @Post('merchant/requests')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:write')
-  async createRequest(
-    @CurrentUser() user: JwtPayload,
-    @Body() input: CreateCatalogRequestInput,
-  ) {
+  async createRequest(@CurrentUser() user: JwtPayload, @Body() input: CreateCatalogRequestInput) {
     await this.assertMerchantStoreAccess(user, input.storeId);
     // The authenticated identity is authoritative; never accept requestedBy from the client.
     return this.requestsService.createRequest({ ...input, requestedBy: user.sub });
@@ -59,10 +60,7 @@ export class CatalogRequestsController {
   @Get('merchant/requests')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:write')
-  async listMerchantRequests(
-    @CurrentUser() user: JwtPayload,
-    @Query('storeId') storeId?: string,
-  ) {
+  async listMerchantRequests(@CurrentUser() user: JwtPayload, @Query('storeId') storeId?: string) {
     if (!storeId) return [];
     await this.assertMerchantStoreAccess(user, storeId);
     return this.requestsService.listMerchantRequests(storeId);
@@ -73,10 +71,7 @@ export class CatalogRequestsController {
   @Get('admin/requests')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:requests:manage')
-  async listAdminRequests(
-    @Query('type') type?: string,
-    @Query('status') status?: string,
-  ) {
+  async listAdminRequests(@Query('type') type?: string, @Query('status') status?: string) {
     return this.requestsService.listAdminRequests({
       type: type as CatalogRequestType | undefined,
       status: status as CatalogRequestStatus | undefined,
@@ -86,10 +81,7 @@ export class CatalogRequestsController {
   @Post('admin/requests/:id/approve')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:requests:manage')
-  async approveRequest(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async approveRequest(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: JwtPayload) {
     return this.requestsService.approveRequest(id, user.sub);
   }
 

@@ -37,7 +37,11 @@ import { DatabaseService } from '../../common/database/database.service';
 import { OpsAlertService } from '../operations/ops-alert.service';
 import { OpsControlService } from '../operations/ops-control.service';
 import { WorkerLeaseService } from '../operations/worker-lease.service';
-import { P13_LEASE_KEY, resolveP13OpsConfig, type P13OpsConfig } from '../operations/p13-ops.config';
+import {
+  P13_LEASE_KEY,
+  resolveP13OpsConfig,
+  type P13OpsConfig,
+} from '../operations/p13-ops.config';
 import { readRows } from '../operations/raw-result';
 import { ReturnsService } from './returns.service';
 import { returnRequests } from './returns.schema';
@@ -254,7 +258,12 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
         conditionKey: 'p13.worker.ownership_lost',
         severity: 'WARN',
         title: `Worker lost the ${P13_LEASE_KEY} lease at epoch ${epoch}`,
-        detail: { leaseKey: P13_LEASE_KEY, lostEpoch: epoch, holderId: this.leases.holderId, stage: 'batch_start' },
+        detail: {
+          leaseKey: P13_LEASE_KEY,
+          lostEpoch: epoch,
+          holderId: this.leases.holderId,
+          stage: 'batch_start',
+        },
         dedupKey: `p13.worker.ownership_lost:${P13_LEASE_KEY}`,
         resourceType: 'worker_lease',
       });
@@ -323,7 +332,14 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
         this.logger.warn(
           `Fence lost mid-batch at epoch ${epoch}; stopping with ${remaining(claimedRows, escalated, failed)} item(s) unprocessed.`,
         );
-        return { state: this.state, executed: true, skipped: 'fence_lost', epoch, escalated, failed };
+        return {
+          state: this.state,
+          executed: true,
+          skipped: 'fence_lost',
+          epoch,
+          escalated,
+          failed,
+        };
       }
       if (await this.controls.isPaused()) {
         this.state = 'HELD_PAUSED';
@@ -334,7 +350,14 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
       if (outcome === 'escalated') escalated += 1;
       else if (outcome === 'failed') failed += 1;
       else if (outcome === 'fence_lost') {
-        return { state: 'STANDBY', executed: true, skipped: 'fence_lost', epoch, escalated, failed };
+        return {
+          state: 'STANDBY',
+          executed: true,
+          skipped: 'fence_lost',
+          epoch,
+          escalated,
+          failed,
+        };
       }
     }
 
@@ -419,7 +442,11 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
     const failures = await this.leases
       .recordPollFailure(this.epoch, acquired.reason ?? 'ACQUIRE_FAILED', P13_LEASE_KEY)
       .catch(() => null);
-    await this.alertOnFailures(this.epoch, failures, acquired.error ?? acquired.reason ?? 'unknown');
+    await this.alertOnFailures(
+      this.epoch,
+      failures,
+      acquired.error ?? acquired.reason ?? 'unknown',
+    );
   }
 
   /** Alert 1: three consecutive worker polling failures. */
@@ -434,7 +461,12 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
       conditionKey: 'p13.worker.poll_failures',
       severity: 'CRITICAL',
       title: `P13 worker failed ${failures} consecutive polls (threshold ${threshold})`,
-      detail: { leaseKey: P13_LEASE_KEY, pollFailures: failures, epoch, lastError: detail.slice(0, 200) },
+      detail: {
+        leaseKey: P13_LEASE_KEY,
+        pollFailures: failures,
+        epoch,
+        lastError: detail.slice(0, 200),
+      },
       resourceType: 'worker_lease',
       // Identical key to the monitor's check 1, so the two paths cannot open
       // two incidents for one condition.

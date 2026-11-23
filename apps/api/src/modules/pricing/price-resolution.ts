@@ -69,7 +69,11 @@ export interface SelectedOfferPriceRequest {
   quantity: number;
 }
 
-export function selectedOfferPriceKey(offerId: string, variantId: string, quantity: number): string {
+export function selectedOfferPriceKey(
+  offerId: string,
+  variantId: string,
+  quantity: number,
+): string {
   return `${offerId}:${variantId}:${quantity}`;
 }
 
@@ -103,55 +107,61 @@ export async function resolveSelectedOfferPrices(
   const result = new Map<string, SelectedOfferPrice>();
   if (requests.length === 0) return result;
 
-  const offerById = new Map(offers.map(offer => [offer.id, offer]));
-  const eligible = requests.flatMap(request => {
+  const offerById = new Map(offers.map((offer) => [offer.id, offer]));
+  const eligible = requests.flatMap((request) => {
     const offer = offerById.get(request.offerId);
     if (
       !offer ||
       offer.status !== 'ACTIVE' ||
       !offer.isAvailable ||
-      getOrderQuantityViolation(request.quantity, offer.moq, offer.orderIncrement ?? null) != null ||
+      getOrderQuantityViolation(request.quantity, offer.moq, offer.orderIncrement ?? null) !=
+        null ||
       (offer.variantId != null && offer.variantId !== request.variantId)
-    ) return [];
+    )
+      return [];
     return [{ request, offer }];
   });
   if (eligible.length === 0) return result;
 
-  const priceListIds = [...new Set(
-    eligible.map(({ offer }) => offer.priceListId).filter((id): id is string => !!id),
-  )];
+  const priceListIds = [
+    ...new Set(eligible.map(({ offer }) => offer.priceListId).filter((id): id is string => !!id)),
+  ];
   const variantIds = [...new Set(eligible.map(({ request }) => request.variantId))];
 
-  const tierRows = priceListIds.length > 0
-    ? await db
-        .select({
-          priceListId: priceLists.id,
-          priceListStoreId: priceLists.storeId,
-          priceListName: priceLists.name,
-          currency: priceLists.currency,
-          variantId: priceTiers.variantId,
-          minQty: priceTiers.minQty,
-          maxQty: priceTiers.maxQty,
-          unitPriceMinor: priceTiers.unitPriceMinor,
-        })
-        .from(priceTiers)
-        .innerJoin(priceLists, eq(priceLists.id, priceTiers.priceListId))
-        .where(and(
-          inArray(priceLists.id, priceListIds),
-          inArray(priceTiers.variantId, variantIds),
-          eq(priceLists.isActive, true),
-        ))
-    : [];
+  const tierRows =
+    priceListIds.length > 0
+      ? await db
+          .select({
+            priceListId: priceLists.id,
+            priceListStoreId: priceLists.storeId,
+            priceListName: priceLists.name,
+            currency: priceLists.currency,
+            variantId: priceTiers.variantId,
+            minQty: priceTiers.minQty,
+            maxQty: priceTiers.maxQty,
+            unitPriceMinor: priceTiers.unitPriceMinor,
+          })
+          .from(priceTiers)
+          .innerJoin(priceLists, eq(priceLists.id, priceTiers.priceListId))
+          .where(
+            and(
+              inArray(priceLists.id, priceListIds),
+              inArray(priceTiers.variantId, variantIds),
+              eq(priceLists.isActive, true),
+            ),
+          )
+      : [];
 
   for (const { request, offer } of eligible) {
     if (offer.priceListId) {
       const tier = tierRows
-        .filter(row =>
-          row.priceListId === offer.priceListId &&
-          row.priceListStoreId === offer.storeId &&
-          row.variantId === request.variantId &&
-          row.minQty <= request.quantity &&
-          (row.maxQty == null || request.quantity < row.maxQty),
+        .filter(
+          (row) =>
+            row.priceListId === offer.priceListId &&
+            row.priceListStoreId === offer.storeId &&
+            row.variantId === request.variantId &&
+            row.minQty <= request.quantity &&
+            (row.maxQty == null || request.quantity < row.maxQty),
         )
         .sort((a, b) => b.minQty - a.minQty)[0];
       if (!tier) continue;
@@ -258,7 +268,7 @@ export async function resolveVariantPrices(
       .where(
         and(
           inArray(priceTiers.priceListId, [
-            ...new Set([...winners.values()].map(w => w.priceListId)),
+            ...new Set([...winners.values()].map((w) => w.priceListId)),
           ]),
           inArray(priceTiers.variantId, variantIds),
         ),
@@ -320,8 +330,8 @@ export async function resolveOfferPrices(
     where: inArray(productVariants.id, variantIds),
     columns: { id: true, productId: true },
   });
-  const variantToProduct = new Map(variants.map(v => [v.id, v.productId]));
-  const productIds = [...new Set(variants.map(v => v.productId))];
+  const variantToProduct = new Map(variants.map((v) => [v.id, v.productId]));
+  const productIds = [...new Set(variants.map((v) => v.productId))];
 
   // 2. Fetch ACTIVE offers for the store + variants/products.
   const offers = await db.query.merchantOffers.findMany({
@@ -405,19 +415,18 @@ export async function resolveOfferPrices(
             unitPriceMinor: priceTiers.unitPriceMinor,
           })
           .from(priceTiers)
-          .where(
-            and(
-              eq(priceTiers.priceListId, priceListId),
-              inArray(priceTiers.variantId, vids),
-            ),
-          )
+          .where(and(eq(priceTiers.priceListId, priceListId), inArray(priceTiers.variantId, vids)))
           .orderBy(priceTiers.minQty);
 
         for (const row of ladderRows) {
           const key = `${row.priceListId}|${row.variantId}`;
           const ladder = ladders.get(key);
           if (ladder)
-            ladder.push({ minQty: row.minQty, maxQty: row.maxQty, unitPriceMinor: row.unitPriceMinor });
+            ladder.push({
+              minQty: row.minQty,
+              maxQty: row.maxQty,
+              unitPriceMinor: row.unitPriceMinor,
+            });
           else
             ladders.set(key, [
               { minQty: row.minQty, maxQty: row.maxQty, unitPriceMinor: row.unitPriceMinor },
@@ -427,7 +436,8 @@ export async function resolveOfferPrices(
 
       for (const [variantId, winner] of winners) {
         const offer =
-          offerByVariant.get(variantId) || offerByProduct.get(variantToProduct.get(variantId) ?? '');
+          offerByVariant.get(variantId) ||
+          offerByProduct.get(variantToProduct.get(variantId) ?? '');
         result.set(variantId, {
           priceListId: winner.priceListId,
           priceListName: winner.priceListName,

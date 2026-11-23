@@ -10,8 +10,16 @@ vi.mock('../hooks/useRequirePerms', () => ({
   useRequirePerms: () => ({ hasAccess: true, missingPerms: [] }),
 }));
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
-  KpiCard: ({ label, value }: { label: string; value: string }) => <div>{label}:{value}</div>,
+  PageHeader: ({ title }: { title: string }) => (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  ),
+  KpiCard: ({ label, value }: { label: string; value: string }) => (
+    <div>
+      {label}:{value}
+    </div>
+  ),
   IconUsers: () => null,
   IconShield: () => null,
   IconPackage: () => null,
@@ -23,13 +31,25 @@ vi.mock('@scs/ui-kit', () => ({
   IconCheckCircle: () => null,
   IconRefresh: () => null,
   colors: {
-    brand: { 50: '#eee', 700: '#333' }, infoBg: '#eef', okBg: '#efe',
-    err: '#b00', errBg: '#fee', warn: '#880', warnBg: '#ffe',
-    bgSubtle: '#fafafa', surface: '#fff', border: '#ddd', disabled: '#aaa', muted: '#888',
+    brand: { 50: '#eee', 700: '#333' },
+    infoBg: '#eef',
+    okBg: '#efe',
+    err: '#b00',
+    errBg: '#fee',
+    warn: '#880',
+    warnBg: '#ffe',
+    bgSubtle: '#fafafa',
+    surface: '#fff',
+    border: '#ddd',
+    disabled: '#aaa',
+    muted: '#888',
   },
   typeScale: {
-    body: { fontSize: 14 }, bodySm: { fontSize: 12 }, caption: { fontSize: 11 },
-    h3: { fontSize: 20 }, h4: { fontSize: 16 },
+    body: { fontSize: 14 },
+    bodySm: { fontSize: 12 },
+    caption: { fontSize: 11 },
+    h3: { fontSize: 20 },
+    h4: { fontSize: 16 },
   },
   shadows: { md: '' },
   radii: { sm: 6, md: 8, lg: 12 },

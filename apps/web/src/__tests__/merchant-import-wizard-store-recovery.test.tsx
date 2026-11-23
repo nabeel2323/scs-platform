@@ -19,7 +19,10 @@ vi.mock('../lib/merchant-store', () => ({
 }));
 vi.mock('@scs/ui-kit', () => ({
   PageHeader: ({ title, subtitle }: { title: string; subtitle?: string }) => (
-    <header><h1>{title}</h1>{subtitle ? <p>{subtitle}</p> : null}</header>
+    <header>
+      <h1>{title}</h1>
+      {subtitle ? <p>{subtitle}</p> : null}
+    </header>
   ),
 }));
 
@@ -56,7 +59,9 @@ describe('merchant import wizard store discovery recovery', () => {
     render(<ImportWizardPage />);
 
     expect(await screen.findByText(/No store found/)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Next: Map Columns →' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Next: Map Columns →' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     expect(screen.queryByRole('button', { name: 'Retry store lookup' })).toBeNull();
   });
 });

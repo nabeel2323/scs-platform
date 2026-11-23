@@ -380,22 +380,30 @@ describe('OrdersService.checkout MOQ and order-increment enforcement', () => {
     const db = {
       query: {
         carts: { findFirst: vi.fn(async () => ({ id: 'cart-1' })) },
-        cartItems: { findMany: vi.fn(async () => [{
-          id: 'line-1',
-          cartId: 'cart-1',
-          storeId: 'store-1',
-          variantId: 'variant-1',
-          offerId: 'offer-1',
-          quantity: 7,
-        }]) },
+        cartItems: {
+          findMany: vi.fn(async () => [
+            {
+              id: 'line-1',
+              cartId: 'cart-1',
+              storeId: 'store-1',
+              variantId: 'variant-1',
+              offerId: 'offer-1',
+              quantity: 7,
+            },
+          ]),
+        },
         merchantOffers: { findMany: vi.fn(async () => [offer]) },
-        productVariants: { findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1' })) },
+        productVariants: {
+          findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1' })),
+        },
         products: { findFirst: vi.fn(async () => ({ id: 'product-1', title: 'Widget', moq: 1 })) },
       },
     };
     const service = new OrdersService({ db } as any, {} as any, {} as any);
 
-    await expect(service.checkout({ buyerId: 'buyer-1' } as any)).rejects.toThrow('increments of 3');
+    await expect(service.checkout({ buyerId: 'buyer-1' } as any)).rejects.toThrow(
+      'increments of 3',
+    );
     expect(db.query.productVariants.findFirst).toHaveBeenCalledTimes(1);
     expect(db.query.products.findFirst).toHaveBeenCalledTimes(1);
   });
@@ -405,12 +413,24 @@ describe('OrdersService.previewCheckout', () => {
   it('returns server-calculated VAT and totals for a supplier', async () => {
     const db = {
       query: {
-        carts: { findFirst: vi.fn(async () => ({ id: 'cart-1', promoCode: null, promotionId: null })) },
-        cartItems: { findMany: vi.fn(async () => [{
-          id: 'line-1', storeId: 'store-1', variantId: 'variant-1',
-          offerId: null, quantity: 2, lineTotalMinor: 10000,
-        }]) },
-        productVariants: { findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1' })) },
+        carts: {
+          findFirst: vi.fn(async () => ({ id: 'cart-1', promoCode: null, promotionId: null })),
+        },
+        cartItems: {
+          findMany: vi.fn(async () => [
+            {
+              id: 'line-1',
+              storeId: 'store-1',
+              variantId: 'variant-1',
+              offerId: null,
+              quantity: 2,
+              lineTotalMinor: 10000,
+            },
+          ]),
+        },
+        productVariants: {
+          findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1' })),
+        },
         products: { findFirst: vi.fn(async () => ({ id: 'product-1', title: 'Widget', moq: 1 })) },
         stores: { findMany: vi.fn(async () => [{ id: 'store-1', currency: 'SAR' }]) },
       },
@@ -422,11 +442,19 @@ describe('OrdersService.previewCheckout', () => {
       shippingSelections: [{ storeId: 'store-1', fulfillmentMethod: 'PICKUP' }],
     });
     expect(preview.isEstimate).toBe(true);
-    expect(preview.stores).toEqual([{
-      storeId: 'store-1', currency: 'SAR', fulfillmentMethod: 'PICKUP',
-      shippingMethodId: null, subtotalMinor: 10000, discountMinor: 0,
-      deliveryFeeMinor: 0, taxMinor: 1500, totalMinor: 11500,
-    }]);
+    expect(preview.stores).toEqual([
+      {
+        storeId: 'store-1',
+        currency: 'SAR',
+        fulfillmentMethod: 'PICKUP',
+        shippingMethodId: null,
+        subtotalMinor: 10000,
+        discountMinor: 0,
+        deliveryFeeMinor: 0,
+        taxMinor: 1500,
+        totalMinor: 11500,
+      },
+    ]);
     expect(preview.totalsByCurrency).toEqual({ SAR: 11500 });
     expect(preview.hasUnpricedAmounts).toBe(false);
   });
@@ -434,21 +462,43 @@ describe('OrdersService.previewCheckout', () => {
   it('rejects a preview that omits a cart supplier selection', async () => {
     const db = {
       query: {
-        carts: { findFirst: vi.fn(async () => ({ id: 'cart-1', promoCode: null, promotionId: null })) },
-        cartItems: { findMany: vi.fn(async () => [
-          { id: 'line-1', storeId: 'store-1', variantId: 'variant-1', offerId: null, quantity: 1, lineTotalMinor: 1000 },
-          { id: 'line-2', storeId: 'store-2', variantId: 'variant-2', offerId: null, quantity: 1, lineTotalMinor: 2000 },
-        ]) },
-        productVariants: { findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1' })) },
+        carts: {
+          findFirst: vi.fn(async () => ({ id: 'cart-1', promoCode: null, promotionId: null })),
+        },
+        cartItems: {
+          findMany: vi.fn(async () => [
+            {
+              id: 'line-1',
+              storeId: 'store-1',
+              variantId: 'variant-1',
+              offerId: null,
+              quantity: 1,
+              lineTotalMinor: 1000,
+            },
+            {
+              id: 'line-2',
+              storeId: 'store-2',
+              variantId: 'variant-2',
+              offerId: null,
+              quantity: 1,
+              lineTotalMinor: 2000,
+            },
+          ]),
+        },
+        productVariants: {
+          findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1' })),
+        },
         products: { findFirst: vi.fn(async () => ({ id: 'product-1', title: 'Widget', moq: 1 })) },
       },
     };
     const service = new OrdersService({ db } as any, {} as any, {} as any);
-    await expect(service.previewCheckout({
-      buyerId: 'buyer-1',
-      deliveryAddress: { city: 'Riyadh' },
-      shippingSelections: [{ storeId: 'store-1', fulfillmentMethod: 'PICKUP' }],
-    })).rejects.toThrow('Missing shipping selection for store store-2');
+    await expect(
+      service.previewCheckout({
+        buyerId: 'buyer-1',
+        deliveryAddress: { city: 'Riyadh' },
+        shippingSelections: [{ storeId: 'store-1', fulfillmentMethod: 'PICKUP' }],
+      }),
+    ).rejects.toThrow('Missing shipping selection for store store-2');
   });
 });
 
@@ -464,14 +514,16 @@ describe('OrdersService.checkout payment method support', () => {
           })),
         },
         cartItems: {
-          findMany: vi.fn(async () => [{
-            id: 'line-1',
-            storeId: 'store-1',
-            variantId: 'variant-1',
-            offerId: null,
-            quantity: 1,
-            lineTotalMinor: 1000,
-          }]),
+          findMany: vi.fn(async () => [
+            {
+              id: 'line-1',
+              storeId: 'store-1',
+              variantId: 'variant-1',
+              offerId: null,
+              quantity: 1,
+              lineTotalMinor: 1000,
+            },
+          ]),
         },
         productVariants: {
           findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1' })),
@@ -491,12 +543,14 @@ describe('OrdersService.checkout payment method support', () => {
       { resolveApplicable: vi.fn(), calculateDiscount: vi.fn() } as any,
     );
 
-    await expect(service.checkout({
-      buyerId: 'buyer-1',
-      deliveryAddress: { street: 'Main St', city: 'Riyadh' },
-      paymentMethod: 'DIGITAL',
-      shippingSelections: [{ storeId: 'store-1', fulfillmentMethod: 'PICKUP' }],
-    })).rejects.toThrow('Unsupported payment method: DIGITAL');
+    await expect(
+      service.checkout({
+        buyerId: 'buyer-1',
+        deliveryAddress: { street: 'Main St', city: 'Riyadh' },
+        paymentMethod: 'DIGITAL',
+        shippingSelections: [{ storeId: 'store-1', fulfillmentMethod: 'PICKUP' }],
+      }),
+    ).rejects.toThrow('Unsupported payment method: DIGITAL');
 
     expect(db.transaction).not.toHaveBeenCalled();
   });
@@ -520,122 +574,129 @@ describe('OrdersService.checkout authoritative offer lock', () => {
       lockedMoq: 2,
       lockedIncrement: 2,
     },
-  ])('rejects when $name', async ({
-    quantity,
-    initialMoq,
-    initialIncrement,
-    lockedMoq,
-    lockedIncrement,
-  }) => {
-    const initialOffer = {
-      id: 'offer-1',
-      storeId: 'store-1',
-      status: 'ACTIVE',
-      isAvailable: true,
-      moq: initialMoq,
-      orderIncrement: initialIncrement,
-      priceListId: null,
-      warehouseId: null,
-      basePriceMinor: 1000,
-      compareAtPriceMinor: null,
-      currency: 'SAR',
-      leadTimeDays: null,
-    };
-    const lockedOffer = {
-      ...initialOffer,
-      moq: lockedMoq,
-      orderIncrement: lockedIncrement,
-    };
-    const lockModes: string[] = [];
-    let lockRead = 0;
-    const tx = {
-      query: {
-        productVariants: {
-          findMany: vi.fn(async () => [{
-            id: 'variant-1',
-            productId: 'product-1',
-          }]),
+  ])(
+    'rejects when $name',
+    async ({ quantity, initialMoq, initialIncrement, lockedMoq, lockedIncrement }) => {
+      const initialOffer = {
+        id: 'offer-1',
+        storeId: 'store-1',
+        status: 'ACTIVE',
+        isAvailable: true,
+        moq: initialMoq,
+        orderIncrement: initialIncrement,
+        priceListId: null,
+        warehouseId: null,
+        basePriceMinor: 1000,
+        compareAtPriceMinor: null,
+        currency: 'SAR',
+        leadTimeDays: null,
+      };
+      const lockedOffer = {
+        ...initialOffer,
+        moq: lockedMoq,
+        orderIncrement: lockedIncrement,
+      };
+      const lockModes: string[] = [];
+      let lockRead = 0;
+      const tx = {
+        query: {
+          productVariants: {
+            findMany: vi.fn(async () => [
+              {
+                id: 'variant-1',
+                productId: 'product-1',
+              },
+            ]),
+          },
         },
-      },
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            for: vi.fn(async (mode: string) => {
-              lockModes.push(mode);
-              lockRead += 1;
-              return lockRead === 1
-                ? [{ id: 'product-1', title: 'Widget', moq: 1 }]
-                : [lockedOffer];
-            }),
+        select: vi.fn(() => ({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              for: vi.fn(async (mode: string) => {
+                lockModes.push(mode);
+                lockRead += 1;
+                return lockRead === 1
+                  ? [{ id: 'product-1', title: 'Widget', moq: 1 }]
+                  : [lockedOffer];
+              }),
+            })),
           })),
         })),
-      })),
-      insert: vi.fn(),
-    };
-    const db = {
-      query: {
-        carts: {
-          findFirst: vi.fn(async () => ({
-            id: 'cart-1',
-            promotionId: null,
-            promoCode: null,
-          })),
+        insert: vi.fn(),
+      };
+      const db = {
+        query: {
+          carts: {
+            findFirst: vi.fn(async () => ({
+              id: 'cart-1',
+              promotionId: null,
+              promoCode: null,
+            })),
+          },
+          cartItems: {
+            findMany: vi.fn(async () => [
+              {
+                id: 'line-1',
+                storeId: 'store-1',
+                variantId: 'variant-1',
+                offerId: 'offer-1',
+                quantity,
+                lineTotalMinor: quantity * 1000,
+              },
+            ]),
+          },
+          merchantOffers: {
+            findMany: vi.fn(async () => [initialOffer]),
+          },
+          productVariants: {
+            findFirst: vi.fn(async () => ({
+              id: 'variant-1',
+              productId: 'product-1',
+            })),
+          },
+          products: {
+            findFirst: vi.fn(async () => ({
+              id: 'product-1',
+              title: 'Widget',
+              moq: 1,
+            })),
+          },
+          stores: {
+            findMany: vi.fn(async () => [
+              {
+                id: 'store-1',
+                currency: 'SAR',
+                orgId: 'org-1',
+              },
+            ]),
+          },
         },
-        cartItems: {
-          findMany: vi.fn(async () => [{
-            id: 'line-1',
-            storeId: 'store-1',
-            variantId: 'variant-1',
-            offerId: 'offer-1',
-            quantity,
-            lineTotalMinor: quantity * 1000,
-          }]),
-        },
-        merchantOffers: {
-          findMany: vi.fn(async () => [initialOffer]),
-        },
-        productVariants: {
-          findFirst: vi.fn(async () => ({
-            id: 'variant-1',
-            productId: 'product-1',
-          })),
-        },
-        products: {
-          findFirst: vi.fn(async () => ({
-            id: 'product-1',
-            title: 'Widget',
-            moq: 1,
-          })),
-        },
-        stores: {
-          findMany: vi.fn(async () => [{
-            id: 'store-1',
-            currency: 'SAR',
-            orgId: 'org-1',
-          }]),
-        },
-      },
-      transaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback(tx)),
-    };
-    const service = new OrdersService(
-      { db } as any,
-      {} as any,
-      { resolveApplicable: vi.fn(), calculateDiscount: vi.fn() } as any,
-    );
+        transaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback(tx)),
+      };
+      const service = new OrdersService(
+        { db } as any,
+        {} as any,
+        { resolveApplicable: vi.fn(), calculateDiscount: vi.fn() } as any,
+      );
 
-    await expect(service.checkout({
-      buyerId: 'buyer-1',
-      deliveryAddress: { street: 'Main St', city: 'Riyadh' },
-      paymentMethod: 'CASH_ON_DELIVERY',
-      shippingSelections: [{
-        storeId: 'store-1',
-        fulfillmentMethod: 'PICKUP',
-      }],
-    })).rejects.toThrow('Widget:');
+      await expect(
+        service.checkout({
+          buyerId: 'buyer-1',
+          deliveryAddress: { street: 'Main St', city: 'Riyadh' },
+          paymentMethod: 'CASH_ON_DELIVERY',
+          shippingSelections: [
+            {
+              storeId: 'store-1',
+              fulfillmentMethod: 'PICKUP',
+            },
+          ],
+        }),
+      ).rejects.toThrow('Widget:');
 
-    expect(db.transaction).toHaveBeenCalledTimes(1);
-    expect(tx.select).toHaveBeenCalledTimes(2);
-    expect(lockModes).toEqual(['update', 'update']);
-    expect(tx.insert).not.toHaveBeenCalled();
-  });
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(tx.select).toHaveBeenCalledTimes(2);
+      expect(lockModes).toEqual(['update', 'update']);
+      expect(tx.insert).not.toHaveBeenCalled();
+    },
+  );
 });

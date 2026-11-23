@@ -8,12 +8,7 @@
 
 // ── Payment Methods ─────────────────────────────────────────────
 
-export const PAYMENT_METHODS = [
-  'BANK_TRANSFER',
-  'CASH_ON_DELIVERY',
-  'VOUCHER',
-  'DIGITAL',
-] as const;
+export const PAYMENT_METHODS = ['BANK_TRANSFER', 'CASH_ON_DELIVERY', 'VOUCHER', 'DIGITAL'] as const;
 
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
@@ -22,11 +17,7 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
  * DIGITAL remains a legacy persisted value but is not accepted for new orders
  * until a real digital gateway is implemented and approved.
  */
-export const SUPPORTED_PAYMENT_METHODS = [
-  'BANK_TRANSFER',
-  'CASH_ON_DELIVERY',
-  'VOUCHER',
-] as const;
+export const SUPPORTED_PAYMENT_METHODS = ['BANK_TRANSFER', 'CASH_ON_DELIVERY', 'VOUCHER'] as const;
 
 export type SupportedPaymentMethod = (typeof SUPPORTED_PAYMENT_METHODS)[number];
 
@@ -119,13 +110,7 @@ export type RefundReason = (typeof REFUND_REASONS)[number];
 
 // ── Settlement Statuses ─────────────────────────────────────────
 
-export const SETTLEMENT_STATUSES = [
-  'PENDING',
-  'CALCULATED',
-  'DUE',
-  'ADJUSTMENT',
-  'PAID',
-] as const;
+export const SETTLEMENT_STATUSES = ['PENDING', 'CALCULATED', 'DUE', 'ADJUSTMENT', 'PAID'] as const;
 
 export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[number];
 

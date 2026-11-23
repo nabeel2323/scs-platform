@@ -16,15 +16,30 @@ vi.mock('../hooks/useRequirePerms', () => ({
   useRequirePerms: () => ({ hasAccess: true }),
 }));
 vi.mock('../components/RecordFields', () => ({
-  ErrorNotice: ({ message, retry }: { message?: string; retry?: () => void }) => message ? (
-    <div role="alert">{message}{retry ? <button type="button" onClick={retry}>Retry lookup</button> : null}</div>
-  ) : null,
+  ErrorNotice: ({ message, retry }: { message?: string; retry?: () => void }) =>
+    message ? (
+      <div role="alert">
+        {message}
+        {retry ? (
+          <button type="button" onClick={retry}>
+            Retry lookup
+          </button>
+        ) : null}
+      </div>
+    ) : null,
 }));
 
 import { CreateUserForm } from '../components/CreateUserForm';
 
 const organizations = [{ id: 'org-1', name: 'North Wholesale', type: 'WHOLESALER' }];
-const roles = [{ id: 'role-1', key: 'MERCHANT_ADMIN', name: 'Merchant Admin', permissions: ['merchant:orders:read'] }];
+const roles = [
+  {
+    id: 'role-1',
+    key: 'MERCHANT_ADMIN',
+    name: 'Merchant Admin',
+    permissions: ['merchant:orders:read'],
+  },
+];
 
 describe('admin create user form', () => {
   beforeEach(() => {
@@ -52,24 +67,34 @@ describe('admin create user form', () => {
     expect(await screen.findByText('Role directory unavailable')).toBeTruthy();
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Retry lookup' })[0]!);
-    expect(await screen.findByRole('option', { name: 'North Wholesale (WHOLESALER)' })).toBeTruthy();
+    expect(
+      await screen.findByRole('option', { name: 'North Wholesale (WHOLESALER)' }),
+    ).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry lookup' }));
-    expect(await screen.findByRole('option', { name: 'MERCHANT_ADMIN — Merchant Admin' })).toBeTruthy();
+    expect(
+      await screen.findByRole('option', { name: 'MERCHANT_ADMIN — Merchant Admin' }),
+    ).toBeTruthy();
 
     fireEvent.change(screen.getByPlaceholderText('Jane Doe'), { target: { value: 'Jane Doe' } });
-    fireEvent.change(screen.getByPlaceholderText('jane@example.com'), { target: { value: 'jane@example.com' } });
+    fireEvent.change(screen.getByPlaceholderText('jane@example.com'), {
+      target: { value: 'jane@example.com' },
+    });
     expect((screen.getByLabelText('Phone (optional)') as HTMLInputElement).required).toBe(false);
 
     fireEvent.click(screen.getByRole('button', { name: 'Create User' }));
 
-    await waitFor(() => expect(createUser).toHaveBeenCalledWith(expect.objectContaining({
-      fullName: 'Jane Doe',
-      email: 'jane@example.com',
-      phone: undefined,
-      orgId: undefined,
-      roleId: undefined,
-    })));
+    await waitFor(() =>
+      expect(createUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fullName: 'Jane Doe',
+          email: 'jane@example.com',
+          phone: undefined,
+          orgId: undefined,
+          roleId: undefined,
+        }),
+      ),
+    );
     await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
   });
 
@@ -77,7 +102,9 @@ describe('admin create user form', () => {
     render(<CreateUserForm onCancel={vi.fn()} onDone={vi.fn()} />);
 
     fireEvent.change(await screen.findByLabelText('Organization'), { target: { value: 'org-1' } });
-    expect((screen.getByRole('button', { name: 'Create User' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Create User' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     expect(createUser).not.toHaveBeenCalled();
   });
 });

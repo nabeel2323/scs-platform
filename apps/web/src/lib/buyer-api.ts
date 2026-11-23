@@ -2661,7 +2661,8 @@ export async function fetchMerchantSettlements(
   if (pagination?.limit !== undefined) params.set('limit', String(pagination.limit));
   if (pagination?.offset !== undefined) params.set('offset', String(pagination.offset));
   const res = await authFetch(API_URL + '/v1/merchant/settlements?' + params);
-  if (!res.ok) throw await ApiError.from(res, 'Fetch merchant settlements failed (' + res.status + ')');
+  if (!res.ok)
+    throw await ApiError.from(res, 'Fetch merchant settlements failed (' + res.status + ')');
   return res.json();
 }
 

@@ -32,10 +32,16 @@ vi.mock('../hooks/useRequirePerms', () => ({
     const missingPerms = required.filter((permission) => !perms.includes(permission));
     return { hasAccess: missingPerms.length === 0, missingPerms };
   },
-  AccessDenied: ({ missingPerms }: { missingPerms: string[] }) => <div>Access denied: {missingPerms.join(', ')}</div>,
+  AccessDenied: ({ missingPerms }: { missingPerms: string[] }) => (
+    <div>Access denied: {missingPerms.join(', ')}</div>
+  ),
 }));
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
+  PageHeader: ({ title }: { title: string }) => (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  ),
   Card: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Button: ({
     children,
@@ -45,7 +51,11 @@ vi.mock('@scs/ui-kit', () => ({
     children: React.ReactNode;
     onClick?: () => void;
     disabled?: boolean;
-  }) => <button onClick={onClick} disabled={disabled}>{children}</button>,
+  }) => (
+    <button onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  ),
   colors: {
     border: '#ddd',
     borderLight: '#eee',
@@ -74,7 +84,13 @@ const payment = {
 
 describe('admin payments read recovery', () => {
   beforeEach(() => {
-    perms.splice(0, perms.length, 'admin:payments:read', 'admin:payments:verify', 'admin:refunds:approve');
+    perms.splice(
+      0,
+      perms.length,
+      'admin:payments:read',
+      'admin:payments:verify',
+      'admin:refunds:approve',
+    );
     fetchAdminPayments.mockReset().mockResolvedValue([]);
     fetchPaymentVerificationQueue.mockReset().mockResolvedValue([payment]);
     verifyPayment.mockReset().mockResolvedValue(payment);
@@ -122,9 +138,7 @@ describe('admin payments read recovery', () => {
 
     render(<AdminPaymentsPage />);
 
-    expect((await screen.findByRole('alert')).textContent).toContain(
-      'Payment service unavailable',
-    );
+    expect((await screen.findByRole('alert')).textContent).toContain('Payment service unavailable');
     expect(screen.queryByText('No payments found in this view.')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry payments' }));

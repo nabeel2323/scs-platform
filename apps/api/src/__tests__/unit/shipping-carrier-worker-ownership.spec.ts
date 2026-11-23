@@ -13,7 +13,7 @@ describe('ShippingCarrierWorker event ownership', () => {
 
     expect(execute).toHaveBeenCalledOnce();
     const query = new PgDialect().sqlToQuery(execute.mock.calls[0]![0]);
-    expect(query.sql).toContain("event_type LIKE");
+    expect(query.sql).toContain('event_type LIKE');
     expect(query.sql).toContain('FOR UPDATE SKIP LOCKED');
     expect(query.params).toContain('shipping.carrier.%');
   });

@@ -36,7 +36,8 @@ describe('OpsAlertService concurrent delivery ownership', () => {
   it('uses the existing alert when a concurrent insert wins ON CONFLICT DO NOTHING', async () => {
     const execute = vi.fn().mockResolvedValue({ rows: [] });
     const service = new OpsAlertService({ db: { execute } } as any);
-    const find = vi.spyOn(service as any, 'findByDedupKey')
+    const find = vi
+      .spyOn(service as any, 'findByDedupKey')
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(existing);
     const handle = vi.spyOn(service as any, 'handleExisting').mockResolvedValue({

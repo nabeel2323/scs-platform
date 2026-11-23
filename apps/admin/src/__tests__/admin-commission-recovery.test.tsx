@@ -9,9 +9,15 @@ vi.mock('../hooks/useRequirePerms', () => ({
   AccessDenied: () => <div>Access denied</div>,
 }));
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
+  PageHeader: ({ title }: { title: string }) => (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  ),
   Card: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  colors: {}, radii: {}, typeScale: {},
+  colors: {},
+  radii: {},
+  typeScale: {},
 }));
 
 import CommissionPage from '../app/commission/page';
@@ -30,7 +36,9 @@ describe('admin commission reversal read recovery', () => {
 
     render(<CommissionPage />);
 
-    expect((await screen.findByRole('alert')).textContent).toContain('Commission service unavailable');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Commission service unavailable',
+    );
     expect(screen.queryByText('No commission reversals found.')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry commission reversals' }));

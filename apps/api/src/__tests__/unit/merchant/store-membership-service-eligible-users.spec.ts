@@ -10,9 +10,11 @@ describe('StoreMembershipService.listEligibleUsers', () => {
       { userId: 'inactive-user', status: 'INACTIVE' },
       { userId: 'existing-user', status: 'ACTIVE' },
     ]);
-    const usersFindMany = vi.fn().mockResolvedValue([
-      { id: 'eligible-user', email: 'eligible@example.test', fullName: 'Eligible User' },
-    ]);
+    const usersFindMany = vi
+      .fn()
+      .mockResolvedValue([
+        { id: 'eligible-user', email: 'eligible@example.test', fullName: 'Eligible User' },
+      ]);
     const db = {
       db: {
         query: {
@@ -28,7 +30,9 @@ describe('StoreMembershipService.listEligibleUsers', () => {
       { id: 'eligible-user', email: 'eligible@example.test', fullName: 'Eligible User' },
     ]);
 
-    const query = usersFindMany.mock.calls[0]?.[0] as { where: Parameters<PgDialect['sqlToQuery']>[0] };
+    const query = usersFindMany.mock.calls[0]?.[0] as {
+      where: Parameters<PgDialect['sqlToQuery']>[0];
+    };
     const compiled = new PgDialect().sqlToQuery(query.where);
     expect(compiled.params).toEqual(['eligible-user']);
     expect(compiled.params).not.toContain('inactive-user');

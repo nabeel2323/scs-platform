@@ -1,10 +1,21 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { reviews, trustSnapshots } from './reviews.schema';
 import { orders, orderItems } from '../orders/orders.schema';
 import { productVariants } from '../catalog/catalog.schema';
-import { CallerContext, assertStoreInOrg, assertStoreMember, isTenantPrivileged } from '../../common/tenant-scope';
+import {
+  CallerContext,
+  assertStoreInOrg,
+  assertStoreMember,
+  isTenantPrivileged,
+} from '../../common/tenant-scope';
 import { eq, and, desc, avg, count, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
@@ -61,7 +72,9 @@ export class ReviewsService {
         columns: { id: true },
       });
       if (!purchasedProduct) {
-        throw new BadRequestException('A product review must target a product included in the order');
+        throw new BadRequestException(
+          'A product review must target a product included in the order',
+        );
       }
     } else {
       throw new BadRequestException('subjectType must be STORE or PRODUCT');

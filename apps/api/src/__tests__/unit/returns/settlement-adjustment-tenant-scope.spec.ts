@@ -46,9 +46,9 @@ describe('SettlementAdjustmentService — target tenant ownership', () => {
   it('rejects a sub-order outside the caller organization', async () => {
     const h = makeService('org-b');
 
-    await expect(
-      h.service.createAdjustment(input, 'finance-a', 'org-a'),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(h.service.createAdjustment(input, 'finance-a', 'org-a')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
 
     expect(h.transaction).not.toHaveBeenCalled();
   });

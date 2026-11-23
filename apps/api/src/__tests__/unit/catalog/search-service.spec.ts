@@ -13,17 +13,19 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 
 type Row = Record<string, unknown>;
 
-function makeMockDb(opts: {
-  products?: Row[];
-  productCount?: number;
-  variants?: Row | null;
-  activeOffer?: Row | null;
-  capturedProductWhere?: unknown[];
-  categories?: Row[];
-  brands?: Row[];
-  capturedWhere?: unknown[];
-  executedSql?: unknown[];
-} = {}) {
+function makeMockDb(
+  opts: {
+    products?: Row[];
+    productCount?: number;
+    variants?: Row | null;
+    activeOffer?: Row | null;
+    capturedProductWhere?: unknown[];
+    categories?: Row[];
+    brands?: Row[];
+    capturedWhere?: unknown[];
+    executedSql?: unknown[];
+  } = {},
+) {
   return {
     db: {
       query: {
@@ -124,7 +126,6 @@ describe('SearchService — SKU fast path', () => {
   });
 });
 
-
 describe('SearchService — publication boundary', () => {
   it('restricts empty-query product rows and counts to ACTIVE products', async () => {
     const capturedWhere: unknown[] = [];
@@ -158,11 +159,13 @@ describe('SearchService — publication boundary', () => {
     const executedSql: unknown[] = [];
     const svc = makeHarness({
       variants: { id: 'variant-a', productId: 'product-a' },
-      products: [{
-        id: 'product-a',
-        status: 'PUBLISHED',
-        deletedAt: null,
-      }],
+      products: [
+        {
+          id: 'product-a',
+          status: 'PUBLISHED',
+          deletedAt: null,
+        },
+      ],
       executedSql,
     });
 
@@ -176,7 +179,6 @@ describe('SearchService — publication boundary', () => {
     }
   });
 });
-
 
 describe('SearchService — active offer filter', () => {
   it('adds an ACTIVE merchant-offer predicate to empty-query result and count scopes', async () => {
@@ -212,13 +214,15 @@ describe('SearchService — active offer filter', () => {
     const capturedProductWhere: unknown[] = [];
     const svc = makeHarness({
       variants: { id: 'variant-a', productId: 'product-a' },
-      products: [{
-        id: 'product-a',
-        categoryId: 'category-a',
-        brandId: 'brand-a',
-        status: 'ACTIVE',
-        deletedAt: null,
-      }],
+      products: [
+        {
+          id: 'product-a',
+          categoryId: 'category-a',
+          brandId: 'brand-a',
+          status: 'ACTIVE',
+          deletedAt: null,
+        },
+      ],
       activeOffer: { id: 'offer-a' },
       capturedProductWhere,
     });

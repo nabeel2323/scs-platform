@@ -27,8 +27,11 @@ import { calculateSettlementAdjustmentNetMinor } from '../../../modules/returns/
 
 /** Compute approval hash (Phase 3.1: includes adjustmentType). */
 function computeApprovalHash(
-  amountMinor: number, currency: string, reason: string,
-  subOrderId: string, adjustmentType: string,
+  amountMinor: number,
+  currency: string,
+  reason: string,
+  subOrderId: string,
+  adjustmentType: string,
 ): string {
   const payload = `${amountMinor}:${currency}:${reason}:${subOrderId}:${adjustmentType}`;
   return crypto.createHash('sha256').update(payload).digest('hex');
@@ -61,7 +64,10 @@ function canTransition(from: string, to: string): boolean {
 
 /** Check if approval is sufficient (Phase 3.1: always dual). */
 function isFullyApproved(
-  dualRequired: boolean, total: number, financeCount: number, adminCount: number,
+  dualRequired: boolean,
+  total: number,
+  financeCount: number,
+  adminCount: number,
 ): boolean {
   if (dualRequired) {
     return financeCount >= 1 && adminCount >= 1 && total >= 2;
@@ -115,43 +121,118 @@ describe('Settlement Adjustment — FX Safety (Phase 3.1)', () => {
 
 describe('Settlement Adjustment — Approval Hash Binding (Phase 3.1)', () => {
   const base = {
-    amountMinor: 5000, currency: 'SYP', reason: 'Refund correction',
-    subOrderId: 'order-1', adjustmentType: 'DELIVERY_FEE_EXCEPTION',
+    amountMinor: 5000,
+    currency: 'SYP',
+    reason: 'Refund correction',
+    subOrderId: 'order-1',
+    adjustmentType: 'DELIVERY_FEE_EXCEPTION',
   };
 
   it('same inputs produce same hash', () => {
-    const h1 = computeApprovalHash(base.amountMinor, base.currency, base.reason, base.subOrderId, base.adjustmentType);
-    const h2 = computeApprovalHash(base.amountMinor, base.currency, base.reason, base.subOrderId, base.adjustmentType);
+    const h1 = computeApprovalHash(
+      base.amountMinor,
+      base.currency,
+      base.reason,
+      base.subOrderId,
+      base.adjustmentType,
+    );
+    const h2 = computeApprovalHash(
+      base.amountMinor,
+      base.currency,
+      base.reason,
+      base.subOrderId,
+      base.adjustmentType,
+    );
     expect(h1).toBe(h2);
   });
 
   it('changed amount → different hash', () => {
-    const h1 = computeApprovalHash(5000, 'SYP', 'Refund correction', 'order-1', 'DELIVERY_FEE_EXCEPTION');
-    const h2 = computeApprovalHash(6000, 'SYP', 'Refund correction', 'order-1', 'DELIVERY_FEE_EXCEPTION');
+    const h1 = computeApprovalHash(
+      5000,
+      'SYP',
+      'Refund correction',
+      'order-1',
+      'DELIVERY_FEE_EXCEPTION',
+    );
+    const h2 = computeApprovalHash(
+      6000,
+      'SYP',
+      'Refund correction',
+      'order-1',
+      'DELIVERY_FEE_EXCEPTION',
+    );
     expect(h1).not.toBe(h2);
   });
 
   it('changed currency → different hash', () => {
-    const h1 = computeApprovalHash(5000, 'SYP', 'Refund correction', 'order-1', 'DELIVERY_FEE_EXCEPTION');
-    const h2 = computeApprovalHash(5000, 'USD', 'Refund correction', 'order-1', 'DELIVERY_FEE_EXCEPTION');
+    const h1 = computeApprovalHash(
+      5000,
+      'SYP',
+      'Refund correction',
+      'order-1',
+      'DELIVERY_FEE_EXCEPTION',
+    );
+    const h2 = computeApprovalHash(
+      5000,
+      'USD',
+      'Refund correction',
+      'order-1',
+      'DELIVERY_FEE_EXCEPTION',
+    );
     expect(h1).not.toBe(h2);
   });
 
   it('changed reason → different hash', () => {
-    const h1 = computeApprovalHash(5000, 'SYP', 'Refund correction', 'order-1', 'DELIVERY_FEE_EXCEPTION');
-    const h2 = computeApprovalHash(5000, 'SYP', 'Different reason', 'order-1', 'DELIVERY_FEE_EXCEPTION');
+    const h1 = computeApprovalHash(
+      5000,
+      'SYP',
+      'Refund correction',
+      'order-1',
+      'DELIVERY_FEE_EXCEPTION',
+    );
+    const h2 = computeApprovalHash(
+      5000,
+      'SYP',
+      'Different reason',
+      'order-1',
+      'DELIVERY_FEE_EXCEPTION',
+    );
     expect(h1).not.toBe(h2);
   });
 
   it('changed target settlement → different hash', () => {
-    const h1 = computeApprovalHash(5000, 'SYP', 'Refund correction', 'order-1', 'DELIVERY_FEE_EXCEPTION');
-    const h2 = computeApprovalHash(5000, 'SYP', 'Refund correction', 'order-2', 'DELIVERY_FEE_EXCEPTION');
+    const h1 = computeApprovalHash(
+      5000,
+      'SYP',
+      'Refund correction',
+      'order-1',
+      'DELIVERY_FEE_EXCEPTION',
+    );
+    const h2 = computeApprovalHash(
+      5000,
+      'SYP',
+      'Refund correction',
+      'order-2',
+      'DELIVERY_FEE_EXCEPTION',
+    );
     expect(h1).not.toBe(h2);
   });
 
   it('changed adjustment type → different hash', () => {
-    const h1 = computeApprovalHash(5000, 'SYP', 'Refund correction', 'order-1', 'DELIVERY_FEE_EXCEPTION');
-    const h2 = computeApprovalHash(5000, 'SYP', 'Refund correction', 'order-1', 'BALANCE_ADJUSTMENT');
+    const h1 = computeApprovalHash(
+      5000,
+      'SYP',
+      'Refund correction',
+      'order-1',
+      'DELIVERY_FEE_EXCEPTION',
+    );
+    const h2 = computeApprovalHash(
+      5000,
+      'SYP',
+      'Refund correction',
+      'order-1',
+      'BALANCE_ADJUSTMENT',
+    );
     expect(h1).not.toBe(h2);
   });
 });
@@ -287,7 +368,6 @@ describe('Settlement Adjustment — Posting Guard (Phase 3.1)', () => {
     expect(canPost('RESOLVED')).toBe(true);
   });
 });
-
 
 describe('Settlement Adjustment — Posting net sign', () => {
   it('posts a commission reversal as a positive merchant credit', () => {

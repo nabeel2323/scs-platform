@@ -19,9 +19,7 @@ describe('Catalog canonical category publication filters', () => {
     };
 
     vi.spyOn(service as any, 'loadPlatformCategoryNodes').mockResolvedValue([]);
-    const rowsQuery = vi
-      .spyOn(service as any, 'queryCategoryProductRows')
-      .mockResolvedValue([]);
+    const rowsQuery = vi.spyOn(service as any, 'queryCategoryProductRows').mockResolvedValue([]);
 
     await service.getCategoryProducts('category-a');
 
@@ -30,7 +28,6 @@ describe('Catalog canonical category publication filters', () => {
     const statusFilter = new PgDialect().sqlToQuery(conditions[2] as any);
     expect(statusFilter.params).toContain('ACTIVE');
   });
-
 
   it('preserves draft-inclusive canonical product counts in admin category list responses', async () => {
     let capturedWhere: unknown;

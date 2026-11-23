@@ -3,9 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { PricingService } from '../../../modules/pricing/pricing.service';
 
 function makeHarness(variantStoreId: string | null) {
-  const priceListFindFirst = vi
-    .fn()
-    .mockResolvedValue({ id: 'list-a', storeId: 'store-a' });
+  const priceListFindFirst = vi.fn().mockResolvedValue({ id: 'list-a', storeId: 'store-a' });
   const variantFindFirst = vi.fn().mockResolvedValue({ productId: 'product-a' });
   const productFindFirst = vi.fn().mockResolvedValue({ storeId: variantStoreId });
   const tierFindMany = vi.fn().mockResolvedValue([]);

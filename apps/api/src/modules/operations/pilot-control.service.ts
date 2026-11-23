@@ -75,9 +75,11 @@ export class PilotControlService {
 
   /** Runtime flag only — reads false when the row is absent (disabled default). */
   async isFlagEnabled(): Promise<boolean> {
-    const row = firstRow<{ enabled: boolean }>(await this.db.db.execute(sql`
+    const row = firstRow<{ enabled: boolean }>(
+      await this.db.db.execute(sql`
       SELECT enabled FROM feature_flags WHERE key = ${P13_PILOT_FLAG_KEY}
-    `));
+    `),
+    );
     return row?.enabled === true;
   }
 
@@ -144,12 +146,14 @@ export class PilotControlService {
     orgId: string,
     storeId: string | null,
   ): Promise<{ enabled: boolean; scope: 'eligible_org_wide' | 'eligible_store' } | null> {
-    const rows = readRows<{ enabled: boolean; store_id: string | null }>(await this.db.db.execute(sql`
+    const rows = readRows<{ enabled: boolean; store_id: string | null }>(
+      await this.db.db.execute(sql`
       SELECT enabled, store_id
       FROM p13_pilot_allowlist
       WHERE org_id = ${orgId}
         AND (store_id IS NULL OR store_id = ${storeId})
-    `));
+    `),
+    );
 
     const storeEntry = storeId ? rows.find((r) => r.store_id === storeId) : undefined;
     if (storeEntry) return { enabled: storeEntry.enabled, scope: 'eligible_store' };
@@ -205,9 +209,7 @@ export class PilotControlService {
     await this.alerts.raise({
       conditionKey: 'p13.pilot.flag_changed',
       severity: enabled ? 'WARN' : 'INFO',
-      title: enabled
-        ? 'P13 pilot enforcement enabled'
-        : 'P13 pilot enforcement disabled',
+      title: enabled ? 'P13 pilot enforcement enabled' : 'P13 pilot enforcement disabled',
       detail: { key: P13_PILOT_FLAG_KEY, enabled, mode: this.mode, actorId },
     });
 
@@ -230,10 +232,7 @@ export class PilotControlService {
 
     if (input.storeId) {
       const store = await this.db.db.query.stores.findFirst({
-        where: and(
-          eq(stores.id, input.storeId),
-          eq(stores.orgId, input.orgId),
-        ),
+        where: and(eq(stores.id, input.storeId), eq(stores.orgId, input.orgId)),
         columns: { id: true },
       });
       if (!store) {
@@ -273,14 +272,12 @@ export class PilotControlService {
     const result = await this.db.db.execute(sql`
       UPDATE p13_pilot_allowlist
       SET enabled = FALSE,
-          note = ${((input.note ?? 'revoked').slice(0, 300))},
+          note = ${(input.note ?? 'revoked').slice(0, 300)},
           updated_at = now()
       WHERE org_id = ${input.orgId}
         AND store_id IS NOT DISTINCT FROM ${input.storeId ?? null}
     `);
-    const affected = Number(
-      (result as unknown as { rowCount?: number }).rowCount ?? 0,
-    );
+    const affected = Number((result as unknown as { rowCount?: number }).rowCount ?? 0);
 
     await this.audit.record({
       actorType: 'ADMIN',
@@ -299,14 +296,18 @@ export class PilotControlService {
   }
 
   async snapshot(): Promise<PilotSnapshot> {
-    const flagEnabledRow = firstRow<{ enabled: boolean }>(await this.db.db.execute(sql`
+    const flagEnabledRow = firstRow<{ enabled: boolean }>(
+      await this.db.db.execute(sql`
       SELECT enabled FROM feature_flags WHERE key = ${P13_PILOT_FLAG_KEY}
-    `));
-    const counts = firstRow<{ total: number; enabled: number }>(await this.db.db.execute(sql`
+    `),
+    );
+    const counts = firstRow<{ total: number; enabled: number }>(
+      await this.db.db.execute(sql`
       SELECT COUNT(*)::int AS total,
              COUNT(*) FILTER (WHERE enabled)::int AS enabled
       FROM p13_pilot_allowlist
-    `));
+    `),
+    );
 
     return {
       mode: this.mode,

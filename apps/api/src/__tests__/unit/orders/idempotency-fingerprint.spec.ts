@@ -28,15 +28,26 @@ const VARIANT_1 = 'variant-001';
 const VARIANT_2 = 'variant-002';
 
 const mockCart = {
-  id: CART_ID, userId: BUYER_ID, status: 'ACTIVE',
-  promoCode: null, promotionId: null, totalMinor: 2000,
+  id: CART_ID,
+  userId: BUYER_ID,
+  status: 'ACTIVE',
+  promoCode: null,
+  promotionId: null,
+  totalMinor: 2000,
 };
 
 const mockCartItems = [
   {
-    id: 'ci-001', cartId: CART_ID, storeId: STORE_1, variantId: VARIANT_1,
-    quantity: 10, priceMinor: 200, tierMinQty: 1, offerId: 'offer-1',
-    promoSnapshot: {}, lineTotalMinor: 2000,
+    id: 'ci-001',
+    cartId: CART_ID,
+    storeId: STORE_1,
+    variantId: VARIANT_1,
+    quantity: 10,
+    priceMinor: 200,
+    tierMinQty: 1,
+    offerId: 'offer-1',
+    promoSnapshot: {},
+    lineTotalMinor: 2000,
   },
 ];
 
@@ -55,19 +66,32 @@ function createMocks(existingMaster?: any, cartItemsOverride?: any[]) {
     select: vi.fn(() => {
       let selectedTable: unknown;
       const builder: Record<string, any> = {};
-      builder['from'] = vi.fn((table: unknown) => { selectedTable = table; return builder; });
+      builder['from'] = vi.fn((table: unknown) => {
+        selectedTable = table;
+        return builder;
+      });
       builder['where'] = vi.fn(() => builder);
       builder['orderBy'] = vi.fn(() => builder);
       builder['limit'] = vi.fn().mockResolvedValue([]);
       builder['for'] = vi.fn(async () => {
         if (selectedTable === products) return [mockProduct];
         if (selectedTable === merchantOffers) {
-          return resolvedCartItems.filter(item => item.offerId).map(item => ({
-            id: item.offerId, status: 'ACTIVE', isAvailable: true, storeId: STORE_1,
-            currency: 'SAR', moq: 1, orderIncrement: null, priceListId: null,
-            warehouseId: null, basePriceMinor: 200, compareAtPriceMinor: null,
-            leadTimeDays: null,
-          }));
+          return resolvedCartItems
+            .filter((item) => item.offerId)
+            .map((item) => ({
+              id: item.offerId,
+              status: 'ACTIVE',
+              isAvailable: true,
+              storeId: STORE_1,
+              currency: 'SAR',
+              moq: 1,
+              orderIncrement: null,
+              priceListId: null,
+              warehouseId: null,
+              basePriceMinor: 200,
+              compareAtPriceMinor: null,
+              leadTimeDays: null,
+            }));
         }
         return [];
       });
@@ -90,11 +114,19 @@ function createMocks(existingMaster?: any, cartItemsOverride?: any[]) {
       stores: { findMany: vi.fn().mockResolvedValue([]) },
       stockMovements: { findMany: vi.fn().mockResolvedValue([]) },
       // Return ACTIVE offers matching whatever offerIds the cart items reference
-      merchantOffers: { findMany: vi.fn().mockImplementation(async ({ where }: any) => {
-        return resolvedCartItems
-          .filter(i => i.offerId)
-          .map(i => ({ id: i.offerId, status: 'ACTIVE', storeId: 'store-001', currency: 'SAR', moq: 1 }));
-      }) },
+      merchantOffers: {
+        findMany: vi.fn().mockImplementation(async ({ where }: any) => {
+          return resolvedCartItems
+            .filter((i) => i.offerId)
+            .map((i) => ({
+              id: i.offerId,
+              status: 'ACTIVE',
+              storeId: 'store-001',
+              currency: 'SAR',
+              moq: 1,
+            }));
+        }),
+      },
     },
   };
 
@@ -124,10 +156,14 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
     // We use mockResolvedValueOnce for the pre-check (undefined), then the
     // second fingerprint check (undefined), then the final getMasterOrder.
     mocks.db.query.masterOrders.findFirst
-      .mockResolvedValueOnce(undefined)   // Pre-check: no existing order
-      .mockResolvedValueOnce(undefined)   // Fingerprint check: no existing order
-      .mockResolvedValue({                // getMasterOrder at the end
-        id: 'new-master', buyerId: BUYER_ID, status: 'SUBMITTED', requestFingerprint: 'abc123',
+      .mockResolvedValueOnce(undefined) // Pre-check: no existing order
+      .mockResolvedValueOnce(undefined) // Fingerprint check: no existing order
+      .mockResolvedValue({
+        // getMasterOrder at the end
+        id: 'new-master',
+        buyerId: BUYER_ID,
+        status: 'SUBMITTED',
+        requestFingerprint: 'abc123',
       });
 
     const service = createService(mocks);
@@ -154,14 +190,19 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
   it('same key + same request returns existing order (no duplicate)', async () => {
     // Legacy order (no fingerprint) - returns immediately on key match
     const existingMaster = {
-      id: 'existing-master', buyerId: BUYER_ID, status: 'SUBMITTED',
+      id: 'existing-master',
+      buyerId: BUYER_ID,
+      status: 'SUBMITTED',
       requestFingerprint: null,
     };
     const mocks = createMocks(existingMaster);
     mocks.db.query.masterOrders.findFirst
-      .mockResolvedValueOnce(existingMaster)  // Pre-check
-      .mockResolvedValue({                     // getMasterOrder
-        id: 'existing-master', buyerId: BUYER_ID, status: 'SUBMITTED',
+      .mockResolvedValueOnce(existingMaster) // Pre-check
+      .mockResolvedValue({
+        // getMasterOrder
+        id: 'existing-master',
+        buyerId: BUYER_ID,
+        status: 'SUBMITTED',
       });
     mocks.db.query.orders.findMany.mockResolvedValue([]);
 
@@ -181,82 +222,123 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
 
   it('same key + different cart items throws 409 Conflict', async () => {
     const existingMaster = {
-      id: 'existing-master', buyerId: BUYER_ID, status: 'SUBMITTED',
+      id: 'existing-master',
+      buyerId: BUYER_ID,
+      status: 'SUBMITTED',
       requestFingerprint: 'a'.repeat(64),
     };
-    const differentItems = [{
-      id: 'ci-new', cartId: CART_ID, storeId: STORE_1, variantId: VARIANT_2,
-      quantity: 5, priceMinor: 300, tierMinQty: 1, offerId: 'offer-2',
-      promoSnapshot: {}, lineTotalMinor: 1500,
-    }];
+    const differentItems = [
+      {
+        id: 'ci-new',
+        cartId: CART_ID,
+        storeId: STORE_1,
+        variantId: VARIANT_2,
+        quantity: 5,
+        priceMinor: 300,
+        tierMinQty: 1,
+        offerId: 'offer-2',
+        promoSnapshot: {},
+        lineTotalMinor: 1500,
+      },
+    ];
     const mocks = createMocks(existingMaster, differentItems);
     // Pre-check: finds existing order with fingerprint -> falls through
     mocks.db.query.masterOrders.findFirst.mockResolvedValue(existingMaster);
 
     const service = createService(mocks);
 
-    await expect(service.checkout({
-      buyerId: BUYER_ID,
-      deliveryAddress: { city: 'Riyadh' },
-      idempotencyKey: 'idem-key-001',
-    })).rejects.toThrow(ConflictException);
+    await expect(
+      service.checkout({
+        buyerId: BUYER_ID,
+        deliveryAddress: { city: 'Riyadh' },
+        idempotencyKey: 'idem-key-001',
+      }),
+    ).rejects.toThrow(ConflictException);
   });
 
   // -- Test 4: Same key, different quantity -> conflict --
 
   it('same key + different quantity throws 409 Conflict', async () => {
     const existingMaster = {
-      id: 'existing-master', buyerId: BUYER_ID, status: 'SUBMITTED',
+      id: 'existing-master',
+      buyerId: BUYER_ID,
+      status: 'SUBMITTED',
       requestFingerprint: 'b'.repeat(64),
     };
     // Same variant, DIFFERENT quantity
-    const differentItems = [{
-      id: 'ci-001', cartId: CART_ID, storeId: STORE_1, variantId: VARIANT_1,
-      quantity: 20, priceMinor: 200, tierMinQty: 1, offerId: 'offer-1',
-      promoSnapshot: {}, lineTotalMinor: 4000,
-    }];
+    const differentItems = [
+      {
+        id: 'ci-001',
+        cartId: CART_ID,
+        storeId: STORE_1,
+        variantId: VARIANT_1,
+        quantity: 20,
+        priceMinor: 200,
+        tierMinQty: 1,
+        offerId: 'offer-1',
+        promoSnapshot: {},
+        lineTotalMinor: 4000,
+      },
+    ];
     const mocks = createMocks(existingMaster, differentItems);
     mocks.db.query.masterOrders.findFirst.mockResolvedValue(existingMaster);
 
     const service = createService(mocks);
 
-    await expect(service.checkout({
-      buyerId: BUYER_ID,
-      deliveryAddress: { city: 'Riyadh' },
-      idempotencyKey: 'idem-key-001',
-    })).rejects.toThrow(ConflictException);
+    await expect(
+      service.checkout({
+        buyerId: BUYER_ID,
+        deliveryAddress: { city: 'Riyadh' },
+        idempotencyKey: 'idem-key-001',
+      }),
+    ).rejects.toThrow(ConflictException);
   });
 
   // -- Test 5: Same key, different offer -> conflict --
 
   it('same key + different offer throws 409 Conflict', async () => {
     const existingMaster = {
-      id: 'existing-master', buyerId: BUYER_ID, status: 'SUBMITTED',
+      id: 'existing-master',
+      buyerId: BUYER_ID,
+      status: 'SUBMITTED',
       requestFingerprint: 'c'.repeat(64),
     };
     // Same variant and quantity, DIFFERENT offer
-    const differentItems = [{
-      id: 'ci-001', cartId: CART_ID, storeId: STORE_1, variantId: VARIANT_1,
-      quantity: 10, priceMinor: 200, tierMinQty: 1, offerId: 'offer-999',
-      promoSnapshot: {}, lineTotalMinor: 2000,
-    }];
+    const differentItems = [
+      {
+        id: 'ci-001',
+        cartId: CART_ID,
+        storeId: STORE_1,
+        variantId: VARIANT_1,
+        quantity: 10,
+        priceMinor: 200,
+        tierMinQty: 1,
+        offerId: 'offer-999',
+        promoSnapshot: {},
+        lineTotalMinor: 2000,
+      },
+    ];
     const mocks = createMocks(existingMaster, differentItems);
     mocks.db.query.masterOrders.findFirst.mockResolvedValue(existingMaster);
 
     const service = createService(mocks);
 
-    await expect(service.checkout({
-      buyerId: BUYER_ID,
-      deliveryAddress: { city: 'Riyadh' },
-      idempotencyKey: 'idem-key-001',
-    })).rejects.toThrow(ConflictException);
+    await expect(
+      service.checkout({
+        buyerId: BUYER_ID,
+        deliveryAddress: { city: 'Riyadh' },
+        idempotencyKey: 'idem-key-001',
+      }),
+    ).rejects.toThrow(ConflictException);
   });
 
   // -- Test 6: Same key, different fulfillment method -> conflict --
 
   it('same key + different fulfillmentMethod throws 409 Conflict', async () => {
     const existingMaster = {
-      id: 'existing-master', buyerId: BUYER_ID, status: 'SUBMITTED',
+      id: 'existing-master',
+      buyerId: BUYER_ID,
+      status: 'SUBMITTED',
       requestFingerprint: 'd'.repeat(64),
     };
     const mocks = createMocks(existingMaster);
@@ -265,12 +347,14 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
 
     const service = createService(mocks);
 
-    await expect(service.checkout({
-      buyerId: BUYER_ID,
-      deliveryAddress: { city: 'Riyadh' },
-      idempotencyKey: 'idem-key-001',
-      fulfillmentMethod: 'PICKUP',
-    })).rejects.toThrow(ConflictException);
+    await expect(
+      service.checkout({
+        buyerId: BUYER_ID,
+        deliveryAddress: { city: 'Riyadh' },
+        idempotencyKey: 'idem-key-001',
+        fulfillmentMethod: 'PICKUP',
+      }),
+    ).rejects.toThrow(ConflictException);
   });
 
   // -- Fingerprint determinism --
@@ -280,7 +364,9 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
     // We verify by checking that the second checkout returns the existing order
     // (fingerprint match) rather than throwing or creating a duplicate.
     const existingMaster = {
-      id: 'existing-master', buyerId: BUYER_ID, status: 'SUBMITTED',
+      id: 'existing-master',
+      buyerId: BUYER_ID,
+      status: 'SUBMITTED',
       requestFingerprint: null, // Legacy - will return immediately
     };
     const mocks = createMocks(existingMaster);
@@ -303,14 +389,25 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
 
   it('conflict error includes RFC 7807 problem detail', async () => {
     const existingMaster = {
-      id: 'existing-master', buyerId: BUYER_ID, status: 'SUBMITTED',
+      id: 'existing-master',
+      buyerId: BUYER_ID,
+      status: 'SUBMITTED',
       requestFingerprint: 'e'.repeat(64),
     };
-    const differentItems = [{
-      id: 'ci-new', cartId: CART_ID, storeId: STORE_1, variantId: VARIANT_2,
-      quantity: 5, priceMinor: 300, tierMinQty: 1, offerId: 'offer-2',
-      promoSnapshot: {}, lineTotalMinor: 1500,
-    }];
+    const differentItems = [
+      {
+        id: 'ci-new',
+        cartId: CART_ID,
+        storeId: STORE_1,
+        variantId: VARIANT_2,
+        quantity: 5,
+        priceMinor: 300,
+        tierMinQty: 1,
+        offerId: 'offer-2',
+        promoSnapshot: {},
+        lineTotalMinor: 1500,
+      },
+    ];
     const mocks = createMocks(existingMaster, differentItems);
     mocks.db.query.masterOrders.findFirst.mockResolvedValue(existingMaster);
 

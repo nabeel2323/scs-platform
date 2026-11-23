@@ -65,7 +65,9 @@ function DisputeDetailContent({ id }: { id: string }) {
 
   useEffect(() => {
     void loadDispute();
-    return () => { disputeRequestVersion.current += 1; };
+    return () => {
+      disputeRequestVersion.current += 1;
+    };
   }, [loadDispute]);
 
   const handleResolve = async (event: FormEvent<HTMLFormElement>) => {
@@ -112,7 +114,9 @@ function DisputeDetailContent({ id }: { id: string }) {
 
   useEffect(() => {
     void loadEvents();
-    return () => { eventsRequestVersion.current += 1; };
+    return () => {
+      eventsRequestVersion.current += 1;
+    };
   }, [loadEvents]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
@@ -123,7 +127,8 @@ function DisputeDetailContent({ id }: { id: string }) {
       </div>
     );
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error) return <AdminErrorState title="Unable to load dispute" message={error} onRetry={loadDispute} />;
+  if (error)
+    return <AdminErrorState title="Unable to load dispute" message={error} onRetry={loadDispute} />;
   if (!dispute) return null;
 
   const status = String(dispute['status'] || '');
@@ -258,11 +263,17 @@ function DisputeDetailContent({ id }: { id: string }) {
                   </p>
                 </div>
               ) : (
-                <form onSubmit={handleResolve} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <form
+                  onSubmit={handleResolve}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+                >
                   <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
                     Record the decision and supporting explanation. Resolving a dispute is final.
                   </p>
-                  <label htmlFor="dispute-resolution" style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                  <label
+                    htmlFor="dispute-resolution"
+                    style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}
+                  >
                     Resolution
                   </label>
                   <textarea
@@ -274,15 +285,41 @@ function DisputeDetailContent({ id }: { id: string }) {
                     rows={5}
                     required
                     placeholder="Describe the resolution decision and its rationale…"
-                    style={{ width: '100%', boxSizing: 'border-box', padding: 12, border: '1px solid #cbd5e1', borderRadius: 8, font: 'inherit', resize: 'vertical' }}
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      padding: 12,
+                      border: '1px solid #cbd5e1',
+                      borderRadius: 8,
+                      font: 'inherit',
+                      resize: 'vertical',
+                    }}
                   />
-                  {resolutionError && <p role="alert" style={{ margin: 0, color: '#b91c1c', fontSize: 13 }}>{resolutionError}</p>}
-                  {resolutionSuccess && <p role="status" style={{ margin: 0, color: '#047857', fontSize: 13 }}>Dispute resolution submitted.</p>}
+                  {resolutionError && (
+                    <p role="alert" style={{ margin: 0, color: '#b91c1c', fontSize: 13 }}>
+                      {resolutionError}
+                    </p>
+                  )}
+                  {resolutionSuccess && (
+                    <p role="status" style={{ margin: 0, color: '#047857', fontSize: 13 }}>
+                      Dispute resolution submitted.
+                    </p>
+                  )}
                   <div>
                     <button
                       type="submit"
                       disabled={resolutionSubmitting || !resolution.trim()}
-                      style={{ padding: '9px 16px', border: 'none', borderRadius: 6, background: '#1e6178', color: '#fff', fontWeight: 600, cursor: resolutionSubmitting || !resolution.trim() ? 'not-allowed' : 'pointer', opacity: resolutionSubmitting || !resolution.trim() ? 0.6 : 1 }}
+                      style={{
+                        padding: '9px 16px',
+                        border: 'none',
+                        borderRadius: 6,
+                        background: '#1e6178',
+                        color: '#fff',
+                        fontWeight: 600,
+                        cursor:
+                          resolutionSubmitting || !resolution.trim() ? 'not-allowed' : 'pointer',
+                        opacity: resolutionSubmitting || !resolution.trim() ? 0.6 : 1,
+                      }}
                     >
                       {resolutionSubmitting ? 'Resolving…' : 'Resolve dispute'}
                     </button>
@@ -305,7 +342,11 @@ function DisputeDetailContent({ id }: { id: string }) {
               <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading events…</div>
             )}
             {eventsError && (
-              <AdminErrorState title="Unable to load dispute events" message={eventsError} onRetry={loadEvents} />
+              <AdminErrorState
+                title="Unable to load dispute events"
+                message={eventsError}
+                onRetry={loadEvents}
+              />
             )}
             {!eventsLoading && !eventsError && events.length === 0 && (
               <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>

@@ -1,12 +1,23 @@
 import {
-  Controller, Get, Post, Param, Body, Query, UseGuards, HttpCode,
-  NotFoundException, BadRequestException, Optional,
+  Controller,
+  Get,
+  Post,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  HttpCode,
+  NotFoundException,
+  BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { eq, and, desc, asc, or, inArray, sql, ilike } from 'drizzle-orm';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import {
-  CurrentUser, JwtPayload, RequirePermission,
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import { DatabaseService } from '../../common/database/database.service';
 import { StorageService } from '../../common/storage/storage.service';
@@ -16,10 +27,12 @@ import { shipmentLabels } from './shipping.schema';
 import { outboxEvents } from '../audit/audit.schema';
 import { stores } from '../merchant/merchant.schema';
 import { orders } from '../orders/orders.schema';
+import { generateIdempotencyKey, CancelShipmentResult, TrackingInfo } from './shipping.types';
 import {
-  generateIdempotencyKey, CancelShipmentResult, TrackingInfo,
-} from './shipping.types';
-import { assertActiveOrgMembership, isTenantPrivileged, type CallerContext } from '../../common/tenant-scope';
+  assertActiveOrgMembership,
+  isTenantPrivileged,
+  type CallerContext,
+} from '../../common/tenant-scope';
 import { OrdersService } from '../orders/orders.service';
 
 /** Query parameters accepted by the shipment list read model. */
@@ -69,10 +82,7 @@ export class ShipmentOperationsController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:write')
   @HttpCode(202)
-  async createCarrierShipment(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async createCarrierShipment(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const caller = this.toCallerContext(user);
 
     // 1. Find the shipment
@@ -109,7 +119,8 @@ export class ShipmentOperationsController {
     const idempotencyKey = generateIdempotencyKey(id);
 
     await this.db.db.transaction(async (tx) => {
-      await tx.update(shipments)
+      await tx
+        .update(shipments)
         .set({
           carrierCreateStatus: 'PENDING' as any,
           idempotencyKey,
@@ -181,7 +192,8 @@ export class ShipmentOperationsController {
     }
 
     // Update shipment
-    await this.db.db.update(shipments)
+    await this.db.db
+      .update(shipments)
       .set({
         cancelledAt: new Date(),
         cancellationReason: reason,
@@ -213,10 +225,7 @@ export class ShipmentOperationsController {
   @Get(':id/tracking')
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:read')
-  async getTracking(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async getTracking(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const caller = this.toCallerContext(user);
 
     const shipment = await this.db.db.query.shipments.findFirst({
@@ -268,10 +277,7 @@ export class ShipmentOperationsController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:labels:write')
   @HttpCode(202)
-  async requestLabel(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async requestLabel(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const caller = this.toCallerContext(user);
     const shipment = await this.db.db.query.shipments.findFirst({
       where: eq(shipments.id, id),
@@ -329,11 +335,13 @@ export class ShipmentOperationsController {
       const [pendingEvent] = await tx
         .select({ id: outboxEvents.id })
         .from(outboxEvents)
-        .where(and(
-          eq(outboxEvents.eventType, 'shipping.carrier.label'),
-          eq(outboxEvents.aggregateId, id),
-          inArray(outboxEvents.status, ['PENDING', 'PROCESSING']),
-        ))
+        .where(
+          and(
+            eq(outboxEvents.eventType, 'shipping.carrier.label'),
+            eq(outboxEvents.aggregateId, id),
+            inArray(outboxEvents.status, ['PENDING', 'PROCESSING']),
+          ),
+        )
         .limit(1);
       if (pendingEvent) {
         outcome = { status: 'IN_PROGRESS', eventId: pendingEvent.id };
@@ -362,10 +370,7 @@ export class ShipmentOperationsController {
   @Get(':id/labels')
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:labels:read')
-  async getLabels(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async getLabels(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const caller = this.toCallerContext(user);
 
     const shipment = await this.db.db.query.shipments.findFirst({
@@ -413,10 +418,7 @@ export class ShipmentOperationsController {
   @Get()
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:read')
-  async listShipments(
-    @CurrentUser() user: JwtPayload,
-    @Query() q: ShipmentListQuery,
-  ) {
+  async listShipments(@CurrentUser() user: JwtPayload, @Query() q: ShipmentListQuery) {
     const caller = this.toCallerContext(user);
     const conditions: any[] = [];
 
@@ -433,14 +435,20 @@ export class ShipmentOperationsController {
       if (storeRows.length === 0) {
         return { data: [], total: 0, limit: 0, offset: 0 };
       }
-      conditions.push(inArray(shipments.storeId, storeRows.map((s) => s.id)));
+      conditions.push(
+        inArray(
+          shipments.storeId,
+          storeRows.map((s) => s.id),
+        ),
+      );
     }
 
     // Exact-match status filters.
     if (q.status) conditions.push(eq(shipments.status, q.status));
     if (q.exceptionStatus) conditions.push(eq(shipments.exceptionStatus, q.exceptionStatus));
     if (q.exceptionType) conditions.push(eq(shipments.exceptionType, q.exceptionType));
-    if (q.carrierCreateStatus) conditions.push(eq(shipments.carrierCreateStatus, q.carrierCreateStatus));
+    if (q.carrierCreateStatus)
+      conditions.push(eq(shipments.carrierCreateStatus, q.carrierCreateStatus));
     if (q.recoveryStatus) conditions.push(eq(shipments.recoveryStatus, q.recoveryStatus));
     if (q.storeId) conditions.push(eq(shipments.storeId, q.storeId));
     if (q.orderId) conditions.push(eq(shipments.orderId, q.orderId));
@@ -457,7 +465,12 @@ export class ShipmentOperationsController {
     } else if (q.scope === 'recovery') {
       conditions.push(
         or(
-          inArray(shipments.carrierCreateStatus, ['PENDING', 'IN_PROGRESS', 'FAILED', 'RECOVERY_REQUIRED']),
+          inArray(shipments.carrierCreateStatus, [
+            'PENDING',
+            'IN_PROGRESS',
+            'FAILED',
+            'RECOVERY_REQUIRED',
+          ]),
           inArray(shipments.carrierCancelStatus, ['UNKNOWN', 'RECONCILIATION_REQUIRED']),
         ) as any,
       );
@@ -478,7 +491,8 @@ export class ShipmentOperationsController {
       );
     }
 
-    const sortField = ShipmentOperationsController.SORTABLE[q.sortBy || 'updatedAt'] || shipments.updatedAt;
+    const sortField =
+      ShipmentOperationsController.SORTABLE[q.sortBy || 'updatedAt'] || shipments.updatedAt;
     const sortFn = q.sortDir === 'asc' ? asc : desc;
     const limit = Math.min(parseInt(q.limit || '25', 10) || 25, 100);
     const offset = Math.max(parseInt(q.offset || '0', 10) || 0, 0);
@@ -540,10 +554,7 @@ export class ShipmentOperationsController {
   @Get(':id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:read')
-  async getShipmentDetail(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async getShipmentDetail(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const caller = this.toCallerContext(user);
 
     const shipment = await this.db.db.query.shipments.findFirst({
@@ -567,8 +578,12 @@ export class ShipmentOperationsController {
 
     return {
       shipment,
-      store: store ? { id: store.id, displayName: store.displayName, slug: store.slug, orgId: store.orgId } : null,
-      order: order ? { id: order.id, status: order.status, storeId: order.storeId, buyerId: order['buyerId'] } : null,
+      store: store
+        ? { id: store.id, displayName: store.displayName, slug: store.slug, orgId: store.orgId }
+        : null,
+      order: order
+        ? { id: order.id, status: order.status, storeId: order.storeId, buyerId: order['buyerId'] }
+        : null,
       events: events.map((e) => ({
         id: e.id,
         eventType: e.eventType,
@@ -587,14 +602,15 @@ export class ShipmentOperationsController {
   // ── Helpers ─────────────────────────────────────────────────────────────
 
   private async toLabelView(label: any) {
-    const isManagedObject = typeof label.storageKey === 'string'
-      && label.storageKey.startsWith('shipping-labels/');
-    const downloadUrl = this.storage && isManagedObject
-      ? await this.storage.createPresignedGetUrl(
-          process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads',
-          label.storageKey,
-        )
-      : null;
+    const isManagedObject =
+      typeof label.storageKey === 'string' && label.storageKey.startsWith('shipping-labels/');
+    const downloadUrl =
+      this.storage && isManagedObject
+        ? await this.storage.createPresignedGetUrl(
+            process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads',
+            label.storageKey,
+          )
+        : null;
 
     return {
       id: label.id,
@@ -614,7 +630,6 @@ export class ShipmentOperationsController {
   private isPrivilegedRole(role: string | null | undefined): boolean {
     return ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'].includes(role || '');
   }
-
 
   private toCallerContext(user: JwtPayload): CallerContext {
     return { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
@@ -640,12 +655,7 @@ export class ShipmentOperationsController {
       throw new BadRequestException('exceptionType is required');
     }
     const caller = this.toCallerContext(user);
-    return this.ordersService.reportShipmentException(
-      id,
-      body.exceptionType,
-      body.notes,
-      caller,
-    );
+    return this.ordersService.reportShipmentException(id, body.exceptionType, body.notes, caller);
   }
 
   // ── POST /v1/shipments/:id/retry ─────────────────────────────────────────
@@ -655,10 +665,7 @@ export class ShipmentOperationsController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:write')
   @HttpCode(200)
-  async authorizeRetry(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async authorizeRetry(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const caller = this.toCallerContext(user);
     return this.ordersService.authorizeShipmentRetry(id, caller);
   }
@@ -683,9 +690,7 @@ export class ShipmentOperationsController {
         where: eq(shipments.id, id),
       });
       if (shipment && (shipment as any)['exceptionType'] === 'LOST') {
-        return this.ordersService.requestAndApproveLostRTS(
-          id, body.notes, caller,
-        );
+        return this.ordersService.requestAndApproveLostRTS(id, body.notes, caller);
       }
     }
 
@@ -699,10 +704,7 @@ export class ShipmentOperationsController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:write')
   @HttpCode(200)
-  async approveRTS(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async approveRTS(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const caller = this.toCallerContext(user);
     return this.ordersService.approveRTS(id, caller);
   }
@@ -751,10 +753,7 @@ export class ShipmentOperationsController {
   @Get(':id/return-eligibility')
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:return')
-  async getReturnEligibility(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async getReturnEligibility(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const caller = this.toCallerContext(user);
     return this.ordersService.getReturnEligibility(id, caller);
   }
@@ -766,11 +765,7 @@ export class ShipmentOperationsController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:return')
   @HttpCode(200)
-  async recordReturn(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-    @Body() body: any,
-  ) {
+  async recordReturn(@Param('id') id: string, @CurrentUser() user: JwtPayload, @Body() body: any) {
     const caller = this.toCallerContext(user);
     const lines = this.validateReturnBody(body);
     return this.ordersService.recordReturn(id, lines, caller);
@@ -790,9 +785,19 @@ export class ShipmentOperationsController {
     }
     const allowed = new Set(['orderItemId', 'quantity', 'condition']);
     const forbidden = new Set([
-      'warehouseId', 'inventoryItemId', 'qtyOnHand', 'qtyReserved', 'qtyAvailable',
-      'price', 'unitPriceMinor', 'storeId', 'orderId', 'referenceId', 'movementType',
-      'idempotencyKey', 'fingerprint',
+      'warehouseId',
+      'inventoryItemId',
+      'qtyOnHand',
+      'qtyReserved',
+      'qtyAvailable',
+      'price',
+      'unitPriceMinor',
+      'storeId',
+      'orderId',
+      'referenceId',
+      'movementType',
+      'idempotencyKey',
+      'fingerprint',
     ]);
     const out: Array<{ orderItemId: string; quantity: number; condition: string }> = [];
     for (const raw of body.lines) {
@@ -801,7 +806,9 @@ export class ShipmentOperationsController {
       }
       for (const key of Object.keys(raw)) {
         if (forbidden.has(key)) {
-          throw new BadRequestException(`Field '${key}' is server-controlled and must not be supplied`);
+          throw new BadRequestException(
+            `Field '${key}' is server-controlled and must not be supplied`,
+          );
         }
         if (!allowed.has(key)) {
           throw new BadRequestException(`Unexpected field '${key}' in return line`);
@@ -820,10 +827,7 @@ export class ShipmentOperationsController {
    * Assert the caller can access a shipment.
    * Platform staff bypass; merchant users must match the store's org.
    */
-  private async assertShipmentAccessible(
-    shipment: any,
-    caller: CallerContext,
-  ): Promise<string> {
+  private async assertShipmentAccessible(shipment: any, caller: CallerContext): Promise<string> {
     const store = await this.db.db.query.stores.findFirst({
       where: eq(stores.id, shipment.storeId),
       columns: { orgId: true },

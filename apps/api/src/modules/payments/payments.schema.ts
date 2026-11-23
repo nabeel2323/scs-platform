@@ -1,5 +1,13 @@
 import {
-  pgTable, uuid, varchar, char, text, bigint, jsonb, timestamp, integer,
+  pgTable,
+  uuid,
+  varchar,
+  char,
+  text,
+  bigint,
+  jsonb,
+  timestamp,
+  integer,
 } from 'drizzle-orm/pg-core';
 import { users } from '../identity/identity.schema';
 import { orders } from '../orders/orders.schema';
@@ -22,7 +30,9 @@ import { stores } from '../merchant/merchant.schema';
 
 export const paymentRecords = pgTable('payment_records', {
   id: uuid('id').primaryKey(),
-  orderId: uuid('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  orderId: uuid('order_id')
+    .notNull()
+    .references(() => orders.id, { onDelete: 'cascade' }),
   providerKey: varchar('provider_key', { length: 40 }).notNull().default('manual'),
   providerPaymentId: varchar('provider_payment_id', { length: 200 }),
   idempotencyKey: varchar('idempotency_key', { length: 120 }),
@@ -53,7 +63,9 @@ export const paymentRecords = pgTable('payment_records', {
 // are recoverable after lease expiry; cleanup checks the payment row first.
 export const paymentProofUploadIntents = pgTable('payment_proof_upload_intents', {
   id: uuid('id').primaryKey(),
-  paymentRecordId: uuid('payment_record_id').notNull().references(() => paymentRecords.id),
+  paymentRecordId: uuid('payment_record_id')
+    .notNull()
+    .references(() => paymentRecords.id),
   storageBucket: varchar('storage_bucket', { length: 120 }).notNull(),
   storageKey: varchar('storage_key', { length: 512 }).notNull().unique(),
   contentType: varchar('content_type', { length: 100 }).notNull(),
@@ -75,7 +87,9 @@ export const paymentProofUploadIntents = pgTable('payment_proof_upload_intents',
 
 export const paymentEvents = pgTable('payment_events', {
   id: uuid('id').primaryKey(),
-  paymentRecordId: uuid('payment_record_id').notNull().references(() => paymentRecords.id, { onDelete: 'cascade' }),
+  paymentRecordId: uuid('payment_record_id')
+    .notNull()
+    .references(() => paymentRecords.id, { onDelete: 'cascade' }),
   eventType: varchar('event_type', { length: 40 }).notNull(),
   providerEventId: varchar('provider_event_id', { length: 200 }),
   fromStatus: varchar('from_status', { length: 30 }),
@@ -93,8 +107,12 @@ export const paymentEvents = pgTable('payment_events', {
 
 export const refunds = pgTable('refunds', {
   id: uuid('id').primaryKey(),
-  paymentRecordId: uuid('payment_record_id').notNull().references(() => paymentRecords.id, { onDelete: 'cascade' }),
-  orderId: uuid('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  paymentRecordId: uuid('payment_record_id')
+    .notNull()
+    .references(() => paymentRecords.id, { onDelete: 'cascade' }),
+  orderId: uuid('order_id')
+    .notNull()
+    .references(() => orders.id, { onDelete: 'cascade' }),
   idempotencyKey: varchar('idempotency_key', { length: 120 }),
   providerRefundId: varchar('provider_refund_id', { length: 200 }),
   amountMinor: bigint('amount_minor', { mode: 'number' }).notNull(),
@@ -117,9 +135,15 @@ export const refunds = pgTable('refunds', {
 
 export const settlementRecords = pgTable('settlement_records', {
   id: uuid('id').primaryKey(),
-  subOrderId: uuid('sub_order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
-  paymentRecordId: uuid('payment_record_id').notNull().references(() => paymentRecords.id, { onDelete: 'cascade' }),
-  merchantStoreId: uuid('merchant_store_id').notNull().references(() => stores.id, { onDelete: 'cascade' }),
+  subOrderId: uuid('sub_order_id')
+    .notNull()
+    .references(() => orders.id, { onDelete: 'cascade' }),
+  paymentRecordId: uuid('payment_record_id')
+    .notNull()
+    .references(() => paymentRecords.id, { onDelete: 'cascade' }),
+  merchantStoreId: uuid('merchant_store_id')
+    .notNull()
+    .references(() => stores.id, { onDelete: 'cascade' }),
   grossMinor: bigint('gross_minor', { mode: 'number' }).notNull(),
   refundMinor: bigint('refund_minor', { mode: 'number' }).notNull().default(0),
   commissionMinor: bigint('commission_minor', { mode: 'number' }).notNull().default(0),

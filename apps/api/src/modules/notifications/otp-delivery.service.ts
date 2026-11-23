@@ -102,9 +102,7 @@ export class OtpDeliveryService {
    * Deliver an OTP challenge via a specific internal channel (including mock).
    * Used by test infrastructure for deterministic OTP delivery.
    */
-  async deliverToTestChannel(
-    request: ChallengeDeliveryRequest,
-  ): Promise<OtpDeliveryResult> {
+  async deliverToTestChannel(request: ChallengeDeliveryRequest): Promise<OtpDeliveryResult> {
     return this.deliverChallenge(request);
   }
 
@@ -125,9 +123,7 @@ export class OtpDeliveryService {
   /**
    * Core delivery method — routes through the provider registry.
    */
-  private async deliverChallenge(
-    request: ChallengeDeliveryRequest,
-  ): Promise<OtpDeliveryResult> {
+  private async deliverChallenge(request: ChallengeDeliveryRequest): Promise<OtpDeliveryResult> {
     const channel = request.channel;
 
     // Reject unknown channels explicitly (backward compat)
@@ -147,8 +143,13 @@ export class OtpDeliveryService {
       // email-only phase even if Twilio credentials happen to be present, and
       // it is reported distinctly from "permitted but misconfigured" so an
       // operator is not sent chasing credentials they deliberately never set.
-      if (this.isPublicChannel(channel) && !this.registry.isChannelPermitted(channel as OtpDeliveryChannel)) {
-        this.logger.warn(`Channel '${channel}' is not permitted by OTP_CHANNELS — delivery refused`);
+      if (
+        this.isPublicChannel(channel) &&
+        !this.registry.isChannelPermitted(channel as OtpDeliveryChannel)
+      ) {
+        this.logger.warn(
+          `Channel '${channel}' is not permitted by OTP_CHANNELS — delivery refused`,
+        );
         return {
           success: false,
           status: 'failed',

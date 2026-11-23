@@ -2,10 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { fetchMyStores, type Store } from '../../../lib/api';
-import {
-  fetchMerchantSettlements,
-  type MerchantSettlement,
-} from '../../../lib/buyer-api';
+import { fetchMerchantSettlements, type MerchantSettlement } from '../../../lib/buyer-api';
 import { useAuth } from '../../../components/AuthProvider';
 import { pickStore } from '../../../lib/merchant-store';
 import {
@@ -70,7 +67,9 @@ export default function MerchantSettlementsPage() {
       .finally(() => {
         if (!cancelled) setStoresLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [user, activeOrgId, reloadStores]);
 
   useEffect(() => {
@@ -128,8 +127,24 @@ export default function MerchantSettlementsPage() {
         />
       ) : (
         <>
-          <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: colors.muted }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              marginBottom: 20,
+              flexWrap: 'wrap',
+              alignItems: 'center',
+            }}
+          >
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 13,
+                color: colors.muted,
+              }}
+            >
               Store
               <select
                 aria-label="Select store"
@@ -139,16 +154,29 @@ export default function MerchantSettlementsPage() {
                   setPage(0);
                 }}
                 style={{
-                  padding: '8px 12px', borderRadius: radii.md,
-                  border: `1px solid ${colors.border}`, fontSize: 14, minWidth: 220,
+                  padding: '8px 12px',
+                  borderRadius: radii.md,
+                  border: `1px solid ${colors.border}`,
+                  fontSize: 14,
+                  minWidth: 220,
                 }}
               >
                 {stores.map((store) => (
-                  <option key={store.id} value={store.id}>{store.displayName}</option>
+                  <option key={store.id} value={store.id}>
+                    {store.displayName}
+                  </option>
                 ))}
               </select>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: colors.muted }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 13,
+                color: colors.muted,
+              }}
+            >
               Status
               <select
                 aria-label="Filter by status"
@@ -158,12 +186,16 @@ export default function MerchantSettlementsPage() {
                   setPage(0);
                 }}
                 style={{
-                  padding: '8px 12px', borderRadius: radii.md,
-                  border: `1px solid ${colors.border}`, fontSize: 14,
+                  padding: '8px 12px',
+                  borderRadius: radii.md,
+                  border: `1px solid ${colors.border}`,
+                  fontSize: 14,
                 }}
               >
                 {SETTLEMENT_STATUSES.map((status) => (
-                  <option key={status.value} value={status.value}>{status.label}</option>
+                  <option key={status.value} value={status.value}>
+                    {status.label}
+                  </option>
                 ))}
               </select>
             </label>
@@ -171,16 +203,25 @@ export default function MerchantSettlementsPage() {
               type="button"
               onClick={() => setReloadSettlements((value) => value + 1)}
               style={{
-                padding: '8px 14px', borderRadius: radii.md,
-                border: `1px solid ${colors.border}`, background: '#fff',
-                color: '#334155', cursor: 'pointer', fontSize: 13,
+                padding: '8px 14px',
+                borderRadius: radii.md,
+                border: `1px solid ${colors.border}`,
+                background: '#fff',
+                color: '#334155',
+                cursor: 'pointer',
+                fontSize: 13,
               }}
             >
               Refresh
             </button>
           </div>
 
-          {error && <ErrorBanner message={error} onRetry={() => setReloadSettlements((value) => value + 1)} />}
+          {error && (
+            <ErrorBanner
+              message={error}
+              onRetry={() => setReloadSettlements((value) => value + 1)}
+            />
+          )}
 
           {loading ? (
             <LoadingSpinner />
@@ -190,10 +231,25 @@ export default function MerchantSettlementsPage() {
               description="No settlement or adjustment records match this store and status filter."
             />
           ) : (
-            <div style={{ overflowX: 'auto', border: `1px solid ${colors.border}`, borderRadius: radii.lg, background: '#fff' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920, fontSize: 13 }}>
+            <div
+              style={{
+                overflowX: 'auto',
+                border: `1px solid ${colors.border}`,
+                borderRadius: radii.lg,
+                background: '#fff',
+              }}
+            >
+              <table
+                style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920, fontSize: 13 }}
+              >
                 <thead>
-                  <tr style={{ background: '#f8fafc', borderBottom: `1px solid ${colors.border}`, textAlign: 'left' }}>
+                  <tr
+                    style={{
+                      background: '#f8fafc',
+                      borderBottom: `1px solid ${colors.border}`,
+                      textAlign: 'left',
+                    }}
+                  >
                     <th style={{ padding: '12px 10px' }}>Sub-order</th>
                     <th style={{ padding: '12px 10px' }}>Date</th>
                     <th style={{ padding: '12px 10px', textAlign: 'right' }}>Gross</th>
@@ -218,7 +274,9 @@ export default function MerchantSettlementsPage() {
                         {formatMinor(settlement.grossMinor, settlement.currency)}
                       </td>
                       <td style={{ padding: '11px 10px', textAlign: 'right' }}>
-                        {settlement.refundMinor > 0 ? formatMinor(settlement.refundMinor, settlement.currency) : '—'}
+                        {settlement.refundMinor > 0
+                          ? formatMinor(settlement.refundMinor, settlement.currency)
+                          : '—'}
                       </td>
                       <td style={{ padding: '11px 10px', textAlign: 'right' }}>
                         {formatMinor(settlement.commissionMinor, settlement.currency)}
@@ -226,21 +284,30 @@ export default function MerchantSettlementsPage() {
                       <td style={{ padding: '11px 10px', textAlign: 'right' }}>
                         {formatMinor(settlement.feeMinor, settlement.currency)}
                       </td>
-                      <td style={{
-                        padding: '11px 10px', textAlign: 'right', fontWeight: 700,
-                        color: settlement.netMinor < 0 ? '#b91c1c' : '#047857',
-                      }}>
+                      <td
+                        style={{
+                          padding: '11px 10px',
+                          textAlign: 'right',
+                          fontWeight: 700,
+                          color: settlement.netMinor < 0 ? '#b91c1c' : '#047857',
+                        }}
+                      >
                         {formatMinor(settlement.netMinor, settlement.currency)}
                       </td>
                       <td style={{ padding: '11px 10px' }}>
-                        <StatusBadge status={
-                          settlement.status === 'PAID' && (settlement.metadata?.['adjustmentId'] || settlement.notes?.startsWith('Posted adjustment '))
-                            ? 'ADJUSTMENT · PAID'
-                            : settlement.status
-                        } />
+                        <StatusBadge
+                          status={
+                            settlement.status === 'PAID' &&
+                            (settlement.metadata?.['adjustmentId'] ||
+                              settlement.notes?.startsWith('Posted adjustment '))
+                              ? 'ADJUSTMENT · PAID'
+                              : settlement.status
+                          }
+                        />
                       </td>
                       <td style={{ padding: '11px 10px', fontFamily: 'monospace', fontSize: 11 }}>
-                        {settlement.paymentReference || (settlement.paidAt ? formatDateCompact(settlement.paidAt) : '—')}
+                        {settlement.paymentReference ||
+                          (settlement.paidAt ? formatDateCompact(settlement.paidAt) : '—')}
                       </td>
                     </tr>
                   ))}
@@ -251,26 +318,53 @@ export default function MerchantSettlementsPage() {
           {!loading && !error && total > 0 && (total > SETTLEMENT_PAGE_SIZE || page > 0) && (
             <nav
               aria-label="Settlement pages"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 12, fontSize: 12, color: colors.muted }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                marginTop: 12,
+                fontSize: 12,
+                color: colors.muted,
+              }}
             >
               <span>
-                Showing {page * SETTLEMENT_PAGE_SIZE + 1}–{Math.min((page + 1) * SETTLEMENT_PAGE_SIZE, total)} of {total} settlements
+                Showing {page * SETTLEMENT_PAGE_SIZE + 1}–
+                {Math.min((page + 1) * SETTLEMENT_PAGE_SIZE, total)} of {total} settlements
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button
                   type="button"
                   disabled={page === 0}
                   onClick={() => setPage((current) => Math.max(0, current - 1))}
-                  style={{ padding: '7px 12px', borderRadius: radii.md, border: '1px solid ' + colors.border, background: '#fff', color: '#334155', cursor: page === 0 ? 'not-allowed' : 'pointer', fontSize: 12 }}
+                  style={{
+                    padding: '7px 12px',
+                    borderRadius: radii.md,
+                    border: '1px solid ' + colors.border,
+                    background: '#fff',
+                    color: '#334155',
+                    cursor: page === 0 ? 'not-allowed' : 'pointer',
+                    fontSize: 12,
+                  }}
                 >
                   Previous
                 </button>
-                <span>Page {page + 1} of {Math.max(1, Math.ceil(total / SETTLEMENT_PAGE_SIZE))}</span>
+                <span>
+                  Page {page + 1} of {Math.max(1, Math.ceil(total / SETTLEMENT_PAGE_SIZE))}
+                </span>
                 <button
                   type="button"
                   disabled={(page + 1) * SETTLEMENT_PAGE_SIZE >= total}
                   onClick={() => setPage((current) => current + 1)}
-                  style={{ padding: '7px 12px', borderRadius: radii.md, border: '1px solid ' + colors.border, background: '#fff', color: '#334155', cursor: (page + 1) * SETTLEMENT_PAGE_SIZE >= total ? 'not-allowed' : 'pointer', fontSize: 12 }}
+                  style={{
+                    padding: '7px 12px',
+                    borderRadius: radii.md,
+                    border: '1px solid ' + colors.border,
+                    background: '#fff',
+                    color: '#334155',
+                    cursor: (page + 1) * SETTLEMENT_PAGE_SIZE >= total ? 'not-allowed' : 'pointer',
+                    fontSize: 12,
+                  }}
                 >
                   Next
                 </button>

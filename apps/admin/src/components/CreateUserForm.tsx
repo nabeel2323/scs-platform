@@ -11,7 +11,14 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createUser, type CreateUserRequest, fetchAdminOrganizations, type AdminOrg, fetchRoles, type RoleInfo } from '../lib/api';
+import {
+  createUser,
+  type CreateUserRequest,
+  fetchAdminOrganizations,
+  type AdminOrg,
+  fetchRoles,
+  type RoleInfo,
+} from '../lib/api';
 import { useRequirePerms } from '../hooks/useRequirePerms';
 import { ErrorNotice } from './RecordFields';
 import styles from './management.module.css';
@@ -122,20 +129,50 @@ export function CreateUserForm({ onCancel, onDone }: CreateUserFormProps) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label htmlFor="create-user-full-name">Full Name <span style={{ color: '#ef4444' }}>*</span></label>
-          <input id="create-user-full-name" required maxLength={160} value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Jane Doe" />
+          <label htmlFor="create-user-full-name">
+            Full Name <span style={{ color: '#ef4444' }}>*</span>
+          </label>
+          <input
+            id="create-user-full-name"
+            required
+            maxLength={160}
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="Jane Doe"
+          />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label htmlFor="create-user-email">Email <span style={{ color: '#ef4444' }}>*</span></label>
-          <input id="create-user-email" required type="email" maxLength={254} value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" />
+          <label htmlFor="create-user-email">
+            Email <span style={{ color: '#ef4444' }}>*</span>
+          </label>
+          <input
+            id="create-user-email"
+            required
+            type="email"
+            maxLength={254}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="jane@example.com"
+          />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <label htmlFor="create-user-phone">Phone (optional)</label>
-          <input id="create-user-phone" type="tel" maxLength={20} value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 555-0100" />
+          <input
+            id="create-user-phone"
+            type="tel"
+            maxLength={20}
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+1 555-0100"
+          />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <label htmlFor="create-user-locale">Locale</label>
-          <select id="create-user-locale" value={locale} onChange={e => setLocale(e.target.value)}>
+          <select
+            id="create-user-locale"
+            value={locale}
+            onChange={(e) => setLocale(e.target.value)}
+          >
             <option value="en">English</option>
             <option value="ar">العربية</option>
             <option value="fr">Français</option>
@@ -145,39 +182,79 @@ export function CreateUserForm({ onCancel, onDone }: CreateUserFormProps) {
       </div>
 
       <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
-        <h4 style={{ marginBottom: 12, fontSize: 14, fontWeight: 600, color: '#64748b' }}>Initial Organization Membership (optional)</h4>
+        <h4 style={{ marginBottom: 12, fontSize: 14, fontWeight: 600, color: '#64748b' }}>
+          Initial Organization Membership (optional)
+        </h4>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <label htmlFor="create-user-organization">Organization</label>
             <ErrorNotice message={orgsError} retry={() => void loadOrganizations()} />
-            <select id="create-user-organization" value={orgId} disabled={orgsLoading || Boolean(orgsError)} onChange={e => { setOrgId(e.target.value); setRoleId(''); }}>
-              <option value="">{orgsLoading ? 'Loading organizations…' : orgsError ? 'Retry organization lookup above' : 'None — unassigned user'}</option>
-              {orgs.map(org => <option key={org.id} value={org.id}>{org.name} ({org.type})</option>)}
+            <select
+              id="create-user-organization"
+              value={orgId}
+              disabled={orgsLoading || Boolean(orgsError)}
+              onChange={(e) => {
+                setOrgId(e.target.value);
+                setRoleId('');
+              }}
+            >
+              <option value="">
+                {orgsLoading
+                  ? 'Loading organizations…'
+                  : orgsError
+                    ? 'Retry organization lookup above'
+                    : 'None — unassigned user'}
+              </option>
+              {orgs.map((org) => (
+                <option key={org.id} value={org.id}>
+                  {org.name} ({org.type})
+                </option>
+              ))}
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <label htmlFor="create-user-role">Role</label>
             <ErrorNotice message={rolesError} retry={() => void loadRoles()} />
-            <select id="create-user-role" value={roleId} disabled={!orgId || rolesLoading || Boolean(rolesError)} onChange={e => setRoleId(e.target.value)}>
-              <option value="">{rolesLoading ? 'Loading roles…' : rolesError ? 'Retry role lookup above' : 'Select a role'}</option>
-              {roles.map(role => <option key={role.id} value={role.id}>{role.key} — {role.name}</option>)}
+            <select
+              id="create-user-role"
+              value={roleId}
+              disabled={!orgId || rolesLoading || Boolean(rolesError)}
+              onChange={(e) => setRoleId(e.target.value)}
+            >
+              <option value="">
+                {rolesLoading
+                  ? 'Loading roles…'
+                  : rolesError
+                    ? 'Retry role lookup above'
+                    : 'Select a role'}
+              </option>
+              {roles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.key} — {role.name}
+                </option>
+              ))}
             </select>
-            {roleId && roles.find(r => r.id === roleId) && (
+            {roleId && roles.find((r) => r.id === roleId) && (
               <p style={{ marginTop: 6, fontSize: 12, color: '#64748b' }}>
-                Permissions: {roles.find(r => r.id === roleId)!.permissions.join(', ') || 'None'}
+                Permissions: {roles.find((r) => r.id === roleId)!.permissions.join(', ') || 'None'}
               </p>
             )}
           </div>
         </div>
         <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>
-          Select both an organization and a role to create the membership, or leave both blank to create an unassigned user. A membership can be added later from the user detail page.
+          Select both an organization and a role to create the membership, or leave both blank to
+          create an unassigned user. A membership can be added later from the user detail page.
         </p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 20 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <label htmlFor="create-user-status">Initial Account Status</label>
-          <select id="create-user-status" value={status} onChange={e => setStatus(e.target.value as 'ACTIVE' | 'SUSPENDED' | 'INACTIVE')}>
+          <select
+            id="create-user-status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as 'ACTIVE' | 'SUSPENDED' | 'INACTIVE')}
+          >
             <option value="ACTIVE">Active</option>
             <option value="SUSPENDED">Suspended</option>
             <option value="INACTIVE">Inactive</option>
@@ -186,8 +263,15 @@ export function CreateUserForm({ onCancel, onDone }: CreateUserFormProps) {
       </div>
 
       <div className={styles['actions']} style={{ marginTop: 24 }}>
-        <button type="button" disabled={busy} onClick={onCancel}>Cancel</button>
-        <button type="submit" disabled={busy || !fullName.trim() || !email.trim() || (Boolean(orgId) !== Boolean(roleId))}>Create User</button>
+        <button type="button" disabled={busy} onClick={onCancel}>
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={busy || !fullName.trim() || !email.trim() || Boolean(orgId) !== Boolean(roleId)}
+        >
+          Create User
+        </button>
       </div>
     </form>
   );

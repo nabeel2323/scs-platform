@@ -3,7 +3,10 @@ import { TwilioSmsProvider } from '../../../modules/notifications/providers/twil
 import { WhatsAppProvider } from '../../../modules/notifications/providers/whatsapp.provider';
 import { OtpDeliveryService } from '../../../modules/notifications/otp-delivery.service';
 import { Logger } from '@nestjs/common';
-import { TwilioConfig, WhatsAppConfig } from '../../../modules/notifications/providers/provider.config';
+import {
+  TwilioConfig,
+  WhatsAppConfig,
+} from '../../../modules/notifications/providers/provider.config';
 
 /**
  * OTP Delivery Timeout Tests (S1.2 Phase G)
@@ -292,7 +295,8 @@ describe('OTP Delivery Timeout Handling (S1.2)', () => {
   });
 
   it('does not log raw provider exception messages or secrets', async () => {
-    const secretDetails = 'smtp://user:super-secret-password@example.test recipient=private@example.test';
+    const secretDetails =
+      'smtp://user:super-secret-password@example.test recipient=private@example.test';
     const provider = {
       isConfigured: () => true,
       sendOtp: vi.fn().mockRejectedValue(new Error(secretDetails)),

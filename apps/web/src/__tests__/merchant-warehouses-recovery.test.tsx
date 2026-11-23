@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-const { fetchMyStores, fetchWarehouses, createWarehouse, updateWarehouse, auth } = vi.hoisted(() => ({
-  fetchMyStores: vi.fn(),
-  fetchWarehouses: vi.fn(),
-  createWarehouse: vi.fn(),
-  updateWarehouse: vi.fn(),
-  auth: { user: { perms: ['merchant:stores:write'] } },
-}));
+const { fetchMyStores, fetchWarehouses, createWarehouse, updateWarehouse, auth } = vi.hoisted(
+  () => ({
+    fetchMyStores: vi.fn(),
+    fetchWarehouses: vi.fn(),
+    createWarehouse: vi.fn(),
+    updateWarehouse: vi.fn(),
+    auth: { user: { perms: ['merchant:stores:write'] } },
+  }),
+);
 
 vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => (
@@ -23,14 +25,29 @@ vi.mock('../lib/api', () => ({
 vi.mock('../components/AuthProvider', () => ({ useAuth: () => auth }));
 vi.mock('@scs/ui-kit', () => ({
   PageHeader: ({ title, subtitle }: { title: string; subtitle?: string }) => (
-    <header><h1>{title}</h1>{subtitle ? <p>{subtitle}</p> : null}</header>
+    <header>
+      <h1>{title}</h1>
+      {subtitle ? <p>{subtitle}</p> : null}
+    </header>
   ),
 }));
 vi.mock('../components/Shared', () => ({
   LoadingSpinner: () => <div role="status">Loading...</div>,
   ErrorBanner: ({ message }: { message: string }) => <div>{message}</div>,
-  EmptyState: ({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) => (
-    <section><h2>{title}</h2><p>{description}</p>{action}</section>
+  EmptyState: ({
+    title,
+    description,
+    action,
+  }: {
+    title: string;
+    description: string;
+    action?: React.ReactNode;
+  }) => (
+    <section>
+      <h2>{title}</h2>
+      <p>{description}</p>
+      {action}
+    </section>
   ),
   StatusBadge: ({ status }: { status: string }) => <span>{status}</span>,
   formatDate: () => 'Today',
@@ -62,7 +79,9 @@ describe('merchant warehouses read recovery', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('Store directory unavailable');
     fireEvent.click(screen.getByRole('button', { name: 'Retry store lookup' }));
 
-    expect(await screen.findByText('No warehouses yet. Click "Add Warehouse" to create one.')).toBeTruthy();
+    expect(
+      await screen.findByText('No warehouses yet. Click "Add Warehouse" to create one.'),
+    ).toBeTruthy();
     expect(fetchMyStores).toHaveBeenCalledTimes(2);
   });
 
@@ -73,11 +92,15 @@ describe('merchant warehouses read recovery', () => {
 
     render(<WarehousesPage />);
 
-    expect((await screen.findByRole('alert')).textContent).toContain('Warehouse directory unavailable');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Warehouse directory unavailable',
+    );
     expect(screen.queryByText(/No warehouses yet/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Retry warehouses' }));
 
-    expect(await screen.findByText('No warehouses yet. Click "Add Warehouse" to create one.')).toBeTruthy();
+    expect(
+      await screen.findByText('No warehouses yet. Click "Add Warehouse" to create one.'),
+    ).toBeTruthy();
     expect(fetchWarehouses).toHaveBeenCalledTimes(2);
   });
 

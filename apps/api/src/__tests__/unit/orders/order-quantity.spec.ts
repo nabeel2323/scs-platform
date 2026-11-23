@@ -17,9 +17,12 @@ describe('getOrderQuantityViolation — MOQ and order increments', () => {
     expect(getOrderQuantityViolation(4, 5, 3)).toContain('Minimum order quantity is 5');
   });
 
-  it.each([6, 7, 9, 10])('rejects quantity %i when it is not MOQ plus a full increment', quantity => {
-    expect(getOrderQuantityViolation(quantity, 5, 3)).toContain('increments of 3');
-  });
+  it.each([6, 7, 9, 10])(
+    'rejects quantity %i when it is not MOQ plus a full increment',
+    (quantity) => {
+      expect(getOrderQuantityViolation(quantity, 5, 3)).toContain('increments of 3');
+    },
+  );
 
   it('keeps legacy no-increment offers unrestricted above MOQ', () => {
     expect(getOrderQuantityViolation(6, 5, null)).toBeNull();

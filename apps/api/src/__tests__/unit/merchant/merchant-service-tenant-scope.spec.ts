@@ -16,9 +16,7 @@ function makeHarness(options?: {
 }) {
   const organizationFindFirst = vi
     .fn()
-    .mockResolvedValue(
-      options?.organizationMembership === null ? null : { id: 'org-member-a' },
-    );
+    .mockResolvedValue(options?.organizationMembership === null ? null : { id: 'org-member-a' });
   const storeFindFirst = vi
     .fn()
     .mockResolvedValue(
@@ -26,9 +24,7 @@ function makeHarness(options?: {
     );
   const storeMemberFindFirst = vi
     .fn()
-    .mockResolvedValue(
-      options?.storeMembership === null ? null : { id: 'store-member-a' },
-    );
+    .mockResolvedValue(options?.storeMembership === null ? null : { id: 'store-member-a' });
   const businessDocumentFindFirst = vi.fn().mockResolvedValue({
     id: 'doc-a',
     orgId: 'org-a',

@@ -109,13 +109,16 @@ export default function SettlementAdjustmentsPage() {
     if (statusFilter) sp.set('status', statusFilter);
     const qs = sp.toString();
     try {
-      const data = await adminRequest<Adjustment[]>(`admin/settlement-adjustments${qs ? `?${qs}` : ''}`);
+      const data = await adminRequest<Adjustment[]>(
+        `admin/settlement-adjustments${qs ? `?${qs}` : ''}`,
+      );
       if (requestId === requestVersion.current) {
         setAdjustments(data);
         setLoadedFilter(statusFilter);
       }
     } catch (e: any) {
-      if (requestId === requestVersion.current) setLoadError(e.message || 'Failed to load settlement adjustments');
+      if (requestId === requestVersion.current)
+        setLoadError(e.message || 'Failed to load settlement adjustments');
     } finally {
       if (requestId === requestVersion.current) setLoading(false);
     }
@@ -123,10 +126,16 @@ export default function SettlementAdjustmentsPage() {
 
   useEffect(() => {
     if (hasAccess) void load();
-    return () => { requestVersion.current += 1; };
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [load, hasAccess]);
 
-  const handleAction = async (id: string, action: 'submit' | 'approve' | 'reject' | 'post', reason?: string) => {
+  const handleAction = async (
+    id: string,
+    action: 'submit' | 'approve' | 'reject' | 'post',
+    reason?: string,
+  ) => {
     if (acting === id) return;
     if (action === 'submit' && !canWrite) return;
     if (['approve', 'reject', 'post'].includes(action) && !canApprove) return;
@@ -222,10 +231,61 @@ export default function SettlementAdjustmentsPage() {
         </button>
       </div>
 
-      {loadError && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}><span>{loadError}{hasCurrentResults ? ' Showing the last successfully loaded results.' : ''}</span><button onClick={() => void load()} style={{ background: '#374151', color: '#fff', border: 0, borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>Retry adjustments</button></div>}
-      {actionError && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{actionError}</div>}
-      {loading && hasCurrentResults && <div role="status" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>Refreshing adjustments… showing the last successful results.</div>}
-      {loading && !hasCurrentResults && <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Loading...</div>}
+      {loadError && (
+        <div
+          role="alert"
+          style={{
+            background: '#7f1d1d',
+            padding: 12,
+            borderRadius: 8,
+            marginBottom: 16,
+            fontSize: 13,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <span>
+            {loadError}
+            {hasCurrentResults ? ' Showing the last successfully loaded results.' : ''}
+          </span>
+          <button
+            onClick={() => void load()}
+            style={{
+              background: '#374151',
+              color: '#fff',
+              border: 0,
+              borderRadius: 6,
+              padding: '4px 12px',
+              cursor: 'pointer',
+            }}
+          >
+            Retry adjustments
+          </button>
+        </div>
+      )}
+      {actionError && (
+        <div
+          role="alert"
+          style={{
+            background: '#7f1d1d',
+            padding: 12,
+            borderRadius: 8,
+            marginBottom: 16,
+            fontSize: 13,
+          }}
+        >
+          {actionError}
+        </div>
+      )}
+      {loading && hasCurrentResults && (
+        <div role="status" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
+          Refreshing adjustments… showing the last successful results.
+        </div>
+      )}
+      {loading && !hasCurrentResults && (
+        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Loading...</div>
+      )}
 
       {!loading && hasCurrentResults && adjustments.length === 0 && (
         <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
@@ -353,38 +413,43 @@ export default function SettlementAdjustmentsPage() {
                 )}
                 {adj.status === 'PENDING_APPROVAL' && canApprove && (
                   <>
-                  <button
-                    onClick={() => handleAction(adj.id, 'approve')}
-                    disabled={acting === adj.id}
-                    style={{
-                      background: '#3b82f6',
-                      color: '#fff',
-                      border: 0,
-                      borderRadius: 6,
-                      padding: '4px 12px',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => { if (!canApprove || acting === adj.id) return; setRejectingId(adj.id); setRejectReason(''); setActionError(''); }}
-                    disabled={acting === adj.id}
-                    style={{
-                      background: '#7f1d1d',
-                      color: '#fff',
-                      border: 0,
-                      borderRadius: 6,
-                      padding: '4px 12px',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Reject
-                  </button>
+                    <button
+                      onClick={() => handleAction(adj.id, 'approve')}
+                      disabled={acting === adj.id}
+                      style={{
+                        background: '#3b82f6',
+                        color: '#fff',
+                        border: 0,
+                        borderRadius: 6,
+                        padding: '4px 12px',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!canApprove || acting === adj.id) return;
+                        setRejectingId(adj.id);
+                        setRejectReason('');
+                        setActionError('');
+                      }}
+                      disabled={acting === adj.id}
+                      style={{
+                        background: '#7f1d1d',
+                        color: '#fff',
+                        border: 0,
+                        borderRadius: 6,
+                        padding: '4px 12px',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Reject
+                    </button>
                   </>
                 )}
                 {rejectingId === adj.id && canApprove && (
@@ -393,9 +458,23 @@ export default function SettlementAdjustmentsPage() {
                       event.preventDefault();
                       void handleAction(adj.id, 'reject', rejectReason);
                     }}
-                    style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      marginTop: 8,
+                    }}
                   >
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, flex: '1 1 260px' }}>
+                    <label
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                        fontSize: 12,
+                        flex: '1 1 260px',
+                      }}
+                    >
                       Rejection reason
                       <textarea
                         required
@@ -408,7 +487,14 @@ export default function SettlementAdjustmentsPage() {
                     <button type="submit" disabled={acting === adj.id || !rejectReason.trim()}>
                       Confirm rejection
                     </button>
-                    <button type="button" disabled={acting === adj.id} onClick={() => { setRejectingId(null); setRejectReason(''); }}>
+                    <button
+                      type="button"
+                      disabled={acting === adj.id}
+                      onClick={() => {
+                        setRejectingId(null);
+                        setRejectReason('');
+                      }}
+                    >
                       Cancel
                     </button>
                   </form>

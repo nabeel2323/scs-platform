@@ -9,7 +9,11 @@ vi.mock('../hooks/useRequirePerms', () => ({
   AccessDenied: () => <div>Access denied</div>,
 }));
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
+  PageHeader: ({ title }: { title: string }) => (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  ),
   radii: { md: 8, lg: 12 },
 }));
 
@@ -29,11 +33,17 @@ describe('admin business calendar read recovery', () => {
 
     render(<CalendarPage />);
 
-    expect((await screen.findByRole('alert')).textContent).toContain('Calendar service unavailable');
-    expect(screen.queryByText('No business calendar configured. Contact system administrator.')).toBeNull();
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Calendar service unavailable',
+    );
+    expect(
+      screen.queryByText('No business calendar configured. Contact system administrator.'),
+    ).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry calendar' }));
-    expect(await screen.findByText('No business calendar configured. Contact system administrator.')).toBeTruthy();
+    expect(
+      await screen.findByText('No business calendar configured. Contact system administrator.'),
+    ).toBeTruthy();
     expect(adminRequest).toHaveBeenCalledTimes(2);
   });
 });

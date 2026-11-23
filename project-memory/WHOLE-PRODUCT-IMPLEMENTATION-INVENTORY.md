@@ -128,7 +128,7 @@ These items are based on current source inspection, not simply copied from the S
 | UX-002 | Admin refund approval                     | `apps/api/src/modules/payments/payments.controller.ts` exposes `POST /admin/refunds/:id/approve` with `admin:refunds:approve`; `apps/admin/src/app/payments/page.tsx` currently has payment list/verification/stale views and verification actions, with no refund-approval workflow found in inspected source. | Add a dedicated refund queue/detail/action flow only after mapping refund state, approval policy, reason, audit and API response contract.                                                                                                                                                                             | P1       | IMPLEMENTATION_PENDING     |
 | UX-003 | Admin dashboard operational widgets       | `apps/admin/src/app/page.tsx` loads KPIs and pending organization updates. It does not load recent catalog import jobs or pending catalog requests. Dedicated import/request pages exist.                                                                                                                       | Add actionable pending-import and catalog-request summaries with permission-aware links, useful empty/error/loading states and bounded queries.                                                                                                                                                                        | P2       | IMPLEMENTATION_PENDING     |
 | UX-004 | Admin navigation information architecture | `apps/admin/src/components/AdminSidebar.tsx` defines 33 entries as a flat array and renders the filtered items as a single navigation list.                                                                                                                                                                     | Group navigation into coherent areas (Overview, Identity, Catalog, Commerce, Fulfillment, Finance, Insights, System); preserve permission filtering, active-route behavior and responsive/collapsed states.                                                                                                            | P2       | IMPLEMENTATION_PENDING     |
-| UX-005 | Merchant Product Studio offer step | `apps/web/src/app/merchant/product-studio/steps/StepOffer.tsx` now loads the selected store's warehouses through `fetchWarehouses(storeId)` and offers only ACTIVE warehouse choices; the old raw warehouse-ID input is no longer present. Currency, base price, MOQ, lead time and price preview are present. | The warehouse selector and fetch/error states are implemented; validate them in Phase 3. Product Studio save sequencing and partial-save retry correctness are tracked separately as UX-015. | P2 | IMPLEMENTED | Reuses the existing store-scoped warehouse API and `Warehouse` contract; no new commercial behavior. |
+| UX-005 | Merchant Product Studio offer step        | `apps/web/src/app/merchant/product-studio/steps/StepOffer.tsx` now loads the selected store's warehouses through `fetchWarehouses(storeId)` and offers only ACTIVE warehouse choices; the old raw warehouse-ID input is no longer present. Currency, base price, MOQ, lead time and price preview are present.  | The warehouse selector and fetch/error states are implemented; validate them in Phase 3. Product Studio save sequencing and partial-save retry correctness are tracked separately as UX-015.                                                                                                                           | P2       | IMPLEMENTED                | Reuses the existing store-scoped warehouse API and `Warehouse` contract; no new commercial behavior. |
 | UX-006 | Mobile permission-level affordances       | `mobile/lib/router/router.dart` redirects non-merchants away from merchant routes and non-drivers away from driver routes, but the inspected router does not apply granular permission checks to individual screens/actions.                                                                                    | Map mobile capabilities to the canonical permission contract; hide/disable unauthorized actions and routes consistently while retaining backend enforcement and safe deep-link denial.                                                                                                                                 | P2       | IMPLEMENTATION_PENDING     |
 | UX-007 | Support-ticket capability                 | `apps/api/src/modules/support/support.module.ts` is empty; no ticket controller/service was found in its module. Disputes are implemented separately in `modules/reviews`.                                                                                                                                      | Decide whether basic support tickets remain in the agreed product scope; if yes, define ticket lifecycle, ownership, roles, attachments/evidence, notifications and UI/API contracts before implementation.                                                                                                            | P2       | BLOCKED                    |
 | UX-008 | Nearby-offers audit discrepancy           | The September audit claims `GET /offers/nearby` exists. The currently inspected catalog and offer controllers expose product offers, ranked offers, merchant offers and governance actions, but no nearby route.                                                                                                | Reconcile the historical API claim against the complete controller tree and current contract before treating this as a frontend-only gap. Location permission/geospatial UX is a product/privacy decision.                                                                                                             | P2       | IMPLEMENTATION_PENDING     |
@@ -201,30 +201,27 @@ This document is a first static inventory checkpoint, not a claim that every rou
 
 The Admin sidebar has 32 destinations grouped by operational domain: Overview, Platform Management, Orders & Fulfillment, Catalog, Finance, Analytics & Governance, and Account. Grouping preserves all destinations, permission checks, active matching, collapsed tooltips and mobile overlay behavior. The Requests destination uses the endpoint's canonical `catalog:requests:manage` permission.
 
-
 ## Admin route permission audit — 22 November 2026
 
 Completed a source-level review of all 56 `apps/admin/src/app/**/page.tsx` files, the root `AuthGuard`, `useRequirePerms`, generic `ManagementPage`, and `managementTables` permission configuration. The complete route/action map is maintained in [Admin Route and Action Permission Matrix](../docs/admin-route-permission-matrix.md). Two UI action-gating gaps were found and corrected: calendar holiday add/remove and escalated-return resolution now require `admin:returns:write`, matching existing API guards. Focused Admin component tests were added. This is not a claim that every API endpoint, role combination, or deep-link workflow has completed Phase 3 verification.
 
 The next mapping priority is the 32 mobile screens/routes and their granular permission/action affordances; then finish web route-to-API and worker/provider operation ownership mapping.
 
-
 ## Mobile authorization inventory — 22 November 2026
 
-| Surface | Permission behavior added | Validation state |
-|---|---|---|
-| Profile model | Parse `GET /v1/me.perms`; exact/any/all helpers | Tests added; execution pending |
-| Router/deep links | Active-org route policy; Access Restricted page; refresh on profile/org change | Tests added; execution pending |
-| Buyer shell/Home | Search, Cart, Orders, merchant/driver launchers filtered by grants | Implementation added |
-| Merchant shell/dashboard | Dashboard, orders, catalog, inventory and child destinations filtered | Implementation added |
-| Organization screens | Create/edit/add/remove member actions require organization permissions | Implementation added |
-| Driver shipments | Pickup and delivery require their specific shipment permissions | Implementation added |
-| Buyer order detail | Cancel, delivery confirmation and reorder require order permissions | Implementation added |
-| Merchant order/inventory/catalog/store | Mutating actions gated by merchant write/delete permissions | Implementation added |
-| Product/search/home cart actions | Add to Cart requires `orders:write` | Implementation added |
+| Surface                                | Permission behavior added                                                      | Validation state               |
+| -------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------ |
+| Profile model                          | Parse `GET /v1/me.perms`; exact/any/all helpers                                | Tests added; execution pending |
+| Router/deep links                      | Active-org route policy; Access Restricted page; refresh on profile/org change | Tests added; execution pending |
+| Buyer shell/Home                       | Search, Cart, Orders, merchant/driver launchers filtered by grants             | Implementation added           |
+| Merchant shell/dashboard               | Dashboard, orders, catalog, inventory and child destinations filtered          | Implementation added           |
+| Organization screens                   | Create/edit/add/remove member actions require organization permissions         | Implementation added           |
+| Driver shipments                       | Pickup and delivery require their specific shipment permissions                | Implementation added           |
+| Buyer order detail                     | Cancel, delivery confirmation and reorder require order permissions            | Implementation added           |
+| Merchant order/inventory/catalog/store | Mutating actions gated by merchant write/delete permissions                    | Implementation added           |
+| Product/search/home cart actions       | Add to Cart requires `orders:write`                                            | Implementation added           |
 
 API guards remain authoritative. Client-side checks improve navigation and affordances but do not replace backend authorization. Full validation is deferred to the consolidated final phase to conserve Actions minutes.
-
 
 ### Mobile authorization review refinement — 22 November 2026
 
@@ -234,14 +231,12 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Merchant low-stock KPI navigation is hidden without `merchant:inventory:read`.
 - Full Flutter and backend validation remains deferred to the single consolidated validation phase.
 
-
 ### Registration organization-context consistency — 22 November 2026
 
 - Merchant registration now writes the created/joined organization ID to secure storage and `activeOrgIdProvider` before reloading the profile permission projection.
 - Store creation checks now use the newly active organization's grants rather than stale profile state.
 - Store/warehouse providers are invalidated after registration mutations.
 - Merchant dashboard onboarding text distinguishes organization creation from invitation-based joining.
-
 
 ### Organization onboarding seed consistency — 22 November 2026
 
@@ -250,20 +245,17 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Canonical `rbac-seed.data.ts` now mirrors the migration's permission definition and role grants; `merchant-rbac.spec.ts` asserts the real seed matrix.
 - No staging database mutation or new migration was needed.
 
-
 ## 22 November 2026 — current-head UX re-audit addendum
 
 - Merchant mobile now has a dedicated Pricing dashboard entry, store-scoped price-list CRUD (create/update/activate), quantity-tier CRUD and product/variant selection. Offer creation can attach a price list and verifies that a tier covers the selected variant and MOQ; offer details link back to the list. See mobile/lib/screens/merchant/merchant_pricing_screen.dart and price_list_detail_screen.dart.
 - Admin order detail previously rendered productId and variantId as truncated UUIDs. AdminService now joins product title, variant title and SKU; Admin UI displays these values with ID fallback. Buyer and merchant mobile/web order detail already render item title/SKU as strings; no JSON/attribute serialization path was found in the inspected detail screens.
 - Focused tests added; not run. This addendum is source inspection, not a visual/device test.
 
-
 ## 22 November 2026 — offers-only search filter
 
 - Added a server-backed hasOffers=true search filter that restricts results to products with at least one ACTIVE merchant offer. The predicate is applied consistently to empty-query, full-text/trigram and exact SKU/barcode paths.
 - Added an Offers-only filter to web search (URL-persisted) and the mobile search filter sheet. Product cards continue to show active offer count and lowest offer price; cart line price remains the effective server-resolved item price.
 - Added SearchService regression tests for empty query, full-text query and exact-SKU fast-path filtering. Not executed.
-
 
 ## 22 November 2026 — Product Studio save-flow correction (UX-015)
 
@@ -272,13 +264,11 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Variant retries re-read existing product variants and skip already-persisted SKUs, avoiding duplicate variants after a partial failure. The saved dirty-state baseline reflects the actual wizard state.
 - Added focused tests for the transition helper; not executed. This is source-level implementation evidence, not browser/device verification.
 
-
 ## 22 November 2026 — buyer cart mutation recovery (UX-016)
 
 - Source review found cart quantity/remove/clear handlers had no local error handling or in-flight lock. Failed validation plus failed fallback reads set cart=null, which could misrepresent an unavailable cart as empty.
 - Added a shared cart mutation helper with error feedback, pending-state cleanup and refresh-on-success. Cart actions are serialized; controls expose accessible labels and progress states. Promo/checkout actions are disabled while a mutation is in flight.
 - Cart reads now preserve the last successful cart and show a retryable load error when both validation and fallback reads fail. Focused helper tests were added but not run.
-
 
 ## 22 November 2026 — Admin returns oversight recovery (UX-017)
 
@@ -287,7 +277,6 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Return detail now uses shared loading/error/not-found states with a retry action. The load callback is awaitable, so the escalation resolution flow waits for the refreshed return read.
 - Added two focused component tests for queue and detail recovery. Not executed; no browser/CI verification yet.
 
-
 ## 22 November 2026 — Mobile cart mutation locking (UX-018)
 
 - Mobile cart item quantity/remove operations previously had no shared in-flight lock. QuantityStepper allowed direct text entry and repeated ± actions while a request was pending.
@@ -295,20 +284,17 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Failed quantity updates invalidate cart data and recreate the stepper from provider state to avoid displaying an unaccepted optimistic value.
 - Added Flutter widget tests for disabled and default-enabled QuantityStepper behavior. Not executed; no device/CI validation.
 
-
 ## 22 November 2026 — Admin dispute timeline recovery (UX-019)
 
 - Dispute detail errors previously had no retry action; Events/Evidence errors were rendered as plain text with no recovery. Async reads were not guarded against stale responses after route/tab changes.
 - Added retryable shared error states and request-version guards for both dispute detail and events. The events list is cleared at the start of a new request so old evidence is not shown alongside a failed refresh.
 - Added focused tests for detail and events retry behavior. Not executed; no browser/CI validation.
 
-
 ## 22 November 2026 — Admin identity/organization detail recovery (UX-020)
 
 - User, merchant and organization detail pages previously displayed non-retryable read errors and did not guard against stale request completions.
 - Added retryable shared error states and request-version protection. User detail now isolates the permission catalog read from the core user detail so permission-service failure does not hide user identity; the Permissions tab can retry independently.
 - Added focused component tests for user, merchant and organization detail retry behavior. Not executed.
-
 
 ## 22 November 2026 — Admin dispute resolution workflow (UX-021)
 
@@ -317,7 +303,6 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - The API permission guard and platform-admin service check remain authoritative. The UI only sends the currently supported `{ resolution }` field; no unsupported refund parameters were added.
 - Added a focused component test. Not executed.
 
-
 ## 22 November 2026 — Admin catalog/order/role detail recovery (UX-022)
 
 - Extended retryable read handling to attributes, brands, catalog import, offers, orders, roles, variants, categories and product types. Main request paths clear stale errors and ignore out-of-date responses where version guards were added.
@@ -325,13 +310,11 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Role permission-save failures are isolated to an inline action error and no longer hide the role detail. The UI copy now correctly states that permission selections require an explicit save.
 - Added focused tests for attribute, order and import-error-tab recovery. Not executed.
 
-
 ## 22 November 2026 — Admin product detail offers recovery (UX-023)
 
 - ProductDetails merchant-offer data previously loaded once with no retry; a failed request could be displayed together with the empty-offers state.
 - Added an awaitable offer loader with request-version protection, loading skeleton, retryable error state and a true-empty state only after a successful response.
 - Added a focused component test for offer-read failure and retry. Not executed.
-
 
 ## 22 November 2026 — Admin financial workflow read recovery (UX-024)
 
@@ -340,7 +323,6 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Mutation failures remain inline action errors; successful actions reload the authoritative list/detail state. No finance API contracts or financial side effects were changed.
 - Added four focused Admin tests for read failure/retry on payment queue, settlements, reconciliation and settlement adjustments. Not executed.
 
-
 ## 22 November 2026 — Product Studio persistence completion (UX-015 / UX-025)
 
 - Progress navigation now allows only the previous/completed steps and the next sequential step. The Offer → Media stepper click uses the same save gate as Next, and the entire stepper is disabled during save, preventing direct navigation from bypassing product persistence.
@@ -348,14 +330,12 @@ API guards remain authoritative. Client-side checks improve navigation and affor
 - Create/update payloads include the supported productTypeId, GTIN, EAN and MPN fields. Store/title are validated in the save routine as well as the step transition helper.
 - Added a progress-indicator widget test and an existing-product update-failure regression case. Tests not executed.
 
-
 ## 22 November 2026 — Product Studio canonical reuse and media persistence (UX-026 / UX-027)
 
 - Existing canonical product selection now wins over stale wizard product IDs. Product Studio reuses the shared product, does not create or update it, and skips canonical attribute/variant/media writes. Shared identity/specification/media steps are read-only in this path.
 - Selected existing variant IDs are passed to the merchant-offer create API. The offer-creation marker is reset when canonical selection changes.
 - Uploaded Product Studio media is now attached to merchant-owned products through product-media records during save. Existing media URLs are re-read and deduplicated before inserts so retries after partial failure are safe.
 - Added unit tests for canonical target selection and media deduplication/empty selection. Not executed.
-
 
 ## 22 November 2026 — UX-027 Product Studio offer retry reconciliation
 
@@ -375,21 +355,17 @@ Implemented in this batch:
 
 No database, API contract, route permission, worker, staging or deployment changes were made.
 
-
 ## 22 November 2026 — UX-029 mobile return detail/history parity
 
 Web's `apps/web/src/app/returns/[id]/page.tsx` displays complete buyer return details and the lifecycle-event timeline. Flutter's initial buyer-return parity work displayed only a summary, although the existing `GET /v1/returns/:id` already returns detail, item and event records after buyer ownership authorization. The mobile Order Detail now opens a retryable sheet containing refund values, notes, returned item quantities/conditions and chronological event history. No separate route, permission or API change was required. DTO parsing and focused tests were extended; not executed.
-
 
 ## 22 November 2026 — Web buyer self-service recovery (UX-030)
 
 Source audit of the Web buyer account surfaces found that Notifications, Favorites and Saved Suppliers swallowed list-fetch errors and rendered empty states, making network/API failure indistinguishable from a genuinely empty list. Favorite/supplier removal failures were also swallowed. Profile Sessions showed an initial error but no retry and could still display “No active sessions” after a failed fetch. These states are now explicit and retryable. Removal failures remain visible and preserve the affected row. Notification optimistic read rollback now restores the original `readAt` and `status`. Focused tests added; not executed.
 
-
 ## 22 November 2026 — UX-031 Merchant Customers read recovery
 
 The Merchant Customers page previously swallowed initial and refresh failures and showed an empty directory as though the read had succeeded. It now surfaces a retryable read error, preserves the last successful rows when a refresh fails, and renders “No customers yet” only after a successful empty response. Focused tests added; not executed.
-
 
 ## 22 November 2026 — UX-032 Merchant Deliveries read recovery
 
@@ -486,11 +462,9 @@ The Merchant Deliveries queue now offers Retry on list-read failure and does not
 - Attribute Group detail no longer reports no attributes defined when its shared attribute read failed.
 - Focused tests added in `admin-attribute-groups-recovery.test.tsx` and `admin-attributes-recovery.test.tsx`; not executed. UX-058 is IMPLEMENTED / TESTING_PENDING. No API, permission, schema, migration or database change.
 
-
 ## 23 November 2026 — Mobile category route/action permission re-audit (UX-094)
 
 The source audit found a mismatch between the merchant category directory and the API's platform-only category mutations. The merchant route is now gated by `catalog:categories:read`, the dashboard launcher uses the same read grant, and merchant create/edit/delete affordances are hidden. The policy helper and route tests are present but not executed; the focused route matrix covers 13 merchant operational deep links. The API remains unchanged: category writes still require ADMIN/MODERATOR plus `catalog:categories:write`. Merchant-owned category CRUD remains a scope/ownership decision; do not relax backend guards until store ownership and active membership semantics are defined.
-
 
 ## Web merchant permission and realtime continuation — 23 November 2026
 
@@ -504,7 +478,6 @@ The Web merchant route/action slice is now implemented on PR #138:
 
 Focused Web/API tests are added but not executed. This is not a full Admin route/permission audit or comprehensive client verification. Next: complete the Mobile route-permission and organization-context transition audit, then remaining Admin route/action mapping.
 
-
 ## Mobile permission and organization-context continuation — 23 November 2026
 
 The Mobile route/action audit slice is now implemented on PR #138:
@@ -517,21 +490,17 @@ The Mobile route/action audit slice is now implemented on PR #138:
 
 Focused Mobile route and driver-assignment tests are added but not executed. The next implementation slice is the remaining Admin route/action permission mapping; full verification remains deferred to the consolidated testing phase.
 
-
 ## 23 November 2026 — Admin action-handler permission recheck (UX-097)
 
 A follow-up audit inspected the action handlers behind the existing Admin route permission matrix. Verification organization deactivate/reactivate, Organizations status toggle and update-request review, and dispute resolution previously relied on rendered-control visibility without rechecking the permission inside the async handler. The handlers now fail closed when the corresponding `admin:users:write` or `support:disputes:resolve` grant is absent at execution time; organization handlers also prevent duplicate in-flight actions. Focused tests simulate permission loss while confirmation dialogs remain open. Tests are added but not executed. This is client action-safety hardening only; API authorization remains authoritative and no permission grant changed.
-
 
 ## 23 November 2026 — Admin navigation capability alignment (UX-098)
 
 The Admin sidebar previously modeled only all-of permission requirements. Source comparison showed two pages with legitimate OR access: Carrier & Recovery (`admin:carrier:read` OR `admin:shipping:recovery`) and Payments (`admin:payments:read` OR `admin:payments:verify` OR `admin:refunds:approve`). Navigation now supports `anyPerms`; the Payments page-level gate and loader also admit verification-only users while keeping each tab's endpoint under its specific permission. Focused tests were added but not executed. No API role grants or RBAC seed changes occurred.
 
-
 ## 23 November 2026 — Shared Admin mutation guards (UX-099)
 
 The shared Admin mutation helper now accepts an action-specific permission predicate checked immediately before dispatch. User status/membership, dispute, category, brand and offer governance actions, Carrier Recovery, shipment exception/RTS, inventory returns, carrier create/cancel/recovery, and User Detail profile saves are bound to their corresponding permission hooks. Focused permission-loss test added but not executed. This is client-side defense in depth; backend authorization and grants are unchanged.
-
 
 ## 23 November 2026 — Merchant settlement visibility (FIN-046)
 

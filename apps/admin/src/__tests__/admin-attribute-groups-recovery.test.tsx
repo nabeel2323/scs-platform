@@ -39,7 +39,9 @@ describe('admin attribute group read recovery', () => {
 
     render(<AttributeGroupsPage />);
 
-    expect((await screen.findByRole('alert')).textContent).toContain('Attribute groups unavailable');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Attribute groups unavailable',
+    );
     expect(screen.queryByText('No attribute groups found.')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));

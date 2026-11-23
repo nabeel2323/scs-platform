@@ -1,16 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-const { fetchAttributes, createAttribute, updateAttribute, deleteAttribute, addAttributeOption } = vi.hoisted(() => ({
-  fetchAttributes: vi.fn(),
-  createAttribute: vi.fn(),
-  updateAttribute: vi.fn(),
-  deleteAttribute: vi.fn(),
-  addAttributeOption: vi.fn(),
-}));
+const { fetchAttributes, createAttribute, updateAttribute, deleteAttribute, addAttributeOption } =
+  vi.hoisted(() => ({
+    fetchAttributes: vi.fn(),
+    createAttribute: vi.fn(),
+    updateAttribute: vi.fn(),
+    deleteAttribute: vi.fn(),
+    addAttributeOption: vi.fn(),
+  }));
 
 vi.mock('next/link', () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
 }));
 vi.mock('../lib/api', () => ({
   fetchAttributes: (...args: unknown[]) => fetchAttributes(...args),
@@ -47,7 +50,9 @@ describe('admin attribute definition read recovery', () => {
 
     render(<AttributesPage />);
 
-    expect((await screen.findByRole('alert')).textContent).toContain('Attribute directory unavailable');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Attribute directory unavailable',
+    );
     expect(screen.queryByText('No attributes found.')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));

@@ -150,7 +150,6 @@ Before a row is marked policy-ready, add and verify all of the following from so
 
 This is design evidence only. It does not authorize a staging release, shared-database mutation, migration 0070, grant/default-ACL changes, RLS enablement, worker activation, or deployment.
 
-
 ## Relation-count discrepancy — 22 November 2026
 
 The detailed 19-November public-schema inventory records 114 relations (1 partitioned parent, 13 analytics partitions and 100 ordinary tables). The 21-November schema coverage reconciliation maps 99 Drizzle table declarations plus 15 relations without separate Drizzle declarations, also totaling 114. This matrix's earlier 116-table wording is not supported by those detailed lists and its scope is unknown. Do not silently substitute 116 or declare the discrepancy closed: a refreshed protected read-only catalog audit must enumerate schemas, relation kinds, partitions and migration/system objects and explain the two-relation delta, if any.

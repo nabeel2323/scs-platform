@@ -11,10 +11,7 @@ describe('AutoCompleteWorker durable claims', () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
     const completeOrder = vi.fn().mockResolvedValue(order);
-    const worker = new AutoCompleteWorker(
-      { db: { execute } } as any,
-      { completeOrder } as any,
-    );
+    const worker = new AutoCompleteWorker({ db: { execute } } as any, { completeOrder } as any);
 
     await (worker as any).poll();
 
@@ -43,10 +40,7 @@ describe('AutoCompleteWorker durable claims', () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
     const completeOrder = vi.fn().mockRejectedValue(new Error('temporary failure'));
-    const worker = new AutoCompleteWorker(
-      { db: { execute } } as any,
-      { completeOrder } as any,
-    );
+    const worker = new AutoCompleteWorker({ db: { execute } } as any, { completeOrder } as any);
 
     await (worker as any).poll();
 

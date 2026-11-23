@@ -4,7 +4,9 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 const { fetchCatalogImports } = vi.hoisted(() => ({ fetchCatalogImports: vi.fn() }));
 
 vi.mock('next/link', () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
 }));
 vi.mock('../lib/api', () => ({
   uploadCatalogImport: vi.fn(),
@@ -22,9 +24,16 @@ vi.mock('../hooks/useRequirePerms', () => ({
   AccessDenied: () => <div>Access denied</div>,
 }));
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
+  PageHeader: ({ title }: { title: string }) => (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  ),
   colors: {
-    surface: '#fff', border: '#ddd', ink: '#111', muted: '#888',
+    surface: '#fff',
+    border: '#ddd',
+    ink: '#111',
+    muted: '#888',
     brand: { 500: '#aaa', 700: '#333' },
   },
   typeScale: { h3: {}, bodySm: {}, body: {} },
@@ -52,7 +61,9 @@ describe('admin catalog import history recovery', () => {
     expect(screen.queryByText('No imports yet. Upload a workbook to get started.')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry imports' }));
-    expect(await screen.findByText('No imports yet. Upload a workbook to get started.')).toBeTruthy();
+    expect(
+      await screen.findByText('No imports yet. Upload a workbook to get started.'),
+    ).toBeTruthy();
     expect(fetchCatalogImports).toHaveBeenCalledTimes(2);
   });
 });

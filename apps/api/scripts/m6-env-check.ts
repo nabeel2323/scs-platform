@@ -26,7 +26,10 @@ function readUatConfig() {
 
   const apiUrl = process.env['SCS_UAT_API_URL'] ?? 'http://localhost:3000/v1';
   const redisUrl = process.env['SCS_UAT_REDIS_URL'] ?? 'redis://localhost:6379';
-  for (const [name, value] of [['SCS_UAT_API_URL', apiUrl], ['SCS_UAT_REDIS_URL', redisUrl]] as const) {
+  for (const [name, value] of [
+    ['SCS_UAT_API_URL', apiUrl],
+    ['SCS_UAT_REDIS_URL', redisUrl],
+  ] as const) {
     const parsed = new URL(value);
     if (!LOCAL_HOSTS.has(parsed.hostname)) {
       throw new Error(name + ' must point to a local host.');
@@ -107,8 +110,16 @@ async function main(): Promise<void> {
 
   console.log('\n=== CATALOG BASELINE ===');
   const endpoints: [string, string, (data: any) => number | string][] = [
-    ['Categories', '/admin/categories', (data) => Array.isArray(data) ? data.length : (data.total ?? data.length ?? '?')],
-    ['Product Types', '/admin/product-types', (data) => Array.isArray(data) ? data.length : (data.total ?? data.length ?? '?')],
+    [
+      'Categories',
+      '/admin/categories',
+      (data) => (Array.isArray(data) ? data.length : (data.total ?? data.length ?? '?')),
+    ],
+    [
+      'Product Types',
+      '/admin/product-types',
+      (data) => (Array.isArray(data) ? data.length : (data.total ?? data.length ?? '?')),
+    ],
     ['Products', '/admin/products?limit=100', (data) => data.items?.length ?? data.length ?? '?'],
   ];
   for (const [label, endpoint, countFn] of endpoints) {
@@ -123,22 +134,33 @@ async function main(): Promise<void> {
 
   console.log('\n=== PRODUCTS & VARIANTS ===');
   try {
-    const productResponse = await fetch(config.apiUrl + '/admin/products?limit=100', { headers: auth });
+    const productResponse = await fetch(config.apiUrl + '/admin/products?limit=100', {
+      headers: auth,
+    });
     const productData = (await productResponse.json()) as any;
     const products = productData.items || productData;
     if (Array.isArray(products)) {
       console.log('  Total products: ' + products.length);
       let totalVariants = 0;
       for (const product of products) {
-        const variantResponse = await fetch(config.apiUrl + '/admin/products/' + product.id + '/variants', { headers: auth });
+        const variantResponse = await fetch(
+          config.apiUrl + '/admin/products/' + product.id + '/variants',
+          { headers: auth },
+        );
         const variants = (await variantResponse.json()) as any;
-        const variantRows = Array.isArray(variants) ? variants : (variants.items || []);
+        const variantRows = Array.isArray(variants) ? variants : variants.items || [];
         totalVariants += variantRows.length;
         console.log(
-          '  ' + product.id?.substring(0, 8) + '... | ' +
-          (product.title || '').substring(0, 40) + ' | status=' + product.status +
-          ' | store=' + (product.storeId ? 'owned' : 'canonical') +
-          ' | variants=' + variantRows.length,
+          '  ' +
+            product.id?.substring(0, 8) +
+            '... | ' +
+            (product.title || '').substring(0, 40) +
+            ' | status=' +
+            product.status +
+            ' | store=' +
+            (product.storeId ? 'owned' : 'canonical') +
+            ' | variants=' +
+            variantRows.length,
         );
       }
       console.log('  Total variants: ' + totalVariants);
@@ -151,13 +173,22 @@ async function main(): Promise<void> {
   try {
     const storesResponse = await fetch(config.apiUrl + '/admin/stores', { headers: auth });
     const storesData = (await storesResponse.json()) as any;
-    const stores = Array.isArray(storesData) ? storesData : (storesData.items || storesData.data || []);
+    const stores = Array.isArray(storesData)
+      ? storesData
+      : storesData.items || storesData.data || [];
     console.log('  Stores: ' + stores.length);
     for (const store of stores) {
       console.log(
-        '    ' + store.id?.substring(0, 8) + '... | ' + store.displayName +
-        ' | org=' + store.orgId?.substring(0, 8) + ' | status=' + store.status +
-        ' | ver=' + store.verificationStatus,
+        '    ' +
+          store.id?.substring(0, 8) +
+          '... | ' +
+          store.displayName +
+          ' | org=' +
+          store.orgId?.substring(0, 8) +
+          ' | status=' +
+          store.status +
+          ' | ver=' +
+          store.verificationStatus,
       );
     }
   } catch (error: any) {
@@ -176,7 +207,7 @@ async function main(): Promise<void> {
     try {
       const response = await fetch(config.apiUrl + endpoint, { headers: auth });
       const data = (await response.json()) as any;
-      const rows = Array.isArray(data) ? data : (data.items || data.data || []);
+      const rows = Array.isArray(data) ? data : data.items || data.data || [];
       console.log('  ' + label + ': ' + rows.length);
     } catch (error: any) {
       console.log('  ' + label + ': ERROR - ' + error.message);
@@ -187,7 +218,7 @@ async function main(): Promise<void> {
   try {
     const response = await fetch(config.apiUrl + '/admin/price-lists', { headers: auth });
     const data = (await response.json()) as any;
-    const rows = Array.isArray(data) ? data : (data.items || data.data || []);
+    const rows = Array.isArray(data) ? data : data.items || data.data || [];
     console.log('  Price Lists: ' + rows.length);
   } catch (error: any) {
     console.log('  Price Lists: ERROR - ' + error.message);

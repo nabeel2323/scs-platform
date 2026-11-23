@@ -10,7 +10,14 @@ import { getImportJobOutcome } from '../../../lib/import-job-outcome';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 
-const STEPS = ['Upload File', 'Map Columns', 'Validation', 'Preview', 'Import Progress', 'Review'] as const;
+const STEPS = [
+  'Upload File',
+  'Map Columns',
+  'Validation',
+  'Preview',
+  'Import Progress',
+  'Review',
+] as const;
 
 /** Default column mapping targets for product imports. */
 const TARGET_COLUMNS = [
@@ -47,7 +54,10 @@ function parseCsvLine(line: string): string[] {
     const ch = line[i]!;
     if (inQuotes) {
       if (ch === '"') {
-        if (line[i + 1] === '"') { current += '"'; i++; } // escaped quote
+        if (line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } // escaped quote
         else inQuotes = false;
       } else {
         current += ch;
@@ -78,7 +88,11 @@ function parseCsvRecords(text: string): string[][] {
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]!;
     if (ch === '"') {
-      if (inQuotes && text[i + 1] === '"') { buffer += '""'; i++; continue; }
+      if (inQuotes && text[i + 1] === '"') {
+        buffer += '""';
+        i++;
+        continue;
+      }
       inQuotes = !inQuotes;
       buffer += ch;
     } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
@@ -123,20 +137,37 @@ export default function ImportWizardPage() {
   // Step 3: Validation
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [validRows, setValidRows] = useState(0);
-  const [stockPreview, setStockPreview] = useState<{ totalRows: number; rowsWithStock: number; totalStock: number } | null>(null);
+  const [stockPreview, setStockPreview] = useState<{
+    totalRows: number;
+    rowsWithStock: number;
+    totalStock: number;
+  } | null>(null);
 
   // Step 4: Preview (P10)
   const [previewData, setPreviewData] = useState<{
-    totalRows: number; validRows: number; errorCount: number; warningCount: number;
-    errors: Array<{ rowNumber: number; field: string; errorCode: string; severity: string; message: string; suggestedFix?: string | null }>;
-    sampleRows: Record<string, string>[]; detectedHeaders: string[];
+    totalRows: number;
+    validRows: number;
+    errorCount: number;
+    warningCount: number;
+    errors: Array<{
+      rowNumber: number;
+      field: string;
+      errorCode: string;
+      severity: string;
+      message: string;
+      suggestedFix?: string | null;
+    }>;
+    sampleRows: Record<string, string>[];
+    detectedHeaders: string[];
   } | null>(null);
 
   // Step 5: Progress
   const [importJob, setImportJob] = useState<ImportJob | null>(null);
   const [progress, setProgress] = useState(0);
   const [pollError, setPollError] = useState<string | null>(null);
-  const [importOutcome, setImportOutcome] = useState<'success' | 'failure' | 'cancelled' | 'pending' | null>(null);
+  const [importOutcome, setImportOutcome] = useState<
+    'success' | 'failure' | 'cancelled' | 'pending' | null
+  >(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollGenerationRef = useRef(0);
   const pollInFlightRef = useRef(false);
@@ -144,7 +175,12 @@ export default function ImportWizardPage() {
   const pollNowRef = useRef<(() => void) | null>(null);
 
   // Step 6: Review
-  const [importStats, setImportStats] = useState<{ created: number; updated: number; skipped: number; errors: number } | null>(null);
+  const [importStats, setImportStats] = useState<{
+    created: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+  } | null>(null);
 
   const stopImportPolling = useCallback(() => {
     pollGenerationRef.current += 1;
@@ -198,8 +234,8 @@ export default function ImportWizardPage() {
 
   /** Download a CSV template with TARGET_COLUMNS headers and 2 example rows. */
   const downloadTemplate = () => {
-    const header = TARGET_COLUMNS.map(c => c.label).join(',');
-    const row1 = TARGET_COLUMNS.map(c => {
+    const header = TARGET_COLUMNS.map((c) => c.label).join(',');
+    const row1 = TARGET_COLUMNS.map((c) => {
       if (c.key === 'name') return 'Widget Pro';
       if (c.key === 'nameAr') return 'ودجت برو';
       if (c.key === 'sku') return 'WDG-001';
@@ -213,7 +249,7 @@ export default function ImportWizardPage() {
       if (c.key === 'stock') return '100';
       return '';
     }).join(',');
-    const row2 = TARGET_COLUMNS.map(c => {
+    const row2 = TARGET_COLUMNS.map((c) => {
       if (c.key === 'name') return 'Gadget Plus';
       if (c.key === 'nameAr') return 'غادجيت بلس';
       if (c.key === 'sku') return 'GDG-002';
@@ -239,7 +275,7 @@ export default function ImportWizardPage() {
 
   /** Parse CSV file to extract headers and preview rows. */
   const parseCsvFile = (csvText: string) => {
-    const lines = csvText.split('\n').filter(l => l.trim());
+    const lines = csvText.split('\n').filter((l) => l.trim());
     if (lines.length < 2) {
       setError('File must have at least a header row and one data row.');
       return;
@@ -250,10 +286,11 @@ export default function ImportWizardPage() {
     // Auto-map columns by name similarity
     const mapping: Record<string, string> = {};
     for (const target of TARGET_COLUMNS) {
-      const match = headers.find(h =>
-        h.toLowerCase().replace(/[^a-z0-9]/g, '') === target.key.toLowerCase() ||
-        h.toLowerCase().includes(target.key.toLowerCase()) ||
-        h.toLowerCase().includes(target.label.toLowerCase().split(' ')[0]!)
+      const match = headers.find(
+        (h) =>
+          h.toLowerCase().replace(/[^a-z0-9]/g, '') === target.key.toLowerCase() ||
+          h.toLowerCase().includes(target.key.toLowerCase()) ||
+          h.toLowerCase().includes(target.label.toLowerCase().split(' ')[0]!),
       );
       if (match) mapping[target.key] = match;
     }
@@ -266,9 +303,11 @@ export default function ImportWizardPage() {
     const records = parseCsvRecords(text);
     if (records.length < 2) return [];
     const headers = records[0]!;
-    return records.slice(1).map(cols => {
+    return records.slice(1).map((cols) => {
       const row: Record<string, string> = {};
-      headers.forEach((h, i) => { row[h] = cols[i] ?? ''; });
+      headers.forEach((h, i) => {
+        row[h] = cols[i] ?? '';
+      });
       return row;
     });
   };
@@ -340,7 +379,10 @@ export default function ImportWizardPage() {
           const val = row[stockHeader];
           if (val) {
             const qty = parseInt(val, 10);
-            if (!isNaN(qty) && qty > 0) { rowsWithStock++; totalStock += qty; }
+            if (!isNaN(qty) && qty > 0) {
+              rowsWithStock++;
+              totalStock += qty;
+            }
           }
         }
       }
@@ -352,7 +394,10 @@ export default function ImportWizardPage() {
 
   /** R1/R2 — Step 0 → Step 1: create the job; for XLSX upload bytes + detect headers. */
   const goToMapping = async () => {
-    if (!file || !storeId) { setError('Please select a file and a store.'); return; }
+    if (!file || !storeId) {
+      setError('Please select a file and a store.');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -385,7 +430,10 @@ export default function ImportWizardPage() {
 
   /** R2 — Step 1 → Step 2: persist the chosen mapping (UPLOADED → MAPPING). */
   const persistMappingAndValidate = async () => {
-    if (!importJob) { setError('Import job not created.'); return; }
+    if (!importJob) {
+      setError('Import job not created.');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -434,7 +482,9 @@ export default function ImportWizardPage() {
     setError(null);
     try {
       await stageCsvRows();
-      const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}/preview`, { method: 'POST' });
+      const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}/preview`, {
+        method: 'POST',
+      });
       if (!res.ok) {
         const b = await res.json().catch(() => null);
         throw new Error(b?.detail || b?.message || `Preview failed: ${res.status}`);
@@ -477,17 +527,22 @@ export default function ImportWizardPage() {
         errors: job.stats?.['errors'] ?? 0,
       });
       if (outcome === 'cancelled') setError('Import cancelled.');
-      else if (outcome === 'failure') setError('Import failed. Review the error report for details.');
+      else if (outcome === 'failure')
+        setError('Import failed. Review the error report for details.');
       else setError(null);
       setPollError(null);
       setStep(5);
     };
 
     try {
-      const processRes = await authFetch(`${API_URL}/v1/imports/${jobId}/process`, { method: 'POST' });
+      const processRes = await authFetch(`${API_URL}/v1/imports/${jobId}/process`, {
+        method: 'POST',
+      });
       if (!processRes.ok) {
         const b = await processRes.json().catch(() => null);
-        throw new Error(b?.detail || b?.message || `Import processing failed: ${processRes.status}`);
+        throw new Error(
+          b?.detail || b?.message || `Import processing failed: ${processRes.status}`,
+        );
       }
 
       if (!mountedRef.current) return;
@@ -496,7 +551,12 @@ export default function ImportWizardPage() {
       setStep(4);
       const generation = ++pollGenerationRef.current;
       const poll = async () => {
-        if (!mountedRef.current || generation !== pollGenerationRef.current || pollInFlightRef.current) return;
+        if (
+          !mountedRef.current ||
+          generation !== pollGenerationRef.current ||
+          pollInFlightRef.current
+        )
+          return;
         pollInFlightRef.current = true;
         try {
           const res = await authFetch(`${API_URL}/v1/imports/${jobId}`);
@@ -522,13 +582,18 @@ export default function ImportWizardPage() {
             setPollError(err instanceof Error ? err.message : 'Unable to refresh import status');
           }
         } finally {
-          if (mountedRef.current && generation === pollGenerationRef.current) pollInFlightRef.current = false;
+          if (mountedRef.current && generation === pollGenerationRef.current)
+            pollInFlightRef.current = false;
         }
       };
 
-      pollNowRef.current = () => { void poll(); };
+      pollNowRef.current = () => {
+        void poll();
+      };
       void poll();
-      pollTimerRef.current = setInterval(() => { void poll(); }, 1500);
+      pollTimerRef.current = setInterval(() => {
+        void poll();
+      }, 1500);
     } catch (err: unknown) {
       stopImportPolling();
       if (mountedRef.current) setError(err instanceof Error ? err.message : String(err));
@@ -542,7 +607,9 @@ export default function ImportWizardPage() {
     if (!importJob) return;
     setError(null);
     try {
-      const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}/cancel`, { method: 'POST' });
+      const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}/cancel`, {
+        method: 'POST',
+      });
       if (!res.ok) {
         const b = await res.json().catch(() => null);
         throw new Error(b?.detail || b?.message || `Cancel failed: ${res.status}`);
@@ -574,7 +641,7 @@ export default function ImportWizardPage() {
   };
 
   const updateMapping = (targetKey: string, sourceHeader: string) => {
-    setColumnMapping(prev => ({ ...prev, [targetKey]: sourceHeader }));
+    setColumnMapping((prev) => ({ ...prev, [targetKey]: sourceHeader }));
   };
 
   return (
@@ -582,447 +649,1045 @@ export default function ImportWizardPage() {
       {/* Header Banner */}
       <PageHeader title="Import Catalog" subtitle="Bulk import products from a CSV or Excel file" />
       <div style={{ padding: '20px 24px 48px' }}>
-
-      {/* Step indicator */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 32 }}>
-        {STEPS.map((s, i) => (
-          <div key={s} style={{
-            flex: 1, height: 4, borderRadius: 2,
-            backgroundColor: i <= step ? '#174A5B' : '#E5E7EB',
-            transition: 'background-color 200ms',
-          }} />
-        ))}
-      </div>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 24 }}>
-        {STEPS.map((s, i) => (
-          <div key={s} style={{
-            flex: 1, textAlign: 'center', fontSize: 11, fontWeight: i === step ? 600 : 400,
-            color: i <= step ? '#174A5B' : '#9CA3AF',
-          }}>
-            {s}
-          </div>
-        ))}
-      </div>
-
-      {error && (
-        <div style={{ padding: '12px 16px', marginBottom: 16, backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#B3372F', fontSize: 13 }}>
-          {error}
+        {/* Step indicator */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 32 }}>
+          {STEPS.map((s, i) => (
+            <div
+              key={s}
+              style={{
+                flex: 1,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: i <= step ? '#174A5B' : '#E5E7EB',
+                transition: 'background-color 200ms',
+              }}
+            />
+          ))}
         </div>
-      )}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 24 }}>
+          {STEPS.map((s, i) => (
+            <div
+              key={s}
+              style={{
+                flex: 1,
+                textAlign: 'center',
+                fontSize: 11,
+                fontWeight: i === step ? 600 : 400,
+                color: i <= step ? '#174A5B' : '#9CA3AF',
+              }}
+            >
+              {s}
+            </div>
+          ))}
+        </div>
 
-      {/* Step 1: Upload */}
-      {step === 0 && (
-        <div>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Store</label>
-            {storeLoading ? (
-              <div role="status" style={{ padding: '8px 12px', border: '1px solid #D1D5DB', borderRadius: 4, fontSize: 13, color: '#666', backgroundColor: '#F9FAFB' }}>
-                Loading your store...
-              </div>
-            ) : storeError ? (
-              <div role="alert" style={{ padding: '8px 12px', border: '1px solid #FECACA', borderRadius: 4, fontSize: 13, color: '#B3372F', backgroundColor: '#FEF2F2' }}>
-                <div>{storeError}</div>
-                <button type="button" onClick={() => void resolveStore()} style={{ marginTop: 8 }}>
-                  Retry store lookup
-                </button>
-              </div>
-            ) : storeName ? (
-              <div style={{ padding: '8px 12px', border: '1px solid #D1D5DB', borderRadius: 4, fontSize: 14, backgroundColor: '#F9FAFB', color: '#0f3340', fontWeight: 600 }}>
-                {storeName}
-              </div>
-            ) : noStore ? (
-              <div style={{ padding: '8px 12px', border: '1px solid #FECACA', borderRadius: 4, fontSize: 13, color: '#B3372F', backgroundColor: '#FEF2F2' }}>
-                No store found. <a href="/merchant/onboard" style={{ color: '#174A5B', textDecoration: 'underline' }}>Onboard a store</a> before importing.
-              </div>
-            ) : null}
-          </div>
-
+        {error && (
           <div
-            onClick={() => fileInputRef.current?.click()}
             style={{
-              border: '2px dashed #D1D5DB', borderRadius: 12, padding: '48px 24px',
-              textAlign: 'center', cursor: 'pointer', backgroundColor: file ? '#F0FDF4' : '#FAFAFA',
-              transition: 'background-color 200ms',
+              padding: '12px 16px',
+              marginBottom: 16,
+              backgroundColor: '#FEF2F2',
+              border: '1px solid #FECACA',
+              borderRadius: 8,
+              color: '#B3372F',
+              fontSize: 13,
             }}
           >
-            <input ref={fileInputRef} type="file" accept=".csv,.xlsx" onChange={handleFileSelect} style={{ display: 'none' }} />
-            <div style={{ fontSize: 40, marginBottom: 8 }}>{file ? '📄' : '📁'}</div>
-            {file ? (
-              <>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{file.name}</div>
-                <div style={{ fontSize: 12, color: '#666' }}>{(file.size / 1024).toFixed(1)} KB</div>
-              </>
-            ) : (
-              <>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>Drop your file here or click to browse</div>
-                <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>Supports CSV and XLSX files</div>
-              </>
-            )}
+            {error}
           </div>
+        )}
 
-          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <button onClick={downloadTemplate} style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#174A5B', border: '1px solid #174A5B', borderRadius: 6, cursor: 'pointer' }}>
-              Download Template
-            </button>
-            <button
-              onClick={goToMapping}
-              disabled={!file || !storeId || storeLoading || loading}
+        {/* Step 1: Upload */}
+        {step === 0 && (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                Store
+              </label>
+              {storeLoading ? (
+                <div
+                  role="status"
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: 4,
+                    fontSize: 13,
+                    color: '#666',
+                    backgroundColor: '#F9FAFB',
+                  }}
+                >
+                  Loading your store...
+                </div>
+              ) : storeError ? (
+                <div
+                  role="alert"
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid #FECACA',
+                    borderRadius: 4,
+                    fontSize: 13,
+                    color: '#B3372F',
+                    backgroundColor: '#FEF2F2',
+                  }}
+                >
+                  <div>{storeError}</div>
+                  <button
+                    type="button"
+                    onClick={() => void resolveStore()}
+                    style={{ marginTop: 8 }}
+                  >
+                    Retry store lookup
+                  </button>
+                </div>
+              ) : storeName ? (
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: 4,
+                    fontSize: 14,
+                    backgroundColor: '#F9FAFB',
+                    color: '#0f3340',
+                    fontWeight: 600,
+                  }}
+                >
+                  {storeName}
+                </div>
+              ) : noStore ? (
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid #FECACA',
+                    borderRadius: 4,
+                    fontSize: 13,
+                    color: '#B3372F',
+                    backgroundColor: '#FEF2F2',
+                  }}
+                >
+                  No store found.{' '}
+                  <a
+                    href="/merchant/onboard"
+                    style={{ color: '#174A5B', textDecoration: 'underline' }}
+                  >
+                    Onboard a store
+                  </a>{' '}
+                  before importing.
+                </div>
+              ) : null}
+            </div>
+
+            <div
+              onClick={() => fileInputRef.current?.click()}
               style={{
-                padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600,
-                backgroundColor: file && storeId && !storeLoading ? '#174A5B' : '#D1D5DB', color: 'white', border: 'none',
-                cursor: file && storeId && !storeLoading ? 'pointer' : 'not-allowed',
+                border: '2px dashed #D1D5DB',
+                borderRadius: 12,
+                padding: '48px 24px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                backgroundColor: file ? '#F0FDF4' : '#FAFAFA',
+                transition: 'background-color 200ms',
               }}
             >
-              {loading ? 'Preparing…' : 'Next: Map Columns →'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 2: Column Mapping */}
-      {step === 1 && (
-        <div>
-          <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
-            Map your file columns to product fields. Required fields are marked with *.
-          </p>
-
-          <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ backgroundColor: '#F9FAFB' }}>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid #E5E7EB' }}>Product Field</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid #E5E7EB' }}>Your Column</th>
-                </tr>
-              </thead>
-              <tbody>
-                {TARGET_COLUMNS.map(tc => (
-                  <tr key={tc.key} style={{ borderBottom: '1px solid #F3F4F6' }}>
-                    <td style={{ padding: '8px 12px' }}>
-                      {tc.label} {tc.required && <span style={{ color: '#B3372F' }}>*</span>}
-                    </td>
-                    <td style={{ padding: '8px 12px' }}>
-                      <select
-                        value={columnMapping[tc.key] || ''}
-                        onChange={e => updateMapping(tc.key, e.target.value)}
-                        style={{
-                          width: '100%', padding: '6px 8px', border: '1px solid #D1D5DB',
-                          borderRadius: 4, fontSize: 13,
-                          backgroundColor: columnMapping[tc.key] ? '#F0FDF4' : 'white',
-                        }}
-                      >
-                        <option value="">— Not mapped —</option>
-                        {detectedHeaders.map(h => (
-                          <option key={h} value={h}>{h}</option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div style={{ marginTop: 16, padding: '12px 16px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 12, color: '#92400E' }}>
-            💡 <strong>Tip:</strong> Prices should be in minor units (halalas). E.g., 10.50 SAR = 1050. MOQ must be a positive integer.
-          </div>
-
-          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between' }}>
-            <button onClick={() => setStep(0)} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, backgroundColor: '#F3F4F6', border: 'none', cursor: 'pointer' }}>
-              ← Back
-            </button>
-            <button onClick={persistMappingAndValidate} disabled={loading} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600, backgroundColor: '#174A5B', color: 'white', border: 'none', cursor: 'pointer' }}>
-              {loading ? 'Saving…' : 'Save Mapping →'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Validation */}
-      {step === 2 && (
-        <div>
-          <div style={{ padding: 24, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, textAlign: 'center', marginBottom: 16 }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
-            <div style={{ fontWeight: 600, fontSize: 16 }}>Mapping Saved</div>
-            <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-              {detectedHeaders.length} columns detected{file ? ` from ${file.name}` : ''} — run the preview to validate rows.
-            </div>
-          </div>
-
-          {validationErrors.length > 0 && (
-            <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
-              <div style={{ padding: '8px 12px', backgroundColor: '#FEF2F2', fontWeight: 600, fontSize: 13, color: '#B3372F', borderBottom: '1px solid #FECACA' }}>
-                Row-level errors ({validationErrors.length})
-              </div>
-              <div style={{ maxHeight: 200, overflow: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#F9FAFB' }}>
-                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Row</th>
-                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Field</th>
-                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Error</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {validationErrors.slice(0, 50).map((err, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
-                        <td style={{ padding: '6px 12px' }}>{err.row}</td>
-                        <td style={{ padding: '6px 12px' }}>{err.field}</td>
-                        <td style={{ padding: '6px 12px', color: '#B3372F' }}>{err.message}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {validationErrors.length > 50 && (
-                <div style={{ padding: '8px 12px', fontSize: 11, color: '#666', textAlign: 'center' }}>
-                  Showing first 50 of {validationErrors.length} errors.
-                  <button onClick={handleDownloadErrors} style={{ color: '#174A5B', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, padding: 0 }}>Download full report</button>
-                </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx"
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
+              />
+              <div style={{ fontSize: 40, marginBottom: 8 }}>{file ? '📄' : '📁'}</div>
+              {file ? (
+                <>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{file.name}</div>
+                  <div style={{ fontSize: 12, color: '#666' }}>
+                    {(file.size / 1024).toFixed(1)} KB
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                    Drop your file here or click to browse
+                  </div>
+                  <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>
+                    Supports CSV and XLSX files
+                  </div>
+                </>
               )}
             </div>
-          )}
 
-          {/* Stock preview summary */}
-          {stockPreview && (
-            <div style={{ padding: '12px 16px', backgroundColor: stockPreview.rowsWithStock > 0 ? '#EFF6FF' : '#F3F4F6', border: `1px solid ${stockPreview.rowsWithStock > 0 ? '#BFDBFE' : '#E5E7EB'}`, borderRadius: 8, marginBottom: 16, fontSize: 13, color: stockPreview.rowsWithStock > 0 ? '#1E40AF' : '#6B7280' }}>
-              <strong>Stock Preview:</strong>{' '}
-              {stockPreview.rowsWithStock > 0
-                ? `${stockPreview.rowsWithStock} of ${stockPreview.totalRows} rows will create inventory items with a total of ${stockPreview.totalStock} units`
-                : `No stock values detected — ${stockPreview.totalRows} product(s) will be created without inventory items`}
+            <div
+              style={{
+                marginTop: 16,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <button
+                onClick={downloadTemplate}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  background: '#fff',
+                  color: '#174A5B',
+                  border: '1px solid #174A5B',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                }}
+              >
+                Download Template
+              </button>
+              <button
+                onClick={goToMapping}
+                disabled={!file || !storeId || storeLoading || loading}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  backgroundColor: file && storeId && !storeLoading ? '#174A5B' : '#D1D5DB',
+                  color: 'white',
+                  border: 'none',
+                  cursor: file && storeId && !storeLoading ? 'pointer' : 'not-allowed',
+                }}
+              >
+                {loading ? 'Preparing…' : 'Next: Map Columns →'}
+              </button>
             </div>
-          )}
-
-          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between' }}>
-            <button onClick={() => setStep(1)} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, backgroundColor: '#F3F4F6', border: 'none', cursor: 'pointer' }}>
-              ← Back
-            </button>
-            <button onClick={handlePreview} disabled={loading} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600, backgroundColor: '#174A5B', color: 'white', border: 'none', cursor: 'pointer' }}>
-              {loading ? 'Validating...' : 'Preview & Validate →'}
-            </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Step 4: Preview & Validate (P10) */}
-      {step === 3 && previewData && (
-        <div>
-          <div style={{ padding: 24, backgroundColor: previewData.errorCount === 0 ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${previewData.errorCount === 0 ? '#BBF7D0' : '#FDE68A'}`, borderRadius: 8, textAlign: 'center', marginBottom: 16 }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>{previewData.errorCount === 0 ? '✅' : '⚠️'}</div>
-            <div style={{ fontWeight: 600, fontSize: 16 }}>
-              {previewData.errorCount === 0 ? 'Preview Passed — No Errors' : `${previewData.errorCount} Errors Found`}
+        {/* Step 2: Column Mapping */}
+        {step === 1 && (
+          <div>
+            <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
+              Map your file columns to product fields. Required fields are marked with *.
+            </p>
+
+            <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F9FAFB' }}>
+                    <th
+                      style={{
+                        padding: '8px 12px',
+                        textAlign: 'left',
+                        fontWeight: 600,
+                        borderBottom: '1px solid #E5E7EB',
+                      }}
+                    >
+                      Product Field
+                    </th>
+                    <th
+                      style={{
+                        padding: '8px 12px',
+                        textAlign: 'left',
+                        fontWeight: 600,
+                        borderBottom: '1px solid #E5E7EB',
+                      }}
+                    >
+                      Your Column
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {TARGET_COLUMNS.map((tc) => (
+                    <tr key={tc.key} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                      <td style={{ padding: '8px 12px' }}>
+                        {tc.label} {tc.required && <span style={{ color: '#B3372F' }}>*</span>}
+                      </td>
+                      <td style={{ padding: '8px 12px' }}>
+                        <select
+                          value={columnMapping[tc.key] || ''}
+                          onChange={(e) => updateMapping(tc.key, e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '6px 8px',
+                            border: '1px solid #D1D5DB',
+                            borderRadius: 4,
+                            fontSize: 13,
+                            backgroundColor: columnMapping[tc.key] ? '#F0FDF4' : 'white',
+                          }}
+                        >
+                          <option value="">— Not mapped —</option>
+                          {detectedHeaders.map((h) => (
+                            <option key={h} value={h}>
+                              {h}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-              {previewData.totalRows} total rows · {previewData.validRows} valid{previewData.warningCount > 0 ? ` · ${previewData.warningCount} warnings` : ''}
+
+            <div
+              style={{
+                marginTop: 16,
+                padding: '12px 16px',
+                backgroundColor: '#FFFBEB',
+                border: '1px solid #FDE68A',
+                borderRadius: 8,
+                fontSize: 12,
+                color: '#92400E',
+              }}
+            >
+              💡 <strong>Tip:</strong> Prices should be in minor units (halalas). E.g., 10.50 SAR =
+              1050. MOQ must be a positive integer.
+            </div>
+
+            <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between' }}>
+              <button
+                onClick={() => setStep(0)}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  backgroundColor: '#F3F4F6',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                ← Back
+              </button>
+              <button
+                onClick={persistMappingAndValidate}
+                disabled={loading}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  backgroundColor: '#174A5B',
+                  color: 'white',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                {loading ? 'Saving…' : 'Save Mapping →'}
+              </button>
             </div>
           </div>
+        )}
 
-          {previewData.detectedHeaders.length > 0 && (
-            <div style={{ padding: '12px 16px', backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, marginBottom: 16, fontSize: 12, color: '#1E40AF' }}>
-              <strong>Detected columns ({previewData.detectedHeaders.length}):</strong> {previewData.detectedHeaders.slice(0, 15).join(', ')}{previewData.detectedHeaders.length > 15 ? ` +${previewData.detectedHeaders.length - 15} more` : ''}
+        {/* Step 3: Validation */}
+        {step === 2 && (
+          <div>
+            <div
+              style={{
+                padding: 24,
+                backgroundColor: '#F0FDF4',
+                border: '1px solid #BBF7D0',
+                borderRadius: 8,
+                textAlign: 'center',
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+              <div style={{ fontWeight: 600, fontSize: 16 }}>Mapping Saved</div>
+              <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+                {detectedHeaders.length} columns detected{file ? ` from ${file.name}` : ''} — run
+                the preview to validate rows.
+              </div>
             </div>
-          )}
 
-          {(previewData.errorCount > 0 || previewData.warningCount > 0) && (
-            <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
-              <div style={{ padding: '8px 12px', backgroundColor: previewData.errorCount > 0 ? '#FEF2F2' : '#FFFBEB', fontWeight: 600, fontSize: 13, color: previewData.errorCount > 0 ? '#B3372F' : '#92400E', borderBottom: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Issues — {previewData.errorCount} error(s), {previewData.warningCount} warning(s)</span>
-                {previewData.errorCount > 0 && (
-                  <button onClick={handleDownloadErrors} style={{ color: '#174A5B', background: '#fff', border: '1px solid #174A5B', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '3px 10px' }}>Download Error Report</button>
+            {validationErrors.length > 0 && (
+              <div
+                style={{
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    backgroundColor: '#FEF2F2',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    color: '#B3372F',
+                    borderBottom: '1px solid #FECACA',
+                  }}
+                >
+                  Row-level errors ({validationErrors.length})
+                </div>
+                <div style={{ maxHeight: 200, overflow: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#F9FAFB' }}>
+                        <th
+                          style={{
+                            padding: '6px 12px',
+                            textAlign: 'left',
+                            borderBottom: '1px solid #E5E7EB',
+                          }}
+                        >
+                          Row
+                        </th>
+                        <th
+                          style={{
+                            padding: '6px 12px',
+                            textAlign: 'left',
+                            borderBottom: '1px solid #E5E7EB',
+                          }}
+                        >
+                          Field
+                        </th>
+                        <th
+                          style={{
+                            padding: '6px 12px',
+                            textAlign: 'left',
+                            borderBottom: '1px solid #E5E7EB',
+                          }}
+                        >
+                          Error
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {validationErrors.slice(0, 50).map((err, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                          <td style={{ padding: '6px 12px' }}>{err.row}</td>
+                          <td style={{ padding: '6px 12px' }}>{err.field}</td>
+                          <td style={{ padding: '6px 12px', color: '#B3372F' }}>{err.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {validationErrors.length > 50 && (
+                  <div
+                    style={{
+                      padding: '8px 12px',
+                      fontSize: 11,
+                      color: '#666',
+                      textAlign: 'center',
+                    }}
+                  >
+                    Showing first 50 of {validationErrors.length} errors.
+                    <button
+                      onClick={handleDownloadErrors}
+                      style={{
+                        color: '#174A5B',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        fontSize: 11,
+                        padding: 0,
+                      }}
+                    >
+                      Download full report
+                    </button>
+                  </div>
                 )}
               </div>
-              <div style={{ maxHeight: 250, overflow: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#F9FAFB' }}>
-                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Row</th>
-                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Field</th>
-                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Code</th>
-                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Severity</th>
-                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Message</th>
-                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Suggested Fix</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewData.errors.slice(0, 100).map((err, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
-                        <td style={{ padding: '6px 12px' }}>{err.rowNumber}</td>
-                        <td style={{ padding: '6px 12px' }}>{err.field}</td>
-                        <td style={{ padding: '6px 12px', fontFamily: 'monospace', fontSize: 11 }}>{err.errorCode}</td>
-                        <td style={{ padding: '6px 12px' }}>
-                          <span style={{ fontWeight: 600, fontSize: 10, padding: '1px 6px', borderRadius: 4, backgroundColor: err.severity === 'ERROR' ? '#FEE2E2' : '#FEF3C7', color: err.severity === 'ERROR' ? '#B3372F' : '#92400E' }}>{err.severity}</span>
-                        </td>
-                        <td style={{ padding: '6px 12px', color: err.severity === 'ERROR' ? '#B3372F' : '#92400E' }}>{err.message}</td>
-                        <td style={{ padding: '6px 12px', color: '#666' }}>{err.suggestedFix || '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {previewData.errors.length >= 100 && (
-                <div style={{ padding: '8px 12px', fontSize: 11, color: '#666', textAlign: 'center', backgroundColor: '#F9FAFB' }}>
-                  Showing the first {previewData.errors.length >= 100 ? 100 : previewData.errors.length} of {previewData.errorCount + previewData.warningCount} issues — download the report for the full list.
-                </div>
-              )}
-            </div>
-          )}
+            )}
 
-          {previewData.sampleRows && previewData.sampleRows.length > 0 && (
-            <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
-              <div style={{ padding: '8px 12px', backgroundColor: '#F0FDF4', fontWeight: 600, fontSize: 13, color: '#166534', borderBottom: '1px solid #BBF7D0' }}>
-                Sample Valid Rows ({previewData.sampleRows.length})
+            {/* Stock preview summary */}
+            {stockPreview && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  backgroundColor: stockPreview.rowsWithStock > 0 ? '#EFF6FF' : '#F3F4F6',
+                  border: `1px solid ${stockPreview.rowsWithStock > 0 ? '#BFDBFE' : '#E5E7EB'}`,
+                  borderRadius: 8,
+                  marginBottom: 16,
+                  fontSize: 13,
+                  color: stockPreview.rowsWithStock > 0 ? '#1E40AF' : '#6B7280',
+                }}
+              >
+                <strong>Stock Preview:</strong>{' '}
+                {stockPreview.rowsWithStock > 0
+                  ? `${stockPreview.rowsWithStock} of ${stockPreview.totalRows} rows will create inventory items with a total of ${stockPreview.totalStock} units`
+                  : `No stock values detected — ${stockPreview.totalRows} product(s) will be created without inventory items`}
               </div>
-              <div style={{ maxHeight: 200, overflow: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#F9FAFB' }}>
-                      {Object.keys(previewData.sampleRows[0] || {}).map(k => (
-                        <th key={k} style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #E5E7EB', whiteSpace: 'nowrap' }}>{k}</th>
+            )}
+
+            <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between' }}>
+              <button
+                onClick={() => setStep(1)}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  backgroundColor: '#F3F4F6',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                ← Back
+              </button>
+              <button
+                onClick={handlePreview}
+                disabled={loading}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  backgroundColor: '#174A5B',
+                  color: 'white',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                {loading ? 'Validating...' : 'Preview & Validate →'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Preview & Validate (P10) */}
+        {step === 3 && previewData && (
+          <div>
+            <div
+              style={{
+                padding: 24,
+                backgroundColor: previewData.errorCount === 0 ? '#F0FDF4' : '#FFFBEB',
+                border: `1px solid ${previewData.errorCount === 0 ? '#BBF7D0' : '#FDE68A'}`,
+                borderRadius: 8,
+                textAlign: 'center',
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 8 }}>
+                {previewData.errorCount === 0 ? '✅' : '⚠️'}
+              </div>
+              <div style={{ fontWeight: 600, fontSize: 16 }}>
+                {previewData.errorCount === 0
+                  ? 'Preview Passed — No Errors'
+                  : `${previewData.errorCount} Errors Found`}
+              </div>
+              <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+                {previewData.totalRows} total rows · {previewData.validRows} valid
+                {previewData.warningCount > 0 ? ` · ${previewData.warningCount} warnings` : ''}
+              </div>
+            </div>
+
+            {previewData.detectedHeaders.length > 0 && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  backgroundColor: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
+                  borderRadius: 8,
+                  marginBottom: 16,
+                  fontSize: 12,
+                  color: '#1E40AF',
+                }}
+              >
+                <strong>Detected columns ({previewData.detectedHeaders.length}):</strong>{' '}
+                {previewData.detectedHeaders.slice(0, 15).join(', ')}
+                {previewData.detectedHeaders.length > 15
+                  ? ` +${previewData.detectedHeaders.length - 15} more`
+                  : ''}
+              </div>
+            )}
+
+            {(previewData.errorCount > 0 || previewData.warningCount > 0) && (
+              <div
+                style={{
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    backgroundColor: previewData.errorCount > 0 ? '#FEF2F2' : '#FFFBEB',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    color: previewData.errorCount > 0 ? '#B3372F' : '#92400E',
+                    borderBottom: '1px solid #E5E7EB',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <span>
+                    Issues — {previewData.errorCount} error(s), {previewData.warningCount}{' '}
+                    warning(s)
+                  </span>
+                  {previewData.errorCount > 0 && (
+                    <button
+                      onClick={handleDownloadErrors}
+                      style={{
+                        color: '#174A5B',
+                        background: '#fff',
+                        border: '1px solid #174A5B',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '3px 10px',
+                      }}
+                    >
+                      Download Error Report
+                    </button>
+                  )}
+                </div>
+                <div style={{ maxHeight: 250, overflow: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#F9FAFB' }}>
+                        <th
+                          style={{
+                            padding: '6px 12px',
+                            textAlign: 'left',
+                            borderBottom: '1px solid #E5E7EB',
+                          }}
+                        >
+                          Row
+                        </th>
+                        <th
+                          style={{
+                            padding: '6px 12px',
+                            textAlign: 'left',
+                            borderBottom: '1px solid #E5E7EB',
+                          }}
+                        >
+                          Field
+                        </th>
+                        <th
+                          style={{
+                            padding: '6px 12px',
+                            textAlign: 'left',
+                            borderBottom: '1px solid #E5E7EB',
+                          }}
+                        >
+                          Code
+                        </th>
+                        <th
+                          style={{
+                            padding: '6px 12px',
+                            textAlign: 'left',
+                            borderBottom: '1px solid #E5E7EB',
+                          }}
+                        >
+                          Severity
+                        </th>
+                        <th
+                          style={{
+                            padding: '6px 12px',
+                            textAlign: 'left',
+                            borderBottom: '1px solid #E5E7EB',
+                          }}
+                        >
+                          Message
+                        </th>
+                        <th
+                          style={{
+                            padding: '6px 12px',
+                            textAlign: 'left',
+                            borderBottom: '1px solid #E5E7EB',
+                          }}
+                        >
+                          Suggested Fix
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewData.errors.slice(0, 100).map((err, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                          <td style={{ padding: '6px 12px' }}>{err.rowNumber}</td>
+                          <td style={{ padding: '6px 12px' }}>{err.field}</td>
+                          <td
+                            style={{ padding: '6px 12px', fontFamily: 'monospace', fontSize: 11 }}
+                          >
+                            {err.errorCode}
+                          </td>
+                          <td style={{ padding: '6px 12px' }}>
+                            <span
+                              style={{
+                                fontWeight: 600,
+                                fontSize: 10,
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                backgroundColor: err.severity === 'ERROR' ? '#FEE2E2' : '#FEF3C7',
+                                color: err.severity === 'ERROR' ? '#B3372F' : '#92400E',
+                              }}
+                            >
+                              {err.severity}
+                            </span>
+                          </td>
+                          <td
+                            style={{
+                              padding: '6px 12px',
+                              color: err.severity === 'ERROR' ? '#B3372F' : '#92400E',
+                            }}
+                          >
+                            {err.message}
+                          </td>
+                          <td style={{ padding: '6px 12px', color: '#666' }}>
+                            {err.suggestedFix || '—'}
+                          </td>
+                        </tr>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewData.sampleRows.map((row, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
-                        {Object.values(row).map((v, j) => (
-                          <td key={j} style={{ padding: '4px 8px', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</td>
+                    </tbody>
+                  </table>
+                </div>
+                {previewData.errors.length >= 100 && (
+                  <div
+                    style={{
+                      padding: '8px 12px',
+                      fontSize: 11,
+                      color: '#666',
+                      textAlign: 'center',
+                      backgroundColor: '#F9FAFB',
+                    }}
+                  >
+                    Showing the first{' '}
+                    {previewData.errors.length >= 100 ? 100 : previewData.errors.length} of{' '}
+                    {previewData.errorCount + previewData.warningCount} issues — download the report
+                    for the full list.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {previewData.sampleRows && previewData.sampleRows.length > 0 && (
+              <div
+                style={{
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    backgroundColor: '#F0FDF4',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    color: '#166534',
+                    borderBottom: '1px solid #BBF7D0',
+                  }}
+                >
+                  Sample Valid Rows ({previewData.sampleRows.length})
+                </div>
+                <div style={{ maxHeight: 200, overflow: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#F9FAFB' }}>
+                        {Object.keys(previewData.sampleRows[0] || {}).map((k) => (
+                          <th
+                            key={k}
+                            style={{
+                              padding: '4px 8px',
+                              textAlign: 'left',
+                              borderBottom: '1px solid #E5E7EB',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {k}
+                          </th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between' }}>
-            <button onClick={() => setStep(2)} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, backgroundColor: '#F3F4F6', border: 'none', cursor: 'pointer' }}>
-              ← Back
-            </button>
-            <button onClick={handleStartImport} disabled={loading || previewData.errorCount > 0} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600, backgroundColor: previewData.errorCount > 0 ? '#D1D5DB' : '#174A5B', color: 'white', border: 'none', cursor: previewData.errorCount > 0 ? 'not-allowed' : 'pointer' }}>
-              {loading ? 'Starting...' : 'Start Import →'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 5: Import Progress */}
-      {step === 4 && (
-        <div>
-          <div style={{ padding: 32, textAlign: 'center' }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
-            <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 8 }}>Importing Products...</div>
-            <div style={{ fontSize: 13, color: '#666', marginBottom: 24 }}>
-              Processing your file. This may take a moment for large catalogs.
-            </div>
-
-            {/* Progress bar */}
-            <div style={{ width: '100%', height: 8, backgroundColor: '#E5E7EB', borderRadius: 4, overflow: 'hidden' }}>
-              <div style={{
-                width: `${progress}%`, height: '100%', backgroundColor: '#174A5B',
-                borderRadius: 4, transition: 'width 500ms ease',
-              }} />
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 600, marginTop: 8, color: '#174A5B' }}>{progress}%</div>
-
-            {importJob && (
-              <div style={{ marginTop: 16, fontSize: 12, color: '#9CA3AF' }}>
-                Job ID: {importJob.id.substring(0, 8)}... · Status: {importJob.status}
-              </div>
-            )}
-            {pollError && (
-              <div role="alert" style={{ marginTop: 16, padding: 12, backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, color: '#B3372F', fontSize: 13 }}>
-                <div>{pollError}</div>
-                <button type="button" onClick={() => pollNowRef.current?.()} style={{ marginTop: 8 }}>
-                  Retry status
-                </button>
-              </div>
-            )}
-
-            {importJob && (importJob.status === 'PROCESSING' || importJob.status === 'READY' || importJob.status === 'IMPORTING') && (
-              <div style={{ marginTop: 20 }}>
-                <button
-                  onClick={handleCancel}
-                  style={{ padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600, backgroundColor: '#fff', color: '#B3372F', border: '1px solid #B3372F', cursor: 'pointer' }}
-                >
-                  Cancel Import
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Step 6: Review */}
-      {step === 5 && (
-        <div>
-          {importOutcome === 'success' ? (
-            <div style={{ padding: 24, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, textAlign: 'center', marginBottom: 24 }}>
-              <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
-              <div style={{ fontWeight: 600, fontSize: 18 }}>Import Complete!</div>
-            </div>
-          ) : importOutcome === 'cancelled' ? (
-            <div style={{ padding: 24, backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, textAlign: 'center', marginBottom: 24 }}>
-              <div style={{ fontSize: 40, marginBottom: 8 }}>⏸️</div>
-              <div style={{ fontWeight: 600, fontSize: 18, color: '#92400E' }}>Import Cancelled</div>
-            </div>
-          ) : (
-            <div style={{ padding: 24, backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, textAlign: 'center', marginBottom: 24 }}>
-              <div style={{ fontSize: 40, marginBottom: 8 }}>❌</div>
-              <div style={{ fontWeight: 600, fontSize: 18, color: '#B3372F' }}>Import Failed</div>
-              <div style={{ fontSize: 13, color: '#666', marginTop: 8 }}>{error || 'An unexpected error occurred.'}</div>
-            </div>
-          )}
-
-          {importStats && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
-              {[
-                { label: 'Created', value: importStats.created, color: '#1B7A4B' },
-                { label: 'Updated', value: importStats.updated, color: '#1D5FA8' },
-                { label: 'Skipped', value: importStats.skipped, color: '#B45309' },
-                { label: 'Errors', value: importStats.errors, color: '#B3372F' },
-              ].map((stat) => (
-                <div key={stat.label} style={{ padding: 16, backgroundColor: '#F9FAFB', borderRadius: 8, textAlign: 'center' }}>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: stat.color }}>{stat.value}</div>
-                  <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{stat.label}</div>
+                    </thead>
+                    <tbody>
+                      {previewData.sampleRows.map((row, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                          {Object.values(row).map((v, j) => (
+                            <td
+                              key={j}
+                              style={{
+                                padding: '4px 8px',
+                                maxWidth: 150,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {v}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            )}
 
-          {importOutcome === 'success' && (
-            <div style={{ padding: '12px 16px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 13, color: '#92400E', marginBottom: 24 }}>
-              💡 All imported products are created as <strong>DRAFT</strong>. Go to your catalog to review and publish them.
+            <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between' }}>
+              <button
+                onClick={() => setStep(2)}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  backgroundColor: '#F3F4F6',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                ← Back
+              </button>
+              <button
+                onClick={handleStartImport}
+                disabled={loading || previewData.errorCount > 0}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  backgroundColor: previewData.errorCount > 0 ? '#D1D5DB' : '#174A5B',
+                  color: 'white',
+                  border: 'none',
+                  cursor: previewData.errorCount > 0 ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {loading ? 'Starting...' : 'Start Import →'}
+              </button>
             </div>
-          )}
-
-          <div style={{ marginTop: 24, display: 'flex', gap: 12, justifyContent: 'center' }}>
-            <button
-              onClick={() => router.push('/merchant/catalog')}
-              style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600, backgroundColor: '#174A5B', color: 'white', border: 'none', cursor: 'pointer' }}
-            >
-              Go to Catalog
-            </button>
-            <button
-              onClick={() => {
-                stopImportPolling();
-                setStep(0);
-                setFile(null);
-                setImportJob(null);
-                setImportStats(null);
-                setImportOutcome(null);
-                setPollError(null);
-                setProgress(0);
-                setValidationErrors([]);
-                setPreviewData(null);
-                setError(null);
-              }}
-              style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, backgroundColor: '#F3F4F6', border: 'none', cursor: 'pointer' }}
-            >
-              Import Another File
-            </button>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Step 5: Import Progress */}
+        {step === 4 && (
+          <div>
+            <div style={{ padding: 32, textAlign: 'center' }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
+              <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 8 }}>
+                Importing Products...
+              </div>
+              <div style={{ fontSize: 13, color: '#666', marginBottom: 24 }}>
+                Processing your file. This may take a moment for large catalogs.
+              </div>
+
+              {/* Progress bar */}
+              <div
+                style={{
+                  width: '100%',
+                  height: 8,
+                  backgroundColor: '#E5E7EB',
+                  borderRadius: 4,
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: `${progress}%`,
+                    height: '100%',
+                    backgroundColor: '#174A5B',
+                    borderRadius: 4,
+                    transition: 'width 500ms ease',
+                  }}
+                />
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginTop: 8, color: '#174A5B' }}>
+                {progress}%
+              </div>
+
+              {importJob && (
+                <div style={{ marginTop: 16, fontSize: 12, color: '#9CA3AF' }}>
+                  Job ID: {importJob.id.substring(0, 8)}... · Status: {importJob.status}
+                </div>
+              )}
+              {pollError && (
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: 16,
+                    padding: 12,
+                    backgroundColor: '#FEF2F2',
+                    border: '1px solid #FECACA',
+                    borderRadius: 6,
+                    color: '#B3372F',
+                    fontSize: 13,
+                  }}
+                >
+                  <div>{pollError}</div>
+                  <button
+                    type="button"
+                    onClick={() => pollNowRef.current?.()}
+                    style={{ marginTop: 8 }}
+                  >
+                    Retry status
+                  </button>
+                </div>
+              )}
+
+              {importJob &&
+                (importJob.status === 'PROCESSING' ||
+                  importJob.status === 'READY' ||
+                  importJob.status === 'IMPORTING') && (
+                  <div style={{ marginTop: 20 }}>
+                    <button
+                      onClick={handleCancel}
+                      style={{
+                        padding: '8px 20px',
+                        borderRadius: 6,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        backgroundColor: '#fff',
+                        color: '#B3372F',
+                        border: '1px solid #B3372F',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel Import
+                    </button>
+                  </div>
+                )}
+            </div>
+          </div>
+        )}
+
+        {/* Step 6: Review */}
+        {step === 5 && (
+          <div>
+            {importOutcome === 'success' ? (
+              <div
+                style={{
+                  padding: 24,
+                  backgroundColor: '#F0FDF4',
+                  border: '1px solid #BBF7D0',
+                  borderRadius: 8,
+                  textAlign: 'center',
+                  marginBottom: 24,
+                }}
+              >
+                <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
+                <div style={{ fontWeight: 600, fontSize: 18 }}>Import Complete!</div>
+              </div>
+            ) : importOutcome === 'cancelled' ? (
+              <div
+                style={{
+                  padding: 24,
+                  backgroundColor: '#FFFBEB',
+                  border: '1px solid #FDE68A',
+                  borderRadius: 8,
+                  textAlign: 'center',
+                  marginBottom: 24,
+                }}
+              >
+                <div style={{ fontSize: 40, marginBottom: 8 }}>⏸️</div>
+                <div style={{ fontWeight: 600, fontSize: 18, color: '#92400E' }}>
+                  Import Cancelled
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: 24,
+                  backgroundColor: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  borderRadius: 8,
+                  textAlign: 'center',
+                  marginBottom: 24,
+                }}
+              >
+                <div style={{ fontSize: 40, marginBottom: 8 }}>❌</div>
+                <div style={{ fontWeight: 600, fontSize: 18, color: '#B3372F' }}>Import Failed</div>
+                <div style={{ fontSize: 13, color: '#666', marginTop: 8 }}>
+                  {error || 'An unexpected error occurred.'}
+                </div>
+              </div>
+            )}
+
+            {importStats && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: 12,
+                  marginBottom: 24,
+                }}
+              >
+                {[
+                  { label: 'Created', value: importStats.created, color: '#1B7A4B' },
+                  { label: 'Updated', value: importStats.updated, color: '#1D5FA8' },
+                  { label: 'Skipped', value: importStats.skipped, color: '#B45309' },
+                  { label: 'Errors', value: importStats.errors, color: '#B3372F' },
+                ].map((stat) => (
+                  <div
+                    key={stat.label}
+                    style={{
+                      padding: 16,
+                      backgroundColor: '#F9FAFB',
+                      borderRadius: 8,
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div style={{ fontSize: 24, fontWeight: 700, color: stat.color }}>
+                      {stat.value}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {importOutcome === 'success' && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  backgroundColor: '#FFFBEB',
+                  border: '1px solid #FDE68A',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: '#92400E',
+                  marginBottom: 24,
+                }}
+              >
+                💡 All imported products are created as <strong>DRAFT</strong>. Go to your catalog
+                to review and publish them.
+              </div>
+            )}
+
+            <div style={{ marginTop: 24, display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button
+                onClick={() => router.push('/merchant/catalog')}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  backgroundColor: '#174A5B',
+                  color: 'white',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Go to Catalog
+              </button>
+              <button
+                onClick={() => {
+                  stopImportPolling();
+                  setStep(0);
+                  setFile(null);
+                  setImportJob(null);
+                  setImportStats(null);
+                  setImportOutcome(null);
+                  setPollError(null);
+                  setProgress(0);
+                  setValidationErrors([]);
+                  setPreviewData(null);
+                  setError(null);
+                }}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  backgroundColor: '#F3F4F6',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Import Another File
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

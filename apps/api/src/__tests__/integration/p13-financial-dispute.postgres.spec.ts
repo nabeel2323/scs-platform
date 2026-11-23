@@ -103,14 +103,33 @@ import { users, organizations, organizationMembers } from '../../modules/identit
 import { stores, warehouses, storeMembers } from '../../modules/merchant/merchant.schema';
 import { inventoryItems, stockMovements } from '../../modules/inventory/inventory.schema';
 import { carts, cartItems } from '../../modules/orders/cart.schema';
-import { masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory } from '../../modules/orders/orders.schema';
+import {
+  masterOrders,
+  orders,
+  orderItems,
+  orderFinancialBreakdown,
+  orderStatusHistory,
+} from '../../modules/orders/orders.schema';
 import { shipments, shipmentEvents } from '../../modules/orders/shipment.schema';
 import { outboxEvents } from '../../modules/audit/audit.schema';
-import { paymentRecords, paymentEvents, refunds, settlementRecords, paymentProofUploadIntents } from '../../modules/payments/payments.schema';
-import { returnRequests, returnRequestItems, returnRequestEvents } from '../../modules/returns/returns.schema';
 import {
-  commissionReversals, settlementAdjustments, settlementAdjustmentApprovals,
-  reconciliationRuns, reconciliationDiscrepancies,
+  paymentRecords,
+  paymentEvents,
+  refunds,
+  settlementRecords,
+  paymentProofUploadIntents,
+} from '../../modules/payments/payments.schema';
+import {
+  returnRequests,
+  returnRequestItems,
+  returnRequestEvents,
+} from '../../modules/returns/returns.schema';
+import {
+  commissionReversals,
+  settlementAdjustments,
+  settlementAdjustmentApprovals,
+  reconciliationRuns,
+  reconciliationDiscrepancies,
 } from '../../modules/returns/financial.schema';
 import { disputes, disputeEvents } from '../../modules/reviews/support.schema';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
@@ -138,10 +157,10 @@ async function createDeliveredOrder(
   orgId: string,
 ): Promise<string> {
   const cartId = randomUUID();
-  await pool.query(
-    `INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`,
-    [cartId, buyerId],
-  );
+  await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [
+    cartId,
+    buyerId,
+  ]);
   await pool.query(
     `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
      VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
@@ -160,10 +179,9 @@ async function createDeliveredOrder(
   await ordersService.prepareOrder(orderId, merchantId, caller);
   await ordersService.readyOrder(orderId, merchantId, caller);
 
-  await pool.query(
-    `UPDATE orders SET status = 'DELIVERED', updated_at = now() WHERE id = $1`,
-    [orderId],
-  );
+  await pool.query(`UPDATE orders SET status = 'DELIVERED', updated_at = now() WHERE id = $1`, [
+    orderId,
+  ]);
   await pool.query(
     `UPDATE shipments SET status = 'DELIVERED', delivered_at = now() WHERE order_id = $1`,
     [orderId],
@@ -191,15 +209,20 @@ async function advanceReturnToRefundPending(
   const buyerCaller = { sub: buyerId, role: 'BUYER' as const, activeOrg: orgId };
   const merchantCaller = { sub: merchantId, role: 'MERCHANT_OWNER' as const, activeOrg: orgId };
 
-  const ret = await returnsService.createReturnRequest({
-    subOrderId: orderId,
-    reason: 'PRODUCT_NOT_AS_DESCRIBED',
-    description: 'Financial integration test',
-    lines: [{ orderItemId, quantity }],
-  }, buyerCaller);
+  const ret = await returnsService.createReturnRequest(
+    {
+      subOrderId: orderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      description: 'Financial integration test',
+      lines: [{ orderItemId, quantity }],
+    },
+    buyerCaller,
+  );
 
   await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
-  await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, { trackingNumber: 'TRK-FIN' });
+  await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, {
+    trackingNumber: 'TRK-FIN',
+  });
   await returnsService.transitionReturn(ret.id, 'RECEIVED', merchantCaller);
   await returnsService.transitionReturn(ret.id, 'INSPECTED', merchantCaller, { condition: 'GOOD' });
   return returnsService.transitionReturn(ret.id, 'REFUND_PENDING', merchantCaller);
@@ -240,25 +263,48 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     db = drizzle(pool, {
       schema: {
-        products, productVariants, merchantOffers,
-        users, organizations, organizationMembers,
-        stores, warehouses, storeMembers,
-        inventoryItems, stockMovements,
-        carts, cartItems,
-        masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory,
-        shipments, shipmentEvents,
+        products,
+        productVariants,
+        merchantOffers,
+        users,
+        organizations,
+        organizationMembers,
+        stores,
+        warehouses,
+        storeMembers,
+        inventoryItems,
+        stockMovements,
+        carts,
+        cartItems,
+        masterOrders,
+        orders,
+        orderItems,
+        orderFinancialBreakdown,
+        orderStatusHistory,
+        shipments,
+        shipmentEvents,
         outboxEvents,
-        paymentRecords, paymentEvents, refunds, settlementRecords, paymentProofUploadIntents,
-        returnRequests, returnRequestItems, returnRequestEvents,
+        paymentRecords,
+        paymentEvents,
+        refunds,
+        settlementRecords,
+        paymentProofUploadIntents,
+        returnRequests,
+        returnRequestItems,
+        returnRequestEvents,
         commissionReversals,
-        settlementAdjustments, settlementAdjustmentApprovals,
-        reconciliationRuns, reconciliationDiscrepancies,
-        disputes, disputeEvents,
+        settlementAdjustments,
+        settlementAdjustmentApprovals,
+        reconciliationRuns,
+        reconciliationDiscrepancies,
+        disputes,
+        disputeEvents,
       },
     }) as unknown as DatabaseService['db'];
 
-    const files = fs.readdirSync(MIGRATIONS_DIR)
-      .filter(f => f.endsWith('.sql') && !EXCLUDED.has(f))
+    const files = fs
+      .readdirSync(MIGRATIONS_DIR)
+      .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
       .sort();
     await pool.query(
       `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`,
@@ -276,7 +322,11 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     }
 
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
     const outbox = new OutboxDispatcher({ db } as DatabaseService);
     const promotions = new PromotionsService({ db } as DatabaseService);
@@ -285,25 +335,56 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     paymentsService = new PaymentsService({ db } as DatabaseService, outbox, registry);
     const database = { db } as DatabaseService;
     reconciliationService = new ReconciliationService(database);
-    ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications, undefined, paymentsService);
+    ordersService = new OrdersService(
+      database,
+      outbox,
+      promotions,
+      realtime,
+      undefined,
+      notifications,
+      undefined,
+      paymentsService,
+    );
     const calendarService = new BusinessCalendarService(database);
     const commissionReversalService = new CommissionReversalService(database, outbox);
     settlementAdjService = new SettlementAdjustmentService(database, outbox);
     // P13 Phase 4: pilot gate is inactive in this suite (no flag, no env mode),
     // so ReturnsService behaviour is identical to Phase 3.1.1.
     const pilotService = new PilotControlService(
-      database, new AuditService(database), new OpsAlertService(database),
+      database,
+      new AuditService(database),
+      new OpsAlertService(database),
     );
-    returnsService = new ReturnsService(database, outbox, paymentsService, calendarService, commissionReversalService, settlementAdjService, pilotService);
+    returnsService = new ReturnsService(
+      database,
+      outbox,
+      paymentsService,
+      calendarService,
+      commissionReversalService,
+      settlementAdjService,
+      pilotService,
+    );
     disputesService = new DisputesService(database, outbox, paymentsService);
 
     const rolesRes = await pool.query(`SELECT id, key FROM roles`);
     roleById = new Map(rolesRes.rows.map((r: any) => [r.key, r.id] as const));
 
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant A', '+13110000001')`, [merchantA]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer A', '+13110000002')`, [buyerA]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Admin A', '+13110000009')`, [adminA]);
-    await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org Fin', 'SA')`, [orgA]);
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant A', '+13110000001')`,
+      [merchantA],
+    );
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer A', '+13110000002')`,
+      [buyerA],
+    );
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Admin A', '+13110000009')`,
+      [adminA],
+    );
+    await pool.query(
+      `INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org Fin', 'SA')`,
+      [orgA],
+    );
     await pool.query(
       `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`,
       [randomUUID(), orgA, merchantA, roleById.get('MERCHANT_OWNER')],
@@ -320,7 +401,10 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       `INSERT INTO store_members (id, store_id, user_id, status) VALUES ($1, $2, $3, 'ACTIVE')`,
       [randomUUID(), storeA, merchantA],
     );
-    await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'WH FIN')`, [warehouseA, storeA]);
+    await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'WH FIN')`, [
+      warehouseA,
+      storeA,
+    ]);
     await pool.query(
       `INSERT INTO products (id, store_id, slug, title, status) VALUES ($1, $2, 'fin-product-a', 'FIN Product A', 'ACTIVE')`,
       [productIdA, storeA],
@@ -356,27 +440,53 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-01: Resolve without refund ───────────────────────────
 
   it('FIN-DSH-01: resolve dispute without issuing a refund persists RESOLVED with no refund rows', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const disputeOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const disputeOrderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const dispute = await openDispute(disputeOrderId);
 
-    const resolved = await disputesService.resolveDispute(dispute.id, adminA, 'Merchant complied; no refund warranted', adminCaller);
+    const resolved = await disputesService.resolveDispute(
+      dispute.id,
+      adminA,
+      'Merchant complied; no refund warranted',
+      adminCaller,
+    );
 
     expect(resolved['status']).toBe('RESOLVED');
     expect(resolved['resolution']).toBe('Merchant complied; no refund warranted');
 
     const refundCount = await pool.query(
-      `SELECT count(*)::int AS n FROM refunds WHERE order_id = $1`, [orderId],
+      `SELECT count(*)::int AS n FROM refunds WHERE order_id = $1`,
+      [orderId],
     );
     expect(refundCount.rows[0].n).toBe(0);
 
     const events = await pool.query(
-      `SELECT event_type, metadata FROM dispute_events WHERE dispute_id = $1`, [dispute.id],
+      `SELECT event_type, metadata FROM dispute_events WHERE dispute_id = $1`,
+      [dispute.id],
     );
     expect(events.rows.map((r: any) => r.event_type)).toContain('RESOLVED');
 
     const outbox = await pool.query(
-      `SELECT event_type, payload FROM outbox_events WHERE aggregate_id = $1`, [dispute.id],
+      `SELECT event_type, payload FROM outbox_events WHERE aggregate_id = $1`,
+      [dispute.id],
     );
     const resolvedEvt = outbox.rows.find((r: any) => r.event_type === 'dispute.resolved');
     expect(resolvedEvt).toBeTruthy();
@@ -386,11 +496,23 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-02: Resolve with pending refund ──────────────────────
 
   it('FIN-DSH-02: resolve dispute with refund recommendation creates REQUESTED refund linked to the dispute', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const dispute = await openDispute(orderId);
 
     const resolved = await disputesService.resolveDispute(
-      dispute.id, adminA, 'Partial refund approved by admin', adminCaller,
+      dispute.id,
+      adminA,
+      'Partial refund approved by admin',
+      adminCaller,
       { amountMinor: 1000, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
     );
 
@@ -398,22 +520,24 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     const refund = await pool.query(
       `SELECT id, status, amount_minor, idempotency_key, dispute_id, return_request_id
-       FROM refunds WHERE order_id = $1`, [orderId],
+       FROM refunds WHERE order_id = $1`,
+      [orderId],
     );
     expect(refund.rows.length).toBe(1);
     expect(refund.rows[0].status).toBe('REQUESTED');
     expect(Number(refund.rows[0].amount_minor)).toBe(1000);
     expect(refund.rows[0].idempotency_key).toBe(`dispute-refund:${dispute.id}`);
-    expect(refund.rows[0].dispute_id).toBe(dispute.id);   // P13 linkage
+    expect(refund.rows[0].dispute_id).toBe(dispute.id); // P13 linkage
 
     // Payment must be untouched by a REQUESTED (pending) refund
-    const payment = await pool.query(
-      `SELECT status FROM payment_records WHERE order_id = $1`, [orderId],
-    );
+    const payment = await pool.query(`SELECT status FROM payment_records WHERE order_id = $1`, [
+      orderId,
+    ]);
     expect(payment.rows[0].status).toBe('CONFIRMED');
 
     const evt = await pool.query(
-      `SELECT metadata FROM dispute_events WHERE dispute_id = $1 AND event_type = 'RESOLVED'`, [dispute.id],
+      `SELECT metadata FROM dispute_events WHERE dispute_id = $1 AND event_type = 'RESOLVED'`,
+      [dispute.id],
     );
     expect(evt.rows[0].metadata.refundId).toBe(refund.rows[0].id);
     expect(Number(evt.rows[0].metadata.amountMinor)).toBe(1000);
@@ -422,21 +546,31 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-03: Approve dispute refund via P12 ───────────────────
 
   it('FIN-DSH-03: approve dispute refund through P12 path yields SUCCEEDED + PARTIALLY_REFUNDED payment', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const dispute = await openDispute(orderId);
 
-    await disputesService.resolveDispute(
-      dispute.id, adminA, 'Refund approved', adminCaller,
-      { amountMinor: 1000, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
-    );
-    const refundRow = (await pool.query(
-      `SELECT id FROM refunds WHERE order_id = $1`, [orderId],
-    )).rows[0];
+    await disputesService.resolveDispute(dispute.id, adminA, 'Refund approved', adminCaller, {
+      amountMinor: 1000,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+    });
+    const refundRow = (await pool.query(`SELECT id FROM refunds WHERE order_id = $1`, [orderId]))
+      .rows[0];
 
     const approved = await paymentsService.approveRefund(refundRow.id, adminA, adminCaller);
     expect(approved.status).toBe('SUCCEEDED');
 
-    const payment = await pool.query(`SELECT status FROM payment_records WHERE order_id = $1`, [orderId]);
+    const payment = await pool.query(`SELECT status FROM payment_records WHERE order_id = $1`, [
+      orderId,
+    ]);
     expect(payment.rows[0].status).toBe('PARTIALLY_REFUNDED');
 
     const outbox = await pool.query(
@@ -447,33 +581,53 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     // Non-admin cannot approve
     await expect(
-      paymentsService.approveRefund(refundRow.id, buyerA, { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA }),
+      paymentsService.approveRefund(refundRow.id, buyerA, {
+        sub: buyerA,
+        role: 'BUYER' as const,
+        activeOrg: orgA,
+      }),
     ).rejects.toThrow(/Only admins/);
   }, 60_000);
 
   // ── FIN-DSH-04: Dispute↔return linkage ───────────────────────────
 
   it('FIN-DSH-04: dispute resolution links refund and dispute to the originating return request', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const dispute = await openDispute(orderId);
 
     // Create a real return request for the same order (REQUESTED state)
     const itemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId: itemsRes.rows[0].id, quantity: 1 }],
-    }, { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA });
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId: itemsRes.rows[0].id, quantity: 1 }],
+      },
+      { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA },
+    );
 
     const resolved = await disputesService.resolveDispute(
-      dispute.id, adminA, 'Refund tied to return', adminCaller,
+      dispute.id,
+      adminA,
+      'Refund tied to return',
+      adminCaller,
       { amountMinor: 900, reason: 'PRODUCT_NOT_AS_DESCRIBED', returnRequestId: ret.id },
     );
 
     expect(resolved['returnRequestId']).toBe(ret.id);
 
     const refund = await pool.query(
-      `SELECT dispute_id, return_request_id FROM refunds WHERE order_id = $1`, [orderId],
+      `SELECT dispute_id, return_request_id FROM refunds WHERE order_id = $1`,
+      [orderId],
     );
     expect(refund.rows[0].dispute_id).toBe(dispute.id);
     // return_request_id on the refund is only set by the return flow; the dispute
@@ -484,23 +638,36 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-05: Retry resolution — no duplicate refund ───────────
 
   it('FIN-DSH-05: retrying dispute resolution is rejected and creates no duplicate refund', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const dispute = await openDispute(orderId);
 
     await disputesService.resolveDispute(
-      dispute.id, adminA, 'First resolution stands', adminCaller,
+      dispute.id,
+      adminA,
+      'First resolution stands',
+      adminCaller,
       { amountMinor: 1000, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
     );
 
     await expect(
-      disputesService.resolveDispute(
-        dispute.id, adminA, 'Second attempt', adminCaller,
-        { amountMinor: 2000, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
-      ),
+      disputesService.resolveDispute(dispute.id, adminA, 'Second attempt', adminCaller, {
+        amountMinor: 2000,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      }),
     ).rejects.toThrow(/already RESOLVED/);
 
     const refundsRes = await pool.query(
-      `SELECT count(*)::int AS n, COALESCE(SUM(amount_minor),0)::int AS total FROM refunds WHERE order_id = $1`, [orderId],
+      `SELECT count(*)::int AS n, COALESCE(SUM(amount_minor),0)::int AS total FROM refunds WHERE order_id = $1`,
+      [orderId],
     );
     expect(refundsRes.rows[0].n).toBe(1);
     expect(refundsRes.rows[0].total).toBe(1000);
@@ -512,11 +679,20 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-06: Orphan-refund recovery ───────────────────────────
 
   it('FIN-DSH-06: refund committed by a crashed attempt is reused on retry (no duplicate, dispute resolves)', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const dispute = await openDispute(orderId);
-    const paymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
-    )).rows[0].id;
+    const paymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0].id;
 
     // Simulate the crash window of the previous design: requestRefund committed,
     // dispute-resolution transaction never completed.
@@ -528,16 +704,19 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
 
     const resolved = await disputesService.resolveDispute(
-      dispute.id, adminA, 'Recovered resolution', adminCaller,
+      dispute.id,
+      adminA,
+      'Recovered resolution',
+      adminCaller,
       { amountMinor: 1000, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
     );
 
     expect(resolved['status']).toBe('RESOLVED');
 
-    const refundsRes = await pool.query(
-      `SELECT id, dispute_id FROM refunds WHERE order_id = $1`, [orderId],
-    );
-    expect(refundsRes.rows.length).toBe(1);           // reused, not duplicated
+    const refundsRes = await pool.query(`SELECT id, dispute_id FROM refunds WHERE order_id = $1`, [
+      orderId,
+    ]);
+    expect(refundsRes.rows.length).toBe(1); // reused, not duplicated
     expect(refundsRes.rows[0].id).toBe(orphanRefundId);
     expect(refundsRes.rows[0].dispute_id).toBe(dispute.id);
   }, 60_000);
@@ -545,9 +724,20 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-20: Dispute refund recovery payload integrity ────────
 
   it('FIN-DSH-20: orphan dispute refund with a different amount is not reused or linked', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const dispute = await openDispute(orderId);
-    const paymentId = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0].id;
+    const paymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0].id;
     const orphanRefundId = randomUUID();
     await pool.query(
       `INSERT INTO refunds (id, payment_record_id, order_id, idempotency_key, amount_minor, currency, status, reason, requested_by)
@@ -555,21 +745,39 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [orphanRefundId, paymentId, orderId, `dispute-refund:${dispute.id}`, buyerA],
     );
 
-    await expect(disputesService.resolveDispute(
-      dispute.id, adminA, 'Mismatched retry must not resolve', adminCaller,
-      { amountMinor: 1200, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
-    )).rejects.toThrow(/idempotency key was already used for a different request/i);
+    await expect(
+      disputesService.resolveDispute(
+        dispute.id,
+        adminA,
+        'Mismatched retry must not resolve',
+        adminCaller,
+        { amountMinor: 1200, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
+      ),
+    ).rejects.toThrow(/idempotency key was already used for a different request/i);
 
     const state = await pool.query(`SELECT status FROM disputes WHERE id = $1`, [dispute.id]);
-    const refund = await pool.query(`SELECT dispute_id FROM refunds WHERE id = $1`, [orphanRefundId]);
+    const refund = await pool.query(`SELECT dispute_id FROM refunds WHERE id = $1`, [
+      orphanRefundId,
+    ]);
     expect(state.rows[0].status).toBe('OPEN');
     expect(refund.rows[0].dispute_id).toBeNull();
   }, 60_000);
 
   it('FIN-DSH-20: orphan dispute refund with a different reason is not reused or linked', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const dispute = await openDispute(orderId);
-    const paymentId = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0].id;
+    const paymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0].id;
     const orphanRefundId = randomUUID();
     await pool.query(
       `INSERT INTO refunds (id, payment_record_id, order_id, idempotency_key, amount_minor, currency, status, reason, requested_by)
@@ -577,34 +785,56 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [orphanRefundId, paymentId, orderId, `dispute-refund:${dispute.id}`, buyerA],
     );
 
-    await expect(disputesService.resolveDispute(
-      dispute.id, adminA, 'Mismatched retry must not resolve', adminCaller,
-      { amountMinor: 1000, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
-    )).rejects.toThrow(/idempotency key was already used for a different request/i);
+    await expect(
+      disputesService.resolveDispute(
+        dispute.id,
+        adminA,
+        'Mismatched retry must not resolve',
+        adminCaller,
+        { amountMinor: 1000, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
+      ),
+    ).rejects.toThrow(/idempotency key was already used for a different request/i);
 
     const state = await pool.query(`SELECT status FROM disputes WHERE id = $1`, [dispute.id]);
-    const refund = await pool.query(`SELECT dispute_id FROM refunds WHERE id = $1`, [orphanRefundId]);
+    const refund = await pool.query(`SELECT dispute_id FROM refunds WHERE id = $1`, [
+      orphanRefundId,
+    ]);
     expect(state.rows[0].status).toBe('OPEN');
     expect(refund.rows[0].dispute_id).toBeNull();
   }, 60_000);
 
-
   // ── FIN-DSH-24: Return refund recovery payload integrity ────────
 
   it('FIN-DSH-24: orphan return refund with a different amount is not reused or linked', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const items = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId: items.rows[0].id, quantity: 1 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId: items.rows[0].id, quantity: 1 }],
+      },
+      buyerCaller,
+    );
     await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
-    await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, { trackingNumber: 'TRK-FIN24' });
+    await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, {
+      trackingNumber: 'TRK-FIN24',
+    });
     await returnsService.transitionReturn(ret.id, 'RECEIVED', merchantCaller);
-    await returnsService.transitionReturn(ret.id, 'INSPECTED', merchantCaller, { condition: 'GOOD' });
+    await returnsService.transitionReturn(ret.id, 'INSPECTED', merchantCaller, {
+      condition: 'GOOD',
+    });
 
     const current = await pool.query(
       `SELECT payment_record_id, requested_refund_minor, buyer_id FROM return_requests WHERE id = $1`,
@@ -615,7 +845,14 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     await pool.query(
       `INSERT INTO refunds (id, payment_record_id, order_id, idempotency_key, amount_minor, currency, status, reason, requested_by)
        VALUES ($1, $2, $3, $4, $5, 'SYP', 'REQUESTED', 'PRODUCT_NOT_AS_DESCRIBED', $6)`,
-      [orphanRefundId, paymentId, orderId, `return-refund:${ret.id}`, Number(current.rows[0].requested_refund_minor), buyerA],
+      [
+        orphanRefundId,
+        paymentId,
+        orderId,
+        `return-refund:${ret.id}`,
+        Number(current.rows[0].requested_refund_minor),
+        buyerA,
+      ],
     );
 
     await expect(
@@ -623,25 +860,43 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     ).rejects.toThrow(/idempotency key was already used for a different request/i);
 
     const state = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [ret.id]);
-    const refund = await pool.query(`SELECT return_request_id FROM refunds WHERE id = $1`, [orphanRefundId]);
+    const refund = await pool.query(`SELECT return_request_id FROM refunds WHERE id = $1`, [
+      orphanRefundId,
+    ]);
     expect(state.rows[0].status).toBe('INSPECTED');
     expect(refund.rows[0].return_request_id).toBeNull();
   }, 60_000);
 
   it('FIN-DSH-25: orphan return refund with a different reason is not reused or linked', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const items = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId: items.rows[0].id, quantity: 1 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId: items.rows[0].id, quantity: 1 }],
+      },
+      buyerCaller,
+    );
     await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
-    await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, { trackingNumber: 'TRK-FIN25' });
+    await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, {
+      trackingNumber: 'TRK-FIN25',
+    });
     await returnsService.transitionReturn(ret.id, 'RECEIVED', merchantCaller);
-    await returnsService.transitionReturn(ret.id, 'INSPECTED', merchantCaller, { condition: 'GOOD' });
+    await returnsService.transitionReturn(ret.id, 'INSPECTED', merchantCaller, {
+      condition: 'GOOD',
+    });
 
     const current = await pool.query(
       `SELECT payment_record_id, requested_refund_minor FROM return_requests WHERE id = $1`,
@@ -651,7 +906,14 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     await pool.query(
       `INSERT INTO refunds (id, payment_record_id, order_id, idempotency_key, amount_minor, currency, status, reason, requested_by)
        VALUES ($1, $2, $3, $4, $5, 'SYP', 'REQUESTED', 'CUSTOMER_REQUEST', $6)`,
-      [orphanRefundId, current.rows[0].payment_record_id, orderId, `return-refund:${ret.id}`, Number(current.rows[0].requested_refund_minor), buyerA],
+      [
+        orphanRefundId,
+        current.rows[0].payment_record_id,
+        orderId,
+        `return-refund:${ret.id}`,
+        Number(current.rows[0].requested_refund_minor),
+        buyerA,
+      ],
     );
 
     await expect(
@@ -659,7 +921,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     ).rejects.toThrow(/idempotency key was already used for a different request/i);
 
     const state = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [ret.id]);
-    const refund = await pool.query(`SELECT return_request_id FROM refunds WHERE id = $1`, [orphanRefundId]);
+    const refund = await pool.query(`SELECT return_request_id FROM refunds WHERE id = $1`, [
+      orphanRefundId,
+    ]);
     expect(state.rows[0].status).toBe('INSPECTED');
     expect(refund.rows[0].return_request_id).toBeNull();
   }, 60_000);
@@ -667,26 +931,35 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-23: Concurrent dispute resolution idempotency ───────
 
   it('FIN-DSH-23: concurrent identical dispute resolutions commit one resolution event and outbox message', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const dispute = await openDispute(orderId);
 
     const results = await Promise.allSettled([
-      disputesService.resolveDispute(
-        dispute.id, adminA, 'Approved after review', adminCaller,
-        { amountMinor: 1000, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
-      ),
-      disputesService.resolveDispute(
-        dispute.id, adminA, 'Approved after review', adminCaller,
-        { amountMinor: 1000, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
-      ),
+      disputesService.resolveDispute(dispute.id, adminA, 'Approved after review', adminCaller, {
+        amountMinor: 1000,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      }),
+      disputesService.resolveDispute(dispute.id, adminA, 'Approved after review', adminCaller, {
+        amountMinor: 1000,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      }),
     ]);
 
-    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
-    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
 
-    const state = await pool.query(
-      `SELECT status, resolution FROM disputes WHERE id = $1`, [dispute.id],
-    );
+    const state = await pool.query(`SELECT status, resolution FROM disputes WHERE id = $1`, [
+      dispute.id,
+    ]);
     expect(state.rows[0]).toEqual({
       status: 'RESOLVED',
       resolution: 'Approved after review',
@@ -717,37 +990,58 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-07: Simultaneous return + dispute refunds ────────────
 
   it('FIN-DSH-07: concurrent return-initiated and dispute-initiated refunds respect the cumulative cap', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const dispute = await openDispute(orderId);
 
     // Bring a return to INSPECTED so both refund sources fire simultaneously
     const itemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId: itemsRes.rows[0].id, quantity: 2 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId: itemsRes.rows[0].id, quantity: 2 }],
+      },
+      buyerCaller,
+    );
     await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
-    await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, { trackingNumber: 'TRK-FIN7' });
+    await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, {
+      trackingNumber: 'TRK-FIN7',
+    });
     await returnsService.transitionReturn(ret.id, 'RECEIVED', merchantCaller);
-    await returnsService.transitionReturn(ret.id, 'INSPECTED', merchantCaller, { condition: 'GOOD' });
+    await returnsService.transitionReturn(ret.id, 'INSPECTED', merchantCaller, {
+      condition: 'GOOD',
+    });
 
     const returnRefundMinor = Number(
-      (await pool.query(`SELECT requested_refund_minor FROM return_requests WHERE id = $1`, [ret.id])).rows[0].requested_refund_minor,
+      (
+        await pool.query(`SELECT requested_refund_minor FROM return_requests WHERE id = $1`, [
+          ret.id,
+        ])
+      ).rows[0].requested_refund_minor,
     );
 
     const results = await Promise.allSettled([
       returnsService.transitionReturn(ret.id, 'REFUND_PENDING', merchantCaller),
-      disputesService.resolveDispute(
-        dispute.id, adminA, 'Concurrent dispute refund', adminCaller,
-        { amountMinor: 1000, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
-      ),
+      disputesService.resolveDispute(dispute.id, adminA, 'Concurrent dispute refund', adminCaller, {
+        amountMinor: 1000,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      }),
     ]);
 
     const refundsRes = await pool.query(
-      `SELECT idempotency_key, amount_minor::int AS amt FROM refunds WHERE order_id = $1`, [orderId],
+      `SELECT idempotency_key, amount_minor::int AS amt FROM refunds WHERE order_id = $1`,
+      [orderId],
     );
     // No duplicate rows per source
     const keys = refundsRes.rows.map((r: any) => r.idempotency_key);
@@ -757,7 +1051,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const total = refundsRes.rows.reduce((s: number, r: any) => s + r.amt, 0);
     expect(total).toBeLessThanOrEqual(3450);
 
-    const okCount = results.filter(r => r.status === 'fulfilled').length;
+    const okCount = results.filter((r) => r.status === 'fulfilled').length;
     if (returnRefundMinor + 1000 <= 3450) {
       // Both fit under the cap: FOR UPDATE serializes and both must succeed
       expect(okCount).toBe(2);
@@ -767,7 +1061,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       // Over cap: exactly one committed; the other rejected with the cap error
       expect(okCount).toBe(1);
       expect(refundsRes.rows.length).toBe(1);
-      const failed = results.find(r => r.status === 'rejected') as PromiseRejectedResult;
+      const failed = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
       expect(String(failed.reason?.message)).toMatch(/exceeds refundable/);
     }
   }, 60_000);
@@ -775,13 +1069,26 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-08: Concurrent approveRefund + calculateSettlement ───
 
   it('FIN-DSH-08: concurrent refund approval and settlement calculation produce one internally consistent settlement', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const dispute = await openDispute(orderId);
     await disputesService.resolveDispute(
-      dispute.id, adminA, 'Refund pending while settlement runs', adminCaller,
+      dispute.id,
+      adminA,
+      'Refund pending while settlement runs',
+      adminCaller,
       { amountMinor: 1000, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
     );
-    const refundId = (await pool.query(`SELECT id FROM refunds WHERE order_id = $1`, [orderId])).rows[0].id;
+    const refundId = (await pool.query(`SELECT id FROM refunds WHERE order_id = $1`, [orderId]))
+      .rows[0].id;
 
     await Promise.allSettled([
       paymentsService.approveRefund(refundId, adminA, adminCaller),
@@ -790,7 +1097,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     const settlements = await pool.query(
       `SELECT gross_minor::int AS gross, refund_minor::int AS refund, commission_minor::int AS comm, fee_minor::int AS fee, net_minor::int AS net, status
-       FROM settlement_records WHERE sub_order_id = $1`, [orderId],
+       FROM settlement_records WHERE sub_order_id = $1`,
+      [orderId],
     );
     // Unique active-settlement index must hold under the race
     expect(settlements.rows.length).toBe(1);
@@ -803,14 +1111,22 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect([0, 1000]).toContain(s.refund);
   }, 60_000);
 
-
   // ── FIN-DSH-11: Concurrent partial refund approvals serialize ────
 
   it('FIN-DSH-11: concurrent partial refund approvals leave a fully refunded payment in REFUNDED state', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const paymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
-    )).rows[0].id;
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const paymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0].id;
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
 
     const [first, second] = await Promise.all([
@@ -826,11 +1142,11 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       paymentsService.approveRefund(first.refundId, adminA, adminCaller),
       paymentsService.approveRefund(second.refundId, adminA, adminCaller),
     ]);
-    expect(approved.map(refund => refund.status)).toEqual(['SUCCEEDED', 'SUCCEEDED']);
+    expect(approved.map((refund) => refund.status)).toEqual(['SUCCEEDED', 'SUCCEEDED']);
 
-    const payment = await pool.query(
-      `SELECT status FROM payment_records WHERE id = $1`, [paymentId],
-    );
+    const payment = await pool.query(`SELECT status FROM payment_records WHERE id = $1`, [
+      paymentId,
+    ]);
     expect(payment.rows[0].status).toBe('REFUNDED');
 
     const total = await pool.query(
@@ -844,16 +1160,29 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-12: Refund request idempotency ────────────────────────
 
   it('FIN-DSH-12: concurrent retries with the same refund idempotency key reuse one request', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const paymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
-    )).rows[0].id;
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const paymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0].id;
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const idempotencyKey = `fin-refund-idem-${randomUUID()}`;
 
     const [first, retry] = await Promise.all([
-      paymentsService.requestRefund(paymentId, 3450, 'CUSTOMER_REQUEST', buyerA, buyerCaller, { idempotencyKey }),
-      paymentsService.requestRefund(paymentId, 3450, 'CUSTOMER_REQUEST', buyerA, buyerCaller, { idempotencyKey }),
+      paymentsService.requestRefund(paymentId, 3450, 'CUSTOMER_REQUEST', buyerA, buyerCaller, {
+        idempotencyKey,
+      }),
+      paymentsService.requestRefund(paymentId, 3450, 'CUSTOMER_REQUEST', buyerA, buyerCaller, {
+        idempotencyKey,
+      }),
     ]);
 
     expect(retry.refundId).toBe(first.refundId);
@@ -866,14 +1195,25 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(rows.rows[0].count).toBe(1);
 
     await expect(
-      paymentsService.requestRefund(paymentId, 1000, 'CUSTOMER_REQUEST', buyerA, buyerCaller, { idempotencyKey }),
+      paymentsService.requestRefund(paymentId, 1000, 'CUSTOMER_REQUEST', buyerA, buyerCaller, {
+        idempotencyKey,
+      }),
     ).rejects.toThrow(/idempotency key was already used/i);
   }, 60_000);
 
   // ── FIN-DSH-13: Settlement calculation idempotency ───────────────
 
   it('FIN-DSH-13: concurrent settlement calculations reuse one payable settlement', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
 
     const [first, retry] = await Promise.all([
       paymentsService.calculateSettlement(orderId, adminA, adminCaller),
@@ -889,9 +1229,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     expect(rows.rows[0].count).toBe(1);
 
-    const paymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
-    )).rows[0].id;
+    const paymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0].id;
     const history = await pool.query(
       `SELECT count(*)::int AS count FROM payment_events
        WHERE payment_record_id = $1 AND event_type = 'PAYMENT_SETTLEMENT_CALCULATED'`,
@@ -910,14 +1250,23 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-14: Paid settlement cannot be recalculated ────────────
 
   it('FIN-DSH-14: recalculation after PAID is rejected without creating another payable record', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
     const paid = await paymentsService.markSettlementPaid(settlement.id, adminA, adminCaller);
     expect(paid.status).toBe('PAID');
 
-    await expect(
-      paymentsService.calculateSettlement(orderId, adminA, adminCaller),
-    ).rejects.toThrow(/settlement already exists in PAID status/i);
+    await expect(paymentsService.calculateSettlement(orderId, adminA, adminCaller)).rejects.toThrow(
+      /settlement already exists in PAID status/i,
+    );
 
     const rows = await pool.query(
       `SELECT status, count(*)::int AS count FROM settlement_records
@@ -930,16 +1279,25 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-15: No settlement before payment confirmation ───────
 
   it('FIN-DSH-15: refuses to calculate settlement while payment awaits confirmation', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     await pool.query(
       `UPDATE payment_records SET status = 'AWAITING_PAYMENT', confirmed_amount_minor = NULL
        WHERE order_id = $1`,
       [orderId],
     );
 
-    await expect(
-      paymentsService.calculateSettlement(orderId, adminA, adminCaller),
-    ).rejects.toThrow(/cannot calculate settlement for payment in AWAITING_PAYMENT status/i);
+    await expect(paymentsService.calculateSettlement(orderId, adminA, adminCaller)).rejects.toThrow(
+      /cannot calculate settlement for payment in AWAITING_PAYMENT status/i,
+    );
 
     const rows = await pool.query(
       `SELECT count(*)::int AS count FROM settlement_records WHERE sub_order_id = $1`,
@@ -951,44 +1309,75 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-16: Minor-unit amount validation ────────────────────
 
   it('FIN-DSH-16: rejects fractional or non-positive verification, COD and refund amounts', async () => {
-    const verifyOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const verifyOrderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     await pool.query(
       `UPDATE payment_records SET status = 'AWAITING_VERIFICATION' WHERE order_id = $1`,
       [verifyOrderId],
     );
-    const verifyPaymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [verifyOrderId],
-    )).rows[0].id;
+    const verifyPaymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [verifyOrderId])
+    ).rows[0].id;
     await expect(
-      paymentsService.verifyPayment(verifyPaymentId, 'CONFIRMED', adminA, adminCaller, { verifiedAmountMinor: 1.5 }),
+      paymentsService.verifyPayment(verifyPaymentId, 'CONFIRMED', adminA, adminCaller, {
+        verifiedAmountMinor: 1.5,
+      }),
     ).rejects.toThrow(/positive safe integer in minor units/i);
-    const verifyState = await pool.query(
-      `SELECT status FROM payment_records WHERE id = $1`, [verifyPaymentId],
-    );
+    const verifyState = await pool.query(`SELECT status FROM payment_records WHERE id = $1`, [
+      verifyPaymentId,
+    ]);
     expect(verifyState.rows[0].status).toBe('AWAITING_VERIFICATION');
 
-    const codOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const codOrderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     await pool.query(
       `UPDATE payment_records SET payment_method = 'CASH_ON_DELIVERY', status = 'AWAITING_PAYMENT'
        WHERE order_id = $1`,
       [codOrderId],
     );
-    const codPaymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [codOrderId],
-    )).rows[0].id;
+    const codPaymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [codOrderId])
+    ).rows[0].id;
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
     await expect(
-      paymentsService.confirmCash(codPaymentId, merchantA, merchantCaller, { amountCollectedMinor: 0 }),
+      paymentsService.confirmCash(codPaymentId, merchantA, merchantCaller, {
+        amountCollectedMinor: 0,
+      }),
     ).rejects.toThrow(/positive safe integer in minor units/i);
-    const codState = await pool.query(
-      `SELECT status FROM payment_records WHERE id = $1`, [codPaymentId],
-    );
+    const codState = await pool.query(`SELECT status FROM payment_records WHERE id = $1`, [
+      codPaymentId,
+    ]);
     expect(codState.rows[0].status).toBe('AWAITING_PAYMENT');
 
-    const refundOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const refundPaymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [refundOrderId],
-    )).rows[0].id;
+    const refundOrderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const refundPaymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [refundOrderId])
+    ).rows[0].id;
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     await expect(
       paymentsService.requestRefund(refundPaymentId, 1.25, 'CUSTOMER_REQUEST', buyerA, buyerCaller),
@@ -998,13 +1387,26 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-21: Partial refund order payment projection ──────────
 
   it('FIN-DSH-21: partial refund approval synchronizes order payment status without changing fulfillment', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const paymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
-    )).rows[0].id;
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const paymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0].id;
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const refund = await paymentsService.requestRefund(
-      paymentId, 1000, 'CUSTOMER_REQUEST', buyerA, buyerCaller,
+      paymentId,
+      1000,
+      'CUSTOMER_REQUEST',
+      buyerA,
+      buyerCaller,
       { idempotencyKey: `fin-order-projection-partial-${randomUUID()}` },
     );
 
@@ -1026,13 +1428,26 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-22: Full refund order payment projection ──────────────
 
   it('FIN-DSH-22: full refund approval synchronizes order payment status without changing fulfillment', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const paymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
-    )).rows[0].id;
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const paymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0].id;
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const refund = await paymentsService.requestRefund(
-      paymentId, 3450, 'CUSTOMER_REQUEST', buyerA, buyerCaller,
+      paymentId,
+      3450,
+      'CUSTOMER_REQUEST',
+      buyerA,
+      buyerCaller,
       { idempotencyKey: `fin-order-projection-full-${randomUUID()}` },
     );
 
@@ -1054,7 +1469,16 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-18: COD order/payment projection consistency ─────────
 
   it('FIN-DSH-18: confirms the order payment projection without rewinding its fulfillment status', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     await pool.query(
       `UPDATE orders SET status = 'DELIVERED', payment_status = 'AWAITING_PAYMENT' WHERE id = $1`,
       [orderId],
@@ -1065,23 +1489,19 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        WHERE order_id = $1`,
       [orderId],
     );
-    const paymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
-    )).rows[0].id;
+    const paymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0].id;
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
 
-    const payment = await paymentsService.confirmCash(
-      paymentId,
-      merchantA,
-      merchantCaller,
-      { amountCollectedMinor: 3450 },
-    );
+    const payment = await paymentsService.confirmCash(paymentId, merchantA, merchantCaller, {
+      amountCollectedMinor: 3450,
+    });
 
     expect(payment.status).toBe('CONFIRMED');
-    const order = await pool.query(
-      `SELECT status, payment_status FROM orders WHERE id = $1`,
-      [orderId],
-    );
+    const order = await pool.query(`SELECT status, payment_status FROM orders WHERE id = $1`, [
+      orderId,
+    ]);
     expect(order.rows[0]).toEqual({
       status: 'DELIVERED',
       payment_status: 'CONFIRMED',
@@ -1098,7 +1518,16 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-28: Expiration/order transition race ────────────────
 
   it('FIN-DSH-28: does not append cancellation history when a concurrent order transition wins', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     await pool.query(
       `UPDATE orders SET status = 'PAYMENT_PENDING', payment_status = 'AWAITING_PAYMENT' WHERE id = $1`,
       [orderId],
@@ -1107,19 +1536,21 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       `UPDATE payment_records SET status = 'AWAITING_PAYMENT', confirmed_amount_minor = NULL WHERE order_id = $1`,
       [orderId],
     );
-    const paymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
-    )).rows[0].id as string;
+    const paymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0].id as string;
 
     const originalGetOrder = paymentsService.getOrderForPayment.bind(paymentsService);
-    const readRace = vi.spyOn(paymentsService, 'getOrderForPayment').mockImplementationOnce(async (id: string) => {
-      const order = await originalGetOrder(id);
-      await pool.query(
-        `UPDATE orders SET status = 'ACCEPTED' WHERE id = $1 AND status = 'PAYMENT_PENDING'`,
-        [id],
-      );
-      return order;
-    });
+    const readRace = vi
+      .spyOn(paymentsService, 'getOrderForPayment')
+      .mockImplementationOnce(async (id: string) => {
+        const order = await originalGetOrder(id);
+        await pool.query(
+          `UPDATE orders SET status = 'ACCEPTED' WHERE id = $1 AND status = 'PAYMENT_PENDING'`,
+          [id],
+        );
+        return order;
+      });
 
     try {
       await paymentsService.expirePayment(paymentId);
@@ -1127,10 +1558,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       readRace.mockRestore();
     }
 
-    const order = await pool.query(
-      `SELECT status, payment_status FROM orders WHERE id = $1`,
-      [orderId],
-    );
+    const order = await pool.query(`SELECT status, payment_status FROM orders WHERE id = $1`, [
+      orderId,
+    ]);
     expect(order.rows[0]).toEqual({
       status: 'ACCEPTED',
       payment_status: 'AWAITING_PAYMENT',
@@ -1143,17 +1573,25 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     expect(history.rows[0].count).toBe(0);
 
-    const payment = await pool.query(
-      `SELECT status FROM payment_records WHERE id = $1`,
-      [paymentId],
-    );
+    const payment = await pool.query(`SELECT status FROM payment_records WHERE id = $1`, [
+      paymentId,
+    ]);
     expect(payment.rows[0].status).toBe('EXPIRED');
   }, 60_000);
 
   // ── FIN-DSH-30: COD payments are excluded from expiry ───────────
 
   it('FIN-DSH-30: stale COD payments remain collectible and are not expired', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     await pool.query(
       `UPDATE orders SET status = 'DELIVERED', payment_status = 'AWAITING_PAYMENT' WHERE id = $1`,
       [orderId],
@@ -1166,19 +1604,18 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        WHERE order_id = $1`,
       [orderId],
     );
-    const paymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
-    )).rows[0].id as string;
+    const paymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0].id as string;
 
     const stalePayments = await paymentsService.getStalePayments();
-    expect(stalePayments.some(payment => payment.id === paymentId)).toBe(false);
+    expect(stalePayments.some((payment) => payment.id === paymentId)).toBe(false);
 
     await paymentsService.expirePayment(paymentId);
 
-    const payment = await pool.query(
-      `SELECT status FROM payment_records WHERE id = $1`,
-      [paymentId],
-    );
+    const payment = await pool.query(`SELECT status FROM payment_records WHERE id = $1`, [
+      paymentId,
+    ]);
     expect(payment.rows[0].status).toBe('AWAITING_PAYMENT');
 
     const expiredEvents = await pool.query(
@@ -1188,10 +1625,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     expect(expiredEvents.rows[0].count).toBe(0);
 
-    const order = await pool.query(
-      `SELECT status, payment_status FROM orders WHERE id = $1`,
-      [orderId],
-    );
+    const order = await pool.query(`SELECT status, payment_status FROM orders WHERE id = $1`, [
+      orderId,
+    ]);
     expect(order.rows[0]).toEqual({
       status: 'DELIVERED',
       payment_status: 'AWAITING_PAYMENT',
@@ -1201,15 +1637,22 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-32: Concurrent return creation serialization ───────
 
   it('FIN-DSH-32: concurrent return requests serialize and only one active request is created', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const orderItemId = (await pool.query(
-      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`,
-      [orderId],
-    )).rows[0].id as string;
-    const paymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`,
-      [orderId],
-    )).rows[0].id as string;
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const orderItemId = (
+      await pool.query(`SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [orderId])
+    ).rows[0].id as string;
+    const paymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0].id as string;
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
 
     // Hold the payment row until both requests have passed their fast-fail
@@ -1218,27 +1661,27 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     let requests: Promise<any>[] = [];
     try {
       await lockClient.query('BEGIN');
-      await lockClient.query(
-        `SELECT id FROM payment_records WHERE id = $1 FOR UPDATE`,
-        [paymentId],
-      );
+      await lockClient.query(`SELECT id FROM payment_records WHERE id = $1 FOR UPDATE`, [
+        paymentId,
+      ]);
       const backendResult = await lockClient.query(`SELECT pg_backend_pid() AS pid`);
       const lockBackendPid = Number(backendResult.rows[0]?.pid);
       if (!Number.isInteger(lockBackendPid)) {
         throw new Error('Unable to identify the payment-locking PostgreSQL session');
       }
 
-      const makeRequest = (key: string) => returnsService.createReturnRequest({
-        subOrderId: orderId,
-        reason: 'PRODUCT_NOT_AS_DESCRIBED',
-        description: 'Concurrent return creation regression',
-        idempotencyKey: key,
-        lines: [{ orderItemId, quantity: 2 }],
-      }, buyerCaller);
-      requests = [
-        makeRequest(randomUUID()),
-        makeRequest(randomUUID()),
-      ];
+      const makeRequest = (key: string) =>
+        returnsService.createReturnRequest(
+          {
+            subOrderId: orderId,
+            reason: 'PRODUCT_NOT_AS_DESCRIBED',
+            description: 'Concurrent return creation regression',
+            idempotencyKey: key,
+            lines: [{ orderItemId, quantity: 2 }],
+          },
+          buyerCaller,
+        );
+      requests = [makeRequest(randomUUID()), makeRequest(randomUUID())];
 
       let waiting = 0;
       for (let attempt = 0; attempt < 200; attempt += 1) {
@@ -1252,7 +1695,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
         );
         waiting = activity.rows[0].count;
         if (waiting >= 2) break;
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
       expect(waiting).toBeGreaterThanOrEqual(2);
       await lockClient.query('COMMIT');
@@ -1264,8 +1707,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     }
 
     const results = await Promise.allSettled(requests);
-    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
-    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
 
     const active = await pool.query(
       `SELECT count(*)::int AS count FROM return_requests
@@ -1279,7 +1722,16 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-17: Settlement payment transition history and outbox ──
 
   it('FIN-DSH-17: concurrent settlement pay attempts persist one PAID event and one outbox event', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
 
     const results = await Promise.all([
@@ -1293,7 +1745,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       }),
     ]);
 
-    expect(results.map(result => result.status)).toEqual(['PAID', 'PAID']);
+    expect(results.map((result) => result.status)).toEqual(['PAID', 'PAID']);
     await expect(
       paymentsService.markSettlementPaid(settlement.id, adminA, adminCaller, {
         paymentReference: 'BANK-REF-FIN-OTHER',
@@ -1307,10 +1759,11 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     expect(paid.rows).toEqual([{ status: 'PAID', payment_reference: 'BANK-REF-FIN-17' }]);
 
-    const paymentId = (await pool.query(
-      `SELECT payment_record_id FROM settlement_records WHERE id = $1`,
-      [settlement.id],
-    )).rows[0].payment_record_id;
+    const paymentId = (
+      await pool.query(`SELECT payment_record_id FROM settlement_records WHERE id = $1`, [
+        settlement.id,
+      ])
+    ).rows[0].payment_record_id;
 
     const history = await pool.query(
       `SELECT event_type, from_status, to_status, amount_minor::int AS amount, actor_id
@@ -1333,61 +1786,75 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        WHERE aggregate_id = $1 AND event_type = 'payment.settlement_paid'`,
       [paymentId],
     );
-    expect(outbox.rows).toEqual([{
-      event_type: 'payment.settlement_paid',
-      settlement_id: settlement.id,
-    }]);
+    expect(outbox.rows).toEqual([
+      {
+        event_type: 'payment.settlement_paid',
+        settlement_id: settlement.id,
+      },
+    ]);
   }, 60_000);
-
 
   // ── FIN-DSH-19: Missing breakdown blocks payment confirmation ───
 
   it('FIN-DSH-19: missing financial breakdown rolls back manual and COD payment confirmation', async () => {
-    const verifyOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const verifyPaymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [verifyOrderId],
-    )).rows[0].id as string;
-    await pool.query(
-      `UPDATE payment_records SET status = 'AWAITING_VERIFICATION' WHERE id = $1`,
-      [verifyPaymentId],
+    const verifyOrderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    await pool.query(
-      `DELETE FROM order_financial_breakdown WHERE order_id = $1`,
-      [verifyOrderId],
-    );
+    const verifyPaymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [verifyOrderId])
+    ).rows[0].id as string;
+    await pool.query(`UPDATE payment_records SET status = 'AWAITING_VERIFICATION' WHERE id = $1`, [
+      verifyPaymentId,
+    ]);
+    await pool.query(`DELETE FROM order_financial_breakdown WHERE order_id = $1`, [verifyOrderId]);
 
     await expect(
       paymentsService.verifyPayment(verifyPaymentId, 'CONFIRMED', adminA, adminCaller),
     ).rejects.toThrow(/financial breakdown is missing/i);
 
-    const verifyState = await pool.query(
-      `SELECT status FROM payment_records WHERE id = $1`, [verifyPaymentId],
-    );
+    const verifyState = await pool.query(`SELECT status FROM payment_records WHERE id = $1`, [
+      verifyPaymentId,
+    ]);
     expect(verifyState.rows[0].status).toBe('AWAITING_VERIFICATION');
 
-    const codOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const codPaymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [codOrderId],
-    )).rows[0].id as string;
+    const codOrderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const codPaymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [codOrderId])
+    ).rows[0].id as string;
     await pool.query(
       `UPDATE payment_records
        SET payment_method = 'CASH_ON_DELIVERY', status = 'AWAITING_PAYMENT'
        WHERE id = $1`,
       [codPaymentId],
     );
-    await pool.query(
-      `DELETE FROM order_financial_breakdown WHERE order_id = $1`,
-      [codOrderId],
-    );
+    await pool.query(`DELETE FROM order_financial_breakdown WHERE order_id = $1`, [codOrderId]);
 
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
     await expect(
-      paymentsService.confirmCash(codPaymentId, merchantA, merchantCaller, { amountCollectedMinor: 3450 }),
+      paymentsService.confirmCash(codPaymentId, merchantA, merchantCaller, {
+        amountCollectedMinor: 3450,
+      }),
     ).rejects.toThrow(/financial breakdown is missing/i);
 
-    const codState = await pool.query(
-      `SELECT status FROM payment_records WHERE id = $1`, [codPaymentId],
-    );
+    const codState = await pool.query(`SELECT status FROM payment_records WHERE id = $1`, [
+      codPaymentId,
+    ]);
     expect(codState.rows[0].status).toBe('AWAITING_PAYMENT');
 
     const confirmedEvents = await pool.query(
@@ -1408,19 +1875,39 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-09: Refund after settlement PAID ─────────────────────
 
   it('FIN-DSH-09: refund succeeding after settlement is PAID creates an ADJUSTMENT and preserves the paid record', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
 
     const pendingRet = await advanceReturnToRefundPending(
-      returnsService, pool, orderId, 2, buyerA, merchantA, orgA,
+      returnsService,
+      pool,
+      orderId,
+      2,
+      buyerA,
+      merchantA,
+      orgA,
     );
     const refundId = pendingRet.refundId as string;
     const refundMinor = Number(
-      (await pool.query(`SELECT amount_minor::int AS amt FROM refunds WHERE id = $1`, [refundId])).rows[0].amt,
+      (await pool.query(`SELECT amount_minor::int AS amt FROM refunds WHERE id = $1`, [refundId]))
+        .rows[0].amt,
     );
 
     // Settlement calculated and PAID while the refund is still REQUESTED
     const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
-    const paidSettlement = await paymentsService.markSettlementPaid(settlement.id, adminA, adminCaller);
+    const paidSettlement = await paymentsService.markSettlementPaid(
+      settlement.id,
+      adminA,
+      adminCaller,
+    );
     expect(paidSettlement.status).toBe('PAID');
 
     // Now the refund succeeds and the return completes
@@ -1431,7 +1918,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     const rows = await pool.query(
       `SELECT status, gross_minor::int AS gross, refund_minor::int AS refund, net_minor::int AS net
-       FROM settlement_records WHERE sub_order_id = $1 ORDER BY created_at`, [orderId],
+       FROM settlement_records WHERE sub_order_id = $1 ORDER BY created_at`,
+      [orderId],
     );
     expect(rows.rows.length).toBe(2);
 
@@ -1461,13 +1949,29 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   // ── FIN-DSH-27: Refund adjustment vs concurrent settlement payment ─
 
   it('FIN-DSH-27: preserves the paid settlement and creates an adjustment when refund completion races payment', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const pendingRet = await advanceReturnToRefundPending(
-      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+      returnsService,
+      pool,
+      orderId,
+      1,
+      buyerA,
+      merchantA,
+      orgA,
     );
     const refundId = pendingRet.refundId as string;
     const refundMinor = Number(
-      (await pool.query(`SELECT amount_minor FROM refunds WHERE id = $1`, [refundId])).rows[0].amount_minor,
+      (await pool.query(`SELECT amount_minor FROM refunds WHERE id = $1`, [refundId])).rows[0]
+        .amount_minor,
     );
     const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
     const original = {
@@ -1484,10 +1988,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     let transition: Promise<any> | undefined;
     try {
       await lockClient.query('BEGIN');
-      await lockClient.query(
-        `SELECT id FROM settlement_records WHERE id = $1 FOR UPDATE`,
-        [settlement.id],
-      );
+      await lockClient.query(`SELECT id FROM settlement_records WHERE id = $1 FOR UPDATE`, [
+        settlement.id,
+      ]);
       const lockBackendPidResult = await lockClient.query<{ pid: number }>(
         'SELECT pg_backend_pid() AS pid',
       );
@@ -1512,7 +2015,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
           waitingForSettlementLock = true;
           break;
         }
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
       expect(waitingForSettlementLock).toBe(true);
 
@@ -1545,25 +2048,38 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        WHERE sub_order_id = $1 AND status = 'ADJUSTMENT'`,
       [orderId],
     );
-    expect(adjustments.rows).toEqual([{
-      status: 'ADJUSTMENT',
-      refund: refundMinor,
-      net: -refundMinor,
-    }]);
+    expect(adjustments.rows).toEqual([
+      {
+        status: 'ADJUSTMENT',
+        refund: refundMinor,
+        net: -refundMinor,
+      },
+    ]);
   }, 60_000);
-
 
   // ── FIN-DSH-26: Adjustment currency follows original settlement ──
 
   it('FIN-DSH-26: post-refund adjustment preserves the original settlement currency', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    await pool.query(
-      `UPDATE payment_records SET currency = 'USD' WHERE order_id = $1`,
-      [orderId],
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
+    await pool.query(`UPDATE payment_records SET currency = 'USD' WHERE order_id = $1`, [orderId]);
 
     const pendingRet = await advanceReturnToRefundPending(
-      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+      returnsService,
+      pool,
+      orderId,
+      1,
+      buyerA,
+      merchantA,
+      orgA,
     );
     const refundId = pendingRet.refundId as string;
     const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
@@ -1583,15 +2099,20 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(adjustment.rows).toEqual([{ currency: 'USD', status: 'ADJUSTMENT' }]);
   }, 60_000);
 
-
   // ── FIN-DSH-29: Discount-adjusted commission reversal and currency ──
 
   it('FIN-DSH-29: partial return allocates order discount and preserves payment currency in both ledgers', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    await pool.query(
-      `UPDATE payment_records SET currency = 'USD' WHERE order_id = $1`,
-      [orderId],
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
+    await pool.query(`UPDATE payment_records SET currency = 'USD' WHERE order_id = $1`, [orderId]);
     await pool.query(
       `UPDATE order_financial_breakdown
        SET products_minor = 3000, discount_minor = 600, commission_minor = 300
@@ -1600,7 +2121,13 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
 
     const pendingRet = await advanceReturnToRefundPending(
-      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+      returnsService,
+      pool,
+      orderId,
+      1,
+      buyerA,
+      merchantA,
+      orgA,
     );
     await pool.query(
       `UPDATE return_requests SET responsibility_category = 'MERCHANT' WHERE id = $1`,
@@ -1622,48 +2149,57 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     expect(reversal.rows).toEqual([{ reversal: 100, currency: 'USD' }]);
 
-    const refundAmount = (await pool.query(
-      `SELECT amount_minor::int AS amount FROM refunds WHERE id = $1`,
-      [refundId],
-    )).rows[0].amount;
+    const refundAmount = (
+      await pool.query(`SELECT amount_minor::int AS amount FROM refunds WHERE id = $1`, [refundId])
+    ).rows[0].amount;
     const adjustment = await pool.query(
       `SELECT commission_minor::int AS commission, currency, net_minor::int AS net
        FROM settlement_records WHERE sub_order_id = $1 AND status = 'ADJUSTMENT'`,
       [orderId],
     );
-    expect(adjustment.rows).toEqual([{
-      commission: 100,
-      currency: 'USD',
-      net: 100 - refundAmount,
-    }]);
+    expect(adjustment.rows).toEqual([
+      {
+        commission: 100,
+        currency: 'USD',
+        net: 100 - refundAmount,
+      },
+    ]);
   }, 90_000);
-
 
   // ── FIN-DSH-31: Return refund allocation and delivery currency ──
 
   it('FIN-DSH-31: allocates discount/VAT in minor units and keeps delivery adjustment in payment currency', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    await pool.query(
-      `UPDATE payment_records SET currency = 'USD' WHERE order_id = $1`,
-      [orderId],
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
+    await pool.query(`UPDATE payment_records SET currency = 'USD' WHERE order_id = $1`, [orderId]);
     await pool.query(
       `UPDATE order_financial_breakdown
        SET products_minor = 3000, discount_minor = 600, tax_minor = 240, delivery_fee_minor = 450
        WHERE order_id = $1`,
       [orderId],
     );
-    const orderItemId = (await pool.query(
-      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [orderId],
-    )).rows[0].id as string;
+    const orderItemId = (
+      await pool.query(`SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [orderId])
+    ).rows[0].id as string;
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
 
-    const returnRequest = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      lines: [{ orderItemId, quantity: 1 }],
-      reason: 'DAMAGED',
-      deliveryFeeException: { reason: 'Carrier damage' },
-    } as any, buyerCaller);
+    const returnRequest = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        lines: [{ orderItemId, quantity: 1 }],
+        reason: 'DAMAGED',
+        deliveryFeeException: { reason: 'Carrier damage' },
+      } as any,
+      buyerCaller,
+    );
 
     expect(returnRequest.requestedRefundMinor).toBe(880);
     const adjustment = await pool.query(
@@ -1674,14 +2210,22 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(adjustment.rows).toEqual([{ amount: 495, currency: 'USD' }]);
   }, 60_000);
 
-
   // ── FIN-DSH-33: Return request idempotent retry ─────────────────
 
   it('FIN-DSH-33: same return idempotency key reuses the request and rejects changed terms', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const orderItemId = (await pool.query(
-      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [orderId],
-    )).rows[0].id as string;
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const orderItemId = (
+      await pool.query(`SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [orderId])
+    ).rows[0].id as string;
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const request = {
       subOrderId: orderId,
@@ -1694,18 +2238,20 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const first = await returnsService.createReturnRequest(request as any, buyerCaller);
     // The first request's financial capacity may be consumed before a client
     // retries. The idempotency key must still resolve to the original request.
-    await pool.query(
-      `UPDATE payment_records SET confirmed_amount_minor = 0 WHERE order_id = $1`,
-      [orderId],
-    );
+    await pool.query(`UPDATE payment_records SET confirmed_amount_minor = 0 WHERE order_id = $1`, [
+      orderId,
+    ]);
     const retry = await returnsService.createReturnRequest(request as any, buyerCaller);
     expect(retry.id).toBe(first.id);
 
     await expect(
-      returnsService.createReturnRequest({
-        ...request,
-        lines: [{ orderItemId, quantity: 2 }],
-      } as any, buyerCaller),
+      returnsService.createReturnRequest(
+        {
+          ...request,
+          lines: [{ orderItemId, quantity: 2 }],
+        } as any,
+        buyerCaller,
+      ),
     ).rejects.toThrow(/idempotency key was already used/i);
 
     const count = await pool.query(
@@ -1721,25 +2267,38 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(outbox.rows[0].count).toBe(1);
   }, 60_000);
 
-
   // ── FIN-DSH-34: Commission reversal adjustment net sign ─────────
 
   it('FIN-DSH-34: posts a commission reversal as a positive merchant credit', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
 
-    const adjustment = await settlementAdjService.createAdjustment({
-      subOrderId: orderId,
-      adjustmentType: 'COMMISSION_REVERSAL',
-      amountMinor: 125,
-      currency: settlement.currency,
-      reason: 'Approved commission reversal',
-    }, adminA, orgA);
+    const adjustment = await settlementAdjService.createAdjustment(
+      {
+        subOrderId: orderId,
+        adjustmentType: 'COMMISSION_REVERSAL',
+        amountMinor: 125,
+        currency: settlement.currency,
+        reason: 'Approved commission reversal',
+      },
+      adminA,
+      orgA,
+    );
 
-    const approvalHash = (await pool.query(
-      `SELECT approval_hash FROM settlement_adjustments WHERE id = $1`,
-      [adjustment.id],
-    )).rows[0].approval_hash as string;
+    const approvalHash = (
+      await pool.query(`SELECT approval_hash FROM settlement_adjustments WHERE id = $1`, [
+        adjustment.id,
+      ])
+    ).rows[0].approval_hash as string;
 
     await pool.query(
       `UPDATE settlement_adjustments
@@ -1764,31 +2323,46 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        ORDER BY calculated_at DESC LIMIT 1`,
       [orderId],
     );
-    expect(posted.rows).toEqual([{
-      commission: 125,
-      refund: 0,
-      net: 125,
-      currency: settlement.currency,
-    }]);
+    expect(posted.rows).toEqual([
+      {
+        commission: 125,
+        refund: 0,
+        net: 125,
+        currency: settlement.currency,
+      },
+    ]);
   }, 60_000);
-
 
   // ── FIN-DSH-35: Posting requires a primary settlement ledger ────
 
   it('FIN-DSH-35: keeps an approved adjustment unposted until a primary settlement exists', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const adjustment = await settlementAdjService.createAdjustment({
-      subOrderId: orderId,
-      adjustmentType: 'DELIVERY_FEE_REFUND',
-      amountMinor: 450,
-      currency: 'SYP',
-      reason: 'Delivery fee correction',
-    }, adminA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const adjustment = await settlementAdjService.createAdjustment(
+      {
+        subOrderId: orderId,
+        adjustmentType: 'DELIVERY_FEE_REFUND',
+        amountMinor: 450,
+        currency: 'SYP',
+        reason: 'Delivery fee correction',
+      },
+      adminA,
+      orgA,
+    );
 
-    const approvalHash = (await pool.query(
-      `SELECT approval_hash FROM settlement_adjustments WHERE id = $1`,
-      [adjustment.id],
-    )).rows[0].approval_hash as string;
+    const approvalHash = (
+      await pool.query(`SELECT approval_hash FROM settlement_adjustments WHERE id = $1`, [
+        adjustment.id,
+      ])
+    ).rows[0].approval_hash as string;
     await pool.query(
       `UPDATE settlement_adjustments
        SET status = 'APPROVED', fx_status = 'RESOLVED'
@@ -1802,33 +2376,48 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [randomUUID(), adjustment.id, buyerA, randomUUID(), approvalHash, merchantA],
     );
 
-    await expect(
-      settlementAdjService.postAdjustment(adjustment.id, adminA, orgA),
-    ).rejects.toThrow('Cannot post settlement adjustment before a primary settlement');
+    await expect(settlementAdjService.postAdjustment(adjustment.id, adminA, orgA)).rejects.toThrow(
+      'Cannot post settlement adjustment before a primary settlement',
+    );
 
     const persisted = await pool.query(
       `SELECT status, settlement_id FROM settlement_adjustments WHERE id = $1`,
       [adjustment.id],
     );
     expect(persisted.rows).toEqual([{ status: 'APPROVED', settlement_id: null }]);
-    const ledger = await pool.query(
-      `SELECT id FROM settlement_records WHERE sub_order_id = $1`,
-      [orderId],
-    );
+    const ledger = await pool.query(`SELECT id FROM settlement_records WHERE sub_order_id = $1`, [
+      orderId,
+    ]);
     expect(ledger.rows).toHaveLength(0);
   }, 60_000);
 
   // ── FIN-DSH-10: Rollback under a losing REFUNDED race ────────────
 
   it('FIN-DSH-10: concurrent REFUNDED transitions roll back the loser — single event, single settlement debit', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
 
     const pendingRet = await advanceReturnToRefundPending(
-      returnsService, pool, orderId, 2, buyerA, merchantA, orgA,
+      returnsService,
+      pool,
+      orderId,
+      2,
+      buyerA,
+      merchantA,
+      orgA,
     );
     const refundId = pendingRet.refundId as string;
     const refundMinor = Number(
-      (await pool.query(`SELECT amount_minor::int AS amt FROM refunds WHERE id = $1`, [refundId])).rows[0].amt,
+      (await pool.query(`SELECT amount_minor::int AS amt FROM refunds WHERE id = $1`, [refundId]))
+        .rows[0].amt,
     );
 
     // Pre-create an in-place-updatable settlement, then succeed the refund
@@ -1840,9 +2429,13 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       returnsService.transitionReturn(pendingRet.id, 'REFUNDED', adminCaller),
     ]);
 
-    const ok = results.filter(r => r.status === 'fulfilled').length;
+    const ok = results.filter((r) => r.status === 'fulfilled').length;
     const conflicted = results.filter(
-      r => r.status === 'rejected' && /already changed|not been approved|cannot transition/i.test(String((r as any).reason?.message)),
+      (r) =>
+        r.status === 'rejected' &&
+        /already changed|not been approved|cannot transition/i.test(
+          String((r as any).reason?.message),
+        ),
     ).length;
     expect(ok).toBe(1);
     expect(conflicted).toBe(1);
@@ -1862,7 +2455,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     // Settlement debited exactly once (in-place update, not doubled)
     const s = await pool.query(
       `SELECT refund_minor::int AS refund, net_minor::int AS net, gross_minor::int AS gross, commission_minor::int AS comm, fee_minor::int AS fee
-       FROM settlement_records WHERE sub_order_id = $1`, [orderId],
+       FROM settlement_records WHERE sub_order_id = $1`,
+      [orderId],
     );
     expect(s.rows.length).toBe(1);
     expect(s.rows[0].refund).toBe(refundMinor);
@@ -1870,7 +2464,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     // Final persisted return state
     const ret = await pool.query(
-      `SELECT status, actual_refund_minor::int AS actual FROM return_requests WHERE id = $1`, [pendingRet.id],
+      `SELECT status, actual_refund_minor::int AS actual FROM return_requests WHERE id = $1`,
+      [pendingRet.id],
     );
     expect(ret.rows[0].status).toBe('REFUNDED');
     expect(ret.rows[0].actual).toBe(refundMinor);
@@ -1878,91 +2473,117 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
   // ── FIN-DSH-36: Reconciliation ledger semantics ──────────────────
 
-  it(
-    'FIN-DSH-36: reconciles commission-reversal credits and persists refund-status mismatches as non-monetary evidence',
-    async () => {
-      const commissionOrderId = await createDeliveredOrder(
-        pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
-      );
-      const settlement = await paymentsService.calculateSettlement(
-        commissionOrderId, adminA, adminCaller,
-      );
-      const adjustment = await settlementAdjService.createAdjustment({
+  it('FIN-DSH-36: reconciles commission-reversal credits and persists refund-status mismatches as non-monetary evidence', async () => {
+    const commissionOrderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const settlement = await paymentsService.calculateSettlement(
+      commissionOrderId,
+      adminA,
+      adminCaller,
+    );
+    const adjustment = await settlementAdjService.createAdjustment(
+      {
         subOrderId: commissionOrderId,
         adjustmentType: 'COMMISSION_REVERSAL',
         amountMinor: 125,
         currency: settlement.currency,
         reason: 'Reconciliation credit-sign regression',
-      }, adminA, orgA);
-      const approvalHash = (await pool.query(
-        `SELECT approval_hash FROM settlement_adjustments WHERE id = $1`,
-        [adjustment.id],
-      )).rows[0].approval_hash as string;
+      },
+      adminA,
+      orgA,
+    );
+    const approvalHash = (
+      await pool.query(`SELECT approval_hash FROM settlement_adjustments WHERE id = $1`, [
+        adjustment.id,
+      ])
+    ).rows[0].approval_hash as string;
 
-      await pool.query(
-        `UPDATE settlement_adjustments
+    await pool.query(
+      `UPDATE settlement_adjustments
          SET status = 'APPROVED', fx_status = 'RESOLVED'
          WHERE id = $1`,
-        [adjustment.id],
-      );
-      await pool.query(
-        `INSERT INTO settlement_adjustment_approvals
+      [adjustment.id],
+    );
+    await pool.query(
+      `INSERT INTO settlement_adjustment_approvals
          (id, adjustment_id, approver_id, approver_role, approval_hash)
          VALUES ($1, $2, $3, 'FINANCE', $5), ($4, $2, $6, 'ADMIN', $5)`,
-        [randomUUID(), adjustment.id, buyerA, randomUUID(), approvalHash, merchantA],
-      );
-      await settlementAdjService.postAdjustment(adjustment.id, adminA, orgA);
-      const adjustmentLedger = await pool.query(
-        `SELECT id FROM settlement_records
+      [randomUUID(), adjustment.id, buyerA, randomUUID(), approvalHash, merchantA],
+    );
+    await settlementAdjService.postAdjustment(adjustment.id, adminA, orgA);
+    const adjustmentLedger = await pool.query(
+      `SELECT id FROM settlement_records
          WHERE sub_order_id = $1 AND metadata->>'adjustmentId' = $2`,
-        [commissionOrderId, adjustment.id],
-      );
-      expect(adjustmentLedger.rows).toHaveLength(1);
-      await paymentsService.markSettlementPaid(
-        adjustmentLedger.rows[0].id, adminA, adminCaller,
-        { paymentReference: 'FIN-DSH-36-ADJ-PAID' },
-      );
+      [commissionOrderId, adjustment.id],
+    );
+    expect(adjustmentLedger.rows).toHaveLength(1);
+    await paymentsService.markSettlementPaid(adjustmentLedger.rows[0].id, adminA, adminCaller, {
+      paymentReference: 'FIN-DSH-36-ADJ-PAID',
+    });
 
-      const refundOrderId = await createDeliveredOrder(
-        pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
-      );
-      const pendingReturn = await advanceReturnToRefundPending(
-        returnsService, pool, refundOrderId, 1, buyerA, merchantA, orgA,
-      );
-      const refundId = pendingReturn.refundId as string;
-      await pool.query(`UPDATE refunds SET status = 'FAILED' WHERE id = $1`, [refundId]);
-      await pool.query(
-        `UPDATE return_requests SET status = 'REFUNDED' WHERE id = $1`,
-        [pendingReturn.id],
-      );
+    const refundOrderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const pendingReturn = await advanceReturnToRefundPending(
+      returnsService,
+      pool,
+      refundOrderId,
+      1,
+      buyerA,
+      merchantA,
+      orgA,
+    );
+    const refundId = pendingReturn.refundId as string;
+    await pool.query(`UPDATE refunds SET status = 'FAILED' WHERE id = $1`, [refundId]);
+    await pool.query(`UPDATE return_requests SET status = 'REFUNDED' WHERE id = $1`, [
+      pendingReturn.id,
+    ]);
 
-      const period = new Date().toISOString().slice(0, 10);
-      const result = await reconciliationService.executeReconciliation(
-        period, period, settlement.currency, adminA, orgA,
-      );
-      const discrepancies = await pool.query(
-        `SELECT discrepancy_type, expected_minor, actual_minor, delta_minor, description
+    const period = new Date().toISOString().slice(0, 10);
+    const result = await reconciliationService.executeReconciliation(
+      period,
+      period,
+      settlement.currency,
+      adminA,
+      orgA,
+    );
+    const discrepancies = await pool.query(
+      `SELECT discrepancy_type, expected_minor, actual_minor, delta_minor, description
          FROM reconciliation_discrepancies
          WHERE run_id = $1
          ORDER BY discrepancy_type, source_ref`,
-        [result.runId],
-      );
+      [result.runId],
+    );
 
-      expect(discrepancies.rows.filter((row: any) => row.discrepancy_type === 'SETTLEMENT_MISMATCH'))
-        .toHaveLength(0);
+    expect(
+      discrepancies.rows.filter((row: any) => row.discrepancy_type === 'SETTLEMENT_MISMATCH'),
+    ).toHaveLength(0);
 
-      const refundStatusMismatch = discrepancies.rows.find(
-        (row: any) => row.discrepancy_type === 'REFUND_STATUS_MISMATCH',
-      );
-      expect(refundStatusMismatch).toBeTruthy();
-      expect(refundStatusMismatch.expected_minor).toBeNull();
-      expect(refundStatusMismatch.actual_minor).toBeNull();
-      expect(refundStatusMismatch.delta_minor).toBeNull();
-      expect(refundStatusMismatch.description).toContain('expected SUCCEEDED');
-      expect(refundStatusMismatch.description).toContain('FAILED');
-    },
-    90_000,
-  );
+    const refundStatusMismatch = discrepancies.rows.find(
+      (row: any) => row.discrepancy_type === 'REFUND_STATUS_MISMATCH',
+    );
+    expect(refundStatusMismatch).toBeTruthy();
+    expect(refundStatusMismatch.expected_minor).toBeNull();
+    expect(refundStatusMismatch.actual_minor).toBeNull();
+    expect(refundStatusMismatch.delta_minor).toBeNull();
+    expect(refundStatusMismatch.description).toContain('expected SUCCEEDED');
+    expect(refundStatusMismatch.description).toContain('FAILED');
+  }, 90_000);
 
   // ── FIN-DSH-37: Reconciliation versioning, tenant isolation and atomic failure ──
 
@@ -2002,17 +2623,21 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   it('FIN-DSH-38: rolls back partial discrepancies and persists a clean FAILED run after a check throws', async () => {
     const periodStart = '2098-05-01';
     const periodEnd = '2098-05-31';
-    const missingRefundSpy = vi.spyOn(reconciliationService as any, 'checkMissingRefunds')
+    const missingRefundSpy = vi
+      .spyOn(reconciliationService as any, 'checkMissingRefunds')
       .mockImplementationOnce(async (...args: unknown[]) => {
         const discrepancies = args[4] as any[];
         discrepancies.push({
           type: 'MISSING_REFUND',
           sourceRef: 'return:synthetic-failure-probe',
-          expected: 100, actual: 0, delta: 100,
+          expected: 100,
+          actual: 0,
+          delta: 100,
           description: 'Synthetic discrepancy used to verify rollback',
         });
       });
-    const failingCheckSpy = vi.spyOn(reconciliationService as any, 'checkCommissionReversals')
+    const failingCheckSpy = vi
+      .spyOn(reconciliationService as any, 'checkCommissionReversals')
       .mockRejectedValueOnce(new Error('Synthetic reconciliation check failure'));
 
     try {
@@ -2046,23 +2671,32 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
   it('FIN-DSH-39: payment creation/awaiting and dispute evidence/response each persist matching outbox events', async () => {
     const cartId = randomUUID();
-    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [
+      cartId,
+      buyerA,
+    ]);
     await pool.query(
       `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
       [randomUUID(), cartId, storeA, variantA, offerA],
     );
     const bankTransferOrder = await ordersService.checkout({
-      buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'BANK_TRANSFER',
+      buyerId: buyerA,
+      deliveryAddress: {},
+      paymentMethod: 'BANK_TRANSFER',
       idempotencyKey: `fin022-${randomUUID()}`,
     });
     const bankTransferOrderId = bankTransferOrder.subOrders[0]!.id;
-    const paymentId = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [bankTransferOrderId])).rows[0].id;
+    const paymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [bankTransferOrderId])
+    ).rows[0].id;
     const paymentEventsResult = await pool.query(
-      `SELECT event_type FROM payment_events WHERE payment_record_id = $1`, [paymentId],
+      `SELECT event_type FROM payment_events WHERE payment_record_id = $1`,
+      [paymentId],
     );
     const paymentOutboxResult = await pool.query(
-      `SELECT event_type FROM outbox_events WHERE aggregate_id = $1`, [paymentId],
+      `SELECT event_type FROM outbox_events WHERE aggregate_id = $1`,
+      [paymentId],
     );
     expect(paymentEventsResult.rows.map((row: any) => row.event_type)).toEqual(
       expect.arrayContaining(['PAYMENT_CREATED', 'PAYMENT_AWAITING']),
@@ -2071,29 +2705,61 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       expect.arrayContaining(['payment.created', 'payment.awaiting_payment']),
     );
 
-    const disputeOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const disputeOrderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const dispute = await openDispute(disputeOrderId);
-    await disputesService.submitEvidence(dispute.id, buyerA, 'Evidence submitted', ['private/evidence.pdf']);
+    await disputesService.submitEvidence(dispute.id, buyerA, 'Evidence submitted', [
+      'private/evidence.pdf',
+    ]);
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
-    await disputesService.submitResponse(dispute.id, merchantA, 'Merchant response', merchantCaller);
+    await disputesService.submitResponse(
+      dispute.id,
+      merchantA,
+      'Merchant response',
+      merchantCaller,
+    );
 
     const disputeEventsResult = await pool.query(
-      `SELECT event_type FROM dispute_events WHERE dispute_id = $1 ORDER BY created_at, event_type`, [dispute.id],
+      `SELECT event_type FROM dispute_events WHERE dispute_id = $1 ORDER BY created_at, event_type`,
+      [dispute.id],
     );
     expect(disputeEventsResult.rows.map((row: any) => row.event_type)).toEqual(
       expect.arrayContaining(['OPENED', 'EVIDENCE_SUBMITTED', 'RESPONSE_SUBMITTED']),
     );
     const disputeOutboxResult = await pool.query(
-      `SELECT event_type FROM outbox_events WHERE aggregate_id = $1`, [dispute.id],
+      `SELECT event_type FROM outbox_events WHERE aggregate_id = $1`,
+      [dispute.id],
     );
     expect(disputeOutboxResult.rows.map((row: any) => row.event_type)).toEqual(
-      expect.arrayContaining(['dispute.opened', 'dispute.evidence_submitted', 'dispute.response_submitted']),
+      expect.arrayContaining([
+        'dispute.opened',
+        'dispute.evidence_submitted',
+        'dispute.response_submitted',
+      ]),
     );
   }, 90_000);
 
   it('FIN-DSH-40: dispute creation rolls back domain and history rows when outbox persistence fails', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const publishSpy = vi.spyOn((disputesService as any).outbox, 'publish')
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const publishSpy = vi
+      .spyOn((disputesService as any).outbox, 'publish')
       .mockRejectedValueOnce(new Error('Synthetic outbox insert failure'));
     let failedDisputeId: string | undefined;
     try {
@@ -2103,20 +2769,48 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       publishSpy.mockRestore();
     }
     expect(failedDisputeId).toBeTruthy();
-    expect((await pool.query(`SELECT id FROM disputes WHERE order_id = $1`, [orderId])).rows).toHaveLength(0);
-    expect((await pool.query(
-      `SELECT de.id FROM dispute_events de JOIN disputes d ON d.id = de.dispute_id WHERE d.order_id = $1`, [orderId],
-    )).rows).toHaveLength(0);
-    expect((await pool.query(
-      `SELECT id FROM outbox_events WHERE event_type = 'dispute.opened' AND aggregate_id = $1`, [failedDisputeId],
-    )).rows).toHaveLength(0);
+    expect(
+      (await pool.query(`SELECT id FROM disputes WHERE order_id = $1`, [orderId])).rows,
+    ).toHaveLength(0);
+    expect(
+      (
+        await pool.query(
+          `SELECT de.id FROM dispute_events de JOIN disputes d ON d.id = de.dispute_id WHERE d.order_id = $1`,
+          [orderId],
+        )
+      ).rows,
+    ).toHaveLength(0);
+    expect(
+      (
+        await pool.query(
+          `SELECT id FROM outbox_events WHERE event_type = 'dispute.opened' AND aggregate_id = $1`,
+          [failedDisputeId],
+        )
+      ).rows,
+    ).toHaveLength(0);
   }, 90_000);
   it('FIN-DSH-41: creating a settlement adjustment atomically emits its creation outbox event', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const adjustment = await settlementAdjService.createAdjustment({
-      subOrderId: orderId, adjustmentType: 'COMMISSION_REVERSAL', amountMinor: 75,
-      currency: 'SYP', reason: 'Creation event parity regression',
-    }, adminA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const adjustment = await settlementAdjService.createAdjustment(
+      {
+        subOrderId: orderId,
+        adjustmentType: 'COMMISSION_REVERSAL',
+        amountMinor: 75,
+        currency: 'SYP',
+        reason: 'Creation event parity regression',
+      },
+      adminA,
+      orgA,
+    );
     const events = await pool.query(
       `SELECT event_type, payload FROM outbox_events
        WHERE aggregate_id = $1 AND event_type = 'settlement_adjustment.created'`,
@@ -2138,7 +2832,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     const dispatcherA = new OutboxDispatcher({ db } as DatabaseService);
     const dispatcherB = new OutboxDispatcher({ db } as DatabaseService);
-    const slowDispatch = async () => new Promise<void>(resolve => setTimeout(resolve, 100));
+    const slowDispatch = async () => new Promise<void>((resolve) => setTimeout(resolve, 100));
     const dispatchA = vi.spyOn(dispatcherA as any, 'dispatch').mockImplementation(slowDispatch);
     const dispatchB = vi.spyOn(dispatcherB as any, 'dispatch').mockImplementation(slowDispatch);
 
@@ -2148,7 +2842,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const dispatchedEvent = dispatchA.mock.calls[0]?.[0] ?? dispatchB.mock.calls[0]?.[0];
     expect(dispatchedEvent).toMatchObject({ eventType: 'test.concurrent_claim', aggregateId });
     const persisted = await pool.query(
-      `SELECT status, locked_at, locked_by FROM outbox_events WHERE id = $1`, [eventId],
+      `SELECT status, locked_at, locked_by FROM outbox_events WHERE id = $1`,
+      [eventId],
     );
     expect(persisted.rows[0].status).toBe('DISPATCHED');
     expect(persisted.rows[0].locked_at).toBeNull();
@@ -2159,52 +2854,72 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   it('FIN-DSH-43: BANK_TRANSFER checkout commits order/payment state, history and outbox together', async () => {
     const cartId = randomUUID();
     const idempotencyKey = `fin023-bank-${randomUUID()}`;
-    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [
+      cartId,
+      buyerA,
+    ]);
     await pool.query(
       `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
       [randomUUID(), cartId, storeA, variantA, offerA],
     );
     const checkout = await ordersService.checkout({
-      buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'BANK_TRANSFER', idempotencyKey,
+      buyerId: buyerA,
+      deliveryAddress: {},
+      paymentMethod: 'BANK_TRANSFER',
+      idempotencyKey,
     });
     const orderId = checkout.subOrders[0]!.id;
-    const persisted = await pool.query(
-      `SELECT status, payment_status FROM orders WHERE id = $1`, [orderId],
-    );
-    expect(persisted.rows[0]).toEqual({ status: 'PAYMENT_PENDING', payment_status: 'AWAITING_PAYMENT' });
-    const payment = await pool.query(
-      `SELECT id, status FROM payment_records WHERE order_id = $1`, [orderId],
-    );
+    const persisted = await pool.query(`SELECT status, payment_status FROM orders WHERE id = $1`, [
+      orderId,
+    ]);
+    expect(persisted.rows[0]).toEqual({
+      status: 'PAYMENT_PENDING',
+      payment_status: 'AWAITING_PAYMENT',
+    });
+    const payment = await pool.query(`SELECT id, status FROM payment_records WHERE order_id = $1`, [
+      orderId,
+    ]);
     expect(payment.rows).toHaveLength(1);
     expect(payment.rows[0].status).toBe('AWAITING_PAYMENT');
     const paymentHistory = await pool.query(
       `SELECT event_type, from_status, to_status FROM payment_events
-       WHERE payment_record_id = $1 ORDER BY created_at, event_type`, [payment.rows[0].id],
+       WHERE payment_record_id = $1 ORDER BY created_at, event_type`,
+      [payment.rows[0].id],
     );
     expect(paymentHistory.rows.map((row: any) => row.event_type)).toEqual(
       expect.arrayContaining(['PAYMENT_CREATED', 'PAYMENT_AWAITING']),
     );
     const orderHistory = await pool.query(
-      `SELECT from_status, to_status FROM order_status_history WHERE order_id = $1`, [orderId],
+      `SELECT from_status, to_status FROM order_status_history WHERE order_id = $1`,
+      [orderId],
     );
-    expect(orderHistory.rows).toEqual(expect.arrayContaining([
-      expect.objectContaining({ from_status: null, to_status: 'SUBMITTED' }),
-      expect.objectContaining({ from_status: 'SUBMITTED', to_status: 'PAYMENT_PENDING' }),
-    ]));
+    expect(orderHistory.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from_status: null, to_status: 'SUBMITTED' }),
+        expect.objectContaining({ from_status: 'SUBMITTED', to_status: 'PAYMENT_PENDING' }),
+      ]),
+    );
     const outbox = await pool.query(
       `SELECT event_type FROM outbox_events WHERE aggregate_id IN ($1, $2)`,
       [payment.rows[0].id, orderId],
     );
-    expect(outbox.rows.map((row: any) => row.event_type)).toEqual(expect.arrayContaining([
-      'payment.created', 'payment.awaiting_payment', 'order.payment_pending',
-    ]));
+    expect(outbox.rows.map((row: any) => row.event_type)).toEqual(
+      expect.arrayContaining([
+        'payment.created',
+        'payment.awaiting_payment',
+        'order.payment_pending',
+      ]),
+    );
   }, 60_000);
 
   it('FIN-DSH-44: bank-transfer checkout rolls back all order/payment/history/outbox rows if awaiting event persistence fails', async () => {
     const cartId = randomUUID();
     const idempotencyKey = `fin023-fail-${randomUUID()}`;
-    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [
+      cartId,
+      buyerA,
+    ]);
     await pool.query(
       `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
@@ -2213,83 +2928,165 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const outbox = (ordersService as any).outbox;
     const originalPublish = outbox.publish.bind(outbox);
     const publishSpy = vi.spyOn(outbox, 'publish').mockImplementation(async (...args: any[]) => {
-      if (args[0] === 'payment.awaiting_payment') throw new Error('Synthetic awaiting outbox failure');
+      if (args[0] === 'payment.awaiting_payment')
+        throw new Error('Synthetic awaiting outbox failure');
       return originalPublish(...args);
     });
     try {
-      await expect(ordersService.checkout({
-        buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'BANK_TRANSFER', idempotencyKey,
-      })).rejects.toThrow('Synthetic awaiting outbox failure');
+      await expect(
+        ordersService.checkout({
+          buyerId: buyerA,
+          deliveryAddress: {},
+          paymentMethod: 'BANK_TRANSFER',
+          idempotencyKey,
+        }),
+      ).rejects.toThrow('Synthetic awaiting outbox failure');
     } finally {
       publishSpy.mockRestore();
     }
-    expect((await pool.query(`SELECT id FROM master_orders WHERE idempotency_key = $1`, [idempotencyKey])).rows).toHaveLength(0);
-    expect((await pool.query(`SELECT id FROM orders WHERE master_order_id IN (SELECT id FROM master_orders WHERE idempotency_key = $1)`, [idempotencyKey])).rows).toHaveLength(0);
-    expect((await pool.query(`SELECT id FROM payment_records WHERE order_id IN (SELECT id FROM orders WHERE master_order_id IN (SELECT id FROM master_orders WHERE idempotency_key = $1))`, [idempotencyKey])).rows).toHaveLength(0);
+    expect(
+      (
+        await pool.query(`SELECT id FROM master_orders WHERE idempotency_key = $1`, [
+          idempotencyKey,
+        ])
+      ).rows,
+    ).toHaveLength(0);
+    expect(
+      (
+        await pool.query(
+          `SELECT id FROM orders WHERE master_order_id IN (SELECT id FROM master_orders WHERE idempotency_key = $1)`,
+          [idempotencyKey],
+        )
+      ).rows,
+    ).toHaveLength(0);
+    expect(
+      (
+        await pool.query(
+          `SELECT id FROM payment_records WHERE order_id IN (SELECT id FROM orders WHERE master_order_id IN (SELECT id FROM master_orders WHERE idempotency_key = $1))`,
+          [idempotencyKey],
+        )
+      ).rows,
+    ).toHaveLength(0);
     const cart = await pool.query(`SELECT status FROM carts WHERE id = $1`, [cartId]);
     expect(cart.rows[0].status).toBe('ACTIVE');
   }, 60_000);
   it('FIN-DSH-45: dispute refund request and resolution roll back together when the final outbox write fails', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
     const dispute = await openDispute(orderId);
     const outbox = (disputesService as any).outbox;
     const originalPublish = outbox.publish.bind(outbox);
     const publishSpy = vi.spyOn(outbox, 'publish').mockImplementation(async (...args: any[]) => {
-      if (args[0] === 'dispute.resolved') throw new Error('Synthetic dispute resolution outbox failure');
+      if (args[0] === 'dispute.resolved')
+        throw new Error('Synthetic dispute resolution outbox failure');
       return originalPublish(...args);
     });
     try {
-      await expect(disputesService.resolveDispute(
-        dispute.id, adminA, 'Refund should roll back', adminCaller,
-        { amountMinor: 500, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
-      )).rejects.toThrow('Synthetic dispute resolution outbox failure');
+      await expect(
+        disputesService.resolveDispute(dispute.id, adminA, 'Refund should roll back', adminCaller, {
+          amountMinor: 500,
+          reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        }),
+      ).rejects.toThrow('Synthetic dispute resolution outbox failure');
     } finally {
       publishSpy.mockRestore();
     }
 
-    const persistedDispute = await pool.query(`SELECT status FROM disputes WHERE id = $1`, [dispute.id]);
+    const persistedDispute = await pool.query(`SELECT status FROM disputes WHERE id = $1`, [
+      dispute.id,
+    ]);
     expect(persistedDispute.rows[0].status).toBe('OPEN');
-    expect((await pool.query(`SELECT id FROM refunds WHERE idempotency_key = $1`, [`dispute-refund:${dispute.id}`])).rows)
-      .toHaveLength(0);
-    expect((await pool.query(
-      `SELECT id FROM payment_events WHERE payment_record_id =
+    expect(
+      (
+        await pool.query(`SELECT id FROM refunds WHERE idempotency_key = $1`, [
+          `dispute-refund:${dispute.id}`,
+        ])
+      ).rows,
+    ).toHaveLength(0);
+    expect(
+      (
+        await pool.query(
+          `SELECT id FROM payment_events WHERE payment_record_id =
        (SELECT id FROM payment_records WHERE order_id = $1) AND event_type = 'PAYMENT_REFUND_REQUESTED'`,
-      [orderId],
-    )).rows).toHaveLength(0);
-    expect((await pool.query(
-      `SELECT id FROM outbox_events WHERE aggregate_id IN ($1, (SELECT id FROM payment_records WHERE order_id = $2))
+          [orderId],
+        )
+      ).rows,
+    ).toHaveLength(0);
+    expect(
+      (
+        await pool.query(
+          `SELECT id FROM outbox_events WHERE aggregate_id IN ($1, (SELECT id FROM payment_records WHERE order_id = $2))
        AND event_type IN ('payment.refund_requested', 'dispute.resolved')`,
-      [dispute.id, orderId],
-    )).rows).toHaveLength(0);
-    expect((await pool.query(
-      `SELECT id FROM dispute_events WHERE dispute_id = $1 AND event_type = 'RESOLVED'`, [dispute.id],
-    )).rows).toHaveLength(0);
+          [dispute.id, orderId],
+        )
+      ).rows,
+    ).toHaveLength(0);
+    expect(
+      (
+        await pool.query(
+          `SELECT id FROM dispute_events WHERE dispute_id = $1 AND event_type = 'RESOLVED'`,
+          [dispute.id],
+        )
+      ).rows,
+    ).toHaveLength(0);
   }, 60_000);
   it('FIN-DSH-46: failed proof persistence schedules only the new upload for cleanup and preserves the committed proof', async () => {
     const cartId = randomUUID();
-    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [
+      cartId,
+      buyerA,
+    ]);
     await pool.query(
       `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
       [randomUUID(), cartId, storeA, variantA, offerA],
     );
     const checkout = await ordersService.checkout({
-      buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'BANK_TRANSFER',
-      idempotencyKey: `fin024-fail-${randomUUID()}`
+      buyerId: buyerA,
+      deliveryAddress: {},
+      paymentMethod: 'BANK_TRANSFER',
+      idempotencyKey: `fin024-fail-${randomUUID()}`,
     });
     const orderId = checkout.subOrders[0]!.id;
-    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const payment = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0];
     const oldKey = `payment-proofs/${payment.id}/previous.pdf`;
-    await pool.query(`UPDATE payment_records SET status = 'REJECTED', receipt_url = $2 WHERE id = $1`, [payment.id, oldKey]);
+    await pool.query(
+      `UPDATE payment_records SET status = 'REJECTED', receipt_url = $2 WHERE id = $1`,
+      [payment.id, oldKey],
+    );
 
-    const storage = { putObject: vi.fn().mockResolvedValue(undefined), deleteObject: vi.fn().mockResolvedValue(undefined) };
+    const storage = {
+      putObject: vi.fn().mockResolvedValue(undefined),
+      deleteObject: vi.fn().mockResolvedValue(undefined),
+    };
     (paymentsService as any).storage = storage;
     const outbox = (paymentsService as any).outbox;
-    const publishSpy = vi.spyOn(outbox, 'publish').mockRejectedValueOnce(new Error('Synthetic proof outbox failure'));
+    const publishSpy = vi
+      .spyOn(outbox, 'publish')
+      .mockRejectedValueOnce(new Error('Synthetic proof outbox failure'));
     try {
-      await expect(paymentsService.submitProof(payment.id, buyerA, {
-        fileBuffer: Buffer.from('new receipt'), fileName: 'new-proof.pdf', contentType: 'application/pdf',
-      }, { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA })).rejects.toThrow('Synthetic proof outbox failure');
+      await expect(
+        paymentsService.submitProof(
+          payment.id,
+          buyerA,
+          {
+            fileBuffer: Buffer.from('new receipt'),
+            fileName: 'new-proof.pdf',
+            contentType: 'application/pdf',
+          },
+          { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA },
+        ),
+      ).rejects.toThrow('Synthetic proof outbox failure');
     } finally {
       publishSpy.mockRestore();
       (paymentsService as any).storage = undefined;
@@ -2304,38 +3101,64 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     expect(intent.rows[0]).toEqual({ status: 'CLEANUP_PENDING', storage_key: uploadedKey });
     expect(intent.rows[0].storage_key).not.toBe(oldKey);
-    const persisted = await pool.query(`SELECT status, receipt_url FROM payment_records WHERE id = $1`, [payment.id]);
+    const persisted = await pool.query(
+      `SELECT status, receipt_url FROM payment_records WHERE id = $1`,
+      [payment.id],
+    );
     expect(persisted.rows[0]).toEqual({ status: 'REJECTED', receipt_url: oldKey });
   }, 60_000);
 
   it('FIN-DSH-47: successful proof replacement commits the new key before retiring the previous managed object', async () => {
     const cartId = randomUUID();
-    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [
+      cartId,
+      buyerA,
+    ]);
     await pool.query(
       `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
       [randomUUID(), cartId, storeA, variantA, offerA],
     );
     const checkout = await ordersService.checkout({
-      buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'BANK_TRANSFER',
-      idempotencyKey: `fin024-success-${randomUUID()}`
+      buyerId: buyerA,
+      deliveryAddress: {},
+      paymentMethod: 'BANK_TRANSFER',
+      idempotencyKey: `fin024-success-${randomUUID()}`,
     });
     const orderId = checkout.subOrders[0]!.id;
-    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const payment = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0];
     const oldKey = `payment-proofs/${payment.id}/previous.pdf`;
-    await pool.query(`UPDATE payment_records SET status = 'REJECTED', receipt_url = $2 WHERE id = $1`, [payment.id, oldKey]);
+    await pool.query(
+      `UPDATE payment_records SET status = 'REJECTED', receipt_url = $2 WHERE id = $1`,
+      [payment.id, oldKey],
+    );
 
-    const storage = { putObject: vi.fn().mockResolvedValue(undefined), deleteObject: vi.fn().mockResolvedValue(undefined) };
+    const storage = {
+      putObject: vi.fn().mockResolvedValue(undefined),
+      deleteObject: vi.fn().mockResolvedValue(undefined),
+    };
     (paymentsService as any).storage = storage;
     try {
-      await paymentsService.submitProof(payment.id, buyerA, {
-        fileBuffer: Buffer.from('replacement receipt'), fileName: 'replacement.pdf', contentType: 'application/pdf',
-      }, { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA });
+      await paymentsService.submitProof(
+        payment.id,
+        buyerA,
+        {
+          fileBuffer: Buffer.from('replacement receipt'),
+          fileName: 'replacement.pdf',
+          contentType: 'application/pdf',
+        },
+        { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA },
+      );
     } finally {
       (paymentsService as any).storage = undefined;
     }
     const uploadedKey = storage.putObject.mock.calls[0]![0].key;
-    const persisted = await pool.query(`SELECT status, receipt_url FROM payment_records WHERE id = $1`, [payment.id]);
+    const persisted = await pool.query(
+      `SELECT status, receipt_url FROM payment_records WHERE id = $1`,
+      [payment.id],
+    );
     expect(persisted.rows[0].status).toBe('AWAITING_VERIFICATION');
     expect(persisted.rows[0].receipt_url).toBe(uploadedKey);
     const intent = await pool.query(
@@ -2352,27 +3175,45 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   }, 60_000);
   it('FIN-DSH-48: records durable cleanup after an upload timeout may have accepted the new proof', async () => {
     const cartId = randomUUID();
-    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [
+      cartId,
+      buyerA,
+    ]);
     await pool.query(
       `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
       [randomUUID(), cartId, storeA, variantA, offerA],
     );
     const checkout = await ordersService.checkout({
-      buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'BANK_TRANSFER',
-      idempotencyKey: `fin024-upload-timeout-${randomUUID()}`
+      buyerId: buyerA,
+      deliveryAddress: {},
+      paymentMethod: 'BANK_TRANSFER',
+      idempotencyKey: `fin024-upload-timeout-${randomUUID()}`,
     });
     const orderId = checkout.subOrders[0]!.id;
-    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const payment = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0];
     const storage = {
-      putObject: vi.fn().mockRejectedValue(new Error('Upload response timed out after server accepted object')),
+      putObject: vi
+        .fn()
+        .mockRejectedValue(new Error('Upload response timed out after server accepted object')),
       deleteObject: vi.fn(),
     };
     (paymentsService as any).storage = storage;
     try {
-      await expect(paymentsService.submitProof(payment.id, buyerA, {
-        fileBuffer: Buffer.from('timed out receipt'), fileName: 'timeout.pdf', contentType: 'application/pdf',
-      }, { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA })).rejects.toThrow('Upload response timed out');
+      await expect(
+        paymentsService.submitProof(
+          payment.id,
+          buyerA,
+          {
+            fileBuffer: Buffer.from('timed out receipt'),
+            fileName: 'timeout.pdf',
+            contentType: 'application/pdf',
+          },
+          { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA },
+        ),
+      ).rejects.toThrow('Upload response timed out');
     } finally {
       (paymentsService as any).storage = undefined;
     }
@@ -2383,13 +3224,27 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [payment.id],
     );
     expect(intent.rows[0]).toEqual({ status: 'CLEANUP_PENDING', storage_key: uploadedKey });
-    const persisted = await pool.query(`SELECT status, receipt_url FROM payment_records WHERE id = $1`, [payment.id]);
+    const persisted = await pool.query(
+      `SELECT status, receipt_url FROM payment_records WHERE id = $1`,
+      [payment.id],
+    );
     expect(persisted.rows[0]).toEqual({ status: 'AWAITING_PAYMENT', receipt_url: null });
   }, 60_000);
 
   it('FIN-DSH-49: stale unreferenced proof uploads are deleted and recorded as cleaned', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const payment = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0];
     const key = `payment-proofs/${payment.id}/orphan.pdf`;
     const intentId = randomUUID();
     await pool.query(
@@ -2399,7 +3254,10 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
                now() - interval '61 minutes', now() - interval '61 minutes')`,
       [intentId, payment.id, key],
     );
-    const storage = { headObject: vi.fn().mockResolvedValue({}), deleteObject: vi.fn().mockResolvedValue(undefined) };
+    const storage = {
+      headObject: vi.fn().mockResolvedValue({}),
+      deleteObject: vi.fn().mockResolvedValue(undefined),
+    };
     (paymentsService as any).storage = storage;
     try {
       const result = await paymentsService.cleanupStaleProofUploads(10);
@@ -2410,21 +3268,51 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
         `SELECT status, attempt_count, lease_owner, lease_expires_at FROM payment_proof_upload_intents WHERE id = $1`,
         [intentId],
       );
-      expect(persisted.rows[0]).toMatchObject({ status: 'CLEANED', attempt_count: 1, lease_owner: null, lease_expires_at: null });
+      expect(persisted.rows[0]).toMatchObject({
+        status: 'CLEANED',
+        attempt_count: 1,
+        lease_owner: null,
+        lease_expires_at: null,
+      });
     } finally {
       (paymentsService as any).storage = undefined;
     }
   }, 60_000);
 
   it('FIN-DSH-50: cleanup preserves an object already referenced by a committed payment row', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const payment = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0];
     const key = `payment-proofs/${payment.id}/committed.pdf`;
-    const otherOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const otherPayment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [otherOrderId])).rows[0];
+    const otherOrderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const otherPayment = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [otherOrderId])
+    ).rows[0];
     // The intent belongs to the first payment, but a second payment row also
     // references the key. Cleanup must protect the key globally.
-    await pool.query(`UPDATE payment_records SET receipt_url = $2 WHERE id = $1`, [otherPayment.id, key]);
+    await pool.query(`UPDATE payment_records SET receipt_url = $2 WHERE id = $1`, [
+      otherPayment.id,
+      key,
+    ]);
     const intentId = randomUUID();
     await pool.query(
       `INSERT INTO payment_proof_upload_intents
@@ -2444,15 +3332,30 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
         `SELECT status, lease_owner, lease_expires_at FROM payment_proof_upload_intents WHERE id = $1`,
         [intentId],
       );
-      expect(persisted.rows[0]).toMatchObject({ status: 'COMMITTED', lease_owner: null, lease_expires_at: null });
+      expect(persisted.rows[0]).toMatchObject({
+        status: 'COMMITTED',
+        lease_owner: null,
+        lease_expires_at: null,
+      });
     } finally {
       (paymentsService as any).storage = undefined;
     }
   }, 60_000);
 
   it('FIN-DSH-51: storage cleanup failures are retried with bounded backoff', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const payment = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0];
     const key = `payment-proofs/${payment.id}/retry.pdf`;
     const intentId = randomUUID();
     await pool.query(
@@ -2472,7 +3375,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       expect(result).toEqual({ claimed: 1, committed: 0, cleaned: 0, retried: 1, failed: 0 });
       const persisted = await pool.query(
         `SELECT status, attempt_count, next_attempt_at, lease_owner, last_error_code
-         FROM payment_proof_upload_intents WHERE id = $1`, [intentId],
+         FROM payment_proof_upload_intents WHERE id = $1`,
+        [intentId],
       );
       expect(persisted.rows[0].status).toBe('CLEANUP_PENDING');
       expect(persisted.rows[0].attempt_count).toBe(1);
@@ -2485,8 +3389,19 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   }, 60_000);
 
   it('FIN-DSH-52: concurrent cleanup callers cannot claim the same stale intent', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const payment = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0];
     const key = `payment-proofs/${payment.id}/concurrent.pdf`;
     const intentId = randomUUID();
     await pool.query(
@@ -2499,10 +3414,18 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     let beginHead!: () => void;
     let releaseHead!: () => void;
-    const headStarted = new Promise<void>((resolve) => { beginHead = resolve; });
-    const headGate = new Promise<void>((resolve) => { releaseHead = resolve; });
+    const headStarted = new Promise<void>((resolve) => {
+      beginHead = resolve;
+    });
+    const headGate = new Promise<void>((resolve) => {
+      releaseHead = resolve;
+    });
     const storage = {
-      headObject: vi.fn(async () => { beginHead(); await headGate; return {}; }),
+      headObject: vi.fn(async () => {
+        beginHead();
+        await headGate;
+        return {};
+      }),
       deleteObject: vi.fn().mockResolvedValue(undefined),
     };
     (paymentsService as any).storage = storage;
@@ -2516,7 +3439,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       expect(first).toEqual({ claimed: 1, committed: 0, cleaned: 1, retried: 0, failed: 0 });
       expect(storage.deleteObject).toHaveBeenCalledOnce();
       const persisted = await pool.query(
-        `SELECT status, attempt_count FROM payment_proof_upload_intents WHERE id = $1`, [intentId],
+        `SELECT status, attempt_count FROM payment_proof_upload_intents WHERE id = $1`,
+        [intentId],
       );
       expect(persisted.rows[0]).toEqual({ status: 'CLEANED', attempt_count: 1 });
     } finally {
@@ -2526,11 +3450,25 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   }, 60_000);
 
   it('FIN-DSH-53: a retired previous proof is deleted by the durable cleanup path after the grace period', async () => {
-    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const orderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const payment = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0];
     const oldKey = `payment-proofs/${payment.id}/retired.pdf`;
     const currentKey = `payment-proofs/${payment.id}/current.pdf`;
-    await pool.query(`UPDATE payment_records SET receipt_url = $2 WHERE id = $1`, [payment.id, currentKey]);
+    await pool.query(`UPDATE payment_records SET receipt_url = $2 WHERE id = $1`, [
+      payment.id,
+      currentKey,
+    ]);
     const intentId = randomUUID();
     await pool.query(
       `INSERT INTO payment_proof_upload_intents
@@ -2539,7 +3477,10 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
                now() - interval '61 minutes', now() - interval '61 minutes')`,
       [intentId, payment.id, oldKey],
     );
-    const storage = { headObject: vi.fn().mockResolvedValue({}), deleteObject: vi.fn().mockResolvedValue(undefined) };
+    const storage = {
+      headObject: vi.fn().mockResolvedValue({}),
+      deleteObject: vi.fn().mockResolvedValue(undefined),
+    };
     (paymentsService as any).storage = storage;
     try {
       const result = await paymentsService.cleanupStaleProofUploads(10);
@@ -2547,7 +3488,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       expect(storage.deleteObject).toHaveBeenCalledWith('scs-uploads', oldKey);
       expect(storage.deleteObject).not.toHaveBeenCalledWith('scs-uploads', currentKey);
       const persisted = await pool.query(
-        `SELECT status FROM payment_proof_upload_intents WHERE id = $1`, [intentId],
+        `SELECT status FROM payment_proof_upload_intents WHERE id = $1`,
+        [intentId],
       );
       expect(persisted.rows[0].status).toBe('CLEANED');
     } finally {
@@ -2560,27 +3502,37 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
 
     const bankCartId = randomUUID();
-    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [bankCartId, buyerA]);
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [
+      bankCartId,
+      buyerA,
+    ]);
     await pool.query(
       `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
       [randomUUID(), bankCartId, storeA, variantA, offerA],
     );
     const bankCheckout = await ordersService.checkout({
-      buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'BANK_TRANSFER',
+      buyerId: buyerA,
+      deliveryAddress: {},
+      paymentMethod: 'BANK_TRANSFER',
       idempotencyKey: `fin026-bank-${randomUUID()}`,
     });
     const bankOrderId = bankCheckout.subOrders[0]!.id;
-    const bankPaymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [bankOrderId],
-    )).rows[0].id;
+    const bankPaymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [bankOrderId])
+    ).rows[0].id;
 
-    await paymentsService.submitProof(bankPaymentId, buyerA, {
-      receiptUrl: 'https://receipts.example.test/merchant-verified.pdf',
-    }, buyerCaller);
-    await paymentsService.verifyPayment(
-      bankPaymentId, 'CONFIRMED', merchantA, merchantCaller, { notes: 'Verified by merchant' },
+    await paymentsService.submitProof(
+      bankPaymentId,
+      buyerA,
+      {
+        receiptUrl: 'https://receipts.example.test/merchant-verified.pdf',
+      },
+      buyerCaller,
     );
+    await paymentsService.verifyPayment(bankPaymentId, 'CONFIRMED', merchantA, merchantCaller, {
+      notes: 'Verified by merchant',
+    });
     const merchantVerification = await pool.query(
       `SELECT actor_id, actor_type FROM payment_events
        WHERE payment_record_id = $1 AND event_type = 'PAYMENT_CONFIRMED'
@@ -2600,20 +3552,25 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(orderVerification.rows[0]).toEqual({ changed_by: merchantA, actor_type: 'MERCHANT' });
 
     const codCartId = randomUUID();
-    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [codCartId, buyerA]);
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [
+      codCartId,
+      buyerA,
+    ]);
     await pool.query(
       `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
       [randomUUID(), codCartId, storeA, variantA, offerA],
     );
     const codCheckout = await ordersService.checkout({
-      buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'CASH_ON_DELIVERY',
+      buyerId: buyerA,
+      deliveryAddress: {},
+      paymentMethod: 'CASH_ON_DELIVERY',
       idempotencyKey: `fin026-cod-${randomUUID()}`,
     });
     const codOrderId = codCheckout.subOrders[0]!.id;
-    const codPaymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [codOrderId],
-    )).rows[0].id;
+    const codPaymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [codOrderId])
+    ).rows[0].id;
 
     await paymentsService.confirmCash(codPaymentId, adminA, adminCaller);
     const adminCashConfirmation = await pool.query(
@@ -2628,16 +3585,28 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   it('FIN-DSH-55: privileged return overrides record ADMIN for merchant-side and buyer-side transitions', async () => {
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
 
-    const approveOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const approveItem = (await pool.query(
-      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [approveOrderId],
-    )).rows[0];
-    const approveReturn = await returnsService.createReturnRequest({
-      subOrderId: approveOrderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      description: 'Admin override actor attribution regression',
-      lines: [{ orderItemId: approveItem.id, quantity: 1 }],
-    }, buyerCaller);
+    const approveOrderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const approveItem = (
+      await pool.query(`SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [approveOrderId])
+    ).rows[0];
+    const approveReturn = await returnsService.createReturnRequest(
+      {
+        subOrderId: approveOrderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        description: 'Admin override actor attribution regression',
+        lines: [{ orderItemId: approveItem.id, quantity: 1 }],
+      },
+      buyerCaller,
+    );
     await returnsService.transitionReturn(approveReturn.id, 'MERCHANT_APPROVED', adminCaller);
     const approvedEvent = await pool.query(
       `SELECT actor_type FROM return_request_events
@@ -2647,16 +3616,28 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     expect(approvedEvent.rows[0].actor_type).toBe('ADMIN');
 
-    const cancelOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const cancelItem = (await pool.query(
-      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [cancelOrderId],
-    )).rows[0];
-    const cancelReturn = await returnsService.createReturnRequest({
-      subOrderId: cancelOrderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      description: 'Admin cancellation actor attribution regression',
-      lines: [{ orderItemId: cancelItem.id, quantity: 1 }],
-    }, buyerCaller);
+    const cancelOrderId = await createDeliveredOrder(
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
+    );
+    const cancelItem = (
+      await pool.query(`SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [cancelOrderId])
+    ).rows[0];
+    const cancelReturn = await returnsService.createReturnRequest(
+      {
+        subOrderId: cancelOrderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        description: 'Admin cancellation actor attribution regression',
+        lines: [{ orderItemId: cancelItem.id, quantity: 1 }],
+      },
+      buyerCaller,
+    );
     await returnsService.transitionReturn(cancelReturn.id, 'CANCELLED', adminCaller);
     const cancelledEvent = await pool.query(
       `SELECT actor_type FROM return_request_events
@@ -2671,33 +3652,58 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
 
     const approvedOrderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const approvedPayment = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [approvedOrderId],
-    )).rows[0];
+    const approvedPayment = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [approvedOrderId])
+    ).rows[0];
     await pool.query(
       `INSERT INTO refunds
        (id, payment_record_id, order_id, idempotency_key, amount_minor, currency, status, reason, requested_by)
        VALUES ($1, $2, $3, $4, 3400, 'SYP', 'APPROVED', 'PRODUCT_NOT_AS_DESCRIBED', $5)`,
-      [randomUUID(), approvedPayment.id, approvedOrderId, `fin027-approved-${randomUUID()}`, buyerA],
+      [
+        randomUUID(),
+        approvedPayment.id,
+        approvedOrderId,
+        `fin027-approved-${randomUUID()}`,
+        buyerA,
+      ],
     );
-    const approvedItem = (await pool.query(
-      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [approvedOrderId],
-    )).rows[0];
-    await expect(returnsService.createReturnRequest({
-      subOrderId: approvedOrderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      description: 'Approved refund must reserve refundable balance',
-      lines: [{ orderItemId: approvedItem.id, quantity: 3 }],
-    }, buyerCaller)).rejects.toThrow(/remaining refundable payment amount/i);
+    const approvedItem = (
+      await pool.query(`SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [approvedOrderId])
+    ).rows[0];
+    await expect(
+      returnsService.createReturnRequest(
+        {
+          subOrderId: approvedOrderId,
+          reason: 'PRODUCT_NOT_AS_DESCRIBED',
+          description: 'Approved refund must reserve refundable balance',
+          lines: [{ orderItemId: approvedItem.id, quantity: 3 }],
+        },
+        buyerCaller,
+      ),
+    ).rejects.toThrow(/remaining refundable payment amount/i);
 
     const largeOrderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const largePayment = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [largeOrderId],
-    )).rows[0];
+    const largePayment = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [largeOrderId])
+    ).rows[0];
     await pool.query(
       `UPDATE payment_records SET confirmed_amount_minor = 3000000000 WHERE id = $1`,
       [largePayment.id],
@@ -2708,22 +3714,31 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        VALUES ($1, $2, $3, $4, 2147483648, 'SYP', 'SUCCEEDED', 'PRODUCT_NOT_AS_DESCRIBED', $5)`,
       [randomUUID(), largePayment.id, largeOrderId, `fin027-large-${randomUUID()}`, buyerA],
     );
-    const largeItem = (await pool.query(
-      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [largeOrderId],
-    )).rows[0];
-    const largeBalanceReturn = await returnsService.createReturnRequest({
-      subOrderId: largeOrderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      description: 'BIGINT refund aggregate must not overflow a PostgreSQL integer cast',
-      lines: [{ orderItemId: largeItem.id, quantity: 1 }],
-    }, buyerCaller);
+    const largeItem = (
+      await pool.query(`SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [largeOrderId])
+    ).rows[0];
+    const largeBalanceReturn = await returnsService.createReturnRequest(
+      {
+        subOrderId: largeOrderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        description: 'BIGINT refund aggregate must not overflow a PostgreSQL integer cast',
+        lines: [{ orderItemId: largeItem.id, quantity: 1 }],
+      },
+      buyerCaller,
+    );
     expect(largeBalanceReturn.id).toBeTruthy();
   }, 90_000);
 
-
   it('FIN-DSH-57: admin settlement calculation records ADMIN actor attribution', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
 
     await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
@@ -2742,22 +3757,33 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(event.rows[0]).toEqual({ actor_id: adminA, actor_type: 'ADMIN' });
   }, 90_000);
 
-
   it('FIN-DSH-58: reconciliation includes returns completed in-period even when created earlier', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
     const pendingReturn = await advanceReturnToRefundPending(
-      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+      returnsService,
+      pool,
+      orderId,
+      1,
+      buyerA,
+      merchantA,
+      orgA,
     );
     const completedEventId = randomUUID();
 
     // The customer opened this return in an earlier accounting period, but
     // the refund completion transition happened in the current period.
-    await pool.query(
-      `UPDATE refunds SET status = 'FAILED' WHERE id = $1`,
-      [pendingReturn.refundId],
-    );
+    await pool.query(`UPDATE refunds SET status = 'FAILED' WHERE id = $1`, [
+      pendingReturn.refundId,
+    ]);
     await pool.query(
       `UPDATE return_requests
        SET status = 'REFUNDED',
@@ -2777,7 +3803,11 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     const period = new Date().toISOString().slice(0, 10);
     const run = await reconciliationService.executeReconciliation(
-      period, period, 'SYP', adminA, orgA,
+      period,
+      period,
+      'SYP',
+      adminA,
+      orgA,
     );
     const rows = await pool.query(
       `SELECT discrepancy_type, source_ref
@@ -2790,24 +3820,33 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(types).toContain('MISSING_COMMISSION_REVERSAL');
   }, 90_000);
 
-
   it('FIN-DSH-59: detects duplicate successful refunds when one completed in the current period', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
-    const item = (await pool.query(
-      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [orderId],
-    )).rows[0];
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      description: 'Cross-period duplicate refund reconciliation',
-      lines: [{ orderItemId: item.id, quantity: 1 }],
-    }, buyerCaller);
-    const payment = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
-    )).rows[0];
+    const item = (
+      await pool.query(`SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [orderId])
+    ).rows[0];
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        description: 'Cross-period duplicate refund reconciliation',
+        lines: [{ orderItemId: item.id, quantity: 1 }],
+      },
+      buyerCaller,
+    );
+    const payment = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0];
 
     await pool.query(
       `UPDATE return_requests SET created_at = now() - interval '2 days' WHERE id = $1`,
@@ -2823,14 +3862,24 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        ($7, $2, $3, $8, 500, 'SYP', 'SUCCEEDED', 'PRODUCT_NOT_AS_DESCRIBED', $5, $6,
         now(), now())`,
       [
-        randomUUID(), payment.id, orderId, `fin031-old-${randomUUID()}`, buyerA, ret.id,
-        randomUUID(), `fin031-current-${randomUUID()}`,
+        randomUUID(),
+        payment.id,
+        orderId,
+        `fin031-old-${randomUUID()}`,
+        buyerA,
+        ret.id,
+        randomUUID(),
+        `fin031-current-${randomUUID()}`,
       ],
     );
 
     const period = new Date().toISOString().slice(0, 10);
     const run = await reconciliationService.executeReconciliation(
-      period, period, 'SYP', adminA, orgA,
+      period,
+      period,
+      'SYP',
+      adminA,
+      orgA,
     );
     const duplicate = await pool.query(
       `SELECT actual_minor FROM reconciliation_discrepancies
@@ -2842,10 +3891,16 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(duplicate.rows[0].actual_minor).toBe(2);
   }, 90_000);
 
-
   it('FIN-DSH-60: adjustment reconciliation uses posting period and ignores unposted drafts', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
     const postedAdjustmentId = randomUUID();
     const draftAdjustmentId = randomUUID();
@@ -2868,7 +3923,11 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     const period = new Date().toISOString().slice(0, 10);
     const run = await reconciliationService.executeReconciliation(
-      period, period, 'SYP', adminA, orgA,
+      period,
+      period,
+      'SYP',
+      adminA,
+      orgA,
     );
     const rows = await pool.query(
       `SELECT discrepancy_type, source_ref
@@ -2881,30 +3940,43 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       .map((row: any) => row.discrepancy_type);
     expect(postedTypes).toContain('UNAPPROVED_ADJUSTMENT');
     expect(postedTypes).toContain('DELIVERY_FEE_OVER_REFUND');
-    expect(rows.rows.some((row: any) =>
-      row.source_ref === `adjustment:${draftAdjustmentId}`,
-    )).toBe(false);
+    expect(rows.rows.some((row: any) => row.source_ref === `adjustment:${draftAdjustmentId}`)).toBe(
+      false,
+    );
   }, 90_000);
-
 
   it('FIN-DSH-61: return refund creation rolls back payment and return ledgers together', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const item = (await pool.query(
-      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [orderId],
-    )).rows[0];
+    const item = (
+      await pool.query(`SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [orderId])
+    ).rows[0];
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId: item.id, quantity: 1 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId: item.id, quantity: 1 }],
+      },
+      buyerCaller,
+    );
     await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
-    await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, { trackingNumber: 'TRK-FIN-ATOMIC' });
+    await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, {
+      trackingNumber: 'TRK-FIN-ATOMIC',
+    });
     await returnsService.transitionReturn(ret.id, 'RECEIVED', merchantCaller);
-    await returnsService.transitionReturn(ret.id, 'INSPECTED', merchantCaller, { condition: 'GOOD' });
+    await returnsService.transitionReturn(ret.id, 'INSPECTED', merchantCaller, {
+      condition: 'GOOD',
+    });
 
     const outbox = (returnsService as any).outbox;
     const originalPublish = outbox.publish.bind(outbox);
@@ -2924,13 +3996,14 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     }
 
     const returnState = await pool.query(
-      `SELECT status, refund_id FROM return_requests WHERE id = $1`, [ret.id],
+      `SELECT status, refund_id FROM return_requests WHERE id = $1`,
+      [ret.id],
     );
     expect(returnState.rows[0]).toEqual({ status: 'INSPECTED', refund_id: null });
 
-    const refundRows = await pool.query(
-      `SELECT id FROM refunds WHERE idempotency_key = $1`, [`return-refund:${ret.id}`],
-    );
+    const refundRows = await pool.query(`SELECT id FROM refunds WHERE idempotency_key = $1`, [
+      `return-refund:${ret.id}`,
+    ]);
     expect(refundRows.rows).toHaveLength(0);
 
     const paymentEventsRows = await pool.query(
@@ -2950,20 +4023,31 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(outboxRows.rows).toHaveLength(0);
   }, 90_000);
 
-
   it('FIN-DSH-62: return finalization rejects a succeeded refund with mismatched amount', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
     const ret = await advanceReturnToRefundPending(
-      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+      returnsService,
+      pool,
+      orderId,
+      1,
+      buyerA,
+      merchantA,
+      orgA,
     );
     await paymentsService.approveRefund(ret.refundId, adminA, adminCaller);
 
-    await pool.query(
-      `UPDATE refunds SET amount_minor = amount_minor + 1 WHERE id = $1`,
-      [ret.refundId],
-    );
+    await pool.query(`UPDATE refunds SET amount_minor = amount_minor + 1 WHERE id = $1`, [
+      ret.refundId,
+    ]);
 
     await expect(returnsService.transitionReturn(ret.id, 'REFUNDED', adminCaller)).rejects.toThrow(
       'Refund amount does not match the return request',
@@ -2996,29 +4080,43 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(reversals.rows).toHaveLength(0);
   }, 90_000);
 
-
   it('FIN-DSH-63: failed return refund updates the payment ledger and retry reuses the same refund', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
     const pendingReturn = await advanceReturnToRefundPending(
-      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+      returnsService,
+      pool,
+      orderId,
+      1,
+      buyerA,
+      merchantA,
+      orgA,
     );
     const refundId = pendingReturn.refundId as string;
-    const paymentId = (await pool.query(
-      `SELECT payment_record_id FROM return_requests WHERE id = $1`, [pendingReturn.id],
-    )).rows[0].payment_record_id as string;
+    const paymentId = (
+      await pool.query(`SELECT payment_record_id FROM return_requests WHERE id = $1`, [
+        pendingReturn.id,
+      ])
+    ).rows[0].payment_record_id as string;
 
     const failed = await returnsService.transitionReturn(
-      pendingReturn.id, 'REFUND_FAILED', adminCaller,
+      pendingReturn.id,
+      'REFUND_FAILED',
+      adminCaller,
       { notes: 'External refund transfer was rejected' },
     );
     if (!failed) throw new Error('REFUND_FAILED transition returned no updated return');
     expect(failed.status).toBe('REFUND_FAILED');
 
-    const failedRefund = await pool.query(
-      `SELECT status FROM refunds WHERE id = $1`, [refundId],
-    );
+    const failedRefund = await pool.query(`SELECT status FROM refunds WHERE id = $1`, [refundId]);
     expect(failedRefund.rows[0].status).toBe('FAILED');
 
     const failedPaymentEvent = await pool.query(
@@ -3047,20 +4145,21 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(failedReservation.rows[0].total).toBe('0');
 
     const retried = await returnsService.transitionReturn(
-      pendingReturn.id, 'REFUND_PENDING', adminCaller,
+      pendingReturn.id,
+      'REFUND_PENDING',
+      adminCaller,
     );
     if (!retried) throw new Error('REFUND_PENDING retry returned no updated return');
     expect(retried.status).toBe('REFUND_PENDING');
     expect(retried.refundId).toBe(refundId);
 
-    const currentRefund = await pool.query(
-      `SELECT status FROM refunds WHERE id = $1`, [refundId],
-    );
+    const currentRefund = await pool.query(`SELECT status FROM refunds WHERE id = $1`, [refundId]);
     expect(currentRefund.rows[0].status).toBe('REQUESTED');
 
     const refundCount = await pool.query(
       `SELECT count(*)::int AS count FROM refunds
-       WHERE idempotency_key = $1`, [`return-refund:${pendingReturn.id}`],
+       WHERE idempotency_key = $1`,
+      [`return-refund:${pendingReturn.id}`],
     );
     expect(refundCount.rows[0].count).toBe(1);
 
@@ -3071,7 +4170,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        GROUP BY event_type`,
       [paymentId],
     );
-    const counts = Object.fromEntries(eventCounts.rows.map((row: any) => [row.event_type, row.count]));
+    const counts = Object.fromEntries(
+      eventCounts.rows.map((row: any) => [row.event_type, row.count]),
+    );
     expect(counts.PAYMENT_REFUND_REQUESTED).toBe(2);
     expect(counts.PAYMENT_REFUND_FAILED).toBe(1);
 
@@ -3087,24 +4188,41 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        WHERE return_request_id = $1 AND event_type = 'REFUND_FAILED'`,
       [pendingReturn.id],
     );
-    expect(returnEvents.rows).toEqual([{
-      event_type: 'REFUND_FAILED',
-      actor_id: adminA,
-      actor_type: 'ADMIN',
-    }]);
+    expect(returnEvents.rows).toEqual([
+      {
+        event_type: 'REFUND_FAILED',
+        actor_id: adminA,
+        actor_type: 'ADMIN',
+      },
+    ]);
   }, 90_000);
 
   it('FIN-DSH-64: return failure outbox error rolls back the refund/payment and return ledgers', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
     const pendingReturn = await advanceReturnToRefundPending(
-      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+      returnsService,
+      pool,
+      orderId,
+      1,
+      buyerA,
+      merchantA,
+      orgA,
     );
     const refundId = pendingReturn.refundId as string;
-    const paymentId = (await pool.query(
-      `SELECT payment_record_id FROM return_requests WHERE id = $1`, [pendingReturn.id],
-    )).rows[0].payment_record_id as string;
+    const paymentId = (
+      await pool.query(`SELECT payment_record_id FROM return_requests WHERE id = $1`, [
+        pendingReturn.id,
+      ])
+    ).rows[0].payment_record_id as string;
 
     const outbox = (returnsService as any).outbox;
     const originalPublish = outbox.publish.bind(outbox);
@@ -3117,10 +4235,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     try {
       await expect(
-        returnsService.transitionReturn(
-          pendingReturn.id, 'REFUND_FAILED', adminCaller,
-          { notes: 'External refund transfer was rejected' },
-        ),
+        returnsService.transitionReturn(pendingReturn.id, 'REFUND_FAILED', adminCaller, {
+          notes: 'External refund transfer was rejected',
+        }),
       ).rejects.toThrow('Injected return failure outbox persistence failure');
     } finally {
       publishSpy.mockRestore();
@@ -3166,17 +4283,27 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(returnOutboxRows.rows).toHaveLength(0);
   }, 90_000);
 
-
   it('FIN-DSH-65: concurrent duplicate approval of one refund returns success without duplicate effects', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const paymentId = (await pool.query(
-      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
-    )).rows[0].id as string;
+    const paymentId = (
+      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0].id as string;
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const requested = await paymentsService.requestRefund(
-      paymentId, 1000, 'CUSTOMER_REQUEST', buyerA, buyerCaller,
+      paymentId,
+      1000,
+      'CUSTOMER_REQUEST',
+      buyerA,
+      buyerCaller,
       { idempotencyKey: `fin-approve-retry-${randomUUID()}` },
     );
 
@@ -3186,9 +4313,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     ]);
     expect(results.map((result: any) => result.status)).toEqual(['SUCCEEDED', 'SUCCEEDED']);
 
-    const refundRow = await pool.query(
-      `SELECT status, approved_by FROM refunds WHERE id = $1`, [requested.refundId],
-    );
+    const refundRow = await pool.query(`SELECT status, approved_by FROM refunds WHERE id = $1`, [
+      requested.refundId,
+    ]);
     expect(refundRow.rows[0]).toEqual({ status: 'SUCCEEDED', approved_by: adminA });
 
     const paymentEventsRows = await pool.query(
@@ -3206,32 +4333,48 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     expect(outboxRows.rows).toHaveLength(1);
 
-    const payment = await pool.query(
-      `SELECT status FROM payment_records WHERE id = $1`, [paymentId],
-    );
+    const payment = await pool.query(`SELECT status FROM payment_records WHERE id = $1`, [
+      paymentId,
+    ]);
     expect(payment.rows[0].status).toBe('PARTIALLY_REFUNDED');
   }, 90_000);
 
-
   it('FIN-DSH-66: reconciliation detects both failed-return and failed-refund retry state divergence', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
     const pendingReturn = await advanceReturnToRefundPending(
-      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+      returnsService,
+      pool,
+      orderId,
+      1,
+      buyerA,
+      merchantA,
+      orgA,
     );
-    const payment = (await pool.query(
-      `SELECT currency FROM payment_records WHERE order_id = $1`, [orderId],
-    )).rows[0];
+    const payment = (
+      await pool.query(`SELECT currency FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0];
     const now = new Date();
     const currentPeriodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-      .toISOString().slice(0, 10);
+      .toISOString()
+      .slice(0, 10);
     const currentPeriodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0))
-      .toISOString().slice(0, 10);
+      .toISOString()
+      .slice(0, 10);
     const previousPeriodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
-      .toISOString().slice(0, 10);
+      .toISOString()
+      .slice(0, 10);
     const previousPeriodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0))
-      .toISOString().slice(0, 10);
+      .toISOString()
+      .slice(0, 10);
 
     // Place the first REFUND_PENDING event in the prior month to prove that a
     // later re-entry into REFUND_PENDING is attributed to its newest transition.
@@ -3256,7 +4399,11 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
 
     const failedRun = await reconciliationService.executeReconciliation(
-      currentPeriodStart, currentPeriodEnd, payment.currency, adminA, orgA,
+      currentPeriodStart,
+      currentPeriodEnd,
+      payment.currency,
+      adminA,
+      orgA,
     );
     const failedMismatch = await pool.query(
       `SELECT discrepancy_type, expected_minor, actual_minor, description
@@ -3273,10 +4420,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     // A second legacy divergence: a failed refund was retried in the return
     // workflow, but the linked refund row was not reopened to an active state.
-    await pool.query(
-      `UPDATE refunds SET status = 'FAILED', updated_at = now() WHERE id = $1`,
-      [pendingReturn.refundId],
-    );
+    await pool.query(`UPDATE refunds SET status = 'FAILED', updated_at = now() WHERE id = $1`, [
+      pendingReturn.refundId,
+    ]);
     await pool.query(
       `UPDATE return_requests SET status = 'REFUND_PENDING', updated_at = now() WHERE id = $1`,
       [pendingReturn.id],
@@ -3290,7 +4436,11 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
 
     const priorPeriodRun = await reconciliationService.executeReconciliation(
-      previousPeriodStart, previousPeriodEnd, payment.currency, adminA, orgA,
+      previousPeriodStart,
+      previousPeriodEnd,
+      payment.currency,
+      adminA,
+      orgA,
     );
     const priorPeriodMismatch = await pool.query(
       `SELECT id FROM reconciliation_discrepancies
@@ -3301,7 +4451,11 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(priorPeriodMismatch.rows).toHaveLength(0);
 
     const retryRun = await reconciliationService.executeReconciliation(
-      currentPeriodStart, currentPeriodEnd, payment.currency, adminA, orgA,
+      currentPeriodStart,
+      currentPeriodEnd,
+      payment.currency,
+      adminA,
+      orgA,
     );
     const retryMismatch = await pool.query(
       `SELECT discrepancy_type, expected_minor, actual_minor, description
@@ -3312,28 +4466,41 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     expect(retryMismatch.rows).toHaveLength(1);
     expect(retryMismatch.rows[0].description).toContain('is REFUND_PENDING');
-    expect(retryMismatch.rows[0].description).toContain('expected REQUESTED, PROCESSING, APPROVED or SUCCEEDED');
+    expect(retryMismatch.rows[0].description).toContain(
+      'expected REQUESTED, PROCESSING, APPROVED or SUCCEEDED',
+    );
   }, 90_000);
-
 
   it('FIN-DSH-67: posted settlement adjustment replay is idempotent and mismatched currency is rejected', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
     const primary = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
 
     const createApprovedAdjustment = async (currency: string, reason: string) => {
-      const adjustment = await settlementAdjService.createAdjustment({
-        subOrderId: orderId,
-        adjustmentType: 'COMMISSION_REVERSAL',
-        amountMinor: 125,
-        currency,
-        reason,
-      }, adminA, orgA);
-      const approvalHash = (await pool.query(
-        `SELECT approval_hash FROM settlement_adjustments WHERE id = $1`,
-        [adjustment.id],
-      )).rows[0].approval_hash as string;
+      const adjustment = await settlementAdjService.createAdjustment(
+        {
+          subOrderId: orderId,
+          adjustmentType: 'COMMISSION_REVERSAL',
+          amountMinor: 125,
+          currency,
+          reason,
+        },
+        adminA,
+        orgA,
+      );
+      const approvalHash = (
+        await pool.query(`SELECT approval_hash FROM settlement_adjustments WHERE id = $1`, [
+          adjustment.id,
+        ])
+      ).rows[0].approval_hash as string;
       await pool.query(
         `UPDATE settlement_adjustments SET status = 'APPROVED', fx_status = 'RESOLVED' WHERE id = $1`,
         [adjustment.id],
@@ -3389,22 +4556,34 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(persisted.rows[0]).toEqual({ status: 'POSTED', settlement_id: primary.id });
   }, 90_000);
 
-
   it('FIN-DSH-68/69: posted adjustment payouts are idempotent and later adjustments retain the primary parent', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
     const primary = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
-    const adjustment = await settlementAdjService.createAdjustment({
-      subOrderId: orderId,
-      adjustmentType: 'COMMISSION_REVERSAL',
-      amountMinor: 125,
-      currency: primary.currency,
-      reason: 'Pay posted adjustment ledger',
-    }, adminA, orgA);
-    const approvalHash = (await pool.query(
-      `SELECT approval_hash FROM settlement_adjustments WHERE id = $1`, [adjustment.id],
-    )).rows[0].approval_hash as string;
+    const adjustment = await settlementAdjService.createAdjustment(
+      {
+        subOrderId: orderId,
+        adjustmentType: 'COMMISSION_REVERSAL',
+        amountMinor: 125,
+        currency: primary.currency,
+        reason: 'Pay posted adjustment ledger',
+      },
+      adminA,
+      orgA,
+    );
+    const approvalHash = (
+      await pool.query(`SELECT approval_hash FROM settlement_adjustments WHERE id = $1`, [
+        adjustment.id,
+      ])
+    ).rows[0].approval_hash as string;
     await pool.query(
       `UPDATE settlement_adjustments SET status = 'APPROVED', fx_status = 'RESOLVED' WHERE id = $1`,
       [adjustment.id],
@@ -3416,26 +4595,28 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [randomUUID(), adjustment.id, buyerA, randomUUID(), approvalHash, merchantA],
     );
     await settlementAdjService.postAdjustment(adjustment.id, adminA, orgA);
-    const posted = (await pool.query(
-      `SELECT id, payment_record_id, status, net_minor::int AS net FROM settlement_records
+    const posted = (
+      await pool.query(
+        `SELECT id, payment_record_id, status, net_minor::int AS net FROM settlement_records
        WHERE sub_order_id = $1 AND status = 'ADJUSTMENT'
          AND metadata->>'adjustmentId' = $2`,
-      [orderId, adjustment.id],
-    )).rows[0];
+        [orderId, adjustment.id],
+      )
+    ).rows[0];
     expect(posted).toMatchObject({ status: 'ADJUSTMENT', net: 125 });
 
     // Simulate a legacy adjustment row: older records have no adjustmentId
     // metadata and rely on the durable notes prefix for classification.
-    await pool.query(
-      `UPDATE settlement_records SET metadata = '{}'::jsonb WHERE id = $1`, [posted.id],
-    );
+    await pool.query(`UPDATE settlement_records SET metadata = '{}'::jsonb WHERE id = $1`, [
+      posted.id,
+    ]);
 
-    const first = await paymentsService.markSettlementPaid(
-      posted.id, adminA, adminCaller, { paymentReference: 'ADJ-BANK-REF-68' },
-    );
-    const replay = await paymentsService.markSettlementPaid(
-      posted.id, adminA, adminCaller, { paymentReference: 'ADJ-BANK-REF-68' },
-    );
+    const first = await paymentsService.markSettlementPaid(posted.id, adminA, adminCaller, {
+      paymentReference: 'ADJ-BANK-REF-68',
+    });
+    const replay = await paymentsService.markSettlementPaid(posted.id, adminA, adminCaller, {
+      paymentReference: 'ADJ-BANK-REF-68',
+    });
     expect(first.status).toBe('PAID');
     expect(replay.status).toBe('PAID');
 
@@ -3447,23 +4628,29 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     // The legacy note marker must survive payout for rows that predate
     // adjustmentId metadata and are therefore identified by their notes.
-    const paidNotes = (await pool.query(
-      `SELECT notes FROM settlement_records WHERE id = $1`, [posted.id],
-    )).rows[0].notes as string;
+    const paidNotes = (
+      await pool.query(`SELECT notes FROM settlement_records WHERE id = $1`, [posted.id])
+    ).rows[0].notes as string;
     expect(paidNotes).toContain(`Posted adjustment ${adjustment.id}:`);
 
     // Posting another adjustment after the first one is PAID must still link
     // it to the primary settlement, never to the latest paid adjustment row.
-    const secondAdjustment = await settlementAdjService.createAdjustment({
-      subOrderId: orderId,
-      adjustmentType: 'COMMISSION_REVERSAL',
-      amountMinor: 75,
-      currency: primary.currency,
-      reason: 'Second adjustment remains linked to primary',
-    }, adminA, orgA);
-    const secondHash = (await pool.query(
-      `SELECT approval_hash FROM settlement_adjustments WHERE id = $1`, [secondAdjustment.id],
-    )).rows[0].approval_hash as string;
+    const secondAdjustment = await settlementAdjService.createAdjustment(
+      {
+        subOrderId: orderId,
+        adjustmentType: 'COMMISSION_REVERSAL',
+        amountMinor: 75,
+        currency: primary.currency,
+        reason: 'Second adjustment remains linked to primary',
+      },
+      adminA,
+      orgA,
+    );
+    const secondHash = (
+      await pool.query(`SELECT approval_hash FROM settlement_adjustments WHERE id = $1`, [
+        secondAdjustment.id,
+      ])
+    ).rows[0].approval_hash as string;
     await pool.query(
       `UPDATE settlement_adjustments SET status = 'APPROVED', fx_status = 'RESOLVED' WHERE id = $1`,
       [secondAdjustment.id],
@@ -3475,11 +4662,13 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [randomUUID(), secondAdjustment.id, buyerA, randomUUID(), secondHash, merchantA],
     );
     await settlementAdjService.postAdjustment(secondAdjustment.id, adminA, orgA);
-    const secondLedger = (await pool.query(
-      `SELECT metadata FROM settlement_records
+    const secondLedger = (
+      await pool.query(
+        `SELECT metadata FROM settlement_records
        WHERE sub_order_id = $1 AND metadata->>'adjustmentId' = $2`,
-      [orderId, secondAdjustment.id],
-    )).rows[0];
+        [orderId, secondAdjustment.id],
+      )
+    ).rows[0];
     expect(secondLedger.metadata).toMatchObject({
       adjustmentId: secondAdjustment.id,
       parentSettlementId: primary.id,
@@ -3502,5 +4691,4 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     expect(outboxRows.rows).toHaveLength(1);
   }, 90_000);
-
 });

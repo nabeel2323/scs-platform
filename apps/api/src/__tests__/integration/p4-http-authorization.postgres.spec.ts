@@ -81,24 +81,34 @@ const OPS_ROUTES: ReadonlyArray<{
   { method: 'GET', path: '/v1/admin/ops/p13/pilot', perm: 'admin:returns:read' },
   { method: 'POST', path: '/v1/admin/ops/p13/scan', perm: 'admin:returns:read' },
   {
-    method: 'POST', path: '/v1/admin/ops/p13/worker/pause',
-    perm: 'admin:returns:write', body: { reason: 'phase 4 http spec' },
+    method: 'POST',
+    path: '/v1/admin/ops/p13/worker/pause',
+    perm: 'admin:returns:write',
+    body: { reason: 'phase 4 http spec' },
   },
   {
-    method: 'POST', path: '/v1/admin/ops/p13/worker/resume',
-    perm: 'admin:returns:write', body: { reason: 'phase 4 http spec' },
+    method: 'POST',
+    path: '/v1/admin/ops/p13/worker/resume',
+    perm: 'admin:returns:write',
+    body: { reason: 'phase 4 http spec' },
   },
   {
-    method: 'POST', path: '/v1/admin/ops/p13/pilot/flag',
-    perm: 'admin:returns:write', body: { enabled: false, description: 'phase 4 http spec' },
+    method: 'POST',
+    path: '/v1/admin/ops/p13/pilot/flag',
+    perm: 'admin:returns:write',
+    body: { enabled: false, description: 'phase 4 http spec' },
   },
   {
-    method: 'POST', path: '/v1/admin/ops/p13/pilot/allowlist',
-    perm: 'admin:returns:write', body: { orgId: 'PLACEHOLDER_ORG_A', note: 'http spec' },
+    method: 'POST',
+    path: '/v1/admin/ops/p13/pilot/allowlist',
+    perm: 'admin:returns:write',
+    body: { orgId: 'PLACEHOLDER_ORG_A', note: 'http spec' },
   },
   {
-    method: 'POST', path: '/v1/admin/ops/p13/pilot/allowlist/revoke',
-    perm: 'admin:returns:write', body: { orgId: 'PLACEHOLDER_ORG_A', note: 'http spec' },
+    method: 'POST',
+    path: '/v1/admin/ops/p13/pilot/allowlist/revoke',
+    perm: 'admin:returns:write',
+    body: { orgId: 'PLACEHOLDER_ORG_A', note: 'http spec' },
   },
 ];
 
@@ -167,7 +177,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     await pool.query(
       `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`,
     );
-    const files = fs.readdirSync(MIGRATIONS_DIR)
+    const files = fs
+      .readdirSync(MIGRATIONS_DIR)
       .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
       .sort();
     for (const file of files) {
@@ -183,7 +194,11 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     }
 
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
     await seedBusinessFixture();
 
@@ -215,22 +230,42 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       [ReconciliationService, [DatabaseService]],
       [CommissionReversalService, [DatabaseService, OutboxDispatcher]],
       [PilotControlService, [DatabaseService, AuditService, OpsAlertService]],
-      [ReturnsService, [
-        DatabaseService, OutboxDispatcher, PaymentsService, BusinessCalendarService,
-        CommissionReversalService, SettlementAdjustmentService, PilotControlService,
-      ]],
+      [
+        ReturnsService,
+        [
+          DatabaseService,
+          OutboxDispatcher,
+          PaymentsService,
+          BusinessCalendarService,
+          CommissionReversalService,
+          SettlementAdjustmentService,
+          PilotControlService,
+        ],
+      ],
       [WorkerLeaseService, [DatabaseService]],
       [OpsAlertService, [DatabaseService]],
       [OpsControlService, [DatabaseService, AuditService, OpsAlertService]],
       [P13MonitorService, [DatabaseService, OpsAlertService, WorkerLeaseService]],
-      [ReturnsController, [
-        ReturnsService, BusinessCalendarService, SettlementAdjustmentService,
-        ReconciliationService, CommissionReversalService,
-      ]],
-      [OperationsController, [
-        WorkerLeaseService, OpsControlService, OpsAlertService, P13MonitorService,
-        PilotControlService,
-      ]],
+      [
+        ReturnsController,
+        [
+          ReturnsService,
+          BusinessCalendarService,
+          SettlementAdjustmentService,
+          ReconciliationService,
+          CommissionReversalService,
+        ],
+      ],
+      [
+        OperationsController,
+        [
+          WorkerLeaseService,
+          OpsControlService,
+          OpsAlertService,
+          P13MonitorService,
+          PilotControlService,
+        ],
+      ],
       [JwtAuthGuard, [JwtService, RedisService]],
       [PermissionsGuard, [Reflector]],
     ];
@@ -321,21 +356,28 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     storeA = identity.storeA;
     storeB = identity.storeB;
 
-    const masterA = randomUUID(); const masterB = randomUUID();
-    await pool.query(`INSERT INTO master_orders (id, buyer_id, status) VALUES ($1,$2,'SUBMITTED'),($3,$4,'SUBMITTED')`, [masterA, buyerA, masterB, buyerB]);
-    orderA = randomUUID(); orderB = randomUUID();
+    const masterA = randomUUID();
+    const masterB = randomUUID();
+    await pool.query(
+      `INSERT INTO master_orders (id, buyer_id, status) VALUES ($1,$2,'SUBMITTED'),($3,$4,'SUBMITTED')`,
+      [masterA, buyerA, masterB, buyerB],
+    );
+    orderA = randomUUID();
+    orderB = randomUUID();
     await pool.query(
       `INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, subtotal_minor, discount_minor, delivery_fee_minor, tax_minor, total_minor)
        VALUES ($1,$2,$3,$4,'DELIVERED',5000,0,500,0,5500),($5,$6,$7,$8,'DELIVERED',7000,0,500,0,7500)`,
       [orderA, masterA, storeA, buyerA, orderB, masterB, storeB, buyerB],
     );
-    payA = randomUUID(); payB = randomUUID();
+    payA = randomUUID();
+    payB = randomUUID();
     await pool.query(
       `INSERT INTO payment_records (id, order_id, payment_method, status, amount_minor, currency)
        VALUES ($1,$2,'CASH_ON_DELIVERY','CONFIRMED',5500,'SYP'),($3,$4,'CASH_ON_DELIVERY','CONFIRMED',7500,'SYP')`,
       [payA, orderA, payB, orderB],
     );
-    retA = randomUUID(); retB = randomUUID();
+    retA = randomUUID();
+    retB = randomUUID();
     await pool.query(
       `INSERT INTO return_requests (id, sub_order_id, payment_record_id, buyer_id, status, reason, requested_refund_minor, expires_at)
        VALUES ($1,$2,$3,$4,'REQUESTED','PRODUCT_NOT_AS_DESCRIBED',5000, now() + interval '3 days'),
@@ -346,7 +388,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
 
   /** One adjustment, one reversal and one reconciliation run per organization. */
   async function seedFinancialFixture(): Promise<void> {
-    adjA = randomUUID(); adjB = randomUUID();
+    adjA = randomUUID();
+    adjB = randomUUID();
     await pool.query(
       `INSERT INTO settlement_adjustments (id, sub_order_id, return_request_id, adjustment_type, amount_minor, currency, fx_status, status, reason, requires_dual_approval, created_by, org_id)
        VALUES ($1,$2,$3,'SETTLEMENT_CORRECTION',500,'SYP','BLOCKED','PENDING_APPROVAL','Org A correction',true,$4,$5),
@@ -356,9 +399,19 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     await pool.query(
       `INSERT INTO commission_reversals (id, return_request_id, original_commission_minor, reversal_minor, responsibility_category, idempotency_key, status, currency, org_id)
        VALUES ($1,$2,200,200,'MERCHANT',$3,'POSTED','SYP',$4),($5,$6,300,300,'PLATFORM',$7,'POSTED','SYP',$8)`,
-      [randomUUID(), retA, `p4-http-${randomUUID()}`, orgA, randomUUID(), retB, `p4-http-${randomUUID()}`, orgB],
+      [
+        randomUUID(),
+        retA,
+        `p4-http-${randomUUID()}`,
+        orgA,
+        randomUUID(),
+        retB,
+        `p4-http-${randomUUID()}`,
+        orgB,
+      ],
     );
-    runA = randomUUID(); runB = randomUUID();
+    runA = randomUUID();
+    runB = randomUUID();
     await pool.query(
       `INSERT INTO reconciliation_runs (id, period_start, period_end, currency, status, summary, discrepancy_count, executed_by, org_id, version)
        VALUES ($1,'2026-01-01','2026-01-31','SYP','COMPLETED','{}'::jsonb,0,$2,$3,1),
@@ -385,8 +438,11 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     });
     const text = await res.text();
     let body: Record<string, unknown> = {};
-    try { body = text ? (JSON.parse(text) as Record<string, unknown>) : {}; }
-    catch { body = { raw: text }; }
+    try {
+      body = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+    } catch {
+      body = { raw: text };
+    }
     return { status: res.status, body, type: res.headers.get('content-type') };
   }
 
@@ -404,10 +460,14 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
 
   function userOf(roleKey: string): string {
     switch (roleKey) {
-      case 'BUYER': return buyerA;
-      case 'MERCHANT_OWNER': return merchantOwnerA;
-      case 'FINANCE': return finUserA;
-      default: return adminUser;
+      case 'BUYER':
+        return buyerA;
+      case 'MERCHANT_OWNER':
+        return merchantOwnerA;
+      case 'FINANCE':
+        return finUserA;
+      default:
+        return adminUser;
     }
   }
 
@@ -431,23 +491,21 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
   }
 
   function detailOf(res: HttpResult): string {
-    return typeof res.body['detail'] === 'string' ? res.body['detail'] as string : '';
+    return typeof res.body['detail'] === 'string' ? (res.body['detail'] as string) : '';
   }
 
   function codeOf(res: HttpResult): string | undefined {
-    return typeof res.body['code'] === 'string' ? res.body['code'] as string : undefined;
+    return typeof res.body['code'] === 'string' ? (res.body['code'] as string) : undefined;
   }
 
   /** Body of an endpoint that wraps its rows (`{ alerts: [...] }`, `{ changes: [...] }`). */
   function rowsOf(res: HttpResult, key: string): Array<Record<string, unknown>> {
-    return Array.isArray(res.body[key]) ? res.body[key] as Array<Record<string, unknown>> : [];
+    return Array.isArray(res.body[key]) ? (res.body[key] as Array<Record<string, unknown>>) : [];
   }
 
   /** Body of an endpoint that returns a bare JSON array (every P13 list route). */
   function listBody(res: HttpResult): Array<Record<string, unknown>> {
-    return Array.isArray(res.body)
-      ? res.body as unknown as Array<Record<string, unknown>>
-      : [];
+    return Array.isArray(res.body) ? (res.body as unknown as Array<Record<string, unknown>>) : [];
   }
 
   function idsOf(rows: Array<Record<string, unknown>>): string[] {
@@ -469,7 +527,9 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
 
   /** POST that must be granted, returning its body — keeps multi-step drills readable. */
   async function grantedPost(
-    token: string, route: string, body?: unknown,
+    token: string,
+    route: string,
+    body?: unknown,
   ): Promise<Record<string, unknown>> {
     const res = await req('POST', route, { token, body });
     expectGranted(res.status);
@@ -568,7 +628,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       const finance = await mint('FINANCE', orgA);
       expect((await req('GET', '/v1/admin/ops/p13/status', { token: finance })).status).toBe(403);
       const pause = await req('POST', '/v1/admin/ops/p13/worker/pause', {
-        token: finance, body: { reason: 'finance should not be able to pause' },
+        token: finance,
+        body: { reason: 'finance should not be able to pause' },
       });
       expect(pause.status).toBe(403);
       // Denial must not have changed anything either.
@@ -582,40 +643,46 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       const emptyAdmin = await mint('ADMIN', orgA, { perms: [] });
       const status = await req('GET', '/v1/admin/ops/p13/status', { token: emptyAdmin });
       expect(status.status).toBe(403);
-      const adjustments = await req('GET', '/v1/admin/settlement-adjustments', { token: emptyAdmin });
+      const adjustments = await req('GET', '/v1/admin/settlement-adjustments', {
+        token: emptyAdmin,
+      });
       expect(adjustments.status).toBe(403);
     });
 
     it('HA-11: input validation happens after authorization, and denial leaves no state', async () => {
       const admin = await mint('ADMIN', orgA);
       const noReason = await req('POST', '/v1/admin/ops/p13/worker/pause', {
-        token: admin, body: { reason: '   ' },
+        token: admin,
+        body: { reason: '   ' },
       });
       expect(noReason.status).toBe(400);
       expect(detailOf(noReason)).toMatch(/reason is required/i);
 
       const badOrg = await req('POST', '/v1/admin/ops/p13/pilot/allowlist', {
-        token: admin, body: { orgId: 'not-a-uuid' },
+        token: admin,
+        body: { orgId: 'not-a-uuid' },
       });
       expect(badOrg.status).toBe(400);
 
       const badFlag = await req('POST', '/v1/admin/ops/p13/pilot/flag', {
-        token: admin, body: { enabled: 'yes' },
+        token: admin,
+        body: { enabled: 'yes' },
       });
       expect(badFlag.status).toBe(400);
 
-      const { rows } = await pool.query(
-        `SELECT COUNT(*)::int AS c FROM ops_controls`,
-      );
+      const { rows } = await pool.query(`SELECT COUNT(*)::int AS c FROM ops_controls`);
       expect(rows[0]!.c).toBe(0);
-      const flag = await pool.query(`SELECT COUNT(*)::int AS c FROM feature_flags WHERE key = $1`, [P13_PILOT_FLAG_KEY]);
+      const flag = await pool.query(`SELECT COUNT(*)::int AS c FROM feature_flags WHERE key = $1`, [
+        P13_PILOT_FLAG_KEY,
+      ]);
       expect(flag.rows[0]!.c).toBe(0);
     });
 
     it('HA-12: pausing over HTTP is audited and cannot approve or refund anything', async () => {
       const admin = await mint('ADMIN', orgA);
       const paused = await req('POST', '/v1/admin/ops/p13/worker/pause', {
-        token: admin, body: { reason: 'pilot drill' },
+        token: admin,
+        body: { reason: 'pilot drill' },
       });
       expectGranted(paused.status);
       expect(paused.body['paused']).toBe(true);
@@ -660,13 +727,14 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     it('HA-15: approving another org\u0027s adjustment is denied before any row is touched', async () => {
       const finance = await mint('FINANCE', orgA);
       const res = await req('POST', `/v1/admin/settlement-adjustments/${adjB}/approve`, {
-        token: finance, body: { notes: 'cross-tenant attempt' },
+        token: finance,
+        body: { notes: 'cross-tenant attempt' },
       });
       expect(res.status).toBe(404);
 
-      const { rows } = await pool.query(
-        `SELECT status FROM settlement_adjustments WHERE id = $1`, [adjB],
-      );
+      const { rows } = await pool.query(`SELECT status FROM settlement_adjustments WHERE id = $1`, [
+        adjB,
+      ]);
       expect(rows[0]!.status).toBe('PENDING_APPROVAL');
       const approvals = await pool.query(
         `SELECT COUNT(*)::int AS c FROM settlement_adjustment_approvals`,
@@ -681,9 +749,9 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       });
       expect(res.status).toBe(404);
 
-      const { rows } = await pool.query(
-        `SELECT status FROM settlement_adjustments WHERE id = $1`, [adjA],
-      );
+      const { rows } = await pool.query(`SELECT status FROM settlement_adjustments WHERE id = $1`, [
+        adjA,
+      ]);
       expect(rows[0]!.status).toBe('PENDING_APPROVAL');
       const posted = await pool.query(
         `SELECT COUNT(*)::int AS c FROM settlement_adjustments WHERE status = 'POSTED'`,
@@ -709,10 +777,10 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       }
       expect(getOpsCounter('financial_isolation_denials_total')).toBe(3);
 
-      const mutate = await req(
-        'POST', `/v1/admin/settlement-adjustments/${adjA}/approve`,
-        { token: unscoped, body: { notes: 'unscoped attempt' } },
-      );
+      const mutate = await req('POST', `/v1/admin/settlement-adjustments/${adjA}/approve`, {
+        token: unscoped,
+        body: { notes: 'unscoped attempt' },
+      });
       expect(mutate.status).toBe(403);
       expect(getOpsCounter('financial_isolation_denials_total')).toBe(4);
 
@@ -773,7 +841,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       expect(codeOf(malformed)).toBe('22P02');
 
       const malformedPost = await req(
-        'POST', '/v1/admin/settlement-adjustments/not-a-uuid/approve',
+        'POST',
+        '/v1/admin/settlement-adjustments/not-a-uuid/approve',
         { token: finance, body: { notes: 'guess' } },
       );
       expect(malformedPost.status).toBe(400);
@@ -782,19 +851,22 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     it('HA-21: merchant and buyer roles cannot approve or post adjustments at all', async () => {
       const merchant = await mint('MERCHANT_OWNER', orgA, { sub: merchantOwnerA });
       const buyer = await mint('BUYER', orgA, { sub: buyerA });
-      for (const [label, token] of [['MERCHANT_OWNER', merchant], ['BUYER', buyer]] as const) {
+      for (const [label, token] of [
+        ['MERCHANT_OWNER', merchant],
+        ['BUYER', buyer],
+      ] as const) {
         for (const suffix of ['approve', 'post'] as const) {
-          const res = await req(
-            'POST', `/v1/admin/settlement-adjustments/${adjA}/${suffix}`,
-            { token, body: { notes: `${label} attempt` } },
-          );
+          const res = await req('POST', `/v1/admin/settlement-adjustments/${adjA}/${suffix}`, {
+            token,
+            body: { notes: `${label} attempt` },
+          });
           expect(res.status, `${label} ${suffix}`).toBe(403);
           expect(detailOf(res), `${label} ${suffix}`).toContain('admin:adjustments:approve');
         }
       }
-      const { rows } = await pool.query(
-        `SELECT status FROM settlement_adjustments WHERE id = $1`, [adjA],
-      );
+      const { rows } = await pool.query(`SELECT status FROM settlement_adjustments WHERE id = $1`, [
+        adjA,
+      ]);
       expect(rows[0]!.status).toBe('PENDING_APPROVAL');
     });
   });
@@ -835,7 +907,9 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
 
     it('HA-24: the merchant list is store-scoped, and a revoked membership stops working', async () => {
       const ownerAToken = await mint('MERCHANT_OWNER', orgA, { sub: merchantOwnerA });
-      const mine = await req('GET', `/v1/merchant/returns?storeId=${storeA}`, { token: ownerAToken });
+      const mine = await req('GET', `/v1/merchant/returns?storeId=${storeA}`, {
+        token: ownerAToken,
+      });
       expectGranted(mine.status);
       expect(idsOf(listBody(mine))).toEqual([retA]);
 
@@ -854,9 +928,9 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
         [storeA, merchantOwnerA],
       );
       try {
-        const revoked = await req(
-          'GET', `/v1/merchant/returns?storeId=${storeA}`, { token: ownerAToken },
-        );
+        const revoked = await req('GET', `/v1/merchant/returns?storeId=${storeA}`, {
+          token: ownerAToken,
+        });
         expect(revoked.status).toBe(403);
         expect(detailOf(revoked)).toMatch(/not authorized for this store/i);
       } finally {
@@ -910,7 +984,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       // as SQLSTATE 23514. 'BLOCKED_FX' is a *status* value, not an FX value.
       const admin = await mint('ADMIN', orgA);
       const res = await req('POST', '/v1/admin/settlement-adjustments', {
-        token: admin, body: createBody(),
+        token: admin,
+        body: createBody(),
       });
       expect(res.status).toBe(201);
       expect(res.body['status']).toBe('DRAFT');
@@ -926,7 +1001,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       // FINANCE approves but never creates.
       const finance = await mint('FINANCE', orgA);
       const denied = await req('POST', '/v1/admin/settlement-adjustments', {
-        token: finance, body: createBody(),
+        token: finance,
+        body: createBody(),
       });
       expect(denied.status).toBe(403);
       expect(detailOf(denied)).toContain('admin:adjustments:write');
@@ -935,7 +1011,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     it('HA-27: the creator cannot approve their own dual-approval adjustment', async () => {
       const admin = await mint('ADMIN', orgA);
       const created = await req('POST', '/v1/admin/settlement-adjustments', {
-        token: admin, body: createBody(),
+        token: admin,
+        body: createBody(),
       });
       const id = String(created.body['id']);
 
@@ -946,7 +1023,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       expect(submitted.body['status']).toBe('PENDING_APPROVAL');
 
       const self = await req('POST', `/v1/admin/settlement-adjustments/${id}/approve`, {
-        token: admin, body: { notes: 'I approve my own correction' },
+        token: admin,
+        body: { notes: 'I approve my own correction' },
       });
       expect(self.status).toBe(409);
       expect(detailOf(self)).toMatch(/Creator cannot approve their own/i);
@@ -956,16 +1034,17 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
         [id],
       );
       expect(approvals.rows[0]!.c).toBe(0);
-      const { rows } = await pool.query(
-        `SELECT status FROM settlement_adjustments WHERE id = $1`, [id],
-      );
+      const { rows } = await pool.query(`SELECT status FROM settlement_adjustments WHERE id = $1`, [
+        id,
+      ]);
       expect(rows[0]!.status).toBe('PENDING_APPROVAL');
     });
 
     it('HA-28: dual approval succeeds, and posting is still refused without an authoritative FX rate', async () => {
       const admin = await mint('ADMIN', orgA);
       const created = await req('POST', '/v1/admin/settlement-adjustments', {
-        token: admin, body: createBody(),
+        token: admin,
+        body: createBody(),
       });
       const id = String(created.body['id']);
       const submit = await req('POST', `/v1/admin/settlement-adjustments/${id}/submit`, {
@@ -976,14 +1055,16 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       // Two distinct approvers, one of each role, neither of them the creator.
       const financeA = await mint('FINANCE', orgA, { sub: finUserA });
       const first = await req('POST', `/v1/admin/settlement-adjustments/${id}/approve`, {
-        token: financeA, body: { notes: 'finance approval' },
+        token: financeA,
+        body: { notes: 'finance approval' },
       });
       expectGranted(first.status);
       expect(first.body['status']).toBe('PENDING_APPROVAL'); // one of two
 
       const adminB = await mint('ADMIN', orgA, { sub: finUserB });
       const second = await req('POST', `/v1/admin/settlement-adjustments/${id}/approve`, {
-        token: adminB, body: { notes: 'admin approval' },
+        token: adminB,
+        body: { notes: 'admin approval' },
       });
       expectGranted(second.status);
       expect(second.body['status']).toBe('APPROVED');
@@ -997,7 +1078,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       expect(detailOf(posted)).toMatch(/FX status is BLOCKED, not RESOLVED/i);
 
       const { rows } = await pool.query(
-        `SELECT status, fx_status FROM settlement_adjustments WHERE id = $1`, [id],
+        `SELECT status, fx_status FROM settlement_adjustments WHERE id = $1`,
+        [id],
       );
       expect(rows[0]).toMatchObject({ status: 'APPROVED', fx_status: 'BLOCKED' });
       // Alert 7's invariant (a POSTED row whose FX is not RESOLVED) must hold.
@@ -1008,7 +1090,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       );
       expect(violating.rows[0]!.c).toBe(0);
       const settlements = await pool.query(
-        `SELECT COUNT(*)::int AS c FROM settlement_records WHERE sub_order_id = $1`, [orderA],
+        `SELECT COUNT(*)::int AS c FROM settlement_records WHERE sub_order_id = $1`,
+        [orderA],
       );
       expect(settlements.rows[0]!.c).toBe(0);
     });
@@ -1035,13 +1118,14 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       // Both defects would have blocked this row; the FX guard still holds.
       expect(res.body['fxStatus']).toBe('BLOCKED');
 
-      const {
-        rows } = await pool.query(
+      const { rows } = await pool.query(
         `SELECT adjustment_type, fx_status, status FROM settlement_adjustments WHERE id = $1`,
         [String(res.body['id'])],
       );
       expect(rows[0]).toMatchObject({
-        adjustment_type: 'DELIVERY_FEE_EXCEPTION', fx_status: 'BLOCKED', status: 'DRAFT',
+        adjustment_type: 'DELIVERY_FEE_EXCEPTION',
+        fx_status: 'BLOCKED',
+        status: 'DRAFT',
       });
 
       // It behaves like any other adjustment: approvable, but never postable
@@ -1069,7 +1153,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
 
       // 400 from line validation, not 403 from the gate: the gate did not run.
       const res = await req('POST', '/v1/returns', {
-        token: await mint('BUYER', orgA, { sub: buyerA }), body: gateProbeBody(orderA),
+        token: await mint('BUYER', orgA, { sub: buyerA }),
+        body: gateProbeBody(orderA),
       });
       expect(res.status).toBe(400);
       expect(detailOf(res)).toMatch(/At least one return line is required/i);
@@ -1079,13 +1164,15 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     it('HA-30: turning the flag on over HTTP denies a non-allowlisted org at the edge', async () => {
       const admin = await mint('ADMIN', orgA);
       const flagged = await req('POST', '/v1/admin/ops/p13/pilot/flag', {
-        token: admin, body: { enabled: true, description: 'http spec drill' },
+        token: admin,
+        body: { enabled: true, description: 'http spec drill' },
       });
       expectGranted(flagged.status);
       expect(flagged.body['enforced']).toBe(true);
 
       const res = await req('POST', '/v1/returns', {
-        token: await mint('BUYER', orgA, { sub: buyerA }), body: gateProbeBody(orderA),
+        token: await mint('BUYER', orgA, { sub: buyerA }),
+        body: gateProbeBody(orderA),
       });
       expect(res.status).toBe(403);
       expect(codeOf(res)).toBe('p13_pilot_org_not_allowlisted');
@@ -1098,33 +1185,35 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       expect(pilot['denials']).toBe(1);
       expect(pilot['enforced']).toBe(true);
 
-      const { rows } = await pool.query(
-        `SELECT COUNT(*)::int AS c FROM return_requests`,
-      );
+      const { rows } = await pool.query(`SELECT COUNT(*)::int AS c FROM return_requests`);
       expect(rows[0]!.c).toBe(2); // nothing was created
     });
 
     it('HA-31: allowlisting one org opens that org only, and grants no extra permission', async () => {
       const admin = await mint('ADMIN', orgA);
       await grantedPost(admin, '/v1/admin/ops/p13/pilot/flag', {
-        enabled: true, description: 'http spec drill',
+        enabled: true,
+        description: 'http spec drill',
       });
 
       const added = await grantedPost(admin, '/v1/admin/ops/p13/pilot/allowlist', {
-        orgId: orgA, note: 'http spec orgA',
+        orgId: orgA,
+        note: 'http spec orgA',
       });
       expect(added['enabledCount']).toBe(1);
 
       // Org A now passes the gate and fails on the deliberately invalid body.
       const inside = await req('POST', '/v1/returns', {
-        token: await mint('BUYER', orgA, { sub: buyerA }), body: gateProbeBody(orderA),
+        token: await mint('BUYER', orgA, { sub: buyerA }),
+        body: gateProbeBody(orderA),
       });
       expect(inside.status).toBe(400);
       expect(detailOf(inside)).toMatch(/At least one return line is required/i);
 
       // Org B is still outside, even though its buyer has the same role and perms.
       const outside = await req('POST', '/v1/returns', {
-        token: await mint('BUYER', orgB, { sub: buyerB }), body: gateProbeBody(orderB),
+        token: await mint('BUYER', orgB, { sub: buyerB }),
+        body: gateProbeBody(orderB),
       });
       expect(outside.status).toBe(403);
       expect(codeOf(outside)).toBe('p13_pilot_org_not_allowlisted');
@@ -1142,23 +1231,27 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       const admin = await mint('ADMIN', orgA);
       await grantedPost(admin, '/v1/admin/ops/p13/pilot/flag', { enabled: true });
       await grantedPost(admin, '/v1/admin/ops/p13/pilot/allowlist', {
-        orgId: orgA, note: 'granted',
+        orgId: orgA,
+        note: 'granted',
       });
 
       const revoked = await grantedPost(admin, '/v1/admin/ops/p13/pilot/allowlist/revoke', {
-        orgId: orgA, note: 'drill complete',
+        orgId: orgA,
+        note: 'drill complete',
       });
       expect(Number(revoked['rowsAffected'])).toBe(1);
 
       const res = await req('POST', '/v1/returns', {
-        token: await mint('BUYER', orgA, { sub: buyerA }), body: gateProbeBody(orderA),
+        token: await mint('BUYER', orgA, { sub: buyerA }),
+        body: gateProbeBody(orderA),
       });
       expect(res.status).toBe(403);
       expect(codeOf(res)).toBe('p13_pilot_entry_disabled');
 
       // Disable, never delete: the entry and its reason survive for the audit trail.
       const { rows } = await pool.query(
-        `SELECT enabled, note FROM p13_pilot_allowlist WHERE org_id = $1`, [orgA],
+        `SELECT enabled, note FROM p13_pilot_allowlist WHERE org_id = $1`,
+        [orgA],
       );
       expect(rows).toHaveLength(1);
       expect(rows[0]!.enabled).toBe(false);
@@ -1169,11 +1262,13 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       const admin = await mint('ADMIN', orgA);
       await grantedPost(admin, '/v1/admin/ops/p13/pilot/flag', { enabled: true });
       await grantedPost(admin, '/v1/admin/ops/p13/pilot/allowlist', {
-        orgId: orgA, note: 'kept for the next drill',
+        orgId: orgA,
+        note: 'kept for the next drill',
       });
 
       const off = await grantedPost(admin, '/v1/admin/ops/p13/pilot/flag', {
-        enabled: false, description: 'http spec drill over',
+        enabled: false,
+        description: 'http spec drill over',
       });
       expect(off['enforced']).toBe(false);
       expect(off['flagEnabled']).toBe(false);
@@ -1184,7 +1279,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       expect(pilot.body['enabledCount']).toBe(1);
 
       const res = await req('POST', '/v1/returns', {
-        token: await mint('BUYER', orgA, { sub: buyerA }), body: gateProbeBody(orderA),
+        token: await mint('BUYER', orgA, { sub: buyerA }),
+        body: gateProbeBody(orderA),
       });
       expect(res.status).toBe(400); // legacy behaviour restored
 
@@ -1194,7 +1290,9 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       );
       expect(rows.map((row: { action: string }) => row.action)).toEqual(
         expect.arrayContaining([
-          'p13.pilot.enable', 'p13.pilot.allowlist.add', 'p13.pilot.disable',
+          'p13.pilot.enable',
+          'p13.pilot.allowlist.add',
+          'p13.pilot.disable',
         ]),
       );
     });

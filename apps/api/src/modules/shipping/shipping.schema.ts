@@ -1,6 +1,16 @@
 import {
-  pgTable, uuid, varchar, char, text, integer, bigint, boolean,
-  jsonb, timestamp, numeric, uniqueIndex,
+  pgTable,
+  uuid,
+  varchar,
+  char,
+  text,
+  integer,
+  bigint,
+  boolean,
+  jsonb,
+  timestamp,
+  numeric,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { stores } from '../merchant/merchant.schema';
@@ -33,7 +43,9 @@ import { shipments } from '../orders/shipment.schema';
 
 export const shippingMethods = pgTable('shipping_methods', {
   id: uuid('id').primaryKey(),
-  storeId: uuid('store_id').notNull().references(() => stores.id),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id),
   key: varchar('key', { length: 60 }),
   name: varchar('name', { length: 80 }).notNull(),
   description: text('description'),
@@ -59,7 +71,9 @@ export const shippingMethods = pgTable('shipping_methods', {
 
 export const deliveryZones = pgTable('delivery_zones', {
   id: uuid('id').primaryKey(),
-  storeId: uuid('store_id').notNull().references(() => stores.id),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id),
   name: varchar('name', { length: 120 }).notNull(),
   type: varchar('type', { length: 24 }).notNull().default('CITY'),
   city: varchar('city', { length: 120 }),
@@ -74,20 +88,30 @@ export const deliveryZones = pgTable('delivery_zones', {
 
 // ── Delivery Zone ↔ Shipping Method ─────────────────────────────────────────
 
-export const deliveryZoneMethods = pgTable('delivery_zone_methods', {
-  zoneId: uuid('zone_id').notNull().references(() => deliveryZones.id),
-  shippingMethodId: uuid('shipping_method_id').notNull().references(() => shippingMethods.id),
-  overrideFeeMinor: bigint('override_fee_minor', { mode: 'number' }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  pk: { primaryKey: true, columns: [table.zoneId, table.shippingMethodId] } as any,
-}));
+export const deliveryZoneMethods = pgTable(
+  'delivery_zone_methods',
+  {
+    zoneId: uuid('zone_id')
+      .notNull()
+      .references(() => deliveryZones.id),
+    shippingMethodId: uuid('shipping_method_id')
+      .notNull()
+      .references(() => shippingMethods.id),
+    overrideFeeMinor: bigint('override_fee_minor', { mode: 'number' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: { primaryKey: true, columns: [table.zoneId, table.shippingMethodId] } as any,
+  }),
+);
 
 // ── Shipment Labels ─────────────────────────────────────────────────────────
 
 export const shipmentLabels = pgTable('shipment_labels', {
   id: uuid('id').primaryKey(),
-  shipmentId: uuid('shipment_id').notNull().references(() => shipments.id),
+  shipmentId: uuid('shipment_id')
+    .notNull()
+    .references(() => shipments.id),
   labelNumber: varchar('label_number', { length: 120 }),
   storageKey: varchar('storage_key', { length: 500 }).notNull(),
   mimeType: varchar('mime_type', { length: 80 }).notNull().default('application/pdf'),
@@ -104,7 +128,9 @@ export const shipmentLabels = pgTable('shipment_labels', {
 
 export const deliveryProofs = pgTable('delivery_proofs', {
   id: uuid('id').primaryKey(),
-  shipmentId: uuid('shipment_id').notNull().references(() => shipments.id),
+  shipmentId: uuid('shipment_id')
+    .notNull()
+    .references(() => shipments.id),
   photoUrl: varchar('photo_url', { length: 500 }),
   signatureUrl: varchar('signature_url', { length: 500 }),
   receiverName: varchar('receiver_name', { length: 120 }),
@@ -118,8 +144,12 @@ export const deliveryProofs = pgTable('delivery_proofs', {
 
 export const driverProfiles = pgTable('driver_profiles', {
   id: uuid('id').primaryKey(),
-  userId: uuid('user_id').notNull().references(() => users.id),
-  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => organizations.id),
   vehicleType: varchar('vehicle_type', { length: 40 }),
   licenseNumber: varchar('license_number', { length: 80 }),
   isActive: boolean('is_active').notNull().default(true),
@@ -133,38 +163,52 @@ export const driverProfiles = pgTable('driver_profiles', {
 
 // ── Driver ↔ Store Assignments (relational) ─────────────────────────────────
 
-export const driverStoreAssignments = pgTable('driver_store_assignments', {
-  driverProfileId: uuid('driver_profile_id').notNull().references(() => driverProfiles.id),
-  storeId: uuid('store_id').notNull().references(() => stores.id),
-  assignedAt: timestamp('assigned_at', { withTimezone: true }).notNull().defaultNow(),
-}, (table) => ({
-  pk: { primaryKey: true, columns: [table.driverProfileId, table.storeId] } as any,
-}));
+export const driverStoreAssignments = pgTable(
+  'driver_store_assignments',
+  {
+    driverProfileId: uuid('driver_profile_id')
+      .notNull()
+      .references(() => driverProfiles.id),
+    storeId: uuid('store_id')
+      .notNull()
+      .references(() => stores.id),
+    assignedAt: timestamp('assigned_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: { primaryKey: true, columns: [table.driverProfileId, table.storeId] } as any,
+  }),
+);
 
 // ── Carrier Webhook Events (inbound dedup) ──────────────────────────────────
 
-export const carrierWebhookEvents = pgTable('carrier_webhook_events', {
-  id: uuid('id').primaryKey(),
-  providerKey: varchar('provider_key', { length: 40 }).notNull(),
-  // Nullable only for legacy rows; all newly ingested events bind the exact
-  // credential that verified the HMAC signature.
-  credentialId: uuid('credential_id').references(() => carrierCredentials.id, { onDelete: 'restrict' }),
-  eventType: varchar('event_type', { length: 80 }).notNull(),
-  externalDeliveryId: varchar('external_delivery_id', { length: 200 }).notNull(),
-  shipmentId: uuid('shipment_id').references(() => shipments.id),
-  payload: jsonb('payload').notNull().default({}),
-  processed: boolean('processed').notNull().default(false),
-  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
-  // M7.2.3-A webhook security metadata (0043)
-  signatureValid: boolean('signature_valid'),
-  rawBody: text('raw_body'),
-  processedAt: timestamp('processed_at', { withTimezone: true }),
-  processingError: text('processing_error'),
-}, (table) => ({
-  credentialExternalUnique: uniqueIndex('uq_carrier_webhook_dedup_credential')
-    .on(table.credentialId, table.externalDeliveryId)
-    .where(sql`${table.credentialId} IS NOT NULL`),
-}));
+export const carrierWebhookEvents = pgTable(
+  'carrier_webhook_events',
+  {
+    id: uuid('id').primaryKey(),
+    providerKey: varchar('provider_key', { length: 40 }).notNull(),
+    // Nullable only for legacy rows; all newly ingested events bind the exact
+    // credential that verified the HMAC signature.
+    credentialId: uuid('credential_id').references(() => carrierCredentials.id, {
+      onDelete: 'restrict',
+    }),
+    eventType: varchar('event_type', { length: 80 }).notNull(),
+    externalDeliveryId: varchar('external_delivery_id', { length: 200 }).notNull(),
+    shipmentId: uuid('shipment_id').references(() => shipments.id),
+    payload: jsonb('payload').notNull().default({}),
+    processed: boolean('processed').notNull().default(false),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+    // M7.2.3-A webhook security metadata (0043)
+    signatureValid: boolean('signature_valid'),
+    rawBody: text('raw_body'),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    processingError: text('processing_error'),
+  },
+  (table) => ({
+    credentialExternalUnique: uniqueIndex('uq_carrier_webhook_dedup_credential')
+      .on(table.credentialId, table.externalDeliveryId)
+      .where(sql`${table.credentialId} IS NOT NULL`),
+  }),
+);
 
 // ── Carrier Credentials (M7.2.3-A, 0043) ────────────────────────────────────
 // Encrypted per-org carrier API credentials.  Plaintext secrets are NEVER
@@ -172,7 +216,9 @@ export const carrierWebhookEvents = pgTable('carrier_webhook_events', {
 
 export const carrierCredentials = pgTable('carrier_credentials', {
   id: uuid('id').primaryKey(),
-  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => organizations.id),
   providerKey: varchar('provider_key', { length: 40 }).notNull(),
   environment: varchar('environment', { length: 16 }).notNull().default('sandbox'),
   label: varchar('label', { length: 120 }).notNull(),
@@ -193,8 +239,12 @@ export const carrierCredentials = pgTable('carrier_credentials', {
 
 export const carrierConfigurations = pgTable('carrier_configurations', {
   id: uuid('id').primaryKey(),
-  orgId: uuid('org_id').notNull().references(() => organizations.id),
-  credentialId: uuid('credential_id').notNull().references(() => carrierCredentials.id),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => organizations.id),
+  credentialId: uuid('credential_id')
+    .notNull()
+    .references(() => carrierCredentials.id),
   storeId: uuid('store_id').references(() => stores.id),
   providerKey: varchar('provider_key', { length: 40 }).notNull(),
   defaultServiceCode: varchar('default_service_code', { length: 40 }),

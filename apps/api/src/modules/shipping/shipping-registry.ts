@@ -40,7 +40,9 @@ export class ShippingProviderRegistry {
   getProvider(key: string): ShippingProvider {
     const provider = this.providers.get(key);
     if (!provider) {
-      throw new Error(`Unknown shipping provider: '${key}'. Registered: [${this.listProviderKeys().join(', ')}]`);
+      throw new Error(
+        `Unknown shipping provider: '${key}'. Registered: [${this.listProviderKeys().join(', ')}]`,
+      );
     }
     return provider;
   }

@@ -15,12 +15,10 @@ function readResetAuthorization(connectionString: string): {
   expectedDatabase: string;
 } {
   const environment = process.env['SCS_ENVIRONMENT']?.trim().toLowerCase();
-  if (
-    environment !== 'development' &&
-    environment !== 'test' &&
-    environment !== 'staging'
-  ) {
-    throw new Error('SCS_ENVIRONMENT must explicitly be development, test or staging; production is never allowed.');
+  if (environment !== 'development' && environment !== 'test' && environment !== 'staging') {
+    throw new Error(
+      'SCS_ENVIRONMENT must explicitly be development, test or staging; production is never allowed.',
+    );
   }
 
   const expectedDatabase = process.env['SCS_DB_RESET_DATABASE']?.trim();
@@ -40,8 +38,7 @@ function readResetAuthorization(connectionString: string): {
 
   if (
     environment === 'staging' &&
-    process.env['SCS_STAGING_RESET_APPROVAL'] !==
-      'I_APPROVE_STAGING_RESET:' + expectedDatabase
+    process.env['SCS_STAGING_RESET_APPROVAL'] !== 'I_APPROVE_STAGING_RESET:' + expectedDatabase
   ) {
     throw new Error('Staging reset requires the separate SCS_STAGING_RESET_APPROVAL confirmation.');
   }
@@ -83,7 +80,9 @@ async function main(): Promise<void> {
     `);
     const actualDatabase = identity.rows[0]?.current_database;
     if (actualDatabase !== authorization.expectedDatabase) {
-      throw new Error('Connected database does not match SCS_DB_RESET_DATABASE; refusing destructive reset.');
+      throw new Error(
+        'Connected database does not match SCS_DB_RESET_DATABASE; refusing destructive reset.',
+      );
     }
 
     console.log('\n=== TAIF Database Reset — explicit authorization required ===');

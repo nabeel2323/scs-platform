@@ -22,7 +22,14 @@
  * This is the "recovery path" complement to webhooks (the "fast path").
  */
 
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { eq, and, sql, isNull } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { ShippingProviderRegistry } from './shipping-registry';
@@ -122,7 +129,7 @@ export function trackingEventFingerprint(
   const str = parts.join('|');
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash |= 0; // Convert to 32-bit int
   }
   return `fp-${Math.abs(hash).toString(36)}`;
@@ -253,7 +260,10 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
     if (!this.circuitBreaker.canRequest(cbScope)) return;
 
     try {
-      const trackingInfo = await provider.getTrackingInfo(shipment.carrierTrackingId, shipment.store_id);
+      const trackingInfo = await provider.getTrackingInfo(
+        shipment.carrierTrackingId,
+        shipment.store_id,
+      );
       this.circuitBreaker.recordSuccess(cbScope);
 
       // ── M7.3-B.3.4 (C6 / BD-3.4-04 / BD-3.4-05): DELIVERED_AFTER_CANCEL ──
@@ -330,12 +340,9 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
           .set({ lastCarrierSyncAt: new Date(), updatedAt: new Date() })
           .where(eq(shipments.id, shipment.id));
       }
-
     } catch (err: any) {
       this.circuitBreaker.recordFailure(cbScope);
-      this.logger.error(
-        `Tracking poll failed for shipment ${shipment.id}: ${err?.message}`,
-      );
+      this.logger.error(`Tracking poll failed for shipment ${shipment.id}: ${err?.message}`);
     }
   }
 
@@ -365,8 +372,8 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
 
     this.logger.warn(
       `Shipment ${shipmentId} — carrier reports DELIVERED after SCS cancellation ` +
-      `(carrier_cancel_status=${cancelStatus}). Recording DELIVERED_AFTER_CANCEL exception; ` +
-      `order state, shipment status and inventory are NOT modified.`,
+        `(carrier_cancel_status=${cancelStatus}). Recording DELIVERED_AFTER_CANCEL exception; ` +
+        `order state, shipment status and inventory are NOT modified.`,
     );
 
     // 1. Append the exception event (admin-visible audit record).
@@ -426,7 +433,13 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
   private async processTrackingEvent(
     shipment: any,
     providerKey: string,
-    event: { timestamp: string; status: string; carrierStatus?: string; location?: string; description?: string },
+    event: {
+      timestamp: string;
+      status: string;
+      carrierStatus?: string;
+      location?: string;
+      description?: string;
+    },
   ): Promise<void> {
     const externalId = event.carrierStatus || null;
     const fingerprint = trackingEventFingerprint(
@@ -441,7 +454,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
     if (!canTransition(shipment.carrierStatusMapped, event.status)) {
       this.logger.log(
         `Tracking event ${event.status} would move shipment ${shipment.id} backward ` +
-        `(current: ${shipment.carrierStatusMapped}) — persisting as metadata only.`,
+          `(current: ${shipment.carrierStatusMapped}) — persisting as metadata only.`,
       );
       // Still persist the raw event but don't advance status
     }

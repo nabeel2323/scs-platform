@@ -24,7 +24,10 @@ let timer: ReturnType<typeof setTimeout> | null = null;
 
 /** Flush buffered events to the API. Silently drops on failure. */
 function flush() {
-  if (timer) { clearTimeout(timer); timer = null; }
+  if (timer) {
+    clearTimeout(timer);
+    timer = null;
+  }
   if (buffer.length === 0) return;
 
   const batch = buffer.splice(0, MAX_BATCH);
@@ -32,11 +35,12 @@ function flush() {
   if (buffer.length > 0) scheduleFlush();
 
   const first = batch[0]!;
-  const body = batch.length === 1
-    ? JSON.stringify({ eventType: first.eventType, properties: first.properties })
-    : JSON.stringify({
-      events: batch.map(e => ({ eventType: e.eventType, properties: e.properties })),
-    });
+  const body =
+    batch.length === 1
+      ? JSON.stringify({ eventType: first.eventType, properties: first.properties })
+      : JSON.stringify({
+          events: batch.map((e) => ({ eventType: e.eventType, properties: e.properties })),
+        });
 
   const path = batch.length === 1 ? '/v1/analytics/track' : '/v1/analytics/track/batch';
 
@@ -45,7 +49,9 @@ function flush() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body,
-  }).catch(() => { /* analytics failures are silent */ });
+  }).catch(() => {
+    /* analytics failures are silent */
+  });
 }
 
 function scheduleFlush() {
@@ -60,7 +66,10 @@ function scheduleFlush() {
  */
 export function trackEvent(eventType: string, properties?: Record<string, unknown>) {
   buffer.push({ eventType, properties });
-  if (buffer.length >= MAX_BATCH) { flush(); return; }
+  if (buffer.length >= MAX_BATCH) {
+    flush();
+    return;
+  }
   scheduleFlush();
 }
 
@@ -71,7 +80,11 @@ export const analytics = {
     trackEvent('product_viewed', { product_id: productId, store_id: storeId, title });
   },
   variantSelected(productId: string, variantId: string, dimensionValues: Record<string, string>) {
-    trackEvent('variant_selected', { product_id: productId, variant_id: variantId, ...dimensionValues });
+    trackEvent('variant_selected', {
+      product_id: productId,
+      variant_id: variantId,
+      ...dimensionValues,
+    });
   },
   offerViewed(productId: string, offerCount: number) {
     trackEvent('offer_viewed', { product_id: productId, offer_count: offerCount });

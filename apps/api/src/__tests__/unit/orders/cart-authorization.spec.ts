@@ -15,27 +15,65 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 // ── Mock Helpers ──────────────────────────────────────────────────
 
-function createMockDb(overrides: {
-  cart?: any;
-  cartItem?: any;
-  variant?: any;
-  product?: any;
-  offer?: any;
-} = {}) {
-  const cart = overrides.cart ?? { id: 'cart-1', userId: 'user-a', status: 'ACTIVE', totalMinor: 0 };
-  const cartItem = overrides.cartItem ?? { id: 'ci-1', cartId: 'cart-1', storeId: 'store-1', variantId: 'v-1', quantity: 1, priceMinor: 100, lineTotalMinor: 100 };
+function createMockDb(
+  overrides: {
+    cart?: any;
+    cartItem?: any;
+    variant?: any;
+    product?: any;
+    offer?: any;
+  } = {},
+) {
+  const cart = overrides.cart ?? {
+    id: 'cart-1',
+    userId: 'user-a',
+    status: 'ACTIVE',
+    totalMinor: 0,
+  };
+  const cartItem = overrides.cartItem ?? {
+    id: 'ci-1',
+    cartId: 'cart-1',
+    storeId: 'store-1',
+    variantId: 'v-1',
+    quantity: 1,
+    priceMinor: 100,
+    lineTotalMinor: 100,
+  };
 
   return {
     db: {
       query: {
         carts: { findFirst: vi.fn(async () => cart) },
         cartItems: { findFirst: vi.fn(async () => cartItem) },
-        productVariants: { findFirst: vi.fn(async () => overrides.variant ?? { id: 'v-1', productId: 'p-1', isActive: true, sku: 'SKU-1', title: 'Test' }) },
-        products: { findFirst: vi.fn(async () => overrides.product ?? { id: 'p-1', storeId: 'store-1', title: 'Test Product', moq: 1 }) },
-        merchantOffers: { findFirst: vi.fn(async () => overrides.offer ? { isAvailable: true, ...overrides.offer } : null) },
+        productVariants: {
+          findFirst: vi.fn(
+            async () =>
+              overrides.variant ?? {
+                id: 'v-1',
+                productId: 'p-1',
+                isActive: true,
+                sku: 'SKU-1',
+                title: 'Test',
+              },
+          ),
+        },
+        products: {
+          findFirst: vi.fn(
+            async () =>
+              overrides.product ?? { id: 'p-1', storeId: 'store-1', title: 'Test Product', moq: 1 },
+          ),
+        },
+        merchantOffers: {
+          findFirst: vi.fn(async () =>
+            overrides.offer ? { isAvailable: true, ...overrides.offer } : null,
+          ),
+        },
       },
       insert: vi.fn(async () => undefined),
-      update: vi.fn(() => ({ set: vi.fn(async () => undefined), where: vi.fn(async () => undefined) })),
+      update: vi.fn(() => ({
+        set: vi.fn(async () => undefined),
+        where: vi.fn(async () => undefined),
+      })),
       delete: vi.fn(async () => undefined),
       select: vi.fn(() => ({
         from: vi.fn(() => ({
@@ -67,11 +105,19 @@ function createService(db: any) {
 // ── Cart Ownership Tests ──────────────────────────────────────────
 
 describe('Cart Authorization — Ownership Enforcement', () => {
-  it('updateItemQuantity rejects item from another user\'s cart', async () => {
+  it("updateItemQuantity rejects item from another user's cart", async () => {
     // User A's cart
     const cart = { id: 'cart-a', userId: 'user-a', status: 'ACTIVE', totalMinor: 0 };
     // Item belongs to cart-b (User B's cart)
-    const cartItem = { id: 'ci-b', cartId: 'cart-b', storeId: 'store-1', variantId: 'v-1', quantity: 1, priceMinor: 100, lineTotalMinor: 100 };
+    const cartItem = {
+      id: 'ci-b',
+      cartId: 'cart-b',
+      storeId: 'store-1',
+      variantId: 'v-1',
+      quantity: 1,
+      priceMinor: 100,
+      lineTotalMinor: 100,
+    };
 
     const db = createMockDb({ cart, cartItem });
     // getOrCreateCart returns User A's cart
@@ -82,13 +128,22 @@ describe('Cart Authorization — Ownership Enforcement', () => {
     const service = createService(db);
 
     // User A tries to update User B's cart item
-    await expect(service.updateItemQuantity('user-a', 'ci-b', 5))
-      .rejects.toThrow('Item does not belong to your cart');
+    await expect(service.updateItemQuantity('user-a', 'ci-b', 5)).rejects.toThrow(
+      'Item does not belong to your cart',
+    );
   });
 
-  it('removeItem rejects item from another user\'s cart', async () => {
+  it("removeItem rejects item from another user's cart", async () => {
     const cart = { id: 'cart-a', userId: 'user-a', status: 'ACTIVE', totalMinor: 0 };
-    const cartItem = { id: 'ci-b', cartId: 'cart-b', storeId: 'store-1', variantId: 'v-1', quantity: 1, priceMinor: 100, lineTotalMinor: 100 };
+    const cartItem = {
+      id: 'ci-b',
+      cartId: 'cart-b',
+      storeId: 'store-1',
+      variantId: 'v-1',
+      quantity: 1,
+      priceMinor: 100,
+      lineTotalMinor: 100,
+    };
 
     const db = createMockDb({ cart, cartItem });
     db.db.query.carts.findFirst.mockResolvedValue(cart);
@@ -96,8 +151,9 @@ describe('Cart Authorization — Ownership Enforcement', () => {
 
     const service = createService(db);
 
-    await expect(service.removeItem('user-a', 'ci-b'))
-      .rejects.toThrow('Item does not belong to your cart');
+    await expect(service.removeItem('user-a', 'ci-b')).rejects.toThrow(
+      'Item does not belong to your cart',
+    );
   });
 });
 
@@ -109,7 +165,9 @@ describe('Cart Authorization — Client Price Not Trusted', () => {
     const service = createService(db);
 
     // Mock resolveOfferPrices to return authoritative price
-    const resolvePricesMock = vi.fn(async () => new Map([['v-1', { unitPriceMinor: 500, minQty: 1, offerId: 'offer-1' }]]));
+    const resolvePricesMock = vi.fn(
+      async () => new Map([['v-1', { unitPriceMinor: 500, minQty: 1, offerId: 'offer-1' }]]),
+    );
 
     // Override the module's resolveOfferPrices by mocking the import
     // Since we can't easily mock the import, we verify the service doesn't accept priceMinor in input
@@ -147,31 +205,51 @@ describe('Cart Authorization — Client StoreId Not Trusted', () => {
 describe('Cart Authorization — Offer Validation', () => {
   it('addItem rejects inactive offer', async () => {
     const db = createMockDb({
-      offer: { id: 'offer-1', status: 'SUSPENDED', storeId: 'store-1', variantId: 'v-1', productId: null },
+      offer: {
+        id: 'offer-1',
+        status: 'SUSPENDED',
+        storeId: 'store-1',
+        variantId: 'v-1',
+        productId: null,
+      },
     });
 
     const service = createService(db);
 
-    await expect(service.addItem('user-a', { variantId: 'v-1', quantity: 1, offerId: 'offer-1' }))
-      .rejects.toThrow('This offer is no longer active');
+    await expect(
+      service.addItem('user-a', { variantId: 'v-1', quantity: 1, offerId: 'offer-1' }),
+    ).rejects.toThrow('This offer is no longer active');
   });
 
-  it('addItem rejects offer that doesn\'t match variant or product', async () => {
+  it("addItem rejects offer that doesn't match variant or product", async () => {
     const db = createMockDb({
-      offer: { id: 'offer-1', status: 'ACTIVE', storeId: 'store-1', variantId: 'v-other', productId: 'p-other' },
+      offer: {
+        id: 'offer-1',
+        status: 'ACTIVE',
+        storeId: 'store-1',
+        variantId: 'v-other',
+        productId: 'p-other',
+      },
     });
 
     const service = createService(db);
 
-    await expect(service.addItem('user-a', { variantId: 'v-1', quantity: 1, offerId: 'offer-1' }))
-      .rejects.toThrow('The selected offer does not apply to this item');
+    await expect(
+      service.addItem('user-a', { variantId: 'v-1', quantity: 1, offerId: 'offer-1' }),
+    ).rejects.toThrow('The selected offer does not apply to this item');
   });
 
   it('addItem accepts product-level offer for any variant of that product', async () => {
     const db = createMockDb({
       variant: { id: 'v-1', productId: 'p-1', isActive: true, sku: 'SKU-1', title: 'Test' },
       product: { id: 'p-1', storeId: null, title: 'Canonical Product', moq: 1 }, // Canonical product has no store
-      offer: { id: 'offer-1', status: 'ACTIVE', storeId: 'store-1', variantId: null, productId: 'p-1' }, // Product-level offer
+      offer: {
+        id: 'offer-1',
+        status: 'ACTIVE',
+        storeId: 'store-1',
+        variantId: null,
+        productId: 'p-1',
+      }, // Product-level offer
     });
 
     // This should succeed because the offer matches the product

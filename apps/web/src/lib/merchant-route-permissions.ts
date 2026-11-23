@@ -65,17 +65,12 @@ export function merchantRoutePermission(pathname: string): string | null {
   return MERCHANT_ROUTE_RULES.find(([prefix]) => matchesRoute(pathname, prefix))?.[1] ?? null;
 }
 
-export function canAccessMerchantRoute(
-  pathname: string,
-  permissions: readonly string[],
-): boolean {
+export function canAccessMerchantRoute(pathname: string, permissions: readonly string[]): boolean {
   const required = merchantRoutePermission(pathname);
   return required === null || permissions.includes(required);
 }
 
-export function filterMerchantNavigation(
-  permissions: readonly string[],
-): MerchantNavigationItem[] {
+export function filterMerchantNavigation(permissions: readonly string[]): MerchantNavigationItem[] {
   return MERCHANT_NAV_ITEMS.filter(
     (item) => item.permission === null || permissions.includes(item.permission),
   );

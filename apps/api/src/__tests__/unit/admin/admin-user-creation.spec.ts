@@ -8,19 +8,27 @@ function buildTxMock(createdUser: any) {
   return { insert, returning };
 }
 
-function createMocks(opts: {
-  existingEmail?: any;
-  existingPhone?: any;
-  org?: any;
-  role?: any;
-  createdUser?: any;
-} = {}) {
+function createMocks(
+  opts: {
+    existingEmail?: any;
+    existingPhone?: any;
+    org?: any;
+    role?: any;
+    createdUser?: any;
+  } = {},
+) {
   const findFirstUser = vi.fn().mockResolvedValue(opts.existingEmail ?? undefined);
   const findFirstOrg = vi.fn().mockResolvedValue(opts.org ?? undefined);
   const findFirstRole = vi.fn().mockResolvedValue(opts.role ?? undefined);
-  const tx = buildTxMock(opts.createdUser ?? { id: 'user-new', email: 'user@example.com', status: 'ACTIVE' });
+  const tx = buildTxMock(
+    opts.createdUser ?? { id: 'user-new', email: 'user@example.com', status: 'ACTIVE' },
+  );
   const transaction = vi.fn(async (callback: any) => callback(tx));
-  const audit = { record: vi.fn().mockResolvedValue(undefined), logger: { error: vi.fn(), log: vi.fn(), warn: vi.fn() } as any, db: {} as any };
+  const audit = {
+    record: vi.fn().mockResolvedValue(undefined),
+    logger: { error: vi.fn(), log: vi.fn(), warn: vi.fn() } as any,
+    db: {} as any,
+  };
   const db: any = {
     db: {
       query: {
@@ -29,7 +37,7 @@ function createMocks(opts: {
         roles: { findFirst: findFirstRole },
       },
       transaction,
-    }
+    },
   };
   return { db, findFirstUser, findFirstOrg, findFirstRole, tx, audit, transaction };
 }
@@ -92,32 +100,41 @@ describe('AdminService.createUser', () => {
 
   it('throws NotFoundException when org is missing', async () => {
     mocks.findFirstOrg.mockResolvedValue(undefined);
-    await expect(service.createUser({ ...baseDto, orgId: 'org-missing' }, 'admin-1')).rejects.toThrow(NotFoundException);
+    await expect(
+      service.createUser({ ...baseDto, orgId: 'org-missing' }, 'admin-1'),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('throws NotFoundException when role is missing', async () => {
     mocks.findFirstRole.mockResolvedValue(undefined);
-    await expect(service.createUser({ ...baseDto, roleId: 'role-missing' }, 'admin-1')).rejects.toThrow(NotFoundException);
+    await expect(
+      service.createUser({ ...baseDto, roleId: 'role-missing' }, 'admin-1'),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('rejects an organization without a role instead of silently creating an unassigned user', async () => {
-    await expect(service.createUser({ ...baseDto, roleId: undefined }, 'admin-1')).rejects.toThrow(BadRequestException);
+    await expect(service.createUser({ ...baseDto, roleId: undefined }, 'admin-1')).rejects.toThrow(
+      BadRequestException,
+    );
     expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.audit.record).not.toHaveBeenCalled();
   });
 
   it('rejects a role without an organization instead of silently dropping the role', async () => {
-    await expect(service.createUser({ ...baseDto, orgId: undefined }, 'admin-1')).rejects.toThrow(BadRequestException);
+    await expect(service.createUser({ ...baseDto, orgId: undefined }, 'admin-1')).rejects.toThrow(
+      BadRequestException,
+    );
     expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.audit.record).not.toHaveBeenCalled();
   });
 
   it('creates user without membership when orgId/roleId omitted', async () => {
     mocks.findFirstUser.mockResolvedValue(undefined);
-    const result = await service.createUser({ ...baseDto, orgId: undefined, roleId: undefined, phone: undefined }, 'admin-1');
+    const result = await service.createUser(
+      { ...baseDto, orgId: undefined, roleId: undefined, phone: undefined },
+      'admin-1',
+    );
     expect(result.email).toBe('user@example.com');
     expect(mocks.tx.insert).toHaveBeenCalledTimes(1);
   });
 });
-
-

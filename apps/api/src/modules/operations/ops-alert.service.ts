@@ -122,14 +122,12 @@ export class OpsAlertService {
     return this.insertNew(input, dedupKey);
   }
 
-  private async insertNew(
-    input: OpsAlertInput,
-    dedupKey: string,
-  ): Promise<OpsAlertResult> {
+  private async insertNew(input: OpsAlertInput, dedupKey: string): Promise<OpsAlertResult> {
     const id = randomUUID();
     let inserted = false;
     try {
-      const rows = readRows<{ id: string }>(await this.db.db.execute(sql`
+      const rows = readRows<{ id: string }>(
+        await this.db.db.execute(sql`
         INSERT INTO ops_alerts (
           id, dedup_key, condition_key, severity, title, detail, status,
           fire_count, suppressed_count, attempt_count, org_id,
@@ -144,7 +142,8 @@ export class OpsAlertService {
         )
         ON CONFLICT (dedup_key) DO NOTHING
         RETURNING id
-      `));
+      `),
+      );
       inserted = rows.some((row) => row.id === id);
     } catch (err) {
       this.logger.debug(`Alert insert failed for ${dedupKey}: ${errMessage(err)}`);
@@ -196,7 +195,8 @@ export class OpsAlertService {
       row.status === 'PENDING' ||
       row.status === 'FAILED' ||
       row.status === 'SENDING' ||
-      (row.status === 'SENT' && pastRepeatWindow(row.delivered_at, this.config.alertRepeatWindowMs));
+      (row.status === 'SENT' &&
+        pastRepeatWindow(row.delivered_at, this.config.alertRepeatWindowMs));
 
     if (!needsDelivery) {
       await this.db.db.execute(sql`
@@ -224,7 +224,8 @@ export class OpsAlertService {
     deduped = false,
   ): Promise<OpsAlertResult> {
     const staleClaimMs = Math.max(60_000, this.config.alertDeliveryTimeoutMs * 2);
-    const claim = readRows<{ id: string }>(await this.db.db.execute(sql`
+    const claim = readRows<{ id: string }>(
+      await this.db.db.execute(sql`
       UPDATE ops_alerts
       SET status = 'SENDING', updated_at = now()
       WHERE id = ${alertId}
@@ -240,7 +241,8 @@ export class OpsAlertService {
           )
         )
       RETURNING id
-    `));
+    `),
+    );
 
     if (claim.length === 0) {
       const current = await this.findByDedupKey(dedupKey);
@@ -253,9 +255,11 @@ export class OpsAlertService {
       };
     }
 
-    const fireCountRow = firstRow<{ fire_count: number }>(await this.db.db.execute(sql`
+    const fireCountRow = firstRow<{ fire_count: number }>(
+      await this.db.db.execute(sql`
       SELECT fire_count FROM ops_alerts WHERE id = ${alertId}
-    `));
+    `),
+    );
     const fireCount = Number(fireCountRow?.fire_count ?? 1);
 
     if (!this.hasSink) {
@@ -292,9 +296,7 @@ export class OpsAlertService {
       const secret = this.config.alertWebhookSecret;
       if (!secret || secret.length < 32) {
         failure = 'signing secret missing or too short — unsigned delivery suppressed';
-        this.logger.error(
-          `[P13-ALERT] ${input.severity} ${input.conditionKey} — ${failure}`,
-        );
+        this.logger.error(`[P13-ALERT] ${input.severity} ${input.conditionKey} — ${failure}`);
         // Jump to the FAILED persistence path without making a network request.
         throw new UnsignedDeliverySuppressedError(failure);
       }
@@ -304,16 +306,12 @@ export class OpsAlertService {
       try {
         const timestamp = Math.floor(Date.now() / 1000);
         const canonical = `${timestamp}.${body}`;
-        const signature = createHmac('sha256', secret)
-          .update(canonical, 'utf-8')
-          .digest('hex');
+        const signature = createHmac('sha256', secret).update(canonical, 'utf-8').digest('hex');
         headers['x-scs-alert-signature'] = `sha256=${signature}`;
         headers['x-scs-alert-timestamp'] = String(timestamp);
       } catch (signErr) {
         failure = `signing failed — unsigned delivery suppressed: ${errMessage(signErr)}`;
-        this.logger.error(
-          `[P13-ALERT] ${input.severity} ${input.conditionKey} — ${failure}`,
-        );
+        this.logger.error(`[P13-ALERT] ${input.severity} ${input.conditionKey} — ${failure}`);
         throw new UnsignedDeliverySuppressedError(failure);
       }
 
@@ -415,17 +413,20 @@ export class OpsAlertService {
   }
 
   async findByDedupKey(dedupKey: string): Promise<OpsAlertRecord | null> {
-    const row = firstRow<OpsAlertRecord>(await this.db.db.execute(sql`
+    const row = firstRow<OpsAlertRecord>(
+      await this.db.db.execute(sql`
       SELECT ${ALERT_COLUMNS}
       FROM ops_alerts
       WHERE dedup_key = ${dedupKey}
-    `));
+    `),
+    );
     return row ?? null;
   }
 
   /** Alerts that still need operator attention. */
   async listOpen(limit = 50): Promise<OpsAlertRecord[]> {
-    const rows = readRows<OpsAlertRecord>(await this.db.db.execute(sql`
+    const rows = readRows<OpsAlertRecord>(
+      await this.db.db.execute(sql`
       SELECT ${ALERT_COLUMNS}
       FROM ops_alerts
       WHERE status IN ('PENDING', 'SENDING', 'SENT', 'FAILED')
@@ -433,18 +434,21 @@ export class OpsAlertService {
         CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'WARN' THEN 1 ELSE 2 END,
         last_observed_at DESC
       LIMIT ${limit}
-    `));
+    `),
+    );
     return rows;
   }
 
   async listByCondition(conditionKey: string, limit = 50): Promise<OpsAlertRecord[]> {
-    const rows = readRows<OpsAlertRecord>(await this.db.db.execute(sql`
+    const rows = readRows<OpsAlertRecord>(
+      await this.db.db.execute(sql`
       SELECT ${ALERT_COLUMNS}
       FROM ops_alerts
       WHERE condition_key = ${conditionKey}
       ORDER BY last_observed_at DESC
       LIMIT ${limit}
-    `));
+    `),
+    );
     return rows;
   }
 
@@ -454,11 +458,13 @@ export class OpsAlertService {
     counters: ReturnType<typeof opsCounterSnapshot>;
     channel: string;
   }> {
-    const rows = readRows<{ status: string; cnt: number }>(await this.db.db.execute(sql`
+    const rows = readRows<{ status: string; cnt: number }>(
+      await this.db.db.execute(sql`
       SELECT status, COUNT(*)::int AS cnt
       FROM ops_alerts
       GROUP BY status
-    `));
+    `),
+    );
     const alerts: Record<string, number> = {};
     for (const row of rows) alerts[row.status] = Number(row.cnt);
 

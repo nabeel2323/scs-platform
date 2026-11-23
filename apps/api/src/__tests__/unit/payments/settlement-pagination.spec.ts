@@ -33,8 +33,12 @@ describe('settlement pagination contract', () => {
   });
 
   it('validates internal service paging input rather than silently coercing it', () => {
-    expect(() => normalizeSettlementPagination({ limit: 0, offset: 0 })).toThrow(BadRequestException);
-    expect(() => normalizeSettlementPagination({ limit: 25, offset: -1 })).toThrow(BadRequestException);
+    expect(() => normalizeSettlementPagination({ limit: 0, offset: 0 })).toThrow(
+      BadRequestException,
+    );
+    expect(() => normalizeSettlementPagination({ limit: 25, offset: -1 })).toThrow(
+      BadRequestException,
+    );
   });
 });
 
@@ -54,7 +58,8 @@ describe('PaymentsService settlement list pagination', () => {
       innerJoin: vi.fn().mockReturnThis(),
       where: vi.fn().mockResolvedValue([{ total: '26' }]),
     };
-    const select = vi.fn()
+    const select = vi
+      .fn()
       .mockImplementationOnce(() => rowsQuery)
       .mockImplementationOnce(() => countQuery);
     const service = new PaymentsService({ db: { select } } as any, {} as any, {} as any);
@@ -86,12 +91,16 @@ describe('PaymentsService settlement list pagination', () => {
       from: vi.fn().mockReturnThis(),
       where: vi.fn().mockResolvedValue([{ total: '41' }]),
     };
-    const service = new PaymentsService({
-      db: {
-        query: { settlementRecords: { findMany } },
-        select: vi.fn().mockReturnValue(countQuery),
-      },
-    } as any, {} as any, {} as any);
+    const service = new PaymentsService(
+      {
+        db: {
+          query: { settlementRecords: { findMany } },
+          select: vi.fn().mockReturnValue(countQuery),
+        },
+      } as any,
+      {} as any,
+      {} as any,
+    );
 
     const result = await service.listSettlements({ status: 'DUE', limit: 10, offset: 30 });
 

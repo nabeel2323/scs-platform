@@ -10,15 +10,15 @@
 
 Run from the repository root after `pnpm install --frozen-lockfile`.
 
-| Command | Purpose | Notes |
-|---|---|---|
-| `pnpm lint` | ESLint across workspace packages | Required CI gate |
-| `pnpm typecheck` | TypeScript checks across workspace | Required CI gate |
-| `pnpm build` | Workspace production build | Required CI gate |
-| `pnpm format:check` | Full-repository Prettier validation | Advisory outside the PR workflow; the PR workflow runs blocking `pnpm format:check:changed` on all PR-changed files. CI #45245048568 reported 279 files and stopped downstream jobs; resolve this debt without disabling the required gate |
-| `pnpm boundary-lint` | Modular-monolith E6 boundary checker | Advisory in CI while known cross-module import debt remains |
-| `pnpm contracts:build` | Build API contract package | Required before web/admin contract tests |
-| `pnpm contracts:generate` | Generate TypeScript API client | Contract drift guard runs in CI |
+| Command                   | Purpose                              | Notes                                                                                                                                                                                                                                      |
+| ------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm lint`               | ESLint across workspace packages     | Required CI gate                                                                                                                                                                                                                           |
+| `pnpm typecheck`          | TypeScript checks across workspace   | Required CI gate                                                                                                                                                                                                                           |
+| `pnpm build`              | Workspace production build           | Required CI gate                                                                                                                                                                                                                           |
+| `pnpm format:check`       | Full-repository Prettier validation  | Advisory outside the PR workflow; the PR workflow runs blocking `pnpm format:check:changed` on all PR-changed files. CI #45245048568 reported 279 files and stopped downstream jobs; resolve this debt without disabling the required gate |
+| `pnpm boundary-lint`      | Modular-monolith E6 boundary checker | Advisory in CI while known cross-module import debt remains                                                                                                                                                                                |
+| `pnpm contracts:build`    | Build API contract package           | Required before web/admin contract tests                                                                                                                                                                                                   |
+| `pnpm contracts:generate` | Generate TypeScript API client       | Contract drift guard runs in CI                                                                                                                                                                                                            |
 
 ## 2. API tests
 
@@ -35,12 +35,12 @@ The migration-full-apply job uses isolated CI PostgreSQL. It is not evidence tha
 
 ## 3. Web, admin and mobile
 
-| Surface | Command | CI behavior / prerequisites |
-|---|---|---|
-| Web | `pnpm --filter @scs/web test` | Full Vitest suite; contract package built first |
-| Admin | `pnpm --filter @scs/admin test -- src/__tests__/hydration-document-root.test.tsx src/__tests__/global-styles.test.tsx src/__tests__/sidebar-styles.test.tsx src/__tests__/hydration-admin-clock.test.tsx src/__tests__/hydration-admin-session.test.tsx src/__tests__/hydration-admin-perms.test.tsx src/__tests__/admin-settlements-recovery.test.tsx src/__tests__/admin-settlement-adjustments-recovery.test.tsx` | CI currently runs this focused set; two unrelated management tests were baseline failures and remain tracked |
-| Flutter | `cd mobile && flutter pub get && flutter analyze && flutter test` | CI runs Flutter analyze and tests; mobile device/provider UAT is separate |
-| Flutter release build | `cd mobile && flutter build appbundle` | Run only for the explicitly selected release flavor/signing configuration; signing secrets are not part of ordinary PR CI |
+| Surface               | Command                                                                                                                                                                                                                                                                                                                                                                                                              | CI behavior / prerequisites                                                                                               |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Web                   | `pnpm --filter @scs/web test`                                                                                                                                                                                                                                                                                                                                                                                        | Full Vitest suite; contract package built first                                                                           |
+| Admin                 | `pnpm --filter @scs/admin test -- src/__tests__/hydration-document-root.test.tsx src/__tests__/global-styles.test.tsx src/__tests__/sidebar-styles.test.tsx src/__tests__/hydration-admin-clock.test.tsx src/__tests__/hydration-admin-session.test.tsx src/__tests__/hydration-admin-perms.test.tsx src/__tests__/admin-settlements-recovery.test.tsx src/__tests__/admin-settlement-adjustments-recovery.test.tsx` | CI currently runs this focused set; two unrelated management tests were baseline failures and remain tracked              |
+| Flutter               | `cd mobile && flutter pub get && flutter analyze && flutter test`                                                                                                                                                                                                                                                                                                                                                    | CI runs Flutter analyze and tests; mobile device/provider UAT is separate                                                 |
+| Flutter release build | `cd mobile && flutter build appbundle`                                                                                                                                                                                                                                                                                                                                                                               | Run only for the explicitly selected release flavor/signing configuration; signing secrets are not part of ordinary PR CI |
 
 ## 4. Contract, container and end-to-end tests
 
@@ -83,11 +83,9 @@ The migration-full-apply job uses isolated CI PostgreSQL. It is not evidence tha
 - The staging audit workflow is manually dispatchable only after it exists on the repository default branch; it checks out `develop` for the audit utility.
 - Provider sandbox credentials and a separate isolated staging database are not confirmed by this manifest.
 
-
 ### FIN-047 financial UI coverage
 
 The Admin CI job also runs `admin-settlements-recovery.test.tsx` and `admin-settlement-adjustments-recovery.test.tsx`. The broader Admin management suite remains outside this focused CI command because its two documented baseline failures are unrelated; this does not exclude settlement pagination and adjustment recovery regressions.
-
 
 ### Current PR formatter gate — 23 November 2026
 

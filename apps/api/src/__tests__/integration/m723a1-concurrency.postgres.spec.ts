@@ -40,7 +40,11 @@ import { randomUUID, randomBytes } from 'node:crypto';
 import { eq, and, sql } from 'drizzle-orm';
 import { shipments } from '../../modules/orders/shipment.schema';
 import { outboxEvents } from '../../modules/audit/audit.schema';
-import { carrierWebhookEvents, carrierCredentials, carrierConfigurations } from '../../modules/shipping/shipping.schema';
+import {
+  carrierWebhookEvents,
+  carrierCredentials,
+  carrierConfigurations,
+} from '../../modules/shipping/shipping.schema';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
@@ -75,32 +79,62 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
     db = drizzle(pool, { schema }) as any;
 
     // Run all migrations
-    const files = fs.readdirSync(MIGRATIONS_DIR)
-      .filter(f => f.endsWith('.sql') && !EXCLUDED.has(f))
+    const files = fs
+      .readdirSync(MIGRATIONS_DIR)
+      .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
       .sort();
-    await pool.query(`CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`);
+    await pool.query(
+      `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`,
+    );
     for (const file of files) {
       const sqlContent = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
       await pool.query('BEGIN');
-      try { await pool.query(sqlContent); await pool.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]); await pool.query('COMMIT'); }
-      catch { await pool.query('ROLLBACK'); }
+      try {
+        await pool.query(sqlContent);
+        await pool.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]);
+        await pool.query('COMMIT');
+      } catch {
+        await pool.query('ROLLBACK');
+      }
     }
 
     // Seed RBAC
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
     // Roles
     const rolesRes = await pool.query(`SELECT id, key FROM roles`);
     const roleById = new Map(rolesRes.rows.map((r: any) => [r.key, r.id] as const));
 
     // Create test org, users, store
-    await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org A', 'SA')`, [orgA]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant A', '+966500000001')`, [merchantA]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer', '+966500000099')`, [buyerUser]);
-    await pool.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), orgA, merchantA, roleById.get('MERCHANT_OWNER')]);
-    await pool.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), orgA, buyerUser, roleById.get('BUYER')]);
-    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a', 'Store A', 'APPROVED')`, [storeA, orgA]);
+    await pool.query(
+      `INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org A', 'SA')`,
+      [orgA],
+    );
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant A', '+966500000001')`,
+      [merchantA],
+    );
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer', '+966500000099')`,
+      [buyerUser],
+    );
+    await pool.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`,
+      [randomUUID(), orgA, merchantA, roleById.get('MERCHANT_OWNER')],
+    );
+    await pool.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`,
+      [randomUUID(), orgA, buyerUser, roleById.get('BUYER')],
+    );
+    await pool.query(
+      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a', 'Store A', 'APPROVED')`,
+      [storeA, orgA],
+    );
 
     // Create a master order + sub-order + shipment for testing
     await pool.query(
@@ -136,7 +170,17 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
     const emailResolver = new CarrierEmailResolver(databaseService);
     const retryPolicy = new CarrierRetryPolicy();
     const circuitBreaker = new CarrierCircuitBreaker();
-    worker = new ShippingCarrierWorker(databaseService, registry, credentialsService, configurationsService, observability, emailResolver, retryPolicy, circuitBreaker, { putObject: async () => ({}) } as any);
+    worker = new ShippingCarrierWorker(
+      databaseService,
+      registry,
+      credentialsService,
+      configurationsService,
+      observability,
+      emailResolver,
+      retryPolicy,
+      circuitBreaker,
+      { putObject: async () => ({}) } as any,
+    );
   }, 120_000);
 
   afterAll(async () => {
@@ -242,7 +286,10 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
       // In the real controller, the second request checks carrierCreateStatus before writing
 
       // Verify shipment has the idempotency key set
-      const shipment = await pool.query(`SELECT idempotency_key, carrier_create_status FROM shipments WHERE id = $1`, [shipmentId]);
+      const shipment = await pool.query(
+        `SELECT idempotency_key, carrier_create_status FROM shipments WHERE id = $1`,
+        [shipmentId],
+      );
       expect(shipment.rows[0].idempotency_key).toBe(idempotencyKey);
       expect(shipment.rows[0].carrier_create_status).toBe('PENDING');
     });
@@ -295,8 +342,8 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
       ]);
 
       // Exactly one should succeed, the other should fail with unique violation (23505)
-      const succeeded = [r1, r2].filter(r => r.status === 'fulfilled');
-      const failed = [r1, r2].filter(r => r.status === 'rejected');
+      const succeeded = [r1, r2].filter((r) => r.status === 'fulfilled');
+      const failed = [r1, r2].filter((r) => r.status === 'rejected');
 
       expect(succeeded.length).toBe(1);
       expect(failed.length).toBe(1);
@@ -334,8 +381,8 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
       // Both should succeed because event_type is different
       // Wait — the UNIQUE constraint is on (provider_key, external_delivery_id), NOT event_type
       // So only ONE should succeed
-      const succeeded = [r1, r2].filter(r => r.status === 'fulfilled');
-      const failed = [r1, r2].filter(r => r.status === 'rejected');
+      const succeeded = [r1, r2].filter((r) => r.status === 'fulfilled');
+      const failed = [r1, r2].filter((r) => r.status === 'rejected');
 
       // The UNIQUE constraint is (provider_key, external_delivery_id)
       // Different event types for the same delivery → only one wins
@@ -416,7 +463,9 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
       );
 
       // Verify the key is stored
-      const result = await pool.query(`SELECT idempotency_key FROM shipments WHERE id = $1`, [shipmentId]);
+      const result = await pool.query(`SELECT idempotency_key FROM shipments WHERE id = $1`, [
+        shipmentId,
+      ]);
       expect(result.rows[0].idempotency_key).toBe(idempotencyKey);
     });
   });
@@ -552,12 +601,17 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
     });
 
     it('migration 0043 is recorded in migration log', async () => {
-      const result = await pool.query(`SELECT name FROM _migration_log WHERE name = '0043_carrier_integration.sql'`);
+      const result = await pool.query(
+        `SELECT name FROM _migration_log WHERE name = '0043_carrier_integration.sql'`,
+      );
       expect(result.rows.length).toBe(1);
     });
 
     it('migration 0043 is idempotent (re-run succeeds)', async () => {
-      const sqlContent = fs.readFileSync(path.join(MIGRATIONS_DIR, '0043_carrier_integration.sql'), 'utf-8');
+      const sqlContent = fs.readFileSync(
+        path.join(MIGRATIONS_DIR, '0043_carrier_integration.sql'),
+        'utf-8',
+      );
       // Re-running should not throw
       await pool.query(sqlContent);
     });
@@ -634,14 +688,17 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
     it('credential masking never exposes plaintext', async () => {
       const caller = { sub: merchantA, role: 'ADMIN', activeOrg: orgA } as any;
 
-      const credential = await credentialsService.create({
-        orgId: orgA,
-        providerKey: 'aramex',
-        environment: 'sandbox',
-        label: 'Test Credential',
-        credentialsJson: '{"apiKey":"SUPER_SECRET_KEY_12345"}',
-        webhookSecret: 'webhook_secret_67890',
-      }, caller);
+      const credential = await credentialsService.create(
+        {
+          orgId: orgA,
+          providerKey: 'aramex',
+          environment: 'sandbox',
+          label: 'Test Credential',
+          credentialsJson: '{"apiKey":"SUPER_SECRET_KEY_12345"}',
+          webhookSecret: 'webhook_secret_67890',
+        },
+        caller,
+      );
 
       // Masked response must never contain plaintext
       expect(credential.credentialsMasked).toBe('***');
@@ -656,17 +713,20 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
 
       const result = await credentialsService.listForOrg(orgA, buyerCaller);
       // Buyer can list (masked) — but every entry must be masked
-      expect(result.every(c => c.credentialsMasked === '***')).toBe(true);
+      expect(result.every((c) => c.credentialsMasked === '***')).toBe(true);
 
       // But creating a credential is rejected for non-admin roles
       await expect(
-        credentialsService.create({
-          orgId: orgA,
-          providerKey: 'aramex',
-          environment: 'sandbox',
-          label: 'Test',
-          credentialsJson: '{}',
-        }, buyerCaller),
+        credentialsService.create(
+          {
+            orgId: orgA,
+            providerKey: 'aramex',
+            environment: 'sandbox',
+            label: 'Test',
+            credentialsJson: '{}',
+          },
+          buyerCaller,
+        ),
       ).rejects.toThrow(/administrators/);
     });
 
@@ -674,16 +734,19 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
       const driverCaller = { sub: randomUUID(), role: 'DRIVER', activeOrg: orgA } as any;
 
       const result = await credentialsService.listForOrg(orgA, driverCaller);
-      expect(result.every(c => c.credentialsMasked === '***')).toBe(true);
+      expect(result.every((c) => c.credentialsMasked === '***')).toBe(true);
 
       await expect(
-        credentialsService.create({
-          orgId: orgA,
-          providerKey: 'aramex',
-          environment: 'sandbox',
-          label: 'Test',
-          credentialsJson: '{}',
-        }, driverCaller),
+        credentialsService.create(
+          {
+            orgId: orgA,
+            providerKey: 'aramex',
+            environment: 'sandbox',
+            label: 'Test',
+            credentialsJson: '{}',
+          },
+          driverCaller,
+        ),
       ).rejects.toThrow(/administrators/);
     });
 
@@ -691,19 +754,25 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
       const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA } as any;
 
       await expect(
-        credentialsService.create({
-          orgId: orgA,
-          providerKey: 'aramex',
-          environment: 'production',
-          label: 'Test',
-          credentialsJson: '{}',
-        }, merchantCaller),
+        credentialsService.create(
+          {
+            orgId: orgA,
+            providerKey: 'aramex',
+            environment: 'production',
+            label: 'Test',
+            credentialsJson: '{}',
+          },
+          merchantCaller,
+        ),
       ).rejects.toThrow(/administrators/);
     });
 
     it('cross-org credential access is blocked', async () => {
       const orgB = randomUUID();
-      await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org B', 'SA')`, [orgB]);
+      await pool.query(
+        `INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org B', 'SA')`,
+        [orgB],
+      );
 
       const otherOrgCaller = { sub: randomUUID(), role: 'ADMIN', activeOrg: orgB } as any;
 
@@ -713,7 +782,7 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
       // ADMIN is privileged (isTenantPrivileged returns true), so they bypass org check
       // This is by design — platform admins can access any org
       // But the result should still be org A's credentials only
-      expect(result.every(c => c.orgId === orgA)).toBe(true);
+      expect(result.every((c) => c.orgId === orgA)).toBe(true);
     });
 
     it('store configuration cannot reference another org credential', async () => {
@@ -723,11 +792,14 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
 
       // Try to create a config with a non-existent credential ID
       await expect(
-        configurationsService.create({
-          orgId: orgA,
-          credentialId: randomUUID(), // Non-existent
-          providerKey: 'aramex',
-        }, caller),
+        configurationsService.create(
+          {
+            orgId: orgA,
+            credentialId: randomUUID(), // Non-existent
+            providerKey: 'aramex',
+          },
+          caller,
+        ),
       ).rejects.toThrow(/not found/);
     });
   });
@@ -822,10 +894,9 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
 
       // The worker's poll() filters by CARRIER_EVENT_PREFIX
       // Verify the filter logic
-      const pending = await pool.query(
-        `SELECT event_type FROM outbox_events WHERE id = $1`,
-        [nonCarrierEventId],
-      );
+      const pending = await pool.query(`SELECT event_type FROM outbox_events WHERE id = $1`, [
+        nonCarrierEventId,
+      ]);
       const isCarrier = pending.rows[0].event_type.startsWith('shipping.carrier.');
       expect(isCarrier).toBe(false);
     });
@@ -875,7 +946,7 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
       // This is verified by the handleCreate logic in the worker
       // We verify the registry doesn't have any CARRIER providers registered
       const keys = registry.listProviderKeys();
-      const carrierProviders = keys.filter(k => {
+      const carrierProviders = keys.filter((k) => {
         const p = registry.findProvider(k);
         return p?.type === 'CARRIER';
       });

@@ -68,7 +68,9 @@ function VariantDetailContent({ id }: { id: string }) {
       return;
     }
     void loadVariant();
-    return () => { requestVersion.current += 1; };
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [id, ready, hasAccess, loadVariant]);
 
   // Deactivate/Reactivate handler
@@ -80,11 +82,14 @@ function VariantDetailContent({ id }: { id: string }) {
     setActionLoading(action);
     setActionError('');
     try {
-      await adminRequest(`admin/products/${encodeURIComponent(productId)}/variants/${encodeURIComponent(id)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: !isActive, updatedAt: variant['updatedAt'] }),
-      });
+      await adminRequest(
+        `admin/products/${encodeURIComponent(productId)}/variants/${encodeURIComponent(id)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isActive: !isActive, updatedAt: variant['updatedAt'] }),
+        },
+      );
       await loadVariant();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : `Failed to ${action} variant`);
@@ -117,7 +122,8 @@ function VariantDetailContent({ id }: { id: string }) {
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied.</div>;
   if (loading && !hasCurrentVariant) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error && !hasCurrentVariant) return <AdminErrorState title="Unable to load variant" message={error} onRetry={loadVariant} />;
+  if (error && !hasCurrentVariant)
+    return <AdminErrorState title="Unable to load variant" message={error} onRetry={loadVariant} />;
   if (!variant || !hasCurrentVariant) return null;
 
   const productId = variant['productId'] as string;
@@ -136,45 +142,87 @@ function VariantDetailContent({ id }: { id: string }) {
   ];
 
   const configItems: KVItem[] = [
-    { key: 'sku', label: 'SKU', value: sku ? (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{sku}</span>
-        <AdminCopyButton value={sku} label="" />
-      </span>
-    ) : 'Not set' },
+    {
+      key: 'sku',
+      label: 'SKU',
+      value: sku ? (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{sku}</span>
+          <AdminCopyButton value={sku} label="" />
+        </span>
+      ) : (
+        'Not set'
+      ),
+    },
     { key: 'title', label: 'Title', value: title || 'Not set' },
-    { key: 'titleAr', label: 'Title (Arabic)', value: titleAr ? (
-      <span dir="rtl" style={{ fontFamily: 'Arial, sans-serif' }}>{titleAr}</span>
-    ) : 'Not set' },
-    { key: 'barcode', label: 'Barcode', value: barcode ? (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontFamily: 'monospace' }}>{barcode}</span>
-        <AdminCopyButton value={barcode} label="" />
-      </span>
-    ) : 'Not set' },
+    {
+      key: 'titleAr',
+      label: 'Title (Arabic)',
+      value: titleAr ? (
+        <span dir="rtl" style={{ fontFamily: 'Arial, sans-serif' }}>
+          {titleAr}
+        </span>
+      ) : (
+        'Not set'
+      ),
+    },
+    {
+      key: 'barcode',
+      label: 'Barcode',
+      value: barcode ? (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: 'monospace' }}>{barcode}</span>
+          <AdminCopyButton value={barcode} label="" />
+        </span>
+      ) : (
+        'Not set'
+      ),
+    },
     { key: 'unit', label: 'Unit', value: unit || 'PCS' },
-    { key: 'weightGrams', label: 'Weight (grams)', value: weightGrams != null ? String(weightGrams) : 'Not set' },
-    { key: 'isActive', label: 'Status', value: (
-      <AdminStatusBadge status={isActive ? 'ACTIVE' : 'INACTIVE'} />
-    )},
-    { key: 'productId', label: 'Parent Product', value: productId ? (
-      <AdminEntityLink type="product" id={productId} name="View Product" showIcon />
-    ) : 'Not set' },
+    {
+      key: 'weightGrams',
+      label: 'Weight (grams)',
+      value: weightGrams != null ? String(weightGrams) : 'Not set',
+    },
+    {
+      key: 'isActive',
+      label: 'Status',
+      value: <AdminStatusBadge status={isActive ? 'ACTIVE' : 'INACTIVE'} />,
+    },
+    {
+      key: 'productId',
+      label: 'Parent Product',
+      value: productId ? (
+        <AdminEntityLink type="product" id={productId} name="View Product" showIcon />
+      ) : (
+        'Not set'
+      ),
+    },
   ];
 
   const technicalItems: KVItem[] = [
-    { key: 'id', label: 'Variant ID', value: (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{id}</span>
-        <AdminCopyButton value={id} label="" />
-      </span>
-    )},
-    { key: 'productId', label: 'Product ID', value: productId ? (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{productId}</span>
-        <AdminCopyButton value={productId} label="" />
-      </span>
-    ) : 'Not set' },
+    {
+      key: 'id',
+      label: 'Variant ID',
+      value: (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{id}</span>
+          <AdminCopyButton value={id} label="" />
+        </span>
+      ),
+    },
+    {
+      key: 'productId',
+      label: 'Product ID',
+      value: productId ? (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{productId}</span>
+          <AdminCopyButton value={productId} label="" />
+        </span>
+      ) : (
+        'Not set'
+      ),
+    },
     { key: 'combinationKey', label: 'Combination Key', value: combinationKey || 'None' },
     { key: 'createdAt', label: 'Created', value: formatDate(variant['createdAt'] as string) },
     { key: 'updatedAt', label: 'Updated', value: formatDate(variant['updatedAt'] as string) },
@@ -192,7 +240,9 @@ function VariantDetailContent({ id }: { id: string }) {
         backLabel="Back to Product"
         backHref={productId ? `/products/${productId}` : '/products'}
         title={sku || title || 'Variant'}
-        subtitle={<span style={{ fontFamily: 'monospace', fontSize: 12, color: '#5b6b74' }}>Variant</span>}
+        subtitle={
+          <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#5b6b74' }}>Variant</span>
+        }
         status={isActive ? 'ACTIVE' : 'INACTIVE'}
         entityId={id}
         actions={
@@ -201,15 +251,29 @@ function VariantDetailContent({ id }: { id: string }) {
               type="button"
               onClick={() => void loadVariant()}
               disabled={loading}
-              style={{ padding: '8px 12px', background: '#fff', color: '#1e6178', borderRadius: 6, fontSize: 13, fontWeight: 500, border: '1px solid #1e6178', cursor: loading ? 'wait' : 'pointer' }}
+              style={{
+                padding: '8px 12px',
+                background: '#fff',
+                color: '#1e6178',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 500,
+                border: '1px solid #1e6178',
+                cursor: loading ? 'wait' : 'pointer',
+              }}
             >
               {loading ? 'Refreshing…' : 'Refresh'}
             </button>
             <Link
               href={`/variants/${id}/edit`}
               style={{
-                padding: '8px 16px', background: '#1e6178', color: '#fff',
-                borderRadius: 6, fontSize: 13, fontWeight: 500, textDecoration: 'none',
+                padding: '8px 16px',
+                background: '#1e6178',
+                color: '#fff',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 500,
+                textDecoration: 'none',
               }}
             >
               Edit
@@ -220,20 +284,33 @@ function VariantDetailContent({ id }: { id: string }) {
               style={{
                 padding: '8px 16px',
                 background: isActive ? '#dc2626' : '#16a34a',
-                color: '#fff', borderRadius: 6, fontSize: 13, fontWeight: 500,
-                border: 'none', cursor: actionLoading ? 'wait' : 'pointer',
+                color: '#fff',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 500,
+                border: 'none',
+                cursor: actionLoading ? 'wait' : 'pointer',
                 opacity: actionLoading ? 0.7 : 1,
               }}
             >
-              {actionLoading === 'deactivate' || actionLoading === 'reactivate' ? '...' : (isActive ? 'Deactivate' : 'Reactivate')}
+              {actionLoading === 'deactivate' || actionLoading === 'reactivate'
+                ? '...'
+                : isActive
+                  ? 'Deactivate'
+                  : 'Reactivate'}
             </button>
             <button
               onClick={() => setShowDeleteConfirm(true)}
               disabled={!!actionLoading}
               style={{
-                padding: '8px 16px', background: '#fff', color: '#dc2626',
-                borderRadius: 6, fontSize: 13, fontWeight: 500,
-                border: '1px solid #dc2626', cursor: actionLoading ? 'wait' : 'pointer',
+                padding: '8px 16px',
+                background: '#fff',
+                color: '#dc2626',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 500,
+                border: '1px solid #dc2626',
+                cursor: actionLoading ? 'wait' : 'pointer',
               }}
             >
               Delete
@@ -242,14 +319,56 @@ function VariantDetailContent({ id }: { id: string }) {
         }
       />
 
-      {loading && hasCurrentVariant && <div role="status" style={{ margin: '0 32px 12px', color: '#64748b', fontSize: 12 }}>Refreshing variant… showing the last successful details.</div>}
-      {error && (
-        <div role="alert" style={{ margin: '0 32px 16px', padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#991b1b', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <span>{error}{hasCurrentVariant ? ' Showing the last successfully loaded variant.' : ''}</span>
-          <button onClick={() => void loadVariant()} style={{ background: 'none', border: 'none', color: '#991b1b', cursor: 'pointer' }}>Retry variant</button>
+      {loading && hasCurrentVariant && (
+        <div role="status" style={{ margin: '0 32px 12px', color: '#64748b', fontSize: 12 }}>
+          Refreshing variant… showing the last successful details.
         </div>
       )}
-      {actionError && <div role="alert" style={{ margin: '0 32px 16px', padding: 12, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#991b1b', fontSize: 13 }}>{actionError}</div>}
+      {error && (
+        <div
+          role="alert"
+          style={{
+            margin: '0 32px 16px',
+            padding: '12px 16px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: 8,
+            color: '#991b1b',
+            fontSize: 13,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <span>
+            {error}
+            {hasCurrentVariant ? ' Showing the last successfully loaded variant.' : ''}
+          </span>
+          <button
+            onClick={() => void loadVariant()}
+            style={{ background: 'none', border: 'none', color: '#991b1b', cursor: 'pointer' }}
+          >
+            Retry variant
+          </button>
+        </div>
+      )}
+      {actionError && (
+        <div
+          role="alert"
+          style={{
+            margin: '0 32px 16px',
+            padding: 12,
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: 8,
+            color: '#991b1b',
+            fontSize: 13,
+          }}
+        >
+          {actionError}
+        </div>
+      )}
 
       <AdminDetailTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
 
@@ -261,15 +380,26 @@ function VariantDetailContent({ id }: { id: string }) {
             </AdminDetailSection>
 
             {/* Hierarchy indicator */}
-            <div style={{
-              padding: '12px 16px', background: '#f7f9fa', borderRadius: 8,
-              border: '1px solid #e5ecf0', fontSize: 13, color: '#5b6b74',
-            }}>
+            <div
+              style={{
+                padding: '12px 16px',
+                background: '#f7f9fa',
+                borderRadius: 8,
+                border: '1px solid #e5ecf0',
+                fontSize: 13,
+                color: '#5b6b74',
+              }}
+            >
               <strong style={{ color: '#0f3340' }}>Marketplace hierarchy:</strong>
               <div style={{ marginTop: 6, fontFamily: 'monospace', fontSize: 12, lineHeight: 1.8 }}>
                 <span>Product (canonical)</span>
                 <br />
-                <span>&nbsp;&nbsp;→ Variant <span style={{ color: '#1e6178', fontWeight: 600 }}>({sku || id.slice(0, 12)} — this entity)</span></span>
+                <span>
+                  &nbsp;&nbsp;→ Variant{' '}
+                  <span style={{ color: '#1e6178', fontWeight: 600 }}>
+                    ({sku || id.slice(0, 12)} — this entity)
+                  </span>
+                </span>
                 <br />
                 <span>&nbsp;&nbsp;&nbsp;&nbsp;→ Merchant Offers</span>
               </div>
@@ -286,32 +416,51 @@ function VariantDetailContent({ id }: { id: string }) {
 
       {/* Delete confirmation modal */}
       {showDeleteConfirm && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-        }}>
-          <div style={{
-            background: '#fff', borderRadius: 12, padding: 24, maxWidth: 420, width: '90%',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-          }}>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 420,
+              width: '90%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            }}
+          >
             <h3 style={{ margin: '0 0 12px', color: '#991b1b', fontSize: 18 }}>Delete Variant</h3>
             <p style={{ margin: '0 0 8px', fontSize: 14, color: '#374151' }}>
               This action is <strong>destructive and irreversible</strong>.
             </p>
             <p style={{ margin: '0 0 16px', fontSize: 13, color: '#6b7280' }}>
-              Variant <strong>{sku || id.slice(0, 12)}</strong> will be permanently deleted.
-              Any merchant offers referencing this variant may be affected.
+              Variant <strong>{sku || id.slice(0, 12)}</strong> will be permanently deleted. Any
+              merchant offers referencing this variant may be affected.
             </p>
             <p style={{ margin: '0 0 20px', fontSize: 13, color: '#6b7280' }}>
-              Consider <strong>deactivating</strong> the variant instead if you need to preserve references.
+              Consider <strong>deactivating</strong> the variant instead if you need to preserve
+              references.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
                 disabled={!!actionLoading}
                 style={{
-                  padding: '8px 16px', background: '#f3f4f6', color: '#374151',
-                  borderRadius: 6, fontSize: 13, border: 'none', cursor: 'pointer',
+                  padding: '8px 16px',
+                  background: '#f3f4f6',
+                  color: '#374151',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  border: 'none',
+                  cursor: 'pointer',
                 }}
               >
                 Cancel
@@ -320,9 +469,14 @@ function VariantDetailContent({ id }: { id: string }) {
                 onClick={handleDelete}
                 disabled={!!actionLoading}
                 style={{
-                  padding: '8px 16px', background: '#dc2626', color: '#fff',
-                  borderRadius: 6, fontSize: 13, fontWeight: 500,
-                  border: 'none', cursor: actionLoading ? 'wait' : 'pointer',
+                  padding: '8px 16px',
+                  background: '#dc2626',
+                  color: '#fff',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  border: 'none',
+                  cursor: actionLoading ? 'wait' : 'pointer',
                 }}
               >
                 {actionLoading === 'delete' ? 'Deleting...' : 'Delete Permanently'}
@@ -338,5 +492,9 @@ function VariantDetailContent({ id }: { id: string }) {
 export default function VariantDetailPage() {
   const params = useParams();
   const id = params['id'] as string;
-  return <Suspense fallback={<AdminLoadingSkeleton kvRows={6} />}><VariantDetailContent id={id} /></Suspense>;
+  return (
+    <Suspense fallback={<AdminLoadingSkeleton kvRows={6} />}>
+      <VariantDetailContent id={id} />
+    </Suspense>
+  );
 }

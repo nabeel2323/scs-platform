@@ -99,7 +99,13 @@ function createMocks() {
       orderItems: { findMany: vi.fn() },
       orderFinancialBreakdown: { findFirst: vi.fn() },
       orderStatusHistory: { findMany: vi.fn() },
-      productVariants: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([{ id: VARIANT_1, productId: 'prod-001' }, { id: VARIANT_2, productId: 'prod-001' }]) },
+      productVariants: {
+        findFirst: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([
+          { id: VARIANT_1, productId: 'prod-001' },
+          { id: VARIANT_2, productId: 'prod-001' },
+        ]),
+      },
       merchantOffers: { findMany: vi.fn().mockResolvedValue([]) },
       products: { findFirst: vi.fn() },
       // A2-4: checkout snapshots each supplier's currency, and the read paths
@@ -121,7 +127,17 @@ function createMocks() {
       .mockResolvedValue({ redemptionId: 'redemption-001', discountMinor: 0 }),
   } as any;
 
-  return { db, mockDbService, mockOutbox, mockPromotions, insertValues, updateSet, updateWhere, forUpdate, forUpdateRows };
+  return {
+    db,
+    mockDbService,
+    mockOutbox,
+    mockPromotions,
+    insertValues,
+    updateSet,
+    updateWhere,
+    forUpdate,
+    forUpdateRows,
+  };
 }
 
 function createService(mocks: ReturnType<typeof createMocks>) {
@@ -443,7 +459,7 @@ describe('Checkout Integration', () => {
         .map((c: any[]) => c[0])
         .filter((v: any) => v && 'currency' in v);
 
-    it('records each supplier\'s own currency on its own sub-order', async () => {
+    it("records each supplier's own currency on its own sub-order", async () => {
       mocks.db.query.stores.findMany.mockResolvedValue([
         { id: STORE_1, currency: 'SAR' },
         { id: STORE_2, currency: 'AED' },

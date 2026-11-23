@@ -65,9 +65,7 @@ async function main(): Promise<void> {
   try {
     await client.query('BEGIN');
 
-    const roleResult = await client.query(
-      "SELECT id FROM roles WHERE key = 'SUPER_ADMIN' LIMIT 1",
-    );
+    const roleResult = await client.query("SELECT id FROM roles WHERE key = 'SUPER_ADMIN' LIMIT 1");
     if (roleResult.rows.length !== 1) {
       throw new Error('SUPER_ADMIN role not found; run the local RBAC seed first.');
     }
@@ -84,9 +82,7 @@ async function main(): Promise<void> {
       "SELECT id FROM organizations WHERE name = 'SCS Platform Ops' AND type = 'PLATFORM' LIMIT 1",
     );
 
-    const orgId =
-      existingOrg.rows[0]?.id ??
-      randomUUID();
+    const orgId = existingOrg.rows[0]?.id ?? randomUUID();
 
     if (existingOrg.rows.length === 0) {
       await client.query(

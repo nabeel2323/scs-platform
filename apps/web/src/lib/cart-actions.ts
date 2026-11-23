@@ -12,7 +12,9 @@ export async function runCartMutation(
     await refresh();
     return true;
   } catch (error) {
-    setError(error instanceof Error ? error.message : 'Unable to update your cart. Please try again.');
+    setError(
+      error instanceof Error ? error.message : 'Unable to update your cart. Please try again.',
+    );
     return false;
   } finally {
     setPendingAction(null);

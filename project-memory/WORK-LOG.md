@@ -295,7 +295,6 @@ The current-state handover metadata was reconciled to the latest documentation h
 - CI run #44961723564 on `10a890a3a69f7281b93f4a8e80b735f2228825cb`: lint and TypeScript typecheck passed; Flutter analysis and tests passed. Prettier failed only on CURRENT-STATE.md, RELEASE-AND-CI-STATUS.md, START-HERE.md and WORK-LOG.md. All downstream application/database/build jobs were skipped.
 - Running repository-locked Prettier 3.9.6 against those four handover files, then a fresh exact-head CI run is required. Do not claim full verification from this run.
 
-
 ## 22 November 2026 — Admin route permission audit and action-gate fixes
 
 - Reviewed all 56 Admin page route files, global `AuthGuard`, `useRequirePerms`, generic `ManagementPage`, and `managementTables` permission configuration. Added `docs/admin-route-permission-matrix.md` with page-level and observed action-level permission requirements.
@@ -306,7 +305,6 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Actions budget constraint recorded: approximately 90% of GitHub Actions minutes consumed; related work is batched and the comprehensive campaign is deferred until implementation/integration completion.
 - The pre-batch branch head was `cd1d7de837d3c519db4a249479effe65db5fce53`; this grouped commit is the implementation checkpoint following it. PR #138 remains draft. No database/staging/deployment/migration/grant/RLS/worker/release action occurred.
 
-
 ## 2026-11-22 — Mobile authorization parity continuation
 
 - Re-read `project-memory/START-HERE.md` and relevant project-memory decisions, gaps, inventory, current-state, release, roadmap, and work-log material before changing code.
@@ -316,14 +314,12 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Added focused route/profile permission tests and `docs/mobile-route-permission-matrix.md`. Test execution remains pending.
 - Follow-up: reconcile missing `identity:organizations:create` seed/default grants with organization type and creator-role policy; then complete the remaining action-affordance audit and run one consolidated formatter, Flutter, backend, security, and CI validation.
 
-
 ## 2026-11-22 — Mobile authorization follow-up review
 
 - Reviewed the pushed mobile authorization commit and found remaining action-affordance gaps: Home discovery visibility, product-detail variant/offer cart buttons, merchant registration mutations, and the low-stock KPI destination.
 - Closed those gaps in one grouped follow-up commit. The registration wizard now distinguishes create-organization permission from invitation-based joining and checks store-write before create/verification.
 - The merchant route builder already honors the `tab` query parameter; no duplicate router change was needed.
 - CI remains intentionally deferred. Finish the remaining permission audit, then perform one consolidated formatter, Flutter, backend, security, and CI validation run.
-
 
 ## 2026-11-22 — Registration active-organization correction
 
@@ -332,14 +328,12 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Invalidated store/warehouse caches after registration writes and clarified the no-business dashboard CTA for create vs invite-join access.
 - CI remains deferred under the agreed Actions-minute budget; run all mobile/backend/security/format checks once after the implementation batch is complete.
 
-
 ## 2026-11-22 — Organization onboarding RBAC seed reconciliation
 
 - Inspected `0069_organization_onboarding_permission.sql`, the OrganizationsController guard, and canonical RBAC seed data.
 - Supabase read-only SQL: `public._migration_log` confirms migration 0069 applied on 17 November 2026. Permission-role join confirms `identity:organizations:create` exists for BUYER, ADMIN, MERCHANT_OWNER, and SUPER_ADMIN.
 - Corrected the earlier finding: staging grants were already correct; only `rbac-seed.data.ts` was stale. Aligned PERMISSIONS and the four role grants with migration 0069 and added a regression assertion against the actual `ROLES` seed.
 - No database write, privilege change, deployment, or new migration was performed.
-
 
 ## 2026-11-22 — Admin read-permission alignment
 
@@ -350,14 +344,12 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Updated Admin route matrix and UX-003/UX-006 classifications. UX-006 is IMPLEMENTED / NOT VERIFIED; full role/deep-link/action testing remains Phase 3.
 - Validation intentionally deferred; no Actions workflow was triggered by this grouped `[skip ci]` commit. No backend permission, role grant, DB, staging, migration, worker, deployment or release behavior changed.
 
-
 ## 2026-11-22 — Cart API permission parity and route inventory
 
 - Reconciled the current PR #138 branch after the Admin read-gate batch. Inspected all 28 API module controller files and added `docs/api-route-permission-matrix.md` mapping route families, primary client surfaces and permission boundaries.
 - Found `GET /offers/nearby` in `PromotionsController`; corrected the earlier inventory assumption that no route existed. The service currently ignores coordinates/radius and returns active promotions by date/limit; no matching wrapper was found in the inspected web/mobile API clients and Home/Search entry pages. UX-008 remains pending a product/location decision.
 - Found CartController mutations had only JWT auth and no `orders:write` permission. Added the canonical permission guard to all cart mutations while retaining authenticated self-scoped GET. Added controller metadata/guard tests.
 - Updated MAP-001 and API-001 documentation. Validation is intentionally deferred; no GitHub Actions run, database change, migration, role grant, staging write, worker activation, deployment or release action occurred.
-
 
 ## 2026-11-22 — Aramex provider registry wiring
 
@@ -366,13 +358,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Updated `ShippingService.onModuleInit` to register Aramex as non-default while retaining `manual-driver` as the default. Optional injection preserves existing direct construction tests. No credentials are loaded and no external HTTP call occurs at startup.
 - Added a focused registry integration unit test and documented the ownership/activation boundary. Validation deferred to the consolidated Phase 3 campaign; no CI, deployment, secret, DB, migration or live carrier action occurred.
 
-
 ## 2026-11-22 — Post-implementation static review correction
 
 - Static inspection of the Admin dashboard found the Completion Rate card still referenced the old `loading` variable after the KPI/org split. Corrected it to `kpisLoading` and normalized conditional JSX indentation/loading markup.
 - Added the missing `Card` export to the UI-kit test mock and made the Aramex provider stub cast explicit through `unknown` to satisfy TypeScript's structural-cast rules.
 - Updated the API matrix source checkpoint to the Aramex registry wiring commit. No tests or CI were run; this remains part of the single consolidated Phase 3 verification campaign.
-
 
 ## 2026-11-22 — Client wrapper and worker activation mapping
 
@@ -380,14 +370,12 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Corrected the provider fallback description: shipment create/cancel/label paths use manual-driver when no provider is configured; only CarrierTrackingPoller falls back to aramex. The registry fix makes explicit Aramex provider selection and tracking polls resolvable.
 - Verified source activation boundaries: P13 return-expiration is opt-in and disabled by default; P13Monitor is an always-on read-only scanner with Postgres dedup and log-only alert fallback; other in-process workers start without the P13 flag and use their own claim/lease logic. No runtime activation or deployment change was made.
 
-
 ## 2026-11-22 — G-002 database access-path inventory
 
 - Reviewed all 53 API module service/worker/provider TypeScript files plus DatabaseService/Module, AuditService, AuditLogMiddleware, JwtAuthGuard, PermissionsGuard, AppModule and main.ts.
 - Recorded the bounded source findings in docs/remediation/G-002-DATABASE-ACCESS-PATH-INVENTORY-2026-11-22.md: singleton Drizzle handle; typed and raw execute(sql...) operations; multiple existing nested service transactions; asynchronous post-response audit writes; worker/monitor/bootstrap DB access outside HTTP request context; and raw PoolClient limited to DatabaseService startup identity and development/test migrations/seeding within the reviewed application path.
 - No global transaction interceptor or AsyncLocalStorage adapter was added because the architecture requires complete operation-path, nested-transaction, audit and worker-context proof first.
 - No live staging DB query, migration, role/grant change, RLS enablement, worker activation, deployment or test run occurred.
-
 
 ## 2026-11-22 — G-002 database operation map, source slice 1
 
@@ -397,7 +385,6 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Kept the evidence explicitly preliminary: direct source-symbol patterns are not a runtime call graph, do not establish exact tenant predicates, and do not cover all workers, webhooks, CLI/raw-SQL or database objects.
 - Updated DB-003 in the programme gap register. No application code, tests, CI, live database query/write, migration, grants, RLS, staging, deployment, provider call or worker activation occurred.
 
-
 ## 2026-11-22 — G-002 supporting service and worker operation map
 
 - Extended the G-002 source map with cart, promotions, notifications, analytics, disputes, reviews, generic outbox, carrier worker, P13 monitor, worker lease, ops alert, auto-complete worker and return-expiration worker paths.
@@ -405,7 +392,6 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Documented the separate ownership concerns for outbox consumer eligibility, worker/system identity, order/return delegated transitions, user-private notification/device rows, analytics privacy, and dispute/conversation participant ownership.
 - DB-003 remains IN PROGRESS: remaining module services, webhook/CLI/migration paths, exact SQL statement predicates, full FK ownership, non-Drizzle physical relations and the 114-vs-116 discrepancy are still open.
 - No tests, CI, live DB query/write, migration, grants, RLS, staging/deployment, provider call or worker activation occurred.
-
 
 ## 2026-11-22 — G-002 schema ownership and predicate candidates
 
@@ -416,7 +402,6 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Extended the operation map with AdminService, CatalogImportService, StoreMembershipService, carrier tracking/webhook, reconciliation and operations-control paths. Updated START-HERE and DB-003 evidence links.
 - These are static source observations only. No tests, CI, live DB query/write, migration, grants, RLS, staging, deployment, worker activation or provider call occurred.
 
-
 ## 2026-11-22 — G-002 expanded import, carrier and financial operation paths
 
 - Extended the operation map to 33 service files, including ExcelExecutorService, carrier credential/configuration/reconciliation services, commission reversal, settlement adjustment and business calendar.
@@ -425,7 +410,6 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Added financial ownership candidates for commission reversals, settlement adjustments/approvals, reconciliation runs/discrepancies and business calendar/holiday/audit rows.
 - Flagged business calendars as unresolved configuration scope: schema comments describe tenant/global calendars but the inspected declaration has no direct org_id.
 - No tests, CI, DB query/write, migration, grants, RLS, staging/deployment, provider call or worker activation occurred.
-
 
 ## 2026-11-22 — API-003 canonical merchant read-permission alignment
 
@@ -437,14 +421,12 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Updated docs/api-route-permission-matrix.md and added API-003 to the programme gap register. No new permission key, database migration or grant was added.
 - Tests were added but not executed; no CI run was triggered. No staging/database mutation, migration, deployment, worker activation or provider call occurred.
 
-
 ## 2026-11-22 — API-003 RBAC seed verification correction
 
 - A follow-up inspection of the MERCHANT_OWNER and MERCHANT_STAFF role blocks caught an insertion-position mistake in the first seed edit: it duplicated merchant:stores:read on MERCHANT_OWNER instead of adding it to MERCHANT_STAFF.
 - Corrected the seed: MERCHANT_OWNER has one existing merchant:stores:read grant; MERCHANT_STAFF now has one grant; no duplicate or new permission key remains.
 - Re-read the final role blocks and confirmed CatalogController has five catalog:products:read decorators, StoreMembershipController has merchant:stores:read for member listing, and neither controller references merchant:products:read.
 - The focused test asserts both owner and staff role grants and should catch future drift. Test execution remains deferred to the consolidated campaign.
-
 
 ## 2026-11-22 — G-002 migration foreign-key crosswalk
 
@@ -456,7 +438,6 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Reaffirmed migration 0070 revokes anon/authenticated table/sequence privileges and defaults and pins normalize_arabic search_path, but does not enable RLS or change service_role. Migration 0071 adds auto-complete claim fields/index only.
 - No staging catalog query, database write, migration, grant/default-ACL change, RLS activation, deployment, worker activation or provider call occurred.
 
-
 ## 2026-11-22 — G-002 earlier migration FK crosswalk extension
 
 - Extended the migration crosswalk with core schema constraints from migrations 0001, 0003, 0004, 0005, 0009, 0010, 0023, 0026, 0040 and 0041.
@@ -464,7 +445,6 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Flagged the absence of composite consistency constraints for multi-parent rows such as verification requests, business documents, cart items, inventory items, merchant offers, order participants, settlement records, carrier configurations, delivery-zone methods and driver-store assignments.
 - Reaffirmed that a child-table RLS predicate must verify every required parent relationship; one valid FK alone does not guarantee all referenced parents belong to the same tenant.
 - No live catalog query or DB mutation occurred; this remains migration-source evidence only.
-
 
 ## 2026-11-22 — G-002 service and operator access-path implementation
 
@@ -477,7 +457,6 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Remaining script debt is explicit: legacy M5/M6 UAT and migration harnesses still include direct SQL, fixed local test credentials and/or DATABASE_URL overrides; staging bootstrap scripts need a uniform target-environment confirmation guard. They were not run.
 - No tests or Actions were run. No staging/shared DB command, migration, seed, reset, bootstrap, grant, RLS change, deployment, worker activation or provider call occurred. Next source task is controller-to-service-method-to-table operation mapping.
 
-
 ## 2026-11-22 — G-002 physical database object inventory and read-only audit
 
 - Reconciled the 19-November 114 public ordinary/partitioned table count at source level: 99 Drizzle declarations plus public._migration_log, public.backfill_errors and 13 analytics_events partitions (default plus 12 monthly partitions).
@@ -486,7 +465,6 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Enhanced apps/api/scripts/audit-db-access.ts (still BEGIN READ ONLY) to enumerate relation kinds, owners, RLS/policy/extension/partition metadata, partition bounds and safe migration/backfill summaries. No audit was run.
 - The 116 historical count remains unresolved; the next protected read-only run must compare relation-kind scopes and enumerate current partitions.
 - Current branch head: 2477a958699a933c71f168d5397f39ca0ab26a34. Current head has no Actions run; Vercel Admin/Web both report build-rate-limit failure. No tests were run.
-
 
 ## 2026-11-22 — UAT and staging bootstrap safety completion
 
@@ -497,13 +475,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Added unit tests for both guard helpers; tests were not run. No UAT/migration/bootstrap script was executed and no database connection was opened by this implementation.
 - Current branch head: b78ad3137ecc7820e8a4a0c3816a772bff764c3d; no Actions run; Vercel Admin/Web report provider build-rate-limit failures.
 
-
 ## G-002 method-level predicate batch 3 — Pricing, Merchant and Store Membership — 22 November 2026
 
 Completed source mapping and implementation for PricingService, MerchantService and StoreMembershipService. Fixed cross-store price-tier relationships at the PricingService boundary; inactive organization members can no longer list/download merchant documents or enumerate organization verification requests; document uploads validate the caller's active organization, current organization membership and optional store ownership/membership. Organization-scoped store/customer reads now receive caller context from MerchantController.
 
 Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-tenant-scope.spec.ts; they are committed but not run. See the G-002 method-level predicate map. Next method-level batch: Returns/Disputes/Reviews. Then carrier/shipping and worker/outbox/bootstrap/system. Full testing remains deferred to the consolidated phase.
-
 
 ## 2026-11-22 — G-002 method-level predicate batch 4
 
@@ -513,7 +489,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Reviewed DisputesService participant checks and ReviewsService order/buyer/subject checks; no additional code change was required. BusinessCalendarService is platform-global admin-controlled configuration.
 - Added three focused unit specs; tests not run. No CI, database connection/query/write, migration, grant/RLS, staging, deployment, worker or provider action occurred.
 
-
 ## 2026-11-22 — G-002 method-level predicate batch 5
 
 - Added assertActiveOrgMembership and applied it to shipping store CRUD, carrier credential/config management, shipment operations and carrier recovery.
@@ -522,7 +497,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Updated tracking callers (ShipmentOperationsController, ShippingCarrierWorker, CarrierTrackingPoller, CarrierReconciliationService) to pass storeId.
 - Worker validates outbox store/org metadata against shipment→store→org before provider side effects; webhook retry checks active credential/org. Shipment writes repeat id + store predicates and outbox events carry tenant metadata.
 - Added shipping-tenant-context.spec.ts and updated shipping-carrier-worker-label.spec.ts. Tests not run; no CI, DB, migration, grants/RLS, staging, deployment, worker activation or carrier/provider calls.
-
 
 ## 2026-11-22 — G-002 worker/system and operator-context continuation
 
@@ -534,7 +508,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Completed source-level worker/operator/bootstrap/audit/outbox context mapping. OutboxDispatcher remains log-only; real event-bus delivery is a deferred integration decision.
 - No migration was applied, no worker was enabled, and no live database, staging, deployment, grant/RLS or provider action occurred.
 
-
 ## 2026-11-22 — UX-012/UX-013 and pricing read-scope continuation
 
 - Implemented the mobile merchant pricing workflow: store-scoped price-list listing/creation/editing/activation; quantity-tier CRUD; product/variant selection; price-list linkage during offer creation; MOQ coverage preflight; offer-detail navigation to the linked price list.
@@ -545,7 +518,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Updated UX-012 and UX-013 in the gap register. Broad UX-010 source re-audit remains the next implementation stream.
 - No migrations, DB writes, grants/RLS, staging/deployment, worker activation or external provider calls.
 
-
 ## 2026-11-22 — UX-015 Product Studio save-flow integrity
 
 - Source review confirmed StepOffer already uses the selected store's active warehouse selector; the older whole-product inventory statement about a raw warehouse ID was stale and has been corrected.
@@ -554,7 +526,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added `apps/web/src/lib/product-studio-flow.ts` and `apps/web/src/__tests__/product-studio-flow.test.ts` covering five transition cases. Not executed by design; comprehensive validation remains at the end.
 - Source baseline: `3adb376515137bf49da4b44699e1b3c731389504`. Documentation and hook correction are included in the next grouped commit; resolve live branch SHA afterward.
 - PR #138 remains draft. No staging/shared DB, migration, grants/RLS, deployment, worker activation or external provider calls occurred.
-
 
 ## 2026-11-22 — UX-016 buyer cart mutation recovery
 
@@ -565,7 +536,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source baseline: `c04b722528d70c1c85261b5d160f14ad422b1f64`. Documentation synchronization is in the next grouped commit; resolve live SHA afterward.
 - No staging/shared DB, migration, grants/RLS, deployment, worker activation or provider call occurred.
 
-
 ## 2026-11-22 — UX-017 Admin returns oversight recovery
 
 - Updated Admin returns queue with shared retryable error state, error branch rather than false empty queue, and request-version protection against out-of-order filter responses and stale unmounted updates.
@@ -573,7 +543,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added focused tests to `apps/admin/src/__tests__/management.test.tsx` for queue and detail retry recovery. Tests not run.
 - Source baseline: `d581d7b649139b04be62f1fbe7fed72cc6a11546`. Docs sync follows separately.
 - No database, migration, deployment, worker activation, grants/RLS or provider actions.
-
 
 ## 2026-11-22 — UX-018 Mobile cart mutation locking
 
@@ -584,7 +553,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source baseline: `cfea06ea07e9a140672f3f741815ebf745354e1d`; documentation sync follows separately.
 - No DB, migration, deployment, worker activation, grants/RLS or provider actions.
 
-
 ## 2026-11-22 — UX-019 Admin dispute and evidence recovery
 
 - Added `loadDispute` retry with request-version protection and a shared AdminErrorState. Detail reads clear prior errors and ignore stale completions.
@@ -593,7 +561,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source baseline: `344c4b1300a20b2ec33dfc264d975aff27c4da57`; docs sync follows separately.
 - No DB, migration, deployment, worker activation, grants/RLS or provider calls.
 
-
 ## 2026-11-22 — UX-020 Admin user/merchant/organization detail recovery
 
 - Added retryable request callbacks and request-version guards to user, merchant and organization detail pages. Each retry clears stale errors and ignores obsolete requests.
@@ -601,7 +568,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added focused component tests in `apps/admin/src/__tests__/management.test.tsx` for user, merchant and organization detail recovery. Not executed.
 - Source baseline: `b20bdbfea47365bd8478f06cfa7ed4e73ce6d613`; docs sync follows separately.
 - No DB, migration, deployment, worker activation, grants/RLS or provider calls.
-
 
 ## 2026-11-22 — UX-021 Admin dispute resolution workflow
 
@@ -612,14 +578,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source baseline: `e6c56d1c32a0e7d496db62e4ae69025d9e624ccd`; docs sync follows separately.
 - No DB, migration, deployment, worker activation, grants/RLS or provider calls.
 
-
 ## 2026-11-22 — live project-memory reconciliation
 
 - Re-read START-HERE and the current project-memory plan, gap register, inventory, open issues and release history; verified the live branch/PR and latest Actions run/check statuses.
 - Reconciled the current branch head before this refresh to `7031cafcd94300421cf314aa6ac3ba3d3ef59651`; PR #138 is open/draft/unmerged to `develop`.
 - Exact-head Actions lookup is empty. Vercel Admin/Web statuses are rate-limited failures. The latest actual Actions run #44963271498 on older SHA `06cd8fc1e56dc7ef64a141b97b594adc96ffbece` failed at changed-file Prettier; Mobile passed and dependent jobs were skipped.
 - The project-memory current starting point and next action are updated to the implementation-first UX-010 continuation. UX-015–UX-021 have focused tests committed but not executed.
-
 
 ## 2026-11-22 — UX-022 Admin detail recovery expansion
 
@@ -629,13 +593,11 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source baseline: `9578040e4d28b327c451618f2111ba3ae8819493`; docs sync follows separately.
 - No DB, migration, deployment, worker activation, grants/RLS or provider calls.
 
-
 ## 2026-11-22 — UX-023 Admin ProductDetails offers recovery
 
 - Replaced the one-shot merchant-offer fetch in ProductDetails with an awaitable request-version guarded loader, loading skeleton, retryable error and true-empty state.
 - Added a component test in `apps/admin/src/__tests__/management.test.tsx` for an offers read failure followed by a successful retry returning no offers. Not executed.
 - Source baseline: `486650b19040c8e4d974e7fb7875f8a47cb46d9c`; docs sync follows separately.
-
 
 ## 2026-11-22 — UX-024 Admin financial workflow recovery
 
@@ -644,7 +606,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added four tests to `apps/admin/src/__tests__/management.test.tsx` for payment queue, settlement, reconciliation and settlement-adjustment read failure → retry → successful empty results. Not executed.
 - Source baseline: `2fb4628b58420e0e9350bfb296b6266f291ca58d`; docs sync follows separately.
 - No database, migration, deployment, worker activation, grants/RLS or provider actions.
-
 
 ## 2026-11-22 — Product Studio save and update completion (UX-015 / UX-025)
 
@@ -655,7 +616,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source baseline: `49b28054855fa3e18ade7e17aca0395124713a6f`; docs sync follows separately.
 - No database, migration, deployment, worker activation, grants/RLS or provider calls.
 
-
 ## 2026-11-22 — UX-026 / UX-027 Product Studio canonical and media integrity
 
 - Product Studio now prefers `useExistingProductId` over a stale wizard product ID, reuses the canonical product and skips product/attribute/variant/media mutations for shared catalog data. Existing canonical identity/specification/media steps are read-only.
@@ -664,7 +624,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added unit tests for canonical product target precedence and media dedupe/empty no-op. Not executed.
 - Source baseline: `0ebce8be9abd89f8370e208698123c9786ae72e6`; docs sync follows separately.
 - No DB, migration, deployment, worker activation, grants/RLS or provider calls.
-
 
 ## 2026-11-22 — UX-027 Product Studio offer retry-safety continuation
 
@@ -684,7 +643,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source implementation commit: `d7ffc3339db78f16e0f8a9aa7cb551ea28fabdcf`; parent: `9ce77fe3076adeafd58c26cb898bb1c5722d3baf`. PR #138 remains open/draft/unmerged.
 - No API/schema/migration/RLS/grant, shared DB, staging, deployment, worker or provider changes.
 
-
 ## 2026-11-22 — UX-029 mobile buyer return detail/history parity
 
 - Re-audited Web `/returns/[id]` against the existing API detail response and Flutter Order Detail. Web displayed refund, item, inspection/merchant-note and lifecycle event details; Flutter initially showed only a summary.
@@ -692,7 +650,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added actual-refund and inspection/merchant-note fields to `ReturnRequest`; detail view includes status, reason/description, tracking, item quantities/conditions and chronological event history.
 - Updated `mobile/test/returns_api_test.dart` with DTO field assertions. Tests are not executed yet; consolidated regression remains Phase 3.
 - No API, permission, route, schema, migration, database, staging or worker change.
-
 
 ## 2026-11-22 — UX-030 Web buyer self-service read recovery
 
@@ -702,14 +659,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added `apps/web/src/__tests__/buyer-self-service-recovery.test.tsx` for all read/retry paths and failed favorite removal. Not executed.
 - Source implementation commit: `b310f4da3ccda31f7a8c815f1d99ed1977329ad6`; exact-head Actions not run due to `[skip ci]`. No API/DB/permission/route change.
 
-
 ## 2026-11-22 — UX-031 Web Merchant Customers recovery
 
 - Found `fetchMerchantCustomers` failures silently swallowed in the Merchant Customers page, which then displayed “No customers yet.” Realtime/manual refresh failures were also hidden.
 - Added retryable read-error feedback and retained the last successful customer list when a refresh fails.
 - Added `apps/web/src/__tests__/merchant-customer-recovery.test.tsx` for initial failure/retry and failed-refresh stale-data preservation. Not executed.
 - Source implementation commit: `18fe161297b3302c94c2a9df3a0dc24c68b4fbf8`; `[skip ci]` used to conserve Actions minutes. No API or permission change.
-
 
 ## 2026-11-22 — UX-032 Web Merchant Deliveries recovery
 
@@ -840,7 +795,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added `admin-attribute-groups-recovery.test.tsx` and `admin-attributes-recovery.test.tsx`. Tests not executed.
 - No API, permission, schema, database or migration change. Commits use `[skip ci]`; no deployment or staging action.
 
-
 ## 2026-11-23 — UX-078 Mobile Buyer Store Directory and Store Detail
 
 - Re-audited the buyer-facing Store Directory and Store Detail screens. The directory only exposed initial-load retry by invalidation and lost the last successful list on refresh; Store Detail used an untracked FutureBuilder with no retry or refresh and could not preserve a previous catalogue.
@@ -848,13 +802,11 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added four focused Flutter widget scenarios for initial failure/retry and failed refresh after a successful store list/catalogue.
 - Tests were not run, per the implementation-first plan. No API/permission/schema/database/migration/staging/worker/provider integration changes.
 
-
 ## 2026-11-23 — UX-079 Mobile Buyer Order History recovery
 
 - Re-audited `mobile/lib/screens/orders/orders_list_screen.dart`. The refresh action only invalidated the provider and pull-to-refresh returned immediately; refreshes replaced the visible list, and a failed refresh had no stale-data context.
 - Added awaited provider refresh, skip-loading/skip-error handling, stale-data messaging and retry while retaining the active status filter. Initial read failure remains distinct from a true empty history.
 - Added three focused Flutter widget scenarios. Not run under the implementation-first test cadence. No order/payment/fulfillment/API/permission/database/migration/staging behavior changed.
-
 
 ## 2026-11-23 — UX-080 Mobile Search facet and request lifecycle
 
@@ -863,13 +815,11 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added explicit Refresh search, same-query stale-result preservation and protection against old-query rows/false empty states after a different query fails.
 - Added ApiService query serialization and widget out-of-order response tests. Not run under the implementation-first cadence. No backend/database/permission/staging/provider changes.
 
-
 ## 2026-11-23 — UX-081 Mobile Product Detail stable reads and recovery
 
 - Source audit found the Product Detail screen constructed a new `fetchProduct(widget.productId)` Future inline in build. Auxiliary variant/offer reads call `setState`, which rebuilt the screen and caused the FutureBuilder to issue another product-detail request. Main read failures had no retry/refresh, and variant/offer/review failures were swallowed.
 - Added an ID-keyed auto-disposed product detail provider, explicit refresh/pull-to-refresh, stale product preservation, retryable initial errors, auxiliary read error/retry states, and request-version guards for matrix/offer loads when the route reuses the State for another product ID.
 - Added Flutter widget tests for stale data, initial retry and avoiding redundant product fetches. Not run under the implementation-first cadence. No API/permission/cart/order/database/migration/staging behavior changed.
-
 
 ## 2026-11-23 — UX-082 Mobile Notifications recovery
 
@@ -877,13 +827,11 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added stale-safe refresh and pull-to-refresh, retry/true-empty handling, per-row in-flight state and caught individual mark-read failures. Extracted Mark All Read into a guarded action with success/failure feedback.
 - Added three focused Flutter widget scenarios. Not run under the implementation-first cadence. No realtime/API/database/migration/staging behavior changed.
 
-
 ## 2026-11-23 — UX-083 Mobile Home discovery recovery
 
 - Source audit found Categories and Suppliers used `maybeWhen(... orElse: SizedBox.shrink())`, Popular Products hid its error state, and the Home refresh callback invalidated five providers but returned before any refresh completed. The unread badge also coerced loading/error to zero.
 - Added independent loading/error/retry and stale-data handling to Categories, Popular Products and Suppliers; made pull-to-refresh await each independent read and added an explicit refresh action. The unread badge remains unknown instead of fabricating zero.
 - Added three focused Flutter widget scenarios. Not run under implementation-first cadence. No API/permission/role/database/migration/staging behavior changed.
-
 
 ## 2026-11-23 — UX-084 Mobile Checkout idempotency key lifecycle
 
@@ -891,13 +839,11 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Payment-method changes now mint a fresh key; retries without payload changes retain the same key. Existing server idempotency contract and checkout payload are unchanged.
 - Added a widget regression test covering two failed identical attempts followed by a payment-method change and a successful third attempt. Not run under implementation-first cadence.
 
-
 ## 2026-11-23 — UX-085 Mobile Merchant Dashboard recovery
 
 - Source audit found the merchant dashboard refresh only invalidated profile, stores and KPIs and returned immediately; profile and active-store reads did not preserve last-successful values or expose stale refresh failures. KPI reads already had dedicated recovery.
 - Added skip-refresh/reload stale handling and retry for profile/store reads, independent awaited refresh for profile/active-store/KPIs, explicit refresh action and pull-to-refresh on the always-scrollable store hub.
 - Added a widget test for simultaneous profile/store refresh failures. Not run under implementation-first cadence. No org/store lifecycle/API/permission/database/migration/staging behavior changed.
-
 
 ## 2026-11-23 — UX-086 Mobile Merchant Catalog recovery
 
@@ -954,7 +900,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added ProviderContainer tests for active-store organization matching, organization-scoped cache invalidation without invalidating buyer orders, and session identity/cache reset.
 - Source commits: provider cache helper `b49424e`, org switch integration `3f4a6a3` / `1f29e7c`, login/session integration `0895c16` / `61f1c60` / `c192589` / `bf10737`, active-store org filter `cd04739`, persisted org clearing `fc1f22a` / `b416041`. Focused test commits: `a0f308c` / `d0d0b26`. Three focused tests are present but not executed; remain pending Phase 3. No API, permission, DB, migration, RLS, worker or staging behavior changed.
 
-
 ## API typecheck correction checkpoint — 23 November 2026
 
 - Live PR #138 head before this correction batch was `de9eeafb3852822552c667d13ad1e0c27fa8d28f`. GitHub Actions run [#1380](https://github.com/nabeel2323/scs-platform/actions/runs/45081889002) failed in `Lint & Typecheck` at API TypeScript checking. API lint passed and Mobile analysis/tests passed; unit/coverage, Web/Admin tests, boundary lint, migration, contracts, container, integration and build jobs were skipped after the typecheck failure. Vercel Web/Admin statuses pointed to the external build-rate-limit page and are not application test results.
@@ -963,7 +908,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - No tests or typecheck were executed after these corrections. The new code head is therefore **IMPLEMENTED / NOT VERIFIED**; no CI pass is claimed. The commits use `[skip ci]` under the Actions-minute budget. Comprehensive verification remains deferred to Phase 3.
 - PR #138 remains OPEN/DRAFT/UNMERGED to `develop`. No staging deployment/write, shared database mutation, migration, grants/default-ACL change, RLS enablement, worker activation, provider call or release action occurred.
 
-
 ## UX-094 — Mobile merchant category permission/contract alignment — 23 November 2026
 
 - Source audit confirmed `CatalogController` category create/update/delete operations require `catalog:categories:write` **and** platform role ADMIN/MODERATOR. The Mobile router's merchant-role gate excludes those platform roles from `/merchant/*`, while the merchant category screen previously displayed New/Edit/Delete controls to merchant owners/staff. Those controls could only fail at the API boundary.
@@ -971,7 +915,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Focused route/helper tests were added in `mobile/test/route_permissions_test.dart`; not executed. Commits: `6741baf6f7d47c12ddc79d3ca1f4bbd3f110a39f`, `6f0659299c39952b0c8190a4a8dd520ccd3e3db9`, `bb2e4650534bae0b30bf112500db184c227ccba8`, `7b293273f4aba14429ed226932123678a0892c55`, route-matrix test `76b9b15dc1db37c67841d405b4a232f4731fc986`, and explanatory source comment `bd672f0b93de31d6bc669bb7785eeb70a345c302`.
 - Client alignment is IMPLEMENTED / TESTING_PENDING. Actual merchant-owned category CRUD remains BLOCKED pending a product/API ownership decision: either implement store-scoped category ownership and membership authorization, or move category mutation to a dedicated platform-admin surface. Do not expose write controls until that decision and backend contract exist.
 - No API, RBAC seed, role grant, schema, database, migration, RLS, worker, staging or deployment behavior changed.
-
 
 ## 23 November 2026 — Web merchant access alignment and G-036 realtime authorization
 
@@ -1003,7 +946,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 
 **Next:** complete the Mobile route-permission and organization-context transition audit, then finish remaining Admin route/action permission mapping. Keep the comprehensive test campaign deferred to Phase 3.
 
-
 ## 23 November 2026 — Mobile route/action permission and organization-context audit (UX-096)
 
 **Implementation checkpoint:** `84d7f4d713902819b21b89a12074986b17781c48`  
@@ -1026,7 +968,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 
 **Status:** UX-096 IMPLEMENTED / TESTING_PENDING. Mobile route/action/org-context implementation slice is complete at source level. **Next:** finish remaining Admin route/action permission mapping, then the consolidated testing phase.
 
-
 ## 2026-11-23 — CI typecheck/analyzer corrections and Admin UX-097 action guards
 
 - Reviewed CI #1395 on the prior PR head `ff304ce6c0bcf63a654ff8fbd04130254cdb669e`. The API job failed at typecheck because regex match capture groups were typed `string | undefined`; the Mobile job failed analysis because `UserProfile.role` is nullable and a dynamic EmptyState description was incorrectly marked const.
@@ -1038,7 +979,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - No API permission grants, backend business contracts, schema, migration, database, staging, worker, provider or deployment behavior changed. PR #138 remains draft/unmerged.
 
 **Next:** continue the remaining Admin route/action audit against API controller decorators and role contracts; do not repeat the already-completed 56-route page-level audit or UX-097 handler fixes. Keep the comprehensive campaign deferred to Phase 3.
-
 
 ## 2026-11-23 — Admin capability-aware navigation and payment verification access (UX-098)
 
@@ -1059,7 +999,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 
 **Next:** continue the remaining Admin custom route/action-to-controller mapping, checking permission OR/AND semantics against actual route guards and API decorators. The 56-page route-level audit and UX-097/098 fixes must not be repeated.
 
-
 ## 2026-11-23 — Supplemental G-002 audit note reconciled
 
 - Reviewed the user-uploaded `Advanced UX Enhancement Prompt.txt`. It reports 111/111 tables with RLS disabled, 32 public-schema functions with none SECURITY DEFINER, anon/authenticated without BYPASSRLS, service_role with BYPASSRLS, 55 foreign-key constraints without covering indexes, prior plaintext OTP log observations, one Render API service/no separate worker, and a startup migration/RBAC-seed command with 63 migrations reported applied.
@@ -1068,7 +1007,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - No SQL was run, no credentials or connection details were accessed, and no grants, RLS, migration, staging, Render, worker or deployment action occurred.
 
 **Next G-002 evidence:** use the protected read-only staging audit to reconcile table/function scope and establish actual API/migration runtime identities. Do not bypass approval or mutate the shared database.
-
 
 ## 2026-11-23 — Shared Admin mutation permission rechecks (UX-099)
 
@@ -1082,7 +1020,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 
 **Next:** continue remaining Admin custom route/action-to-controller mapping and confirm all `useAdminMutation` call sites use an action-specific permission callback. Do not repeat UX-097/098/099. Keep the consolidated test and formatting campaign deferred to Phase 3.
 
-
 ## 2026-11-23 — Admin settlement adjustment rejection action (UX-100)
 
 - Continued the custom Admin route/action-to-controller audit. Compared the reconciliation, settlement-adjustment, settlement, payment, role-permission, return, calendar and shipment action permissions with the API controller decorators; the reviewed page-level predicates match the corresponding endpoint permission keys.
@@ -1094,7 +1031,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 
 **Next:** continue the remaining Admin custom route/action-to-controller mapping, including any direct custom mutation handlers outside `useAdminMutation`. Do not repeat the completed 56-page route audit or UX-097–UX-099. Comprehensive formatting and test execution remain grouped in Phase 3.
 
-
 ### Admin custom action mapping audit conclusion — 23 November 2026
 
 - Completed the source-level pass over direct custom mutation handlers for payments/refunds, calendar holidays, reconciliation, settlement adjustments, settlements, role permission updates, return resolution, order cancellation, verification review/organization status and product moderation.
@@ -1103,7 +1039,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Focused UX-100 tests remain unexecuted. No API grants, backend authorization, schema, migration, database, staging, worker or deployment behavior changed.
 
 **Next:** proceed with the remaining Admin operational UX/source audit beyond permission mapping; keep comprehensive formatting and test execution grouped in Phase 3.
-
 
 ## 2026-11-23 — Catalog governance action guards and Product Type publish correctness (UX-101)
 
@@ -1117,7 +1052,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 
 **Next:** continue the remaining Admin operational UX/source audit beyond permission mapping. Keep the consolidated formatting and test campaign grouped in Phase 3.
 
-
 ## 2026-11-23 — Product editor action-time permission guard (UX-102)
 
 - Continued the Admin custom form audit and found that the shared ProductForm create/edit Save handler did not recheck the route's `catalog:products:write` capability at dispatch.
@@ -1127,7 +1061,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source commit: `383ea13c589d9023aab24d3b2d15c5c0db2cd751`.
 
 **Next:** continue the remaining Admin operational UX/source audit beyond permission mapping; keep the accumulated formatter and test campaign grouped in Phase 3.
-
 
 ## 2026-11-23 — Product Type stale-response suppression (UX-103)
 
@@ -1139,7 +1072,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 
 **Next:** continue the remaining Admin operational UX/source audit beyond permission mapping. Keep comprehensive formatting and tests grouped in Phase 3.
 
-
 ## 2026-11-23 — Catalog Requests action guards (UX-104)
 
 - Added action-time `catalog:requests:manage` checks and single-flight protection to Approve and Reject.
@@ -1147,16 +1079,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added tests for duplicate approval dispatch and rejection payload. Tests not executed.
 - Commit: `00427e5f0cdd183aa7b8c910a93b8edd2e0d0723`.
 
-
-
 ## 2026-11-23 — Dashboard protected-read gating (UX-105)
 
 - Fixed Data Quality and KPI Dashboard so protected API reads and retry callbacks are gated by `catalog:product-types:manage` and `admin:kpis:read`, respectively.
 - Added request-version invalidation to Data Quality and permission-aware request handling to KPI.
 - Added tests confirming unauthorized users do not trigger protected API reads. Tests not executed.
 - Commit: `8474b7acd264872a01d305bef515009eded104ed`.
-
-
 
 ## 2026-11-23 — FIN-001 Payment refund concurrency and idempotency
 
@@ -1198,7 +1126,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699150cb896a23eb171eab0ae5a00`, `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`.
 - Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, provider, automatic payout, staging, shared DB or deployment changes.
 
-
 ## 2026-11-23 — FIN-006 dispute refund idempotency payload integrity
 
 - Found that dispute orphan-refund recovery reused the deterministic `dispute-refund:<disputeId>` key without validating the financial payload against the retry.
@@ -1207,7 +1134,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source/test commit: `9899113a4f574d2733b957d2f1b489e35a71fe0f`.
 - No schema, migration, provider, payout, staging, shared database or deployment changes.
 
-
 ## 2026-11-23 — FIN-007 refund/order payment projection consistency
 
 - Found that `approveRefund` updated the payment record but left the order's denormalized `payment_status` stale after a successful refund.
@@ -1215,7 +1141,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added PostgreSQL FIN-DSH-21/22 for partial and full refunds; tests added, not executed.
 - Source/test commit: `5b68edac4d148f68656b4331a9612cd1752eab3d`.
 - No schema, migration, provider, payout, staging, shared database or deployment changes.
-
 
 ## 2026-11-23 — FIN-008 return refund idempotency payload integrity
 
@@ -1236,7 +1161,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - CI #1427: lint/typecheck and Flutter passed; changed-file Prettier failed (258 files); dependent API/Web/Admin/PostgreSQL/build/release jobs skipped. CI #1429 was cancelled. CI #1434 must be checked at its exact SHA.
 - No schema/migration, gateway/provider/automatic payout, staging/shared DB, grants/RLS, deployment or worker changes.
 
-
 ## 2026-11-23 — FIN-014 discount-adjusted commission reversal and currency integrity
 
 - Return commission reversal now prorates the order-level discount over the returned goods using the same persisted order financial basis. The commission reversal and post-refund settlement adjustment retain the original payment currency.
@@ -1252,7 +1176,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source commits: 917397ffd5491d6fe52a18063c0266e831b67c38, e2338cf1e50e825bd1c22becbeab0a6a4757a5e4, a596d49a752973cdc1b7039f3b325f0421252c9c; test commit: 4e67e5ef7541e87ef5d9698e3abad7529cd07219.
 - Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, payout, staging, shared DB or deployment change.
 
-
 ## 2026-11-23 — FIN-016 COD excluded from stale-payment expiry
 
 - COD payment collection is due at delivery, not within the bank-transfer payment window. The stale-payment reconciliation query now excludes CASH_ON_DELIVERY, and expirePayment rejects COD at the service boundary as a defense in depth.
@@ -1265,7 +1188,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Both commission reversal paths now convert the PostgreSQL SUM(bigint) aggregate to Number before passing it into the safe-integer BigInt helper. This avoids runtime rejection of a numeric string while retaining range validation.
 - Commits: e5765b53be5a199ac075e75b92d4a93e05a2415d and c2864af871f36336a263b74056329ae3dcf4a381.
 
-
 ## FIN-017 — Exact return refund allocation and payment-currency delivery adjustments — 23 November 2026
 
 - **Finding:** return request calculations used floating-point discount/VAT ratios with `Math.round`, creating minor-unit precision risk for large values. Partial-return delivery-fee exception adjustments also hardcoded SYP despite the return's payment currency being available.
@@ -1274,7 +1196,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - **Source commit:** `122edb4bf1dc67ba01bfc33b97809cc037781f87`; unit/integration test commit: `e6823ee9b1c68f5b71229ffbda17c9f525b66565`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, provider, staging, shared DB or deployment behavior changed.
 
-
 ## FIN-017 — Exact return refund allocation and payment-currency delivery adjustments — 23 November 2026
 
 - **Finding:** return request calculations used floating-point discount/VAT ratios with `Math.round`, creating minor-unit precision risk for large values. Partial-return delivery-fee exception adjustments also hardcoded SYP despite the return's payment currency being available.
@@ -1282,7 +1203,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - **Regression coverage:** FIN-DSH-31 verifies a partial return with products 3000, discount 600, tax 240 and delivery fee 450 yields refund 880 and a 495 USD delivery-fee adjustment. Unit tests cover half-up allocation and an intermediate product beyond safe Number precision. Tests added, not executed.
 - **Source commit:** `122edb4bf1dc67ba01bfc33b97809cc037781f87`; unit/integration test commit: `e6823ee9b1c68f5b71229ffbda17c9f525b66565`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, provider, staging, shared DB or deployment behavior changed.
-
 
 ## 2026-11-23 — FIN-017 exact return refund allocation and delivery currency
 
@@ -1299,7 +1219,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source commit: 8a8364899f08180da9213be4d897a65fac9a897d; test commit: 705609fa2928d6e12e393b59bb990cfe0cf2343c.
 - No schema/migration, gateway, payout, staging, shared DB or deployment change.
 
-
 ## 2026-11-23 — FIN-019 settlement adjustment posting integrity
 
 - **Finding:** `SettlementAdjustmentService.postAdjustment` applied `netMinor = -amountMinor` to every adjustment type, incorrectly recording COMMISSION_REVERSAL as a merchant debit. It also transitioned an approved adjustment to POSTED even when no primary settlement existed, leaving no corresponding settlement ledger record.
@@ -1308,12 +1227,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - **Source commits:** `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, staging, shared DB, grants/RLS, deployment or worker changes.
 
-
 ## 2026-11-23 — FIN-019 regression scenario numbering correction
 
 - The integration suite already used FIN-DSH-33 for return idempotent retry. Renumbered the new settlement-adjustment cases to FIN-DSH-34 (commission reversal positive net) and FIN-DSH-35 (no primary settlement blocks posting).
 - Commit: `b9f9728659e71d3788cc58aa2b5ad9df29ab9731`. Tests remain added but not executed.
-
 
 ## 2026-11-23 — FIN-020 reconciliation correctness
 
@@ -1325,7 +1242,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added production-helper unit regressions and PostgreSQL FIN-DSH-36 with a disposable database.
 - Source/test commit: `ad478cc53ce40bec86172e881b4f14cea7e6dfac`. Tests not run; IMPLEMENTED / TESTING_PENDING. Actions workflow lookup returned no run for this SHA; Vercel Web/Admin previews were successful but are not application tests.
 - No schema/migration or shared/staging DB write, deployment, worker, grants/RLS, gateway or automatic payout changes.
-
 
 ## 2026-11-23 — FIN-021 reconciliation run lifecycle integrity
 
@@ -1339,7 +1255,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Exact-head Actions returned no run. Vercel Web failed due build-rate-limit; Vercel Admin succeeded. These are not application test results.
 - No shared/staging DB write, migration execution, grants/RLS, worker activation, environment change, deployment, gateway/provider or payout change.
 
-
 ## 2026-11-23 — FIN-022 financial history and outbox consistency
 
 - Audited payment lifecycle history, return events, commission reversals, settlement adjustments, dispute events, generic outbox publishing and dispatcher polling.
@@ -1352,7 +1267,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - No schema/migration/shared DB write, worker activation, deployment, gateway or payout change.
 - Next FIN-023: audit BANK_TRANSFER checkout's post-commit order/payment transition and dispute-refund split transaction recovery.
 
-
 ## 2026-11-23 — FIN-023 checkout and dispute-refund atomicity
 
 - Removed the BANK_TRANSFER checkout split-brain window: order PAYMENT_PENDING + payment AWAITING_PAYMENT, order/payment immutable history and payment/order outbox events are now persisted inside the original checkout transaction. Removed the swallowed post-commit transition; fail closed when BANK_TRANSFER is requested without PaymentsService.
@@ -1361,7 +1275,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Commits: `a5fa4806e310159b6f2708d366764ffe4fa3892f`, `442b03a77e4645fba01b8f33d3d2351265365b9d`, `71c8acb5a890a8b7350915cc4eca80dd6104874c`.
 - No migration/shared DB write, worker activation, deployment, gateway/provider or payout change.
 - Next FIN-024: payment proof upload storage/DB rollback and retry-safe cleanup audit.
-
 
 ## 2026-11-23 — FIN-024 payment proof upload lifecycle
 
@@ -1372,14 +1285,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Commits: `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7d7b8487771e8ec`.
 - Residual crash window after upload and before DB transaction can leave orphan objects; no durable upload-intent/sweeper exists. Next FIN-025 addresses crash-safe cleanup. No migration/shared DB write/worker activation/deployment.
 
-
 ### FIN-024 follow-up — uncertain object-store upload — 23 November 2026
 
 - Moved payment transition validation before object upload so invalid transitions cannot create unused objects.
 - Added compensation for upload timeouts: when putObject throws, check the generated key and delete it if the object exists; cleanup errors are logged and do not mask the original upload failure.
 - Added FIN-DSH-48 to verify an accepted object is deleted after the upload response times out and the payment row remains unchanged. Test not executed.
 - Commit: `847647c424097e5ace69236d0c3b4592f85d30e9`. Process-crash orphan window remains for FIN-025.
-
 
 ## 2026-11-23 — FIN-021 transaction-client compatibility correction
 
@@ -1397,13 +1308,11 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - PostgreSQL FIN-DSH-49–53 cover stale orphan cleanup, cross-payment committed-reference preservation, retry backoff, concurrent claim exclusion and retired-proof cleanup; FIN-DSH-46/48 were updated for durable intent behavior and FIN-DSH-47 verifies committed intent. Tests added, not executed.
 - No shared database migration/write, staging operation, worker activation, grants/RLS, environment change, provider/gateway/payout, deployment or merge action.
 
-
 ### FIN-025 follow-up — storage provider error classification — 23 November 2026
 
 - Hardened object-not-found detection for S3-compatible providers: accept HTTP 404 or a recognized code/name in any of the SDK's `name`, `Code`, or `code` fields. A generic `name='Error'` no longer masks a `Code='NotFound'` value.
 - Generic storage errors continue through retry/backoff; they are never interpreted as object absence.
 - Commit: `ff67348b950b51a482fa4cf624549a146551c383`. No tests executed.
-
 
 ## 2026-11-23 — FIN-026 payment event actor attribution
 
@@ -1419,7 +1328,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added PostgreSQL FIN-DSH-55 for admin override of MERCHANT_APPROVED and CANCELLED. Test not executed.
 - Commit: `47de1df8637d3cdff03ac6a70184613978357120`.
 
-
 ## 2026-11-23 — FIN-027 refund-balance parity and CI syntax correction
 
 - Live branch was reconciled at source/test checkpoint `5b636df49155ea523bc730852ed900720a858a88`; PR #138 remains OPEN / DRAFT / UNMERGED against `develop`.
@@ -1431,7 +1339,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - No shared/staging database writes, migration execution, grants/RLS changes, worker activation, environment changes, deployment or merge occurred. Migration 0075 remains source-only; PR #138 remains draft.
 - Next: continue source-first audit of payment/refund/settlement event history, retry semantics and cross-ledger consistency. Keep the comprehensive Phase 3 test/migration campaign grouped until implementation is complete.
 
-
 ## 2026-11-23 — FIN-028 settlement calculation actor attribution
 
 - Source audit found `PaymentsService.calculateSettlement` is admin-only but wrote `PAYMENT_SETTLEMENT_CALCULATED` history with `actor_type = SYSTEM`, misattributing a user-initiated privileged action.
@@ -1440,7 +1347,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source commit: `5a7dfd6ea67de61bb016cc7a7ef31749760955d8`. Test commit: `05799cde897871ab9752af07bf70830ac834edbf`. Test added, not executed.
 - No schema/migration, shared DB, staging, worker, provider, payout, environment, deployment or merge action. All implementation commits use `[skip ci]`; consolidated Phase 3 validation remains pending.
 - Next: continue auditing refund/reconciliation event producers and retry/idempotency paths for authenticated actor and immutable history/outbox parity.
-
 
 ## 2026-11-23 — FIN-029 payment confirmation order-history actor parity
 
@@ -1451,7 +1357,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - No schema/migration, shared DB, staging, worker, provider, payout, environment, deployment or merge action. Consolidated Phase 3 validation remains pending.
 - Next: continue audit of remaining event producers and cross-ledger timing/retry semantics; do not repeat FIN-001–FIN-029.
 
-
 ## 2026-11-23 — FIN-030 refund-completion period attribution
 
 - Reconciliation audit found `checkMissingRefunds` and `checkCommissionReversals` scoped REFUNDED returns by `return_requests.created_at`, which is the date the buyer opened the return, not when the refund completed.
@@ -1461,7 +1366,6 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source commit: `93a908d4627c804af5d12e20c6a1e7c2811524e9`. Test commit: `5abae2018b9e6d6a43d5e3b90764ef80560b4ea0`. Test added, not executed.
 - No migration, shared database write, staging operation, deployment or merge. Continue consolidated Phase 3 testing only after implementation is complete.
 
-
 ## 2026-11-23 — FIN-031 cross-period duplicate refund detection
 
 - Continued reconciliation audit found duplicate-return detection filtered by `return_requests.created_at` and counted only refunds in that window. It missed a duplicate when the return was opened earlier or when one successful refund fell in an earlier accounting period.
@@ -1470,26 +1374,21 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source commit: `6089a1fd821c35c0dcd9f0cde849e145326905e1`. Test commit: `4bdd2935d48ea2c6ef3d633aa6af2f3fe39369ab`. Test added, not executed.
 - No schema/migration, shared DB, staging, deployment or merge action. Consolidated Phase 3 validation remains pending.
 
-
 ## FIN-032 — Settlement-adjustment accounting-period correctness — 23 November 2026
 
 Reconciliation previously used adjustment creation time for POSTED-adjustment approval and delivery-fee-cap checks. This misattributed adjustments created in an earlier period but posted in the current period; delivery-fee-cap checks also included DRAFT and other unposted adjustments. Both checks now require status POSTED and use the adjustment transition timestamp (updated_at) as the accounting-period timestamp. PostgreSQL FIN-DSH-60 covers a prior-period-created adjustment posted in the current period and confirms that an unposted draft is excluded. Source commit: 0c65476d1135d18504ae910083299683fdb8d072; test commit: 39a8ee35e81e919601e49d0564fee023d5a39871. Test added, not executed.
-
 
 ## FIN-033 — Exact payment refund aggregate arithmetic — 23 November 2026
 
 Three payment-side SUM(bigint) aggregates used for refund reservation, refund approval projection and settlement calculation were exposed as JavaScript numbers without an explicit precision guard. They now return PostgreSQL numeric text, convert through BigInt, and fail closed when negative or outside Number.MAX_SAFE_INTEGER. Unit coverage verifies totals above the 32-bit boundary, unsafe aggregate rejection and malformed/negative values. Source commit: 633d56a06e073ee416e5b7a989167ef5828f13d8; test commit: 115b0dab007e4071f6a32ee1e564427a86732249. Tests added, not executed.
 
-
 ## FIN-034 — Caller-owned refund transaction support — 23 November 2026
 
 PaymentsService.requestRefund now accepts an optional caller-owned transaction client and reuses it rather than opening a nested transaction. This aligns the implementation with the existing dispute-resolution caller, which passes its transaction so refund creation, payment event/outbox, refund linkage and dispute resolution remain atomic. Existing PostgreSQL FIN-DSH-45 covers injected failure rollback; tests remain unexecuted. Source commit: 2c4b4538cc10e3d4e6217ca56967c89e52657fd8.
 
-
 ## FIN-035 — Atomic return-refund and return-ledger transition — 23 November 2026
 
 Return refund creation previously committed the payment refund/event/outbox first, then linked the refund and advanced the return request in a second transaction. It now locks the payment and performs refund creation (reusing PaymentsService's caller-owned transaction), return linkage, REFUND_PENDING state/history and return outbox in one transaction. The existing idempotency recovery path remains for legacy split-transaction rows. PostgreSQL FIN-DSH-61 injects failure at return outbox persistence and asserts that refund, payment event/outbox and return changes all roll back. Source commit: e462c256be710a81e42b2f2d4093d4700abe1818; test commit: f5d38d5a4af42ec29fa38040d8ba184e5dcbcdff, with scoped outbox assertion correction 4ad18e1eab3495030c6fff719607b5101337edb4 and test index update ac266c2c365d23c3ef3e58032616bb118d037715. Tests not executed.
-
 
 ## 23 November 2026 — CI #1449 triage and FIN-036 continuation
 
@@ -1501,7 +1400,6 @@ Return refund creation previously committed the payment refund/event/outbox firs
 - FIN-036 source/test commit: d84489f185cfc864074406f0c9029bc28f40dc94. No exact-head CI run is claimed; commits use [skip ci] under the implementation-first test cadence.
 - No migration, shared database/staging write, grants/default-ACL change, RLS enablement, worker activation, provider call, deployment or merge. PR #138 remains draft/unmerged.
 - **Next:** continue the source-first payment/refund/settlement lifecycle retry and cross-ledger consistency audit beyond FIN-036. Keep the consolidated Phase 3 campaign pending until implementation is complete.
-
 
 ## 23 November 2026 — reconciliation typecheck correction follow-up
 
@@ -1553,7 +1451,6 @@ Reviewed repeated return-state transitions and tightened FIN-040 to use MAX(crea
 
 FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.
 
-
 ## 23 November 2026 — FIN-044 adjustment parent isolation and Admin payout parity
 
 - Continued the FIN-041–043 settlement-adjustment audit and found that `postAdjustment` still selected the latest settlement row by status. Once a prior ADJUSTMENT row was paid, its status became PAID and it could be incorrectly selected as the parent of a later adjustment.
@@ -1564,7 +1461,6 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Commits: `233e49a12352a4e157f455040a2bdcc4c16c1828` and `62bf7cf1991ff7974a8762c0e57eea148fcc53b4`. Tests added, not executed; `[skip ci]`.
 - No migrations, shared/staging database writes, deployment, merge, environment changes, worker activation or RLS/ACL changes.
 - Next: audit merchant settlement projections and reconciliation/report exports for adjustment visibility and double-counting before the consolidated Phase 3 test campaign.
-
 
 ## 23 November 2026 — FIN-045 paid adjustment reconciliation
 
@@ -1582,7 +1478,6 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Source commits: `4615e05bb0c0df98ec2015387262a146bc13f6a4` and `3373c36930744c911300699b770d05c4428a313c`. Tests not executed; `[skip ci]`.
 - Next: inspect settlement list caps, exports and financial KPI aggregation for primary/adjustment double counting. No migration, shared/staging write, deployment or merge.
 
-
 ## 23 November 2026 — settlement projection and reporting audit checkpoint
 
 - Confirmed the merchant Settlements screen is now wired to the existing organization/store-scoped API and paid adjustment rows are labeled from durable metadata or legacy notes.
@@ -1590,7 +1485,6 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Merchant and Admin settlement list methods each cap results at 100 rows and currently do not expose pagination. No export/report service was found in the reviewed Admin/Analytics module paths that aggregates settlement records.
 - Next: verify whether additional finance export/report consumers exist outside these modules, then decide whether pagination is required. Do not change order revenue KPI definitions to settlement net amounts without an explicit product decision.
 - Exact branch/PR/CI status before this docs sync: head `615becfe8b1b9f14407e8872bb26a2e51ec790af`; PR #138 open/draft/unmerged; no exact-head Actions run; Vercel Web/Admin statuses are external build-rate-limit failures.
-
 
 ## 23 November 2026 — FIN-047 settlement history pagination
 
@@ -1602,7 +1496,6 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - No migration, shared/staging database write, deployment, merge, environment mutation, worker activation or RLS/ACL change.
 - Next: complete remaining report/export consumer audit outside reviewed Admin/Analytics paths, then execute consolidated Phase 3 test campaign.
 
-
 ## 23 November 2026 — FIN-047 consumer audit closure and CI coverage alignment
 
 - Reconciled live branch `remediation/phase-0-1-tenant-security` at `f9eaa99c163a66ce4f37b9ad70724865c184e9e0`; PR #138 remains OPEN / DRAFT / UNMERGED against `develop`.
@@ -1612,13 +1505,11 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - This grouped documentation/CI update intentionally omits `[skip ci]` to start the consolidated Phase 3 PR campaign. Exact-head status must be checked after push; do not treat the current pending state as a pass.
 - No migrations, shared/staging DB writes, environment changes, worker activation, RLS/ACL changes, deployment or merge.
 
-
 ## 23 November 2026 — consolidated CI diagnosis and grouped TypeScript fixes
 
 - CI #45243520666 on `86dbe607435d08f9e9ad483c1813ca52004df00a` found an invalid escaped template-literal delimiter at line 3428 of `p13-financial-dispute.postgres.spec.ts`. Corrected in `c036e7a483f634c9fad537c50fc8fc9dddb851a0`.
 - CI #45243772955 on `c036e7a483f634c9fad537c50fc8fc9dddb851a0` passed lint and then failed workspace typecheck: two old Admin settlement test mocks returned arrays rather than the new paginated response, and Admin Settlements used dot notation for an index-signature metadata key.
 - Corrected both mocks to return `{ data, total, limit, offset }` and changed metadata access to `['adjustmentId']`. These are grouped in the next source commit. Exact-head CI rerun required; no API, PostgreSQL, Web/Admin or Flutter test pass is claimed yet.
-
 
 ## 23 November 2026 — FIN-047 consolidated CI result and formatter blocker
 

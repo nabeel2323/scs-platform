@@ -1,11 +1,12 @@
-import {
-  Controller, Get, Post, Patch, Delete,
-  Param, Body, UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { CartService, AddCartItemInput } from './cart.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
+import {
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
+} from '../../common/guards/current-user.decorator';
 
 @Controller('cart')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -19,10 +20,7 @@ export class CartController {
 
   @Post('items')
   @RequirePermission('orders:write')
-  async addItem(
-    @CurrentUser() user: JwtPayload,
-    @Body() input: AddCartItemInput,
-  ) {
+  async addItem(@CurrentUser() user: JwtPayload, @Body() input: AddCartItemInput) {
     return this.cartService.addItem(user.sub, input);
   }
 
@@ -38,10 +36,7 @@ export class CartController {
 
   @Delete('items/:itemId')
   @RequirePermission('orders:write')
-  async removeItem(
-    @CurrentUser() user: JwtPayload,
-    @Param('itemId') itemId: string,
-  ) {
+  async removeItem(@CurrentUser() user: JwtPayload, @Param('itemId') itemId: string) {
     return this.cartService.removeItem(user.sub, itemId);
   }
 

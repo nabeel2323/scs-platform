@@ -66,7 +66,9 @@ function OfferDetailContent({ id }: { id: string }) {
 
   useEffect(() => {
     void load();
-    return () => { requestVersion.current += 1; };
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [load]);
 
   const loadInventory = useCallback(async () => {
@@ -75,7 +77,9 @@ function OfferDetailContent({ id }: { id: string }) {
     setInvLoading(true);
     setInventoryError('');
     try {
-      const data = await adminRequest<AdminRecord>(`inventory/variant/${encodeURIComponent(variantId)}`);
+      const data = await adminRequest<AdminRecord>(
+        `inventory/variant/${encodeURIComponent(variantId)}`,
+      );
       if (requestId === inventoryRequestVersion.current) {
         setInventory(data);
         setInventoryVariantId(variantId);
@@ -91,11 +95,18 @@ function OfferDetailContent({ id }: { id: string }) {
 
   useEffect(() => {
     void loadInventory();
-    return () => { inventoryRequestVersion.current += 1; };
+    return () => {
+      inventoryRequestVersion.current += 1;
+    };
   }, [loadInventory]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={8} />;
-  if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: catalog:offers:govern</div>;
+  if (!hasAccess)
+    return (
+      <div style={{ padding: 32, color: '#991b1b' }}>
+        Access denied. Required: catalog:offers:govern
+      </div>
+    );
   if (loading) return <AdminLoadingSkeleton kvRows={8} />;
   if (error) return <AdminErrorState title="Unable to load offer" message={error} onRetry={load} />;
   if (!offer) return null;
@@ -115,64 +126,116 @@ function OfferDetailContent({ id }: { id: string }) {
   ];
 
   const commercialItems: KVItem[] = [
-    { key: 'basePriceMinor', label: 'Selling Price', value: formatCurrency(offer['basePriceMinor'] as number, offer['currency'] as string) },
+    {
+      key: 'basePriceMinor',
+      label: 'Selling Price',
+      value: formatCurrency(offer['basePriceMinor'] as number, offer['currency'] as string),
+    },
     { key: 'currency', label: 'Currency', value: String(offer['currency'] || 'Not set') },
     { key: 'moq', label: 'Minimum Order Qty', value: String(offer['moq'] ?? '—') },
-    { key: 'leadTimeDays', label: 'Lead Time', value: offer['leadTimeDays'] != null ? `${offer['leadTimeDays']} days` : '—' },
-    { key: 'isAvailable', label: 'Availability', value: formatBoolean(offer['isAvailable'] as boolean) },
+    {
+      key: 'leadTimeDays',
+      label: 'Lead Time',
+      value: offer['leadTimeDays'] != null ? `${offer['leadTimeDays']} days` : '—',
+    },
+    {
+      key: 'isAvailable',
+      label: 'Availability',
+      value: formatBoolean(offer['isAvailable'] as boolean),
+    },
     { key: 'status', label: 'Status', value: <AdminStatusBadge status={status} /> },
     { key: 'activatedAt', label: 'Activated', value: formatDate(offer['activatedAt'] as string) },
     { key: 'createdAt', label: 'Created', value: formatDate(offer['createdAt'] as string) },
     { key: 'updatedAt', label: 'Updated', value: formatDate(offer['updatedAt'] as string) },
-    { key: 'id', label: 'Offer ID', value: (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{id}</span>
-        <AdminCopyButton value={id} label="" />
-      </span>
-    )},
+    {
+      key: 'id',
+      label: 'Offer ID',
+      value: (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{id}</span>
+          <AdminCopyButton value={id} label="" />
+        </span>
+      ),
+    },
   ];
 
   const merchantItems: KVItem[] = [
-    { key: 'storeId', label: 'Store', value: storeId ? (
-      storeName ? <AdminEntityLink type="store" id={storeId} name={storeName} /> : (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{storeId}</span>
-          <AdminCopyButton value={storeId} label="" />
-        </span>
-      )
-    ) : 'Not set' },
+    {
+      key: 'storeId',
+      label: 'Store',
+      value: storeId ? (
+        storeName ? (
+          <AdminEntityLink type="store" id={storeId} name={storeName} />
+        ) : (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{storeId}</span>
+            <AdminCopyButton value={storeId} label="" />
+          </span>
+        )
+      ) : (
+        'Not set'
+      ),
+    },
   ];
 
   const productItems: KVItem[] = [
-    { key: 'productId', label: 'Product', value: productId ? (
-      productTitle ? <AdminEntityLink type="product" id={productId} name={productTitle} showIcon /> : (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{productId}</span>
-          <AdminCopyButton value={productId} label="" />
-        </span>
-      )
-    ) : 'Not set' },
-    { key: 'variantId', label: 'Variant', value: variantId ? (
-      variantSku ? <AdminEntityLink type="variant" id={variantId} name={variantSku} showIcon /> : (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{variantId}</span>
-          <AdminCopyButton value={variantId} label="" />
-        </span>
-      )
-    ) : 'Not set' },
+    {
+      key: 'productId',
+      label: 'Product',
+      value: productId ? (
+        productTitle ? (
+          <AdminEntityLink type="product" id={productId} name={productTitle} showIcon />
+        ) : (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{productId}</span>
+            <AdminCopyButton value={productId} label="" />
+          </span>
+        )
+      ) : (
+        'Not set'
+      ),
+    },
+    {
+      key: 'variantId',
+      label: 'Variant',
+      value: variantId ? (
+        variantSku ? (
+          <AdminEntityLink type="variant" id={variantId} name={variantSku} showIcon />
+        ) : (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{variantId}</span>
+            <AdminCopyButton value={variantId} label="" />
+          </span>
+        )
+      ) : (
+        'Not set'
+      ),
+    },
   ];
 
   return (
     <div>
       <AdminDetailHeader
-        breadcrumbs={[{ label: 'Catalog', href: '/offers' }, { label: 'Offers', href: '/offers' }]}
+        breadcrumbs={[
+          { label: 'Catalog', href: '/offers' },
+          { label: 'Offers', href: '/offers' },
+        ]}
         backLabel="Back to Offers"
         backHref="/offers"
         title={productTitle || variantSku || 'Merchant Offer'}
         subtitle={
           <>
-            {storeName && <span>Sold by: <strong>{storeName}</strong></span>}
-            {variantSku && <><span style={{ color: '#d9e2e6' }}> · </span><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{variantSku}</span></>}
+            {storeName && (
+              <span>
+                Sold by: <strong>{storeName}</strong>
+              </span>
+            )}
+            {variantSku && (
+              <>
+                <span style={{ color: '#d9e2e6' }}> · </span>
+                <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{variantSku}</span>
+              </>
+            )}
           </>
         }
         status={status}
@@ -200,32 +263,96 @@ function OfferDetailContent({ id }: { id: string }) {
             description="Stock levels for this offer's variant across warehouses."
           >
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-              <button type="button" onClick={() => void loadInventory()} disabled={invLoading || !variantId} style={{ padding: '5px 10px', border: '1px solid #d9e2e6', borderRadius: 6, background: '#fff', cursor: invLoading || !variantId ? 'wait' : 'pointer', fontSize: 12 }}>
+              <button
+                type="button"
+                onClick={() => void loadInventory()}
+                disabled={invLoading || !variantId}
+                style={{
+                  padding: '5px 10px',
+                  border: '1px solid #d9e2e6',
+                  borderRadius: 6,
+                  background: '#fff',
+                  cursor: invLoading || !variantId ? 'wait' : 'pointer',
+                  fontSize: 12,
+                }}
+              >
                 {invLoading ? 'Refreshing…' : 'Refresh inventory'}
               </button>
             </div>
-            {invLoading && !hasCurrentInventory && <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading inventory data…</div>}
-            {invLoading && hasCurrentInventory && <div role="status" style={{ padding: '6px 0', color: '#6b7280', fontSize: 12 }}>Refreshing inventory… showing the last successful result.</div>}
-            {inventoryError && (hasCurrentInventory ? (
-              <div role="alert" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: 10, borderRadius: 6, background: '#fef2f2', color: '#991b1b', fontSize: 12 }}>
-                <span>{inventoryError} Showing the last successfully loaded inventory.</span>
-                <button type="button" onClick={() => void loadInventory()}>Retry inventory</button>
+            {invLoading && !hasCurrentInventory && (
+              <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>
+                Loading inventory data…
               </div>
-            ) : <AdminErrorState title="Unable to load inventory" message={inventoryError} onRetry={loadInventory} />)}
+            )}
+            {invLoading && hasCurrentInventory && (
+              <div role="status" style={{ padding: '6px 0', color: '#6b7280', fontSize: 12 }}>
+                Refreshing inventory… showing the last successful result.
+              </div>
+            )}
+            {inventoryError &&
+              (hasCurrentInventory ? (
+                <div
+                  role="alert"
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: 10,
+                    borderRadius: 6,
+                    background: '#fef2f2',
+                    color: '#991b1b',
+                    fontSize: 12,
+                  }}
+                >
+                  <span>{inventoryError} Showing the last successfully loaded inventory.</span>
+                  <button type="button" onClick={() => void loadInventory()}>
+                    Retry inventory
+                  </button>
+                </div>
+              ) : (
+                <AdminErrorState
+                  title="Unable to load inventory"
+                  message={inventoryError}
+                  onRetry={loadInventory}
+                />
+              ))}
             {!invLoading && !inventoryError && !hasCurrentInventory && (
               <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>
-                {variantId ? 'No inventory data available for this variant.' : 'This offer is not linked to a specific variant.'}
+                {variantId
+                  ? 'No inventory data available for this variant.'
+                  : 'This offer is not linked to a specific variant.'}
               </div>
             )}
             {hasCurrentInventory && inventory && (
-              <AdminKeyValueGrid items={[
-                { key: 'totalAvailable', label: 'Total Available', value: String(inventory['totalAvailable'] ?? inventory['available'] ?? '—') },
-                { key: 'totalOnHand', label: 'Total On Hand', value: String(inventory['totalOnHand'] ?? inventory['onHand'] ?? '—') },
-                { key: 'warehouseCount', label: 'Warehouses', value: String(inventory['warehouseCount'] ?? '—') },
-                { key: 'variantId', label: 'Variant ID', value: (
-                  <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{variantId || '—'}</span>
-                )},
-              ]} />
+              <AdminKeyValueGrid
+                items={[
+                  {
+                    key: 'totalAvailable',
+                    label: 'Total Available',
+                    value: String(inventory['totalAvailable'] ?? inventory['available'] ?? '—'),
+                  },
+                  {
+                    key: 'totalOnHand',
+                    label: 'Total On Hand',
+                    value: String(inventory['totalOnHand'] ?? inventory['onHand'] ?? '—'),
+                  },
+                  {
+                    key: 'warehouseCount',
+                    label: 'Warehouses',
+                    value: String(inventory['warehouseCount'] ?? '—'),
+                  },
+                  {
+                    key: 'variantId',
+                    label: 'Variant ID',
+                    value: (
+                      <span style={{ fontFamily: 'monospace', fontSize: 12 }}>
+                        {variantId || '—'}
+                      </span>
+                    ),
+                  },
+                ]}
+              />
             )}
           </AdminDetailSection>
         )}
@@ -237,17 +364,30 @@ function OfferDetailContent({ id }: { id: string }) {
           >
             <AdminKeyValueGrid items={productItems} />
             {/* Visual hierarchy indicator */}
-            <div style={{
-              marginTop: 16, padding: '12px 16px', background: '#f7f9fa', borderRadius: 8,
-              border: '1px solid #e5ecf0', fontSize: 13, color: '#5b6b74',
-            }}>
+            <div
+              style={{
+                marginTop: 16,
+                padding: '12px 16px',
+                background: '#f7f9fa',
+                borderRadius: 8,
+                border: '1px solid #e5ecf0',
+                fontSize: 13,
+                color: '#5b6b74',
+              }}
+            >
               <strong style={{ color: '#0f3340' }}>Marketplace hierarchy:</strong>
               <div style={{ marginTop: 6, fontFamily: 'monospace', fontSize: 12, lineHeight: 1.8 }}>
                 <span>Product {productId ? `(canonical)` : ''}</span>
                 <br />
-                <span>&nbsp;&nbsp;→ Variant {variantId ? `(${variantSku || variantId.slice(0, 12)})` : ''}</span>
+                <span>
+                  &nbsp;&nbsp;→ Variant{' '}
+                  {variantId ? `(${variantSku || variantId.slice(0, 12)})` : ''}
+                </span>
                 <br />
-                <span>&nbsp;&nbsp;&nbsp;&nbsp;→ Merchant Offer <span style={{ color: '#1e6178', fontWeight: 600 }}>(this entity)</span></span>
+                <span>
+                  &nbsp;&nbsp;&nbsp;&nbsp;→ Merchant Offer{' '}
+                  <span style={{ color: '#1e6178', fontWeight: 600 }}>(this entity)</span>
+                </span>
               </div>
             </div>
           </AdminDetailSection>
@@ -260,5 +400,9 @@ function OfferDetailContent({ id }: { id: string }) {
 export default function OfferDetailPage() {
   const params = useParams();
   const id = params['id'] as string;
-  return <Suspense fallback={<AdminLoadingSkeleton kvRows={8} />}><OfferDetailContent id={id} /></Suspense>;
+  return (
+    <Suspense fallback={<AdminLoadingSkeleton kvRows={8} />}>
+      <OfferDetailContent id={id} />
+    </Suspense>
+  );
 }

@@ -11,8 +11,14 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
-    <a href={href} {...props}>{children}</a>
+  default: ({
+    href,
+    children,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
   ),
 }));
 
@@ -29,13 +35,50 @@ vi.mock('../lib/api', () => ({
 }));
 
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title, actions }: { title: string; actions?: React.ReactNode }) => <header><h1>{title}</h1>{actions}</header>,
-  Button: ({ children, onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) => <button onClick={onClick} {...props}>{children}</button>,
-  Modal: ({ open, title, footer, children }: { open: boolean; title: string; footer?: React.ReactNode; children: React.ReactNode }) => (
-    open ? <div role="dialog"><h2>{title}</h2>{children}{footer}</div> : null
+  PageHeader: ({ title, actions }: { title: string; actions?: React.ReactNode }) => (
+    <header>
+      <h1>{title}</h1>
+      {actions}
+    </header>
   ),
-  StatusPill: ({ children, status }: { children?: React.ReactNode; status?: string }) => <span>{children ?? status}</span>,
-  colors: { err: '#b00', errBg: '#fee', okBg: '#efe', ok: '#080', brand: { DEFAULT: '#123', 700: '#123' }, muted: '#666' },
+  Button: ({
+    children,
+    onClick,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) => (
+    <button onClick={onClick} {...props}>
+      {children}
+    </button>
+  ),
+  Modal: ({
+    open,
+    title,
+    footer,
+    children,
+  }: {
+    open: boolean;
+    title: string;
+    footer?: React.ReactNode;
+    children: React.ReactNode;
+  }) =>
+    open ? (
+      <div role="dialog">
+        <h2>{title}</h2>
+        {children}
+        {footer}
+      </div>
+    ) : null,
+  StatusPill: ({ children, status }: { children?: React.ReactNode; status?: string }) => (
+    <span>{children ?? status}</span>
+  ),
+  colors: {
+    err: '#b00',
+    errBg: '#fee',
+    okBg: '#efe',
+    ok: '#080',
+    brand: { DEFAULT: '#123', 700: '#123' },
+    muted: '#666',
+  },
   typeScale: { body: { fontSize: 14 } },
   radii: { sm: 4 },
   shadows: {},
@@ -49,9 +92,9 @@ const WRITE = 'admin:users:write';
 
 beforeEach(() => {
   mocks.perms = [READ, WRITE];
-  mocks.fetchAdminOrganizations.mockReset().mockResolvedValue([
-    { id: 'org-1', name: 'Example Org', type: 'MERCHANT', isActive: true },
-  ]);
+  mocks.fetchAdminOrganizations
+    .mockReset()
+    .mockResolvedValue([{ id: 'org-1', name: 'Example Org', type: 'MERCHANT', isActive: true }]);
   mocks.fetchAdminOrgUpdateRequests.mockReset().mockResolvedValue([
     {
       id: 'request-1',
@@ -98,7 +141,9 @@ describe('Organization management action permission rechecks', () => {
 
   it('rechecks admin:users:write before confirming an organization update request', async () => {
     const { rerender } = render(<OrganizationsPage />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Approve update request for Example Org' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Approve update request for Example Org' }),
+    );
     expect(screen.getByRole('dialog')).toBeTruthy();
 
     mocks.perms = [READ];

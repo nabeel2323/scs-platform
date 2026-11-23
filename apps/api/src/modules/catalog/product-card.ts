@@ -2,7 +2,13 @@ import { and, eq, inArray, asc } from 'drizzle-orm';
 import { productVariants, productMedia } from './catalog.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import { inventoryItems } from '../inventory/inventory.schema';
-import { resolveOfferPrices, resolveSelectedOfferPrices, selectedOfferPriceKey, type OfferPriceSource, type VariantPricing } from '../pricing/price-resolution';
+import {
+  resolveOfferPrices,
+  resolveSelectedOfferPrices,
+  selectedOfferPriceKey,
+  type OfferPriceSource,
+  type VariantPricing,
+} from '../pricing/price-resolution';
 import type { DatabaseService } from '../../common/database/database.service';
 import type { StorageService } from '../../common/storage/storage.service';
 import { imageReferences, isProductMediaKey } from './product-images';
@@ -92,7 +98,9 @@ export interface CardEnrichment {
  * null so callers can fall back to a placeholder. Shared by card enrichment and
  * the media endpoints so every surface agrees on what is renderable.
  */
-export function createMediaRefResolver(storage: StorageService): (ref: string | null | undefined) => Promise<string | null> {
+export function createMediaRefResolver(
+  storage: StorageService,
+): (ref: string | null | undefined) => Promise<string | null> {
   return async (ref: string | null | undefined): Promise<string | null> => {
     const trimmed = (ref ?? '').trim();
     if (!trimmed) return null;
@@ -132,9 +140,12 @@ export async function enrichProductCards<T extends CardSource>(
   // selected here is also the row the search card will submit to the cart.
   let offerRows: OfferCardRow[] = [];
   try {
-    offerRows = await db.query.merchantOffers.findMany({
+    offerRows = (await db.query.merchantOffers.findMany({
       where: and(
-        inArray(merchantOffers.productId, items.map(item => item.id)),
+        inArray(
+          merchantOffers.productId,
+          items.map((item) => item.id),
+        ),
         eq(merchantOffers.status, 'ACTIVE'),
         eq(merchantOffers.isAvailable, true),
       ),
@@ -150,15 +161,17 @@ export async function enrichProductCards<T extends CardSource>(
         priceListId: true,
       },
       orderBy: [asc(merchantOffers.activatedAt), asc(merchantOffers.id)],
-    }) as OfferCardRow[];
+    })) as OfferCardRow[];
   } catch {
     // Offer table may not exist in all environments (e.g. test mocks).
   }
 
-  const storeIds = [...new Set([
-    ...items.map(item => item.storeId).filter((s): s is string => !!s),
-    ...offerRows.map(offer => offer.storeId),
-  ])];
+  const storeIds = [
+    ...new Set([
+      ...items.map((item) => item.storeId).filter((s): s is string => !!s),
+      ...offerRows.map((offer) => offer.storeId),
+    ]),
+  ];
   const storeRows =
     storeIds.length > 0
       ? await db.query.stores.findMany({
@@ -190,7 +203,7 @@ export async function enrichProductCards<T extends CardSource>(
     where: and(
       inArray(
         productVariants.productId,
-        items.map(item => item.id),
+        items.map((item) => item.id),
       ),
       eq(productVariants.isActive, true),
     ),
@@ -207,30 +220,33 @@ export async function enrichProductCards<T extends CardSource>(
   // Resolve every selectable offer at its own MOQ using the same exact-offer
   // pricing function used by the cart. A product-level offer is pinned to the
   // first active variant here and that concrete variant is returned to the UI.
-  const offerRequests = offerRows.flatMap(row => {
+  const offerRequests = offerRows.flatMap((row) => {
     const activeVariantIds = variantsByProduct.get(row.productId) ?? [];
     const variantId = row.variantId
-      ? (activeVariantIds.includes(row.variantId) ? row.variantId : null)
+      ? activeVariantIds.includes(row.variantId)
+        ? row.variantId
+        : null
       : (activeVariantIds[0] ?? null);
-    return variantId
-      ? [{ offerId: row.id, variantId, quantity: row.moq }]
-      : [];
+    return variantId ? [{ offerId: row.id, variantId, quantity: row.moq }] : [];
   });
   const resolvedOffers = await resolveSelectedOfferPrices(
     db,
-    offerRows.map(row => ({
+    offerRows.map((row) => ({
       ...row,
       status: 'ACTIVE',
       isAvailable: true,
     })) as OfferPriceSource[],
     offerRequests,
   );
-  const offerRequestById = new Map(offerRequests.map(request => [request.offerId, request]));
+  const offerRequestById = new Map(offerRequests.map((request) => [request.offerId, request]));
 
-  const offerByProduct = new Map<string, {
-    count: number;
-    lowestByCurrency: Map<string, OfferCardRow>;
-  }>();
+  const offerByProduct = new Map<
+    string,
+    {
+      count: number;
+      lowestByCurrency: Map<string, OfferCardRow>;
+    }
+  >();
   for (const row of offerRows) {
     const entry = offerByProduct.get(row.productId);
     if (entry) entry.count++;
@@ -238,7 +254,9 @@ export async function enrichProductCards<T extends CardSource>(
 
     const request = offerRequestById.get(row.id);
     const resolved = request
-      ? resolvedOffers.get(selectedOfferPriceKey(request.offerId, request.variantId, request.quantity))
+      ? resolvedOffers.get(
+          selectedOfferPriceKey(request.offerId, request.variantId, request.quantity),
+        )
       : undefined;
     if (!resolved) continue;
     const pricedRow: OfferCardRow = {
@@ -253,7 +271,6 @@ export async function enrichProductCards<T extends CardSource>(
       productEntry.lowestByCurrency.set(resolved.currency, pricedRow);
     }
   }
-
 
   // Price is resolved per (store, quantity). MOQ is now offer-owned, so we
   // resolve at quantity=1 (base tier) for display cards. The cart uses the
@@ -283,18 +300,21 @@ export async function enrichProductCards<T extends CardSource>(
   // Batch-fetch stock data for all products' variants across their store warehouses
   const stockByProduct = new Map<string, 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN'>();
   try {
-    const storeIdsForStock = [...new Set(items.map(i => i.storeId).filter((s): s is string => !!s))];
-    const allWhs = storeIdsForStock.length > 0
-      ? await db.query.warehouses.findMany({
-          where: inArray(warehouses.storeId, storeIdsForStock),
-          columns: { id: true, storeId: true },
-        })
-      : [];
+    const storeIdsForStock = [
+      ...new Set(items.map((i) => i.storeId).filter((s): s is string => !!s)),
+    ];
+    const allWhs =
+      storeIdsForStock.length > 0
+        ? await db.query.warehouses.findMany({
+            where: inArray(warehouses.storeId, storeIdsForStock),
+            columns: { id: true, storeId: true },
+          })
+        : [];
     // Filter warehouses to only those belonging to the product stores
-    const relevantWhs = allWhs.filter(w => storeIdsForStock.includes(w['storeId']));
+    const relevantWhs = allWhs.filter((w) => storeIdsForStock.includes(w['storeId']));
     if (relevantWhs.length > 0) {
-      const whIds = relevantWhs.map(w => w.id);
-      const allVariantIds = [...new Set(variantRows.map(v => v.id))];
+      const whIds = relevantWhs.map((w) => w.id);
+      const allVariantIds = [...new Set(variantRows.map((v) => v.id))];
       if (allVariantIds.length > 0) {
         const invRows = await db.query.inventoryItems.findMany({
           where: and(
@@ -313,7 +333,10 @@ export async function enrichProductCards<T extends CardSource>(
         // Compute per-product stock status
         for (const item of items) {
           const pVariantIds = variantsByProduct.get(item.id) ?? [];
-          const totalAvailable = pVariantIds.reduce((sum, vid) => sum + (stockByVariant.get(vid) ?? 0), 0);
+          const totalAvailable = pVariantIds.reduce(
+            (sum, vid) => sum + (stockByVariant.get(vid) ?? 0),
+            0,
+          );
           if (totalAvailable > 10) stockByProduct.set(item.id, 'IN_STOCK');
           else if (totalAvailable > 0) stockByProduct.set(item.id, 'LOW_STOCK');
           else stockByProduct.set(item.id, 'OUT_OF_STOCK');
@@ -332,36 +355,45 @@ export async function enrichProductCards<T extends CardSource>(
   const imageByProduct = new Map<string, string | null>();
   if (opts?.resolveImage) {
     try {
-      const ids = items.map(item => item.id);
+      const ids = items.map((item) => item.id);
       const mediaRows = await db.query.productMedia.findMany({
         where: inArray(productMedia.productId, ids),
         columns: { productId: true, mediaType: true, url: true, sortOrder: true },
       });
-      const mediaByProduct = new Map<string, { mediaType: string; url: string; sortOrder: number }[]>();
+      const mediaByProduct = new Map<
+        string,
+        { mediaType: string; url: string; sortOrder: number }[]
+      >();
       for (const row of mediaRows) {
         const pid = row['productId'];
         const list = mediaByProduct.get(pid);
-        if (list) list.push({ mediaType: row['mediaType'], url: row['url'], sortOrder: row['sortOrder'] });
-        else mediaByProduct.set(pid, [{ mediaType: row['mediaType'], url: row['url'], sortOrder: row['sortOrder'] }]);
+        if (list)
+          list.push({ mediaType: row['mediaType'], url: row['url'], sortOrder: row['sortOrder'] });
+        else
+          mediaByProduct.set(pid, [
+            { mediaType: row['mediaType'], url: row['url'], sortOrder: row['sortOrder'] },
+          ]);
       }
-      await Promise.all(items.map(async item => {
-        const refs = imageReferences(
-          (item as { images?: unknown }).images,
-          mediaByProduct.get(item.id) ?? [],
-        );
-        let resolved: string | null = null;
-        for (const ref of refs) {
-          resolved = await opts.resolveImage!(ref);
-          if (resolved) break;
-        }
-        imageByProduct.set(item.id, resolved);
-      }));
+      await Promise.all(
+        items.map(async (item) => {
+          const refs = imageReferences(
+            (item as { images?: unknown }).images,
+            mediaByProduct.get(item.id) ?? [],
+          );
+          let resolved: string | null = null;
+          for (const ref of refs) {
+            resolved = await opts.resolveImage!(ref);
+            if (resolved) break;
+          }
+          imageByProduct.set(item.id, resolved);
+        }),
+      );
     } catch {
       // Media tables may not be available in all environments (e.g. test mocks)
     }
   }
 
-  return items.map(item => {
+  return items.map((item) => {
     const prices = pricesByBatch.get(`${item.storeId}|1`);
     let cheapest: VariantPricing | undefined;
     for (const variantId of variantsByProduct.get(item.id) ?? []) {

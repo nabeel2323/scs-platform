@@ -42,11 +42,9 @@ The M6 environment check was hardened: SCS_ENVIRONMENT and SCS_UAT_CONFIRM are r
 
 No script was executed. No staging write, shared DB mutation, migration, seed, reset, bootstrap, grant/default-ACL change, RLS activation, deployment, worker activation or provider call occurred.
 
-
 ## Non-Drizzle database object handoff
 
 Migration 0053 creates public.backfill_errors and is the only writer found in the inspected source. It records PRODUCT/VARIANT attribute backfill errors without tenant owner fields or declared FKs; no API reader/writer was found. Treat it as SYSTEM/MIGRATION evidence until a supported operator reader is identified. _migration_log and analytics_events partitions are mapped in the physical object inventory. No table contents were read.
-
 
 ## Guard standardization for legacy UAT and staging bootstrap scripts — 22 November 2026
 
@@ -61,6 +59,7 @@ Required for TypeScript UAT scripts: SCS_ENVIRONMENT=development or test and SCS
 Added apps/api/scripts/staging-bootstrap-safety.ts and verify-staging-bootstrap-target.ts. All five bootstrap-staging platform/merchant/store/staff/RBAC scripts call the guard after connecting and before BEGIN or any write. The package db:bootstrap:staging command now runs the preflight before the RBAC seed and bootstrap sequence.
 
 Required variables:
+
 - SCS_ENVIRONMENT=staging
 - SCS_STAGING_BOOTSTRAP_CONFIRM=true
 - SCS_STAGING_BOOTSTRAP_DATABASE=<exact database name>

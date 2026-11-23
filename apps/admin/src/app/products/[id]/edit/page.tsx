@@ -10,7 +10,8 @@ function EditProductContent({ productId }: { productId: string }) {
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
   if (!ready) return <AdminLoadingSkeleton kvRows={8} />;
-  if (!hasAccess) return <AccessDenied requiredPerms={['catalog:products:write']} missingPerms={missingPerms} />;
+  if (!hasAccess)
+    return <AccessDenied requiredPerms={['catalog:products:write']} missingPerms={missingPerms} />;
   return <ProductForm mode="edit" productId={productId} canWrite={hasAccess} />;
 }
 

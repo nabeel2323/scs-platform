@@ -122,10 +122,7 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
               lockedAt: null,
               lockedBy: null,
             })
-            .where(and(
-              eq(outboxEvents.id, event.id),
-              eq(outboxEvents.lockedBy, this.workerId),
-            ));
+            .where(and(eq(outboxEvents.id, event.id), eq(outboxEvents.lockedBy, this.workerId)));
         } catch (err: any) {
           const attempts = (event.attempts || 0) + 1;
           const isFinal = attempts >= 5;
@@ -140,13 +137,14 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
           await this.db.db
             .update(outboxEvents)
             .set({
-              status, attempts, lastError: err?.message || 'Unknown error',
-              nextAttemptAt, lockedAt: null, lockedBy: null,
+              status,
+              attempts,
+              lastError: err?.message || 'Unknown error',
+              nextAttemptAt,
+              lockedAt: null,
+              lockedBy: null,
             })
-            .where(and(
-              eq(outboxEvents.id, event.id),
-              eq(outboxEvents.lockedBy, this.workerId),
-            ));
+            .where(and(eq(outboxEvents.id, event.id), eq(outboxEvents.lockedBy, this.workerId)));
           console.error(`[OutboxDispatcher] Failed to dispatch ${event.eventType}:`, err?.message);
         }
       }

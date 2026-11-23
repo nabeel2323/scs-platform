@@ -1,10 +1,10 @@
 import React from 'react';
 import { formatMinor } from '../../../../components/Shared';
-import {
-  colors, typeScale, radii, shadows, transitions,
-} from '@scs/ui-kit';
+import { colors, typeScale, radii, shadows, transitions } from '@scs/ui-kit';
 import type {
-  OfferComparisonRow, OfferSortKey, SortDir,
+  OfferComparisonRow,
+  OfferSortKey,
+  SortDir,
 } from '../../../../hooks/useOfferComparison';
 
 interface OfferComparisonTableProps {
@@ -31,34 +31,62 @@ interface OfferComparisonTableProps {
  * On mobile (< 768px) the table degrades to stacked cards.
  */
 export function OfferComparisonTable({
-  rows, competingCount, sortKey, sortDir, toggleSort,
-  onAddToCart, addedKey, currentSellerRow,
+  rows,
+  competingCount,
+  sortKey,
+  sortDir,
+  toggleSort,
+  onAddToCart,
+  addedKey,
+  currentSellerRow,
 }: OfferComparisonTableProps) {
   if (competingCount === 0 && !currentSellerRow) return null;
 
   return (
     <div style={{ marginTop: 32 }}>
       <h3 style={{ ...typeScale.h2, color: colors.brand[700], marginBottom: 12 }}>
-        All Offers <span style={{ ...typeScale.bodySm, fontWeight: 400, color: colors.muted }}>({competingCount} competitor{competingCount !== 1 ? 's' : ''})</span>
+        All Offers{' '}
+        <span style={{ ...typeScale.bodySm, fontWeight: 400, color: colors.muted }}>
+          ({competingCount} competitor{competingCount !== 1 ? 's' : ''})
+        </span>
       </h3>
 
       {/* Current seller banner */}
       {currentSellerRow && (
-        <div style={{
-          padding: '10px 16px', marginBottom: 12,
-          background: colors.brand[50], border: `1px solid ${colors.brand[300]}`,
-          borderRadius: radii.md, display: 'flex', justifyContent: 'space-between',
-          alignItems: 'center', flexWrap: 'wrap', gap: 8,
-        }}>
+        <div
+          style={{
+            padding: '10px 16px',
+            marginBottom: 12,
+            background: colors.brand[50],
+            border: `1px solid ${colors.brand[300]}`,
+            borderRadius: radii.md,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 8,
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ ...typeScale.caption, fontWeight: 700, color: colors.brand[700], padding: '2px 8px', background: colors.brand[100], borderRadius: radii.sm }}>
+            <span
+              style={{
+                ...typeScale.caption,
+                fontWeight: 700,
+                color: colors.brand[700],
+                padding: '2px 8px',
+                background: colors.brand[100],
+                borderRadius: radii.sm,
+              }}
+            >
               This Seller
             </span>
             <span style={{ ...typeScale.bodySm, fontWeight: 500 }}>
               {currentSellerRow.storeName}
             </span>
             {currentSellerRow.storeVerified && (
-              <span style={{ ...typeScale.caption, color: colors.ok }} title="Verified store">✓ Verified</span>
+              <span style={{ ...typeScale.caption, color: colors.ok }} title="Verified store">
+                ✓ Verified
+              </span>
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -67,7 +95,10 @@ export function OfferComparisonTable({
             </span>
             {(currentSellerRow.moq > 1 || currentSellerRow.orderIncrement != null) && (
               <span style={{ ...typeScale.caption, color: colors.muted }}>
-                MOQ: {currentSellerRow.moq}{currentSellerRow.orderIncrement != null ? ` · Step: ${currentSellerRow.orderIncrement}` : ''}
+                MOQ: {currentSellerRow.moq}
+                {currentSellerRow.orderIncrement != null
+                  ? ` · Step: ${currentSellerRow.orderIncrement}`
+                  : ''}
               </span>
             )}
           </div>
@@ -77,21 +108,73 @@ export function OfferComparisonTable({
       {/* Desktop table */}
       <div className="oct-desktop" style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <caption style={{ ...typeScale.caption, color: colors.muted, marginBottom: 8, textAlign: 'left', captionSide: 'top' }}>
+          <caption
+            style={{
+              ...typeScale.caption,
+              color: colors.muted,
+              marginBottom: 8,
+              textAlign: 'left',
+              captionSide: 'top',
+            }}
+          >
             Compare offers from different suppliers for this product
           </caption>
           <thead>
             <tr style={{ borderBottom: `2px solid ${colors.border}` }}>
-              <SortHeader label="Supplier" sortKey="storeName" active={sortKey} dir={sortDir} onClick={toggleSort} />
-              <SortHeader label="Price" sortKey="price" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
-              <SortHeader label="MOQ" sortKey="moq" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
-              <SortHeader label="Lead Time" sortKey="leadTime" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
-              <SortHeader label="Popularity" sortKey="rank" active={sortKey} dir={sortDir} onClick={toggleSort} />
-              <th scope="col" style={{ padding: '8px 12px', textAlign: 'right', ...typeScale.caption, fontWeight: 600, color: colors.muted }}>Action</th>
+              <SortHeader
+                label="Supplier"
+                sortKey="storeName"
+                active={sortKey}
+                dir={sortDir}
+                onClick={toggleSort}
+              />
+              <SortHeader
+                label="Price"
+                sortKey="price"
+                active={sortKey}
+                dir={sortDir}
+                onClick={toggleSort}
+                align="right"
+              />
+              <SortHeader
+                label="MOQ"
+                sortKey="moq"
+                active={sortKey}
+                dir={sortDir}
+                onClick={toggleSort}
+                align="right"
+              />
+              <SortHeader
+                label="Lead Time"
+                sortKey="leadTime"
+                active={sortKey}
+                dir={sortDir}
+                onClick={toggleSort}
+                align="right"
+              />
+              <SortHeader
+                label="Popularity"
+                sortKey="rank"
+                active={sortKey}
+                dir={sortDir}
+                onClick={toggleSort}
+              />
+              <th
+                scope="col"
+                style={{
+                  padding: '8px 12px',
+                  textAlign: 'right',
+                  ...typeScale.caption,
+                  fontWeight: 600,
+                  color: colors.muted,
+                }}
+              >
+                Action
+              </th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(row => {
+            {rows.map((row) => {
               const added = addedKey === `offer:${row.offerId}`;
               const isPopular = row.rank?.isMostPopular === true;
               const hasSales = row.rank ? row.rank.ordersCount > 0 : false;
@@ -107,16 +190,30 @@ export function OfferComparisonTable({
                 >
                   {/* Supplier */}
                   <td style={{ padding: '10px 12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
+                    >
                       <span style={{ fontWeight: 500, color: colors.ink }}>{row.storeName}</span>
                       {row.storeVerified && (
-                        <span style={{ fontSize: 10, color: colors.ok, fontWeight: 600 }} title="Verified supplier">✓</span>
+                        <span
+                          style={{ fontSize: 10, color: colors.ok, fontWeight: 600 }}
+                          title="Verified supplier"
+                        >
+                          ✓
+                        </span>
                       )}
                       {isPopular && (
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, padding: '1px 6px',
-                          background: colors.amber, color: '#fff', borderRadius: radii.sm,
-                        }} title={`Ranked #1 — ${row.rank!.unitsSold} units sold`}>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            background: colors.amber,
+                            color: '#fff',
+                            borderRadius: radii.sm,
+                          }}
+                          title={`Ranked #1 — ${row.rank!.unitsSold} units sold`}
+                        >
                           ★ Most Popular
                         </span>
                       )}
@@ -127,29 +224,53 @@ export function OfferComparisonTable({
                       </div>
                     )}
                     {hidden && (
-                      <div style={{ ...typeScale.caption, color: colors.muted, marginTop: 2, fontStyle: 'italic' }}>
+                      <div
+                        style={{
+                          ...typeScale.caption,
+                          color: colors.muted,
+                          marginTop: 2,
+                          fontStyle: 'italic',
+                        }}
+                      >
                         Sales data not disclosed
                       </div>
                     )}
                   </td>
                   {/* Price */}
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: colors.brand[700], whiteSpace: 'nowrap' }}>
+                  <td
+                    style={{
+                      padding: '10px 12px',
+                      textAlign: 'right',
+                      fontWeight: 700,
+                      color: colors.brand[700],
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
                     {formatMinor(row.basePriceMinor, row.currency)}
                   </td>
                   {/* MOQ */}
                   <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {row.moq > 1 ? row.moq : <span style={{ color: colors.muted }}>1</span>}{row.orderIncrement != null ? ` · +${row.orderIncrement}` : ''}
+                    {row.moq > 1 ? row.moq : <span style={{ color: colors.muted }}>1</span>}
+                    {row.orderIncrement != null ? ` · +${row.orderIncrement}` : ''}
                   </td>
                   {/* Lead Time */}
                   <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {row.leadTimeDays != null
-                      ? `${row.leadTimeDays}d`
-                      : <span style={{ color: colors.muted }}>—</span>}
+                    {row.leadTimeDays != null ? (
+                      `${row.leadTimeDays}d`
+                    ) : (
+                      <span style={{ color: colors.muted }}>—</span>
+                    )}
                   </td>
                   {/* Popularity */}
                   <td style={{ padding: '10px 12px' }}>
                     {!hidden && row.rank && row.rank.rank != null ? (
-                      <span style={{ ...typeScale.caption, fontWeight: 600, color: isPopular ? colors.amber : colors.muted }}>
+                      <span
+                        style={{
+                          ...typeScale.caption,
+                          fontWeight: 600,
+                          color: isPopular ? colors.amber : colors.muted,
+                        }}
+                      >
                         #{row.rank.rank}
                       </span>
                     ) : (
@@ -161,10 +282,13 @@ export function OfferComparisonTable({
                     <button
                       onClick={() => onAddToCart(row.offerId, row.variantId, row.storeId)}
                       style={{
-                        padding: '5px 14px', ...typeScale.button, color: '#fff',
+                        padding: '5px 14px',
+                        ...typeScale.button,
+                        color: '#fff',
                         background: added ? colors.ok : colors.amber,
                         border: '1px solid ' + (added ? colors.ok : '#a88734'),
-                        borderRadius: radii.sm, cursor: 'pointer',
+                        borderRadius: radii.sm,
+                        cursor: 'pointer',
                         transition: `background ${transitions.fast}`,
                       }}
                     >
@@ -180,7 +304,7 @@ export function OfferComparisonTable({
 
       {/* Mobile cards */}
       <div className="oct-mobile" style={{ display: 'none' }}>
-        {rows.map(row => {
+        {rows.map((row) => {
           const added = addedKey === `offer:${row.offerId}`;
           const isPopular = row.rank?.isMostPopular === true;
           const hasSales = row.rank ? row.rank.ordersCount > 0 : false;
@@ -189,28 +313,49 @@ export function OfferComparisonTable({
             <div
               key={row.offerId}
               style={{
-                padding: '12px 14px', marginBottom: 8,
+                padding: '12px 14px',
+                marginBottom: 8,
                 background: isPopular ? '#fffdf5' : colors.surface,
                 border: `1px solid ${isPopular ? colors.amber : colors.border}`,
                 borderRadius: radii.md,
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  gap: 8,
+                }}
+              >
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <span style={{ fontWeight: 600, color: colors.ink }}>{row.storeName}</span>
                     {row.storeVerified && <span style={{ fontSize: 10, color: colors.ok }}>✓</span>}
                     {isPopular && (
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', background: colors.amber, color: '#fff', borderRadius: radii.sm }}>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '1px 6px',
+                          background: colors.amber,
+                          color: '#fff',
+                          borderRadius: radii.sm,
+                        }}
+                      >
                         ★ #1
                       </span>
                     )}
                   </div>
                   {hasSales && !isPopular && !hidden && (
-                    <div style={{ ...typeScale.caption, color: colors.muted }}>#{row.rank!.rank} · {row.rank!.unitsSold} sold</div>
+                    <div style={{ ...typeScale.caption, color: colors.muted }}>
+                      #{row.rank!.rank} · {row.rank!.unitsSold} sold
+                    </div>
                   )}
                   {hidden && (
-                    <div style={{ ...typeScale.caption, color: colors.muted, fontStyle: 'italic' }}>Sales not disclosed</div>
+                    <div style={{ ...typeScale.caption, color: colors.muted, fontStyle: 'italic' }}>
+                      Sales not disclosed
+                    </div>
                   )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -218,18 +363,24 @@ export function OfferComparisonTable({
                     {formatMinor(row.basePriceMinor, row.currency)}
                   </div>
                   <div style={{ ...typeScale.caption, color: colors.muted }}>
-                    MOQ: {row.moq}{row.orderIncrement != null ? ` · Step ${row.orderIncrement}` : ''}{row.leadTimeDays != null ? ` · ${row.leadTimeDays}d` : ''}
+                    MOQ: {row.moq}
+                    {row.orderIncrement != null ? ` · Step ${row.orderIncrement}` : ''}
+                    {row.leadTimeDays != null ? ` · ${row.leadTimeDays}d` : ''}
                   </div>
                 </div>
               </div>
               <button
                 onClick={() => onAddToCart(row.offerId, row.variantId, row.storeId)}
                 style={{
-                  marginTop: 8, width: '100%', padding: '6px 0',
-                  ...typeScale.button, color: '#fff',
+                  marginTop: 8,
+                  width: '100%',
+                  padding: '6px 0',
+                  ...typeScale.button,
+                  color: '#fff',
                   background: added ? colors.ok : colors.amber,
                   border: '1px solid ' + (added ? colors.ok : '#a88734'),
-                  borderRadius: radii.sm, cursor: 'pointer',
+                  borderRadius: radii.sm,
+                  cursor: 'pointer',
                 }}
               >
                 {added ? '✓ Added' : 'Add to Cart'}
@@ -245,10 +396,17 @@ export function OfferComparisonTable({
 // ── Sortable column header ────────────────────────────────────────
 
 function SortHeader({
-  label, sortKey, active, dir, onClick, align,
+  label,
+  sortKey,
+  active,
+  dir,
+  onClick,
+  align,
 }: {
-  label: string; sortKey: OfferSortKey;
-  active: OfferSortKey; dir: SortDir;
+  label: string;
+  sortKey: OfferSortKey;
+  active: OfferSortKey;
+  dir: SortDir;
   onClick: (key: OfferSortKey) => void;
   align?: 'left' | 'right';
 }) {

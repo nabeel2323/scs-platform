@@ -13,91 +13,91 @@ It is not an exhaustive FK catalog. The final authority for deployed constraints
 
 ## Verified migration-defined relationships
 
-| Migration | Table/column | Target | Ownership implication |
-|---|---|---|---|
-| 0054_store_members.sql | store_members.store_id | stores.id ON DELETE CASCADE | Membership row inherits store/org boundary through store |
-| 0054_store_members.sql | store_members.user_id | users.id ON DELETE CASCADE | User is member identity, not the tenant owner |
-| 0034_catalog_imports.sql | catalog_imports.uploaded_by | users.id | Platform-level admin import; uploader attribution does not make it a user-private import |
-| 0034_catalog_imports.sql | catalog_import_errors.import_id | catalog_imports.id ON DELETE CASCADE | Error rows inherit platform import scope |
-| 0043_carrier_integration.sql | carrier_credentials.org_id | organizations.id | Credential row is organization-owned |
-| 0043_carrier_integration.sql | carrier_configurations.org_id | organizations.id | Configuration has organization scope |
-| 0043_carrier_integration.sql | carrier_configurations.credential_id | carrier_credentials.id | Credential/configuration must be same-org; no composite FK was observed |
-| 0043_carrier_integration.sql | carrier_configurations.store_id | stores.id | Optional store override; verify store.org_id equals configuration.org_id in service/policy |
-| 0058_payment_financial_architecture.sql | payment_records.order_id | orders.id ON DELETE CASCADE | Payment inherits order/suborder participant boundary |
-| 0058_payment_financial_architecture.sql | payment_records.verified_by | users.id | Verifier is actor attribution |
-| 0058_payment_financial_architecture.sql | payment_events.payment_record_id | payment_records.id ON DELETE CASCADE | Event inherits payment/order boundary |
-| 0058_payment_financial_architecture.sql | payment_events.actor_id | users.id | Actor attribution |
-| 0058_payment_financial_architecture.sql | refunds.payment_record_id | payment_records.id ON DELETE CASCADE | Refund inherits payment/order boundary |
-| 0058_payment_financial_architecture.sql | refunds.order_id | orders.id ON DELETE CASCADE | Explicit order ownership path; must agree with payment_record.order_id |
-| 0058_payment_financial_architecture.sql | refunds.requested_by / approved_by | users.id | Actor attribution, not ownership |
-| 0058_payment_financial_architecture.sql | settlement_records.sub_order_id | orders.id ON DELETE CASCADE | Merchant suborder boundary |
-| 0058_payment_financial_architecture.sql | settlement_records.payment_record_id | payment_records.id ON DELETE CASCADE | Payment lineage |
-| 0058_payment_financial_architecture.sql | settlement_records.merchant_store_id | stores.id ON DELETE CASCADE | Store boundary; verify store matches suborder store |
-| 0059_return_requests.sql | return_requests.sub_order_id | orders.id ON DELETE CASCADE | Return inherits suborder/store boundary |
-| 0059_return_requests.sql | return_requests.payment_record_id | payment_records.id ON DELETE CASCADE | Payment lineage must match suborder |
-| 0059_return_requests.sql | return_requests.buyer_id | users.id | Buyer is an explicit participant |
-| 0059_return_requests.sql | return_requests.inspected_by | users.id | Actor attribution |
-| 0059_return_requests.sql | return_request_items.return_request_id | return_requests.id ON DELETE CASCADE | Parent return boundary |
-| 0059_return_requests.sql | return_request_items.order_item_id | order_items.id ON DELETE CASCADE | Order-item lineage must match the same parent order |
-| 0059_return_requests.sql | return_request_events.return_request_id | return_requests.id ON DELETE CASCADE | Parent return boundary |
-| 0059_return_requests.sql | return_request_events.actor_id | users.id | Actor attribution |
-| 0059_return_requests.sql | refunds.return_request_id | return_requests.id ON DELETE SET NULL | Deferred refund-to-return relationship |
-| 0059_return_requests.sql | disputes.return_request_id | return_requests.id ON DELETE SET NULL | Deferred dispute-to-return relationship |
-| 0059_return_requests.sql | return_request_items.inventory_item_id | inventory_items.id ON DELETE SET NULL | Inventory item linkage added after inspection |
-| 0059_return_requests.sql | return_requests.refund_id | refunds.id ON DELETE SET NULL | Deferred reverse link; avoid assuming one-way lineage |
-| 0061_phase3_financial_correctness.sql | commission_reversals.return_request_id | return_requests.id ON DELETE CASCADE | Reversal inherits return/order/store boundary |
-| 0061_phase3_financial_correctness.sql | commission_reversals.refund_id | refunds.id | Refund lineage |
-| 0061_phase3_financial_correctness.sql | commission_reversals.settlement_id | settlement_records.id | Settlement lineage |
-| 0061_phase3_financial_correctness.sql | commission_reversals.created_by | users.id | Actor attribution |
-| 0061_phase3_financial_correctness.sql | settlement_adjustments.settlement_id | settlement_records.id | Settlement lineage |
-| 0061_phase3_financial_correctness.sql | settlement_adjustments.sub_order_id | orders.id ON DELETE CASCADE | Suborder/store boundary |
-| 0061_phase3_financial_correctness.sql | settlement_adjustments.return_request_id | return_requests.id | Optional return lineage |
-| 0061_phase3_financial_correctness.sql | settlement_adjustments.created_by | users.id | Actor attribution |
-| 0061_phase3_financial_correctness.sql | settlement_adjustment_approvals.adjustment_id | settlement_adjustments.id ON DELETE CASCADE | Approval inherits adjustment boundary |
-| 0061_phase3_financial_correctness.sql | settlement_adjustment_approvals.approver_id | users.id | Approver attribution; approval authority is separately permission-gated |
-| 0061_phase3_financial_correctness.sql | reconciliation_runs.executed_by | users.id | Executor attribution |
-| 0061_phase3_financial_correctness.sql | reconciliation_discrepancies.run_id | reconciliation_runs.id ON DELETE CASCADE | Discrepancy inherits run scope |
-| 0061_phase3_financial_correctness.sql | reconciliation_discrepancies.resolved_by | users.id | Resolver attribution |
-| 0062_phase3_1_hardening.sql | reconciliation_runs.superseded_by | reconciliation_runs.id | Run version lineage |
-| 0071_auto_complete_claim_leases.sql | No FK added; orders claim timestamp/worker columns only | — | Claim owner is worker ID, not user or tenant identity |
+| Migration                               | Table/column                                            | Target                                      | Ownership implication                                                                      |
+| --------------------------------------- | ------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 0054_store_members.sql                  | store_members.store_id                                  | stores.id ON DELETE CASCADE                 | Membership row inherits store/org boundary through store                                   |
+| 0054_store_members.sql                  | store_members.user_id                                   | users.id ON DELETE CASCADE                  | User is member identity, not the tenant owner                                              |
+| 0034_catalog_imports.sql                | catalog_imports.uploaded_by                             | users.id                                    | Platform-level admin import; uploader attribution does not make it a user-private import   |
+| 0034_catalog_imports.sql                | catalog_import_errors.import_id                         | catalog_imports.id ON DELETE CASCADE        | Error rows inherit platform import scope                                                   |
+| 0043_carrier_integration.sql            | carrier_credentials.org_id                              | organizations.id                            | Credential row is organization-owned                                                       |
+| 0043_carrier_integration.sql            | carrier_configurations.org_id                           | organizations.id                            | Configuration has organization scope                                                       |
+| 0043_carrier_integration.sql            | carrier_configurations.credential_id                    | carrier_credentials.id                      | Credential/configuration must be same-org; no composite FK was observed                    |
+| 0043_carrier_integration.sql            | carrier_configurations.store_id                         | stores.id                                   | Optional store override; verify store.org_id equals configuration.org_id in service/policy |
+| 0058_payment_financial_architecture.sql | payment_records.order_id                                | orders.id ON DELETE CASCADE                 | Payment inherits order/suborder participant boundary                                       |
+| 0058_payment_financial_architecture.sql | payment_records.verified_by                             | users.id                                    | Verifier is actor attribution                                                              |
+| 0058_payment_financial_architecture.sql | payment_events.payment_record_id                        | payment_records.id ON DELETE CASCADE        | Event inherits payment/order boundary                                                      |
+| 0058_payment_financial_architecture.sql | payment_events.actor_id                                 | users.id                                    | Actor attribution                                                                          |
+| 0058_payment_financial_architecture.sql | refunds.payment_record_id                               | payment_records.id ON DELETE CASCADE        | Refund inherits payment/order boundary                                                     |
+| 0058_payment_financial_architecture.sql | refunds.order_id                                        | orders.id ON DELETE CASCADE                 | Explicit order ownership path; must agree with payment_record.order_id                     |
+| 0058_payment_financial_architecture.sql | refunds.requested_by / approved_by                      | users.id                                    | Actor attribution, not ownership                                                           |
+| 0058_payment_financial_architecture.sql | settlement_records.sub_order_id                         | orders.id ON DELETE CASCADE                 | Merchant suborder boundary                                                                 |
+| 0058_payment_financial_architecture.sql | settlement_records.payment_record_id                    | payment_records.id ON DELETE CASCADE        | Payment lineage                                                                            |
+| 0058_payment_financial_architecture.sql | settlement_records.merchant_store_id                    | stores.id ON DELETE CASCADE                 | Store boundary; verify store matches suborder store                                        |
+| 0059_return_requests.sql                | return_requests.sub_order_id                            | orders.id ON DELETE CASCADE                 | Return inherits suborder/store boundary                                                    |
+| 0059_return_requests.sql                | return_requests.payment_record_id                       | payment_records.id ON DELETE CASCADE        | Payment lineage must match suborder                                                        |
+| 0059_return_requests.sql                | return_requests.buyer_id                                | users.id                                    | Buyer is an explicit participant                                                           |
+| 0059_return_requests.sql                | return_requests.inspected_by                            | users.id                                    | Actor attribution                                                                          |
+| 0059_return_requests.sql                | return_request_items.return_request_id                  | return_requests.id ON DELETE CASCADE        | Parent return boundary                                                                     |
+| 0059_return_requests.sql                | return_request_items.order_item_id                      | order_items.id ON DELETE CASCADE            | Order-item lineage must match the same parent order                                        |
+| 0059_return_requests.sql                | return_request_events.return_request_id                 | return_requests.id ON DELETE CASCADE        | Parent return boundary                                                                     |
+| 0059_return_requests.sql                | return_request_events.actor_id                          | users.id                                    | Actor attribution                                                                          |
+| 0059_return_requests.sql                | refunds.return_request_id                               | return_requests.id ON DELETE SET NULL       | Deferred refund-to-return relationship                                                     |
+| 0059_return_requests.sql                | disputes.return_request_id                              | return_requests.id ON DELETE SET NULL       | Deferred dispute-to-return relationship                                                    |
+| 0059_return_requests.sql                | return_request_items.inventory_item_id                  | inventory_items.id ON DELETE SET NULL       | Inventory item linkage added after inspection                                              |
+| 0059_return_requests.sql                | return_requests.refund_id                               | refunds.id ON DELETE SET NULL               | Deferred reverse link; avoid assuming one-way lineage                                      |
+| 0061_phase3_financial_correctness.sql   | commission_reversals.return_request_id                  | return_requests.id ON DELETE CASCADE        | Reversal inherits return/order/store boundary                                              |
+| 0061_phase3_financial_correctness.sql   | commission_reversals.refund_id                          | refunds.id                                  | Refund lineage                                                                             |
+| 0061_phase3_financial_correctness.sql   | commission_reversals.settlement_id                      | settlement_records.id                       | Settlement lineage                                                                         |
+| 0061_phase3_financial_correctness.sql   | commission_reversals.created_by                         | users.id                                    | Actor attribution                                                                          |
+| 0061_phase3_financial_correctness.sql   | settlement_adjustments.settlement_id                    | settlement_records.id                       | Settlement lineage                                                                         |
+| 0061_phase3_financial_correctness.sql   | settlement_adjustments.sub_order_id                     | orders.id ON DELETE CASCADE                 | Suborder/store boundary                                                                    |
+| 0061_phase3_financial_correctness.sql   | settlement_adjustments.return_request_id                | return_requests.id                          | Optional return lineage                                                                    |
+| 0061_phase3_financial_correctness.sql   | settlement_adjustments.created_by                       | users.id                                    | Actor attribution                                                                          |
+| 0061_phase3_financial_correctness.sql   | settlement_adjustment_approvals.adjustment_id           | settlement_adjustments.id ON DELETE CASCADE | Approval inherits adjustment boundary                                                      |
+| 0061_phase3_financial_correctness.sql   | settlement_adjustment_approvals.approver_id             | users.id                                    | Approver attribution; approval authority is separately permission-gated                    |
+| 0061_phase3_financial_correctness.sql   | reconciliation_runs.executed_by                         | users.id                                    | Executor attribution                                                                       |
+| 0061_phase3_financial_correctness.sql   | reconciliation_discrepancies.run_id                     | reconciliation_runs.id ON DELETE CASCADE    | Discrepancy inherits run scope                                                             |
+| 0061_phase3_financial_correctness.sql   | reconciliation_discrepancies.resolved_by                | users.id                                    | Resolver attribution                                                                       |
+| 0062_phase3_1_hardening.sql             | reconciliation_runs.superseded_by                       | reconciliation_runs.id                      | Run version lineage                                                                        |
+| 0071_auto_complete_claim_leases.sql     | No FK added; orders claim timestamp/worker columns only | —                                           | Claim owner is worker ID, not user or tenant identity                                      |
 
 ## Earlier core schema migration relationships
 
-| Migration | Table/column | Target | Ownership implication |
-|---|---|---|---|
-| 0001_identity.sql | role_permissions.role_id / permission_id | roles.id / permissions.id ON DELETE CASCADE | Global RBAC join; platform governance only |
-| 0001_identity.sql | organization_members.org_id / user_id / role_id | organizations.id / users.id ON DELETE CASCADE / roles.id | Membership edge; enforce org, user, role and ACTIVE status |
-| 0001_identity.sql | sessions.user_id / replaced_by | users.id ON DELETE CASCADE / sessions.id | User-private session and session-chain scope |
-| 0003_merchant.sql | stores.org_id | organizations.id ON DELETE CASCADE | Store belongs to organization |
-| 0003_merchant.sql | warehouses.store_id | stores.id ON DELETE CASCADE | Warehouse inherits store/org scope |
-| 0003_merchant.sql | business_documents.org_id / store_id | organizations.id / stores.id ON DELETE CASCADE | Verify optional store belongs to the same org; uploader/reviewer are actors |
-| 0003_merchant.sql | verification_requests.store_id / org_id | stores.id / organizations.id ON DELETE CASCADE | Both owner columns must agree; reviewer is attribution |
-| 0004_catalog.sql | categories.store_id / parent_id | stores.id ON DELETE CASCADE / categories.id ON DELETE SET NULL | Store-scoped category or platform category; recursive parent must preserve scope |
-| 0004_catalog.sql | products.store_id / category_id / brand_id | stores.id ON DELETE CASCADE / categories.id ON DELETE SET NULL / brands.id ON DELETE SET NULL | Product store owner; category/brand are references, not tenant ownership |
-| 0004_catalog.sql | product_variants.product_id | products.id ON DELETE CASCADE | Variant inherits product/store scope |
-| 0004_catalog.sql | product_media.product_id / variant_id | products.id / product_variants.id ON DELETE CASCADE | Media inherits product/variant scope |
-| 0004_catalog.sql | import_jobs.store_id / created_by | stores.id ON DELETE CASCADE / users.id | Store-owned import job; created_by is attribution |
-| 0005_inventory.sql | inventory_items.variant_id / warehouse_id | product_variants.id / warehouses.id ON DELETE CASCADE | Inventory row must connect a variant to a warehouse in the same permitted store scope |
-| 0005_inventory.sql | stock_movements.inventory_item_id / performed_by | inventory_items.id ON DELETE CASCADE / users.id | Movement inherits inventory item/warehouse; performer is attribution |
-| 0009_cart.sql | carts.user_id / promotion_id | users.id ON DELETE CASCADE / promotions.id | Cart is buyer-private; promotion is a reference |
-| 0009_cart.sql | cart_items.cart_id / store_id / variant_id | carts.id ON DELETE CASCADE / stores.id / product_variants.id | Cart owner plus store/variant consistency; no composite FK enforces same-store relationships |
-| 0010_orders.sql | master_orders.buyer_id | users.id | Buyer-owned order aggregate |
-| 0010_orders.sql | orders.master_order_id / store_id / buyer_id / promotion_id | master_orders.id / stores.id / users.id / promotions.id | Multi-party order; buyer and store participants both matter |
-| 0010_orders.sql | order_items.order_id / variant_id | orders.id / product_variants.id | Order child; variant must be consistent with the order's store/offer snapshot |
-| 0010_orders.sql | order_financial_breakdown.order_id | orders.id | Financial child inherits order access with restricted actions/columns |
-| 0010_orders.sql | order_status_history.order_id / changed_by | orders.id / users.id | Order child; changed_by is attribution |
-| 0023_attributes.sql | attribute_options.attribute_id | attribute_definitions.id ON DELETE CASCADE | Global taxonomy child |
-| 0026_merchant_offers.sql | merchant_offers.store_id / product_id / variant_id | stores.id / products.id / product_variants.id ON DELETE CASCADE | Offer store owner plus product compatibility |
-| 0026_merchant_offers.sql | merchant_offers.price_list_id / warehouse_id | price_lists.id ON DELETE SET NULL / warehouses.id ON DELETE SET NULL | Referenced pricing/warehouse must belong to same store; no composite FK |
-| 0026_merchant_offers.sql | merchant_offers.created_by / reviewed_by | users.id | Actor attribution |
-| 0040_shipments.sql | shipments.order_id / store_id / assigned_driver_id | orders.id / stores.id / users.id | Order/store owner plus explicit assigned-driver access; verify store matches order |
-| 0040_shipments.sql | shipment_events.shipment_id / actor_user_id | shipments.id / users.id | Event inherits shipment; actor is attribution |
-| 0041_shipping.sql | shipping_methods.store_id / delivery_zones.store_id | stores.id | Store-scoped shipping configuration |
-| 0041_shipping.sql | delivery_zone_methods.zone_id / shipping_method_id | delivery_zones.id / shipping_methods.id | Both parents must belong to same store; no composite FK |
-| 0041_shipping.sql | shipment_labels.shipment_id / delivery_proofs.shipment_id | shipments.id | Child rows inherit shipment/order/store/driver scope |
-| 0041_shipping.sql | driver_profiles.user_id / org_id | users.id / organizations.id | Driver identity plus organization; assignment is a separate store edge |
-| 0041_shipping.sql | driver_store_assignments.driver_profile_id / store_id | driver_profiles.id / stores.id | Verify driver organization matches store organization; no composite FK |
-| 0041_shipping.sql | carrier_webhook_events.shipment_id | shipments.id | Provider callback inherits shipment when resolved; unauthenticated payload fields are not ownership |
+| Migration                | Table/column                                                | Target                                                                                        | Ownership implication                                                                               |
+| ------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 0001_identity.sql        | role_permissions.role_id / permission_id                    | roles.id / permissions.id ON DELETE CASCADE                                                   | Global RBAC join; platform governance only                                                          |
+| 0001_identity.sql        | organization_members.org_id / user_id / role_id             | organizations.id / users.id ON DELETE CASCADE / roles.id                                      | Membership edge; enforce org, user, role and ACTIVE status                                          |
+| 0001_identity.sql        | sessions.user_id / replaced_by                              | users.id ON DELETE CASCADE / sessions.id                                                      | User-private session and session-chain scope                                                        |
+| 0003_merchant.sql        | stores.org_id                                               | organizations.id ON DELETE CASCADE                                                            | Store belongs to organization                                                                       |
+| 0003_merchant.sql        | warehouses.store_id                                         | stores.id ON DELETE CASCADE                                                                   | Warehouse inherits store/org scope                                                                  |
+| 0003_merchant.sql        | business_documents.org_id / store_id                        | organizations.id / stores.id ON DELETE CASCADE                                                | Verify optional store belongs to the same org; uploader/reviewer are actors                         |
+| 0003_merchant.sql        | verification_requests.store_id / org_id                     | stores.id / organizations.id ON DELETE CASCADE                                                | Both owner columns must agree; reviewer is attribution                                              |
+| 0004_catalog.sql         | categories.store_id / parent_id                             | stores.id ON DELETE CASCADE / categories.id ON DELETE SET NULL                                | Store-scoped category or platform category; recursive parent must preserve scope                    |
+| 0004_catalog.sql         | products.store_id / category_id / brand_id                  | stores.id ON DELETE CASCADE / categories.id ON DELETE SET NULL / brands.id ON DELETE SET NULL | Product store owner; category/brand are references, not tenant ownership                            |
+| 0004_catalog.sql         | product_variants.product_id                                 | products.id ON DELETE CASCADE                                                                 | Variant inherits product/store scope                                                                |
+| 0004_catalog.sql         | product_media.product_id / variant_id                       | products.id / product_variants.id ON DELETE CASCADE                                           | Media inherits product/variant scope                                                                |
+| 0004_catalog.sql         | import_jobs.store_id / created_by                           | stores.id ON DELETE CASCADE / users.id                                                        | Store-owned import job; created_by is attribution                                                   |
+| 0005_inventory.sql       | inventory_items.variant_id / warehouse_id                   | product_variants.id / warehouses.id ON DELETE CASCADE                                         | Inventory row must connect a variant to a warehouse in the same permitted store scope               |
+| 0005_inventory.sql       | stock_movements.inventory_item_id / performed_by            | inventory_items.id ON DELETE CASCADE / users.id                                               | Movement inherits inventory item/warehouse; performer is attribution                                |
+| 0009_cart.sql            | carts.user_id / promotion_id                                | users.id ON DELETE CASCADE / promotions.id                                                    | Cart is buyer-private; promotion is a reference                                                     |
+| 0009_cart.sql            | cart_items.cart_id / store_id / variant_id                  | carts.id ON DELETE CASCADE / stores.id / product_variants.id                                  | Cart owner plus store/variant consistency; no composite FK enforces same-store relationships        |
+| 0010_orders.sql          | master_orders.buyer_id                                      | users.id                                                                                      | Buyer-owned order aggregate                                                                         |
+| 0010_orders.sql          | orders.master_order_id / store_id / buyer_id / promotion_id | master_orders.id / stores.id / users.id / promotions.id                                       | Multi-party order; buyer and store participants both matter                                         |
+| 0010_orders.sql          | order_items.order_id / variant_id                           | orders.id / product_variants.id                                                               | Order child; variant must be consistent with the order's store/offer snapshot                       |
+| 0010_orders.sql          | order_financial_breakdown.order_id                          | orders.id                                                                                     | Financial child inherits order access with restricted actions/columns                               |
+| 0010_orders.sql          | order_status_history.order_id / changed_by                  | orders.id / users.id                                                                          | Order child; changed_by is attribution                                                              |
+| 0023_attributes.sql      | attribute_options.attribute_id                              | attribute_definitions.id ON DELETE CASCADE                                                    | Global taxonomy child                                                                               |
+| 0026_merchant_offers.sql | merchant_offers.store_id / product_id / variant_id          | stores.id / products.id / product_variants.id ON DELETE CASCADE                               | Offer store owner plus product compatibility                                                        |
+| 0026_merchant_offers.sql | merchant_offers.price_list_id / warehouse_id                | price_lists.id ON DELETE SET NULL / warehouses.id ON DELETE SET NULL                          | Referenced pricing/warehouse must belong to same store; no composite FK                             |
+| 0026_merchant_offers.sql | merchant_offers.created_by / reviewed_by                    | users.id                                                                                      | Actor attribution                                                                                   |
+| 0040_shipments.sql       | shipments.order_id / store_id / assigned_driver_id          | orders.id / stores.id / users.id                                                              | Order/store owner plus explicit assigned-driver access; verify store matches order                  |
+| 0040_shipments.sql       | shipment_events.shipment_id / actor_user_id                 | shipments.id / users.id                                                                       | Event inherits shipment; actor is attribution                                                       |
+| 0041_shipping.sql        | shipping_methods.store_id / delivery_zones.store_id         | stores.id                                                                                     | Store-scoped shipping configuration                                                                 |
+| 0041_shipping.sql        | delivery_zone_methods.zone_id / shipping_method_id          | delivery_zones.id / shipping_methods.id                                                       | Both parents must belong to same store; no composite FK                                             |
+| 0041_shipping.sql        | shipment_labels.shipment_id / delivery_proofs.shipment_id   | shipments.id                                                                                  | Child rows inherit shipment/order/store/driver scope                                                |
+| 0041_shipping.sql        | driver_profiles.user_id / org_id                            | users.id / organizations.id                                                                   | Driver identity plus organization; assignment is a separate store edge                              |
+| 0041_shipping.sql        | driver_store_assignments.driver_profile_id / store_id       | driver_profiles.id / stores.id                                                                | Verify driver organization matches store organization; no composite FK                              |
+| 0041_shipping.sql        | carrier_webhook_events.shipment_id                          | shipments.id                                                                                  | Provider callback inherits shipment when resolved; unauthenticated payload fields are not ownership |
 
 ### Important no-composite-FK observations
 
@@ -111,14 +111,14 @@ Migration 0062 adds nullable org_id columns to reconciliation_runs, settlement_a
 
 Migration 0063 creates several system tables without tenant/user FKs:
 
-| Table | Columns | Migration intent / consequence |
-|---|---|---|
-| worker_leases | lease_key, holder_id, holder_host, holder_pid, epoch | Infrastructure lease, explicitly no FK to users/orgs |
-| ops_controls | control_key, updated_by | Global pause/kill-switch control; updated_by has no FK |
-| ops_control_audit | actor_id, actor_kind | Global append-only control history; actor_id has no FK |
-| ops_alerts | optional org_id, resource_type, resource_id | Operational alerts; org_id/resource_id are metadata without FKs |
-| p13_pilot_allowlist | org_id, optional store_id, created_by | Operator-managed allowlist; org/store/user columns have no FKs |
-| feature_flags | updated_by | Platform feature-flag attribution; no FK added |
+| Table               | Columns                                              | Migration intent / consequence                                  |
+| ------------------- | ---------------------------------------------------- | --------------------------------------------------------------- |
+| worker_leases       | lease_key, holder_id, holder_host, holder_pid, epoch | Infrastructure lease, explicitly no FK to users/orgs            |
+| ops_controls        | control_key, updated_by                              | Global pause/kill-switch control; updated_by has no FK          |
+| ops_control_audit   | actor_id, actor_kind                                 | Global append-only control history; actor_id has no FK          |
+| ops_alerts          | optional org_id, resource_type, resource_id          | Operational alerts; org_id/resource_id are metadata without FKs |
+| p13_pilot_allowlist | org_id, optional store_id, created_by                | Operator-managed allowlist; org/store/user columns have no FKs  |
+| feature_flags       | updated_by                                           | Platform feature-flag attribution; no FK added                  |
 
 These are SYSTEM or SYSTEM/MIXED rows. A missing org_id must never be interpreted as a user-visible global scope. System access must be explicit and separate from ordinary tenant requests.
 
@@ -131,6 +131,7 @@ These are SYSTEM or SYSTEM/MIXED rows. A missing org_id must never be interprete
 ## Migration 0070 boundary — no RLS activation
 
 Migration 0070_public_access_and_function_search_path_hardening.sql:
+
 - Creates anon/authenticated roles only in disposable environments where absent.
 - Revokes all privileges on existing public tables and sequences from anon/authenticated.
 - Revokes future table/sequence default privileges for those two roles from the role executing the migration.

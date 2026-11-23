@@ -1,6 +1,13 @@
 import {
-  Controller, Post, Param, Req, Res, HttpCode,
-  HttpStatus, Logger, UseGuards,
+  Controller,
+  Post,
+  Param,
+  Req,
+  Res,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  UseGuards,
 } from '@nestjs/common';
 import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { eq, and } from 'drizzle-orm';
@@ -120,10 +127,12 @@ export class CarrierWebhookController {
     }
 
     // 2. Extract signature headers
-    const signature = req.headers['x-carrier-signature'] as string
-      || req.headers['x-webhook-signature'] as string;
-    const timestamp = req.headers['x-carrier-timestamp'] as string
-      || req.headers['x-webhook-timestamp'] as string;
+    const signature =
+      (req.headers['x-carrier-signature'] as string) ||
+      (req.headers['x-webhook-signature'] as string);
+    const timestamp =
+      (req.headers['x-carrier-timestamp'] as string) ||
+      (req.headers['x-webhook-timestamp'] as string);
 
     if (!signature) {
       return res.status(HttpStatus.UNAUTHORIZED).json({
@@ -182,7 +191,12 @@ export class CarrierWebhookController {
     }
 
     // 5. Verify signature
-    const verification = this.security.verifySignature(rawBody, signature, webhookSecret, timestamp);
+    const verification = this.security.verifySignature(
+      rawBody,
+      signature,
+      webhookSecret,
+      timestamp,
+    );
     if (!verification.valid) {
       this.logger.warn(
         `Webhook signature verification failed for ${providerKey}: ${verification.reason}`,
@@ -268,14 +282,19 @@ export class CarrierWebhookController {
     } catch (resolutionError: any) {
       const message = (resolutionError?.message || 'Shipment resolution failed').slice(0, 2000);
       await this.markWebhookPendingAndEnqueue(
-        webhookEventId, providerKey, externalDeliveryId, credential.orgId, message,
+        webhookEventId,
+        providerKey,
+        externalDeliveryId,
+        credential.orgId,
+        message,
       );
       return res.status(HttpStatus.OK).json({ received: true, duplicate: false, pending: true });
     }
 
     if (resolution.status === 'AMBIGUOUS') {
       const message = 'Ambiguous carrier shipment reference within credential organization';
-      await this.db.db.update(carrierWebhookEvents)
+      await this.db.db
+        .update(carrierWebhookEvents)
         .set({ processed: true, processedAt: new Date(), processingError: message })
         .where(eq(carrierWebhookEvents.id, webhookEventId));
       this.logger.error(`Webhook ${webhookEventId} not linked: ${message}`);
@@ -285,19 +304,24 @@ export class CarrierWebhookController {
     if (resolution.status === 'NOT_FOUND') {
       const message = 'No matching shipment found yet for this credential and provider reference';
       await this.markWebhookPendingAndEnqueue(
-        webhookEventId, providerKey, externalDeliveryId, credential.orgId, message,
+        webhookEventId,
+        providerKey,
+        externalDeliveryId,
+        credential.orgId,
+        message,
       );
       return res.status(HttpStatus.OK).json({ received: true, duplicate: false, pending: true });
     }
 
     const shipment = resolution.shipment;
-    await this.db.db.update(carrierWebhookEvents)
+    await this.db.db
+      .update(carrierWebhookEvents)
       .set({ shipmentId: shipment.id })
       .where(eq(carrierWebhookEvents.id, webhookEventId));
 
     this.logger.log(
       `Webhook from ${providerKey} linked to shipment ${shipment.id} ` +
-      `(store: ${shipment.storeId})`,
+        `(store: ${shipment.storeId})`,
     );
 
     // 10. Process the webhook — on failure, persist error and schedule async retry
@@ -305,7 +329,8 @@ export class CarrierWebhookController {
     //     M7.2.4-A: Removed duplicate shipment lookup (step 9 already did it).
     try {
       // Mark as processed
-      await this.db.db.update(carrierWebhookEvents)
+      await this.db.db
+        .update(carrierWebhookEvents)
         .set({ processed: true, processedAt: new Date(), processingError: null })
         .where(eq(carrierWebhookEvents.id, webhookEventId));
 
@@ -343,7 +368,8 @@ export class CarrierWebhookController {
     const safeError = error.slice(0, 2000);
     this.logger.warn(`Webhook ${webhookEventId} pending retry: ${safeError}`);
     try {
-      await this.db.db.update(carrierWebhookEvents)
+      await this.db.db
+        .update(carrierWebhookEvents)
         .set({ processed: false, processingError: safeError })
         .where(eq(carrierWebhookEvents.id, webhookEventId));
     } catch (updateError: any) {
@@ -386,10 +412,17 @@ export class CarrierWebhookController {
    */
   private extractExternalDeliveryId(payload: Record<string, unknown>): string | null {
     const candidates = [
-      'shipment_id', 'tracking_number', 'awb', 'carrier_shipment_id',
-      'delivery_id', 'consignment_id', 'external_delivery_id',
+      'shipment_id',
+      'tracking_number',
+      'awb',
+      'carrier_shipment_id',
+      'delivery_id',
+      'consignment_id',
+      'external_delivery_id',
       // Aramex PascalCase field names (B2.21)
-      'WaybillNumber', 'ShipmentNumber', 'TrackingNumber',
+      'WaybillNumber',
+      'ShipmentNumber',
+      'TrackingNumber',
     ];
 
     for (const key of candidates) {

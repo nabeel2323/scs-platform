@@ -77,11 +77,9 @@ The schema-count reconciliation does not change those facts and does not prove t
 
 **Status:** P1-07 remains PARTIAL. This document closes only the Drizzle schema coverage reconciliation, not the per-table authorization matrix or G-002.
 
-
 ## Relation-count reconciliation note — 22 November 2026
 
 The detailed 19-November public-schema report and this 21-November source reconciliation both total 114 relations (99 Drizzle declarations plus 15 relations without separate declarations). The table ownership matrix previously referred to a historical 116-table count. Its scope has not been reconciled against the detailed relation list. The 114 figure is the last detailed snapshot, not a current count guarantee; the 116 figure remains an unresolved discrepancy pending a refreshed protected read-only catalog audit. No live query or database mutation was performed in this update.
-
 
 ## Physical object inventory update — 22 November 2026
 

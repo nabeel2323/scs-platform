@@ -19,7 +19,11 @@ vi.mock('../lib/merchant-store', () => ({
   pickStore: (stores: Array<{ id: string }>) => stores[0] ?? null,
 }));
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
+  PageHeader: ({ title }: { title: string }) => (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  ),
 }));
 
 import ImportHistoryPage from '../app/merchant/imports/page';
@@ -47,9 +51,7 @@ describe('merchant import history recovery', () => {
 
     expect(await screen.findByText('No imports yet')).toBeTruthy();
     expect(fetchMyStores).toHaveBeenCalledTimes(2);
-    expect(authFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/v1/stores/store-1/imports'),
-    );
+    expect(authFetch).toHaveBeenCalledWith(expect.stringContaining('/v1/stores/store-1/imports'));
   });
 
   it('does not show a successful empty state when the import read fails', async () => {

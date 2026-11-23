@@ -31,12 +31,20 @@ describe('OutboxDispatcher cross-instance claim safety', () => {
         where: vi.fn().mockResolvedValue([]),
       }),
     });
-    const dispatcher = new OutboxDispatcher({ db: {
-      transaction: vi.fn(async (callback: (tx: any) => Promise<any>) => callback({
-        execute: vi.fn().mockResolvedValue({ rows: [{ id: 'event-1', eventType: 'order.created', attempts: 0 }] }),
-      })),
-      update,
-    } } as any);
+    const dispatcher = new OutboxDispatcher({
+      db: {
+        transaction: vi.fn(async (callback: (tx: any) => Promise<any>) =>
+          callback({
+            execute: vi
+              .fn()
+              .mockResolvedValue({
+                rows: [{ id: 'event-1', eventType: 'order.created', attempts: 0 }],
+              }),
+          }),
+        ),
+        update,
+      },
+    } as any);
     const dispatch = vi.spyOn(dispatcher as any, 'dispatch').mockResolvedValue(undefined);
 
     await (dispatcher as any).poll();

@@ -12,7 +12,9 @@ vi.mock('../hooks/useRequirePerms', () => ({
   AccessDenied: () => <div>Access denied</div>,
 }));
 vi.mock('next/link', () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
 }));
 vi.mock('../../components/detail', () => ({
   AdminErrorState: ({
@@ -23,7 +25,13 @@ vi.mock('../../components/detail', () => ({
     title: string;
     message: string;
     onRetry: () => void;
-  }) => <div role="alert"><strong>{title}</strong><span>{message}</span><button onClick={onRetry}>Retry returns</button></div>,
+  }) => (
+    <div role="alert">
+      <strong>{title}</strong>
+      <span>{message}</span>
+      <button onClick={onRetry}>Retry returns</button>
+    </div>
+  ),
 }));
 
 import AdminReturnsPage from '../app/returns/page';
@@ -89,7 +97,9 @@ describe('admin returns read recovery', () => {
     expect(await screen.findByText('Old filter row')).toBeTruthy();
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'REFUNDED' } });
 
-    expect((await screen.findByRole('alert')).textContent).toContain('Filtered returns unavailable');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Filtered returns unavailable',
+    );
     expect(screen.queryByText('Old filter row')).toBeNull();
     expect(screen.queryByText('No return requests found.')).toBeNull();
   });

@@ -139,7 +139,9 @@ export class AutoCompleteWorker implements OnModuleInit, OnModuleDestroy {
       try {
         await this.releaseClaim(row.id);
       } catch (releaseError: any) {
-        this.logger.error(`Auto-complete claim release failed for ${row.id}: ${releaseError?.message}`);
+        this.logger.error(
+          `Auto-complete claim release failed for ${row.id}: ${releaseError?.message}`,
+        );
       }
     }
   }

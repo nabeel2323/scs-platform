@@ -212,10 +212,7 @@ export class OrdersController {
   @Get('drivers/shipments')
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:read')
-  async listDriverShipments(
-    @CurrentUser() user: JwtPayload,
-    @Query('status') status?: string,
-  ) {
+  async listDriverShipments(@CurrentUser() user: JwtPayload, @Query('status') status?: string) {
     return this.ordersService.listDriverShipments(user.sub, status);
   }
 }

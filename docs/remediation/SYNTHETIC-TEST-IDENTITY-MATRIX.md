@@ -4,18 +4,18 @@
 
 ## 1. Core identity set
 
-| Identity | Organization | Store membership | Expected authority |
-|---|---|---|---|
-| Buyer A | Buyer Org A | None | Own profile, cart, orders and buyer-visible published catalog |
-| Buyer B | Buyer Org B | None | Own profile, cart and orders; must not read Buyer A records |
-| Merchant Owner A | Merchant Org A | ACTIVE OWNER of Store A | Manage Store A catalog, offers, pricing, inventory, fulfillment and allowed analytics |
-| Merchant Staff A | Merchant Org A | ACTIVE STAFF of Store A with explicit permissions | Only granted Store A operations; no owner-only membership or finance actions |
-| Merchant Owner B | Merchant Org B | ACTIVE OWNER of Store B | Manage Store B only; must not access Store A |
-| Platform Admin | Platform scope | No merchant membership required | Explicit platform-admin operations and audited bypass paths |
-| Platform Moderator | Platform scope | No merchant membership required | Moderation-only operations; no implicit finance or owner authority |
-| Suspended Staff A | Merchant Org A | SUSPENDED membership in Store A | Denied all store-member operations |
-| Inactive Store Owner | Merchant Org A | ACTIVE membership in an INACTIVE store | Denied operations requiring an active store |
-| Unauthenticated caller | None | None | 401 on protected endpoints |
+| Identity               | Organization   | Store membership                                  | Expected authority                                                                    |
+| ---------------------- | -------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Buyer A                | Buyer Org A    | None                                              | Own profile, cart, orders and buyer-visible published catalog                         |
+| Buyer B                | Buyer Org B    | None                                              | Own profile, cart and orders; must not read Buyer A records                           |
+| Merchant Owner A       | Merchant Org A | ACTIVE OWNER of Store A                           | Manage Store A catalog, offers, pricing, inventory, fulfillment and allowed analytics |
+| Merchant Staff A       | Merchant Org A | ACTIVE STAFF of Store A with explicit permissions | Only granted Store A operations; no owner-only membership or finance actions          |
+| Merchant Owner B       | Merchant Org B | ACTIVE OWNER of Store B                           | Manage Store B only; must not access Store A                                          |
+| Platform Admin         | Platform scope | No merchant membership required                   | Explicit platform-admin operations and audited bypass paths                           |
+| Platform Moderator     | Platform scope | No merchant membership required                   | Moderation-only operations; no implicit finance or owner authority                    |
+| Suspended Staff A      | Merchant Org A | SUSPENDED membership in Store A                   | Denied all store-member operations                                                    |
+| Inactive Store Owner   | Merchant Org A | ACTIVE membership in an INACTIVE store            | Denied operations requiring an active store                                           |
+| Unauthenticated caller | None           | None                                              | 401 on protected endpoints                                                            |
 
 ## 2. Minimum data fixtures
 
@@ -37,18 +37,18 @@ Create per test run:
 
 ## 3. Required negative authorization matrix
 
-| Caller | Target | Expected |
-|---|---|---|
-| Buyer A | Buyer B profile/cart/order | DENY |
-| Buyer A | Merchant unpublished product | DENY |
-| Merchant Owner A | Store B offer/pricing/inventory | DENY |
-| Merchant Staff A | Store A owner-only action | DENY |
-| Suspended Staff A | Store A operations | DENY |
-| Inactive Store Owner | Inactive Store operations | DENY |
-| Merchant Owner B | Store A shipment/label/analytics | DENY |
-| Platform Moderator | Finance settlement/refund mutation | DENY unless explicitly granted |
-| Unauthenticated caller | Protected route | 401 |
-| Platform Admin | Explicitly privileged platform route | ALLOW and audit |
+| Caller                 | Target                               | Expected                       |
+| ---------------------- | ------------------------------------ | ------------------------------ |
+| Buyer A                | Buyer B profile/cart/order           | DENY                           |
+| Buyer A                | Merchant unpublished product         | DENY                           |
+| Merchant Owner A       | Store B offer/pricing/inventory      | DENY                           |
+| Merchant Staff A       | Store A owner-only action            | DENY                           |
+| Suspended Staff A      | Store A operations                   | DENY                           |
+| Inactive Store Owner   | Inactive Store operations            | DENY                           |
+| Merchant Owner B       | Store A shipment/label/analytics     | DENY                           |
+| Platform Moderator     | Finance settlement/refund mutation   | DENY unless explicitly granted |
+| Unauthenticated caller | Protected route                      | 401                            |
+| Platform Admin         | Explicitly privileged platform route | ALLOW and audit                |
 
 ## 4. Financial and commercial correctness cases
 
@@ -77,7 +77,6 @@ Create per test run:
 - Each test owns its own transaction/container/schema where practical and restores any shared fixture fields in `finally`/cleanup.
 - Never leave temporary MOQ, currency, store status, role or membership changes behind.
 - Do not run these write fixtures against the connected shared Supabase project.
-
 
 ## 7. Shared fixture implementation
 

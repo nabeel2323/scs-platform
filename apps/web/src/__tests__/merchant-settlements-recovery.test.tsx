@@ -13,26 +13,39 @@ const { api, auth } = vi.hoisted(() => ({
 }));
 
 vi.mock('../components/AuthProvider', () => ({ useAuth: () => auth }));
-vi.mock('../lib/api', () => ({ fetchMyStores: (...args: unknown[]) => api.fetchMyStores(...args) }));
+vi.mock('../lib/api', () => ({
+  fetchMyStores: (...args: unknown[]) => api.fetchMyStores(...args),
+}));
 vi.mock('../lib/buyer-api', () => ({
   fetchMerchantSettlements: (...args: unknown[]) => api.fetchMerchantSettlements(...args),
 }));
-vi.mock('../lib/merchant-store', () => ({ pickStore: (stores: Array<{ id: string }>) => stores[0] }));
+vi.mock('../lib/merchant-store', () => ({
+  pickStore: (stores: Array<{ id: string }>) => stores[0],
+}));
 vi.mock('../components/Shared', () => ({
   formatDateCompact: (value: string) => value,
   formatMinor: (minor: number, currency: string) => `${(minor / 100).toFixed(2)} ${currency}`,
   LoadingSpinner: () => <div>Loading</div>,
   StatusBadge: ({ status }: { status: string }) => <span>{status}</span>,
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
-    <section><h2>{title}</h2>{description ? <p>{description}</p> : null}</section>
+    <section>
+      <h2>{title}</h2>
+      {description ? <p>{description}</p> : null}
+    </section>
   ),
   ErrorBanner: ({ message, onRetry }: { message: string; onRetry?: () => void }) => (
-    <div role="alert"><span>{message}</span>{onRetry ? <button onClick={onRetry}>Retry</button> : null}</div>
+    <div role="alert">
+      <span>{message}</span>
+      {onRetry ? <button onClick={onRetry}>Retry</button> : null}
+    </div>
   ),
 }));
 vi.mock('@scs/ui-kit', () => ({
   PageHeader: ({ title, subtitle }: { title: string; subtitle?: string }) => (
-    <header><h1>{title}</h1>{subtitle ? <p>{subtitle}</p> : null}</header>
+    <header>
+      <h1>{title}</h1>
+      {subtitle ? <p>{subtitle}</p> : null}
+    </header>
   ),
   colors: { border: '#ddd', muted: '#777', text: '#222' },
   radii: { md: 6, lg: 8 },
@@ -65,45 +78,66 @@ const adjustment = {
 describe('merchant settlements projection and recovery', () => {
   beforeEach(() => {
     api.fetchMyStores.mockReset().mockResolvedValue(stores);
-    api.fetchMerchantSettlements.mockReset().mockResolvedValue({ data: [], total: 0, limit: 25, offset: 0 });
+    api.fetchMerchantSettlements
+      .mockReset()
+      .mockResolvedValue({ data: [], total: 0, limit: 25, offset: 0 });
   });
 
   afterEach(() => cleanup());
 
   it('loads the active store settlement list and displays adjustment payout details', async () => {
-    api.fetchMerchantSettlements.mockResolvedValueOnce({ data: [adjustment], total: 1, limit: 25, offset: 0 });
+    api.fetchMerchantSettlements.mockResolvedValueOnce({
+      data: [adjustment],
+      total: 1,
+      limit: 25,
+      offset: 0,
+    });
     render(<MerchantSettlementsPage />);
 
     expect(await screen.findByText('suborder…')).toBeTruthy();
     expect(screen.getByText('ADJUSTMENT · PAID')).toBeTruthy();
     expect(screen.getByText('ADJ-REF-1')).toBeTruthy();
-    expect(api.fetchMerchantSettlements).toHaveBeenCalledWith('store-1', undefined, { limit: 25, offset: 0 });
+    expect(api.fetchMerchantSettlements).toHaveBeenCalledWith('store-1', undefined, {
+      limit: 25,
+      offset: 0,
+    });
   });
 
   it('loads the selected store and status filter', async () => {
     render(<MerchantSettlementsPage />);
 
-    fireEvent.change(await screen.findByLabelText('Select store'), { target: { value: 'store-2' } });
-    fireEvent.change(screen.getByLabelText('Filter by status'), { target: { value: 'ADJUSTMENT' } });
+    fireEvent.change(await screen.findByLabelText('Select store'), {
+      target: { value: 'store-2' },
+    });
+    fireEvent.change(screen.getByLabelText('Filter by status'), {
+      target: { value: 'ADJUSTMENT' },
+    });
 
-    expect(api.fetchMerchantSettlements).toHaveBeenCalledWith('store-2', 'ADJUSTMENT', { limit: 25, offset: 0 });
+    expect(api.fetchMerchantSettlements).toHaveBeenCalledWith('store-2', 'ADJUSTMENT', {
+      limit: 25,
+      offset: 0,
+    });
   });
 
   it('loads the next page when more than 25 settlements exist', async () => {
     api.fetchMerchantSettlements
       .mockResolvedValueOnce({ data: [adjustment], total: 26, limit: 25, offset: 0 })
-      .mockResolvedValueOnce({ data: [{ ...adjustment, id: 'settlement-26', subOrderId: 'page-two-123456' }], total: 26, limit: 25, offset: 25 });
+      .mockResolvedValueOnce({
+        data: [{ ...adjustment, id: 'settlement-26', subOrderId: 'page-two-123456' }],
+        total: 26,
+        limit: 25,
+        offset: 25,
+      });
 
     render(<MerchantSettlementsPage />);
 
     expect(await screen.findByText('Showing 1–25 of 26 settlements')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
-    expect(api.fetchMerchantSettlements).toHaveBeenLastCalledWith(
-      'store-1',
-      undefined,
-      { limit: 25, offset: 25 },
-    );
+    expect(api.fetchMerchantSettlements).toHaveBeenLastCalledWith('store-1', undefined, {
+      limit: 25,
+      offset: 25,
+    });
     expect(await screen.findByText('page-two…')).toBeTruthy();
     expect(await screen.findByText('Page 2 of 2')).toBeTruthy();
   });

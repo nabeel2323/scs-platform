@@ -28,7 +28,13 @@ import {
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { StorageService } from '../../common/storage/storage.service';
-import { paymentRecords, paymentEvents, refunds, settlementRecords, paymentProofUploadIntents } from './payments.schema';
+import {
+  paymentRecords,
+  paymentEvents,
+  refunds,
+  settlementRecords,
+  paymentProofUploadIntents,
+} from './payments.schema';
 import { orders, orderFinancialBreakdown, orderStatusHistory } from '../orders/orders.schema';
 import { stores } from '../merchant/merchant.schema';
 import { eq, and, sql, inArray, desc } from 'drizzle-orm';
@@ -63,8 +69,8 @@ const PROOF_CLEANUP_MAX_ATTEMPTS = 12;
 function isStorageObjectNotFound(error: any): boolean {
   const status = error?.$metadata?.httpStatusCode;
   const codes = [error?.name, error?.Code, error?.code];
-  return status === 404 || codes.some((code) =>
-    ['NotFound', 'NoSuchKey', 'NoSuchObject'].includes(code),
+  return (
+    status === 404 || codes.some((code) => ['NotFound', 'NoSuchKey', 'NoSuchObject'].includes(code))
   );
 }
 
@@ -78,7 +84,10 @@ function assertPositiveMinorAmount(amount: number, fieldName: string): void {
  * PostgreSQL SUM(bigint) returns numeric, which node-postgres exposes as text.
  * Preserve exactness until the aggregate is proven safe for JS minor-unit math.
  */
-export function toSafeMinorUnitTotal(value: string | number | bigint | null | undefined, fieldName: string): number {
+export function toSafeMinorUnitTotal(
+  value: string | number | bigint | null | undefined,
+  fieldName: string,
+): number {
   let total: bigint;
   try {
     total = BigInt(value ?? 0);
@@ -177,15 +186,28 @@ export class PaymentsService {
       notes: `Payment created at checkout — ${paymentMethod}`,
     });
 
-    await this.outbox.publish('payment.created', id, {
-      paymentId: id, orderId, paymentMethod, amountMinor, currency, status: initialStatus,
-    }, {}, null, tx);
+    await this.outbox.publish(
+      'payment.created',
+      id,
+      {
+        paymentId: id,
+        orderId,
+        paymentMethod,
+        amountMinor,
+        currency,
+        status: initialStatus,
+      },
+      {},
+      null,
+      tx,
+    );
 
     // Bank-transfer payment gating is part of checkout persistence, not a
     // best-effort post-commit side effect. Preserve the CREATED → AWAITING_PAYMENT
     // history sequence while keeping both states and outbox records in checkout's tx.
     if (paymentMethod === 'BANK_TRANSFER') {
-      await tx.update(paymentRecords)
+      await tx
+        .update(paymentRecords)
         .set({ status: 'AWAITING_PAYMENT', updatedAt: new Date() })
         .where(eq(paymentRecords.id, id));
       await tx.insert(paymentEvents).values({
@@ -198,10 +220,20 @@ export class PaymentsService {
         actorType: 'SYSTEM',
         notes: 'Bank transfer checkout — awaiting buyer proof upload',
       });
-      await this.outbox.publish('payment.awaiting_payment', id, {
-        paymentId: id, orderId, buyerId: buyerId ?? null,
-        fromStatus: 'CREATED', toStatus: 'AWAITING_PAYMENT',
-      }, {}, null, tx);
+      await this.outbox.publish(
+        'payment.awaiting_payment',
+        id,
+        {
+          paymentId: id,
+          orderId,
+          buyerId: buyerId ?? null,
+          fromStatus: 'CREATED',
+          toStatus: 'AWAITING_PAYMENT',
+        },
+        {},
+        null,
+        tx,
+      );
     }
 
     return id;
@@ -269,7 +301,11 @@ export class PaymentsService {
         throw new BadRequestException('Unsupported payment proof file type');
       }
       const rawExtension = input.fileName?.includes('.') ? input.fileName.split('.').pop() : 'jpg';
-      const extension = (rawExtension || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'jpg';
+      const extension =
+        (rawExtension || 'jpg')
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '')
+          .slice(0, 8) || 'jpg';
       newStorageKey = `payment-proofs/${paymentId}/${crypto.randomUUID()}.${extension}`;
       uploadIntentId = crypto.randomUUID();
       uploadLeaseOwner = `proof-upload-${crypto.randomUUID()}`;
@@ -296,18 +332,21 @@ export class PaymentsService {
           body: input.fileBuffer,
           contentType,
         });
-        const uploaded = await this.db.db.update(paymentProofUploadIntents)
+        const uploaded = await this.db.db
+          .update(paymentProofUploadIntents)
           .set({
             status: 'UPLOADED',
             uploadedAt: new Date(),
             leaseExpiresAt: new Date(Date.now() + PROOF_UPLOAD_LEASE_MINUTES * 60_000),
             updatedAt: new Date(),
           })
-          .where(and(
-            eq(paymentProofUploadIntents.id, uploadIntentId),
-            eq(paymentProofUploadIntents.status, 'UPLOADING'),
-            eq(paymentProofUploadIntents.leaseOwner, uploadLeaseOwner),
-          ))
+          .where(
+            and(
+              eq(paymentProofUploadIntents.id, uploadIntentId),
+              eq(paymentProofUploadIntents.status, 'UPLOADING'),
+              eq(paymentProofUploadIntents.leaseOwner, uploadLeaseOwner),
+            ),
+          )
           .returning({ id: paymentProofUploadIntents.id });
 
         if (uploaded.length !== 1) {
@@ -315,12 +354,27 @@ export class PaymentsService {
           // object write; if deletion fails, reopen the durable intent.
           try {
             await this.storage.deleteObject(uploadsBucket, newStorageKey);
-            await this.db.db.update(paymentProofUploadIntents)
-              .set({ status: 'CLEANED', leaseOwner: null, leaseExpiresAt: null, cleanedAt: new Date(), updatedAt: new Date() })
+            await this.db.db
+              .update(paymentProofUploadIntents)
+              .set({
+                status: 'CLEANED',
+                leaseOwner: null,
+                leaseExpiresAt: null,
+                cleanedAt: new Date(),
+                updatedAt: new Date(),
+              })
               .where(eq(paymentProofUploadIntents.id, uploadIntentId));
           } catch {
-            await this.db.db.update(paymentProofUploadIntents)
-              .set({ status: 'CLEANUP_PENDING', leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: new Date(), lastErrorCode: 'LATE_UPLOAD_COMPENSATION_FAILED', updatedAt: new Date() })
+            await this.db.db
+              .update(paymentProofUploadIntents)
+              .set({
+                status: 'CLEANUP_PENDING',
+                leaseOwner: null,
+                leaseExpiresAt: null,
+                nextAttemptAt: new Date(),
+                lastErrorCode: 'LATE_UPLOAD_COMPENSATION_FAILED',
+                updatedAt: new Date(),
+              })
               .where(eq(paymentProofUploadIntents.id, uploadIntentId));
           }
           throw new ConflictException('Payment proof upload lost its recovery lease; please retry');
@@ -330,7 +384,8 @@ export class PaymentsService {
         // after the object store accepted the upload. The durable sweeper will
         // verify the payment reference and object existence before cleanup.
         try {
-          await this.db.db.update(paymentProofUploadIntents)
+          await this.db.db
+            .update(paymentProofUploadIntents)
             .set({
               status: 'CLEANUP_PENDING',
               leaseOwner: null,
@@ -339,10 +394,12 @@ export class PaymentsService {
               lastErrorCode: 'UPLOAD_OR_INTENT_UPDATE_FAILED',
               updatedAt: new Date(),
             })
-            .where(and(
-              eq(paymentProofUploadIntents.id, uploadIntentId),
-              eq(paymentProofUploadIntents.status, 'UPLOADING'),
-            ));
+            .where(
+              and(
+                eq(paymentProofUploadIntents.id, uploadIntentId),
+                eq(paymentProofUploadIntents.status, 'UPLOADING'),
+              ),
+            );
         } catch {
           // The original UPLOADING lease remains recoverable after its expiry.
         }
@@ -353,7 +410,8 @@ export class PaymentsService {
 
     try {
       await this.db.db.transaction(async (tx) => {
-        const flip = await tx.update(paymentRecords)
+        const flip = await tx
+          .update(paymentRecords)
           .set({
             status: toStatus,
             receiptUrl: storedReceiptUrl,
@@ -377,15 +435,23 @@ export class PaymentsService {
           notes: input.notes || null,
           receiptUrl: storedReceiptUrl,
         });
-        await this.outbox.publish('payment.proof_submitted', paymentId, {
+        await this.outbox.publish(
+          'payment.proof_submitted',
           paymentId,
-          orderId: payment.orderId,
-          receiptUrl: storedReceiptUrl,
-          receiptReference: input.receiptReference,
-        }, {}, null, tx);
+          {
+            paymentId,
+            orderId: payment.orderId,
+            receiptUrl: storedReceiptUrl,
+            receiptReference: input.receiptReference,
+          },
+          {},
+          null,
+          tx,
+        );
 
         if (uploadIntentId && uploadLeaseOwner) {
-          const committed = await tx.update(paymentProofUploadIntents)
+          const committed = await tx
+            .update(paymentProofUploadIntents)
             .set({
               status: 'COMMITTED',
               leaseOwner: null,
@@ -394,14 +460,18 @@ export class PaymentsService {
               committedAt: new Date(),
               updatedAt: new Date(),
             })
-            .where(and(
-              eq(paymentProofUploadIntents.id, uploadIntentId),
-              eq(paymentProofUploadIntents.status, 'UPLOADED'),
-              eq(paymentProofUploadIntents.leaseOwner, uploadLeaseOwner),
-            ))
+            .where(
+              and(
+                eq(paymentProofUploadIntents.id, uploadIntentId),
+                eq(paymentProofUploadIntents.status, 'UPLOADED'),
+                eq(paymentProofUploadIntents.leaseOwner, uploadLeaseOwner),
+              ),
+            )
             .returning({ id: paymentProofUploadIntents.id });
           if (committed.length !== 1) {
-            throw new ConflictException('Payment proof upload lease expired before commit; please retry');
+            throw new ConflictException(
+              'Payment proof upload lease expired before commit; please retry',
+            );
           }
         }
 
@@ -414,12 +484,15 @@ export class PaymentsService {
           previousReceiptUrl.startsWith(managedPrefix) &&
           previousReceiptUrl !== storedReceiptUrl
         ) {
-          const [previousIntent] = await tx.select().from(paymentProofUploadIntents)
+          const [previousIntent] = await tx
+            .select()
+            .from(paymentProofUploadIntents)
             .where(eq(paymentProofUploadIntents.storageKey, previousReceiptUrl))
             .limit(1);
           if (previousIntent) {
             if (previousIntent.status !== 'CLEANED') {
-              await tx.update(paymentProofUploadIntents)
+              await tx
+                .update(paymentProofUploadIntents)
                 .set({
                   status: 'CLEANUP_PENDING',
                   leaseOwner: null,
@@ -447,9 +520,13 @@ export class PaymentsService {
     } catch (error) {
       if (uploadIntentId && newStorageKey && uploadLeaseOwner) {
         try {
-          const [persisted] = await this.db.db.select({
-            receiptUrl: paymentRecords.receiptUrl,
-          }).from(paymentRecords).where(eq(paymentRecords.id, paymentId)).limit(1);
+          const [persisted] = await this.db.db
+            .select({
+              receiptUrl: paymentRecords.receiptUrl,
+            })
+            .from(paymentRecords)
+            .where(eq(paymentRecords.id, paymentId))
+            .limit(1);
 
           // A commit can succeed while its acknowledgement is lost. Never
           // schedule deletion when the durable payment row references the key.
@@ -457,7 +534,8 @@ export class PaymentsService {
             return this.getPaymentOrThrow(paymentId);
           }
 
-          await this.db.db.update(paymentProofUploadIntents)
+          await this.db.db
+            .update(paymentProofUploadIntents)
             .set({
               status: 'CLEANUP_PENDING',
               leaseOwner: null,
@@ -466,13 +544,17 @@ export class PaymentsService {
               lastErrorCode: 'PAYMENT_COMMIT_FAILED',
               updatedAt: new Date(),
             })
-            .where(and(
-              eq(paymentProofUploadIntents.id, uploadIntentId),
-              eq(paymentProofUploadIntents.status, 'UPLOADED'),
-              eq(paymentProofUploadIntents.leaseOwner, uploadLeaseOwner),
-            ));
+            .where(
+              and(
+                eq(paymentProofUploadIntents.id, uploadIntentId),
+                eq(paymentProofUploadIntents.status, 'UPLOADED'),
+                eq(paymentProofUploadIntents.leaseOwner, uploadLeaseOwner),
+              ),
+            );
         } catch (cleanupError: any) {
-          this.logger.warn(`Payment proof cleanup scheduling deferred for intent ${uploadIntentId}: ${cleanupError?.message || 'database verification failed'}`);
+          this.logger.warn(
+            `Payment proof cleanup scheduling deferred for intent ${uploadIntentId}: ${cleanupError?.message || 'database verification failed'}`,
+          );
         }
       }
       throw error;
@@ -539,21 +621,32 @@ export class PaymentsService {
       try {
         // Check every payment row, not only the intent's original payment:
         // a shared/misreferenced key must never be deleted while any payment uses it.
-        const [paymentReference] = await this.db.db.select({
-          id: paymentRecords.id,
-        }).from(paymentRecords).where(eq(paymentRecords.receiptUrl, intent.storageKey)).limit(1);
+        const [paymentReference] = await this.db.db
+          .select({
+            id: paymentRecords.id,
+          })
+          .from(paymentRecords)
+          .where(eq(paymentRecords.receiptUrl, intent.storageKey))
+          .limit(1);
 
         if (paymentReference) {
-          await this.db.db.update(paymentProofUploadIntents)
+          await this.db.db
+            .update(paymentProofUploadIntents)
             .set({
-              status: 'COMMITTED', leaseOwner: null, leaseExpiresAt: null,
-              nextAttemptAt: null, committedAt: new Date(), updatedAt: new Date(),
+              status: 'COMMITTED',
+              leaseOwner: null,
+              leaseExpiresAt: null,
+              nextAttemptAt: null,
+              committedAt: new Date(),
+              updatedAt: new Date(),
             })
-            .where(and(
-              eq(paymentProofUploadIntents.id, intent.id),
-              eq(paymentProofUploadIntents.status, 'CLEANING'),
-              eq(paymentProofUploadIntents.leaseOwner, workerId),
-            ));
+            .where(
+              and(
+                eq(paymentProofUploadIntents.id, intent.id),
+                eq(paymentProofUploadIntents.status, 'CLEANING'),
+                eq(paymentProofUploadIntents.leaseOwner, workerId),
+              ),
+            );
           summary.committed += 1;
           continue;
         }
@@ -576,21 +669,30 @@ export class PaymentsService {
           }
         }
 
-        await this.db.db.update(paymentProofUploadIntents)
+        await this.db.db
+          .update(paymentProofUploadIntents)
           .set({
-            status: 'CLEANED', leaseOwner: null, leaseExpiresAt: null,
-            nextAttemptAt: null, cleanedAt: new Date(), lastErrorCode: null, updatedAt: new Date(),
+            status: 'CLEANED',
+            leaseOwner: null,
+            leaseExpiresAt: null,
+            nextAttemptAt: null,
+            cleanedAt: new Date(),
+            lastErrorCode: null,
+            updatedAt: new Date(),
           })
-          .where(and(
-            eq(paymentProofUploadIntents.id, intent.id),
-            eq(paymentProofUploadIntents.status, 'CLEANING'),
-            eq(paymentProofUploadIntents.leaseOwner, workerId),
-          ));
+          .where(
+            and(
+              eq(paymentProofUploadIntents.id, intent.id),
+              eq(paymentProofUploadIntents.status, 'CLEANING'),
+              eq(paymentProofUploadIntents.leaseOwner, workerId),
+            ),
+          );
         summary.cleaned += 1;
       } catch {
         const terminal = intent.attemptCount >= PROOF_CLEANUP_MAX_ATTEMPTS;
-        const backoffSeconds = Math.min(3600, 30 * (2 ** Math.min(intent.attemptCount - 1, 7)));
-        await this.db.db.update(paymentProofUploadIntents)
+        const backoffSeconds = Math.min(3600, 30 * 2 ** Math.min(intent.attemptCount - 1, 7));
+        await this.db.db
+          .update(paymentProofUploadIntents)
           .set({
             status: terminal ? 'FAILED' : 'CLEANUP_PENDING',
             leaseOwner: null,
@@ -599,11 +701,13 @@ export class PaymentsService {
             lastErrorCode: 'STORAGE_CLEANUP_FAILED',
             updatedAt: new Date(),
           })
-          .where(and(
-            eq(paymentProofUploadIntents.id, intent.id),
-            eq(paymentProofUploadIntents.status, 'CLEANING'),
-            eq(paymentProofUploadIntents.leaseOwner, workerId),
-          ));
+          .where(
+            and(
+              eq(paymentProofUploadIntents.id, intent.id),
+              eq(paymentProofUploadIntents.status, 'CLEANING'),
+              eq(paymentProofUploadIntents.leaseOwner, workerId),
+            ),
+          );
         if (terminal) summary.failed += 1;
         else summary.retried += 1;
       }
@@ -912,9 +1016,20 @@ export class PaymentsService {
           actorType: 'SYSTEM',
           notes: 'Payment ready — awaiting buyer proof upload',
         });
-        await this.outbox.publish('payment.awaiting_payment', paymentId, {
-          paymentId, orderId: payment.orderId, buyerId, fromStatus, toStatus,
-        }, {}, null, tx);
+        await this.outbox.publish(
+          'payment.awaiting_payment',
+          paymentId,
+          {
+            paymentId,
+            orderId: payment.orderId,
+            buyerId,
+            fromStatus,
+            toStatus,
+          },
+          {},
+          null,
+          tx,
+        );
       }
     });
   }
@@ -1035,7 +1150,9 @@ export class PaymentsService {
           existingRefund.reason !== reason ||
           existingRefund.requestedBy !== requestedBy
         ) {
-          throw new ConflictException('Refund idempotency key was already used for a different request');
+          throw new ConflictException(
+            'Refund idempotency key was already used for a different request',
+          );
         }
         return {
           refundId: existingRefund.id,
@@ -1104,7 +1221,9 @@ export class PaymentsService {
           conflictingRefund.reason !== reason ||
           conflictingRefund.requestedBy !== requestedBy
         ) {
-          throw new ConflictException('Refund idempotency key was already used for a different request');
+          throw new ConflictException(
+            'Refund idempotency key was already used for a different request',
+          );
         }
         return {
           refundId: conflictingRefund.id,
@@ -1143,9 +1262,7 @@ export class PaymentsService {
       return { refundId, amountMinor, status: 'REQUESTED' };
     };
 
-    return transactionClient
-      ? execute(transactionClient)
-      : this.db.db.transaction(execute);
+    return transactionClient ? execute(transactionClient) : this.db.db.transaction(execute);
   }
 
   /**
@@ -1198,7 +1315,9 @@ export class PaymentsService {
 
       const refundableStatuses = ['CONFIRMED', 'CAPTURED', 'PARTIALLY_REFUNDED'];
       if (!refundableStatuses.includes(payment.status)) {
-        throw new ConflictException(`Cannot approve refund for payment in ${payment.status} status`);
+        throw new ConflictException(
+          `Cannot approve refund for payment in ${payment.status} status`,
+        );
       }
 
       const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
@@ -1314,11 +1433,13 @@ export class PaymentsService {
     const [updated] = await tx
       .update(refunds)
       .set({ status: 'FAILED', updatedAt: new Date() })
-      .where(and(
-        eq(refunds.id, refund.id),
-        eq(refunds.paymentRecordId, payment.id),
-        inArray(refunds.status, retryableStatuses),
-      ))
+      .where(
+        and(
+          eq(refunds.id, refund.id),
+          eq(refunds.paymentRecordId, payment.id),
+          inArray(refunds.status, retryableStatuses),
+        ),
+      )
       .returning({ id: refunds.id });
     if (!updated) {
       throw new ConflictException('Refund status changed before failure was recorded');
@@ -1394,14 +1515,13 @@ export class PaymentsService {
     const reservedRows = await tx
       .select({ total: sql<string>`COALESCE(SUM(amount_minor), 0)::text` })
       .from(refunds)
-      .where(and(
-        eq(refunds.paymentRecordId, payment.id),
-        inArray(refunds.status, ['REQUESTED', 'PROCESSING', 'SUCCEEDED', 'APPROVED']),
-      ));
-    const alreadyReserved = toSafeMinorUnitTotal(
-      reservedRows[0]?.total,
-      'Reserved refund amount',
-    );
+      .where(
+        and(
+          eq(refunds.paymentRecordId, payment.id),
+          inArray(refunds.status, ['REQUESTED', 'PROCESSING', 'SUCCEEDED', 'APPROVED']),
+        ),
+      );
+    const alreadyReserved = toSafeMinorUnitTotal(reservedRows[0]?.total, 'Reserved refund amount');
     const refundable = confirmedAmount - alreadyReserved;
     if (Number(refund.amountMinor) > refundable) {
       throw new BadRequestException(
@@ -1416,11 +1536,13 @@ export class PaymentsService {
         approvedBy: null,
         updatedAt: new Date(),
       })
-      .where(and(
-        eq(refunds.id, refund.id),
-        eq(refunds.paymentRecordId, payment.id),
-        eq(refunds.status, 'FAILED'),
-      ))
+      .where(
+        and(
+          eq(refunds.id, refund.id),
+          eq(refunds.paymentRecordId, payment.id),
+          eq(refunds.status, 'FAILED'),
+        ),
+      )
       .returning({ id: refunds.id });
     if (!updated) {
       throw new ConflictException('Refund status changed before retry was recorded');
@@ -1480,11 +1602,7 @@ export class PaymentsService {
     // same payment row. This also makes concurrent calculate calls observe
     // the first committed settlement instead of attempting a second payout.
     const result = await this.db.db.transaction(async (tx) => {
-      const [order] = await tx
-        .select()
-        .from(orders)
-        .where(eq(orders.id, subOrderId))
-        .limit(1);
+      const [order] = await tx.select().from(orders).where(eq(orders.id, subOrderId)).limit(1);
       if (!order) throw new NotFoundException('Order not found');
 
       const [payment] = await tx
@@ -1512,15 +1630,17 @@ export class PaymentsService {
       const [existingSettlement] = await tx
         .select()
         .from(settlementRecords)
-        .where(and(
-          eq(settlementRecords.subOrderId, subOrderId),
-          eq(settlementRecords.paymentRecordId, payment.id),
-          // Adjustment ledger rows are independent payout entries, not the
-          // primary settlement. Exclude both metadata-linked new rows and
-          // legacy rows identified by their stable posting note prefix.
-          sql`COALESCE(${settlementRecords.metadata}->>'adjustmentId', '') = ''
+        .where(
+          and(
+            eq(settlementRecords.subOrderId, subOrderId),
+            eq(settlementRecords.paymentRecordId, payment.id),
+            // Adjustment ledger rows are independent payout entries, not the
+            // primary settlement. Exclude both metadata-linked new rows and
+            // legacy rows identified by their stable posting note prefix.
+            sql`COALESCE(${settlementRecords.metadata}->>'adjustmentId', '') = ''
             AND COALESCE(${settlementRecords.notes}, '') NOT LIKE 'Posted adjustment %'`,
-        ))
+          ),
+        )
         .orderBy(desc(settlementRecords.createdAt))
         .limit(1);
 
@@ -1547,7 +1667,10 @@ export class PaymentsService {
         .select({ total: sql<string>`COALESCE(SUM(amount_minor), 0)::text` })
         .from(refunds)
         .where(and(eq(refunds.paymentRecordId, payment.id), eq(refunds.status, 'SUCCEEDED')));
-      const totalRefunded = toSafeMinorUnitTotal(refundResult[0]?.total, 'Settlement refund amount');
+      const totalRefunded = toSafeMinorUnitTotal(
+        refundResult[0]?.total,
+        'Settlement refund amount',
+      );
 
       // Settlement formula: gross - refunds - commission - fees = net
       const grossMinor = confirmedAmount;
@@ -1557,20 +1680,23 @@ export class PaymentsService {
       const netMinor = grossMinor - refundMinor - commissionMinor - feeMinor;
       const settlementId = crypto.randomUUID();
 
-      const [settlement] = await tx.insert(settlementRecords).values({
-        id: settlementId,
-        subOrderId,
-        paymentRecordId: payment.id,
-        merchantStoreId: order.storeId,
-        grossMinor,
-        refundMinor,
-        commissionMinor,
-        feeMinor,
-        netMinor,
-        currency: payment.currency,
-        status: 'CALCULATED',
-        calculatedAt: new Date(),
-      }).returning();
+      const [settlement] = await tx
+        .insert(settlementRecords)
+        .values({
+          id: settlementId,
+          subOrderId,
+          paymentRecordId: payment.id,
+          merchantStoreId: order.storeId,
+          grossMinor,
+          refundMinor,
+          commissionMinor,
+          feeMinor,
+          netMinor,
+          currency: payment.currency,
+          status: 'CALCULATED',
+          calculatedAt: new Date(),
+        })
+        .returning();
       if (!settlement) {
         throw new Error('Settlement insert completed without returning a persisted record');
       }
@@ -1642,9 +1768,7 @@ export class PaymentsService {
         const requestedReference = input?.paymentReference?.trim() || null;
         const recordedReference = settlement.paymentReference ?? null;
         if (requestedReference !== recordedReference) {
-          throw new ConflictException(
-            'Settlement already paid with a different payment reference',
-          );
+          throw new ConflictException('Settlement already paid with a different payment reference');
         }
         return;
       }
@@ -1663,9 +1787,10 @@ export class PaymentsService {
           // ledger row. Primary settlement notes retain their existing replace
           // semantics; adjustment notes remain identifiable for old rows that
           // do not carry adjustmentId metadata.
-          notes: settlement.status === 'ADJUSTMENT'
-            ? [settlement.notes, input?.notes].filter(Boolean).join('\n') || null
-            : input?.notes || null,
+          notes:
+            settlement.status === 'ADJUSTMENT'
+              ? [settlement.notes, input?.notes].filter(Boolean).join('\n') || null
+              : input?.notes || null,
           updatedAt: paidAt,
         })
         .where(
@@ -2043,9 +2168,12 @@ export class PaymentsService {
   /**
    * List settlements with optional filters.
    */
-  async listSettlements(
-    filters?: { storeId?: string; status?: string; limit?: number; offset?: number },
-  ) {
+  async listSettlements(filters?: {
+    storeId?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }) {
     const pagination = normalizeSettlementPagination(filters);
     const conditions = [];
     if (filters?.storeId) {

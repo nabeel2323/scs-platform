@@ -12,7 +12,12 @@ vi.mock('../lib/api', () => ({
 }));
 vi.mock('../hooks/useRequirePerms', () => ({ useRequirePerms: () => ({ hasAccess: true }) }));
 vi.mock('../components/detail', () => ({
-  AdminDetailSection: ({ title, children }: { title: string; children: React.ReactNode }) => <section><h2>{title}</h2>{children}</section>,
+  AdminDetailSection: ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <section>
+      <h2>{title}</h2>
+      {children}
+    </section>
+  ),
   AdminLoadingSkeleton: () => <div role="status">Loading analytics</div>,
   formatDate: () => 'Today',
 }));
@@ -33,7 +38,9 @@ describe('admin analytics request ordering and recovery', () => {
 
   it('ignores an older date-range response after a newer range has loaded', async () => {
     let resolveFirst!: (value: Array<typeof oldEvent>) => void;
-    const first = new Promise<Array<typeof oldEvent>>(resolve => { resolveFirst = resolve; });
+    const first = new Promise<Array<typeof oldEvent>>((resolve) => {
+      resolveFirst = resolve;
+    });
     fetchAnalyticsEvents.mockImplementationOnce(() => first).mockResolvedValueOnce([newEvent]);
 
     const { container } = render(<AnalyticsPage />);
@@ -44,7 +51,9 @@ describe('admin analytics request ordering and recovery', () => {
     await waitFor(() => expect(fetchAnalyticsEvents).toHaveBeenCalledTimes(2));
     expect(await screen.findByText('new-event')).toBeTruthy();
 
-    await act(async () => { resolveFirst([oldEvent]); });
+    await act(async () => {
+      resolveFirst([oldEvent]);
+    });
     expect(screen.queryByText('old-event')).toBeNull();
     expect(screen.getByText('new-event')).toBeTruthy();
   });
@@ -55,7 +64,9 @@ describe('admin analytics request ordering and recovery', () => {
       .mockResolvedValueOnce([newEvent]);
 
     render(<AnalyticsPage />);
-    expect((await screen.findByRole('alert')).textContent).toContain('Analytics events unavailable');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Analytics events unavailable',
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Retry events' }));
     expect(await screen.findByText('new-event')).toBeTruthy();
   });

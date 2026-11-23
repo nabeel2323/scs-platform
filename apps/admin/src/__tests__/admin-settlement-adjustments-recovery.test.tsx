@@ -8,11 +8,18 @@ const { adminRequest, hasAccess } = vi.hoisted(() => ({
 
 vi.mock('../lib/api', () => ({ adminRequest: (...args: unknown[]) => adminRequest(...args) }));
 vi.mock('../hooks/useRequirePerms', () => ({
-  useRequirePerms: (permissions: string[]) => ({ hasAccess: hasAccess(permissions[0]), missingPerms: [] }),
+  useRequirePerms: (permissions: string[]) => ({
+    hasAccess: hasAccess(permissions[0]),
+    missingPerms: [],
+  }),
   AccessDenied: () => <div>Access denied</div>,
 }));
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
+  PageHeader: ({ title }: { title: string }) => (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  ),
 }));
 
 import SettlementAdjustmentsPage from '../app/settlement-adjustments/page';
@@ -45,37 +52,52 @@ describe('admin settlement adjustments read recovery', () => {
   afterEach(() => cleanup());
 
   it('retries an initial failure without showing a false empty state', async () => {
-    adminRequest.mockRejectedValueOnce(new Error('Adjustment service unavailable')).mockResolvedValueOnce([]);
+    adminRequest
+      .mockRejectedValueOnce(new Error('Adjustment service unavailable'))
+      .mockResolvedValueOnce([]);
 
     render(<SettlementAdjustmentsPage />);
 
-    expect((await screen.findByRole('alert')).textContent).toContain('Adjustment service unavailable');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Adjustment service unavailable',
+    );
     expect(screen.queryByText('No settlement adjustments found.')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry adjustments' }));
     expect(await screen.findByText('No settlement adjustments found.')).toBeTruthy();
   });
 
-
   it('allows approvers to reject a pending adjustment with a required reason', async () => {
-    adminRequest.mockResolvedValueOnce([adjustment('adjustment-2', 'PENDING_APPROVAL', 'Return adjustment')]).mockResolvedValueOnce([]);
+    adminRequest
+      .mockResolvedValueOnce([adjustment('adjustment-2', 'PENDING_APPROVAL', 'Return adjustment')])
+      .mockResolvedValueOnce([]);
     render(<SettlementAdjustmentsPage />);
 
     expect(await screen.findByText('Return adjustment')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
-    fireEvent.change(screen.getByLabelText('Rejection reason'), { target: { value: 'Insufficient supporting evidence' } });
+    fireEvent.change(screen.getByLabelText('Rejection reason'), {
+      target: { value: 'Insufficient supporting evidence' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Confirm rejection' }));
 
     expect(await screen.findByText('No settlement adjustments found.')).toBeTruthy();
-    expect(adminRequest).toHaveBeenNthCalledWith(2, 'admin/settlement-adjustments/adjustment-2/reject', expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({ reason: 'Insufficient supporting evidence' }),
-    }));
+    expect(adminRequest).toHaveBeenNthCalledWith(
+      2,
+      'admin/settlement-adjustments/adjustment-2/reject',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Insufficient supporting evidence' }),
+      }),
+    );
   });
 
   it('does not expose rejection to read-only adjustment users', async () => {
-    hasAccess.mockImplementation((permission: string) => permission !== 'admin:adjustments:approve');
-    adminRequest.mockResolvedValueOnce([adjustment('adjustment-3', 'PENDING_APPROVAL', 'Return adjustment')]);
+    hasAccess.mockImplementation(
+      (permission: string) => permission !== 'admin:adjustments:approve',
+    );
+    adminRequest.mockResolvedValueOnce([
+      adjustment('adjustment-3', 'PENDING_APPROVAL', 'Return adjustment'),
+    ]);
     render(<SettlementAdjustmentsPage />);
 
     expect(await screen.findByText('Return adjustment')).toBeTruthy();
@@ -84,7 +106,9 @@ describe('admin settlement adjustments read recovery', () => {
   });
 
   it('preserves the last successful rows after a failed same-filter refresh', async () => {
-    adminRequest.mockResolvedValueOnce([adjustment('adjustment-1', 'DRAFT', 'Return adjustment')]).mockRejectedValueOnce(new Error('Adjustment refresh failed'));
+    adminRequest
+      .mockResolvedValueOnce([adjustment('adjustment-1', 'DRAFT', 'Return adjustment')])
+      .mockRejectedValueOnce(new Error('Adjustment refresh failed'));
 
     render(<SettlementAdjustmentsPage />);
 

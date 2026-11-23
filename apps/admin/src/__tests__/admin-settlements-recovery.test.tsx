@@ -16,9 +16,25 @@ vi.mock('../hooks/useRequirePerms', () => ({
   AccessDenied: () => <div>Access denied</div>,
 }));
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
+  PageHeader: ({ title }: { title: string }) => (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  ),
   Card: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Button: ({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) => <button onClick={onClick} disabled={disabled}>{children}</button>,
+  Button: ({
+    children,
+    onClick,
+    disabled,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+  }) => (
+    <button onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  ),
   colors: { border: '#ddd', borderLight: '#eee', muted: '#888' },
   typeScale: { label: {} },
   radii: { sm: 4 },
@@ -44,18 +60,24 @@ const settlement = {
 describe('admin settlements read recovery', () => {
   beforeEach(() => {
     hasAccess.mockReset().mockReturnValue(true);
-    fetchAdminSettlements.mockReset().mockResolvedValue({ data: [], total: 0, limit: 25, offset: 0 });
+    fetchAdminSettlements
+      .mockReset()
+      .mockResolvedValue({ data: [], total: 0, limit: 25, offset: 0 });
     markSettlementPaid.mockReset().mockResolvedValue(settlement);
   });
 
   afterEach(() => cleanup());
 
   it('retries an initial failure without presenting a false empty state', async () => {
-    fetchAdminSettlements.mockRejectedValueOnce(new Error('Settlement service unavailable')).mockResolvedValueOnce({ data: [], total: 0, limit: 25, offset: 0 });
+    fetchAdminSettlements
+      .mockRejectedValueOnce(new Error('Settlement service unavailable'))
+      .mockResolvedValueOnce({ data: [], total: 0, limit: 25, offset: 0 });
 
     render(<AdminSettlementsPage />);
 
-    expect((await screen.findByRole('alert')).textContent).toContain('Settlement service unavailable');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Settlement service unavailable',
+    );
     expect(screen.queryByText('No settlements found.')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry settlements' }));
@@ -70,7 +92,9 @@ describe('admin settlements read recovery', () => {
       grossMinor: 0,
       netMinor: 125,
     };
-    fetchAdminSettlements.mockResolvedValueOnce({ data: [adjustment], total: 1, limit: 25, offset: 0 }).mockResolvedValueOnce({ data: [], total: 0, limit: 25, offset: 0 });
+    fetchAdminSettlements
+      .mockResolvedValueOnce({ data: [adjustment], total: 1, limit: 25, offset: 0 })
+      .mockResolvedValueOnce({ data: [], total: 0, limit: 25, offset: 0 });
     markSettlementPaid.mockResolvedValueOnce({ ...adjustment, status: 'PAID' });
 
     render(<AdminSettlementsPage />);
@@ -92,7 +116,12 @@ describe('admin settlements read recovery', () => {
       grossMinor: 0,
       netMinor: 125,
     };
-    fetchAdminSettlements.mockResolvedValueOnce({ data: [paidAdjustment], total: 1, limit: 25, offset: 0 });
+    fetchAdminSettlements.mockResolvedValueOnce({
+      data: [paidAdjustment],
+      total: 1,
+      limit: 25,
+      offset: 0,
+    });
 
     render(<AdminSettlementsPage />);
 
@@ -117,7 +146,9 @@ describe('admin settlements read recovery', () => {
   });
 
   it('preserves the last successful rows after a failed same-filter refresh', async () => {
-    fetchAdminSettlements.mockResolvedValueOnce({ data: [settlement], total: 1, limit: 25, offset: 0 }).mockRejectedValueOnce(new Error('Settlement refresh failed'));
+    fetchAdminSettlements
+      .mockResolvedValueOnce({ data: [settlement], total: 1, limit: 25, offset: 0 })
+      .mockRejectedValueOnce(new Error('Settlement refresh failed'));
 
     render(<AdminSettlementsPage />);
 

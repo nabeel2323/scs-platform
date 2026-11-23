@@ -14,7 +14,11 @@ describe('ReviewsService order review visibility', () => {
     const reviewFindMany = vi.fn();
     vi.mocked(assertStoreInOrg).mockRejectedValue(new Error('not in org'));
     const service = new ReviewsService(
-      { db: { query: { orders: { findFirst: orderFindFirst }, reviews: { findMany: reviewFindMany } } } } as any,
+      {
+        db: {
+          query: { orders: { findFirst: orderFindFirst }, reviews: { findMany: reviewFindMany } },
+        },
+      } as any,
       {} as any,
     );
 
@@ -35,7 +39,11 @@ describe('ReviewsService order review visibility', () => {
     const expected = [{ id: 'review-a', orderId: 'order-a' }];
     const reviewFindMany = vi.fn().mockResolvedValue(expected);
     const service = new ReviewsService(
-      { db: { query: { orders: { findFirst: orderFindFirst }, reviews: { findMany: reviewFindMany } } } } as any,
+      {
+        db: {
+          query: { orders: { findFirst: orderFindFirst }, reviews: { findMany: reviewFindMany } },
+        },
+      } as any,
       {} as any,
     );
 

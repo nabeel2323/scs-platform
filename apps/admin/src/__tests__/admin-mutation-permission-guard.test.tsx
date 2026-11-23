@@ -13,7 +13,14 @@ import { useAdminMutation } from '../components/EntityActions';
 
 function MutationHarness({ allowed }: { allowed: boolean }) {
   const action = useAdminMutation(vi.fn(), () => allowed);
-  return <button type="button" onClick={() => void action.run('admin/users/user-1', 'PATCH', { status: 'SUSPENDED' })}>Run action</button>;
+  return (
+    <button
+      type="button"
+      onClick={() => void action.run('admin/users/user-1', 'PATCH', { status: 'SUSPENDED' })}
+    >
+      Run action
+    </button>
+  );
 }
 
 afterEach(() => {
@@ -38,9 +45,11 @@ describe('shared Admin mutation permission guard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Run action' }));
 
-    await waitFor(() => expect(mocks.adminRequest).toHaveBeenCalledWith(
-      'admin/users/user-1',
-      expect.objectContaining({ method: 'PATCH' }),
-    ));
+    await waitFor(() =>
+      expect(mocks.adminRequest).toHaveBeenCalledWith(
+        'admin/users/user-1',
+        expect.objectContaining({ method: 'PATCH' }),
+      ),
+    );
   });
 });

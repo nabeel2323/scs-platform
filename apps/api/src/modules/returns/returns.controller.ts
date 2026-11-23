@@ -7,17 +7,33 @@
  * - Admin: oversight, expire, all returns list
  */
 import {
-  Controller, Get, Post, Patch, Delete, Body, Param, Query,
-  UseGuards, Req, BadRequestException,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Req,
+  BadRequestException,
 } from '@nestjs/common';
 import { ReturnsService, CreateReturnInput, TransitionInput } from './returns.service';
 import { BusinessCalendarService } from './business-calendar.service';
-import { SettlementAdjustmentService, CreateAdjustmentInput } from './settlement-adjustment.service';
+import {
+  SettlementAdjustmentService,
+  CreateAdjustmentInput,
+} from './settlement-adjustment.service';
 import { ReconciliationService } from './reconciliation.service';
 import { CommissionReversalService } from './commission-reversal.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
+import {
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
+} from '../../common/guards/current-user.decorator';
 import { CallerContext, financialOrgScope } from '../../common/tenant-scope';
 
 @Controller()
@@ -56,19 +72,13 @@ export class ReturnsController {
   /** GET /v1/returns/my — buyer lists own returns. Declared before :id so the
    *  literal 'my' is not swallowed by the parameterized route. */
   @Get('returns/my')
-  async myReturns(
-    @CurrentUser() user: JwtPayload,
-    @Query('status') status?: string,
-  ) {
+  async myReturns(@CurrentUser() user: JwtPayload, @Query('status') status?: string) {
     return this.returns.listReturnsForBuyer(user.sub, status);
   }
 
   /** GET /v1/returns/:id — view return request (buyer owns it, merchant store member, or admin). */
   @Get('returns/:id')
-  async getReturn(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async getReturn(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.returns.getReturnRequest(id, caller);
   }
@@ -137,10 +147,7 @@ export class ReturnsController {
   @Post('merchant/returns/:id/receive')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:write')
-  async receiveReturn(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async receiveReturn(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.returns.transitionReturn(id, 'RECEIVED', caller);
   }
@@ -185,10 +192,7 @@ export class ReturnsController {
   @Post('admin/returns/:id/expire')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:returns:write')
-  async expireReturn(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async expireReturn(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.returns.transitionReturn(id, 'EXPIRED', caller);
   }
@@ -197,10 +201,7 @@ export class ReturnsController {
   @Post('admin/returns/:id/issue-refund')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:refunds:approve')
-  async issueRefund(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async issueRefund(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.returns.transitionReturn(id, 'REFUND_PENDING', caller);
   }
@@ -236,7 +237,8 @@ export class ReturnsController {
   async resolveEscalated(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
-    @Body() body: {
+    @Body()
+    body: {
       action: 'APPROVE' | 'REJECT' | 'CANCEL';
       responsibilityCategory?: string;
       notes?: string;
@@ -247,7 +249,11 @@ export class ReturnsController {
     }
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.returns.resolveEscalation(
-      id, body.action, body.responsibilityCategory || null, caller, body.notes,
+      id,
+      body.action,
+      body.responsibilityCategory || null,
+      caller,
+      body.notes,
     );
   }
 
@@ -275,9 +281,14 @@ export class ReturnsController {
   @RequirePermission('admin:returns:write')
   async createCalendar(
     @CurrentUser() user: JwtPayload,
-    @Body() body: {
-      name: string; timezone?: string; startTime?: string; endTime?: string;
-      workingDays?: number[]; isDefault?: boolean;
+    @Body()
+    body: {
+      name: string;
+      timezone?: string;
+      startTime?: string;
+      endTime?: string;
+      workingDays?: number[];
+      isDefault?: boolean;
     },
   ) {
     if (!body.name || body.name.trim().length === 0) {
@@ -293,9 +304,15 @@ export class ReturnsController {
   async updateCalendar(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
-    @Body() body: {
-      name?: string; timezone?: string; startTime?: string; endTime?: string;
-      workingDays?: number[]; isDefault?: boolean; enabled?: boolean;
+    @Body()
+    body: {
+      name?: string;
+      timezone?: string;
+      startTime?: string;
+      endTime?: string;
+      workingDays?: number[];
+      isDefault?: boolean;
+      enabled?: boolean;
     },
   ) {
     return this.calendar.updateCalendar(id, body, user.sub);
@@ -350,10 +367,7 @@ export class ReturnsController {
   @Get('admin/commission-reversals')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:commission:read')
-  async listCommissionReversals(
-    @CurrentUser() user: JwtPayload,
-    @Query('status') status?: string,
-  ) {
+  async listCommissionReversals(@CurrentUser() user: JwtPayload, @Query('status') status?: string) {
     return this.commissionReversal.listReversals(this.finScope(user), status);
   }
 
@@ -363,10 +377,7 @@ export class ReturnsController {
   @Get('admin/settlement-adjustments')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:adjustments:read')
-  async listAdjustments(
-    @CurrentUser() user: JwtPayload,
-    @Query('status') status?: string,
-  ) {
+  async listAdjustments(@CurrentUser() user: JwtPayload, @Query('status') status?: string) {
     return this.settlementAdj.listAdjustments(this.finScope(user), status);
   }
 
@@ -374,10 +385,7 @@ export class ReturnsController {
   @Get('admin/settlement-adjustments/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:adjustments:read')
-  async getAdjustment(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async getAdjustment(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.settlementAdj.getAdjustment(id, this.finScope(user));
   }
 
@@ -385,10 +393,7 @@ export class ReturnsController {
   @Post('admin/settlement-adjustments')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:adjustments:write')
-  async createAdjustment(
-    @CurrentUser() user: JwtPayload,
-    @Body() body: CreateAdjustmentInput,
-  ) {
+  async createAdjustment(@CurrentUser() user: JwtPayload, @Body() body: CreateAdjustmentInput) {
     return this.settlementAdj.createAdjustment(body, user.sub, this.finScope(user));
   }
 
@@ -396,10 +401,7 @@ export class ReturnsController {
   @Post('admin/settlement-adjustments/:id/submit')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:adjustments:write')
-  async submitAdjustment(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async submitAdjustment(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.settlementAdj.submitForApproval(id, user.sub, this.finScope(user));
   }
 
@@ -413,7 +415,11 @@ export class ReturnsController {
     @Body() body: { notes?: string },
   ) {
     return this.settlementAdj.approveAdjustment(
-      id, user.sub, user.role, { approverRole: user.role, notes: body.notes }, this.finScope(user),
+      id,
+      user.sub,
+      user.role,
+      { approverRole: user.role, notes: body.notes },
+      this.finScope(user),
     );
   }
 
@@ -434,10 +440,7 @@ export class ReturnsController {
   @Post('admin/settlement-adjustments/:id/post')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:adjustments:approve')
-  async postAdjustment(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async postAdjustment(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.settlementAdj.postAdjustment(id, user.sub, this.finScope(user));
   }
 
@@ -455,10 +458,7 @@ export class ReturnsController {
   @Get('admin/reconciliation/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:reconciliation:read')
-  async getReconciliationRun(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async getReconciliationRun(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.reconciliation.getReconciliationRun(id, this.finScope(user));
   }
 
@@ -474,7 +474,11 @@ export class ReturnsController {
       throw new BadRequestException('periodStart and periodEnd are required (YYYY-MM-DD)');
     }
     return this.reconciliation.executeReconciliation(
-      body.periodStart, body.periodEnd, body.currency ?? 'SYP', user.sub, this.finScope(user),
+      body.periodStart,
+      body.periodEnd,
+      body.currency ?? 'SYP',
+      user.sub,
+      this.finScope(user),
     );
   }
 

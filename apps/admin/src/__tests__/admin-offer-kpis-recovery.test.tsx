@@ -4,24 +4,44 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 const { fetchOfferRevenueKpis } = vi.hoisted(() => ({ fetchOfferRevenueKpis: vi.fn() }));
 
 vi.mock('next/link', () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
 }));
-vi.mock('../lib/api', () => ({ fetchOfferRevenueKpis: (...args: unknown[]) => fetchOfferRevenueKpis(...args) }));
+vi.mock('../lib/api', () => ({
+  fetchOfferRevenueKpis: (...args: unknown[]) => fetchOfferRevenueKpis(...args),
+}));
 vi.mock('../hooks/useRequirePerms', () => ({
   useRequirePerms: () => ({ hasAccess: true, missingPerms: [] }),
   AccessDenied: () => <div>Access denied</div>,
 }));
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title, trailing }: { title: string; trailing?: React.ReactNode }) => <header><h1>{title}</h1>{trailing}</header>,
-  KpiCard: ({ label, value }: { label: string; value: string }) => <div>{label}:{value}</div>,
+  PageHeader: ({ title, trailing }: { title: string; trailing?: React.ReactNode }) => (
+    <header>
+      <h1>{title}</h1>
+      {trailing}
+    </header>
+  ),
+  KpiCard: ({ label, value }: { label: string; value: string }) => (
+    <div>
+      {label}:{value}
+    </div>
+  ),
   IconActivity: () => null,
   IconDollar: () => null,
   IconPackage: () => null,
   StatusPill: ({ status }: { status: string }) => <span>{status}</span>,
   colors: {
-    border: '#ddd', surface: '#fff', muted: '#888', err: '#b00', errBg: '#fee',
-    brand: { 50: '#eee', 700: '#333' }, okBg: '#efe', infoBg: '#eef',
-    bgSubtle: '#fafafa', borderLight: '#eee',
+    border: '#ddd',
+    surface: '#fff',
+    muted: '#888',
+    err: '#b00',
+    errBg: '#fee',
+    brand: { 50: '#eee', 700: '#333' },
+    okBg: '#efe',
+    infoBg: '#eef',
+    bgSubtle: '#fafafa',
+    borderLight: '#eee',
   },
   typeScale: { bodySm: {}, h2: {} },
   radii: { sm: 4, md: 8 },
@@ -51,7 +71,9 @@ describe('admin offer KPI read recovery', () => {
 
     render(<OffersKpiPage />);
 
-    expect((await screen.findByRole('alert')).textContent).toContain('Offer KPI service unavailable');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Offer KPI service unavailable',
+    );
     expect(screen.getByText('Offers Touched:—')).toBeTruthy();
     expect(screen.queryByText('No offer-backed sales in this window.')).toBeNull();
 

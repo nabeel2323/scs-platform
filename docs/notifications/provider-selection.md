@@ -6,10 +6,10 @@ This document explains how the SCS Platform selects the notification provider fo
 
 `EMAIL_PROVIDER` selects which email provider handles the `email` channel. Two values are supported:
 
-| Value | Provider | Notes |
-|---|---|---|
+| Value            | Provider            | Notes                                                                     |
+| ---------------- | ------------------- | ------------------------------------------------------------------------- |
 | `smtp` (default) | SMTP via Nodemailer | MailHog-compatible for local dev. Requires an SMTP server for production. |
-| `resend` | Resend HTTPS API | Works on Render Free where outbound SMTP ports are blocked. |
+| `resend`         | Resend HTTPS API    | Works on Render Free where outbound SMTP ports are blocked.               |
 
 Default: `smtp`.
 

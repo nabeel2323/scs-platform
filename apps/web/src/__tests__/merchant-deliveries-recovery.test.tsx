@@ -30,7 +30,10 @@ vi.mock('../components/Shared', () => ({
   StatusBadge: ({ status }: { status: string }) => <span>{status}</span>,
   LoadingSpinner: () => <div>Loading</div>,
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
-    <section><h2>{title}</h2>{description ? <p>{description}</p> : null}</section>
+    <section>
+      <h2>{title}</h2>
+      {description ? <p>{description}</p> : null}
+    </section>
   ),
   ErrorBanner: ({ message, onRetry }: { message: string; onRetry?: () => void }) => (
     <div role="alert">
@@ -41,7 +44,14 @@ vi.mock('../components/Shared', () => ({
   formatDate: (value: string) => value,
 }));
 vi.mock('@scs/ui-kit', () => ({
-  PageHeader: ({ title, subtitle }: { title: string; subtitle?: string; breadcrumbs?: React.ReactNode }) => (
+  PageHeader: ({
+    title,
+    subtitle,
+  }: {
+    title: string;
+    subtitle?: string;
+    breadcrumbs?: React.ReactNode;
+  }) => (
     <header>
       <h1>{title}</h1>
       {subtitle ? <p>{subtitle}</p> : null}

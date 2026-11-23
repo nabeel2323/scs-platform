@@ -102,7 +102,6 @@ The [Implementation Completion Gap Register](./IMPLEMENTATION-GAP-REGISTER.md) i
 
 Use these programme statuses consistently: `IMPLEMENTATION_PENDING`, `IMPLEMENTATION_IN_PROGRESS`, `IMPLEMENTED`, `INTEGRATION_PENDING`, `TESTING_PENDING`, `VERIFIED`, `BLOCKED` and `DEFERRED_BY_DECISION`. Implementation, integration, test verification, runtime verification, independent review, approval and release are separate states.
 
-
 ## GitHub Actions budget and grouped validation — 22 November 2026
 
 The user reports that approximately 90% of the GitHub Actions minutes allowance has been consumed. Treat remaining Actions minutes as a constrained project resource:
@@ -113,7 +112,6 @@ The user reports that approximately 90% of the GitHub Actions minutes allowance 
 - Do not create repeated temporary formatter workflows. Follow repository formatting conventions and batch formatting with the same implementation commit.
 - Do not disable required checks, bypass workflow approval, or misrepresent unrun checks. A single meaningful CI run is preferred over many incremental runs, but required validation remains mandatory before merge/release.
 - When a workflow fails, inspect job outcomes and rerun only failed jobs when the workflow and GitHub permissions support that safely; do not rerun successful jobs unnecessarily.
-
 
 ## GitHub Actions budget — 22 November 2026
 

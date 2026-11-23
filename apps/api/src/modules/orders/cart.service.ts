@@ -7,7 +7,13 @@ import { carts, cartItems } from './cart.schema';
 import { products, productVariants } from '../catalog/catalog.schema';
 import { merchantOffers } from '../catalog/catalog.offer.schema';
 import { stores } from '../merchant/merchant.schema';
-import { resolveOfferPrices, resolveSelectedOfferPrices, selectedOfferPriceKey, type SelectedOfferPrice, type VariantPricing } from '../pricing/price-resolution';
+import {
+  resolveOfferPrices,
+  resolveSelectedOfferPrices,
+  selectedOfferPriceKey,
+  type SelectedOfferPrice,
+  type VariantPricing,
+} from '../pricing/price-resolution';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { getOrderQuantityViolation } from './order-quantity';
@@ -123,16 +129,18 @@ export class CartService {
     const existingConditions = [
       eq(cartItems.cartId, cart['id']),
       eq(cartItems.variantId, variant['id']),
-      selectedOfferId
-        ? eq(cartItems.offerId, selectedOfferId)
-        : isNull(cartItems.offerId),
+      selectedOfferId ? eq(cartItems.offerId, selectedOfferId) : isNull(cartItems.offerId),
     ].filter(Boolean) as ReturnType<typeof eq>[];
     const existing = await this.db.db.query.cartItems.findFirst({
       where: and(...existingConditions),
     });
     const finalQty = existing ? existing['quantity'] + input.quantity : input.quantity;
     if (selectedOffer) {
-      const violation = getOrderQuantityViolation(finalQty, selectedOffer.moq, selectedOffer.orderIncrement ?? null);
+      const violation = getOrderQuantityViolation(
+        finalQty,
+        selectedOffer.moq,
+        selectedOffer.orderIncrement ?? null,
+      );
       if (violation) throw new BadRequestException(violation);
     }
 
@@ -146,7 +154,9 @@ export class CartService {
           this.db.db,
           [selectedOffer],
           [{ offerId: selectedOffer.id, variantId: variant['id'], quantity: finalQty }],
-        ).then(prices => prices.get(selectedOfferPriceKey(selectedOffer.id, variant['id'], finalQty)))
+        ).then((prices) =>
+          prices.get(selectedOfferPriceKey(selectedOffer.id, variant['id'], finalQty)),
+        )
       : resolveOfferPrices(
           this.db.db,
           storeId,
@@ -154,7 +164,7 @@ export class CartService {
           finalQty,
           // Snapshotting needs the unit price only; the tier ladder is for display.
           { ladder: false },
-        ).then(pricing => pricing.get(variant['id']));
+        ).then((pricing) => pricing.get(variant['id']));
     const resolvedTier = await tier;
 
     if (!resolvedTier) {
@@ -166,11 +176,17 @@ export class CartService {
     }
     const offerId = selectedOfferId ?? resolvedTier.offerId ?? null; // PHASE 10/13
     if (!selectedOffer && offerId) {
-      const resolvedOffer = await this.db.db.query.merchantOffers.findFirst({ where: eq(merchantOffers.id, offerId) });
+      const resolvedOffer = await this.db.db.query.merchantOffers.findFirst({
+        where: eq(merchantOffers.id, offerId),
+      });
       if (!resolvedOffer || resolvedOffer.status !== 'ACTIVE' || !resolvedOffer.isAvailable) {
         throw new BadRequestException('Selected offer is no longer available');
       }
-      const violation = getOrderQuantityViolation(finalQty, resolvedOffer.moq, resolvedOffer.orderIncrement ?? null);
+      const violation = getOrderQuantityViolation(
+        finalQty,
+        resolvedOffer.moq,
+        resolvedOffer.orderIncrement ?? null,
+      );
       if (violation) throw new BadRequestException(violation);
     } else if (!offerId) {
       const violation = getOrderQuantityViolation(finalQty, product['moq'] ?? 1);
@@ -259,9 +275,13 @@ export class CartService {
             continue;
           }
           const matchesVariant = offer.variantId != null && offer.variantId === variant['id'];
-          const matchesProduct = offer.variantId == null && offer.productId === variant['productId'];
+          const matchesProduct =
+            offer.variantId == null && offer.productId === variant['productId'];
           if (!matchesVariant && !matchesProduct) {
-            skipped.push({ variantId: input.variantId, reason: 'Selected offer does not apply to this item' });
+            skipped.push({
+              variantId: input.variantId,
+              reason: 'Selected offer does not apply to this item',
+            });
             continue;
           }
           storeId = offer.storeId;
@@ -270,7 +290,10 @@ export class CartService {
         }
         // Canonical products without an owning store require offer selection.
         if (!storeId) {
-          skipped.push({ variantId: input.variantId, reason: 'Product requires a seller selection' });
+          skipped.push({
+            variantId: input.variantId,
+            reason: 'Product requires a seller selection',
+          });
           continue;
         }
         const existingConditions = [
@@ -283,37 +306,50 @@ export class CartService {
         });
         const finalQty = existing ? existing['quantity'] + input.quantity : input.quantity;
         if (selectedOffer) {
-          const violation = getOrderQuantityViolation(finalQty, selectedOffer.moq, selectedOffer.orderIncrement ?? null);
+          const violation = getOrderQuantityViolation(
+            finalQty,
+            selectedOffer.moq,
+            selectedOffer.orderIncrement ?? null,
+          );
           if (violation) {
             skipped.push({ variantId: input.variantId, reason: violation });
             continue;
           }
         }
         const tier = selectedOffer
-          ? (await resolveSelectedOfferPrices(
-              this.db.db,
-              [selectedOffer],
-              [{ offerId: selectedOffer.id, variantId: variant['id'], quantity: finalQty }],
-            )).get(selectedOfferPriceKey(selectedOffer.id, variant['id'], finalQty))
-          : (await resolveOfferPrices(
-              this.db.db,
-              storeId,
-              [variant['id']],
-              finalQty,
-              { ladder: false },
-            )).get(variant['id']);
+          ? (
+              await resolveSelectedOfferPrices(
+                this.db.db,
+                [selectedOffer],
+                [{ offerId: selectedOffer.id, variantId: variant['id'], quantity: finalQty }],
+              )
+            ).get(selectedOfferPriceKey(selectedOffer.id, variant['id'], finalQty))
+          : (
+              await resolveOfferPrices(this.db.db, storeId, [variant['id']], finalQty, {
+                ladder: false,
+              })
+            ).get(variant['id']);
         if (!tier) {
           skipped.push({ variantId: input.variantId, reason: 'No price at this quantity' });
           continue;
         }
         const offerId = selectedOfferId ?? tier.offerId ?? null; // PHASE 10/13
         if (!selectedOffer && offerId) {
-          const resolvedOffer = await this.db.db.query.merchantOffers.findFirst({ where: eq(merchantOffers.id, offerId) });
+          const resolvedOffer = await this.db.db.query.merchantOffers.findFirst({
+            where: eq(merchantOffers.id, offerId),
+          });
           if (!resolvedOffer || resolvedOffer.status !== 'ACTIVE' || !resolvedOffer.isAvailable) {
-            skipped.push({ variantId: input.variantId, reason: 'Selected offer is no longer available' });
+            skipped.push({
+              variantId: input.variantId,
+              reason: 'Selected offer is no longer available',
+            });
             continue;
           }
-          const violation = getOrderQuantityViolation(finalQty, resolvedOffer.moq, resolvedOffer.orderIncrement ?? null);
+          const violation = getOrderQuantityViolation(
+            finalQty,
+            resolvedOffer.moq,
+            resolvedOffer.orderIncrement ?? null,
+          );
           if (violation) {
             skipped.push({ variantId: input.variantId, reason: violation });
             continue;
@@ -330,7 +366,14 @@ export class CartService {
         if (existing) {
           await this.db.db
             .update(cartItems)
-            .set({ quantity: finalQty, priceMinor, tierMinQty: tier.minQty, offerId, lineTotalMinor, updatedAt: new Date() })
+            .set({
+              quantity: finalQty,
+              priceMinor,
+              tierMinQty: tier.minQty,
+              offerId,
+              lineTotalMinor,
+              updatedAt: new Date(),
+            })
             .where(eq(cartItems.id, existing['id']));
         } else {
           await this.db.db.insert(cartItems).values({
@@ -370,7 +413,9 @@ export class CartService {
       return this.removeItem(userId, itemId);
     }
     if (!Number.isSafeInteger(quantity) || quantity < 0) {
-      throw new BadRequestException('Quantity must be a positive integer or zero to remove the item');
+      throw new BadRequestException(
+        'Quantity must be a positive integer or zero to remove the item',
+      );
     }
 
     // ADVERSARIAL FIX: re-resolve the price tier when quantity changes. Without
@@ -386,38 +431,52 @@ export class CartService {
         where: eq(merchantOffers.id, selectedOfferId),
       });
       if (!offer || offer.status !== 'ACTIVE' || !offer.isAvailable) {
-        throw new BadRequestException('Selected offer is no longer available; validate the cart before repricing');
+        throw new BadRequestException(
+          'Selected offer is no longer available; validate the cart before repricing',
+        );
       }
-      const violation = getOrderQuantityViolation(quantity, offer.moq, offer.orderIncrement ?? null);
-      if (violation) throw new BadRequestException(violation);
-      tier = (await resolveSelectedOfferPrices(
-        this.db.db,
-        [offer],
-        [{ offerId: offer.id, variantId, quantity }],
-      )).get(selectedOfferPriceKey(offer.id, variantId, quantity));
-    } else {
-      tier = (await resolveOfferPrices(
-        this.db.db,
-        storeId,
-        [variantId],
+      const violation = getOrderQuantityViolation(
         quantity,
-        { ladder: false },
-      )).get(variantId);
+        offer.moq,
+        offer.orderIncrement ?? null,
+      );
+      if (violation) throw new BadRequestException(violation);
+      tier = (
+        await resolveSelectedOfferPrices(
+          this.db.db,
+          [offer],
+          [{ offerId: offer.id, variantId, quantity }],
+        )
+      ).get(selectedOfferPriceKey(offer.id, variantId, quantity));
+    } else {
+      tier = (
+        await resolveOfferPrices(this.db.db, storeId, [variantId], quantity, { ladder: false })
+      ).get(variantId);
     }
     if (!tier) {
       throw new BadRequestException('No price available for this item at the new quantity');
     }
     const offerId = tier.offerId ?? (item['offerId'] as string | null) ?? null;
     if (!selectedOfferId && offerId) {
-      const resolvedOffer = await this.db.db.query.merchantOffers.findFirst({ where: eq(merchantOffers.id, offerId) });
+      const resolvedOffer = await this.db.db.query.merchantOffers.findFirst({
+        where: eq(merchantOffers.id, offerId),
+      });
       if (!resolvedOffer || resolvedOffer.status !== 'ACTIVE' || !resolvedOffer.isAvailable) {
         throw new BadRequestException('Selected offer is no longer available');
       }
-      const violation = getOrderQuantityViolation(quantity, resolvedOffer.moq, resolvedOffer.orderIncrement ?? null);
+      const violation = getOrderQuantityViolation(
+        quantity,
+        resolvedOffer.moq,
+        resolvedOffer.orderIncrement ?? null,
+      );
       if (violation) throw new BadRequestException(violation);
     } else if (!offerId) {
-      const variant = await this.db.db.query.productVariants.findFirst({ where: eq(productVariants.id, variantId) });
-      const product = variant ? await this.db.db.query.products.findFirst({ where: eq(products.id, variant.productId) }) : null;
+      const variant = await this.db.db.query.productVariants.findFirst({
+        where: eq(productVariants.id, variantId),
+      });
+      const product = variant
+        ? await this.db.db.query.products.findFirst({ where: eq(products.id, variant.productId) })
+        : null;
       const violation = getOrderQuantityViolation(quantity, product?.moq ?? 1);
       if (violation) throw new BadRequestException(violation);
     }
@@ -425,7 +484,14 @@ export class CartService {
 
     await this.db.db
       .update(cartItems)
-      .set({ quantity, priceMinor: tier.unitPriceMinor, tierMinQty: tier.minQty, offerId, lineTotalMinor: newLineTotal, updatedAt: new Date() })
+      .set({
+        quantity,
+        priceMinor: tier.unitPriceMinor,
+        tierMinQty: tier.minQty,
+        offerId,
+        lineTotalMinor: newLineTotal,
+        updatedAt: new Date(),
+      })
       .where(eq(cartItems.id, itemId));
 
     await this.recalculateTotal(cart['id']);
@@ -545,7 +611,20 @@ export class CartService {
       .orderBy(cartItems.createdAt);
 
     return rows.map(
-      ({ item, variantTitle, productTitle, sku, storeName, storeSlug, storeCurrency, productMoq, offerLeadTimeDays, offerMoq, offerOrderIncrement, offerStatus }) => ({
+      ({
+        item,
+        variantTitle,
+        productTitle,
+        sku,
+        storeName,
+        storeSlug,
+        storeCurrency,
+        productMoq,
+        offerLeadTimeDays,
+        offerMoq,
+        offerOrderIncrement,
+        offerStatus,
+      }) => ({
         ...item,
         title: variantTitle || productTitle || undefined,
         sku: sku || undefined,
@@ -585,16 +664,23 @@ export class CartService {
     const cart = await this.getOrCreateCart(userId);
     const items = await this.listCartItems(cart['id']);
 
-    const offerIds = items.map(i => i['offerId']).filter(Boolean) as string[];
+    const offerIds = items.map((i) => i['offerId']).filter(Boolean) as string[];
     let activeSet: Set<string> | null = null;
-    let offerTermsById = new Map<string, { id: string; moq: number; orderIncrement: number | null }>();
+    let offerTermsById = new Map<
+      string,
+      { id: string; moq: number; orderIncrement: number | null }
+    >();
     if (offerIds.length > 0) {
       const validOffers = await this.db.db.query.merchantOffers.findMany({
-        where: and(inArray(merchantOffers.id, offerIds), eq(merchantOffers.status, 'ACTIVE'), eq(merchantOffers.isAvailable, true)),
+        where: and(
+          inArray(merchantOffers.id, offerIds),
+          eq(merchantOffers.status, 'ACTIVE'),
+          eq(merchantOffers.isAvailable, true),
+        ),
         columns: { id: true, moq: true, orderIncrement: true },
       });
-      activeSet = new Set(validOffers.map(o => o.id));
-      offerTermsById = new Map(validOffers.map(offer => [offer.id, offer]));
+      activeSet = new Set(validOffers.map((o) => o.id));
+      offerTermsById = new Map(validOffers.map((offer) => [offer.id, offer]));
     }
 
     const report: {
@@ -606,12 +692,19 @@ export class CartService {
     for (const item of items) {
       const oid = item['offerId'] as string | null;
       if (!oid) {
-        const variant = await this.db.db.query.productVariants.findFirst({ where: eq(productVariants.id, item['variantId']) });
+        const variant = await this.db.db.query.productVariants.findFirst({
+          where: eq(productVariants.id, item['variantId']),
+        });
         if (!variant || !variant.isActive) {
-          report.stale.push({ itemId: item['id'] as string, reason: 'Variant no longer available' });
+          report.stale.push({
+            itemId: item['id'] as string,
+            reason: 'Variant no longer available',
+          });
           continue;
         }
-        const product = await this.db.db.query.products.findFirst({ where: eq(products.id, variant.productId) });
+        const product = await this.db.db.query.products.findFirst({
+          where: eq(products.id, variant.productId),
+        });
         if (!product) {
           report.stale.push({ itemId: item['id'] as string, reason: 'Product not found' });
           continue;
@@ -627,7 +720,10 @@ export class CartService {
           where: eq(productVariants.id, item['variantId']),
         });
         if (!variant || !variant['isActive']) {
-          report.stale.push({ itemId: item['id'] as string, reason: 'Variant no longer available' });
+          report.stale.push({
+            itemId: item['id'] as string,
+            reason: 'Variant no longer available',
+          });
           continue;
         }
         const product = await this.db.db.query.products.findFirst({
@@ -643,7 +739,11 @@ export class CartService {
           continue;
         }
         const pricing = await resolveOfferPrices(
-          this.db.db, product['storeId'], [variant['id']], item['quantity'], { ladder: false },
+          this.db.db,
+          product['storeId'],
+          [variant['id']],
+          item['quantity'],
+          { ladder: false },
         );
         const tier = pricing.get(variant['id']);
         if (!tier) {
@@ -652,10 +752,17 @@ export class CartService {
         }
         const replacementOfferId = tier.offerId ?? null;
         if (replacementOfferId) {
-          const replacementOffer = await this.db.db.query.merchantOffers.findFirst({ where: eq(merchantOffers.id, replacementOfferId) });
-          const violation = replacementOffer && replacementOffer.status === 'ACTIVE' && replacementOffer.isAvailable
-            ? getOrderQuantityViolation(item['quantity'], replacementOffer.moq, replacementOffer.orderIncrement ?? null)
-            : 'Replacement offer could not be verified';
+          const replacementOffer = await this.db.db.query.merchantOffers.findFirst({
+            where: eq(merchantOffers.id, replacementOfferId),
+          });
+          const violation =
+            replacementOffer && replacementOffer.status === 'ACTIVE' && replacementOffer.isAvailable
+              ? getOrderQuantityViolation(
+                  item['quantity'],
+                  replacementOffer.moq,
+                  replacementOffer.orderIncrement ?? null,
+                )
+              : 'Replacement offer could not be verified';
           if (violation) {
             report.stale.push({ itemId: item['id'] as string, reason: violation });
             continue;
@@ -669,13 +776,16 @@ export class CartService {
         }
         // Update the cart line
         const newLineTotal = item['quantity'] * tier.unitPriceMinor;
-        await this.db.db.update(cartItems).set({
-          priceMinor: tier.unitPriceMinor,
-          tierMinQty: tier.minQty,
-          offerId: tier.offerId ?? null,
-          lineTotalMinor: newLineTotal,
-          updatedAt: new Date(),
-        }).where(eq(cartItems.id, item['id'] as string));
+        await this.db.db
+          .update(cartItems)
+          .set({
+            priceMinor: tier.unitPriceMinor,
+            tierMinQty: tier.minQty,
+            offerId: tier.offerId ?? null,
+            lineTotalMinor: newLineTotal,
+            updatedAt: new Date(),
+          })
+          .where(eq(cartItems.id, item['id'] as string));
         report.repriced.push({
           itemId: item['id'] as string,
           oldPriceMinor: item['priceMinor'] as number,
@@ -685,9 +795,14 @@ export class CartService {
       }
       const offerTerms = offerTermsById.get(oid);
       const quantityViolation = offerTerms
-        ? getOrderQuantityViolation(item['quantity'], offerTerms.moq, offerTerms.orderIncrement ?? null)
+        ? getOrderQuantityViolation(
+            item['quantity'],
+            offerTerms.moq,
+            offerTerms.orderIncrement ?? null,
+          )
         : 'Selected offer terms could not be verified';
-      if (quantityViolation) report.stale.push({ itemId: item['id'] as string, reason: quantityViolation });
+      if (quantityViolation)
+        report.stale.push({ itemId: item['id'] as string, reason: quantityViolation });
       else report.valid.push(item['id'] as string);
     }
 
@@ -720,7 +835,8 @@ export class AddCartItemInput {
 
   @ApiPropertyOptional({
     format: 'uuid',
-    description: 'Accepted for backward compat; never trusted for pricing — derived from the variant\'s product.',
+    description:
+      "Accepted for backward compat; never trusted for pricing — derived from the variant's product.",
   })
   @IsOptional()
   @IsUUID()

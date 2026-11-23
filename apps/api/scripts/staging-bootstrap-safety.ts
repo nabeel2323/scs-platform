@@ -14,18 +14,24 @@ export async function assertStagingBootstrapTarget(
     throw new Error(scriptName + ': SCS_ENVIRONMENT must explicitly be staging.');
   }
   if (process.env['SCS_STAGING_BOOTSTRAP_CONFIRM'] !== 'true') {
-    throw new Error(scriptName + ': set SCS_STAGING_BOOTSTRAP_CONFIRM=true to confirm staging bootstrap.');
+    throw new Error(
+      scriptName + ': set SCS_STAGING_BOOTSTRAP_CONFIRM=true to confirm staging bootstrap.',
+    );
   }
 
   const expectedDatabase = process.env['SCS_STAGING_BOOTSTRAP_DATABASE']?.trim();
   if (!expectedDatabase) {
-    throw new Error(scriptName + ': SCS_STAGING_BOOTSTRAP_DATABASE must name the exact target database.');
+    throw new Error(
+      scriptName + ': SCS_STAGING_BOOTSTRAP_DATABASE must name the exact target database.',
+    );
   }
   if (
     process.env['SCS_STAGING_BOOTSTRAP_APPROVAL'] !==
     'I_APPROVE_STAGING_BOOTSTRAP:' + expectedDatabase
   ) {
-    throw new Error(scriptName + ': SCS_STAGING_BOOTSTRAP_APPROVAL must match the exact target database.');
+    throw new Error(
+      scriptName + ': SCS_STAGING_BOOTSTRAP_APPROVAL must match the exact target database.',
+    );
   }
 
   const result = await client.query<StagingBootstrapIdentity>(`
@@ -34,7 +40,10 @@ export async function assertStagingBootstrapTarget(
   `);
   const identity = result.rows[0];
   if (!identity || identity.current_database !== expectedDatabase) {
-    throw new Error(scriptName + ': connected database does not match SCS_STAGING_BOOTSTRAP_DATABASE; refusing writes.');
+    throw new Error(
+      scriptName +
+        ': connected database does not match SCS_STAGING_BOOTSTRAP_DATABASE; refusing writes.',
+    );
   }
   return identity;
 }

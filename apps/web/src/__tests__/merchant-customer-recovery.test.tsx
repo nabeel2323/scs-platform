@@ -4,8 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 const api = vi.hoisted(() => ({ fetchMerchantCustomers: vi.fn() }));
 
 vi.mock('../lib/buyer-api', () => ({
-  fetchMerchantCustomers: (...args: unknown[]) =>
-    api.fetchMerchantCustomers(...args),
+  fetchMerchantCustomers: (...args: unknown[]) => api.fetchMerchantCustomers(...args),
 }));
 vi.mock('../lib/useMerchantRealtime', () => ({
   useMerchantRealtime: () => undefined,

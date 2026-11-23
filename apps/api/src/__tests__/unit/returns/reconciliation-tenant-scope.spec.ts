@@ -60,14 +60,12 @@ describe('ReconciliationService — scoped discrepancy mutation', () => {
     const where = vi.fn().mockReturnValue({ returning });
     const set = vi.fn().mockReturnValue({ where });
     const update = vi.fn().mockReturnValue({ set });
-    const service = new ReconciliationService(
-      {
-        db: {
-          query: { reconciliationDiscrepancies: { findFirst } },
-          update,
-        },
-      } as any,
-    );
+    const service = new ReconciliationService({
+      db: {
+        query: { reconciliationDiscrepancies: { findFirst } },
+        update,
+      },
+    } as any);
 
     await service.resolveDiscrepancy('disc-a', 'admin-a', 'Reviewed', 'org-a');
 

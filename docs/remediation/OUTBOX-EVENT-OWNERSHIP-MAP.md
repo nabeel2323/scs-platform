@@ -12,17 +12,17 @@ Record the authoritative outbox consumer for each event family found in the curr
 
 ## Consumer ownership
 
-| Event family / examples | Publisher(s) observed | Authoritative consumer | Actual behavior / boundary |
-|---|---|---|---|
-| `shipping.carrier.*` — `create`, `cancel`, `label`, `track`, `webhook.retry` | OrdersService, ShippingService and carrier webhook paths | `ShippingCarrierWorker` only | Claims only the carrier prefix with atomic `FOR UPDATE SKIP LOCKED`; uses leases, retry policy and provider idempotency. Generic dispatcher excludes this prefix. Stale lease recovery is now restricted to this prefix. Unsupported carrier event types throw into retry/dead-letter handling and are not acknowledged. |
-| `order.*`, `order.fulfillment.*`, `order.master.status_changed`, `shipment.*` | OrdersService | `OutboxDispatcher` (generic log sink) | Logs and marks non-carrier events dispatched. Domain transitions and any direct notification/realtime calls occur in their domain services; do not infer a separate event handler from the outbox row alone. |
-| `return.*` | ReturnsService | `OutboxDispatcher` (generic log sink) | Logs and marks dispatched. P13Monitor separately inspects failed return/refund/commission/settlement/adjustment prefixes for operational alerts. |
-| `PAYMENT_*` — created, proof submitted, confirmed/rejected, refund requested/succeeded, cancelled/expired | PaymentsService | `OutboxDispatcher` (generic log sink) | Logs and marks dispatched. Payment state changes remain in PaymentsService; no payment gateway or payout side effect is implied by this consumer. |
-| `catalog.product.published` | CatalogService | `OutboxDispatcher` (generic log sink) | Logs and marks dispatched. Publication itself is committed by CatalogService. |
-| `dispute.*` | DisputesService | `OutboxDispatcher` (generic log sink) | Logs and marks dispatched. Dispute state transitions remain in DisputesService. |
-| `merchant.verification.*`, `store_member.*` | MerchantService, StoreMembershipService | `OutboxDispatcher` (generic log sink) | Logs and marks dispatched. Membership/verification mutations are committed by their domain services. |
-| `inventory.*` — `low_stock`, `transferred` | InventoryService | `OutboxDispatcher` (generic log sink) | Logs and marks dispatched. Inventory quantities are updated by InventoryService. |
-| `refund.*`, `commission.*`, `settlement.*`, `adjustment.*` | Finance/returns lifecycle publishers where present | `OutboxDispatcher` (generic log sink) | P13Monitor scans these prefixes for failed outbox rows. This map does not claim that the generic dispatcher performs financial execution. |
+| Event family / examples                                                                                   | Publisher(s) observed                                    | Authoritative consumer                | Actual behavior / boundary                                                                                                                                                                                                                                                                                               |
+| --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `shipping.carrier.*` — `create`, `cancel`, `label`, `track`, `webhook.retry`                              | OrdersService, ShippingService and carrier webhook paths | `ShippingCarrierWorker` only          | Claims only the carrier prefix with atomic `FOR UPDATE SKIP LOCKED`; uses leases, retry policy and provider idempotency. Generic dispatcher excludes this prefix. Stale lease recovery is now restricted to this prefix. Unsupported carrier event types throw into retry/dead-letter handling and are not acknowledged. |
+| `order.*`, `order.fulfillment.*`, `order.master.status_changed`, `shipment.*`                             | OrdersService                                            | `OutboxDispatcher` (generic log sink) | Logs and marks non-carrier events dispatched. Domain transitions and any direct notification/realtime calls occur in their domain services; do not infer a separate event handler from the outbox row alone.                                                                                                             |
+| `return.*`                                                                                                | ReturnsService                                           | `OutboxDispatcher` (generic log sink) | Logs and marks dispatched. P13Monitor separately inspects failed return/refund/commission/settlement/adjustment prefixes for operational alerts.                                                                                                                                                                         |
+| `PAYMENT_*` — created, proof submitted, confirmed/rejected, refund requested/succeeded, cancelled/expired | PaymentsService                                          | `OutboxDispatcher` (generic log sink) | Logs and marks dispatched. Payment state changes remain in PaymentsService; no payment gateway or payout side effect is implied by this consumer.                                                                                                                                                                        |
+| `catalog.product.published`                                                                               | CatalogService                                           | `OutboxDispatcher` (generic log sink) | Logs and marks dispatched. Publication itself is committed by CatalogService.                                                                                                                                                                                                                                            |
+| `dispute.*`                                                                                               | DisputesService                                          | `OutboxDispatcher` (generic log sink) | Logs and marks dispatched. Dispute state transitions remain in DisputesService.                                                                                                                                                                                                                                          |
+| `merchant.verification.*`, `store_member.*`                                                               | MerchantService, StoreMembershipService                  | `OutboxDispatcher` (generic log sink) | Logs and marks dispatched. Membership/verification mutations are committed by their domain services.                                                                                                                                                                                                                     |
+| `inventory.*` — `low_stock`, `transferred`                                                                | InventoryService                                         | `OutboxDispatcher` (generic log sink) | Logs and marks dispatched. Inventory quantities are updated by InventoryService.                                                                                                                                                                                                                                         |
+| `refund.*`, `commission.*`, `settlement.*`, `adjustment.*`                                                | Finance/returns lifecycle publishers where present       | `OutboxDispatcher` (generic log sink) | P13Monitor scans these prefixes for failed outbox rows. This map does not claim that the generic dispatcher performs financial execution.                                                                                                                                                                                |
 
 ## Enforced routing invariants
 
@@ -51,14 +51,14 @@ Record the authoritative outbox consumer for each event family found in the curr
 
 The current NestJS source registers background pollers as providers inside the API application; a separate Render worker service is not required by the current source topology. This is a source-level conclusion, not a claim that the Render runtime was inspected after deployment.
 
-| Worker / dispatcher | Module registration | Startup behavior | Runtime gate |
-|---|---|---|---|
-| `OutboxDispatcher` | Global `OutboxModule`, imported by `AppModule` | Starts polling after 5 seconds; 1-second interval | No environment gate in source |
-| `ShippingCarrierWorker` | `ShippingModule`, imported by `AppModule` | Starts polling after 8 seconds; 5-second interval | No environment gate in source |
-| `CarrierTrackingPoller` | `ShippingModule` provider | Starts polling after 15 seconds | No environment gate in source |
-| `AutoCompleteWorker` | `OrdersModule` provider | Starts polling after 30 seconds | No environment gate in source |
-| `ReturnExpirationWorker` | `ReturnsModule` provider | Starts after configured delay (default 45 seconds) | Explicitly disabled unless `P13_WORKER_ENABLED` is enabled |
-| `P13MonitorService` | `OperationsModule` provider | Runs on every API instance at P13_MONITOR_INTERVAL_MS (default 60 seconds); read-only scan and Postgres alert dedup | Not gated by P13_WORKER_ENABLED; alert delivery defaults to log-only without a valid signed webhook sink |
+| Worker / dispatcher      | Module registration                            | Startup behavior                                                                                                    | Runtime gate                                                                                             |
+| ------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `OutboxDispatcher`       | Global `OutboxModule`, imported by `AppModule` | Starts polling after 5 seconds; 1-second interval                                                                   | No environment gate in source                                                                            |
+| `ShippingCarrierWorker`  | `ShippingModule`, imported by `AppModule`      | Starts polling after 8 seconds; 5-second interval                                                                   | No environment gate in source                                                                            |
+| `CarrierTrackingPoller`  | `ShippingModule` provider                      | Starts polling after 15 seconds                                                                                     | No environment gate in source                                                                            |
+| `AutoCompleteWorker`     | `OrdersModule` provider                        | Starts polling after 30 seconds                                                                                     | No environment gate in source                                                                            |
+| `ReturnExpirationWorker` | `ReturnsModule` provider                       | Starts after configured delay (default 45 seconds)                                                                  | Explicitly disabled unless `P13_WORKER_ENABLED` is enabled                                               |
+| `P13MonitorService`      | `OperationsModule` provider                    | Runs on every API instance at P13_MONITOR_INTERVAL_MS (default 60 seconds); read-only scan and Postgres alert dedup | Not gated by P13_WORKER_ENABLED; alert delivery defaults to log-only without a valid signed webhook sink |
 
 All modules above are imported by `AppModule`. Therefore every API process instantiates these providers; multi-instance deployment can run multiple pollers concurrently. Carrier outbox claiming uses `FOR UPDATE SKIP LOCKED` and per-event leases, while the generic dispatcher excludes the carrier namespace. Other workers must be reviewed against their own lease/claim strategy before increasing API replicas.
 
@@ -77,19 +77,18 @@ The inspected Render workspace previously showed one API service and no separate
 - Keep G-010 label-generation behavior as a separate finding; this ownership map does not close the label handler no-op.
 - P13 activation and alert-sink verification remain separate operational work; no workers were newly activated and no deployment topology was changed.
 
-
 ## Shipping provider registry wiring — 22 November 2026
 
 A source cross-check found that `ShippingModule` registered `AramexProvider` in Nest DI and exported it, but `ShippingService.onModuleInit()` registered only `ManualDeliveryProvider` in `ShippingProviderRegistry`. The carrier worker resolves an explicitly persisted provider key through that registry and otherwise defaults shipment create/cancel/label operations to `manual-driver`. The separate CarrierTrackingPoller defaults a missing provider key to `aramex`; therefore explicitly configured Aramex events and tracking polls could not resolve the provider even though the provider class was present in DI.
 
 The registry wiring now keeps `manual-driver` as the default for shipment create/cancel/label operations and registers the injected Aramex adapter as a non-default provider. The separate tracking poller falls back to `aramex` when a shipment has no provider key. Registration does not read credentials or invoke Aramex. Per-store carrier configuration and active organization-scoped encrypted credentials remain required at operation time. A focused provider-registration test is added but not executed; no live carrier request or credential change occurred.
 
-
 ## P13 operational alert delivery concurrency correction — 22 November 2026
 
 The P13 monitor runs on every API instance. A unique dedup key alone did not guarantee single delivery: concurrent monitors could both observe no row, and PostgreSQL ON CONFLICT DO NOTHING returns successfully with zero inserted rows. The old insert path did not inspect RETURNING and could attempt delivery using a UUID that was never persisted. Existing PENDING/FAILED rows also had no atomic delivery claim, so concurrent monitors could send duplicate webhooks.
 
 The alert path now:
+
 - Uses INSERT ... ON CONFLICT DO NOTHING RETURNING id and follows the existing-row path when another monitor won the insert race.
 - Claims delivery with one conditional UPDATE that changes PENDING/FAILED (or an expired SENT repeat window) to SENDING and returns the claimed row.
 - Prevents another monitor from delivering while a fresh SENDING claim exists.
@@ -98,7 +97,6 @@ The alert path now:
 - Includes SENDING alerts in the operator open-alert list.
 
 The new migration 0073 refreshes the open-alert partial index to include SENDING. These source changes and focused regression tests are not executed or live-applied in this implementation phase.
-
 
 ## Worker/system/operator and outbox delivery boundary — 22 November 2026
 

@@ -154,17 +154,17 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
 
   /** Client joins rooms only after scope-specific authorization. */
   @SubscribeMessage('join')
-  async handleJoin(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { rooms: string[] },
-  ) {
+  async handleJoin(@ConnectedSocket() client: Socket, @MessageBody() data: { rooms: string[] }) {
     const caller = this.callerFromSocket(client);
     const joined: string[] = [];
     if (!caller) return { event: 'joined', data: { rooms: joined } };
 
     for (const room of data.rooms ?? []) {
       // All room identifiers are UUIDs: user:{id}, org:{storeId}, order:{id}.
-      const match = /^(user|org|order):([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.exec(room);
+      const match =
+        /^(user|org|order):([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.exec(
+          room,
+        );
       if (!match) continue;
       const scope = match[1];
       const id = match[2];
@@ -295,10 +295,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
 
     if (caller.role === 'DRIVER' && permissions.includes('fulfillment:shipments:read')) {
       const assignment = await this.db.db.query.shipments.findFirst({
-        where: and(
-          eq(shipments.orderId, orderId),
-          eq(shipments.assignedDriverId, caller.sub),
-        ),
+        where: and(eq(shipments.orderId, orderId), eq(shipments.assignedDriverId, caller.sub)),
         columns: { id: true },
       });
       return !!assignment;
@@ -308,10 +305,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   }
 
   @SubscribeMessage('leave')
-  handleLeave(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { rooms: string[] },
-  ) {
+  handleLeave(@ConnectedSocket() client: Socket, @MessageBody() data: { rooms: string[] }) {
     for (const room of data.rooms ?? []) {
       client.leave(room);
     }
@@ -339,7 +333,10 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   }
 
   /** Emit new notification to user room */
-  emitNotification(userId: string, notification: { id: string; type: string; title: string; body: string }) {
+  emitNotification(
+    userId: string,
+    notification: { id: string; type: string; title: string; body: string },
+  ) {
     this.server.to(`user:${userId}`).emit('notification.new', {
       notificationId: notification.id,
       type: notification.type,

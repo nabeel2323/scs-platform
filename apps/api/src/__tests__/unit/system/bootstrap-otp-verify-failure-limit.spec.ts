@@ -40,9 +40,9 @@ describe('BootstrapService OTP verification failure limits', () => {
         ttl: 900,
       });
 
-      await expect(
-        service.verifyOwnerOtp(email, '000000', '203.0.113.10'),
-      ).rejects.toBeInstanceOf(RateLimitException);
+      await expect(service.verifyOwnerOtp(email, '000000', '203.0.113.10')).rejects.toBeInstanceOf(
+        RateLimitException,
+      );
     } finally {
       if (previousEnv.nodeEnv === undefined) delete process.env['NODE_ENV'];
       else process.env['NODE_ENV'] = previousEnv.nodeEnv;

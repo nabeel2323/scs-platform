@@ -15,10 +15,7 @@ export async function fetchMerchantInventoryVariants(storeId: string): Promise<P
     const page = await fetchStoreProducts(storeId, { limit: 50, offset });
     const pageProducts = page.items.filter(
       (item): item is { id: string } =>
-        typeof item === 'object' &&
-        item !== null &&
-        'id' in item &&
-        typeof item.id === 'string',
+        typeof item === 'object' && item !== null && 'id' in item && typeof item.id === 'string',
     );
     products.push(...pageProducts);
 

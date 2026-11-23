@@ -8,7 +8,13 @@ import {
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { StorageService } from '../../common/storage/storage.service';
-import { stores, warehouses, businessDocuments, verificationRequests, storeMembers } from './merchant.schema';
+import {
+  stores,
+  warehouses,
+  businessDocuments,
+  verificationRequests,
+  storeMembers,
+} from './merchant.schema';
 import { organizations, organizationMembers, users } from '../identity/identity.schema';
 import { orders } from '../orders/orders.schema';
 import { eq, and, or, desc, sql, isNull, inArray } from 'drizzle-orm';
@@ -76,10 +82,7 @@ export class MerchantService {
 
     if (input.storeId) {
       const store = await this.db.db.query.stores.findFirst({
-        where: and(
-          eq(stores.id, input.storeId),
-          eq(stores.orgId, input.orgId),
-        ),
+        where: and(eq(stores.id, input.storeId), eq(stores.orgId, input.orgId)),
         columns: { id: true },
       });
       if (!store) {
@@ -193,9 +196,7 @@ export class MerchantService {
 
   async resolveStoreId(storeIdOrSlug: string): Promise<string> {
     const store = await this.db.db.query.stores.findFirst({
-      where: isUuid(storeIdOrSlug)
-        ? eq(stores.id, storeIdOrSlug)
-        : eq(stores.slug, storeIdOrSlug),
+      where: isUuid(storeIdOrSlug) ? eq(stores.id, storeIdOrSlug) : eq(stores.slug, storeIdOrSlug),
       columns: { id: true },
     });
     if (!store) throw new NotFoundException('Store not found');
@@ -321,7 +322,10 @@ export class MerchantService {
       if (row.createdAt > entry.lastOrderAt) entry.lastOrderAt = row.createdAt;
 
       const cur = row.currency ?? 'UNKNOWN';
-      entry.spentByCurrency.set(cur, (entry.spentByCurrency.get(cur) ?? 0) + Number(row.totalMinor));
+      entry.spentByCurrency.set(
+        cur,
+        (entry.spentByCurrency.get(cur) ?? 0) + Number(row.totalMinor),
+      );
     }
 
     return [...buyerMap.values()]
@@ -380,7 +384,8 @@ export class MerchantService {
     if (input.metadata !== undefined) updates['metadata'] = input.metadata;
     // PHASE 23: `hidePopularityBadge` is boolean, so `!== undefined` correctly
     // distinguishes "leave unchanged" from "set to false".
-    if (input.hidePopularityBadge !== undefined) updates['hidePopularityBadge'] = input.hidePopularityBadge;
+    if (input.hidePopularityBadge !== undefined)
+      updates['hidePopularityBadge'] = input.hidePopularityBadge;
 
     await this.db.db.update(stores).set(updates).where(eq(stores.id, storeId));
     return this.getStore(storeId);
@@ -448,8 +453,7 @@ export class MerchantService {
     // POST /documents/presign-upload). Without this the record points at a key
     // no object was ever written to, and the download presign 404s NoSuchKey.
     // Fall back to a deterministic key only for legacy callers.
-    const storageKey =
-      input.storageKey?.trim() || `docs/${input.orgId}/${docId}/${input.fileName}`;
+    const storageKey = input.storageKey?.trim() || `docs/${input.orgId}/${docId}/${input.fileName}`;
 
     await this.db.db.insert(businessDocuments).values({
       id: docId,
@@ -506,10 +510,7 @@ export class MerchantService {
     const doc = await this.getDocument(docId);
 
     const bucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
-    const downloadUrl = await this.storage.createPresignedGetUrl(
-      bucket,
-      doc['storageKey'],
-    );
+    const downloadUrl = await this.storage.createPresignedGetUrl(bucket, doc['storageKey']);
 
     await this.db.db
       .update(businessDocuments)
@@ -638,7 +639,10 @@ export class MerchantService {
     });
     if (orgStores.length === 0) return [];
     return this.db.db.query.verificationRequests.findMany({
-      where: inArray(verificationRequests.storeId, orgStores.map(s => s.id)),
+      where: inArray(
+        verificationRequests.storeId,
+        orgStores.map((s) => s.id),
+      ),
       orderBy: [desc(verificationRequests.submittedAt)],
     });
   }
@@ -650,60 +654,122 @@ export class MerchantService {
     notes?: string,
     rejectionReasons?: string[],
   ) {
-    const validation = validateSync(Object.assign(new ReviewVerificationDto(), { decision, notes, rejectionReasons }));
-    if (validation.length) throw new BadRequestException(validation.map(error => Object.values(error.constraints || {}).join(', ')).join('; '));
+    const validation = validateSync(
+      Object.assign(new ReviewVerificationDto(), { decision, notes, rejectionReasons }),
+    );
+    if (validation.length)
+      throw new BadRequestException(
+        validation.map((error) => Object.values(error.constraints || {}).join(', ')).join('; '),
+      );
 
-    return this.db.db.transaction(async tx => {
-      const [request] = await tx.select().from(verificationRequests)
-        .where(eq(verificationRequests.id, requestId)).for('update');
+    return this.db.db.transaction(async (tx) => {
+      const [request] = await tx
+        .select()
+        .from(verificationRequests)
+        .where(eq(verificationRequests.id, requestId))
+        .for('update');
       if (!request) throw new NotFoundException('Verification request not found');
       if (request.status === 'APPROVED' || request.status === 'REJECTED') {
         throw new BadRequestException('Verification request already resolved');
       }
-      const [store] = await tx.select().from(stores).where(eq(stores.id, request.storeId)).for('update');
+      const [store] = await tx
+        .select()
+        .from(stores)
+        .where(eq(stores.id, request.storeId))
+        .for('update');
       if (!store) throw new NotFoundException('Store not found');
-      if (store.orgId !== request.orgId) throw new BadRequestException('Verification organization does not match the store');
+      if (store.orgId !== request.orgId)
+        throw new BadRequestException('Verification organization does not match the store');
       const now = new Date();
-      const [updated] = await tx.update(verificationRequests).set({
-        status: decision, reviewedBy: reviewerId, reviewedAt: now, decisionNotes: notes || null,
-        rejectionReasons: rejectionReasons || [], resolvedAt: decision !== 'REVISION' ? now : null, updatedAt: now,
-      }).where(eq(verificationRequests.id, requestId)).returning();
+      const [updated] = await tx
+        .update(verificationRequests)
+        .set({
+          status: decision,
+          reviewedBy: reviewerId,
+          reviewedAt: now,
+          decisionNotes: notes || null,
+          rejectionReasons: rejectionReasons || [],
+          resolvedAt: decision !== 'REVISION' ? now : null,
+          updatedAt: now,
+        })
+        .where(eq(verificationRequests.id, requestId))
+        .returning();
 
-      const verificationStatus = decision === 'APPROVED' ? 'VERIFIED' : decision === 'REJECTED' ? 'REJECTED' : 'REVIEW';
-      await tx.update(stores).set({ verificationStatus, updatedAt: now,
-        ...(decision === 'APPROVED' ? { status: 'ACTIVE' } : {}),
-      }).where(eq(stores.id, request.storeId));
+      const verificationStatus =
+        decision === 'APPROVED' ? 'VERIFIED' : decision === 'REJECTED' ? 'REJECTED' : 'REVIEW';
+      await tx
+        .update(stores)
+        .set({
+          verificationStatus,
+          updatedAt: now,
+          ...(decision === 'APPROVED' ? { status: 'ACTIVE' } : {}),
+        })
+        .where(eq(stores.id, request.storeId));
 
       // Mirror the decision onto the submitted documents so merchant/admin UIs
       // show real per-document outcomes (G2). REVISION returns docs to PENDING.
-      const docStatus = decision === 'APPROVED' ? 'VERIFIED' : decision === 'REJECTED' ? 'REJECTED' : 'PENDING';
-      await tx.update(businessDocuments).set({
-        verificationStatus: docStatus, reviewedBy: reviewerId, reviewedAt: now,
-      }).where(or(
-        eq(businessDocuments.storeId, request.storeId),
-        and(eq(businessDocuments.orgId, request.orgId), isNull(businessDocuments.storeId)),
-      ));
+      const docStatus =
+        decision === 'APPROVED' ? 'VERIFIED' : decision === 'REJECTED' ? 'REJECTED' : 'PENDING';
+      await tx
+        .update(businessDocuments)
+        .set({
+          verificationStatus: docStatus,
+          reviewedBy: reviewerId,
+          reviewedAt: now,
+        })
+        .where(
+          or(
+            eq(businessDocuments.storeId, request.storeId),
+            and(eq(businessDocuments.orgId, request.orgId), isNull(businessDocuments.storeId)),
+          ),
+        );
 
       let autoActivatedProductCount = 0;
       if (decision === 'APPROVED') {
-        await tx.update(organizations).set({ verificationStatus: 'VERIFIED', updatedAt: now })
+        await tx
+          .update(organizations)
+          .set({ verificationStatus: 'VERIFIED', updatedAt: now })
           .where(eq(organizations.id, request.orgId));
-        const activated = await tx.update(products).set({ status: 'ACTIVE', isAvailable: true,
-          publishedAt: sql`coalesce(${products.publishedAt}, ${now.toISOString()}::timestamptz)`, updatedAt: now,
-        }).where(and(eq(products.storeId, request.storeId), eq(products.status, 'DRAFT'), isNull(products.deletedAt),
-          sql`length(${trimProductReference(products.title)}) between 1 and 300`,
-          sql`length(${trimProductReference(products.slug)}) > 0`,
-          sql`${products.moq} >= 1`, inArray(products.condition, ['NEW', 'USED', 'REFURBISHED']),
-          sql`${productImageCount} > 0`,
-        )).returning({ id: products.id });
+        const activated = await tx
+          .update(products)
+          .set({
+            status: 'ACTIVE',
+            isAvailable: true,
+            publishedAt: sql`coalesce(${products.publishedAt}, ${now.toISOString()}::timestamptz)`,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(products.storeId, request.storeId),
+              eq(products.status, 'DRAFT'),
+              isNull(products.deletedAt),
+              sql`length(${trimProductReference(products.title)}) between 1 and 300`,
+              sql`length(${trimProductReference(products.slug)}) > 0`,
+              sql`${products.moq} >= 1`,
+              inArray(products.condition, ['NEW', 'USED', 'REFURBISHED']),
+              sql`${productImageCount} > 0`,
+            ),
+          )
+          .returning({ id: products.id });
         autoActivatedProductCount = activated.length;
       }
       // The global outbox publisher is not transaction-aware; use this transaction.
-      await tx.insert(outboxEvents).values({ id: crypto.randomUUID(),
-        eventType: `merchant.verification.${decision.toLowerCase()}`, aggregateId: requestId,
-        payload: { requestId, storeId: request.storeId, decision, reviewerId, autoActivatedProductCount },
-        metadata: { userId: reviewerId }, status: 'PENDING',
-      });
+      await tx
+        .insert(outboxEvents)
+        .values({
+          id: crypto.randomUUID(),
+          eventType: `merchant.verification.${decision.toLowerCase()}`,
+          aggregateId: requestId,
+          payload: {
+            requestId,
+            storeId: request.storeId,
+            decision,
+            reviewerId,
+            autoActivatedProductCount,
+          },
+          metadata: { userId: reviewerId },
+          status: 'PENDING',
+        });
       return { ...updated!, autoActivatedProductCount };
     });
   }

@@ -1,6 +1,4 @@
-import {
-  Controller, Get, Post, Param, Body, UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, UseGuards } from '@nestjs/common';
 import { ReviewsService, CreateReviewInput } from './reviews.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/guards/current-user.decorator';
@@ -29,10 +27,7 @@ export class ReviewsController {
   }
 
   @Get('orders/:orderId/reviews')
-  async getOrderReviews(
-    @CurrentUser() user: JwtPayload,
-    @Param('orderId') orderId: string,
-  ) {
+  async getOrderReviews(@CurrentUser() user: JwtPayload, @Param('orderId') orderId: string) {
     return this.reviewsService.getReviewsByOrder(orderId, {
       sub: user.sub,
       role: user.role,
@@ -46,10 +41,7 @@ export class ReviewsController {
   }
 
   @Get('trust/:entityType/:entityId')
-  async getTrust(
-    @Param('entityType') entityType: string,
-    @Param('entityId') entityId: string,
-  ) {
+  async getTrust(@Param('entityType') entityType: string, @Param('entityId') entityId: string) {
     return this.reviewsService.getTrustSnapshot(entityId, entityType);
   }
 }

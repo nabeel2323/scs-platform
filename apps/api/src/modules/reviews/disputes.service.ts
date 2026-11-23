@@ -1,4 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Optional,
+} from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { disputes, disputeEvents, conversations, messages } from './support.schema';
@@ -32,7 +39,9 @@ export class DisputesService {
     await this.db.db.transaction(async (tx) => {
       // Serialize dispute creation for one order and keep the dispute, immutable
       // OPENED event and notification outbox record in the same transaction.
-      const [order] = await tx.select().from(orders)
+      const [order] = await tx
+        .select()
+        .from(orders)
         .where(eq(orders.id, input.orderId))
         .for('update');
       if (!order) throw new NotFoundException('Order not found');
@@ -51,10 +60,14 @@ export class DisputesService {
           columns: { userId: true },
         });
         if (!raisedByMembership) {
-          throw new ForbiddenException('Only an order buyer or active member of its store can open a dispute');
+          throw new ForbiddenException(
+            'Only an order buyer or active member of its store can open a dispute',
+          );
         }
         if (input.againstId !== order.buyerId) {
-          throw new BadRequestException('A merchant dispute must be raised against the order buyer');
+          throw new BadRequestException(
+            'A merchant dispute must be raised against the order buyer',
+          );
         }
       } else {
         const respondentMembership = await tx.query.storeMembers.findFirst({
@@ -66,7 +79,9 @@ export class DisputesService {
           columns: { userId: true },
         });
         if (!respondentMembership) {
-          throw new BadRequestException('The respondent must be an active member of the order store');
+          throw new BadRequestException(
+            'The respondent must be an active member of the order store',
+          );
         }
       }
 
@@ -85,17 +100,32 @@ export class DisputesService {
       if (existing) throw new ConflictException('An open dispute already exists for this order');
 
       await tx.insert(disputes).values({
-        id, orderId: input.orderId, raisedBy: input.raisedBy,
-        againstId: input.againstId, reason: input.reason,
+        id,
+        orderId: input.orderId,
+        raisedBy: input.raisedBy,
+        againstId: input.againstId,
+        reason: input.reason,
       });
       await tx.insert(disputeEvents).values({
-        id: crypto.randomUUID(), disputeId: id, actorId: input.raisedBy,
-        eventType: 'OPENED', body: input.reason,
+        id: crypto.randomUUID(),
+        disputeId: id,
+        actorId: input.raisedBy,
+        eventType: 'OPENED',
+        body: input.reason,
       });
-      await this.outbox.publish('dispute.opened', id, {
-        disputeId: id, orderId: input.orderId,
-        raisedBy: input.raisedBy, againstId: input.againstId,
-      }, {}, null, tx);
+      await this.outbox.publish(
+        'dispute.opened',
+        id,
+        {
+          disputeId: id,
+          orderId: input.orderId,
+          raisedBy: input.raisedBy,
+          againstId: input.againstId,
+        },
+        {},
+        null,
+        tx,
+      );
     });
 
     return this.loadDispute(id);
@@ -122,9 +152,7 @@ export class DisputesService {
   }
 
   async listDisputes(userId: string, status?: string) {
-    const conditions = [
-      or(eq(disputes.raisedBy, userId), eq(disputes.againstId, userId)),
-    ];
+    const conditions = [or(eq(disputes.raisedBy, userId), eq(disputes.againstId, userId))];
     if (status) conditions.push(eq(disputes.status, status));
 
     return this.db.db.query.disputes.findMany({
@@ -135,7 +163,9 @@ export class DisputesService {
 
   async submitEvidence(disputeId: string, userId: string, body: string, attachments?: string[]) {
     await this.db.db.transaction(async (tx) => {
-      const [dispute] = await tx.select().from(disputes)
+      const [dispute] = await tx
+        .select()
+        .from(disputes)
         .where(eq(disputes.id, disputeId))
         .for('update');
       if (!dispute) throw new NotFoundException('Dispute not found');
@@ -144,31 +174,43 @@ export class DisputesService {
       }
 
       if (dispute.status === 'OPEN') {
-        await tx.update(disputes)
+        await tx
+          .update(disputes)
           .set({ status: 'EVIDENCE', updatedAt: new Date() })
           .where(eq(disputes.id, disputeId));
       }
 
       await tx.insert(disputeEvents).values({
-        id: crypto.randomUUID(), disputeId, actorId: userId,
-        eventType: 'EVIDENCE_SUBMITTED', body, attachments: attachments || [],
+        id: crypto.randomUUID(),
+        disputeId,
+        actorId: userId,
+        eventType: 'EVIDENCE_SUBMITTED',
+        body,
+        attachments: attachments || [],
       });
-      await this.outbox.publish('dispute.evidence_submitted', disputeId, {
-        disputeId, submittedBy: userId, body, attachments: attachments || [],
-      }, {}, null, tx);
+      await this.outbox.publish(
+        'dispute.evidence_submitted',
+        disputeId,
+        {
+          disputeId,
+          submittedBy: userId,
+          body,
+          attachments: attachments || [],
+        },
+        {},
+        null,
+        tx,
+      );
     });
 
     return this.loadDispute(disputeId);
   }
 
-  async submitResponse(
-    disputeId: string,
-    userId: string,
-    body: string,
-    caller: CallerContext,
-  ) {
+  async submitResponse(disputeId: string, userId: string, body: string, caller: CallerContext) {
     await this.db.db.transaction(async (tx) => {
-      const [dispute] = await tx.select().from(disputes)
+      const [dispute] = await tx
+        .select()
+        .from(disputes)
         .where(eq(disputes.id, disputeId))
         .for('update');
       if (!dispute) throw new NotFoundException('Dispute not found');
@@ -176,16 +218,29 @@ export class DisputesService {
         throw new NotFoundException('Dispute not found');
       }
 
-      await tx.update(disputes)
+      await tx
+        .update(disputes)
         .set({ status: 'RESPONSE', updatedAt: new Date() })
         .where(eq(disputes.id, disputeId));
       await tx.insert(disputeEvents).values({
-        id: crypto.randomUUID(), disputeId, actorId: userId,
-        eventType: 'RESPONSE_SUBMITTED', body,
+        id: crypto.randomUUID(),
+        disputeId,
+        actorId: userId,
+        eventType: 'RESPONSE_SUBMITTED',
+        body,
       });
-      await this.outbox.publish('dispute.response_submitted', disputeId, {
-        disputeId, submittedBy: userId, body,
-      }, {}, null, tx);
+      await this.outbox.publish(
+        'dispute.response_submitted',
+        disputeId,
+        {
+          disputeId,
+          submittedBy: userId,
+          body,
+        },
+        {},
+        null,
+        tx,
+      );
     });
 
     return this.loadDispute(disputeId);
@@ -206,7 +261,9 @@ export class DisputesService {
       // Reserve the dispute row before creating a refund. The refund request,
       // dispute transition, immutable events and both outbox records must either
       // commit together or roll back together.
-      const [dispute] = await tx.select().from(disputes)
+      const [dispute] = await tx
+        .select()
+        .from(disputes)
         .where(eq(disputes.id, disputeId))
         .for('update');
       if (!dispute) throw new NotFoundException('Dispute not found');
@@ -217,7 +274,9 @@ export class DisputesService {
       let refundResult: any = null;
       if (refundInput) {
         if (!this.payments) {
-          throw new ConflictException('Refund service is unavailable; dispute cannot be resolved with a refund');
+          throw new ConflictException(
+            'Refund service is unavailable; dispute cannot be resolved with a refund',
+          );
         }
         const payment = await tx.query.paymentRecords.findFirst({
           where: eq(paymentRecords.orderId, dispute.orderId),
@@ -231,15 +290,13 @@ export class DisputesService {
         });
         if (
           existingRefund &&
-          (
-            existingRefund.paymentRecordId !== payment.id ||
+          (existingRefund.paymentRecordId !== payment.id ||
             existingRefund.orderId !== dispute.orderId ||
             Number(existingRefund.amountMinor) !== refundInput.amountMinor ||
             existingRefund.reason !== refundReason ||
             existingRefund.requestedBy !== dispute.raisedBy ||
             existingRefund.currency !== payment.currency ||
-            (existingRefund.disputeId !== null && existingRefund.disputeId !== disputeId)
-          )
+            (existingRefund.disputeId !== null && existingRefund.disputeId !== disputeId))
         ) {
           throw new ConflictException(
             'Dispute refund idempotency key was already used for a different request',
@@ -259,12 +316,14 @@ export class DisputesService {
           tx,
         );
 
-        await tx.update(refunds)
+        await tx
+          .update(refunds)
           .set({ disputeId, updatedAt: new Date() })
           .where(eq(refunds.id, refundResult.refundId));
       }
 
-      const [resolvedDispute] = await tx.update(disputes)
+      const [resolvedDispute] = await tx
+        .update(disputes)
         .set({
           status: 'RESOLVED',
           resolution,
@@ -273,12 +332,14 @@ export class DisputesService {
           updatedAt: new Date(),
           ...(refundInput?.returnRequestId ? { returnRequestId: refundInput.returnRequestId } : {}),
         })
-        .where(and(
-          eq(disputes.id, disputeId),
-          eq(disputes.status, dispute.status),
-          ne(disputes.status, 'RESOLVED'),
-          ne(disputes.status, 'CLOSED'),
-        ))
+        .where(
+          and(
+            eq(disputes.id, disputeId),
+            eq(disputes.status, dispute.status),
+            ne(disputes.status, 'RESOLVED'),
+            ne(disputes.status, 'CLOSED'),
+          ),
+        )
         .returning({ id: disputes.id });
       if (!resolvedDispute) {
         throw new ConflictException('Dispute was already resolved or closed by another request');
@@ -290,14 +351,23 @@ export class DisputesService {
         actorId: adminUserId,
         eventType: 'RESOLVED',
         body: resolution,
-        metadata: refundResult ? { refundId: refundResult.refundId, amountMinor: refundResult.amountMinor } : {},
+        metadata: refundResult
+          ? { refundId: refundResult.refundId, amountMinor: refundResult.amountMinor }
+          : {},
       });
-      await this.outbox.publish('dispute.resolved', disputeId, {
+      await this.outbox.publish(
+        'dispute.resolved',
         disputeId,
-        orderId: dispute.orderId,
-        resolution,
-        refundId: refundResult?.refundId ?? null,
-      }, {}, null, tx);
+        {
+          disputeId,
+          orderId: dispute.orderId,
+          resolution,
+          refundId: refundResult?.refundId ?? null,
+        },
+        {},
+        null,
+        tx,
+      );
     });
 
     return this.loadDispute(disputeId);
@@ -337,7 +407,9 @@ export class DisputesService {
         columns: { userId: true },
       });
       if (!respondent) {
-        throw new BadRequestException('The other participant must be an active member of the order store');
+        throw new BadRequestException(
+          'The other participant must be an active member of the order store',
+        );
       }
     } else {
       const callerMembership = await this.db.db.query.storeMembers.findFirst({
@@ -439,21 +511,20 @@ export class DisputesService {
 
   async markMessagesRead(conversationId: string, userId: string) {
     const conversation = await this.loadConversation(conversationId);
-    if (
-      conversation['participant1'] !== userId &&
-      conversation['participant2'] !== userId
-    ) {
+    if (conversation['participant1'] !== userId && conversation['participant2'] !== userId) {
       throw new NotFoundException('Conversation not found');
     }
 
     await this.db.db
       .update(messages)
       .set({ isRead: true })
-      .where(and(
-        eq(messages.conversationId, conversationId),
-        eq(messages.isRead, false),
-        ne(messages.senderId, userId),
-      ));
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.isRead, false),
+          ne(messages.senderId, userId),
+        ),
+      );
 
     return { success: true };
   }

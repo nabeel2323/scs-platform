@@ -50,7 +50,9 @@ function createGateway() {
   const query = {
     stores: { findFirst: vi.fn().mockResolvedValue({ id: ids.store, orgId: ids.org }) },
     storeMembers: { findFirst: vi.fn().mockResolvedValue({ id: 'membership-1' }) },
-    orders: { findFirst: vi.fn().mockResolvedValue({ buyerId: ids.otherUser, storeId: ids.store }) },
+    orders: {
+      findFirst: vi.fn().mockResolvedValue({ buyerId: ids.otherUser, storeId: ids.store }),
+    },
     masterOrders: { findFirst: vi.fn().mockResolvedValue(null) },
     shipments: { findFirst: vi.fn().mockResolvedValue(null) },
   };
@@ -113,7 +115,13 @@ describe('RealtimeGateway — handshake authentication', () => {
 
   it('binds an authenticated socket to its own user room', async () => {
     const { gateway, jwt, redis } = createGateway();
-    jwt.verify.mockReturnValue({ sub: ids.user, activeOrg: ids.org, role: 'MERCHANT_OWNER', perms: ['merchant:orders:read'], jti: 'j-1' });
+    jwt.verify.mockReturnValue({
+      sub: ids.user,
+      activeOrg: ids.org,
+      role: 'MERCHANT_OWNER',
+      perms: ['merchant:orders:read'],
+      jti: 'j-1',
+    });
     const client = mockSocket({ auth: { token: 'good.token' } });
     await gateway.handleConnection(client);
     expect(redis.client.get).toHaveBeenCalledWith('jwt:deny:j-1');
@@ -240,7 +248,12 @@ describe('RealtimeGateway — join authorization', () => {
   it('allows drivers to join only orders with an assigned shipment', async () => {
     const { gateway, query } = createGateway();
     const client = mockSocket({
-      data: { userId: ids.user, role: 'DRIVER', activeOrg: null, perms: ['fulfillment:shipments:read'] },
+      data: {
+        userId: ids.user,
+        role: 'DRIVER',
+        activeOrg: null,
+        perms: ['fulfillment:shipments:read'],
+      },
     });
     query.shipments.findFirst.mockResolvedValue({ id: 'shipment-1' });
     const assigned = await gateway.handleJoin(client, { rooms: [`order:${ids.order}`] });
@@ -276,11 +289,7 @@ describe('RealtimeGateway — emit helpers', () => {
   it('fans an order-status change to the order, buyer and store rooms', () => {
     const { gateway, to, roomEmit } = createGateway();
     gateway.emitOrderStatusChanged('o-1', 'ACCEPTED', 'buyer-1', 'store-1');
-    expect(to.mock.calls.map((c) => c[0])).toEqual([
-      'order:o-1',
-      'user:buyer-1',
-      'org:store-1',
-    ]);
+    expect(to.mock.calls.map((c) => c[0])).toEqual(['order:o-1', 'user:buyer-1', 'org:store-1']);
     expect(roomEmit).toHaveBeenCalledTimes(3);
     expect(roomEmit.mock.calls[0]![0]).toBe('order.status.changed');
     expect(roomEmit.mock.calls[0]![1]).toMatchObject({ orderId: 'o-1', status: 'ACCEPTED' });

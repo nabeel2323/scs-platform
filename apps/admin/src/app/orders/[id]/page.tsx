@@ -93,7 +93,9 @@ function OrderDetailContent({ id }: { id: string }) {
 
   useEffect(() => {
     void load();
-    return () => { requestVersion.current += 1; };
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [load]);
 
   const refreshOrder = useCallback(async () => {
@@ -141,7 +143,9 @@ function OrderDetailContent({ id }: { id: string }) {
       setActionSuccess('Order cancellation succeeded.');
       const refreshed = await refreshOrder();
       if (!refreshed) {
-        setActionSuccess('Order cancellation succeeded, but the latest order details could not be refreshed.');
+        setActionSuccess(
+          'Order cancellation succeeded, but the latest order details could not be refreshed.',
+        );
       }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to cancel order');
@@ -248,9 +252,14 @@ function OrderDetailContent({ id }: { id: string }) {
       render: (_val, row) => {
         const pid = String(row['productId'] || '');
         const title = String(row['productTitle'] || '');
-        return title || (pid ? (
-          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{pid.slice(0, 12)}…</span>
-        ) : '—');
+        return (
+          title ||
+          (pid ? (
+            <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{pid.slice(0, 12)}…</span>
+          ) : (
+            '—'
+          ))
+        );
       },
     },
     {
@@ -314,21 +323,54 @@ function OrderDetailContent({ id }: { id: string }) {
       <AdminDetailTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
 
       <div style={{ padding: '0 32px 48px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
           <button
             type="button"
             onClick={() => void refreshOrder()}
             disabled={refreshing}
-            style={{ padding: '6px 12px', border: '1px solid #cbd5e1', borderRadius: 6, background: '#fff', cursor: refreshing ? 'wait' : 'pointer', fontSize: 12 }}
+            style={{
+              padding: '6px 12px',
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              background: '#fff',
+              cursor: refreshing ? 'wait' : 'pointer',
+              fontSize: 12,
+            }}
           >
             {refreshing ? 'Refreshing…' : 'Refresh order'}
           </button>
-          {refreshing && <span role="status" style={{ color: '#64748b', fontSize: 12 }}>Refreshing order details…</span>}
+          {refreshing && (
+            <span role="status" style={{ color: '#64748b', fontSize: 12 }}>
+              Refreshing order details…
+            </span>
+          )}
         </div>
         {refreshError && (
-          <div role="alert" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: 12, borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>
+          <div
+            role="alert"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+              padding: 12,
+              borderRadius: 8,
+              background: '#fef2f2',
+              color: '#991b1b',
+            }}
+          >
             <span>Order details may be stale: {refreshError}</span>
-            <button type="button" onClick={() => void refreshOrder()} disabled={refreshing}>Retry order details</button>
+            <button type="button" onClick={() => void refreshOrder()} disabled={refreshing}>
+              Retry order details
+            </button>
           </div>
         )}
         {actionSuccess && (
@@ -341,68 +383,70 @@ function OrderDetailContent({ id }: { id: string }) {
             {actionError}
           </p>
         )}
-        {canCancelOrder && !cancelCompleted && CANCELLABLE_ORDER_STATUSES.includes(order.status) && (
-          <AdminDetailSection title="Order actions">
-            <form onSubmit={handleCancel} style={{ display: 'grid', gap: 12, maxWidth: 560 }}>
-              <label style={{ display: 'grid', gap: 6, fontSize: 13, fontWeight: 600 }}>
-                Cancellation reason
-                <select
-                  value={cancelReason}
-                  onChange={(event) => setCancelReason(event.target.value)}
-                  disabled={cancelLoading}
-                  style={{
-                    padding: '10px 12px',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: 6,
-                    background: '#fff',
-                  }}
-                >
-                  {CANCELLATION_REASONS.map((reason) => (
-                    <option key={reason} value={reason}>
-                      {reason.replace(/_/g, ' ')}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label style={{ display: 'grid', gap: 6, fontSize: 13, fontWeight: 600 }}>
-                Notes {cancelReason === 'OTHER' ? '(required)' : '(optional)'}
-                <textarea
-                  value={cancelNotes}
-                  onChange={(event) => setCancelNotes(event.target.value)}
-                  rows={3}
-                  maxLength={2000}
-                  required={cancelReason === 'OTHER'}
-                  disabled={cancelLoading}
-                  placeholder="Add context for the order audit history"
-                  style={{
-                    padding: '10px 12px',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: 6,
-                    resize: 'vertical',
-                  }}
-                />
-              </label>
-              <div>
-                <button
-                  type="submit"
-                  disabled={cancelLoading || (cancelReason === 'OTHER' && !cancelNotes.trim())}
-                  style={{
-                    padding: '9px 16px',
-                    border: 0,
-                    borderRadius: 6,
-                    background: '#b91c1c',
-                    color: '#fff',
-                    fontWeight: 600,
-                    cursor: cancelLoading ? 'wait' : 'pointer',
-                    opacity: cancelLoading ? 0.65 : 1,
-                  }}
-                >
-                  {cancelLoading ? 'Cancelling…' : 'Cancel order'}
-                </button>
-              </div>
-            </form>
-          </AdminDetailSection>
-        )}
+        {canCancelOrder &&
+          !cancelCompleted &&
+          CANCELLABLE_ORDER_STATUSES.includes(order.status) && (
+            <AdminDetailSection title="Order actions">
+              <form onSubmit={handleCancel} style={{ display: 'grid', gap: 12, maxWidth: 560 }}>
+                <label style={{ display: 'grid', gap: 6, fontSize: 13, fontWeight: 600 }}>
+                  Cancellation reason
+                  <select
+                    value={cancelReason}
+                    onChange={(event) => setCancelReason(event.target.value)}
+                    disabled={cancelLoading}
+                    style={{
+                      padding: '10px 12px',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: 6,
+                      background: '#fff',
+                    }}
+                  >
+                    {CANCELLATION_REASONS.map((reason) => (
+                      <option key={reason} value={reason}>
+                        {reason.replace(/_/g, ' ')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label style={{ display: 'grid', gap: 6, fontSize: 13, fontWeight: 600 }}>
+                  Notes {cancelReason === 'OTHER' ? '(required)' : '(optional)'}
+                  <textarea
+                    value={cancelNotes}
+                    onChange={(event) => setCancelNotes(event.target.value)}
+                    rows={3}
+                    maxLength={2000}
+                    required={cancelReason === 'OTHER'}
+                    disabled={cancelLoading}
+                    placeholder="Add context for the order audit history"
+                    style={{
+                      padding: '10px 12px',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: 6,
+                      resize: 'vertical',
+                    }}
+                  />
+                </label>
+                <div>
+                  <button
+                    type="submit"
+                    disabled={cancelLoading || (cancelReason === 'OTHER' && !cancelNotes.trim())}
+                    style={{
+                      padding: '9px 16px',
+                      border: 0,
+                      borderRadius: 6,
+                      background: '#b91c1c',
+                      color: '#fff',
+                      fontWeight: 600,
+                      cursor: cancelLoading ? 'wait' : 'pointer',
+                      opacity: cancelLoading ? 0.65 : 1,
+                    }}
+                  >
+                    {cancelLoading ? 'Cancelling…' : 'Cancel order'}
+                  </button>
+                </div>
+              </form>
+            </AdminDetailSection>
+          )}
         {activeTab === 'overview' && (
           <AdminDetailSection title="Order Summary">
             <AdminKeyValueGrid items={overviewItems} />

@@ -7,10 +7,9 @@ const caller = { sub: 'merchant-a', role: 'MERCHANT_OWNER', activeOrg: 'org-a' }
 
 describe('ShippingService zone/method store boundaries', () => {
   it('filters methods returned for a zone to that zone store', async () => {
-    const selectWhere = vi.fn().mockResolvedValue([
-      { shippingMethodId: 'method-a' },
-      { shippingMethodId: 'method-b' },
-    ]);
+    const selectWhere = vi
+      .fn()
+      .mockResolvedValue([{ shippingMethodId: 'method-a' }, { shippingMethodId: 'method-b' }]);
     const from = vi.fn().mockReturnValue({ where: selectWhere });
     const select = vi.fn().mockReturnValue({ from });
     const findMany = vi.fn().mockResolvedValue([{ id: 'method-a', storeId: 'store-a' }]);
@@ -19,7 +18,10 @@ describe('ShippingService zone/method store boundaries', () => {
       {} as any,
       {} as any,
     );
-    vi.spyOn(service, 'getDeliveryZone').mockResolvedValue({ id: 'zone-a', storeId: 'store-a' } as any);
+    vi.spyOn(service, 'getDeliveryZone').mockResolvedValue({
+      id: 'zone-a',
+      storeId: 'store-a',
+    } as any);
 
     await expect(service.listMethodsForZone('zone-a', caller as any)).resolves.toEqual([
       { id: 'method-a', storeId: 'store-a' },
@@ -40,7 +42,10 @@ describe('ShippingService zone/method store boundaries', () => {
       {} as any,
       {} as any,
     );
-    vi.spyOn(service, 'getShippingMethod').mockResolvedValue({ id: 'method-a', storeId: 'store-a' } as any);
+    vi.spyOn(service, 'getShippingMethod').mockResolvedValue({
+      id: 'method-a',
+      storeId: 'store-a',
+    } as any);
 
     await expect(service.listZonesForMethod('method-a', caller as any)).resolves.toEqual([
       { id: 'zone-a', storeId: 'store-a' },
@@ -55,13 +60,15 @@ describe('ShippingService zone/method store boundaries', () => {
     const deleteWhere = vi.fn().mockResolvedValue([]);
     const deleteBuilder = { where: deleteWhere };
     const deleteFn = vi.fn().mockReturnValue(deleteBuilder);
-    const service = new ShippingService(
-      { db: { delete: deleteFn } } as any,
-      {} as any,
-      {} as any,
-    );
-    vi.spyOn(service, 'getDeliveryZone').mockResolvedValue({ id: 'zone-a', storeId: 'store-a' } as any);
-    vi.spyOn(service, 'getShippingMethod').mockResolvedValue({ id: 'method-b', storeId: 'store-b' } as any);
+    const service = new ShippingService({ db: { delete: deleteFn } } as any, {} as any, {} as any);
+    vi.spyOn(service, 'getDeliveryZone').mockResolvedValue({
+      id: 'zone-a',
+      storeId: 'store-a',
+    } as any);
+    vi.spyOn(service, 'getShippingMethod').mockResolvedValue({
+      id: 'method-b',
+      storeId: 'store-b',
+    } as any);
 
     await expect(
       service.detachMethodFromZone('zone-a', 'method-b', caller as any),

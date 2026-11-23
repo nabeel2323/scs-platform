@@ -29,23 +29,27 @@ import { shipments } from '../orders/shipment.schema';
 import { CarrierObservabilityService } from './carrier-observability';
 import { CarrierCircuitBreaker } from './carrier-circuit-breaker';
 import { CarrierEmailResolver } from './carrier-email-resolver';
-import { generateIdempotencyKey, CreateShipmentRequest, CancelPickupRequest } from './shipping.types';
+import {
+  generateIdempotencyKey,
+  CreateShipmentRequest,
+  CancelPickupRequest,
+} from './shipping.types';
 import { classifyCarrierError } from './carrier-errors';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export type ReconciliationOutcome =
-  | 'already_complete'              // Case A / CA
-  | 'recovered'                     // Case B
-  | 'retry_safe'                    // Case C (retry triggered)
-  | 'not_found_deferred'            // Case C (not found, not safe to retry)
-  | 'routed_to_recovery'            // Case D
-  | 'cancel_succeeded'              // Case CD: tracking confirmed cancellation
-  | 'cancel_budget_exhausted'       // Case CC: reconciliation attempts exhausted
-  | 'cancel_boundary_exceeded'      // Case CB: 24h boundary exceeded
-  | 'cancel_deferred'               // Case CE/CF: within budget, scheduled next
-  | 'cancel_transport_error'        // Case CE: carrier query failed
-  | 'cancel_ambiguous'              // Case CF: carrier response inconclusive
+  | 'already_complete' // Case A / CA
+  | 'recovered' // Case B
+  | 'retry_safe' // Case C (retry triggered)
+  | 'not_found_deferred' // Case C (not found, not safe to retry)
+  | 'routed_to_recovery' // Case D
+  | 'cancel_succeeded' // Case CD: tracking confirmed cancellation
+  | 'cancel_budget_exhausted' // Case CC: reconciliation attempts exhausted
+  | 'cancel_boundary_exceeded' // Case CB: 24h boundary exceeded
+  | 'cancel_deferred' // Case CE/CF: within budget, scheduled next
+  | 'cancel_transport_error' // Case CE: carrier query failed
+  | 'cancel_ambiguous' // Case CF: carrier response inconclusive
   | 'error';
 
 export interface ReconciliationResult {
@@ -103,10 +107,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     private readonly circuitBreaker: CarrierCircuitBreaker,
     private readonly emailResolver: CarrierEmailResolver,
   ) {
-    this.intervalMs = parseInt(
-      process.env['CARRIER_RECONCILIATION_INTERVAL_MS'] || '600000',
-      10,
-    );
+    this.intervalMs = parseInt(process.env['CARRIER_RECONCILIATION_INTERVAL_MS'] || '600000', 10);
     this.cancelIntervalMs = CarrierReconciliationService.CANCEL_RECONCILIATION_INTERVAL_MS;
   }
 
@@ -202,9 +203,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
       }
 
       if (results.length > 0) {
-        this.logger.log(
-          `Reconciliation complete: ${results.map(r => r.outcome).join(', ')}`,
-        );
+        this.logger.log(`Reconciliation complete: ${results.map((r) => r.outcome).join(', ')}`);
       }
     } catch (err: any) {
       this.logger.error(`Reconciliation cycle error: ${err?.message}`);
@@ -270,7 +269,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
 
           this.logger.log(
             `Reconciliation: shipment ${shipmentId} recovered via tracking ` +
-            `(status: ${trackingInfo.status})`,
+              `(status: ${trackingInfo.status})`,
           );
 
           return { shipmentId, outcome: 'recovered', detail: trackingInfo.status };
@@ -285,7 +284,10 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     }
 
     // Case C: Carrier doesn't have it — can we safely retry?
-    if (shipment.carrierCreateStatus === 'PENDING' || shipment.carrierCreateStatus === 'RECOVERY_REQUIRED') {
+    if (
+      shipment.carrierCreateStatus === 'PENDING' ||
+      shipment.carrierCreateStatus === 'RECOVERY_REQUIRED'
+    ) {
       // Check if it's safe to retry (idempotency key exists)
       if (shipment.idempotencyKey) {
         // Schedule a retry via outbox
@@ -337,10 +339,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
   private async deferReconciliation(shipment: any): Promise<void> {
     // Exponential backoff for reconciliation: 10min, 20min, 40min, 1h, 2h, 4h (max)
     const currentRetries = shipment.carrierCreateRetries || 0;
-    const delayMs = Math.min(
-      10 * 60 * 1000 * Math.pow(2, currentRetries),
-      4 * 60 * 60 * 1000,
-    );
+    const delayMs = Math.min(10 * 60 * 1000 * Math.pow(2, currentRetries), 4 * 60 * 60 * 1000);
 
     await this.db.db
       .update(shipments)
@@ -397,7 +396,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
 
       if (results.length > 0) {
         this.logger.log(
-          `Cancel reconciliation complete: ${results.map(r => `${r.shipmentId}:${r.outcome}`).join(', ')}`,
+          `Cancel reconciliation complete: ${results.map((r) => `${r.shipmentId}:${r.outcome}`).join(', ')}`,
         );
       }
     } catch (err: any) {
@@ -445,7 +444,11 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     const reconciliationAttempts = shipment.carrier_cancel_retries || 0;
     if (reconciliationAttempts >= CarrierReconciliationService.MAX_CANCEL_RECONCILIATION_ATTEMPTS) {
       await this.escalateCancelReconciliation(shipment, 'budget exhausted');
-      return { shipmentId, outcome: 'cancel_budget_exhausted', detail: `${reconciliationAttempts} attempts` };
+      return {
+        shipmentId,
+        outcome: 'cancel_budget_exhausted',
+        detail: `${reconciliationAttempts} attempts`,
+      };
     }
 
     const providerKey = shipment.shipping_provider_key || 'aramex';
@@ -493,7 +496,11 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
         }
         // Non-transport error (auth, validation, etc.) — defer
         await this.deferCancelReconciliation(shipment);
-        return { shipmentId, outcome: 'cancel_transport_error', detail: err?.message?.slice(0, 200) };
+        return {
+          shipmentId,
+          outcome: 'cancel_transport_error',
+          detail: err?.message?.slice(0, 200),
+        };
       }
     }
 
@@ -507,7 +514,11 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     }
 
     await this.deferCancelReconciliation(shipment);
-    return { shipmentId, outcome: 'cancel_deferred', detail: `Attempt ${newAttempts}, scheduled next` };
+    return {
+      shipmentId,
+      outcome: 'cancel_deferred',
+      detail: `Attempt ${newAttempts}, scheduled next`,
+    };
   }
 
   /**
@@ -525,9 +536,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
       })
       .where(eq(shipments.id, shipment.id));
 
-    this.logger.warn(
-      `Cancel reconciliation escalated for shipment ${shipment.id}: ${reason}`,
-    );
+    this.logger.warn(`Cancel reconciliation escalated for shipment ${shipment.id}: ${reason}`);
   }
 
   /**

@@ -18,7 +18,12 @@ vi.mock('../hooks/useRequirePerms', () => ({
 vi.mock('../components/detail', () => ({
   AdminDetailHeader: ({ status }: { status: string }) => <header>Order status: {status}</header>,
   AdminDetailTabs: () => <nav>Order tabs</nav>,
-  AdminDetailSection: ({ title, children }: { title: string; children: React.ReactNode }) => <section><h2>{title}</h2>{children}</section>,
+  AdminDetailSection: ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <section>
+      <h2>{title}</h2>
+      {children}
+    </section>
+  ),
   AdminKeyValueGrid: () => <div>Order fields</div>,
   AdminStatusBadge: ({ status }: { status: string }) => <span>{status}</span>,
   AdminEntityLink: () => null,
@@ -26,7 +31,11 @@ vi.mock('../components/detail', () => ({
   AdminRelatedTable: () => null,
   AdminAuditTimeline: () => null,
   AdminLoadingSkeleton: () => <div>Loading order</div>,
-  AdminErrorState: ({ title, message }: { title: string; message: string }) => <div role="alert">{title}: {message}</div>,
+  AdminErrorState: ({ title, message }: { title: string; message: string }) => (
+    <div role="alert">
+      {title}: {message}
+    </div>
+  ),
   AdminEmptyState: ({ title }: { title: string }) => <div>{title}</div>,
   formatDate: (value: string) => value,
   formatCurrency: (value: number, currency: string) => `${value} ${currency}`,
@@ -76,9 +85,11 @@ describe('admin order cancellation refresh recovery', () => {
     expect(await screen.findByText('Order actions')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel order' }));
 
-    expect(await screen.findByText(
-      'Order cancellation succeeded, but the latest order details could not be refreshed.',
-    )).toBeTruthy();
+    expect(
+      await screen.findByText(
+        'Order cancellation succeeded, but the latest order details could not be refreshed.',
+      ),
+    ).toBeTruthy();
     expect(screen.getByRole('alert').textContent).toContain('Order read unavailable');
     expect(screen.getByText('Order status: ACCEPTED')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Cancel order' })).toBeNull();

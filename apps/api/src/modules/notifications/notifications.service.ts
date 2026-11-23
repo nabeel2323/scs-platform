@@ -248,7 +248,13 @@ export class NotificationsService implements OnModuleInit {
 
   // ── Channel Dispatchers ──────────────────────────────────────
 
-  private async dispatch(id: string, channel: string, userId: string, rendered: { title?: string; body: string }, type: string) {
+  private async dispatch(
+    id: string,
+    channel: string,
+    userId: string,
+    rendered: { title?: string; body: string },
+    type: string,
+  ) {
     switch (channel) {
       case 'SMS':
         await this.sendSms(id, userId, rendered.body);
@@ -292,11 +298,7 @@ export class NotificationsService implements OnModuleInit {
   }
 
   private async sendSms(notificationId: string, _userId: string, _body: string) {
-    await this.markNotConfigured(
-      notificationId,
-      'sms-unconfigured',
-      'SMS_PROVIDER_NOT_CONFIGURED',
-    );
+    await this.markNotConfigured(notificationId, 'sms-unconfigured', 'SMS_PROVIDER_NOT_CONFIGURED');
   }
 
   private async sendPush(notificationId: string, userId: string, _title: string, _body: string) {
@@ -323,18 +325,24 @@ export class NotificationsService implements OnModuleInit {
   // ── Preferences ──────────────────────────────────────────────
 
   async getPreference(userId: string, type: string, channel: string) {
-    const rows = await this.db.db.select().from(notificationPreferences)
-      .where(and(
-        eq(notificationPreferences.userId, userId),
-        eq(notificationPreferences.type, type),
-        eq(notificationPreferences.channel, channel),
-      ))
+    const rows = await this.db.db
+      .select()
+      .from(notificationPreferences)
+      .where(
+        and(
+          eq(notificationPreferences.userId, userId),
+          eq(notificationPreferences.type, type),
+          eq(notificationPreferences.channel, channel),
+        ),
+      )
       .limit(1);
     return rows[0] ?? null;
   }
 
   async getPreferences(userId: string) {
-    return this.db.db.select().from(notificationPreferences)
+    return this.db.db
+      .select()
+      .from(notificationPreferences)
       .where(eq(notificationPreferences.userId, userId));
   }
 
@@ -360,7 +368,9 @@ export class NotificationsService implements OnModuleInit {
   // ── Device Tokens ────────────────────────────────────────────
 
   async registerDeviceToken(userId: string, token: string, platform: string, appVersion?: string) {
-    const existingRows = await this.db.db.select().from(deviceTokens)
+    const existingRows = await this.db.db
+      .select()
+      .from(deviceTokens)
       .where(and(eq(deviceTokens.userId, userId), eq(deviceTokens.token, token)))
       .limit(1);
     const existing = existingRows[0] ?? null;
@@ -368,7 +378,11 @@ export class NotificationsService implements OnModuleInit {
     if (existing) {
       await this.db.db
         .update(deviceTokens)
-        .set({ isActive: true, appVersion: appVersion || existing['appVersion'], lastSeenAt: new Date() })
+        .set({
+          isActive: true,
+          appVersion: appVersion || existing['appVersion'],
+          lastSeenAt: new Date(),
+        })
         .where(eq(deviceTokens.id, existing['id']));
     } else {
       await this.db.db.insert(deviceTokens).values({
@@ -391,7 +405,9 @@ export class NotificationsService implements OnModuleInit {
   }
 
   async listDeviceTokens(userId: string) {
-    return this.db.db.select().from(deviceTokens)
+    return this.db.db
+      .select()
+      .from(deviceTokens)
       .where(and(eq(deviceTokens.userId, userId), eq(deviceTokens.isActive, true)))
       .orderBy(desc(deviceTokens.lastSeenAt));
   }
@@ -399,17 +415,21 @@ export class NotificationsService implements OnModuleInit {
   // ── Queries ──────────────────────────────────────────────────
 
   async listNotifications(userId: string, limit = 50, offset = 0) {
-    return this.db.db.select().from(notifications)
-      .where(and(
-        eq(notifications.userId, userId),
-        // The web bell and mobile in-app screen surface user-readable items only.
-        // Other channels (PUSH, SMS, WHATSAPP) exist as delivery-tracking rows
-        // for outbound dispatch and would otherwise duplicate a logical event
-        // whenever a template declares multiple channels (e.g. order.submitted
-        // fans to ['IN_APP', 'PUSH'] and would show "New Order Received" twice
-        // in the bell for a single checkout).
-        eq(notifications.channel, 'IN_APP'),
-      ))
+    return this.db.db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          // The web bell and mobile in-app screen surface user-readable items only.
+          // Other channels (PUSH, SMS, WHATSAPP) exist as delivery-tracking rows
+          // for outbound dispatch and would otherwise duplicate a logical event
+          // whenever a template declares multiple channels (e.g. order.submitted
+          // fans to ['IN_APP', 'PUSH'] and would show "New Order Received" twice
+          // in the bell for a single checkout).
+          eq(notifications.channel, 'IN_APP'),
+        ),
+      )
       .orderBy(desc(notifications.createdAt))
       .limit(limit)
       .offset(offset);
@@ -419,18 +439,22 @@ export class NotificationsService implements OnModuleInit {
     const result = await this.db.db
       .select({ count: sql<number>`count(*)` })
       .from(notifications)
-      .where(and(
-        eq(notifications.userId, userId),
-        isNull(notifications.readAt),
-        // Same rationale as listNotifications: the badge counts visible bell
-        // items, not outbound delivery attempts.
-        eq(notifications.channel, 'IN_APP'),
-      ));
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          isNull(notifications.readAt),
+          // Same rationale as listNotifications: the badge counts visible bell
+          // items, not outbound delivery attempts.
+          eq(notifications.channel, 'IN_APP'),
+        ),
+      );
     return result[0]?.count || 0;
   }
 
   async markAsRead(notificationId: string, userId: string) {
-    const rows = await this.db.db.select().from(notifications)
+    const rows = await this.db.db
+      .select()
+      .from(notifications)
       .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)))
       .limit(1);
     if (!rows[0]) return { success: false };
@@ -443,7 +467,9 @@ export class NotificationsService implements OnModuleInit {
   }
 
   async markAsUnread(notificationId: string, userId: string) {
-    const rows = await this.db.db.select().from(notifications)
+    const rows = await this.db.db
+      .select()
+      .from(notifications)
       .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)))
       .limit(1);
     if (!rows[0]) return { success: false };
@@ -459,13 +485,15 @@ export class NotificationsService implements OnModuleInit {
     await this.db.db
       .update(notifications)
       .set({ readAt: new Date(), status: 'READ' })
-      .where(and(
-        eq(notifications.userId, userId),
-        isNull(notifications.readAt),
-        // Only touch bell-visible rows. Marking a PUSH/SMS delivery-tracking
-        // row as "read" would corrupt its outbound-audit semantics.
-        eq(notifications.channel, 'IN_APP'),
-      ));
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          isNull(notifications.readAt),
+          // Only touch bell-visible rows. Marking a PUSH/SMS delivery-tracking
+          // row as "read" would corrupt its outbound-audit semantics.
+          eq(notifications.channel, 'IN_APP'),
+        ),
+      );
     return { success: true };
   }
 

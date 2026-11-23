@@ -245,10 +245,7 @@ export class CatalogController {
   }
 
   @Get('products/:id')
-  async getProduct(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async getProduct(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: JwtPayload) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertProductReadable(this.db, caller, id);
     const includeInactiveVariants = await canManageProductCatalog(this.db, caller, id);
@@ -263,7 +260,11 @@ export class CatalogController {
     @Param('id') id: string,
     @Body() input: UpdateProductInput,
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      id,
+    );
     // PHASE 4 P1: Extract optimistic-locking timestamp from body before passing to service.
     const { updatedAt: clientUpdatedAt, ...rest } = input;
     return this.catalogService.updateProduct(id, rest, clientUpdatedAt);
@@ -273,7 +274,11 @@ export class CatalogController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async deleteProduct(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      id,
+    );
     return this.catalogService.deleteProduct(id);
   }
 
@@ -386,7 +391,11 @@ export class CatalogController {
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      id,
+    );
     return this.governance.getModerationHistory(id);
   }
 
@@ -399,11 +408,12 @@ export class CatalogController {
   @Get('products/:id/attribute-values')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async getProductAttributeValues(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+  async getProductAttributeValues(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      id,
+    );
     return this.taxonomyService.getProductAttributeValues(id);
   }
 
@@ -420,7 +430,11 @@ export class CatalogController {
     @Param('id') id: string,
     @Body() body: { values: AttributeValueInput[] },
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      id,
+    );
     const result = await this.taxonomyService.setProductAttributeValues(id, body.values);
     // PHASE 4 P6: Audit — product attributes updated
     await this.audit.record({
@@ -437,11 +451,12 @@ export class CatalogController {
 
   // PHASE 7: literal path declared before parameterized :variantId siblings
   @Get('products/:productId/variant-matrix')
-  async getVariantMatrix(
-    @Param('productId') productId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
-    await assertProductReadable(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+  async getVariantMatrix(@Param('productId') productId: string, @CurrentUser() user: JwtPayload) {
+    await assertProductReadable(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
     return this.catalogService.getVariantMatrix(productId);
   }
 
@@ -453,15 +468,16 @@ export class CatalogController {
     @Param('productId') productId: string,
     @Body() input: CreateVariantInput,
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
     return this.catalogService.createVariant(productId, input);
   }
 
   @Get('products/:productId/variants')
-  async listVariants(
-    @Param('productId') productId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async listVariants(@Param('productId') productId: string, @CurrentUser() user: JwtPayload) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertProductReadable(this.db, caller, productId);
     const canManage = await canManageProductCatalog(this.db, caller, productId);
@@ -477,7 +493,11 @@ export class CatalogController {
     @Param('variantId') variantId: string,
     @Body() input: Partial<CreateVariantInput> & { updatedAt?: string },
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
     // PHASE 4 P1: Extract optimistic-locking timestamp from body before passing to service.
     const { updatedAt: clientUpdatedAt, ...rest } = input;
     return this.catalogService.updateVariant(productId, variantId, rest, clientUpdatedAt);
@@ -495,16 +515,17 @@ export class CatalogController {
     @Param('productId') productId: string,
     @Param('variantId') variantId: string,
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
 
     // The product path segment is part of the authorization boundary. Do not
     // let a merchant who owns product A read attribute values for product B's
     // variant by supplying B's variant UUID alongside A's product UUID.
     const variant = await this.db.db.query.productVariants.findFirst({
-      where: and(
-        eq(productVariants.id, variantId),
-        eq(productVariants.productId, productId),
-      ),
+      where: and(eq(productVariants.id, variantId), eq(productVariants.productId, productId)),
       columns: { id: true },
     });
     if (!variant) {
@@ -528,8 +549,16 @@ export class CatalogController {
     @Param('variantId') variantId: string,
     @Body() body: { values: AttributeValueInput[] },
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
-    const result = await this.taxonomyService.setVariantAttributeValues(productId, variantId, body.values);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
+    const result = await this.taxonomyService.setVariantAttributeValues(
+      productId,
+      variantId,
+      body.values,
+    );
     // PHASE 4 P6: Audit — variant attributes updated
     await this.audit.record({
       actorType: 'MERCHANT',
@@ -547,13 +576,18 @@ export class CatalogController {
   async bulkVariantOperations(
     @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
-    @Body() body: {
+    @Body()
+    body: {
       create?: CreateVariantInput[];
       deleteIds?: string[];
       toggleActive?: Array<{ id: string; isActive: boolean }>;
     },
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
     return this.catalogService.bulkVariantOperations(productId, body);
   }
 
@@ -576,10 +610,7 @@ export class CatalogController {
   @Get('stores/:storeId/products/export')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async exportProducts(
-    @Param('storeId') storeId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async exportProducts(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     // P7 Phase 1 — F-SEC-01: require store membership for export.
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, storeId);
@@ -588,10 +619,7 @@ export class CatalogController {
   }
 
   @Get('stores/:storeId/variants')
-  async listStoreVariants(
-    @Param('storeId') storeId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async listStoreVariants(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     const canManage = await canManageStoreCatalog(this.db, caller, storeId);
     return this.catalogService.listVariantsByStore(storeId, canManage);
@@ -605,7 +633,11 @@ export class CatalogController {
     @Param('productId') productId: string,
     @Body() body: { order: string[] },
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
     return this.catalogService.reorderMedia(productId, body.order);
   }
 
@@ -619,16 +651,21 @@ export class CatalogController {
     @Param('productId') productId: string,
     @Body() input: AddMediaInput,
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
     return this.catalogService.addMedia(productId, input);
   }
 
   @Get('products/:productId/media')
-  async listMedia(
-    @Param('productId') productId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
-    await assertProductReadable(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+  async listMedia(@Param('productId') productId: string, @CurrentUser() user: JwtPayload) {
+    await assertProductReadable(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
     return this.catalogService.listMediaByProduct(productId);
   }
 
@@ -640,7 +677,11 @@ export class CatalogController {
     @Param('productId') productId: string,
     @Param('mediaId') mediaId: string,
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
     return this.catalogService.removeMedia(productId, mediaId);
   }
 
@@ -683,10 +724,7 @@ export class CatalogController {
   @Get('stores/:storeId/imports')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:products:read')
-  async listImportJobs(
-    @Param('storeId') storeId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async listImportJobs(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, storeId);
     await assertStoreMember(this.db, caller, storeId);
@@ -696,10 +734,7 @@ export class CatalogController {
   @Get('imports/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:products:read')
-  async getImportJob(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async getImportJob(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, job.storeId);
@@ -761,10 +796,7 @@ export class CatalogController {
   @Post('imports/:id/process')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async processImportJob(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async processImportJob(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     // P7 Phase 1 — F-SEC-01: resolve storeId from persisted import job.
     const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
@@ -778,10 +810,7 @@ export class CatalogController {
   @Get('imports/:id/chunks')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:products:read')
-  async getImportChunks(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async getImportChunks(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, job.storeId);
@@ -792,10 +821,7 @@ export class CatalogController {
   @Post('imports/:id/cancel')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async cancelImport(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async cancelImport(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, job.storeId);
@@ -806,10 +832,7 @@ export class CatalogController {
   @Post('imports/:id/retry')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async retryImportJob(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async retryImportJob(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, job.storeId);
@@ -822,10 +845,7 @@ export class CatalogController {
   @Post('imports/:id/preview')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async previewImportJob(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async previewImportJob(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, job.storeId);
@@ -836,11 +856,7 @@ export class CatalogController {
   @Get('imports/:id/errors')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:products:read')
-  async getImportErrors(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-    @Res() res: any,
-  ) {
+  async getImportErrors(@Param('id') id: string, @CurrentUser() user: JwtPayload, @Res() res: any) {
     const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, job.storeId);
@@ -872,7 +888,11 @@ export class CatalogController {
   ) {
     let attributeFilters: Record<string, string[]> | undefined;
     if (attrFiltersRaw) {
-      try { attributeFilters = JSON.parse(attrFiltersRaw); } catch { /* ignore malformed */ }
+      try {
+        attributeFilters = JSON.parse(attrFiltersRaw);
+      } catch {
+        /* ignore malformed */
+      }
     }
 
     // P9: validate and convert price parameters (major → minor units)
@@ -898,16 +918,20 @@ export class CatalogController {
 
     // P9: validate availability
     if (availability != null && availability !== '' && availability !== 'inStock') {
-      throw new BadRequestException(`Invalid availability value '${availability}'. Supported: inStock`);
+      throw new BadRequestException(
+        `Invalid availability value '${availability}'. Supported: inStock`,
+      );
     }
 
     // P9: validate sort
     const validSorts = ['price_asc', 'price_desc', 'newest', 'name'] as const;
-    type SortValue = typeof validSorts[number];
+    type SortValue = (typeof validSorts)[number];
     let sortValue: SortValue | undefined;
     if (sort != null && sort !== '') {
       if (!validSorts.includes(sort as SortValue)) {
-        throw new BadRequestException(`Invalid sort value '${sort}'. Supported: ${validSorts.join(', ')}`);
+        throw new BadRequestException(
+          `Invalid sort value '${sort}'. Supported: ${validSorts.join(', ')}`,
+        );
       }
       sortValue = sort as SortValue;
     }
@@ -1026,7 +1050,11 @@ function readRawBody(req: any, maxBytes: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const declared = Number(req.headers['content-length'] || 0);
     if (declared > maxBytes) {
-      reject(new BadRequestException(`FILE_TOO_LARGE: exceeds the ${Math.round(maxBytes / 1024 / 1024)} MB limit.`));
+      reject(
+        new BadRequestException(
+          `FILE_TOO_LARGE: exceeds the ${Math.round(maxBytes / 1024 / 1024)} MB limit.`,
+        ),
+      );
       return;
     }
     // If a body parser already consumed the stream, fall back to what it buffered.
@@ -1042,7 +1070,11 @@ function readRawBody(req: any, maxBytes: number): Promise<Buffer> {
       if (total > maxBytes) {
         if (!settled) {
           settled = true;
-          reject(new BadRequestException(`FILE_TOO_LARGE: exceeds the ${Math.round(maxBytes / 1024 / 1024)} MB limit.`));
+          reject(
+            new BadRequestException(
+              `FILE_TOO_LARGE: exceeds the ${Math.round(maxBytes / 1024 / 1024)} MB limit.`,
+            ),
+          );
         }
         req.removeAllListeners();
         return;

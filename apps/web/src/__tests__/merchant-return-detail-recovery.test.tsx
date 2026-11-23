@@ -18,16 +18,21 @@ const { api, auth } = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({ useParams: () => ({ id: 'return-1' }) }));
 vi.mock('../components/AuthProvider', () => ({ useAuth: () => auth }));
-vi.mock('../lib/buyer-api', () => Object.fromEntries(
-  Object.entries(api).map(([key, fn]) => [key, (...args: unknown[]) => fn(...args)]),
-));
+vi.mock('../lib/buyer-api', () =>
+  Object.fromEntries(
+    Object.entries(api).map(([key, fn]) => [key, (...args: unknown[]) => fn(...args)]),
+  ),
+);
 vi.mock('../components/Shared', () => ({
   formatDate: (value: string) => value,
   LoadingSpinner: () => <div>Loading</div>,
 }));
 vi.mock('@scs/ui-kit', () => ({
   PageHeader: ({ title, subtitle }: { title: string; subtitle?: string }) => (
-    <header><h1>{title}</h1>{subtitle ? <p>{subtitle}</p> : null}</header>
+    <header>
+      <h1>{title}</h1>
+      {subtitle ? <p>{subtitle}</p> : null}
+    </header>
   ),
   Breadcrumb: () => <nav>Breadcrumb</nav>,
   colors: { border: '#ddd', muted: '#777', brand: { 700: '#123' } },

@@ -101,7 +101,8 @@ export default function ReconciliationPage() {
       const data = await adminRequest<ReconciliationRun[]>('admin/reconciliation');
       if (requestId === requestVersion.current) setRuns(data);
     } catch (e: any) {
-      if (requestId === requestVersion.current) setLoadError(e.message || 'Failed to load reconciliation runs');
+      if (requestId === requestVersion.current)
+        setLoadError(e.message || 'Failed to load reconciliation runs');
     } finally {
       if (requestId === requestVersion.current) setLoading(false);
     }
@@ -109,27 +110,38 @@ export default function ReconciliationPage() {
 
   useEffect(() => {
     if (hasAccess) void load();
-    return () => { requestVersion.current += 1; };
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [load, hasAccess]);
 
-  const loadRunDetail = useCallback(async (id: string) => {
-    if (!hasAccess) return;
-    const requestId = ++detailRequestVersion.current;
-    setSelectedRunId(id);
-    if (selectedRunId !== id) setSelectedRun(null);
-    setDetailLoading(true);
-    setDetailError('');
-    try {
-      const run = await adminRequest<ReconciliationRun>(`admin/reconciliation/${id}`);
-      if (requestId === detailRequestVersion.current) setSelectedRun(run);
-    } catch (e: any) {
-      if (requestId === detailRequestVersion.current) setDetailError(e.message || 'Failed to load reconciliation details');
-    } finally {
-      if (requestId === detailRequestVersion.current) setDetailLoading(false);
-    }
-  }, [hasAccess, selectedRunId]);
+  const loadRunDetail = useCallback(
+    async (id: string) => {
+      if (!hasAccess) return;
+      const requestId = ++detailRequestVersion.current;
+      setSelectedRunId(id);
+      if (selectedRunId !== id) setSelectedRun(null);
+      setDetailLoading(true);
+      setDetailError('');
+      try {
+        const run = await adminRequest<ReconciliationRun>(`admin/reconciliation/${id}`);
+        if (requestId === detailRequestVersion.current) setSelectedRun(run);
+      } catch (e: any) {
+        if (requestId === detailRequestVersion.current)
+          setDetailError(e.message || 'Failed to load reconciliation details');
+      } finally {
+        if (requestId === detailRequestVersion.current) setDetailLoading(false);
+      }
+    },
+    [hasAccess, selectedRunId],
+  );
 
-  useEffect(() => () => { detailRequestVersion.current += 1; }, []);
+  useEffect(
+    () => () => {
+      detailRequestVersion.current += 1;
+    },
+    [],
+  );
 
   const handleRun = async () => {
     if (!canWrite) return;
@@ -245,17 +257,62 @@ export default function ReconciliationPage() {
         </div>
       )}
 
-      {loadError && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}><span>{loadError}</span><button onClick={() => void load()} style={{ background: '#374151', color: '#fff', border: 0, borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>Retry</button></div>}
-      {actionError && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{actionError}</div>}
+      {loadError && (
+        <div
+          role="alert"
+          style={{
+            background: '#7f1d1d',
+            padding: 12,
+            borderRadius: 8,
+            marginBottom: 16,
+            fontSize: 13,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <span>{loadError}</span>
+          <button
+            onClick={() => void load()}
+            style={{
+              background: '#374151',
+              color: '#fff',
+              border: 0,
+              borderRadius: 6,
+              padding: '4px 12px',
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {actionError && (
+        <div
+          role="alert"
+          style={{
+            background: '#7f1d1d',
+            padding: 12,
+            borderRadius: 8,
+            marginBottom: 16,
+            fontSize: 13,
+          }}
+        >
+          {actionError}
+        </div>
+      )}
       {loading && <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Loading...</div>}
 
       {/* Run history */}
       <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Execution History</div>
-      {loadError ? null : runs.length === 0 && !loading && (
-        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
-          No reconciliation runs yet.
-        </div>
-      )}
+      {loadError
+        ? null
+        : runs.length === 0 &&
+          !loading && (
+            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
+              No reconciliation runs yet.
+            </div>
+          )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
         {runs.map((run) => (
@@ -309,11 +366,53 @@ export default function ReconciliationPage() {
       </div>
 
       {/* Discrepancy detail */}
-      {detailLoading && <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginBottom: 12 }}>Loading run details…</div>}
-      {detailError && <div role="alert" style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 12 }}><span>{detailError}</span><button onClick={() => selectedRunId && void loadRunDetail(selectedRunId)} style={{ background: '#374151', color: '#fff', border: 0, borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}>Retry</button></div>}
+      {detailLoading && (
+        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginBottom: 12 }}>
+          Loading run details…
+        </div>
+      )}
+      {detailError && (
+        <div
+          role="alert"
+          style={{
+            background: '#7f1d1d',
+            padding: 12,
+            borderRadius: 8,
+            marginBottom: 16,
+            fontSize: 13,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <span>{detailError}</span>
+          <button
+            onClick={() => selectedRunId && void loadRunDetail(selectedRunId)}
+            style={{
+              background: '#374151',
+              color: '#fff',
+              border: 0,
+              borderRadius: 6,
+              padding: '4px 12px',
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
       {selectedRun && selectedRun.discrepancies && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+              marginBottom: 12,
+              flexWrap: 'wrap',
+            }}
+          >
             <div style={{ fontSize: 14, fontWeight: 600 }}>
               Discrepancies for Run {selectedRun.id.slice(0, 8)}... (v{selectedRun.version})
             </div>
@@ -321,7 +420,15 @@ export default function ReconciliationPage() {
               type="button"
               onClick={() => selectedRunId && void loadRunDetail(selectedRunId)}
               disabled={detailLoading}
-              style={{ background: '#374151', color: '#fff', border: 0, borderRadius: 6, padding: '5px 12px', cursor: detailLoading ? 'wait' : 'pointer', fontSize: 12 }}
+              style={{
+                background: '#374151',
+                color: '#fff',
+                border: 0,
+                borderRadius: 6,
+                padding: '5px 12px',
+                cursor: detailLoading ? 'wait' : 'pointer',
+                fontSize: 12,
+              }}
             >
               {detailLoading ? 'Refreshing…' : 'Refresh run details'}
             </button>

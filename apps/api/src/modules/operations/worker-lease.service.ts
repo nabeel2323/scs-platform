@@ -98,9 +98,7 @@ export class WorkerLeaseService {
    * stopped heartbeating), or already ours. Otherwise returns HELD_BY_OTHER and
    * the caller must stay in standby — it must never run the protected job.
    */
-  async tryAcquire(
-    leaseKey: string = P13_LEASE_KEY,
-  ): Promise<LeaseAcquireResult> {
+  async tryAcquire(leaseKey: string = P13_LEASE_KEY): Promise<LeaseAcquireResult> {
     try {
       await this.ensureLeaseRow(leaseKey);
 
@@ -151,10 +149,7 @@ export class WorkerLeaseService {
    * Returns false when ownership is lost (taken over, released, or the row was
    * reset). Callers MUST treat false as "stop modifying state immediately".
    */
-  async renewAndFence(
-    epoch: number,
-    leaseKey: string = P13_LEASE_KEY,
-  ): Promise<boolean> {
+  async renewAndFence(epoch: number, leaseKey: string = P13_LEASE_KEY): Promise<boolean> {
     if (!Number.isFinite(epoch) || epoch <= 0) return false;
     const result = await this.db.db.execute(sql`
       UPDATE worker_leases
@@ -173,8 +168,13 @@ export class WorkerLeaseService {
   /** Read-only ownership check; an expired row is never a live lease. */
   async isLiveHolder(epoch: number, leaseKey: string = P13_LEASE_KEY): Promise<boolean> {
     const record = await this.read(leaseKey);
-    return !!record && record.holderId === this.holderId && record.epoch === epoch &&
-      !!record.expiresAt && record.expiresAt.getTime() > Date.now();
+    return (
+      !!record &&
+      record.holderId === this.holderId &&
+      record.epoch === epoch &&
+      !!record.expiresAt &&
+      record.expiresAt.getTime() > Date.now()
+    );
   }
 
   /**
@@ -250,26 +250,30 @@ export class WorkerLeaseService {
 
   /** Read a lease row — the observability primitive. */
   async read(leaseKey: string = P13_LEASE_KEY): Promise<LeaseRecord | null> {
-    const rows = readRows<RawLeaseRow>(await this.db.db.execute(sql`
+    const rows = readRows<RawLeaseRow>(
+      await this.db.db.execute(sql`
       SELECT lease_key, holder_id, holder_host, holder_pid, epoch,
              acquired_at, heartbeat_at, expires_at,
              poll_failures, last_error_code, last_job_at, last_job_summary
       FROM worker_leases
       WHERE lease_key = ${leaseKey}
-    `));
+    `),
+    );
     const first = rows[0];
     return first ? mapLeaseRow(first) : null;
   }
 
   /** Every lease — powers the "zero or multiple live holders" alert. */
   async readAll(): Promise<LeaseRecord[]> {
-    const rows = readRows<RawLeaseRow>(await this.db.db.execute(sql`
+    const rows = readRows<RawLeaseRow>(
+      await this.db.db.execute(sql`
       SELECT lease_key, holder_id, holder_host, holder_pid, epoch,
              acquired_at, heartbeat_at, expires_at,
              poll_failures, last_error_code, last_job_at, last_job_summary
       FROM worker_leases
       ORDER BY lease_key
-    `));
+    `),
+    );
     return rows.map(mapLeaseRow);
   }
 

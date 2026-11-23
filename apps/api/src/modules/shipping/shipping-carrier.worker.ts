@@ -10,8 +10,17 @@ import { shipments } from '../orders/shipment.schema';
 import { stores } from '../merchant/merchant.schema';
 import { carrierWebhookEvents, carrierCredentials, shipmentLabels } from './shipping.schema';
 import { resolveShipmentForCredential } from './carrier-webhook-routing';
-import { generateIdempotencyKey, CarrierCreateStatus, CreateShipmentRequest, CancelPickupRequest } from './shipping.types';
-import { classifyCarrierError, NonRetryableCarrierError, RetryableCarrierError } from './carrier-errors';
+import {
+  generateIdempotencyKey,
+  CarrierCreateStatus,
+  CreateShipmentRequest,
+  CancelPickupRequest,
+} from './shipping.types';
+import {
+  classifyCarrierError,
+  NonRetryableCarrierError,
+  RetryableCarrierError,
+} from './carrier-errors';
 import { carrierEndpointAllowlistRegistry } from './ssrf-protection';
 import { CarrierObservabilityService } from './carrier-observability';
 import { CarrierEmailResolver } from './carrier-email-resolver';
@@ -154,9 +163,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         .returning({ id: outboxEvents.id });
 
       if (recovered.length > 0) {
-        this.logger.warn(
-          `Recovered ${recovered.length} stale lease (crashed worker events)`,
-        );
+        this.logger.warn(`Recovered ${recovered.length} stale lease (crashed worker events)`);
       }
     } catch (err: any) {
       this.logger.error(`Lease recovery error: ${err?.message}`);
@@ -257,7 +264,6 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           lockedBy: null,
         })
         .where(eq(outboxEvents.id, eventId));
-
     } catch (err: any) {
       await this.handleFailure(eventId, event, err);
     }
@@ -277,10 +283,10 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     const eventStoreId = event.storeId || event.metadata?.storeId;
     const providerKey = shipment.shippingProviderKey || 'unknown';
     if (eventStoreId && eventStoreId !== shipment.storeId) {
-      throw new NonRetryableCarrierError(
-        'Carrier outbox event store does not match its shipment',
-        { providerKey, operation: 'validateTenant' },
-      );
+      throw new NonRetryableCarrierError('Carrier outbox event store does not match its shipment', {
+        providerKey,
+        operation: 'validateTenant',
+      });
     }
 
     const store = await this.db.db.query.stores.findFirst({
@@ -288,10 +294,10 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       columns: { orgId: true },
     });
     if (!store?.orgId) {
-      throw new NonRetryableCarrierError(
-        'Carrier shipment has no valid owning organization',
-        { providerKey, operation: 'validateTenant' },
-      );
+      throw new NonRetryableCarrierError('Carrier shipment has no valid owning organization', {
+        providerKey,
+        operation: 'validateTenant',
+      });
     }
 
     const eventOrgId = event.organizationId || event.metadata?.organizationId;
@@ -402,13 +408,19 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         recipientName: deliveryAddr?.['recipientName'] as string | undefined,
       },
       serviceType: undefined,
-      weightGrams: typeof deliveryAddr?.['weightGrams'] === 'number'
-        ? deliveryAddr['weightGrams'] as number : undefined,
+      weightGrams:
+        typeof deliveryAddr?.['weightGrams'] === 'number'
+          ? (deliveryAddr['weightGrams'] as number)
+          : undefined,
       currency: (deliveryAddr?.['currency'] as string) || undefined,
-      codAmountMinor: typeof deliveryAddr?.['codAmountMinor'] === 'number'
-        ? deliveryAddr['codAmountMinor'] as number : undefined,
-      declaredValueMinor: typeof deliveryAddr?.['declaredValueMinor'] === 'number'
-        ? deliveryAddr['declaredValueMinor'] as number : undefined,
+      codAmountMinor:
+        typeof deliveryAddr?.['codAmountMinor'] === 'number'
+          ? (deliveryAddr['codAmountMinor'] as number)
+          : undefined,
+      declaredValueMinor:
+        typeof deliveryAddr?.['declaredValueMinor'] === 'number'
+          ? (deliveryAddr['declaredValueMinor'] as number)
+          : undefined,
       idempotencyKey: shipment.idempotencyKey || generateIdempotencyKey(shipmentId),
       consigneeEmail,
       metadata: shipment.metadata as Record<string, unknown>,
@@ -439,9 +451,8 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
       this.logger.log(
         `Shipment ${shipmentId} — carrier creation SUCCESS ` +
-        `(carrier ID: ${result.carrierShipmentId || 'none'})`,
+          `(carrier ID: ${result.carrierShipmentId || 'none'})`,
       );
-
     } catch (err: any) {
       // Record failure in circuit breaker
       this.circuitBreaker.recordFailure(cbScope);
@@ -646,9 +657,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
             updatedAt: new Date(),
           })
           .where(eq(shipments.id, shipmentId));
-        this.logger.log(
-          `Shipment ${shipmentId} — cancelPickup unsupported → NOT_REQUIRED.`,
-        );
+        this.logger.log(`Shipment ${shipmentId} — cancelPickup unsupported → NOT_REQUIRED.`);
         return;
       }
 
@@ -685,9 +694,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         .where(eq(shipments.id, shipmentId));
 
       this.circuitBreaker.recordFailure(cbScope);
-      this.logger.warn(
-        `Shipment ${shipmentId} — carrier cancel FAILED: ${result.reason}`,
-      );
+      this.logger.warn(`Shipment ${shipmentId} — carrier cancel FAILED: ${result.reason}`);
     } catch (err: any) {
       this.circuitBreaker.recordFailure(cbScope);
       const classification = classifyCarrierError(err);
@@ -721,7 +728,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           .where(eq(shipments.id, shipmentId));
         this.logger.warn(
           `Shipment ${shipmentId} — indeterminate cancel (${recoveryToken}), ` +
-          `marked UNKNOWN. Reconciliation scheduled.`,
+            `marked UNKNOWN. Reconciliation scheduled.`,
         );
         return;
       }
@@ -766,7 +773,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
       this.logger.warn(
         `Shipment ${shipmentId} — cancel retryable error (${classification.decision}), ` +
-        `retries: ${(shipment.carrierCancelRetries || 0) + 1}. Re-throwing for outbox retry.`,
+          `retries: ${(shipment.carrierCancelRetries || 0) + 1}. Re-throwing for outbox retry.`,
       );
       throw err;
     }
@@ -784,7 +791,10 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         { providerKey: 'unknown', operation: 'generateLabel' },
       );
     }
-    if (!eventId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(eventId)) {
+    if (
+      !eventId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(eventId)
+    ) {
       throw new NonRetryableCarrierError(
         'shipping.carrier.label requires a UUID outbox event id for idempotent persistence',
         { providerKey: 'unknown', operation: 'generateLabel' },
@@ -795,10 +805,10 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       where: eq(shipments.id, shipmentId),
     });
     if (!shipment) {
-      throw new NonRetryableCarrierError(
-        `Shipment ${shipmentId} not found`,
-        { providerKey: 'unknown', operation: 'generateLabel' },
-      );
+      throw new NonRetryableCarrierError(`Shipment ${shipmentId} not found`, {
+        providerKey: 'unknown',
+        operation: 'generateLabel',
+      });
     }
     await this.assertOutboxTenantMatchesShipment(event, shipment);
 
@@ -842,10 +852,10 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     try {
       labelUrl = new URL(result.labelData);
     } catch {
-      throw new NonRetryableCarrierError(
-        'Carrier label URL is invalid',
-        { providerKey, operation: 'downloadLabel' },
-      );
+      throw new NonRetryableCarrierError('Carrier label URL is invalid', {
+        providerKey,
+        operation: 'downloadLabel',
+      });
     }
     if (labelUrl.username || labelUrl.password) {
       throw new NonRetryableCarrierError(
@@ -861,10 +871,10 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     if (!validation.valid) {
       // Never include the provider URL or validator reason in logs/errors: a
       // temporary label URL may contain a signed query token.
-      throw new NonRetryableCarrierError(
-        'Carrier label URL failed SSRF validation',
-        { providerKey, operation: 'downloadLabel' },
-      );
+      throw new NonRetryableCarrierError('Carrier label URL failed SSRF validation', {
+        providerKey,
+        operation: 'downloadLabel',
+      });
     }
 
     const maxLabelBytes = 10 * 1024 * 1024;
@@ -880,14 +890,22 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       });
 
       if (response.status === 429 || response.status >= 500) {
-        try { await response.body?.cancel(); } catch { /* Ignore response cleanup errors. */ }
-        throw new RetryableCarrierError(
-          `Carrier label download returned HTTP ${response.status}`,
-          { providerKey, operation: 'downloadLabel' },
-        );
+        try {
+          await response.body?.cancel();
+        } catch {
+          /* Ignore response cleanup errors. */
+        }
+        throw new RetryableCarrierError(`Carrier label download returned HTTP ${response.status}`, {
+          providerKey,
+          operation: 'downloadLabel',
+        });
       }
       if (!response.ok) {
-        try { await response.body?.cancel(); } catch { /* Ignore response cleanup errors. */ }
+        try {
+          await response.body?.cancel();
+        } catch {
+          /* Ignore response cleanup errors. */
+        }
         throw new NonRetryableCarrierError(
           `Carrier label download returned HTTP ${response.status}`,
           { providerKey, operation: 'downloadLabel' },
@@ -898,26 +916,34 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         .trim()
         .toLowerCase();
       if (!['application/pdf', 'application/octet-stream'].includes(contentType)) {
-        try { await response.body?.cancel(); } catch { /* Ignore response cleanup errors. */ }
-        throw new NonRetryableCarrierError(
-          'Carrier label response is not a PDF document',
-          { providerKey, operation: 'downloadLabel' },
-        );
+        try {
+          await response.body?.cancel();
+        } catch {
+          /* Ignore response cleanup errors. */
+        }
+        throw new NonRetryableCarrierError('Carrier label response is not a PDF document', {
+          providerKey,
+          operation: 'downloadLabel',
+        });
       }
 
       const declaredLength = Number(response.headers.get('content-length') || 0);
       if (declaredLength > maxLabelBytes) {
-        try { await response.body?.cancel(); } catch { /* Ignore response cleanup errors. */ }
-        throw new NonRetryableCarrierError(
-          'Carrier label exceeds the 10 MiB size limit',
-          { providerKey, operation: 'downloadLabel' },
-        );
+        try {
+          await response.body?.cancel();
+        } catch {
+          /* Ignore response cleanup errors. */
+        }
+        throw new NonRetryableCarrierError('Carrier label exceeds the 10 MiB size limit', {
+          providerKey,
+          operation: 'downloadLabel',
+        });
       }
       if (!response.body) {
-        throw new NonRetryableCarrierError(
-          'Carrier label response has no body',
-          { providerKey, operation: 'downloadLabel' },
-        );
+        throw new NonRetryableCarrierError('Carrier label response has no body', {
+          providerKey,
+          operation: 'downloadLabel',
+        });
       }
 
       const reader = response.body.getReader();
@@ -929,11 +955,15 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           if (chunk.done) break;
           totalBytes += chunk.value.byteLength;
           if (totalBytes > maxLabelBytes) {
-            try { await reader.cancel(); } catch { /* Preserve the size-limit error. */ }
-            throw new NonRetryableCarrierError(
-              'Carrier label exceeds the 10 MiB size limit',
-              { providerKey, operation: 'downloadLabel' },
-            );
+            try {
+              await reader.cancel();
+            } catch {
+              /* Preserve the size-limit error. */
+            }
+            throw new NonRetryableCarrierError('Carrier label exceeds the 10 MiB size limit', {
+              providerKey,
+              operation: 'downloadLabel',
+            });
           }
           chunks.push(chunk.value);
         }
@@ -941,7 +971,10 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         reader.releaseLock();
       }
 
-      pdf = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), totalBytes);
+      pdf = Buffer.concat(
+        chunks.map((chunk) => Buffer.from(chunk)),
+        totalBytes,
+      );
       if (pdf.length < 5 || pdf.subarray(0, 5).toString('ascii') !== '%PDF-') {
         throw new NonRetryableCarrierError(
           'Carrier label payload does not have a valid PDF signature',
@@ -953,15 +986,15 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         throw error;
       }
       if (controller.signal.aborted) {
-        throw new RetryableCarrierError(
-          'Carrier label download timed out',
-          { providerKey, operation: 'downloadLabel' },
-        );
+        throw new RetryableCarrierError('Carrier label download timed out', {
+          providerKey,
+          operation: 'downloadLabel',
+        });
       }
-      throw new RetryableCarrierError(
-        'Carrier label download failed',
-        { providerKey, operation: 'downloadLabel' },
-      );
+      throw new RetryableCarrierError('Carrier label download failed', {
+        providerKey,
+        operation: 'downloadLabel',
+      });
     } finally {
       // Keep the timeout active through response-body streaming, not just headers.
       clearTimeout(timeout);
@@ -969,41 +1002,48 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
     const bucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
     const storageKey = `shipping-labels/${shipmentId}/${eventId}.pdf`;
-    await this.storage.putObject({
-      bucket,
-      key: storageKey,
-      body: pdf,
-      contentType: 'application/pdf',
-      metadata: { 'shipment-id': shipmentId, 'provider-key': providerKey, 'outbox-event-id': eventId },
-    }).catch(() => {
-      throw new RetryableCarrierError(
-        'Could not persist carrier label object to storage',
-        { providerKey, operation: 'persistLabel' },
-      );
-    });
+    await this.storage
+      .putObject({
+        bucket,
+        key: storageKey,
+        body: pdf,
+        contentType: 'application/pdf',
+        metadata: {
+          'shipment-id': shipmentId,
+          'provider-key': providerKey,
+          'outbox-event-id': eventId,
+        },
+      })
+      .catch(() => {
+        throw new RetryableCarrierError('Could not persist carrier label object to storage', {
+          providerKey,
+          operation: 'persistLabel',
+        });
+      });
 
-    await this.db.db.insert(shipmentLabels).values({
-      id: eventId,
-      shipmentId,
-      labelNumber: shipment.carrierShipmentId?.slice(0, 120) || null,
-      storageKey,
-      mimeType: 'application/pdf',
-      sizeBytes: pdf.length,
-      trackingUrl: null,
-      isVoid: false,
-      providerKey,
-      labelType: 'SHIPPING',
-      createdAt: new Date(),
-    }).catch(() => {
-      throw new RetryableCarrierError(
-        'Could not persist carrier label metadata',
-        { providerKey, operation: 'persistLabel' },
-      );
-    });
+    await this.db.db
+      .insert(shipmentLabels)
+      .values({
+        id: eventId,
+        shipmentId,
+        labelNumber: shipment.carrierShipmentId?.slice(0, 120) || null,
+        storageKey,
+        mimeType: 'application/pdf',
+        sizeBytes: pdf.length,
+        trackingUrl: null,
+        isVoid: false,
+        providerKey,
+        labelType: 'SHIPPING',
+        createdAt: new Date(),
+      })
+      .catch(() => {
+        throw new RetryableCarrierError('Could not persist carrier label metadata', {
+          providerKey,
+          operation: 'persistLabel',
+        });
+      });
 
-    this.logger.log(
-      `Persisted carrier PDF label for shipment ${shipmentId} (${pdf.length} bytes)`,
-    );
+    this.logger.log(`Persisted carrier PDF label for shipment ${shipmentId} (${pdf.length} bytes)`);
   }
 
   /**
@@ -1040,7 +1080,10 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      const trackingInfo = await provider.getTrackingInfo(shipment.carrierTrackingId, shipment.storeId);
+      const trackingInfo = await provider.getTrackingInfo(
+        shipment.carrierTrackingId,
+        shipment.storeId,
+      );
       this.circuitBreaker.recordSuccess(cbScope);
 
       if (trackingInfo) {
@@ -1053,9 +1096,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           })
           .where(eq(shipments.id, shipmentId));
 
-        this.logger.log(
-          `Shipment ${shipmentId} tracking updated: ${trackingInfo.status}`,
-        );
+        this.logger.log(`Shipment ${shipmentId} tracking updated: ${trackingInfo.status}`);
       }
     } catch (err: any) {
       this.circuitBreaker.recordFailure(cbScope);
@@ -1082,7 +1123,8 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
    */
   private async handleWebhookRetry(event: any): Promise<void> {
     const webhookEventId = event.aggregateId;
-    if (!webhookEventId) throw new Error('shipping.carrier.webhook.retry requires aggregateId (webhookEventId)');
+    if (!webhookEventId)
+      throw new Error('shipping.carrier.webhook.retry requires aggregateId (webhookEventId)');
 
     // 1. Load the original webhook event
     const webhookEvent = await this.db.db.query.carrierWebhookEvents.findFirst({
@@ -1096,15 +1138,13 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
     // 2. Idempotent guard: already processed → no-op
     if (webhookEvent.processed) {
-      this.logger.log(
-        `Webhook retry: event ${webhookEventId} already processed — skipping.`,
-      );
+      this.logger.log(`Webhook retry: event ${webhookEventId} already processed — skipping.`);
       return;
     }
 
     this.logger.log(
       `Webhook retry: re-processing event ${webhookEventId} ` +
-      `(provider: ${webhookEvent.providerKey}, external: ${webhookEvent.externalDeliveryId})`,
+        `(provider: ${webhookEvent.providerKey}, external: ${webhookEvent.externalDeliveryId})`,
     );
 
     // 3. Re-attempt shipment linkage using the exact credential that
@@ -1193,7 +1233,10 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         })
         .where(eq(carrierWebhookEvents.id, webhookEventId));
 
-      this.observability.incrementCounter('carrier_webhook_failures_total', webhookEvent.providerKey);
+      this.observability.incrementCounter(
+        'carrier_webhook_failures_total',
+        webhookEvent.providerKey,
+      );
       this.logger.error(`Webhook retry: event ${webhookEventId} failed: ${safeMessage}`);
       throw processingErr;
     }
@@ -1233,7 +1276,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
     this.logger.error(
       `Carrier event ${event.eventType} failed (attempt ${attempts}): ` +
-      `${classification.safeMessage} → ${newStatus}`,
+        `${classification.safeMessage} → ${newStatus}`,
     );
   }
 

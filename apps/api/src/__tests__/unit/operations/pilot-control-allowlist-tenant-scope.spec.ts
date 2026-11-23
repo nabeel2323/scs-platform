@@ -41,7 +41,15 @@ describe('PilotControlService allowlist tenant consistency', () => {
     const storeFindFirst = vi.fn();
     const insert = vi.fn();
     const service = new PilotControlService(
-      { db: { query: { organizations: { findFirst: orgFindFirst }, stores: { findFirst: storeFindFirst } }, insert } } as any,
+      {
+        db: {
+          query: {
+            organizations: { findFirst: orgFindFirst },
+            stores: { findFirst: storeFindFirst },
+          },
+          insert,
+        },
+      } as any,
       {} as any,
       {} as any,
     );

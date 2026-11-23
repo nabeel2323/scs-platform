@@ -138,7 +138,9 @@ export async function joinOrganization(code: string): Promise<Organization> {
   return res.json();
 }
 
-export async function fetchMyOrganizations(): Promise<(Organization & { membershipStatus: string })[]> {
+export async function fetchMyOrganizations(): Promise<
+  (Organization & { membershipStatus: string })[]
+> {
   const res = await authFetch(`${API_URL}/v1/me/organizations`);
   if (!res.ok) throw new Error(`Failed to fetch organizations: ${res.status}`);
   return res.json();
@@ -178,7 +180,11 @@ export async function fetchOrgMembers(orgId: string): Promise<OrgMember[]> {
   return res.json();
 }
 
-export async function addOrgMember(orgId: string, userId: string, roleId: string): Promise<unknown> {
+export async function addOrgMember(
+  orgId: string,
+  userId: string,
+  roleId: string,
+): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/organizations/${orgId}/members`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -204,7 +210,9 @@ export interface UserLookupResult {
 }
 
 export async function lookupOrgMember(orgId: string, query: string): Promise<UserLookupResult[]> {
-  const res = await authFetch(`${API_URL}/v1/organizations/${orgId}/member-lookup?q=${encodeURIComponent(query)}`);
+  const res = await authFetch(
+    `${API_URL}/v1/organizations/${orgId}/member-lookup?q=${encodeURIComponent(query)}`,
+  );
   if (!res.ok) throw new Error(`Failed to lookup user: ${res.status}`);
   return res.json();
 }
@@ -265,12 +273,15 @@ export async function updateStore(id: string, input: Record<string, unknown>): P
 
 // ── Warehouses ───────────────────────────────────────────────
 
-export async function createWarehouse(storeId: string, input: {
-  name: string;
-  address?: Record<string, unknown>;
-  managerName?: string;
-  managerPhone?: string;
-}): Promise<Warehouse> {
+export async function createWarehouse(
+  storeId: string,
+  input: {
+    name: string;
+    address?: Record<string, unknown>;
+    managerName?: string;
+    managerPhone?: string;
+  },
+): Promise<Warehouse> {
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/warehouses`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -405,7 +416,12 @@ export async function fetchWarehouses(storeId: string): Promise<Warehouse[]> {
 
 export async function updateWarehouse(
   id: string,
-  data: { name?: string; address?: Record<string, string>; managerName?: string; managerPhone?: string },
+  data: {
+    name?: string;
+    address?: Record<string, string>;
+    managerName?: string;
+    managerPhone?: string;
+  },
 ): Promise<Warehouse> {
   const res = await authFetch(`${API_URL}/v1/warehouses/${id}`, {
     method: 'PATCH',
@@ -433,7 +449,9 @@ export interface CatalogRequest {
 }
 
 export async function fetchMerchantRequests(storeId: string): Promise<CatalogRequest[]> {
-  const res = await authFetch(`${API_URL}/v1/merchant/requests?storeId=${encodeURIComponent(storeId)}`);
+  const res = await authFetch(
+    `${API_URL}/v1/merchant/requests?storeId=${encodeURIComponent(storeId)}`,
+  );
   if (!res.ok) throw new Error(`Failed to fetch catalog requests: ${res.status}`);
   return res.json();
 }
@@ -471,13 +489,19 @@ export async function fetchStoreMembers(storeId: string): Promise<StoreMember[]>
   return res.json();
 }
 
-export async function fetchEligibleMembers(storeId: string): Promise<Array<{ id: string; email: string | null; fullName: string }>> {
+export async function fetchEligibleMembers(
+  storeId: string,
+): Promise<Array<{ id: string; email: string | null; fullName: string }>> {
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members/eligible`);
   if (!res.ok) throw new Error(`Failed to fetch eligible users: ${res.status}`);
   return res.json();
 }
 
-export async function addStoreMember(storeId: string, userId: string, role: string): Promise<StoreMember> {
+export async function addStoreMember(
+  storeId: string,
+  userId: string,
+  role: string,
+): Promise<StoreMember> {
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -491,14 +515,20 @@ export async function addStoreMember(storeId: string, userId: string, role: stri
 }
 
 export async function removeStoreMember(storeId: string, userId: string): Promise<void> {
-  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members/${userId}`, { method: 'DELETE' });
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members/${userId}`, {
+    method: 'DELETE',
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.message || `Failed to remove member: ${res.status}`);
   }
 }
 
-export async function changeMemberRole(storeId: string, userId: string, role: string): Promise<void> {
+export async function changeMemberRole(
+  storeId: string,
+  userId: string,
+  role: string,
+): Promise<void> {
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members/${userId}/role`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -511,7 +541,9 @@ export async function changeMemberRole(storeId: string, userId: string, role: st
 }
 
 export async function activateMember(storeId: string, userId: string): Promise<void> {
-  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members/${userId}/activate`, { method: 'PATCH' });
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members/${userId}/activate`, {
+    method: 'PATCH',
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.message || `Failed to activate member: ${res.status}`);
@@ -519,7 +551,9 @@ export async function activateMember(storeId: string, userId: string): Promise<v
 }
 
 export async function deactivateMember(storeId: string, userId: string): Promise<void> {
-  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members/${userId}/deactivate`, { method: 'PATCH' });
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members/${userId}/deactivate`, {
+    method: 'PATCH',
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.message || `Failed to deactivate member: ${res.status}`);

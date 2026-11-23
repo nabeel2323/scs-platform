@@ -1,11 +1,19 @@
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards } from '@nestjs/common';
 import {
-  Controller, Get, Post, Patch,
-  Param, Body, Query, UseGuards,
-} from '@nestjs/common';
-import { InventoryService, AdjustStockInput, ReserveStockInput, UpdateInventoryInput, CreateInventoryItemInput, TransferStockInput } from './inventory.service';
+  InventoryService,
+  AdjustStockInput,
+  ReserveStockInput,
+  UpdateInventoryInput,
+  CreateInventoryItemInput,
+  TransferStockInput,
+} from './inventory.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
+import {
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
+} from '../../common/guards/current-user.decorator';
 
 @Controller()
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -16,28 +24,19 @@ export class InventoryController {
 
   @Get('stores/:storeId/inventory/export')
   @RequirePermission('merchant:inventory:read')
-  async exportInventory(
-    @Param('storeId') storeId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async exportInventory(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     return this.inventoryService.exportInventoryCsv(storeId, user);
   }
 
   @Get('stores/:storeId/inventory/movements/export')
   @RequirePermission('merchant:inventory:read')
-  async exportMovements(
-    @Param('storeId') storeId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async exportMovements(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     return this.inventoryService.exportMovementsCsv(storeId, user);
   }
 
   @Post('stores/:storeId/inventory/check-low-stock')
   @RequirePermission('merchant:inventory:write')
-  async checkLowStock(
-    @Param('storeId') storeId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async checkLowStock(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     return this.inventoryService.checkAndNotifyLowStock(storeId, user);
   }
 
@@ -58,10 +57,7 @@ export class InventoryController {
 
   @Post('inventory')
   @RequirePermission('merchant:inventory:write')
-  async createItem(
-    @CurrentUser() user: JwtPayload,
-    @Body() input: CreateInventoryItemInput,
-  ) {
+  async createItem(@CurrentUser() user: JwtPayload, @Body() input: CreateInventoryItemInput) {
     return this.inventoryService.createItem({ ...input, userId: user.sub }, user);
   }
 
@@ -77,16 +73,16 @@ export class InventoryController {
 
   @Post('inventory/transfer')
   @RequirePermission('merchant:inventory:write')
-  async transferStock(
-    @CurrentUser() user: JwtPayload,
-    @Body() input: TransferStockInput,
-  ) {
+  async transferStock(@CurrentUser() user: JwtPayload, @Body() input: TransferStockInput) {
     return this.inventoryService.transferStock({ ...input, userId: user.sub }, user);
   }
 
   @Get('inventory/warehouse/:warehouseId')
   @RequirePermission('merchant:inventory:read')
-  async listByWarehouse(@CurrentUser() user: JwtPayload, @Param('warehouseId') warehouseId: string) {
+  async listByWarehouse(
+    @CurrentUser() user: JwtPayload,
+    @Param('warehouseId') warehouseId: string,
+  ) {
     return this.inventoryService.listByWarehouse(warehouseId, user);
   }
 
@@ -114,38 +110,38 @@ export class InventoryController {
 
   @Post('inventory/adjust')
   @RequirePermission('merchant:inventory:write')
-  async adjustStock(
-    @CurrentUser() user: JwtPayload,
-    @Body() input: AdjustStockInput,
-  ) {
-    return this.inventoryService.adjustStock({
-      ...input,
-      userId: user.sub,
-    }, user);
+  async adjustStock(@CurrentUser() user: JwtPayload, @Body() input: AdjustStockInput) {
+    return this.inventoryService.adjustStock(
+      {
+        ...input,
+        userId: user.sub,
+      },
+      user,
+    );
   }
 
   @Post('inventory/reserve')
   @RequirePermission('merchant:inventory:write')
-  async reserveStock(
-    @CurrentUser() user: JwtPayload,
-    @Body() input: ReserveStockInput,
-  ) {
-    return this.inventoryService.reserveStock({
-      ...input,
-      userId: user.sub,
-    }, user);
+  async reserveStock(@CurrentUser() user: JwtPayload, @Body() input: ReserveStockInput) {
+    return this.inventoryService.reserveStock(
+      {
+        ...input,
+        userId: user.sub,
+      },
+      user,
+    );
   }
 
   @Post('inventory/release')
   @RequirePermission('merchant:inventory:write')
-  async releaseStock(
-    @CurrentUser() user: JwtPayload,
-    @Body() input: ReserveStockInput,
-  ) {
-    return this.inventoryService.releaseStock({
-      ...input,
-      userId: user.sub,
-    }, user);
+  async releaseStock(@CurrentUser() user: JwtPayload, @Body() input: ReserveStockInput) {
+    return this.inventoryService.releaseStock(
+      {
+        ...input,
+        userId: user.sub,
+      },
+      user,
+    );
   }
 
   @Get('inventory/:id/movements')
