@@ -59,6 +59,7 @@
  *   FIN-DSH-55  Privileged return transitions preserve ADMIN actor attribution
  *   FIN-DSH-56  Return refund caps include APPROVED and large BIGINT totals
  *   FIN-DSH-57  Admin settlement calculation records ADMIN actor attribution
+ *   FIN-DSH-58  Reconciliation period follows refund completion event, not return creation
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -2707,6 +2708,54 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [orderId],
     );
     expect(event.rows[0]).toEqual({ actor_id: adminA, actor_type: 'ADMIN' });
+  }, 90_000);
+
+
+  it('FIN-DSH-58: reconciliation includes returns completed in-period even when created earlier', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const pendingReturn = await advanceReturnToRefundPending(
+      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+    );
+    const completedEventId = randomUUID();
+
+    // The customer opened this return in an earlier accounting period, but
+    // the refund completion transition happened in the current period.
+    await pool.query(
+      `UPDATE refunds SET status = 'FAILED' WHERE id = $1`,
+      [pendingReturn.refundId],
+    );
+    await pool.query(
+      `UPDATE return_requests
+       SET status = 'REFUNDED',
+           responsibility_category = 'MERCHANT',
+           created_at = now() - interval '2 days',
+           updated_at = now()
+       WHERE id = $1`,
+      [pendingReturn.id],
+    );
+    await pool.query(
+      `INSERT INTO return_request_events
+       (id, return_request_id, event_type, from_status, to_status, actor_id, actor_type, notes, created_at)
+       VALUES ($1, $2, 'REFUNDED', 'REFUND_PENDING', 'REFUNDED', NULL, 'SYSTEM',
+               'Backdated return creation; refund completed in this period', now())`,
+      [completedEventId, pendingReturn.id],
+    );
+
+    const period = new Date().toISOString().slice(0, 10);
+    const run = await reconciliationService.executeReconciliation(
+      period, period, 'SYP', adminA, orgA,
+    );
+    const rows = await pool.query(
+      `SELECT discrepancy_type, source_ref
+       FROM reconciliation_discrepancies
+       WHERE run_id = $1 AND source_ref LIKE $2`,
+      [run.runId, `return:${pendingReturn.id}%`],
+    );
+    const types = rows.rows.map((row: any) => row.discrepancy_type);
+    expect(types).toContain('REFUND_STATUS_MISMATCH');
+    expect(types).toContain('MISSING_COMMISSION_REVERSAL');
   }, 90_000);
 
 });
