@@ -28,7 +28,7 @@ vi.mock('../hooks/useRequirePerms', () => ({
 }));
 vi.mock('../components/product-type-builder', () => ({
   AttributeTree: ({ allAttributes, onAdd }: { allAttributes: { id: string }[]; onAdd: (id: string) => void }) => (
-    <button type="button" onClick={() => onAdd(allAttributes[0]?.id)}>Add test attribute</button>
+    <button type="button" onClick={() => { const first = allAttributes[0]; if (first) onAdd(first.id); }}>Add test attribute</button>
   ),
   AttributeConfigPanel: () => null,
   VariantDimensionSelector: () => null,
