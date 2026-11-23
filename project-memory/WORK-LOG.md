@@ -1093,3 +1093,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Status: IMPLEMENTED / TESTING_PENDING, not automated-test or CI verified. No backend permission grants, financial transition logic, schema, migration, database, staging, worker or deployment behavior changed.
 
 **Next:** continue the remaining Admin custom route/action-to-controller mapping, including any direct custom mutation handlers outside `useAdminMutation`. Do not repeat the completed 56-page route audit or UX-097–UX-099. Comprehensive formatting and test execution remain grouped in Phase 3.
+
+
+### Admin custom action mapping audit conclusion — 23 November 2026
+
+- Completed the source-level pass over direct custom mutation handlers for payments/refunds, calendar holidays, reconciliation, settlement adjustments, settlements, role permission updates, return resolution, order cancellation, verification review/organization status and product moderation.
+- The reviewed UI permission predicates align with API controller decorators. The shared `useAdminMutation` call sites reviewed in `EntityActions.tsx`, Carrier Recovery and Shipment Detail pass action-specific permission predicates or per-call overrides.
+- No additional permission-key mismatch was found in this inspected slice. The one UI workflow omission—the settlement-adjustment Reject action—was implemented in UX-100.
+- Focused UX-100 tests remain unexecuted. No API grants, backend authorization, schema, migration, database, staging, worker or deployment behavior changed.
+
+**Next:** proceed with the remaining Admin operational UX/source audit beyond permission mapping; keep comprehensive formatting and test execution grouped in Phase 3.
