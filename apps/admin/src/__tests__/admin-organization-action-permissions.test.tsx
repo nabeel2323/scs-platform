@@ -91,7 +91,7 @@ describe('Organization management action permission rechecks', () => {
 
     mocks.perms = [READ];
     rerender(<OrganizationsPage />);
-    fireEvent.click(screen.getByRole('button', { name: 'Deactivate', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: /^Deactivate$/ }));
 
     await waitFor(() => expect(mocks.deactivateAdminOrganization).not.toHaveBeenCalled());
   });
