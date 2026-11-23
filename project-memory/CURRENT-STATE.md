@@ -4,7 +4,7 @@
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
 **Latest source/test implementation commit:** `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` — FIN-013 expiry/order race regression and test portability; FIN-DSH-11–28 added but not executed.
-**Latest source/test checkpoint:** `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` (FIN-013 and integration test portability); uses `[skip ci]` and is not exact-head CI-verified.  
+**Latest source/test checkpoint:** `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` (FIN-013 and integration test portability). CI #1434 on this exact SHA passed lint/typecheck and Flutter analysis/tests; changed-file Prettier failed and dependent Web/Admin/API/PostgreSQL/migration/build/release jobs were skipped.  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -20,12 +20,12 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
 | Latest implementation checkpoint head | `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` (FIN-013 test update; FIN-DSH-11–28 added, not executed) |
-| Latest implementation/test | UX-100–105 Admin workflow/action/read-gate improvements, FIN-001 refund concurrency/idempotency, FIN-002 settlement idempotency/confirmed-funds guard and FIN-003 minor-unit amount validation. FIN-DSH-11–16 added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
+| Latest implementation/test | FIN-004–FIN-013 financial lifecycle, payment projection, refund idempotency, dispute concurrency, settlement-adjustment, missing-breakdown and expiry-race improvements. FIN-DSH-11–28 added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for FIN-003 source/test head `f554617c592ff57db296e0ca88614ac246468194`; latest Actions run #1425 tested earlier docs head `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint and Flutter passed, typecheck failed; formatting and dependent Web/Admin/API/PostgreSQL/migration/build jobs skipped |
+| Exact-head GitHub Actions | CI #1434 [run](https://github.com/nabeel2323/scs-platform/actions/runs/45165552569) tested `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231`: lint/typecheck and Flutter analysis/tests passed; changed-file Prettier failed; dependent Web/Admin/API/PostgreSQL/migration/build/release jobs skipped. FIN-DSH-11–28 remain unexecuted. |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest live PR head before this memory refresh | `f18f7449ad93a964e37c1a7b971f979677036f8b` — documentation-only FIN-003 source/test synchronization; no Actions run expected |
+| Latest live PR head before this memory refresh | `1ebc2ed9bc63795d4d9ea4e24f348feed5ee74aa` — live head re-fetched at this synchronization |
 | Latest inspected preview status | Admin FAILURE due external deployment rate limit; not an application test result |
 | Focused client tests | Admin UX-030–058 and UX-097–099, Mobile UX-078–096 and Web UX-095 focused tests added/updated; not executed (Flutter suite passed only on earlier SHA `a76b0be`) |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
