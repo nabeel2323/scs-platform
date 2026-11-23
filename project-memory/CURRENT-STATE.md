@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `eaf65eaf80eb8144f2a6fc23215c0886f118685b` — remount merchant route subtree on active organization/permission changes. Web source increments also include merchant route/action permission alignment, request-version-protected store/order/catalog reads, and server-side G-036 realtime room authorization (`a9df4861518e8c4269bad9dab3ccba5b7dac1be7`, `7010a0ea0aaba746a80286a0c1e3ca62ce281093`, `eaf65eaf80eb8144f2a6fc23215c0886f118685b`). Latest focused test commits: Web route matrix `7fce2ef1f49745410d579d8bd5be98cb7d3aee28`; API realtime room authorization `df1964a1e1aa962cb1aad5fda1107b160966c3b1`. Latest completed client slices: UX-094 Mobile category permission alignment and UX-095 Web merchant route/action permission alignment.  
-**Latest live branch head:** `89561501099a75f02d344eef97a373d861413c5a` (documentation comment after the implementation batch).  
+**Latest source implementation commit:** `84d7f4d713902819b21b89a12074986b17781c48` — Mobile catalog directory shortcuts now use read permissions; the Mobile permission/org-context batch also corrects offers read/create and driver assignment grants. Web source increments also include merchant route/action permission alignment, request-version-protected store/order/catalog reads, and server-side G-036 realtime room authorization (`a9df4861518e8c4269bad9dab3ccba5b7dac1be7`, `7010a0ea0aaba746a80286a0c1e3ca62ce281093`, `eaf65eaf80eb8144f2a6fc23215c0886f118685b`). Latest focused test commits: Mobile route matrix `d803f2e8c3d606f152adf6ac67bee8c2e5f25073`; Mobile driver-assignment permission widget tests `2469711687cbdceb58d7091e3b958c5c1da60e91`; Web route matrix `7fce2ef1f49745410d579d8bd5be98cb7d3aee28`; API realtime room authorization `df1964a1e1aa962cb1aad5fda1107b160966c3b1`. Latest completed client slices: UX-094 Mobile category permission alignment and UX-095 Web merchant route/action permission alignment.  
+**Latest implementation checkpoint head:** `84d7f4d713902819b21b89a12074986b17781c48` (PR #138 head before this documentation synchronization).  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,14 +19,14 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest live branch head | `89561501099a75f02d344eef97a373d861413c5a` (PR #138 head; not CI-verified) |
-| Latest implementation/test | UX-095 Web merchant route/action alignment and G-036 realtime room authorization; focused tests added but not executed |
+| Latest implementation checkpoint head | `84d7f4d713902819b21b89a12074986b17781c48` (PR #138 head before docs sync; not CI-verified) |
+| Latest implementation/test | UX-095 Web merchant route/action alignment, UX-096 Mobile route/action/org-context alignment, and G-036 realtime room authorization; focused tests added but not executed |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No workflow run for exact head `89561501099a75f02d344eef97a373d861413c5a`; commits use `[skip ci]`; NOT CI-VERIFIED |
+| Exact-head GitHub Actions | No workflow run for exact head `84d7f4d713902819b21b89a12074986b17781c48`; commits use `[skip ci]`; NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest inspected Vercel contexts | At `89561501`: Vercel Web FAILURE and Admin FAILURE at the external build-rate-limit destination; not application test results |
-| Focused client tests | Admin UX-030–058, Mobile UX-078–094 and Web UX-095 focused tests added/updated; not executed |
+| Latest inspected Vercel contexts | At the latest implementation checkpoint: Vercel Web FAILURE and Admin FAILURE at the external build-rate-limit destination; not application test results |
+| Focused client tests | Admin UX-030–058, Mobile UX-078–096 and Web UX-095 focused tests added/updated; not executed |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
 ## Current remediation status
@@ -737,3 +737,13 @@ Merchant active-store and product reads now preserve last-successful data throug
 - G-036: Socket.IO store/order room joins are now authorized by permission and tenant ownership, buyer ownership, assigned-driver shipment or platform-staff read permission. Focused gateway tests are pending.
 - No shared database mutation, migration, grants/default-ACL change, RLS enablement, staging write, worker activation or deployment occurred.
 - **Next:** complete the Mobile route-permission and organization-context transition audit, then finish remaining Admin route/action permission mapping. Phase 3 remains the consolidated full test campaign.
+
+
+## Latest continuation checkpoint — 23 November 2026 (UX-096 Mobile permission/org context)
+
+- Implementation checkpoint head: `84d7f4d713902819b21b89a12074986b17781c48`; PR #138 is OPEN / DRAFT / UNMERGED to `develop`.
+- Mobile route/action alignment now distinguishes read-only offer browsing from offer creation, gates offer lifecycle controls, uses the API's `fulfillment:shipments:assign` grant for driver assignment, and shows Offers/Categories shortcuts using read permissions.
+- The Mobile merchant shell resets its selected tab and remounts tab content when active organization, role or permissions change; it hides the old workspace while the profile permission projection reloads. Existing organization switch flows update token, active-org state, provider caches and router refresh in the correct order.
+- Focused Mobile route and driver-assignment tests were added; they have not been executed. No GitHub Actions run exists for the exact implementation checkpoint; Vercel Web/Admin statuses remain external build-rate-limit failures.
+- G-036 and UX-095 remain as recorded above. No merge, deployment, staging operation, shared database change, migration, grant/default-ACL change, RLS enablement or worker activation occurred.
+- **Next:** finish the remaining Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
