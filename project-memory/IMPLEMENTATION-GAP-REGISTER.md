@@ -765,3 +765,14 @@ Source-confirmed gaps closed in implementation: product pull-to-refresh invalida
 - Source commits: `112cee3`, `94f86da`, `41fca82`; tests: `c0aa312`, `856d527`. Status: IMPLEMENTED / TESTING_PENDING, not test-verified or CI-verified. Existing API guards remain authoritative; no permission grants or API contracts changed.
 
 **Next:** continue remaining Admin custom route/action-to-controller mapping, avoiding repetition of the 56-page route audit and these UX-097 handlers. Comprehensive validation remains deferred to Phase 3.
+
+
+## UX-098 — Admin capability-aware navigation and Payments access — 23 November 2026
+
+- **Carrier & Recovery navigation:** the route accepts either `admin:carrier:read` or `admin:shipping:recovery`; the sidebar previously required only the former. Navigation now supports explicit all-of and any-of permission requirements, and Carrier & Recovery is visible to either authorized capability.
+- **Payments route:** the page already modeled separate read, payment-verification and refund-approval capabilities, but the page access gate/data loader omitted verification-only access. The route now admits a user with any one of `admin:payments:read`, `admin:payments:verify` or `admin:refunds:approve`; each tab/data read remains gated by its specific permission.
+- Added helper tests for all-of/any-of navigation rules and a page regression test for a verification-only payment operator. Tests have not been executed.
+- Source commits: `07ff19c`, `f303153`, `14214f0`; focused tests: `d504ace`, `89624f6`.
+- Status: IMPLEMENTED / TESTING_PENDING. No API permission grants, RBAC seed, controller decorators, database or migration changes.
+
+**Next:** continue remaining Admin custom route/action-to-controller mapping. Do not repeat the 56-page route audit or UX-097/098 changes. Full verification remains deferred to Phase 3.
