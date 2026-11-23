@@ -142,8 +142,8 @@ export function BrandEditor({ record, onDone, onCancel }: { record?: AdminRecord
   const [logoUrl, setLogoUrl] = useState(String(record?.['logoUrl'] || ''));
   const [description, setDescription] = useState(String(record?.['description'] || ''));
   const [isActive, setActive] = useState(record?.['isActive'] !== false);
-  const action = useAdminMutation(onDone, () => hasAccess);
   const { hasAccess } = useRequirePerms(['catalog:brands:manage']);
+  const action = useAdminMutation(onDone, () => hasAccess);
   if (!hasAccess) return null;
   return <form onSubmit={event => {
     event.preventDefault(); if (!hasAccess || action.busy || !name.trim()) return;
