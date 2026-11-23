@@ -3,8 +3,8 @@
 **Checkpoint:** 23 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source/test checkpoint before this documentation sync:** `6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac` (FIN-016 COD expiry PostgreSQL regression; not executed). PR #138 remains OPEN / DRAFT / UNMERGED to develop.
-**Exact-head checks:** no GitHub Actions run is attached to the current source/test head. Latest completed CI #1434 on `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231`: lint passed; TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed; Web/Admin/API/PostgreSQL/migration/boundary/build/contract/k6/staging release jobs skipped. Vercel Web/Admin statuses are external deployment rate-limit failures. No application test pass is claimed for FIN-014–016.
+**Latest source implementation:** `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae` (FIN-019 settlement adjustment posting integrity). **Latest focused test commit:** `b9f9728659e71d3788cc58aa2b5ad9df29ab9731` (FIN-DSH-34/35 scenario numbering correction); tests not executed.
+**Latest Actions run:** [CI #1437](https://github.com/nabeel2323/scs-platform/actions/runs/45166190673) tested earlier SHA `9dc7d04469180807e65053fe51819afffb3b78c0`, not the current source/test head. Lint and TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed with 259 files needing formatting; Web/Admin/API/PostgreSQL/migration/boundary/build/contract/k6/staging release jobs were skipped. Vercel Web/Admin statuses are external deployment rate-limit failures. No exact-head or FIN-019 test pass is claimed.
 
 ## Previous CI run at the 21 November checkpoint (historical)
 

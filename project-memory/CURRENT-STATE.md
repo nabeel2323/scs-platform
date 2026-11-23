@@ -20,7 +20,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
 | Latest implementation checkpoint head | `b9f9728659e71d3788cc58aa2b5ad9df29ab9731` (FIN-019; FIN-DSH-34/35 tests not executed) |
-| Latest implementation/test | FIN-004–FIN-019 financial lifecycle, refund recovery, order/payment projection, settlement locking, expiry, discount proration, exact commission reversal, COD expiry, exact return-refund allocation, concurrent return creation and settlement-adjustment posting integrity. FIN-DSH-11–34 plus unit coverage added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
+| Latest implementation/test | FIN-004–FIN-019 financial lifecycle, refund recovery, order/payment projection, settlement locking, expiry, discount proration, exact commission reversal, COD expiry, exact return-refund allocation, concurrent return creation and settlement-adjustment posting integrity. FIN-DSH-11–35 plus unit coverage added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
 | Latest Actions run | CI #1437 [run](https://github.com/nabeel2323/scs-platform/actions/runs/45166190673) tested earlier SHA `9dc7d04469180807e65053fe51819afffb3b78c0`: lint/typecheck and Flutter passed; changed-file Prettier failed (259 files); Web/Admin/API/PostgreSQL/migration/build/release jobs skipped. No exact-head run for FIN-019. |
