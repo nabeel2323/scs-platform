@@ -1872,3 +1872,16 @@ This is a client action-safety improvement and does not change the status or acc
 - Status: **IMPLEMENTED / TESTING_PENDING**, not automated-test verified or CI-verified. No API role grants, backend authorization, schema, migration, database, staging or deployment behavior changed.
 
 **Next:** continue remaining Admin custom route/action-to-controller mapping. The 56-page route-level audit (UX-009) is complete; do not repeat it. Comprehensive testing remains deferred to Phase 3.
+
+
+## Programme UX-098 — Admin capability-aware navigation and Payments access — 23 November 2026
+
+This client access-alignment work does not change G-001–G-036 finding status or API permission grants.
+
+- Carrier & Recovery navigation now uses an any-of rule for `admin:carrier:read` or `admin:shipping:recovery`, matching the page's existing access condition.
+- Payments now admits users with any of `admin:payments:read`, `admin:payments:verify` or `admin:refunds:approve`. Its tabs and data requests remain separately permission-gated: queue uses verify, all/stale use read, and refunds use refund approval.
+- Added unit tests for all-of/any-of navigation policies and a Payments page regression for a verification-only user. Tests have **not been executed**.
+- Source commits: `07ff19c`, `f303153`, `14214f0`; tests: `d504ace`, `89624f6`.
+- Status: **IMPLEMENTED / TESTING_PENDING**, not automated-test verified or CI-verified. No backend role grant, API contract, schema, migration, database, staging or deployment behavior changed.
+
+**Next:** continue the remaining Admin custom route/action-to-controller mapping. The 56-page route-level audit is complete; do not repeat it. Comprehensive validation and formatting remain in the consolidated Phase 3 campaign.
