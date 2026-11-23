@@ -24,6 +24,7 @@ import { returnRequests, returnRequestItems } from './returns.schema';
 import { refunds, settlementRecords } from '../payments/payments.schema';
 import { orders, orderFinancialBreakdown } from '../orders/orders.schema';
 import { stores } from '../merchant/merchant.schema';
+import { roundProportionalMinorUnits } from './returns-financials';
 import { eq, and, sql, gte, lte, inArray, isNull } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
@@ -50,6 +51,87 @@ export interface ReconciliationResult {
   status: string;
   discrepancyCount: number;
   summary: Record<string, number>;
+}
+
+export interface ReconciliationDiscrepancyDraft {
+  type: DiscrepancyType;
+  sourceRef: string;
+  expected?: number;
+  actual?: number;
+  delta?: number;
+  description: string;
+}
+
+/**
+ * Recalculate a settlement row using its ledger semantics. Primary settlements
+ * debit commission, while ADJUSTMENT rows can contain a positive commission
+ * reversal credit. Minor-unit arithmetic stays exact and refuses unsafe inputs.
+ */
+export function calculateExpectedSettlementNetMinor(
+  status: string,
+  grossMinor: number,
+  refundMinor: number,
+  commissionMinor: number,
+  feeMinor: number,
+): number | null {
+  const amounts = [grossMinor, refundMinor, commissionMinor, feeMinor];
+  if (amounts.some(amount => !Number.isSafeInteger(amount))) {
+    return null;
+  }
+
+  const commission = BigInt(commissionMinor);
+  const expected =
+    BigInt(grossMinor) -
+    BigInt(refundMinor) +
+    (status === 'ADJUSTMENT' ? commission : -commission) -
+    BigInt(feeMinor);
+  const result = Number(expected);
+  return Number.isSafeInteger(result) ? result : null;
+}
+
+/** Sum non-negative minor-unit amounts without Number precision loss. */
+export function sumSafeMinorUnitAmounts(amounts: number[]): bigint | null {
+  if (amounts.some(amount => !Number.isSafeInteger(amount) || amount < 0)) {
+    return null;
+  }
+  return amounts.reduce((total, amount) => total + BigInt(amount), 0n);
+}
+
+/**
+ * Match the return workflow's half-up tax allocation when calculating the
+ * maximum refundable delivery fee. Returns null for unsafe source data.
+ */
+export function calculateDeliveryFeeRefundCapMinor(
+  deliveryFeeMinor: number,
+  taxMinor: number,
+  netGoodsMinor: number,
+): number | null {
+  if (
+    !Number.isSafeInteger(deliveryFeeMinor) || deliveryFeeMinor < 0 ||
+    !Number.isSafeInteger(taxMinor) || taxMinor < 0 ||
+    !Number.isSafeInteger(netGoodsMinor)
+  ) {
+    return null;
+  }
+
+  const deliveryTaxMinor = netGoodsMinor > 0
+    ? roundProportionalMinorUnits(BigInt(deliveryFeeMinor), taxMinor, netGoodsMinor)
+    : 0;
+  const cap = deliveryFeeMinor + deliveryTaxMinor;
+  return Number.isSafeInteger(cap) ? cap : null;
+}
+
+/** Status mismatches are descriptive evidence, not monetary minor-unit values. */
+export function buildRefundStatusMismatchDiscrepancy(
+  returnId: string,
+  refundId: string,
+  refundStatus: string,
+): ReconciliationDiscrepancyDraft {
+  return {
+    type: 'REFUND_STATUS_MISMATCH',
+    sourceRef: `return:${returnId}:refund:${refundId}`,
+    description: `Return ${returnId} is REFUNDED but linked refund ${refundId} has status ${refundStatus}; expected SUCCEEDED`,
+  };
 }
 
 @Injectable()
@@ -118,11 +200,7 @@ export class ReconciliationService {
         .where(eq(reconciliationRuns.id, runId));
     }
 
-    const discrepancies: Array<{
-      type: DiscrepancyType; sourceRef: string;
-      expected?: number; actual?: number; delta?: number;
-      description: string;
-    }> = [];
+    const discrepancies: ReconciliationDiscrepancyDraft[] = [];
 
     // ── Check 1: Returns with approved refunds but no executed refund ──
     await this.checkMissingRefunds(startDate, endDate, orgId, discrepancies);
@@ -194,7 +272,7 @@ export class ReconciliationService {
   private async checkMissingRefunds(
     startDate: Date, endDate: Date,
     orgId: string | null | undefined,
-    discrepancies: Array<any>,
+    discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
     // Build org-scoped query: return → sub-order → store → org
     const refundedReturns = await this.db.db
@@ -237,13 +315,9 @@ export class ReconciliationService {
           description: `Return ${ret.id} references refund ${ret.refundId} which does not exist`,
         });
       } else if (refund.status !== 'SUCCEEDED') {
-        discrepancies.push({
-          type: 'REFUND_STATUS_MISMATCH' as DiscrepancyType,
-          sourceRef: `return:${ret.id}:refund:${refund.id}`,
-          expected: 'SUCCEEDED',
-          actual: refund.status as any,
-          description: `Return ${ret.id} is REFUNDED but linked refund is ${refund.status}`,
-        });
+        discrepancies.push(
+          buildRefundStatusMismatchDiscrepancy(ret.id, refund.id, refund.status),
+        );
       }
     }
   }
@@ -252,7 +326,7 @@ export class ReconciliationService {
   private async checkCommissionReversals(
     startDate: Date, endDate: Date, currency: string,
     orgId: string | null | undefined,
-    discrepancies: Array<any>,
+    discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
     const REVERSAL_CATEGORIES = ['MERCHANT', 'PLATFORM', 'CARRIER_DAMAGE'];
 
@@ -304,15 +378,36 @@ export class ReconciliationService {
         where: eq(orderFinancialBreakdown.orderId, ret.subOrderId),
       });
       if (breakdown) {
-        const totalReversed = reversals.reduce((sum, r) => sum + Number(r.reversalMinor), 0);
-        if (totalReversed > breakdown.commissionMinor) {
+        const originalCommissionMinor = Number(breakdown.commissionMinor);
+        const totalReversed = sumSafeMinorUnitAmounts(
+          reversals.map(reversal => Number(reversal.reversalMinor)),
+        );
+
+        if (
+          !Number.isSafeInteger(originalCommissionMinor) ||
+          originalCommissionMinor < 0 ||
+          totalReversed === null
+        ) {
           discrepancies.push({
-            type: 'EXCESSIVE_REVERSAL' as DiscrepancyType,
+            type: 'INCOMPLETE_SOURCE_DATA',
             sourceRef: `return:${ret.id}`,
-            expected: breakdown.commissionMinor,
-            actual: totalReversed,
-            delta: totalReversed - breakdown.commissionMinor,
-            description: `Return ${ret.id} reversal ${totalReversed} exceeds original commission ${breakdown.commissionMinor}`,
+            description: `Return ${ret.id} commission reversal totals contain an unsafe minor-unit value; exact comparison is unavailable`,
+          });
+          continue;
+        }
+
+        const originalCommission = BigInt(originalCommissionMinor);
+        if (totalReversed > originalCommission) {
+          const delta = totalReversed - originalCommission;
+          const totalReversedNumber = Number(totalReversed);
+          const deltaNumber = Number(delta);
+          discrepancies.push({
+            type: 'EXCESSIVE_REVERSAL',
+            sourceRef: `return:${ret.id}`,
+            expected: originalCommissionMinor,
+            ...(Number.isSafeInteger(totalReversedNumber) ? { actual: totalReversedNumber } : {}),
+            ...(Number.isSafeInteger(deltaNumber) ? { delta: deltaNumber } : {}),
+            description: `Return ${ret.id} reversal ${totalReversed.toString()} exceeds original commission ${originalCommissionMinor}`,
           });
         }
       }
@@ -323,7 +418,7 @@ export class ReconciliationService {
   private async checkSettlementConsistency(
     startDate: Date, endDate: Date, currency: string,
     orgId: string | null | undefined,
-    discrepancies: Array<any>,
+    discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
     // Settlement records are scoped by merchantStoreId → store → org
     // For simplicity, we query all settlements in the period with matching currency
@@ -331,6 +426,7 @@ export class ReconciliationService {
     const settlements = await this.db.db
       .select({
         id: settlementRecords.id,
+        status: settlementRecords.status,
         grossMinor: settlementRecords.grossMinor,
         refundMinor: settlementRecords.refundMinor,
         commissionMinor: settlementRecords.commissionMinor,
@@ -349,18 +445,33 @@ export class ReconciliationService {
       ));
 
     for (const s of settlements) {
-      const expectedNet = Number(s.grossMinor) - Number(s.refundMinor) -
-        Number(s.commissionMinor) - Number(s.feeMinor);
+      const expectedNet = calculateExpectedSettlementNetMinor(
+        s.status,
+        Number(s.grossMinor),
+        Number(s.refundMinor),
+        Number(s.commissionMinor),
+        Number(s.feeMinor),
+      );
       const actualNet = Number(s.netMinor);
 
-      if (expectedNet !== actualNet) {
+      if (expectedNet === null || !Number.isSafeInteger(actualNet)) {
         discrepancies.push({
-          type: 'SETTLEMENT_MISMATCH' as DiscrepancyType,
+          type: 'INCOMPLETE_SOURCE_DATA',
+          sourceRef: `settlement:${s.id}`,
+          description: `Settlement ${s.id} contains a minor-unit value outside the safe integer range; exact reconciliation is unavailable`,
+        });
+        continue;
+      }
+
+      if (expectedNet !== actualNet) {
+        const delta = Number(BigInt(actualNet) - BigInt(expectedNet));
+        discrepancies.push({
+          type: 'SETTLEMENT_MISMATCH',
           sourceRef: `settlement:${s.id}`,
           expected: expectedNet,
           actual: actualNet,
-          delta: actualNet - expectedNet,
-          description: `Settlement ${s.id} net ${actualNet} != formula result ${expectedNet}`,
+          ...(Number.isSafeInteger(delta) ? { delta } : {}),
+          description: `Settlement ${s.id} net ${actualNet} != ledger formula result ${expectedNet}`,
         });
       }
     }
@@ -370,7 +481,7 @@ export class ReconciliationService {
   private async checkAdjustmentApprovals(
     startDate: Date, endDate: Date,
     orgId: string | null | undefined,
-    discrepancies: Array<any>,
+    discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
     const conditions: any[] = [
       eq(settlementAdjustments.status, 'POSTED'),
@@ -416,10 +527,13 @@ export class ReconciliationService {
   private async checkDeliveryFeeCaps(
     startDate: Date, endDate: Date,
     orgId: string | null | undefined,
-    discrepancies: Array<any>,
+    discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
     const conditions: any[] = [
-      eq(settlementAdjustments.adjustmentType, 'DELIVERY_FEE_EXCEPTION'),
+      inArray(
+        settlementAdjustments.adjustmentType,
+        ['DELIVERY_FEE_EXCEPTION', 'DELIVERY_FEE_REFUND'],
+      ),
       gte(settlementAdjustments.createdAt, startDate),
       lte(settlementAdjustments.createdAt, endDate),
     ];
@@ -435,22 +549,46 @@ export class ReconciliationService {
         where: eq(orderFinancialBreakdown.orderId, adj.subOrderId),
       });
       if (breakdown) {
-        // The delivery fee refund should not exceed the original delivery fee + VAT
-        // VAT is calculated from the breakdown's taxMinor / productsMinor ratio
-        const vatRate = breakdown.productsMinor > 0
-          ? breakdown.taxMinor / breakdown.productsMinor
-          : 0;
-        const maxRefundable = Number(breakdown.deliveryFeeMinor) * (1 + vatRate);
-        if (Number(adj.amountMinor) > maxRefundable) {
+        const productsMinor = Number(breakdown.productsMinor);
+        const discountMinor = Number(breakdown.discountMinor);
+        const deliveryFeeMinor = Number(breakdown.deliveryFeeMinor);
+        const taxMinor = Number(breakdown.taxMinor);
+        const amountMinor = Number(adj.amountMinor);
+        const netGoodsMinor = productsMinor - discountMinor;
+
+        const maxRefundable = (
+          productsMinor >= 0 &&
+          discountMinor >= 0 &&
+          discountMinor <= productsMinor
+        )
+          ? calculateDeliveryFeeRefundCapMinor(deliveryFeeMinor, taxMinor, netGoodsMinor)
+          : null;
+
+        if (maxRefundable === null || !Number.isSafeInteger(amountMinor) || amountMinor < 0) {
           discrepancies.push({
-            type: 'DELIVERY_FEE_OVER_REFUND' as DiscrepancyType,
+            type: 'INCOMPLETE_SOURCE_DATA',
             sourceRef: `adjustment:${adj.id}`,
-            expected: Number(breakdown.deliveryFeeMinor),
-            actual: Number(adj.amountMinor),
-            description: `Delivery fee adjustment ${adj.id} amount ${adj.amountMinor} ` +
-              `exceeds original fee ${breakdown.deliveryFeeMinor} + VAT (max refundable: ${maxRefundable})`,
+            description: `Delivery-fee adjustment ${adj.id} contains unsafe or inconsistent minor-unit source values; exact cap verification is unavailable`,
+          });
+          continue;
+        }
+
+        if (amountMinor > maxRefundable) {
+          discrepancies.push({
+            type: 'DELIVERY_FEE_OVER_REFUND',
+            sourceRef: `adjustment:${adj.id}`,
+            expected: maxRefundable,
+            actual: amountMinor,
+            delta: amountMinor - maxRefundable,
+            description: `Delivery-fee adjustment ${adj.id} amount ${amountMinor} exceeds the exact refundable fee-plus-VAT cap ${maxRefundable}`,
           });
         }
+      } else {
+        discrepancies.push({
+          type: 'INCOMPLETE_SOURCE_DATA',
+          sourceRef: `adjustment:${adj.id}`,
+          description: `Delivery-fee adjustment ${adj.id} has no order financial breakdown; exact cap verification is unavailable`,
+        });
       }
     }
   }
@@ -459,7 +597,7 @@ export class ReconciliationService {
   private async checkDuplicates(
     startDate: Date, endDate: Date,
     orgId: string | null | undefined,
-    discrepancies: Array<any>,
+    discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
     const returnRefunds = await this.db.db
       .select({

@@ -34,9 +34,10 @@
  *   FIN-DSH-30  COD payments are excluded from stale-payment expiry
  *   FIN-DSH-31  Return refund allocation and delivery exception currency
  *   FIN-DSH-32  Concurrent return creation preserves one-active-return invariant
+ *   FIN-DSH-33  Return request idempotent retry and payload integrity
  *   FIN-DSH-34  Commission reversal adjustment posts as a merchant credit
  *   FIN-DSH-35  Adjustment cannot be posted without a primary settlement
- *   FIN-DSH-33  Return request idempotent retry and payload integrity
+ *   FIN-DSH-36  Reconciliation ledger signs and non-monetary discrepancy persistence
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -57,6 +58,7 @@ import { PilotControlService } from '../../modules/operations/pilot-control.serv
 import { BusinessCalendarService } from '../../modules/returns/business-calendar.service';
 import { CommissionReversalService } from '../../modules/returns/commission-reversal.service';
 import { SettlementAdjustmentService } from '../../modules/returns/settlement-adjustment.service';
+import { ReconciliationService } from '../../modules/returns/reconciliation.service';
 import { DisputesService } from '../../modules/reviews/disputes.service';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 import * as fs from 'node:fs';
@@ -73,7 +75,10 @@ import { shipments, shipmentEvents } from '../../modules/orders/shipment.schema'
 import { outboxEvents } from '../../modules/audit/audit.schema';
 import { paymentRecords, paymentEvents, refunds, settlementRecords } from '../../modules/payments/payments.schema';
 import { returnRequests, returnRequestItems, returnRequestEvents } from '../../modules/returns/returns.schema';
-import { commissionReversals, settlementAdjustments, settlementAdjustmentApprovals } from '../../modules/returns/financial.schema';
+import {
+  commissionReversals, settlementAdjustments, settlementAdjustmentApprovals,
+  reconciliationRuns, reconciliationDiscrepancies,
+} from '../../modules/returns/financial.schema';
 import { disputes, disputeEvents } from '../../modules/reviews/support.schema';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 
@@ -180,6 +185,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   let paymentsService: PaymentsService;
   let disputesService: DisputesService;
   let settlementAdjService: SettlementAdjustmentService;
+  let reconciliationService: ReconciliationService;
 
   const merchantA = randomUUID();
   const buyerA = randomUUID();
@@ -213,6 +219,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
         returnRequests, returnRequestItems, returnRequestEvents,
         commissionReversals,
         settlementAdjustments, settlementAdjustmentApprovals,
+        reconciliationRuns, reconciliationDiscrepancies,
         disputes, disputeEvents,
       },
     }) as unknown as DatabaseService['db'];
@@ -244,6 +251,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     registry.register(new ManualVerificationProvider());
     paymentsService = new PaymentsService({ db } as DatabaseService, outbox, registry);
     const database = { db } as DatabaseService;
+    reconciliationService = new ReconciliationService(database);
     ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications, undefined, paymentsService);
     const calendarService = new BusinessCalendarService(database);
     const commissionReversalService = new CommissionReversalService(database, outbox);
@@ -1823,4 +1831,83 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(ret.rows[0].status).toBe('REFUNDED');
     expect(ret.rows[0].actual).toBe(refundMinor);
   }, 90_000);
+
+  // ── FIN-DSH-36: Reconciliation ledger semantics ──────────────────
+
+  it(
+    'FIN-DSH-36: reconciles commission-reversal credits and persists refund-status mismatches as non-monetary evidence',
+    async () => {
+      const commissionOrderId = await createDeliveredOrder(
+        pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      );
+      const settlement = await paymentsService.calculateSettlement(
+        commissionOrderId, adminA, adminCaller,
+      );
+      const adjustment = await settlementAdjService.createAdjustment({
+        subOrderId: commissionOrderId,
+        adjustmentType: 'COMMISSION_REVERSAL',
+        amountMinor: 125,
+        currency: settlement.currency,
+        reason: 'Reconciliation credit-sign regression',
+      }, adminA, orgA);
+      const approvalHash = (await pool.query(
+        `SELECT approval_hash FROM settlement_adjustments WHERE id = $1`,
+        [adjustment.id],
+      )).rows[0].approval_hash as string;
+
+      await pool.query(
+        `UPDATE settlement_adjustments
+         SET status = 'APPROVED', fx_status = 'RESOLVED'
+         WHERE id = $1`,
+        [adjustment.id],
+      );
+      await pool.query(
+        `INSERT INTO settlement_adjustment_approvals
+         (id, adjustment_id, approver_id, approver_role, approval_hash)
+         VALUES ($1, $2, $3, 'FINANCE', $5), ($4, $2, $6, 'ADMIN', $5)`,
+        [randomUUID(), adjustment.id, buyerA, randomUUID(), approvalHash, merchantA],
+      );
+      await settlementAdjService.postAdjustment(adjustment.id, adminA, orgA);
+
+      const refundOrderId = await createDeliveredOrder(
+        pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      );
+      const pendingReturn = await advanceReturnToRefundPending(
+        returnsService, pool, refundOrderId, 1, buyerA, merchantA, orgA,
+      );
+      const refundId = pendingReturn.refundId as string;
+      await pool.query(`UPDATE refunds SET status = 'FAILED' WHERE id = $1`, [refundId]);
+      await pool.query(
+        `UPDATE return_requests SET status = 'REFUNDED' WHERE id = $1`,
+        [pendingReturn.id],
+      );
+
+      const period = new Date().toISOString().slice(0, 10);
+      const result = await reconciliationService.executeReconciliation(
+        period, period, settlement.currency, adminA, orgA,
+      );
+      const discrepancies = await pool.query(
+        `SELECT discrepancy_type, expected_minor, actual_minor, delta_minor, description
+         FROM reconciliation_discrepancies
+         WHERE run_id = $1
+         ORDER BY discrepancy_type, source_ref`,
+        [result.runId],
+      );
+
+      expect(discrepancies.rows.filter((row: any) => row.discrepancy_type === 'SETTLEMENT_MISMATCH'))
+        .toHaveLength(0);
+
+      const refundStatusMismatch = discrepancies.rows.find(
+        (row: any) => row.discrepancy_type === 'REFUND_STATUS_MISMATCH',
+      );
+      expect(refundStatusMismatch).toBeTruthy();
+      expect(refundStatusMismatch.expected_minor).toBeNull();
+      expect(refundStatusMismatch.actual_minor).toBeNull();
+      expect(refundStatusMismatch.delta_minor).toBeNull();
+      expect(refundStatusMismatch.description).toContain('expected SUCCEEDED');
+      expect(refundStatusMismatch.description).toContain('FAILED');
+    },
+    90_000,
+  );
+
 });
