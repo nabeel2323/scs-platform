@@ -50,19 +50,31 @@ function createGateway() {
   const query = {
     stores: { findFirst: vi.fn().mockResolvedValue({ id: ids.store, orgId: ids.org }) },
     storeMembers: { findFirst: vi.fn().mockResolvedValue({ id: 'membership-1' }) },
-    orders: {
-      findFirst: vi.fn().mockResolvedValue({ buyerId: ids.otherUser, storeId: ids.store }),
-    },
-    masterOrders: { findFirst: vi.fn().mockResolvedValue(null) },
-    shipments: { findFirst: vi.fn().mockResolvedValue(null) },
   };
   const db = { db: { query } };
-  const gateway = new RealtimeGateway(jwt as any, redis as any, db as any);
+  const merchant = {
+    getStore: vi.fn().mockResolvedValue({ id: ids.store, orgId: ids.org }),
+  };
+  const orderAccess = {
+    getRoomAccess: vi.fn().mockResolvedValue({
+      kind: 'order',
+      buyerId: ids.otherUser,
+      storeId: ids.store,
+    }),
+    isDriverAssignedToOrder: vi.fn().mockResolvedValue(false),
+  };
+  const gateway = new RealtimeGateway(
+    jwt as any,
+    redis as any,
+    db as any,
+    merchant as any,
+    orderAccess as any,
+  );
   // Mock the Socket.IO server: `server.to(room).emit(event, payload)`.
   const roomEmit = vi.fn();
   const to = vi.fn((_room: string) => ({ emit: roomEmit }));
   (gateway as any).server = { to };
-  return { gateway, jwt, redis, to, roomEmit, query };
+  return { gateway, jwt, redis, to, roomEmit, query, merchant, orderAccess };
 }
 
 // ── Handshake authentication ─────────────────────────────────────
@@ -197,6 +209,7 @@ describe('RealtimeGateway — join authorization', () => {
   it('denies store and order rooms for a foreign active organization or missing membership', async () => {
     const foreign = createGateway();
     foreign.query.stores.findFirst.mockResolvedValue({ id: ids.store, orgId: ids.otherOrg });
+    foreign.merchant.getStore.mockResolvedValue({ id: ids.store, orgId: ids.otherOrg });
     const foreignSocket = mockSocket({
       data: {
         userId: ids.user,
@@ -227,26 +240,36 @@ describe('RealtimeGateway — join authorization', () => {
   });
 
   it('allows buyers to join only their own order rooms, including master-order tracking', async () => {
-    const { gateway, query } = createGateway();
+    const { gateway, orderAccess } = createGateway();
     const client = mockSocket({
       data: { userId: ids.user, role: 'BUYER', activeOrg: null, perms: ['orders:read'] },
     });
-    query.orders.findFirst.mockResolvedValue({ buyerId: ids.user, storeId: ids.store });
+    orderAccess.getRoomAccess.mockResolvedValue({
+      kind: 'order',
+      buyerId: ids.user,
+      storeId: ids.store,
+    });
     const own = await gateway.handleJoin(client, { rooms: [`order:${ids.order}`] });
     expect(own.data.rooms).toEqual([`order:${ids.order}`]);
 
-    query.orders.findFirst.mockResolvedValue(null);
-    query.masterOrders.findFirst.mockResolvedValue({ buyerId: ids.user });
+    orderAccess.getRoomAccess.mockResolvedValue({
+      kind: 'masterOrder',
+      buyerId: ids.user,
+    });
     const master = await gateway.handleJoin(client, { rooms: [`order:${ids.masterOrder}`] });
     expect(master.data.rooms).toEqual([`order:${ids.masterOrder}`]);
 
-    query.orders.findFirst.mockResolvedValue({ buyerId: ids.otherUser, storeId: ids.store });
+    orderAccess.getRoomAccess.mockResolvedValue({
+      kind: 'order',
+      buyerId: ids.otherUser,
+      storeId: ids.store,
+    });
     const foreign = await gateway.handleJoin(client, { rooms: [`order:${ids.order}`] });
     expect(foreign.data.rooms).toEqual([]);
   });
 
   it('allows drivers to join only orders with an assigned shipment', async () => {
-    const { gateway, query } = createGateway();
+    const { gateway, orderAccess } = createGateway();
     const client = mockSocket({
       data: {
         userId: ids.user,
@@ -255,11 +278,11 @@ describe('RealtimeGateway — join authorization', () => {
         perms: ['fulfillment:shipments:read'],
       },
     });
-    query.shipments.findFirst.mockResolvedValue({ id: 'shipment-1' });
+    orderAccess.isDriverAssignedToOrder.mockResolvedValue(true);
     const assigned = await gateway.handleJoin(client, { rooms: [`order:${ids.order}`] });
     expect(assigned.data.rooms).toEqual([`order:${ids.order}`]);
 
-    query.shipments.findFirst.mockResolvedValue(null);
+    orderAccess.isDriverAssignedToOrder.mockResolvedValue(false);
     const unassigned = await gateway.handleJoin(client, { rooms: [`order:${ids.order}`] });
     expect(unassigned.data.rooms).toEqual([]);
   });
