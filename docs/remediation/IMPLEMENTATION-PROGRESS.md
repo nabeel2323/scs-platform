@@ -1904,7 +1904,7 @@ This is client-side action safety and does not change G-001–G-036 audit findin
 - Bound User status/membership, dispute, category, brand and offer-governance actions to their actual permissions. Carrier recovery and shipment exception/RTS, inventory-return, carrier-write and carrier-recovery actions now use their distinct permission conditions.
 - User Detail profile submission rechecks `admin:users:write` and prevents duplicate save; profile edit UI is hidden if permission is lost.
 - Added `apps/admin/src/__tests__/admin-mutation-permission-guard.test.tsx` for permission loss before dispatch and the authorized path. Test has **not been executed**.
-- Source commits: `262f2d1`, `d52acd6`, `93ec686`, `20447d2`, `bed844f`, `9313b85`; test: `046160d`.
+- Source commits: `262f2d1`, `d52acd6`, `93ec686`, `20447d2`, `bed844f`, `9313b85`, `5ea1145`, `91d69e4`; tests: `046160d`, `57d3a25`.
 - Status: **IMPLEMENTED / TESTING_PENDING**, not automated-test verified or CI-verified. No API grants, backend auth, schema, migration, DB, staging or deployment changes.
 
 **Next:** complete remaining Admin custom route/action-to-controller mapping and verify all `useAdminMutation` call sites use action-specific permissions. Phase 3 remains the consolidated formatting and test campaign.
