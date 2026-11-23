@@ -1857,3 +1857,18 @@ This is client-side context/caching remediation evidence; it does not close or c
 - Source commits: `b49424e`, `3f4a6a3`, `1f29e7c`, `cd04739`, `fc1f22a`, `b416041`; tests `a0f308c` / `d0d0b26`.
 - Status: **IMPLEMENTED / TESTING_PENDING**, not test-verified or CI-verified. No API/backend authorization, permission, schema, migration, RLS, database, staging or worker changes.
 - Continue Mobile route permission/context transition audit, then Web/Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
+
+
+## Programme UX-097 — Admin action-handler permission rechecks — 23 November 2026
+
+This is a client action-safety improvement and does not change the status or acceptance criteria of G-001–G-036.
+
+- **Verification detail:** organization deactivate/reactivate handlers now recheck `admin:users:write` and reject duplicate in-flight actions.
+- **Organizations directory:** status toggle and update-request review handlers now recheck `admin:users:write` at execution time and reject duplicate in-flight actions.
+- **Dispute detail:** resolution handler now rechecks `support:disputes:resolve` before sending the mutation.
+- The UI already hid these controls for users lacking the corresponding permissions; this follow-up closes the stale-confirmation/event-handler gap if the permission projection changes while a dialog is open.
+- Focused tests were added in `apps/admin/src/__tests__/verification-org-status-permissions.test.tsx` and `apps/admin/src/__tests__/admin-organization-action-permissions.test.tsx`. They simulate permission loss while the modal remains open. Tests have **not been executed**.
+- Source commits: `112cee31`, `94f86dac`, `41fca823`; focused test commits: `c0aa3122`, `856d527a`.
+- Status: **IMPLEMENTED / TESTING_PENDING**, not automated-test verified or CI-verified. No API role grants, backend authorization, schema, migration, database, staging or deployment behavior changed.
+
+**Next:** continue remaining Admin custom route/action-to-controller mapping. The 56-page route-level audit (UX-009) is complete; do not repeat it. Comprehensive testing remains deferred to Phase 3.
