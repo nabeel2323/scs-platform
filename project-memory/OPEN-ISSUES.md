@@ -799,3 +799,8 @@ No migration is required. Tests remain pending the consolidated Phase 3 campaign
 ## FIN-030 — Refund-completion period attribution
 
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Reconciliation now uses the REFUNDED event timestamp for missing-refund and commission-reversal checks, with a compatibility fallback for legacy rows lacking that event. FIN-DSH-58 is added but not executed. Review remaining reconciliation checks for source-event time semantics during continued implementation.
+
+
+## FIN-031 — Cross-period duplicate refund detection
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Duplicate-refund reconciliation now selects returns by in-period successful refund updates and counts all successful refunds across periods. FIN-DSH-59 is added but not executed. Review remaining reconciliation checks for accounting-period attribution during continued implementation.
