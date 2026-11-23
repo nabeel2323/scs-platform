@@ -35,11 +35,9 @@ describe('OutboxDispatcher cross-instance claim safety', () => {
       db: {
         transaction: vi.fn(async (callback: (tx: any) => Promise<any>) =>
           callback({
-            execute: vi
-              .fn()
-              .mockResolvedValue({
-                rows: [{ id: 'event-1', eventType: 'order.created', attempts: 0 }],
-              }),
+            execute: vi.fn().mockResolvedValue({
+              rows: [{ id: 'event-1', eventType: 'order.created', attempts: 0 }],
+            }),
           }),
         ),
         update,

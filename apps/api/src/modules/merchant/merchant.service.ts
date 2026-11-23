@@ -754,22 +754,20 @@ export class MerchantService {
         autoActivatedProductCount = activated.length;
       }
       // The global outbox publisher is not transaction-aware; use this transaction.
-      await tx
-        .insert(outboxEvents)
-        .values({
-          id: crypto.randomUUID(),
-          eventType: `merchant.verification.${decision.toLowerCase()}`,
-          aggregateId: requestId,
-          payload: {
-            requestId,
-            storeId: request.storeId,
-            decision,
-            reviewerId,
-            autoActivatedProductCount,
-          },
-          metadata: { userId: reviewerId },
-          status: 'PENDING',
-        });
+      await tx.insert(outboxEvents).values({
+        id: crypto.randomUUID(),
+        eventType: `merchant.verification.${decision.toLowerCase()}`,
+        aggregateId: requestId,
+        payload: {
+          requestId,
+          storeId: request.storeId,
+          decision,
+          reviewerId,
+          autoActivatedProductCount,
+        },
+        metadata: { userId: reviewerId },
+        status: 'PENDING',
+      });
       return { ...updated!, autoActivatedProductCount };
     });
   }
