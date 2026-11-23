@@ -779,4 +779,6 @@ Merchant active-store and product reads now preserve last-successful data throug
 - G-001 remains PARTIAL; G-002 remains IN PROGRESS; G-036 remains IN PROGRESS; Phase 6 remains NOT STARTED. UX-097/098 are IMPLEMENTED / TESTING_PENDING.
 - No merge, deployment, staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
 
-**Next:** continue remaining Admin custom route/action-to-controller permission mapping. Do not repeat the completed 56-page page-level audit or UX-097/098 fixes. Batch the accumulated formatting correction and comprehensive test campaign at the implementation-complete Phase 3 checkpoint.
+**Additional G-002 evidence:** the user-uploaded supplemental note reports 111 tables and 32 public functions, but lacks timestamp, endpoint, query and role provenance. Preserve it separately; the 111 count is not reconciled with the 114/116 history. See `G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md`.
+
+**Next:** continue remaining Admin custom route/action-to-controller permission mapping. Do not repeat the completed 56-page page-level audit or UX-097/098 fixes. In parallel, keep G-002 read-only evidence work queued for the protected staging audit. Batch the accumulated formatting correction and comprehensive test campaign at the implementation-complete Phase 3 checkpoint.
