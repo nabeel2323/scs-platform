@@ -1306,6 +1306,13 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
         `SELECT id FROM settlement_records WHERE id = $1 FOR UPDATE`,
         [settlement.id],
       );
+      const lockBackendPidResult = await lockClient.query<{ pid: number }>(
+        'SELECT pg_backend_pid() AS pid',
+      );
+      const lockBackendPid = Number(lockBackendPidResult.rows[0]?.pid);
+      if (!Number.isSafeInteger(lockBackendPid) || lockBackendPid <= 0) {
+        throw new Error('Unable to identify the PostgreSQL lock-holder backend');
+      }
 
       transition = returnsService.transitionReturn(pendingRet.id, 'REFUNDED', adminCaller);
 
@@ -1317,7 +1324,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
            WHERE pid <> $1
              AND wait_event_type = 'Lock'
              AND query ILIKE '%settlement_records%'`,
-          [lockClient.processID],
+          [lockBackendPid],
         );
         if (activity.rows[0].count > 0) {
           waitingForSettlementLock = true;
