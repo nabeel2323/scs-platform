@@ -549,3 +549,11 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Added PostgreSQL integration scenarios FIN-DSH-11 and FIN-DSH-12. Not executed; remain TESTING_PENDING.
 - Source/test commit: `117614884ff1e0d50ca116f0b28f249fd83761c0`. No schema/migration/provider/gateway/payout changes.
 - Next: continue source-first commercial/operational correctness audit; keep the consolidated test campaign in Phase 3.
+
+### Latest continuation — FIN-002 settlement calculation idempotency
+
+- The settlement calculation path previously allowed a second payable settlement to be created after the original settlement was marked PAID, because the partial unique index only covered active statuses.
+- FIN-002 serializes settlement calculation on the payment row; active settlement retries return the existing row, and paid/adjustment history blocks a new payable calculation.
+- FIN-DSH-13/14 cover concurrent calls and post-PAID recalculation; tests are added but not executed.
+- Source/test commit: `5473f15ed6fcf8982dbbc45d8254eeb255c5db10`.
+- Next: continue source-first commercial/operational correctness audit, prioritizing remaining payment/settlement state transitions and persistence/event semantics. Do not expand gateway or payout scope.

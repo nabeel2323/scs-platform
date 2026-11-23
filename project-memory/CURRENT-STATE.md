@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source/test implementation commit:** `117614884ff1e0d50ca116f0b28f249fd83761c0` — FIN-001 refund approval serialization and request idempotency; PostgreSQL regression scenarios FIN-DSH-11/12 added but not executed.
-**Latest source/test checkpoint:** `117614884ff1e0d50ca116f0b28f249fd83761c0` (FIN-001); this commit uses `[skip ci]` and is not CI-verified.  
+**Latest source/test implementation commit:** `5473f15ed6fcf8982dbbc45d8254eeb255c5db10` — FIN-002 settlement calculation idempotency and paid-settlement protection; FIN-DSH-13/14 added but not executed.
+**Latest source/test checkpoint:** `5473f15ed6fcf8982dbbc45d8254eeb255c5db10` (FIN-002); this commit uses `[skip ci]` and is not CI-verified.  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,13 +19,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation checkpoint head | `117614884ff1e0d50ca116f0b28f249fd83761c0` (FIN-001 source + PostgreSQL regression tests; not executed) |
-| Latest implementation/test | UX-100–105 Admin workflow/action/read-gate improvements plus FIN-001 refund approval serialization and idempotency. FIN-DSH-11/12 added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
+| Latest implementation checkpoint head | `5473f15ed6fcf8982dbbc45d8254eeb255c5db10` (FIN-002 source + PostgreSQL regression tests; not executed) |
+| Latest implementation/test | UX-100–105 Admin workflow/action/read-gate improvements, FIN-001 refund approval serialization/idempotency and FIN-002 settlement calculation idempotency. FIN-DSH-11–14 added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
 | Exact-head GitHub Actions | No run for FIN-001 source/test head `117614884ff1e0d50ca116f0b28f249fd83761c0`; latest Actions run #1421 tested earlier `8474b7acd264872a01d305bef515009eded104ed`, passed lint/typecheck and Flutter, but failed changed-file Prettier (255 files); Web/Admin and dependent jobs skipped |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest live PR head before this memory refresh | `0b8c452797c067139495a8820c95c62a0cafc37b` — documentation-only FIN-001 release checkpoint; no Actions run attached |\n| Latest inspected preview status | Admin FAILURE due external deployment rate limit; not an application test result |
+| Latest live PR head before this memory refresh | `5473f15ed6fcf8982dbbc45d8254eeb255c5db10` — FIN-002 source/test commit; `[skip ci]`, no Actions run expected |\n| Latest inspected preview status | Admin FAILURE due external deployment rate limit; not an application test result |
 | Focused client tests | Admin UX-030–058 and UX-097–099, Mobile UX-078–096 and Web UX-095 focused tests added/updated; not executed (Flutter suite passed only on earlier SHA `a76b0be`) |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
@@ -852,3 +852,12 @@ Merchant active-store and product reads now preserve last-successful data throug
 - No Actions run is attached to the documentation head. The latest Actions run is #1421 on earlier UX-105 SHA `8474b7acd264872a01d305bef515009eded104ed`; it passed lint/typecheck and Flutter, failed changed-file Prettier (255 files), and skipped Web/Admin and dependent jobs.
 - The Admin Vercel status at the last live PR check is an external build-rate-limit failure, not an application test result.
 - Re-fetch the live PR head and statuses before the next source change.
+
+## FIN-002 — Settlement calculation idempotency — 23 November 2026
+
+- Source/test commit: `5473f15ed6fcf8982dbbc45d8254eeb255c5db10`.
+- `calculateSettlement` locks the payment row, serializing calculation with refund requests/approvals and concurrent settlement attempts.
+- Existing PENDING/CALCULATED/DUE settlement is returned instead of inserting another payable record. Existing PAID/ADJUSTMENT history causes a conflict and requires the explicit adjustment workflow.
+- Added PostgreSQL scenarios FIN-DSH-13/14 for concurrent calculation idempotency and rejection after PAID. Not executed.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, shared DB, staging, deployment or payout action.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No Actions run is attached to the [skip ci] source commit. Prior CI #1421 is historical evidence only.

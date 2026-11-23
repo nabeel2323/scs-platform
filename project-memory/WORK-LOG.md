@@ -1166,3 +1166,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added PostgreSQL integration cases FIN-DSH-11 and FIN-DSH-12. **Not executed**; both remain TESTING_PENDING for the consolidated Phase 3 campaign.
 - Source/test commit: `117614884ff1e0d50ca116f0b28f249fd83761c0`. No schema/migration/provider/gateway/payout/shared DB/staging/deployment change.
 - G-012 remains OPEN; this work does not expand automatic gateway or payout scope.
+
+## 2026-11-23 — FIN-002 settlement calculation idempotency
+
+- Audited P12 settlement calculation after FIN-001. Found `calculateSettlement` always inserted a new settlement and the partial unique index did not protect repeated calls after the original settlement reached PAID.
+- Refactored calculation to lock the associated payment row, check for an existing settlement under that lock, return an existing PENDING/CALCULATED/DUE record idempotently, and reject recalculation after PAID/ADJUSTMENT history so explicit adjustment workflows remain authoritative.
+- Moved the financial breakdown and successful-refund aggregate reads inside the payment-locked transaction, serializing them against refund requests/approvals using the same lock.
+- Added PostgreSQL integration cases FIN-DSH-13 (concurrent calls reuse one settlement and emit one outbox event) and FIN-DSH-14 (PAID settlement cannot be recalculated). Tests not executed.
+- Source/test commit: `5473f15ed6fcf8982dbbc45d8254eeb255c5db10`; `[skip ci]` used in accordance with the grouped-validation/Actions-budget decision.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema, migration, API contract, provider, payout, staging, shared DB or deployment change.
+- Next: continue source-first payment/settlement correctness audit without expanding gateway/payout scope.
