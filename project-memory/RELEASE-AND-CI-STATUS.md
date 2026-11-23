@@ -989,3 +989,17 @@ The next full workflow is required to verify these changes.
 - No Actions run is expected for this source commit; no CI or test verification is claimed.
 - FIN-DSH-16 covers fractional verification/refund values and zero COD collection, with state-preservation assertions for rejected verification/COD operations. Not executed.
 - CI #1425 remains historical and failed typecheck on earlier SHA `994fee9a332f4c553fa09687101d8f6ecdec3103`. It does not verify the later result guard or FIN-003 changes.
+
+## 2026-11-23 — FIN-004 / FIN-005 financial transition consistency
+
+- FIN-004: settlement calculation now records `PAYMENT_SETTLEMENT_CALCULATED`; marking PAID locks the settlement and atomically writes PAID state, `PAYMENT_SETTLEMENT_PAID` history and `payment.settlement_paid` outbox event. FIN-DSH-13 and FIN-DSH-17 cover calculation and concurrent pay effects; not executed.
+- FIN-005: COD cash confirmation now synchronizes `orders.payment_status` in the same transaction while preserving the order's fulfillment status. FIN-DSH-18 covers DELIVERED + CONFIRMED projection and payment history; not executed.
+- Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699150cb896a23eb171eab0ae5a00`, `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, provider, automatic payout, staging, shared DB or deployment changes.
+
+## CI #1427 — FIN-005 COD payment projection — 23 November 2026
+
+- Workflow: [#1427](https://github.com/nabeel2323/scs-platform/actions/runs/45163918076).
+- Exact SHA: `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`.
+- At last refresh the run was IN_PROGRESS; no job result is claimed.
+- Commits FIN-004/FIN-005 use `[skip ci]` for the earlier FIN-004 source/test commits, while FIN-005 triggered #1427. FIN-DSH-11–18 remain TESTING_PENDING until the relevant PostgreSQL integration job passes on an exact applicable SHA.

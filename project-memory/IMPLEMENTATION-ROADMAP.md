@@ -480,3 +480,12 @@ A second payable settlement could be created if `calculateSettlement` was called
 ## FIN-003 — Payment minor-unit amount validation — 23 November 2026
 
 Manual payment verification, COD cash confirmation, refund requests and settlement confirmed amounts now require positive safe integers in minor units. This rejects zero, negative, fractional and unsafe-number values before financial writes. No maximum/equality rule was introduced for actual received amounts. FIN-DSH-16 covers invalid values and unchanged verification/COD payment states; test added but not executed. Source/test commit: `f554617c592ff57db296e0ca88614ac246468194`. Status: IMPLEMENTED / TESTING_PENDING.
+
+## 2026-11-23 — FIN-004 / FIN-005 financial transition consistency
+
+- FIN-004: settlement calculation now records `PAYMENT_SETTLEMENT_CALCULATED`; marking PAID locks the settlement and atomically writes PAID state, `PAYMENT_SETTLEMENT_PAID` history and `payment.settlement_paid` outbox event. FIN-DSH-13 and FIN-DSH-17 cover calculation and concurrent pay effects; not executed.
+- FIN-005: COD cash confirmation now synchronizes `orders.payment_status` in the same transaction while preserving the order's fulfillment status. FIN-DSH-18 covers DELIVERED + CONFIRMED projection and payment history; not executed.
+- Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699150cb896a23eb171eab0ae5a00`, `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, provider, automatic payout, staging, shared DB or deployment changes.
+
+Next: continue source-first audit of payment/settlement transitions and persisted event/outbox semantics; retain the Phase 3 consolidated testing campaign.
