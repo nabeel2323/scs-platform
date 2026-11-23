@@ -1212,19 +1212,24 @@ export class PaymentsService {
       // Transition order to CANCELLED if still in payment-pending state
       const order = await this.getOrderForPayment(payment.orderId);
       if (['PAYMENT_PENDING'].includes(order.status)) {
-        await tx
+        const orderFlip = await tx
           .update(orders)
           .set({ status: 'CANCELLED', paymentStatus: 'EXPIRED', updatedAt: new Date() })
-          .where(and(eq(orders.id, payment.orderId), eq(orders.status, 'PAYMENT_PENDING')));
+          .where(and(eq(orders.id, payment.orderId), eq(orders.status, 'PAYMENT_PENDING')))
+          .returning({ id: orders.id });
 
-        await tx.insert(orderStatusHistory).values({
-          id: crypto.randomUUID(),
-          orderId: payment.orderId,
-          fromStatus: 'PAYMENT_PENDING',
-          toStatus: 'CANCELLED',
-          actorType: 'SYSTEM',
-          reason: 'Payment expired',
-        });
+        // A concurrent order lifecycle action can win after the read above.
+        // Append cancellation history only when this transaction changed the row.
+        if (orderFlip.length > 0) {
+          await tx.insert(orderStatusHistory).values({
+            id: crypto.randomUUID(),
+            orderId: payment.orderId,
+            fromStatus: 'PAYMENT_PENDING',
+            toStatus: 'CANCELLED',
+            actorType: 'SYSTEM',
+            reason: 'Payment expired',
+          });
+        }
       }
 
       await this.outbox.publish(
