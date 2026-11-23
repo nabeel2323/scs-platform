@@ -862,35 +862,68 @@ export class PaymentsService {
       throw new ForbiddenException('Only admins can calculate settlements');
     }
 
-    const order = await this.getOrderForPayment(subOrderId);
-    const payment = await this.getPaymentForOrder(subOrderId);
-    if (!payment) throw new NotFoundException('No payment found for this order');
+    // Serialize settlement calculation with refund requests/approvals on the
+    // same payment row. This also makes concurrent calculate calls observe
+    // the first committed settlement instead of attempting a second payout.
+    const result = await this.db.db.transaction(async (tx) => {
+      const [order] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.id, subOrderId))
+        .limit(1);
+      if (!order) throw new NotFoundException('Order not found');
 
-    const breakdown = await this.db.db.query.orderFinancialBreakdown.findFirst({
-      where: eq(orderFinancialBreakdown.orderId, subOrderId),
-    });
-    if (!breakdown) throw new NotFoundException('Financial breakdown not found');
+      const [payment] = await tx
+        .select()
+        .from(paymentRecords)
+        .where(eq(paymentRecords.orderId, subOrderId))
+        .for('update')
+        .limit(1);
+      if (!payment) throw new NotFoundException('No payment found for this order');
 
-    const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
+      const [existingSettlement] = await tx
+        .select()
+        .from(settlementRecords)
+        .where(and(
+          eq(settlementRecords.subOrderId, subOrderId),
+          eq(settlementRecords.paymentRecordId, payment.id),
+        ))
+        .orderBy(desc(settlementRecords.createdAt))
+        .limit(1);
 
-    // Calculate total refunds
-    const refundResult = await this.db.db
-      .select({ total: sql<number>`COALESCE(SUM(amount_minor), 0)` })
-      .from(refunds)
-      .where(and(eq(refunds.paymentRecordId, payment.id), eq(refunds.status, 'SUCCEEDED')));
-    const totalRefunded = refundResult[0]?.total ?? 0;
+      if (existingSettlement) {
+        if (['PENDING', 'CALCULATED', 'DUE'].includes(existingSettlement.status)) {
+          return { settlement: existingSettlement, created: false };
+        }
+        // A paid settlement is immutable. Any subsequent refund or commercial
+        // correction must use the explicit adjustment workflow, never a fresh
+        // payable settlement calculation.
+        throw new ConflictException(
+          `Settlement already exists in ${existingSettlement.status} status; use the settlement adjustment workflow`,
+        );
+      }
 
-    // Settlement formula: gross - refunds - commission - fees = net
-    const grossMinor = confirmedAmount;
-    const refundMinor = totalRefunded;
-    const commissionMinor = breakdown.commissionMinor;
-    const feeMinor = breakdown.deliveryFeeMinor;
-    const netMinor = grossMinor - refundMinor - commissionMinor - feeMinor;
+      const breakdown = await tx.query.orderFinancialBreakdown.findFirst({
+        where: eq(orderFinancialBreakdown.orderId, subOrderId),
+      });
+      if (!breakdown) throw new NotFoundException('Financial breakdown not found');
 
-    const settlementId = crypto.randomUUID();
+      const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
+      const refundResult = await tx
+        .select({ total: sql<number>`COALESCE(SUM(amount_minor), 0)` })
+        .from(refunds)
+        .where(and(eq(refunds.paymentRecordId, payment.id), eq(refunds.status, 'SUCCEEDED')));
+      const totalRefunded = refundResult[0]?.total ?? 0;
 
-    await this.db.db.transaction(async (tx) => {
-      await tx.insert(settlementRecords).values({
+      // Settlement formula: gross - refunds - commission - fees = net
+      const grossMinor = confirmedAmount;
+      const refundMinor = totalRefunded;
+      const commissionMinor = breakdown.commissionMinor;
+      const feeMinor = breakdown.deliveryFeeMinor;
+      const netMinor = grossMinor - refundMinor - commissionMinor - feeMinor;
+      const settlementId = crypto.randomUUID();
+
+      const [settlement] = await tx.insert(settlementRecords).values({
         id: settlementId,
         subOrderId,
         paymentRecordId: payment.id,
@@ -903,7 +936,7 @@ export class PaymentsService {
         currency: payment.currency,
         status: 'CALCULATED',
         calculatedAt: new Date(),
-      });
+      }).returning();
 
       await tx.insert(paymentEvents).values({
         id: crypto.randomUUID(),
@@ -911,7 +944,7 @@ export class PaymentsService {
         eventType: 'PAYMENT_REFUND_SUCCEEDED',
         fromStatus: payment.status,
         toStatus: payment.status,
-        actorId: actorId,
+        actorId,
         actorType: 'SYSTEM',
         amountMinor: netMinor,
         notes: `Settlement calculated: gross=${grossMinor}, refund=${refundMinor}, commission=${commissionMinor}, fee=${feeMinor}, net=${netMinor}`,
@@ -931,10 +964,14 @@ export class PaymentsService {
         null,
         tx,
       );
+
+      return { settlement, created: true };
     });
 
-    this.logger.log(`Settlement ${settlementId} calculated for order ${subOrderId}`);
-    return this.getSettlement(settlementId);
+    if (result.created) {
+      this.logger.log(`Settlement ${result.settlement.id} calculated for order ${subOrderId}`);
+    }
+    return result.settlement;
   }
 
   /**

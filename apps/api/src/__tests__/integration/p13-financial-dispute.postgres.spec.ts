@@ -14,6 +14,8 @@
  *   FIN-DSH-08  Concurrent refund approval and settlement calculation
  *   FIN-DSH-09  Refund approved after settlement already PAID (ADJUSTMENT, original preserved)
  *   FIN-DSH-10  Rollback when the REFUNDED transition loses a race (no double settlement debit)
+ *   FIN-DSH-13  Concurrent settlement calculations reuse one payable settlement
+ *   FIN-DSH-14  Recalculation after settlement PAID is rejected
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -630,6 +632,53 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     await expect(
       paymentsService.requestRefund(paymentId, 1000, 'CUSTOMER_REQUEST', buyerA, buyerCaller, { idempotencyKey }),
     ).rejects.toThrow(/idempotency key was already used/i);
+  }, 60_000);
+
+  // ── FIN-DSH-13: Settlement calculation idempotency ───────────────
+
+  it('FIN-DSH-13: concurrent settlement calculations reuse one payable settlement', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+
+    const [first, retry] = await Promise.all([
+      paymentsService.calculateSettlement(orderId, adminA, adminCaller),
+      paymentsService.calculateSettlement(orderId, adminA, adminCaller),
+    ]);
+
+    expect(retry.id).toBe(first.id);
+    expect(first.status).toBe('CALCULATED');
+
+    const rows = await pool.query(
+      `SELECT count(*)::int AS count FROM settlement_records WHERE sub_order_id = $1`,
+      [orderId],
+    );
+    expect(rows.rows[0].count).toBe(1);
+
+    const events = await pool.query(
+      `SELECT count(*)::int AS count FROM outbox_events
+       WHERE aggregate_id = $1 AND event_type = 'payment.settlement_calculated'`,
+      [(await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0].id],
+    );
+    expect(events.rows[0].count).toBe(1);
+  }, 60_000);
+
+  // ── FIN-DSH-14: Paid settlement cannot be recalculated ────────────
+
+  it('FIN-DSH-14: recalculation after PAID is rejected without creating another payable record', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
+    const paid = await paymentsService.markSettlementPaid(settlement.id, adminA, adminCaller);
+    expect(paid.status).toBe('PAID');
+
+    await expect(
+      paymentsService.calculateSettlement(orderId, adminA, adminCaller),
+    ).rejects.toThrow(/settlement already exists in PAID status/i);
+
+    const rows = await pool.query(
+      `SELECT status, count(*)::int AS count FROM settlement_records
+       WHERE sub_order_id = $1 GROUP BY status`,
+      [orderId],
+    );
+    expect(rows.rows).toEqual([{ status: 'PAID', count: 1 }]);
   }, 60_000);
 
   // ── FIN-DSH-09: Refund after settlement PAID ─────────────────────
