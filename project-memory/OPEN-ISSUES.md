@@ -605,3 +605,8 @@ Catalog Requests Approve/Reject now recheck `catalog:requests:manage` at dispatc
 Data Quality and KPI Dashboard now check their respective route permissions before starting initial reads or retries, and invalidate stale requests on access changes. Tests assert unauthorized users do not trigger the protected API reads; they have not been executed. UX-105 remains IMPLEMENTED / TESTING_PENDING.
 
 **Next implementation:** continue the remaining Admin operational UX/source audit beyond permission mapping. Do not repeat UX-097–UX-105.
+
+
+## FIN-001 — Refund approval serialization and idempotency — 23 November 2026
+
+Source implementation is complete at `117614884ff1e0d50ca116f0b28f249fd83761c0`. Refund approvals now serialize on the payment row before recalculating the successful refund total; identical request retries reuse the existing refund by idempotency key, and mismatched key reuse conflicts. PostgreSQL regression scenarios FIN-DSH-11/12 were added but not executed. This is IMPLEMENTED / TESTING_PENDING, not verified. G-012 remains OPEN and unchanged: no automatic gateway or payout scope was introduced.

@@ -929,3 +929,12 @@ The next full workflow is required to verify these changes.
 - No Actions run is attached to that documentation commit. Latest source CI is #1421 on UX-105: lint/typecheck and Flutter analysis/tests passed; Prettier failed with 255 files; Web/Admin tests and dependent gates skipped.
 - Vercel Web and Admin contexts are FAILURE due external provider build-rate-limit notices, not application test results.
 - Re-fetch the live PR head/status before any further source edit because this memory synchronization itself advances the branch.
+
+
+## FIN-001 source checkpoint and validation — 23 November 2026
+
+- PR #138 source/test checkpoint: `117614884ff1e0d50ca116f0b28f249fd83761c0` (`fix(payments): serialize refund approvals and retries [skip ci]`).
+- No GitHub Actions workflow run is attached to this exact SHA. Its Vercel Web/Admin statuses both report SUCCESS / Skipped — Not affected.
+- Latest Actions run #1421: [workflow](https://github.com/nabeel2323/scs-platform/actions/runs/45143101050), tested `8474b7acd264872a01d305bef515009eded104ed`. Lint and TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed with 255 files needing formatting. Web/Admin tests, API unit/coverage, PostgreSQL integration, boundary, build, migration, codegen, container, k6 and staging release jobs were skipped.
+- FIN-DSH-11/12 PostgreSQL integration tests are added but not executed. Do not claim CI or automated-test verification for FIN-001.
+- No merge, deployment, protected staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.

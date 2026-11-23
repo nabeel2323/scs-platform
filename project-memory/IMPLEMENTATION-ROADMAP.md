@@ -465,3 +465,10 @@ Completed the Admin attribute directory recovery slice. Attribute Groups and Att
 - Focused tests have been added but not executed; exact-head CI and independent review remain pending.
 
 **Next implementation task:** finish the remaining Admin route/action permission mapping. Keep the comprehensive test campaign in Phase 3.
+
+
+## FIN-001 — Refund approval concurrency and request idempotency — 23 November 2026
+
+The P12 refund flow had a concrete concurrency gap: distinct partial refunds could be approved concurrently without locking their shared payment row. Both transactions could calculate from an incomplete aggregate and leave a fully refunded payment marked PARTIALLY_REFUNDED. The approval path now locks the payment row before changing refund status and computing the cumulative successful amount. Request idempotency now returns the existing refund for identical caller-supplied key/payload retries and rejects mismatched reuse; conflict-safe insertion handles concurrent cross-payment key collisions.
+
+PostgreSQL regression cases FIN-DSH-11 and FIN-DSH-12 were added but have not been executed. Source/test commit: `117614884ff1e0d50ca116f0b28f249fd83761c0`. No schema, migration, provider, gateway, payout, staging or shared DB behavior changed. G-012 remains OPEN. Continue source-first commercial/operational correctness audit; keep full validation grouped in Phase 3.
