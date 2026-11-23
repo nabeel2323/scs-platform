@@ -3,7 +3,7 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `14c8c5caa908a2194c8a3ec903de08f15e0db50e` — UX-100 settlement adjustment rejection UI; latest focused tests: `e471e6b49e6f60a7c2c1b3719a96fcd7892f6ade`. Earlier UX-099 shared Admin mutation permission callbacks are recorded below.
+**Latest source implementation commit:** `892bb24f4522988c89dea507cb848d80fb4dbe2e` — UX-103 Product Type stale-response suppression; latest focused test commit: `3d59ae9b4b5f7d2f6316bb432836f66131edb1d7` (UX-101 failed-save/publish regression).
 **Latest implementation checkpoint head:** `e471e6b49e6f60a7c2c1b3719a96fcd7892f6ade` (UX-100 focused test commit; subsequent documentation-only commits synchronize this checkpoint).  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
@@ -25,7 +25,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | PR #138 | Open; draft; not merged; base `develop` |
 | Exact-head GitHub Actions | No run for UX-099 source/test head `57d3a251b34b891e49a05e3f9b70756be1b4dbb7`; CI #1408 failed on earlier `a76b0bef436af8bde2d9329b1cd6ee5980f593fc` at changed-file Prettier (245 files); typecheck and Flutter job passed there, but UX-099 is NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest inspected Vercel contexts | At PR head `ea8015ba5f5cf239a3a34304645326bc9ec51038`: Web FAILURE and Admin FAILURE at external build-rate-limit destination; not application test results |
+| Latest inspected Vercel contexts | At PR head `a451ad9ba16d3abd499fe4900ad1c8c78cee06d2`: Web FAILURE and Admin FAILURE at external build-rate-limit destination; not application test results |
 | Focused client tests | Admin UX-030–058 and UX-097–099, Mobile UX-078–096 and Web UX-095 focused tests added/updated; not executed (Flutter suite passed only on earlier SHA `a76b0be`) |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
