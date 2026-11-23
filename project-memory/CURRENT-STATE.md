@@ -19,14 +19,14 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation checkpoint head | `84d7f4d713902819b21b89a12074986b17781c48` (PR #138 head before docs sync; not CI-verified) |
-| Latest implementation/test | UX-095 Web merchant route/action alignment, UX-096 Mobile route/action/org-context alignment, and G-036 realtime room authorization; focused tests added but not executed |
+| Latest implementation checkpoint head | `856d527aeb65abc9feeb565f1dbc8c07df7d5331` (UX-097 focused tests; implementation/test pending verification) |
+| Latest implementation/test | UX-097 Admin action-handler permission rechecks; API realtime room type narrowing and Mobile nullable-role corrections after CI #1395; focused tests added but not executed |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No workflow run for exact head `84d7f4d713902819b21b89a12074986b17781c48`; commits use `[skip ci]`; NOT CI-VERIFIED |
+| Exact-head GitHub Actions | No run for corrective source/test head `856d527aeb65abc9feeb565f1dbc8c07df7d5331`; CI #1395 failed on earlier `ff304ce6c0bcf63a654ff8fbd04130254cdb669e`; corrections NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest inspected Vercel contexts | At the latest implementation checkpoint: Vercel Web FAILURE and Admin FAILURE at the external build-rate-limit destination; not application test results |
-| Focused client tests | Admin UX-030–058, Mobile UX-078–096 and Web UX-095 focused tests added/updated; not executed |
+| Latest inspected Vercel contexts | At PR head `071cbc41`: Web/Admin PENDING preview-provider checks; not application test results |
+| Focused client tests | Admin UX-030–058 and UX-097, Mobile UX-078–096, Web UX-095 focused tests added/updated; not executed |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
 ## Current remediation status
@@ -756,3 +756,15 @@ Merchant active-store and product reads now preserve last-successful data throug
 - Admin UX-097 adds handler-time permission checks for verification organization deactivate/reactivate, organization status changes and update-request review, and dispute resolution. Focused tests cover permission loss while confirmation dialogs are open; tests have not been executed.
 - No GitHub Actions run is attached to the new source/test commits; no test or CI pass is claimed. Current Vercel contexts must be refreshed after this documentation synchronization; they are preview-provider checks, not application test evidence.
 - No merge, deployment, staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement, worker activation or provider call occurred.
+
+
+## Exact-head reconciliation — 23 November 2026 (UX-097 and CI #1395 follow-up)
+
+- PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. The latest live PR head before this state-file update is `071cbc41e4d72c02ba039d2a7110e8eaaba2711c`; latest source/test checkpoint is `856d527aeb65abc9feeb565f1dbc8c07df7d5331`.
+- CI #1395 failed on the prior head `ff304ce6c0bcf63a654ff8fbd04130254cdb669e`: API typecheck had two `string | undefined` room-capture errors and Flutter analysis had a nullable `UserProfile.role` argument plus a runtime-dependent `const EmptyState`. Corrected in `0d4644f` and `5f08755`.
+- UX-097: Admin verification/organization status and organization update-request handlers now recheck `admin:users:write`; dispute resolution rechecks `support:disputes:resolve`. Focused tests simulate permission loss while confirmation dialogs are open. All tests remain unexecuted.
+- No Actions run is attached to the new corrective source/test head. Current combined Vercel statuses are PENDING and are preview-provider checks, not application test evidence. The corrections are IMPLEMENTED / TESTING_PENDING, not CI-verified.
+- G-001 remains PARTIAL pending independent security review; G-002 remains IN PROGRESS pending protected runtime identity/catalog evidence and reviewed access design; G-036 remains IN PROGRESS pending exact-head verification and independent review. Phase 6 remains NOT STARTED.
+- No merge, deployment, staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement, worker activation or provider call occurred.
+
+**Next:** continue the remaining Admin custom route/action-to-controller permission mapping. Do not repeat the completed 56-page route audit or UX-097 handler fixes. Keep the consolidated test campaign deferred to Phase 3.
