@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { isAuthenticated, getUser, logout } from '../lib/auth';
 import './AdminSidebar.css';
+import { hasAdminNavAccess } from '../lib/admin-nav-permissions';
 import {
   IconHome,
   IconUsers,
@@ -30,7 +31,7 @@ import {
 } from '@scs/ui-kit';
 
 /** Navigation grouped by the operational domain while preserving each route's permission contract. */
-type NavItem = { href: string; label: string; icon: React.ReactNode; perms: string[] };
+type NavItem = { href: string; label: string; icon: React.ReactNode; perms: string[]; anyPerms?: string[] };
 const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: 'Overview',
@@ -90,7 +91,8 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         href: '/carrier',
         label: 'Carrier & Recovery',
         icon: <IconSettings size={18} />,
-        perms: ['admin:carrier:read'],
+        perms: [],
+        anyPerms: ['admin:carrier:read', 'admin:shipping:recovery'],
       },
       {
         href: '/returns',
@@ -172,7 +174,8 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         href: '/payments',
         label: 'Payments',
         icon: <IconShield size={18} />,
-        perms: ['admin:payments:read'],
+        perms: [],
+        anyPerms: ['admin:payments:read', 'admin:payments:verify', 'admin:refunds:approve'],
       },
       {
         href: '/settlements',
@@ -341,11 +344,8 @@ export function AdminSidebar() {
         style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}
       >
         {navGroups.map((group, groupIndex) => {
-          const visibleItems = group.items.filter((item) => {
-            if (item.perms.length === 0) return true;
-            const userPerms = user?.perms ?? [];
-            return item.perms.every((permission) => userPerms.includes(permission));
-          });
+          const userPerms = user?.perms ?? [];
+          const visibleItems = group.items.filter((item) => hasAdminNavAccess(item, userPerms));
           if (visibleItems.length === 0) return null;
 
           return (
