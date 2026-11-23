@@ -5,6 +5,7 @@
  * Uses integer minor-unit arithmetic throughout.
  */
 import { describe, it, expect } from 'vitest';
+import { calculateProportionalCommissionReversalMinor } from '../../../modules/returns/returns-financials';
 
 // ─── Pure calculation helpers (mirrors service logic) ────────────
 
@@ -21,11 +22,12 @@ function calculateReversal(
   returnNetGoods: number,
   alreadyReversed: number,
 ): number {
-  if (originalCommission <= 0 || orderNetGoods <= 0 || returnNetGoods <= 0) return 0;
-  const remaining = originalCommission - alreadyReversed;
-  if (remaining <= 0) return 0;
-  const raw = Math.floor((originalCommission * returnNetGoods) / orderNetGoods);
-  return Math.min(raw, remaining);
+  return calculateProportionalCommissionReversalMinor(
+    originalCommission,
+    orderNetGoods,
+    returnNetGoods,
+    alreadyReversed,
+  );
 }
 
 /** Categories that trigger commission reversal. */
@@ -171,6 +173,18 @@ describe('Commission Reversal — Edge Cases', () => {
 
   it('negative return goods treated as zero', () => {
     expect(calculateReversal(100, 1000, -500, 0)).toBe(0);
+  });
+
+  it('uses exact BigInt multiplication when safe integer operands have an unsafe product', () => {
+    const reversal = calculateReversal(
+      5_587_381_164_843_962,
+      5_885_822_589_159_602,
+      5_071_543_078_211_164,
+      0,
+    );
+
+    // Number multiplication rounds this quotient up by one minor unit.
+    expect(reversal).toBe(4_814_389_805_782_071);
   });
 
   it('very large numbers: no overflow in integer arithmetic', () => {
