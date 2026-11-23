@@ -65,7 +65,7 @@ export default function MerchantSettlementsPage() {
         if (!cancelled) setStoresLoading(false);
       });
     return () => { cancelled = true; };
-  }, [user?.id, activeOrgId, reloadStores]);
+  }, [user, activeOrgId, reloadStores]);
 
   useEffect(() => {
     const version = ++requestVersion.current;
@@ -95,7 +95,7 @@ export default function MerchantSettlementsPage() {
       cancelled = true;
       requestVersion.current += 1;
     };
-  }, [user?.id, activeOrgId, storeId, statusFilter, reloadSettlements]);
+  }, [user, activeOrgId, storeId, statusFilter, reloadSettlements]);
 
   if (authLoading || storesLoading) return <LoadingSpinner />;
 
@@ -124,7 +124,7 @@ export default function MerchantSettlementsPage() {
                 onChange={(event) => setStoreId(event.target.value)}
                 style={{
                   padding: '8px 12px', borderRadius: radii.md,
-                  border: \`1px solid \${colors.border}\`, fontSize: 14, minWidth: 220,
+                  border: `1px solid ${colors.border}`, fontSize: 14, minWidth: 220,
                 }}
               >
                 {stores.map((store) => (
@@ -140,7 +140,7 @@ export default function MerchantSettlementsPage() {
                 onChange={(event) => setStatusFilter(event.target.value)}
                 style={{
                   padding: '8px 12px', borderRadius: radii.md,
-                  border: \`1px solid \${colors.border}\`, fontSize: 14,
+                  border: `1px solid ${colors.border}`, fontSize: 14,
                 }}
               >
                 {SETTLEMENT_STATUSES.map((status) => (
@@ -153,7 +153,7 @@ export default function MerchantSettlementsPage() {
               onClick={() => setReloadSettlements((value) => value + 1)}
               style={{
                 padding: '8px 14px', borderRadius: radii.md,
-                border: \`1px solid \${colors.border}\`, background: '#fff',
+                border: `1px solid ${colors.border}`, background: '#fff',
                 color: '#334155', cursor: 'pointer', fontSize: 13,
               }}
             >
@@ -171,10 +171,10 @@ export default function MerchantSettlementsPage() {
               description="No settlement or adjustment records match this store and status filter."
             />
           ) : (
-            <div style={{ overflowX: 'auto', border: \`1px solid \${colors.border}\`, borderRadius: radii.lg, background: '#fff' }}>
+            <div style={{ overflowX: 'auto', border: `1px solid ${colors.border}`, borderRadius: radii.lg, background: '#fff' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920, fontSize: 13 }}>
                 <thead>
-                  <tr style={{ background: '#f8fafc', borderBottom: \`1px solid \${colors.border}\`, textAlign: 'left' }}>
+                  <tr style={{ background: '#f8fafc', borderBottom: `1px solid ${colors.border}`, textAlign: 'left' }}>
                     <th style={{ padding: '12px 10px' }}>Sub-order</th>
                     <th style={{ padding: '12px 10px' }}>Date</th>
                     <th style={{ padding: '12px 10px', textAlign: 'right' }}>Gross</th>
@@ -188,7 +188,7 @@ export default function MerchantSettlementsPage() {
                 </thead>
                 <tbody>
                   {settlements.map((settlement) => (
-                    <tr key={settlement.id} style={{ borderBottom: \`1px solid \${colors.border}\` }}>
+                    <tr key={settlement.id} style={{ borderBottom: `1px solid ${colors.border}` }}>
                       <td style={{ padding: '11px 10px', fontFamily: 'monospace', fontSize: 12 }}>
                         {settlement.subOrderId.slice(0, 8)}…
                       </td>

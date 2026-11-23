@@ -20,7 +20,7 @@ vi.mock('../lib/buyer-api', () => ({
 vi.mock('../lib/merchant-store', () => ({ pickStore: (stores: Array<{ id: string }>) => stores[0] }));
 vi.mock('../components/Shared', () => ({
   formatDateCompact: (value: string) => value,
-  formatMinor: (minor: number, currency: string) => \`\${(minor / 100).toFixed(2)} \${currency}\`,
+  formatMinor: (minor: number, currency: string) => `${(minor / 100).toFixed(2)} ${currency}`,
   LoadingSpinner: () => <div>Loading</div>,
   StatusBadge: ({ status }: { status: string }) => <span>{status}</span>,
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
