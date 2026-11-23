@@ -1908,3 +1908,17 @@ This is client-side action safety and does not change G-001–G-036 audit findin
 - Status: **IMPLEMENTED / TESTING_PENDING**, not automated-test verified or CI-verified. No API grants, backend auth, schema, migration, DB, staging or deployment changes.
 
 **Next:** complete remaining Admin custom route/action-to-controller mapping and verify all `useAdminMutation` call sites use action-specific permissions. Phase 3 remains the consolidated formatting and test campaign.
+
+
+## Programme UX-100 — Admin settlement adjustment rejection action — 23 November 2026
+
+This closes a UI-to-controller workflow omission; it does not change G-001–G-036 finding status or backend authorization.
+
+- Compared custom Admin financial action handlers with API controller permission decorators for reconciliation, settlement adjustments, settlements, payments and role permission updates; the page-level action predicates align with the corresponding API permission keys.
+- Found that the API already exposed `POST /admin/settlement-adjustments/:id/reject` guarded by `admin:adjustments:approve`, but the Admin page exposed only Submit, Approve and Post. Added an approver-only Reject action with a required reason and the controller's expected `{ reason }` payload.
+- The rejection form is only rendered for a pending-approval adjustment and users with `admin:adjustments:approve`; users with read-only access do not see Approve or Reject.
+- Added focused tests for successful rejection request payload and read-only visibility in `apps/admin/src/__tests__/admin-settlement-adjustments-recovery.test.tsx`. Tests have **not been executed**.
+- Source commit: `14c8c5ca`; focused test commit: `e471e6b4`.
+- Status: **IMPLEMENTED / TESTING_PENDING**, not automated-test verified or CI-verified. No backend permission, role grant, schema, migration, database, staging, worker or deployment behavior changed.
+
+**Next:** finish the remaining Admin custom route/action-to-controller audit and inspect any custom handlers not covered by the shared `useAdminMutation` path. Keep the repository-locked formatting and comprehensive test campaign grouped at Phase 3.
