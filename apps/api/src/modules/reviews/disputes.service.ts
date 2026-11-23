@@ -27,88 +27,75 @@ export class DisputesService {
   // ── Disputes ─────────────────────────────────────────────────
 
   async createDispute(input: CreateDisputeInput) {
-    // Verify order is in DELIVERED state and within 72h window
-    const order = await this.db.db.query.orders.findFirst({
-      where: eq(orders.id, input.orderId),
-    });
-    if (!order) throw new NotFoundException('Order not found');
-
-    if (input.raisedBy === input.againstId) {
-      throw new BadRequestException('A dispute must be raised against the other order party');
-    }
-    const raisedByIsBuyer = order['buyerId'] === input.raisedBy;
-    if (!raisedByIsBuyer) {
-      const raisedByMembership = await this.db.db.query.storeMembers.findFirst({
-        where: and(
-          eq(storeMembers.storeId, order['storeId']),
-          eq(storeMembers.userId, input.raisedBy),
-          eq(storeMembers.status, 'ACTIVE'),
-        ),
-        columns: { userId: true },
-      });
-      if (!raisedByMembership) {
-        throw new ForbiddenException('Only an order buyer or active member of its store can open a dispute');
-      }
-      if (input.againstId !== order['buyerId']) {
-        throw new BadRequestException('A merchant dispute must be raised against the order buyer');
-      }
-    } else {
-      const respondentMembership = await this.db.db.query.storeMembers.findFirst({
-        where: and(
-          eq(storeMembers.storeId, order['storeId']),
-          eq(storeMembers.userId, input.againstId),
-          eq(storeMembers.status, 'ACTIVE'),
-        ),
-        columns: { userId: true },
-      });
-      if (!respondentMembership) {
-        throw new BadRequestException('The respondent must be an active member of the order store');
-      }
-    }
-
-    if (order['status'] !== 'DELIVERED') {
-      throw new BadRequestException('Disputes can only be opened for DELIVERED orders');
-    }
-
-    // Check 72h window
-    const deliveredAt = new Date(order['updatedAt'] || order['createdAt']);
-    const windowEnd = new Date(deliveredAt.getTime() + 72 * 60 * 60 * 1000);
-    if (new Date() > windowEnd) {
-      throw new BadRequestException('Dispute window (72h) has expired');
-    }
-
-    // Check for existing open dispute
-    const existing = await this.db.db.query.disputes.findFirst({
-      where: and(
-        eq(disputes.orderId, input.orderId),
-        eq(disputes.status, 'OPEN'),
-      ),
-    });
-    if (existing) throw new ConflictException('An open dispute already exists for this order');
-
     const id = crypto.randomUUID();
-    await this.db.db.insert(disputes).values({
-      id,
-      orderId: input.orderId,
-      raisedBy: input.raisedBy,
-      againstId: input.againstId,
-      reason: input.reason,
-    });
 
-    // Record initial event
-    await this.db.db.insert(disputeEvents).values({
-      id: crypto.randomUUID(),
-      disputeId: id,
-      actorId: input.raisedBy,
-      eventType: 'OPENED',
-      body: input.reason,
-    });
+    await this.db.db.transaction(async (tx) => {
+      // Serialize dispute creation for one order and keep the dispute, immutable
+      // OPENED event and notification outbox record in the same transaction.
+      const [order] = await tx.select().from(orders)
+        .where(eq(orders.id, input.orderId))
+        .for('update');
+      if (!order) throw new NotFoundException('Order not found');
 
-    await this.outbox.publish('dispute.opened', id, {
-      disputeId: id,
-      orderId: input.orderId,
-      raisedBy: input.raisedBy,
-      againstId: input.againstId,
+      if (input.raisedBy === input.againstId) {
+        throw new BadRequestException('A dispute must be raised against the other order party');
+      }
+      const raisedByIsBuyer = order.buyerId === input.raisedBy;
+      if (!raisedByIsBuyer) {
+        const raisedByMembership = await tx.query.storeMembers.findFirst({
+          where: and(
+            eq(storeMembers.storeId, order.storeId),
+            eq(storeMembers.userId, input.raisedBy),
+            eq(storeMembers.status, 'ACTIVE'),
+          ),
+          columns: { userId: true },
+        });
+        if (!raisedByMembership) {
+          throw new ForbiddenException('Only an order buyer or active member of its store can open a dispute');
+        }
+        if (input.againstId !== order.buyerId) {
+          throw new BadRequestException('A merchant dispute must be raised against the order buyer');
+        }
+      } else {
+        const respondentMembership = await tx.query.storeMembers.findFirst({
+          where: and(
+            eq(storeMembers.storeId, order.storeId),
+            eq(storeMembers.userId, input.againstId),
+            eq(storeMembers.status, 'ACTIVE'),
+          ),
+          columns: { userId: true },
+        });
+        if (!respondentMembership) {
+          throw new BadRequestException('The respondent must be an active member of the order store');
+        }
+      }
+
+      if (order.status !== 'DELIVERED') {
+        throw new BadRequestException('Disputes can only be opened for DELIVERED orders');
+      }
+      const deliveredAt = new Date(order.updatedAt || order.createdAt);
+      const windowEnd = new Date(deliveredAt.getTime() + 72 * 60 * 60 * 1000);
+      if (new Date() > windowEnd) {
+        throw new BadRequestException('Dispute window (72h) has expired');
+      }
+
+      const existing = await tx.query.disputes.findFirst({
+        where: and(eq(disputes.orderId, input.orderId), eq(disputes.status, 'OPEN')),
+      });
+      if (existing) throw new ConflictException('An open dispute already exists for this order');
+
+      await tx.insert(disputes).values({
+        id, orderId: input.orderId, raisedBy: input.raisedBy,
+        againstId: input.againstId, reason: input.reason,
+      });
+      await tx.insert(disputeEvents).values({
+        id: crypto.randomUUID(), disputeId: id, actorId: input.raisedBy,
+        eventType: 'OPENED', body: input.reason,
+      });
+      await this.outbox.publish('dispute.opened', id, {
+        disputeId: id, orderId: input.orderId,
+        raisedBy: input.raisedBy, againstId: input.againstId,
+      }, {}, null, tx);
     });
 
     return this.loadDispute(id);
@@ -147,27 +134,28 @@ export class DisputesService {
   }
 
   async submitEvidence(disputeId: string, userId: string, body: string, attachments?: string[]) {
-    const dispute = await this.loadDispute(disputeId);
+    await this.db.db.transaction(async (tx) => {
+      const [dispute] = await tx.select().from(disputes)
+        .where(eq(disputes.id, disputeId))
+        .for('update');
+      if (!dispute) throw new NotFoundException('Dispute not found');
+      if (dispute.raisedBy !== userId && dispute.againstId !== userId) {
+        throw new NotFoundException('Dispute not found');
+      }
 
-    if (dispute['raisedBy'] !== userId && dispute['againstId'] !== userId) {
-      throw new NotFoundException('Dispute not found');
-    }
+      if (dispute.status === 'OPEN') {
+        await tx.update(disputes)
+          .set({ status: 'EVIDENCE', updatedAt: new Date() })
+          .where(eq(disputes.id, disputeId));
+      }
 
-    // Update dispute status to EVIDENCE if OPEN
-    if (dispute['status'] === 'OPEN') {
-      await this.db.db
-        .update(disputes)
-        .set({ status: 'EVIDENCE', updatedAt: new Date() })
-        .where(eq(disputes.id, disputeId));
-    }
-
-    await this.db.db.insert(disputeEvents).values({
-      id: crypto.randomUUID(),
-      disputeId,
-      actorId: userId,
-      eventType: 'EVIDENCE_SUBMITTED',
-      body,
-      attachments: attachments || [],
+      await tx.insert(disputeEvents).values({
+        id: crypto.randomUUID(), disputeId, actorId: userId,
+        eventType: 'EVIDENCE_SUBMITTED', body, attachments: attachments || [],
+      });
+      await this.outbox.publish('dispute.evidence_submitted', disputeId, {
+        disputeId, submittedBy: userId, body, attachments: attachments || [],
+      }, {}, null, tx);
     });
 
     return this.loadDispute(disputeId);
@@ -179,23 +167,25 @@ export class DisputesService {
     body: string,
     caller: CallerContext,
   ) {
-    const dispute = await this.loadDispute(disputeId);
+    await this.db.db.transaction(async (tx) => {
+      const [dispute] = await tx.select().from(disputes)
+        .where(eq(disputes.id, disputeId))
+        .for('update');
+      if (!dispute) throw new NotFoundException('Dispute not found');
+      if (dispute.againstId !== userId && !isTenantPrivileged(caller)) {
+        throw new NotFoundException('Dispute not found');
+      }
 
-    if (dispute['againstId'] !== userId && !isTenantPrivileged(caller)) {
-      throw new NotFoundException('Dispute not found');
-    }
-
-    await this.db.db
-      .update(disputes)
-      .set({ status: 'RESPONSE', updatedAt: new Date() })
-      .where(eq(disputes.id, disputeId));
-
-    await this.db.db.insert(disputeEvents).values({
-      id: crypto.randomUUID(),
-      disputeId,
-      actorId: userId,
-      eventType: 'RESPONSE_SUBMITTED',
-      body,
+      await tx.update(disputes)
+        .set({ status: 'RESPONSE', updatedAt: new Date() })
+        .where(eq(disputes.id, disputeId));
+      await tx.insert(disputeEvents).values({
+        id: crypto.randomUUID(), disputeId, actorId: userId,
+        eventType: 'RESPONSE_SUBMITTED', body,
+      });
+      await this.outbox.publish('dispute.response_submitted', disputeId, {
+        disputeId, submittedBy: userId, body,
+      }, {}, null, tx);
     });
 
     return this.loadDispute(disputeId);

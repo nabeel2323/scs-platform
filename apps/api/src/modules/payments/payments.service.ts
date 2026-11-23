@@ -133,6 +133,10 @@ export class PaymentsService {
       notes: `Payment created at checkout — ${paymentMethod}`,
     });
 
+    await this.outbox.publish('payment.created', id, {
+      paymentId: id, orderId, paymentMethod, amountMinor, currency, status: initialStatus,
+    }, {}, null, tx);
+
     return id;
   }
 
@@ -539,6 +543,9 @@ export class PaymentsService {
           actorType: 'SYSTEM',
           notes: 'Payment ready — awaiting buyer proof upload',
         });
+        await this.outbox.publish('payment.awaiting_payment', paymentId, {
+          paymentId, orderId: payment.orderId, buyerId, fromStatus, toStatus,
+        }, {}, null, tx);
       }
     });
   }

@@ -40,6 +40,8 @@
  *   FIN-DSH-36  Reconciliation ledger signs and non-monetary discrepancy persistence
  *   FIN-DSH-37  Concurrent organization-scoped run versions and forward supersession links
  *   FIN-DSH-38  Failed reconciliation is atomic and leaves no partial discrepancy rows
+ *   FIN-DSH-39  Payment/dispute immutable history and outbox event parity
+ *   FIN-DSH-40  Dispute creation rolls back when outbox persistence fails
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -326,7 +328,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
   it('FIN-DSH-01: resolve dispute without issuing a refund persists RESOLVED with no refund rows', async () => {
     const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
-    const dispute = await openDispute(orderId);
+    const disputeOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const dispute = await openDispute(disputeOrderId);
 
     const resolved = await disputesService.resolveDispute(dispute.id, adminA, 'Merchant complied; no refund warranted', adminCaller);
 
@@ -1988,5 +1991,74 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [runs.rows[0].id],
     );
     expect(discrepancies.rows).toHaveLength(0);
+  }, 90_000);
+  // ── FIN-DSH-39: Payment/dispute history and outbox atomicity ─────
+
+  it('FIN-DSH-39: payment creation/awaiting and dispute evidence/response each persist matching outbox events', async () => {
+    const cartId = randomUUID();
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
+    await pool.query(
+      `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
+       VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
+      [randomUUID(), cartId, storeA, variantA, offerA],
+    );
+    const bankTransferOrder = await ordersService.checkout({
+      buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'BANK_TRANSFER',
+      idempotencyKey: `fin022-${randomUUID()}`,
+    });
+    const bankTransferOrderId = bankTransferOrder.subOrders[0]!.id;
+    const paymentId = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [bankTransferOrderId])).rows[0].id;
+    const paymentEventsResult = await pool.query(
+      `SELECT event_type FROM payment_events WHERE payment_record_id = $1`, [paymentId],
+    );
+    const paymentOutboxResult = await pool.query(
+      `SELECT event_type FROM outbox_events WHERE aggregate_id = $1`, [paymentId],
+    );
+    expect(paymentEventsResult.rows.map((row: any) => row.event_type)).toEqual(
+      expect.arrayContaining(['PAYMENT_CREATED', 'PAYMENT_AWAITING']),
+    );
+    expect(paymentOutboxResult.rows.map((row: any) => row.event_type)).toEqual(
+      expect.arrayContaining(['payment.created', 'payment.awaiting_payment']),
+    );
+
+    const disputeOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const dispute = await openDispute(disputeOrderId);
+    await disputesService.submitEvidence(dispute.id, buyerA, 'Evidence submitted', ['private/evidence.pdf']);
+    const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
+    await disputesService.submitResponse(dispute.id, merchantA, 'Merchant response', merchantCaller);
+
+    const disputeEventsResult = await pool.query(
+      `SELECT event_type FROM dispute_events WHERE dispute_id = $1 ORDER BY created_at, event_type`, [dispute.id],
+    );
+    expect(disputeEventsResult.rows.map((row: any) => row.event_type)).toEqual(
+      expect.arrayContaining(['OPENED', 'EVIDENCE_SUBMITTED', 'RESPONSE_SUBMITTED']),
+    );
+    const disputeOutboxResult = await pool.query(
+      `SELECT event_type FROM outbox_events WHERE aggregate_id = $1`, [dispute.id],
+    );
+    expect(disputeOutboxResult.rows.map((row: any) => row.event_type)).toEqual(
+      expect.arrayContaining(['dispute.opened', 'dispute.evidence_submitted', 'dispute.response_submitted']),
+    );
+  }, 90_000);
+
+  it('FIN-DSH-40: dispute creation rolls back domain and history rows when outbox persistence fails', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const publishSpy = vi.spyOn((disputesService as any).outbox, 'publish')
+      .mockRejectedValueOnce(new Error('Synthetic outbox insert failure'));
+    let failedDisputeId: string | undefined;
+    try {
+      await expect(openDispute(orderId)).rejects.toThrow('Synthetic outbox insert failure');
+      failedDisputeId = publishSpy.mock.calls[0]?.[1];
+    } finally {
+      publishSpy.mockRestore();
+    }
+    expect(failedDisputeId).toBeTruthy();
+    expect((await pool.query(`SELECT id FROM disputes WHERE order_id = $1`, [orderId])).rows).toHaveLength(0);
+    expect((await pool.query(
+      `SELECT de.id FROM dispute_events de JOIN disputes d ON d.id = de.dispute_id WHERE d.order_id = $1`, [orderId],
+    )).rows).toHaveLength(0);
+    expect((await pool.query(
+      `SELECT id FROM outbox_events WHERE event_type = 'dispute.opened' AND aggregate_id = $1`, [failedDisputeId],
+    )).rows).toHaveLength(0);
   }, 90_000);
 });
