@@ -43,6 +43,7 @@ interface ProductFormData {
 
 interface ProductFormProps {
   mode: 'create' | 'edit';
+  canWrite: boolean;
   productId?: string;
 }
 
@@ -62,7 +63,7 @@ const s = (name: string) => styles[name] ?? name;
 
 // ── Component ──────────────────────────────────────────────────
 
-export default function ProductForm({ mode, productId }: ProductFormProps) {
+export default function ProductForm({ mode, productId, canWrite }: ProductFormProps) {
   const router = useRouter();
 
   // Core state
@@ -71,6 +72,7 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
   const [product, setProduct] = useState<AdminProduct | null>(null);
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
+  const savePending = useRef(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -211,6 +213,8 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
 
   // ── Save handler ─────────────────────────────────────────────
   const handleSave = useCallback(async () => {
+    if (!canWrite || savePending.current) return;
+    savePending.current = true;
     setSaving(true);
     setError('');
     setSuccessMsg('');
@@ -279,9 +283,10 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
         setError(err instanceof Error ? err.message : 'Save failed');
       }
     } finally {
+      savePending.current = false;
       setSaving(false);
     }
-  }, [mode, form, attrValues, productId, product, router]);
+  }, [canWrite, mode, form, attrValues, productId, product, router]);
 
   // ── Conflict reload ──────────────────────────────────────────
   const handleConflictReload = useCallback(async () => {
@@ -589,7 +594,7 @@ export default function ProductForm({ mode, productId }: ProductFormProps) {
 
         {/* ── Actions ──────────────────────────────────────────── */}
         <div className={s('actions')}>
-          <button type="button" className={s('btnPrimary')} disabled={saving || !form.title || !form.slug} onClick={handleSave}>
+          <button type="button" className={s('btnPrimary')} disabled={!canWrite || saving || !form.title || !form.slug} onClick={handleSave}>
             {saving ? 'Saving…' : mode === 'create' ? 'Create Product' : 'Save Changes'}
           </button>
           <Link href={productId ? `/products/${productId}` : '/products'} className={s('btnSecondary')}>Cancel</Link>
