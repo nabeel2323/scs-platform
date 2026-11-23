@@ -720,3 +720,10 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - Exact-head GitHub Actions lookup returned no run. Vercel Web/Admin both FAILURE due external build-rate-limit; no application test result is claimed.
 - No migration, shared/staging DB write, grant/RLS, worker activation, provider/gateway/payout, deployment or merge action. PR remains draft.
 - **Next FIN-025:** design durable payment-proof upload intent/recovery and orphan cleanup that can survive process crashes and retries without deleting any key referenced by a committed payment row. Include cleanup lease/retry, age threshold and tests; do not add a broad bucket-list delete operation.
+
+
+## FIN-024 follow-up — 23 November 2026
+
+- Latest proof-upload source/test head: `847647c424097e5ace69236d0c3b4592f85d30e9`.
+- Payment transition validation now occurs before object upload. If the object-store request times out after the server accepted the object, the service checks the unique generated key and compensates by deleting it when it exists. FIN-DSH-48 covers this uncertain-upload response case.
+- FIN-DSH-46/47/48 are added but not executed. Residual process-crash window after upload but before DB transaction remains; FIN-025 must add durable upload-intent/recovery and bounded cleanup.

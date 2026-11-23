@@ -2210,3 +2210,10 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - **Status:** IMPLEMENTED / TESTING_PENDING_WITH_RESIDUAL. A process crash between upload and DB transaction can leave an orphan; no durable upload-intent/sweeper exists. Cleanup verification/deletion failures preserve objects for safety.
 - **No migration/shared DB/staging write, worker activation, grants/RLS, environment, provider/gateway/payout, deployment or merge action.**
 - **Next:** FIN-025 — implement crash-safe upload intent/recovery and bounded orphan cleanup with lease/retry and DB-reference checks.
+
+
+### FIN-024 follow-up — uncertain upload response — 23 November 2026
+
+- Moved payment transition validation before storage upload so invalid transitions cannot create unused objects.
+- If `putObject` throws after the storage service may have accepted the object, check the generated key with `exists` and delete it when present. Cleanup failures are logged without masking the original upload error.
+- Added PostgreSQL FIN-DSH-48. Latest commit: `847647c424097e5ace69236d0c3b4592f85d30e9`. Test not executed. Process crash after upload but before DB transaction remains a known orphan window for FIN-025.

@@ -1355,3 +1355,8 @@ PostgreSQL FIN-DSH-46/47 cover failure compensation and replacement ordering. Te
 ### Next source-audit task — FIN-025
 
 Design a durable upload-intent/recovery workflow that survives process crashes. Use bounded lease/retry and verify payment-row references before deletion. Never perform broad bucket listing/deletion or delete any object referenced by a committed payment row. Add PostgreSQL and storage-mock tests for crash recovery, retries, concurrent replacement and cleanup failure. No shared/staging DB writes or worker activation.
+
+
+### FIN-024 follow-up — uncertain upload response
+
+Transition validation now precedes storage upload. If `putObject` times out after object acceptance, the service checks the generated key and deletes the object if present. FIN-DSH-48 covers this path. Commit: `847647c424097e5ace69236d0c3b4592f85d30e9`. Tests not executed. Durable recovery for a process crash between upload and DB transaction remains FIN-025.

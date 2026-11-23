@@ -1164,3 +1164,10 @@ The next full workflow is required to verify these changes.
 - FIN-DSH-46/47 added but not executed. FIN-024 remains IMPLEMENTED / TESTING_PENDING_WITH_RESIDUAL.
 - No migration/shared DB/staging write, grant/RLS, worker activation, environment, provider/gateway/payout, deployment or merge action occurred. Process-crash orphan cleanup remains open for FIN-025.
 - PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; consolidated Phase 3 validation and Phase 6 release gates remain outstanding.
+
+
+### FIN-024 follow-up exact-head checkpoint — 23 November 2026
+
+- Latest source/test commit: `847647c424097e5ace69236d0c3b4592f85d30e9`; FIN-DSH-48 added for uncertain object-store upload timeout compensation.
+- FIN-DSH-46/47/48 are committed but not executed. Exact-head Actions lookup remains no-run; Vercel Web/Admin failures are external build-rate-limit statuses, not test evidence.
+- Process-crash orphan recovery remains open as FIN-025. No shared DB, migration, worker, staging, deployment or merge action.

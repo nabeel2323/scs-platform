@@ -1067,3 +1067,10 @@ The existing return-idempotency case already owns FIN-DSH-33. Settlement-adjustm
 - Added PostgreSQL FIN-DSH-46/47 for failure cleanup and replacement ordering. Tests not executed.
 - Residual: process crash between upload and DB transaction can leave an orphan; cleanup verification/deletion failures can also leave safe orphans. Durable upload-intent/sweeper is next FIN-025.
 - Exact-head Actions: no run. Vercel Web/Admin both failed due external build-rate-limit. PR #138 remains OPEN / DRAFT / UNMERGED. No migration/shared DB/staging write, worker activation or deployment.
+
+
+### FIN-024 follow-up — upload timeout compensation — 23 November 2026
+
+- Latest source/test commit: `847647c424097e5ace69236d0c3b4592f85d30e9`.
+- Payment status transition validation now runs before upload. If an object-store upload throws after the object was accepted, the service checks the unique key and deletes it if present. Added PostgreSQL FIN-DSH-48. Tests not executed.
+- FIN-DSH-46/47/48 are pending the consolidated Phase 3 run. Process crash between successful upload and DB transaction can still leave an orphan; FIN-025 remains open.

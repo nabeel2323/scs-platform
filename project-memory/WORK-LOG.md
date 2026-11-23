@@ -1371,3 +1371,11 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added PostgreSQL FIN-DSH-46/47 for failed DB/outbox persistence and successful proof replacement. Tests added, not executed.
 - Commits: `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7d7b8487771e8ec`.
 - Residual crash window after upload and before DB transaction can leave orphan objects; no durable upload-intent/sweeper exists. Next FIN-025 addresses crash-safe cleanup. No migration/shared DB write/worker activation/deployment.
+
+
+### FIN-024 follow-up — uncertain object-store upload — 23 November 2026
+
+- Moved payment transition validation before object upload so invalid transitions cannot create unused objects.
+- Added compensation for upload timeouts: when putObject throws, check the generated key and delete it if the object exists; cleanup errors are logged and do not mask the original upload failure.
+- Added FIN-DSH-48 to verify an accepted object is deleted after the upload response times out and the payment row remains unchanged. Test not executed.
+- Commit: `847647c424097e5ace69236d0c3b4592f85d30e9`. Process-crash orphan window remains for FIN-025.

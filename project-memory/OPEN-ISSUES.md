@@ -760,3 +760,8 @@ Commits: `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7
 **Residual:** process crash after object upload but before DB transaction can leave an orphan; if cleanup verification/deletion fails, the object is intentionally retained. No durable upload-intent or orphan sweeper exists.
 
 **Next:** FIN-025 — design and implement crash-safe upload intent/recovery and bounded orphan cleanup with lease/retry and reference checks; never use broad bucket listing/deletion.
+
+
+### FIN-024 follow-up — uncertain upload response
+
+FIN-024 also moves payment transition validation ahead of storage writes and compensates an upload timeout by checking/deleting the unique object key if it exists. FIN-DSH-48 covers this path. Latest test commit: `847647c424097e5ace69236d0c3b4592f85d30e9`. Test not executed. Process crash after object upload but before DB transaction still requires FIN-025 durable upload intent/recovery.
