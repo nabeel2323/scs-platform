@@ -942,8 +942,8 @@ Merchant active-store and product reads now preserve last-successful data throug
 
 - FIN-009 dispute resolution concurrency: compare-and-set transition prevents duplicate RESOLVED event/outbox writes. Commit `2b8e2fa7cf2aab87d4186153a61748bc82805c52`.
 - FIN-010 return refund vs settlement payment: lock serializes adjustment with settlement PAID transition. Commit `a1dc7b2cf31c83f2a59c0a72f0056f4955fe7143`.
-- FIN-011 return refund recovery payload integrity: validates payment/order/amount/reason/requester/currency/return identity. Commit `72927529e64a719741b94b864f6adba7cafd4f0d`.
-- FIN-012 settlement adjustment currency: preserves original settlement currency. Commit `ba3318724c3080d4c29baee1c81e972262e14ac4`.
+- FIN-011 settlement adjustment currency: preserves original settlement currency. Commit `ba3318724c3080d4c29baee1c81e972262e14ac4`.
+- FIN-012 missing financial breakdown: manual/COD confirmation fails closed and rolls back payment state when the required breakdown row is absent. Commit `cdb189e95dd7022793af33352a18c31f81117059`.
 - FIN-013 payment expiry race: cancellation history only follows a successful conditional order update. Source `028e30e9ebeb626b51b6d80bc28467c9c946c419`; regression `83550c34c7dc11492fc6e5c5fc6fcb418b79243c`.
 - FIN-DSH-11–28 are added but not executed. Status remains IMPLEMENTED / TESTING_PENDING.
 - CI #1427 on `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`: lint/typecheck and Flutter passed; Prettier failed (258 files); API/PostgreSQL/Web/Admin dependent jobs skipped. CI #1429 on `a7a2791b868bc89852b58b17fa11b8aaf87f3c81` was cancelled. CI #1434 on the subsequent test checkpoint is running; re-fetch exact head/results before relying on it.
