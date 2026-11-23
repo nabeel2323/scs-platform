@@ -554,6 +554,6 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 
 - The settlement calculation path previously allowed a second payable settlement to be created after the original settlement was marked PAID, because the partial unique index only covered active statuses.
 - FIN-002 serializes settlement calculation on the payment row; active settlement retries return the existing row, and paid/adjustment history blocks a new payable calculation.
-- FIN-DSH-13/14 cover concurrent calls and post-PAID recalculation; tests are added but not executed.
-- Source/test commit: `5473f15ed6fcf8982dbbc45d8254eeb255c5db10`.
+- FIN-DSH-13–15 cover concurrent calls, post-PAID recalculation and refusal to settle an unconfirmed payment; tests are added but not executed.
+- Source/test commit: `3090d06d2c178a54c526c703376e3f8077240c27`.
 - Next: continue source-first commercial/operational correctness audit, prioritizing remaining payment/settlement state transitions and persistence/event semantics. Do not expand gateway or payout scope.
