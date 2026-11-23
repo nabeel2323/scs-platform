@@ -84,6 +84,10 @@ export default function ProductTypeBuilderPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [savingAttributes, setSavingAttributes] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const savePending = useRef(false);
+  const publishPending = useRef(false);
 
   // Builder working state
   const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set());
@@ -259,8 +263,13 @@ export default function ProductTypeBuilderPage() {
     setDirty(true);
   }, []);
 
-  // Save attributes configuration
-  const handleSaveAttributes = async () => {
+  // Save attributes configuration. Return an explicit result so Publish
+  // cannot proceed after a failed save. The ref prevents same-tick duplicate
+  // dispatches; the permission is checked at the action boundary.
+  const saveAttributes = async (allowDuringPublish = false): Promise<boolean> => {
+    if (!hasAccess || savePending.current || (publishPending.current && !allowDuringPublish)) return false;
+    savePending.current = true;
+    setSavingAttributes(true);
     setError(null);
     setSaveSuccess(null);
     try {
@@ -281,21 +290,40 @@ export default function ProductTypeBuilderPage() {
       setDirty(false);
       setSaveSuccess('Saved successfully');
       setTimeout(() => setSaveSuccess(null), 3000);
+      return true;
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Save failed');
+      return false;
+    } finally {
+      savePending.current = false;
+      setSavingAttributes(false);
     }
+  };
+
+  const handleSaveAttributes = async () => {
+    await saveAttributes();
   };
 
   // Publish
   const handlePublish = async () => {
+    if (!hasAccess || publishPending.current || savePending.current) return;
     if (!window.confirm('Publish this product type? It will become available for merchants.')) return;
+    if (!hasAccess || publishPending.current || savePending.current) return;
+
+    publishPending.current = true;
+    setPublishing(true);
+    setError(null);
     try {
-      // Save first if dirty
-      if (dirty) await handleSaveAttributes();
+      // Do not publish unless the dirty configuration has been fully saved.
+      if (dirty && !(await saveAttributes(true))) return;
+      if (!hasAccess) return;
       await publishProductType(id);
-      load();
+      await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Publish failed');
+    } finally {
+      publishPending.current = false;
+      setPublishing(false);
     }
   };
 
@@ -368,8 +396,8 @@ export default function ProductTypeBuilderPage() {
           <>
             <button
               type="button"
-              onClick={handleSaveAttributes}
-              disabled={!dirty}
+              onClick={() => void handleSaveAttributes()}
+              disabled={!dirty || savingAttributes || publishing}
               style={{
                 padding: '8px 16px', fontSize: 13, fontWeight: 600, borderRadius: 6,
                 border: '1px solid rgba(255,255,255,0.3)', cursor: dirty ? 'pointer' : 'not-allowed',
@@ -377,19 +405,20 @@ export default function ProductTypeBuilderPage() {
                 color: '#fff', opacity: dirty ? 1 : 0.5,
               }}
             >
-              Save
+              {savingAttributes ? 'Saving…' : 'Save'}
             </button>
             {schema.status === 'DRAFT' && (
               <button
                 type="button"
-                onClick={handlePublish}
+                onClick={() => void handlePublish()}
+                disabled={savingAttributes || publishing}
                 style={{
                   padding: '8px 16px', fontSize: 13, fontWeight: 600, borderRadius: 6,
                   border: 'none', cursor: 'pointer',
-                  background: '#22c55e', color: '#fff',
+                  background: '#22c55e', color: '#fff', opacity: publishing ? 0.65 : 1,
                 }}
               >
-                Publish
+                {publishing ? 'Publishing…' : 'Publish'}
               </button>
             )}
           </>
