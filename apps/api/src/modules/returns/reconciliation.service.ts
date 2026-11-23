@@ -20,7 +20,7 @@
 import { Injectable, Logger, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { reconciliationRuns, reconciliationDiscrepancies, settlementAdjustments, settlementAdjustmentApprovals, commissionReversals } from './financial.schema';
-import { returnRequests, returnRequestItems } from './returns.schema';
+import { returnRequests, returnRequestItems, returnRequestEvents } from './returns.schema';
 import { refunds, settlementRecords } from '../payments/payments.schema';
 import { orders, orderFinancialBreakdown } from '../orders/orders.schema';
 import { stores } from '../merchant/merchant.schema';
@@ -289,10 +289,24 @@ export class ReconciliationService {
       .from(returnRequests)
       .innerJoin(orders, eq(returnRequests.subOrderId, orders.id))
       .innerJoin(stores, eq(orders.storeId, stores.id))
+      .leftJoin(returnRequestEvents, and(
+        eq(returnRequestEvents.returnRequestId, returnRequests.id),
+        eq(returnRequestEvents.toStatus, 'REFUNDED'),
+      ))
       .where(and(
         eq(returnRequests.status, 'REFUNDED'),
-        gte(returnRequests.createdAt, startDate),
-        lte(returnRequests.createdAt, endDate),
+        // Reconcile the period in which the refund actually completed, not
+        // the period in which the customer originally opened the return.
+        // Legacy rows without a REFUNDED event retain the created_at fallback.
+        sql`(
+          (${returnRequestEvents.id} IS NOT NULL
+            AND ${returnRequestEvents.createdAt} >= ${startDate}
+            AND ${returnRequestEvents.createdAt} <= ${endDate})
+          OR
+          (${returnRequestEvents.id} IS NULL
+            AND ${returnRequests.createdAt} >= ${startDate}
+            AND ${returnRequests.createdAt} <= ${endDate})
+        )`,
         orgId ? eq(stores.orgId, orgId) : undefined,
       ));
 
@@ -343,10 +357,23 @@ export class ReconciliationService {
       .from(returnRequests)
       .innerJoin(orders, eq(returnRequests.subOrderId, orders.id))
       .innerJoin(stores, eq(orders.storeId, stores.id))
+      .leftJoin(returnRequestEvents, and(
+        eq(returnRequestEvents.returnRequestId, returnRequests.id),
+        eq(returnRequestEvents.toStatus, 'REFUNDED'),
+      ))
       .where(and(
         eq(returnRequests.status, 'REFUNDED'),
-        gte(returnRequests.createdAt, startDate),
-        lte(returnRequests.createdAt, endDate),
+        // Use the REFUNDED transition timestamp for period attribution;
+        // fall back to created_at only for legacy rows without event history.
+        sql`(
+          (${returnRequestEvents.id} IS NOT NULL
+            AND ${returnRequestEvents.createdAt} >= ${startDate}
+            AND ${returnRequestEvents.createdAt} <= ${endDate})
+          OR
+          (${returnRequestEvents.id} IS NULL
+            AND ${returnRequests.createdAt} >= ${startDate}
+            AND ${returnRequests.createdAt} <= ${endDate})
+        )`,
         orgId ? eq(stores.orgId, orgId) : undefined,
       ));
 
