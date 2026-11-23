@@ -946,3 +946,11 @@ The next full workflow is required to verify these changes.
 - PostgreSQL cases FIN-DSH-11/12 added, not executed. No Actions run is attached to the source commit.
 - Latest Actions run #1421 is on earlier SHA `8474b7acd264872a01d305bef515009eded104ed`: lint/typecheck and Flutter passed; Prettier failed with 255 files; Web/Admin and dependent jobs skipped.
 - No schema/migration/provider/gateway/payout, staging, shared database or deployment changes.
+
+## FIN-002 source checkpoint — 23 November 2026
+
+- PR #138 source/test commit: `5473f15ed6fcf8982dbbc45d8254eeb255c5db10` (`fix(payments): make settlement calculation idempotent [skip ci]`).
+- No GitHub Actions run is expected for this commit because it explicitly uses `[skip ci]`; no CI or automated-test verification is claimed.
+- Added FIN-DSH-13/14 to the PostgreSQL financial integration suite; neither test has been executed.
+- Latest historical Actions run remains #1421 on earlier SHA `8474b7acd264872a01d305bef515009eded104ed`; it is not validation of FIN-001 or FIN-002.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No merge, staging operation, shared DB change, migration, provider call, payout, deployment or worker activation occurred.

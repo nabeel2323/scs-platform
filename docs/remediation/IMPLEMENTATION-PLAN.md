@@ -552,6 +552,10 @@ The agreed buyer and merchant operations are supported across API/web/mobile wit
 - For a manual-payment pilot, document operational controls, reconciliation, refund approval, settlement and payout responsibilities; label automated money movement as out of scope.
 - Do not implement a gateway implicitly inside a defect fix. A gateway requires separate product/provider/security approval and its own plan.
 
+#### FIN-002 — Settlement calculation idempotency (implementation finding)
+
+Repeated settlement calculation must not create a second payable record after an existing settlement has been paid. The calculation path must serialize against refund requests/approvals on the payment row, reuse an existing active PENDING/CALCULATED/DUE settlement for identical retries, and reject recalculation once PAID/ADJUSTMENT history exists. Subsequent financial corrections must use the explicit settlement-adjustment workflow. PostgreSQL acceptance scenarios FIN-DSH-13/14 cover concurrent calls and post-PAID rejection; implementation is present, tests pending the consolidated Phase 3 campaign. This correctness fix does not authorize automatic gateway or payout behavior and does not change G-012's product decision.
+
 ### 5.8 Procurement scope decision (G-021)
 
 - Obtain a business decision whether RFQ, quotation, negotiation, purchase order approvals and credit terms are required for the intended release.

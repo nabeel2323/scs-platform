@@ -1993,3 +1993,12 @@ This closes a UI-to-controller workflow omission; it does not change G-001–G-0
 - Added PostgreSQL regression scenarios FIN-DSH-11 and FIN-DSH-12 to `p13-financial-dispute.postgres.spec.ts`. Tests have **not** been executed.
 - Source/test commit: `117614884ff1e0d50ca116f0b28f249fd83761c0`. Status: **IMPLEMENTED / TESTING_PENDING**.
 - No schema, migration, provider integration, automatic payout, database deployment or shared database action occurred. G-012 remains OPEN and unchanged.
+
+## FIN-002 — Settlement calculation idempotency — 23 November 2026
+
+- **Finding:** repeated settlement calculation could create another payable settlement after an earlier record was PAID. The existing partial unique index only covers active PENDING/CALCULATED/DUE statuses.
+- **Implementation:** `PaymentsService.calculateSettlement` now locks the payment row (the same serialization point used by refund requests/approvals), checks for an existing settlement, returns an active settlement idempotently, and rejects recalculation after PAID/ADJUSTMENT history. Financial breakdown and successful-refund totals are read inside the same locked transaction.
+- **Regression coverage:** FIN-DSH-13 verifies concurrent calls reuse one CALCULATED record and publish one settlement outbox event. FIN-DSH-14 verifies recalculation after PAID conflicts and creates no second record. Tests are added but **not executed**.
+- **Source/test commit:** `5473f15ed6fcf8982dbbc45d8254eeb255c5db10`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, automatic payout, staging, shared database or deployment behavior changed.
+- **Next:** continue source-first financial correctness review. Do not expand the G-012 manual-payment product scope.
