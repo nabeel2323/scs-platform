@@ -1450,3 +1450,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source commit: `77c2caaa322836cc8e7d651f6577df715c5e3228`. Test commit: `8fc1759a9e374f12513c82d301b2c9b934a98840`. Test added/extended, not executed.
 - No schema/migration, shared DB, staging, worker, provider, payout, environment, deployment or merge action. Consolidated Phase 3 validation remains pending.
 - Next: continue audit of remaining event producers and cross-ledger timing/retry semantics; do not repeat FIN-001–FIN-029.
+
+
+## 2026-11-23 — FIN-030 refund-completion period attribution
+
+- Reconciliation audit found `checkMissingRefunds` and `checkCommissionReversals` scoped REFUNDED returns by `return_requests.created_at`, which is the date the buyer opened the return, not when the refund completed.
+- Returns opened in a prior month and refunded in the current month were therefore omitted from current-period reconciliation. The append-only `return_request_events` log provides the actual REFUNDED transition timestamp.
+- Both checks now use the REFUNDED event timestamp. Legacy rows without a REFUNDED event retain the previous created_at fallback.
+- Added PostgreSQL FIN-DSH-58: backdates return creation while recording refund completion in the current period, then asserts refund-status and missing-commission-reversal discrepancies are emitted.
+- Source commit: `93a908d4627c804af5d12e20c6a1e7c2811524e9`. Test commit: `5abae2018b9e6d6a43d5e3b90764ef80560b4ea0`. Test added, not executed.
+- No migration, shared database write, staging operation, deployment or merge. Continue consolidated Phase 3 testing only after implementation is complete.
