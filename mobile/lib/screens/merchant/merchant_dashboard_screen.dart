@@ -258,7 +258,7 @@ class MerchantDashboardScreen extends ConsumerWidget {
             if (profile.hasPermission('merchant:orders:read'))
               _card(context, 'Customers', Icons.people, '/merchant/customers',
                 TaifTokens.ok),
-            if (profile.hasPermission('catalog:offers:write'))
+            if (profile.hasPermission('merchant:stores:read'))
               _card(context, 'Offers', Icons.local_offer, '/merchant/offers',
                 TaifTokens.brandAccent),
             if (profile.hasPermission('merchant:pricing:read'))
