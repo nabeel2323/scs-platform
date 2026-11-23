@@ -1011,4 +1011,3 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 ## Verification status update — 23 November 2026
 
 CI #45260954714 stopped at the changed-file Prettier gate; lint/typecheck and Flutter passed, but API, PostgreSQL, migration, boundary and Web/Admin jobs were skipped. Formatting was subsequently corrected in commit `4477ebd42ba46146b14df18094d025ab133c5d75`. Exact-head verification remains pending. FIN-047 remains IMPLEMENTED / TESTING_PENDING; the 14 G-015 module-boundary findings remain open.
-

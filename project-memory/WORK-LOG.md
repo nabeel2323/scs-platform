@@ -1547,4 +1547,3 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - A one-time formatter action applied `pnpm exec prettier --write` and verified with `pnpm exec prettier --check` across the affected source and memory files. It pushed formatting-only commit `4477ebd42ba46146b14df18094d025ab133c5d75`.
 - The formatting correction has not yet received an exact-head CI run. No test results from #452609 are promoted to the formatter commit.
 - PR #138 remains draft/unmerged. No deployment, migration, shared database write, grant, RLS change or worker activation was performed.
-

@@ -871,4 +871,3 @@ The merchant and Admin settlement screens now expose adjustment rows and disting
 - G-015 retains 14 new module-boundary violations. Refactor through injected contracts; do not edit the reviewed baseline or add schema re-export workarounds.
 - After exact-head CI, triage the broad Web/API/PostgreSQL baseline failures by domain. G-002, G-001 independent review, G-036 verification and Phase 6 remain open.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No protected staging audit, deployment, shared database mutation, migration, grant, RLS or worker activation is authorized.
-

@@ -2320,4 +2320,3 @@ No staging/production deployment, migration, shared database write, grant/defaul
 Prettier write/check was subsequently completed for all affected source and memory files. The formatting-only commit is `4477ebd42ba46146b14df18094d025ab133c5d75`. A new exact-head consolidated CI run is required to verify the formatted branch and the audit/shipping/settlement changes. Do not promote FIN-047 to tested until its focused API, merchant tenant-scope, Admin recovery and Merchant recovery tests pass.
 
 The 14 new G-015 boundary findings remain open and must be resolved by a proper service-contract refactor. No baseline modification or cross-module import workaround is approved. G-002 database runtime identities and protected read-only evidence remain outstanding. No migration, grant/default-ACL change, shared database write, RLS enablement, deployment or worker activation was performed. PR #138 remains OPEN / DRAFT / UNMERGED.
-

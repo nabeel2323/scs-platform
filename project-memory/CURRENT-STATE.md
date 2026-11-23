@@ -1216,4 +1216,3 @@ CI #45260954714 tested source checkpoint `954200f9bf7866aa2f25d0585847a0c51eb192
 The formatting was applied across all reported files, including the audit utility, carrier test fixtures, integration assertions, and project-memory documents. A fresh exact-head CI run must verify the formatted branch. The earlier run's skip results must not be carried forward as passes.
 
 FIN-047 remains IMPLEMENTED / TESTING_PENDING. G-015's 14 boundary findings remain open and un-baselined. G-002 still lacks authorized live runtime identity and protected read-only staging evidence. G-001 independent review and G-036 verification remain open. Phase 6 is NOT STARTED. All deployment, shared database, grant, migration, RLS and worker restrictions remain in force.
-
