@@ -18,7 +18,7 @@ class CategoryManageScreen extends ConsumerWidget {
     final storeAsync = ref.watch(activeStoreProvider);
     final profile = ref.watch(profileProvider).valueOrNull;
     final canManageCategories = profile != null &&
-        canManageMerchantCategories(profile.role, profile.perms);
+        canManageMerchantCategories(profile.role ?? '', profile.perms);
     return Scaffold(
       appBar: AppBar(title: const Text('Categories'), actions: [
         IconButton(
@@ -72,7 +72,7 @@ class CategoryManageScreen extends ConsumerWidget {
           description: ApiService.errorMessage(e),
           onAction: () => ref.invalidate(storeCategoriesProvider(storeId))),
       data: (list) => list.isEmpty
-          ? const EmptyState(
+          ? EmptyState(
               title: 'No categories',
               description: canManageCategories
                   ? 'Tap "New Category" to create one.'
