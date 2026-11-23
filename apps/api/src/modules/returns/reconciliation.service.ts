@@ -184,7 +184,8 @@ export class ReconciliationService {
 
         await txDb.insert(reconciliationRuns).values({
           id: runId, periodStart, periodEnd, currency, version: nextVersion,
-          status: 'RUNNING', summary: {}, discrepancyCount: 0, executedBy,\n          ...(tenantId ? { orgId: tenantId } : {}),
+          status: 'RUNNING', summary: {}, discrepancyCount: 0, executedBy,
+          ...(tenantId ? { orgId: tenantId } : {}),
         });
 
         // The predecessor points forward to the new run through superseded_by.
@@ -248,7 +249,7 @@ export class ReconciliationService {
             await txDb.insert(reconciliationRuns).values({
               id: failedRunId, periodStart, periodEnd, currency, version: failedVersion,
               status: 'FAILED', summary: { executionError: 1 }, discrepancyCount: 0,
-              executedBy, orgId: tenantId, completedAt: new Date(),
+              executedBy, ...(tenantId ? { orgId: tenantId } : {}), completedAt: new Date(),
             });
             if (latestRun) {
               const linked = await txDb.update(reconciliationRuns)
