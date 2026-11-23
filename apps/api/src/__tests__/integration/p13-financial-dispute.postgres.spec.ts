@@ -3420,6 +3420,12 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(first.status).toBe('PAID');
     expect(replay.status).toBe('PAID');
 
+    // A paid adjustment is still a separate ledger row. Recalculating the
+    // order settlement must resolve the primary settlement, not this adjustment.
+    const primaryReplay = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
+    expect(primaryReplay.id).toBe(primary.id);
+    expect(primaryReplay.status).toBe('CALCULATED');
+
     const eventRows = await pool.query(
       `SELECT id, amount_minor::int AS amount FROM payment_events
        WHERE payment_record_id = $1 AND event_type = 'PAYMENT_SETTLEMENT_PAID'

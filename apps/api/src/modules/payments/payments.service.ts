@@ -1501,6 +1501,11 @@ export class PaymentsService {
         .where(and(
           eq(settlementRecords.subOrderId, subOrderId),
           eq(settlementRecords.paymentRecordId, payment.id),
+          // Adjustment ledger rows are independent payout entries, not the
+          // primary settlement. Exclude both metadata-linked new rows and
+          // legacy rows identified by their stable posting note prefix.
+          sql`COALESCE(${settlementRecords.metadata}->>'adjustmentId', '') = ''
+            AND COALESCE(${settlementRecords.notes}, '') NOT LIKE 'Posted adjustment %'`,
         ))
         .orderBy(desc(settlementRecords.createdAt))
         .limit(1);
