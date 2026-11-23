@@ -58,6 +58,7 @@
  *   FIN-DSH-54  Payment verification events preserve the actual actor class
  *   FIN-DSH-55  Privileged return transitions preserve ADMIN actor attribution
  *   FIN-DSH-56  Return refund caps include APPROVED and large BIGINT totals
+ *   FIN-DSH-57  Admin settlement calculation records ADMIN actor attribution
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -2674,6 +2675,28 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       lines: [{ orderItemId: largeItem.id, quantity: 1 }],
     }, buyerCaller);
     expect(largeBalanceReturn.id).toBeTruthy();
+  }, 90_000);
+
+
+  it('FIN-DSH-57: admin settlement calculation records ADMIN actor attribution', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+
+    await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
+
+    const event = await pool.query(
+      `SELECT actor_id, actor_type
+       FROM payment_events
+       WHERE payment_record_id = (
+         SELECT id FROM payment_records WHERE order_id = $1
+       )
+         AND event_type = 'PAYMENT_SETTLEMENT_CALCULATED'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [orderId],
+    );
+    expect(event.rows[0]).toEqual({ actor_id: adminA, actor_type: 'ADMIN' });
   }, 90_000);
 
 });
