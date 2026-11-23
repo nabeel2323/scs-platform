@@ -192,6 +192,6 @@ State machine: `DRAFT → PENDING_APPROVAL → APPROVED → POSTED` (plus REJECT
 - Each generated payment-proof object key receives a durable UPLOADING intent before S3 is called. Successful proof submission atomically commits the payment row, payment event, outbox event and intent COMMITTED state.
 - The callable cleanup service uses a 60-minute stale threshold, SKIP LOCKED claims and a five-minute lease. It checks the payment row before deleting, uses exact-key HEAD/DELETE only, applies bounded exponential retry and moves exhausted cleanup to FAILED.
 - No bucket listing, broad object deletion, automatic timer, worker registration or worker activation is included. Any future scheduler activation remains subject to the existing operational approval gates.
-- PostgreSQL FIN-DSH-46–52 were added/updated; tests and isolated migration apply remain pending the consolidated Phase 3 campaign.
+- PostgreSQL FIN-DSH-46–53 were added/updated; tests and isolated migration apply remain pending the consolidated Phase 3 campaign.
 
 - Replaced managed proofs are retired through a durable cleanup intent created in the same payment transaction; process crashes after commit cannot strand the previous key without a recovery record.

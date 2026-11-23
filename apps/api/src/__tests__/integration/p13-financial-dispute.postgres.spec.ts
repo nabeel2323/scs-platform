@@ -2302,8 +2302,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(persisted.rows[0].status).toBe('AWAITING_VERIFICATION');
     expect(persisted.rows[0].receipt_url).toBe(uploadedKey);
     const intent = await pool.query(
-      `SELECT status, storage_key FROM payment_proof_upload_intents WHERE payment_record_id = $1 ORDER BY created_at DESC LIMIT 1`,
-      [payment.id],
+      `SELECT status, storage_key FROM payment_proof_upload_intents WHERE storage_key = $1`,
+      [uploadedKey],
     );
     expect(intent.rows[0]).toEqual({ status: 'COMMITTED', storage_key: uploadedKey });
     expect(storage.deleteObject).not.toHaveBeenCalled();
