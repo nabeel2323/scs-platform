@@ -1290,3 +1290,12 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - FIN-012 missing financial breakdown blocks manual/COD payment confirmation and rolls back. Commit `cdb189e95dd7022793af33352a18c31f81117059`.
 - FIN-013 payment expiry records cancellation history only after the conditional order update succeeds. Source/test commits `028e30e9ebeb626b51b6d80bc28467c9c946c419`, `83550c34c7dc11492fc6e5c5fc6fcb418b79243c`.
 - FIN-DSH-11–28 are added but not executed. Status for all is IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, automatic payout, staging, shared DB, grant/RLS, deployment or worker changes.
+
+
+#### FIN-014 — Discount-adjusted commission reversal and currency integrity
+
+Commission reversal must use the order financial breakdown as the basis for allocating order-level discounts across returned goods. The same returned net-goods basis must drive both the commission reversal ledger and settlement adjustment. Both records must preserve the original payment currency. PostgreSQL FIN-DSH-29 covers a partial discounted return and both persisted ledgers. Implementation is present; test pending Phase 3. No schema/migration or gateway/payout scope change.
+
+#### FIN-015 — Exact commission reversal arithmetic
+
+Proportional commission reversal must use exact BigInt multiplication/division even when each minor-unit input is a safe JavaScript integer, because the product can exceed Number.MAX_SAFE_INTEGER. The shared helper validates safe-integer inputs, computes floor(original commission × returned net goods / order net goods), and caps the result at remaining commission. Unit coverage includes a case where floating-point arithmetic would overstate reversal by one minor unit. Implementation and test are present; test pending Phase 3. No schema/migration or gateway/payout scope change.

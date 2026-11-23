@@ -7,7 +7,7 @@
 **Repository:** `nabeel2323/scs-platform`
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`
 <!-- prettier-ignore -->
-**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; the latest live PR head before this progress refresh is `e5aca0d99a0b0051216b4fd0d77b352c50bece88`. Latest source/test checkpoint is `f554617c592ff57db296e0ca88614ac246468194` (FIN-003 minor-unit amount validation). G-002 source evidence includes the operation map, preliminary schema ownership/predicate matrix, migration FK crosswalk through 0071 and controller/service principal handoff. Actual API/migration runtime identities, protected read-only catalog audit, exact FK/operation predicates and transaction-bound context proof remain outstanding. A user-supplied supplemental note reports 111 tables, 32 public functions and 55 FK index gaps but lacks timestamp, endpoint, query, identity and relkind scope; it is preserved in `G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md` and does not replace the detailed 114-table snapshot or historical 116 count. CI #1425 on earlier SHA `994fee9a332f4c553fa09687101d8f6ecdec3103` passed lint and Flutter analysis/tests but failed TypeScript typecheck; changed-file Prettier and dependent Web/Admin/API/PostgreSQL/migration/build/boundary jobs were skipped. An explicit settlement insert-result guard was added in source commit `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; no exact-head rerun is claimed. UX-097/098/099 and FIN-DSH-11–16 tests were added but not executed; no exact-head Actions run exists for the current source/test checkpoint. Vercel Admin/Web failures point to the external build-rate-limit page and are not application test results. No staging deployment, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement or worker activation is authorized or claimed.
+**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 remains OPEN / DRAFT / UNMERGED to develop. Latest source/test checkpoint: `4e67e5ef7541e87ef5d9698e3abad7529cd07219` (FIN-015 exact BigInt commission reversal unit regression); tests are added but not executed. FIN-DSH-11–29 plus unit coverage are pending consolidated Phase 3 validation. CI #1434 on earlier SHA `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` passed lint/typecheck and Flutter analysis/tests but failed changed-file Prettier; dependent Web/Admin/API/PostgreSQL/migration/build/boundary/release jobs were skipped. No exact-head Actions run is attached to current source/test commits. Vercel Web/Admin rate-limit statuses are external provider failures, not application test results. G-002 remains open: runtime identities, protected read-only catalog audit, exact FK/operation predicates and transaction-bound context proof remain outstanding. No staging deployment, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement or worker activation is authorized or claimed.
 
 ---
 
@@ -2102,3 +2102,19 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - FIN-012 missing financial breakdown blocks manual/COD payment confirmation and rolls back. Commit `cdb189e95dd7022793af33352a18c31f81117059`.
 - FIN-013 payment expiry records cancellation history only after the conditional order update succeeds. Source/test commits `028e30e9ebeb626b51b6d80bc28467c9c946c419`, `83550c34c7dc11492fc6e5c5fc6fcb418b79243c`.
 - FIN-DSH-11–28 are added but not executed. Status for all is IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, automatic payout, staging, shared DB, grant/RLS, deployment or worker changes.
+
+
+## FIN-014 — Discount-adjusted commission reversal and currency integrity — 23 November 2026
+
+- Commission reversal now allocates the order-level discount proportionally across returned goods using persisted order financials. Commission reversal and settlement adjustment rows preserve the original payment currency.
+- FIN-DSH-29 covers a partial discounted return and verifies reversal amount/currency in both ledgers. Test added, not executed.
+- Source commits: 6221c9c10bba4652b19c1aeaca59a8d1c3d9c79d and 00da339e62dbeef87a55434b3ed5ea1a85cb6508.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema/migration or gateway/payout scope change.
+
+## FIN-015 — Exact commission reversal arithmetic — 23 November 2026
+
+- Added a shared BigInt cumulative-target helper for commission reversal. Both ReturnsService settlement adjustment and CommissionReversalService now use exact multiplication/division rather than floating-point Number multiplication.
+- The helper validates safe-integer minor-unit inputs and caps the result at remaining commission.
+- Added a unit regression with individually safe integer operands whose Number product rounds the quotient up by one minor unit. Test added, not executed.
+- Source commits: 917397ffd5491d6fe52a18063c0266e831b67c38, e2338cf1e50e825bd1c22becbeab0a6a4757a5e4, a596d49a752973cdc1b7039f3b325f0421252c9c; unit test commit: 4e67e5ef7541e87ef5d9698e3abad7529cd07219.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema/migration or gateway/payout scope change.
