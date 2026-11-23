@@ -76,42 +76,29 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest implementation/test checkpoint before this memory synchronization is `b9f9728659e71d3788cc58aa2b5ad9df29ab9731` (FIN-019 settlement adjustment posting integrity; PostgreSQL scenarios FIN-DSH-34/35). Focused tests are added but not executed. CI #1437 tested earlier SHA `9dc7d04469180807e65053fe51819afffb3b78c0`: lint and TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed with 259 files needing formatting; Web/Admin/API/PostgreSQL/migration/boundary/build/contract/k6/staging release jobs were skipped. The current implementation head uses `[skip ci]`; no exact-head Actions run exists. Vercel Web/Admin rate-limit statuses are external preview-provider failures. Re-fetch live PR head/status before the next action.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. The source/test checkpoint is `5b636df49155ea523bc730852ed900720a858a88`; the latest source implementation is FIN-027 commit `6ae8aba762215f69f42e74e4608a4fa31a02543b`. Current-state documentation was refreshed in `a8c6d167957e53a4fcf65560be005564f02caa74`; documentation-only synchronization commits follow the source/test checkpoint.
 
 ### Exact stopping point
 
-- UX-094 Mobile category permission/API contract alignment is implemented.
-- UX-095 Web merchant route/action permission alignment and active-organization context invalidation is implemented.
-- UX-096 Mobile route/action permission and organization-context transition alignment is implemented.
-- G-036 realtime store/order room authorization is implemented in source; focused tests are pending execution and independent review.
-- The Admin page-level route audit already covered all 56 Admin page files and generic ManagementPage configuration.
-- UX-097 added handler-time permission rechecks for verification organization deactivate/reactivate, Organizations status toggle and update-request review, and dispute resolution.
-- UX-098 added any-of navigation permission semantics, exposed Carrier & Recovery to either its read or recovery capability, and fixed Payments so a user with only `admin:payments:verify` can access the verification queue.
-- UX-099 added action-specific permission callbacks to the shared Admin mutation helper; bound User status/membership, dispute, category, brand, offer governance, Carrier Recovery, shipment exception/RTS, inventory-return, carrier create/cancel/recovery and User Detail profile actions to their actual permissions. Focused tests were added for permission loss before dispatch; not executed.
+- FIN-001–FIN-026 are already implemented in source; do not repeat them. Their PostgreSQL/unit regressions are added but remain unexecuted pending the consolidated Phase 3 campaign.
+- FIN-025 durable payment-proof upload intents and cleanup recovery are implemented. Migration 0075 is source-only; cleanup is callable but not scheduled or activated.
+- FIN-026 payment and return actor attribution is implemented, including privileged ADMIN overrides. FIN-DSH-54/55 are added but not executed.
+- FIN-027 aligns return-side refund accounting with PaymentsService: APPROVED refunds reserve refundable balance, and PostgreSQL SUM(bigint) is handled using exact numeric text/BigInt with a safe-integer guard. FIN-DSH-56 covers approved-refund reservation and totals above the 32-bit integer boundary. Test is added, not executed.
+- CI #1446 exposed two syntax defects in `returns.service.ts` and `settlement-adjustment.service.ts`. They were corrected in `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`; these corrections have not been rerun through CI.
 
-### Latest CI correction state
+### Latest CI and verification
 
-CI #1395 failed on prior PR head `ff304ce6c0bcf63a654ff8fbd04130254cdb669e`:
-- API TypeScript typecheck failed because validated Socket.IO regex capture groups were still typed as possibly undefined.
-- Flutter analysis failed because a nullable profile role was passed to a non-null permission helper and a runtime-dependent EmptyState was declared const.
-
-The API correction is `0d4644f634d65bd5fbe4fec818c6f8439023254e`; the Mobile correction is `5f08755ce69edfcbae5ca84462ffda245bfc1eb4`.
-
-CI #1408 ran on `a76b0bef436af8bde2d9329b1cd6ee5980f593fc`: lint and TypeScript typecheck passed, and Flutter analyze/tests passed. The changed-file Prettier gate failed because 245 files in the cumulative PR diff were unformatted; all dependent Web/Admin, API unit, PostgreSQL integration, migration, boundary, build/container, contract and k6 jobs were skipped. UX-098/099 commits use `[skip ci]` and are not CI-verified. CI #1407 was superseded after a test type error; unsupported `ByRoleOptions.exact` assertions were corrected to anchored regex matchers.
-
-### Supplemental G-002 evidence
-
-The uploaded `Advanced UX Enhancement Prompt.txt` reports 111/111 tables with RLS disabled, 32 public functions with none SECURITY DEFINER, role BYPASSRLS distinctions, 55 FK constraints without covering indexes, OTP log observations, worker topology uncertainty and startup migration/seed behavior. It lacks observation timestamp, endpoint, query text, connection identity and relation-kind scope. It is preserved separately in `docs/remediation/G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md`; its 111-table count is not reconciled with the detailed 114 and historical 116 counts. Do not treat it as new verified staging evidence.
+CI [#1446](https://github.com/nabeel2323/scs-platform/actions/runs/45189283326) tested prior SHA `8e32957d3435196222fbb9841e6063229b68b648` and failed in Lint & Typecheck on the two TypeScript parse errors above. Flutter analysis/tests passed. Integration, API unit/coverage, migration, Web/Admin, boundary lint, build/container, contract/codegen, k6 and staging-release jobs were skipped because lint failed. The syntax corrections and FIN-027 source/test commits use `[skip ci]`; exact-head workflow lookup for `5b636df49155ea523bc730852ed900720a858a88` returned no run. No tests are claimed as executed. Vercel Web/Admin failure contexts are external build-rate-limit failures, not application test results.
 
 ### Remaining project gates
 
 - G-001 remains PARTIAL pending independent security review and reviewer-directed remediation, if any.
-- G-002 remains IN PROGRESS pending actual API/migration runtime identities, protected read-only staging catalog evidence, reconciliation of 111/114/116 counts and reviewed least-privilege/transaction-bound RLS design.
+- G-002 remains IN PROGRESS pending actual API/migration runtime identities, protected read-only staging catalog evidence, reconciliation of 111/114/116 table counts and reviewed least-privilege/transaction-bound RLS design.
 - G-036 remains IN PROGRESS pending exact-head verification and independent review.
 - Phases 0–5 remain IN PROGRESS; Phase 6 consolidated verification is NOT STARTED.
-- PR #138 must remain draft/open/unmerged. No merge, deployment, protected staging operation, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement, environment change or worker activation is authorized.
+- PR #138 must remain draft/open/unmerged. Do not merge, deploy, bypass protected staging approval, mutate shared databases, execute migration 0070/0071/0075, change grants/default ACLs, enable RLS, change environments or activate workers.
 
-**Next implementation:** continue source-first financial and operational correctness audit beyond FIN-019, focusing on persisted state transitions, immutable history/outbox consistency, reconciliation and cross-ledger arithmetic. Do not repeat FIN-001–FIN-019 or the completed 56-page route audit / UX-097–UX-105 work. Keep the repository-locked Prettier pass and comprehensive test campaign grouped at the implementation-complete Phase 3 checkpoint; fix any concrete security/correctness defect immediately.
+**Next implementation:** continue source-first audit of payment/refund/settlement event history, retry semantics and cross-ledger consistency beyond FIN-027. Do not repeat completed FIN-001–FIN-027 work. Keep formatting and the comprehensive test/migration campaign grouped at the implementation-complete Phase 3 checkpoint; fix any concrete security or correctness defect immediately.
 
 ## Safety reminder
 
