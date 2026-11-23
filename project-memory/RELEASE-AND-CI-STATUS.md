@@ -842,3 +842,12 @@ The next full workflow is required to verify these changes.
 - GitHub Actions workflow-run lookup for the exact head returned no runs. The combined status reports Vercel Web FAILURE and Vercel Admin FAILURE at the external build-rate-limit destination. These are preview-provider failures, not application test results.
 - UX-095 Web merchant route/action and active-organization permission alignment is implemented. G-036 realtime store/order room authorization is implemented in source. Focused Web/API tests were added/updated but not executed.
 - k6 and protected staging release remain unrun. No merge, deployment, protected staging operation, shared database mutation, migration, grants/default ACL change, RLS enablement or worker activation occurred.
+
+
+## Exact-head reconciliation — 23 November 2026 (Mobile UX-096)
+
+- PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; implementation checkpoint head is `84d7f4d713902819b21b89a12074986b17781c48`.
+- No GitHub Actions workflow run is attached to that exact implementation checkpoint. All source/test commits use `[skip ci]`.
+- Combined statuses remain Vercel Web FAILURE and Vercel Admin FAILURE at the external build-rate-limit destination; these are not application test results.
+- Mobile UX-096 route/action and organization-context changes are implemented; focused tests were added but not executed. UX-095 and G-036 remain implemented but unverified.
+- k6 and protected staging release remain unrun. No merge, deployment, protected staging operation, shared database mutation, migration, grants/default ACL change, RLS enablement or worker activation occurred.
