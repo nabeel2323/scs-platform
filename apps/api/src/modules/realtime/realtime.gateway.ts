@@ -166,7 +166,9 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       // All room identifiers are UUIDs: user:{id}, org:{storeId}, order:{id}.
       const match = /^(user|org|order):([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.exec(room);
       if (!match) continue;
-      const [, scope, id] = match;
+      const scope = match[1];
+      const id = match[2];
+      if (!scope || !id) continue;
 
       let allowed = false;
       try {
