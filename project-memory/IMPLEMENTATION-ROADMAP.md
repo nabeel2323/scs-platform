@@ -624,3 +624,8 @@ The admin-only settlement calculation event now records ADMIN rather than SYSTEM
 ## Financial correctness continuation — FIN-029 — 23 November 2026
 
 Payment verification now records matching authenticated ADMIN/MERCHANT actor identity in payment and order history. FIN-DSH-54 covers both. Source/test commits: `77c2caaa322836cc8e7d651f6577df715c5e3228` / `8fc1759a9e374f12513c82d301b2c9b934a98840`. Test pending Phase 3.
+
+
+## Financial correctness continuation — FIN-030 — 23 November 2026
+
+Refund reconciliation period scoping now follows the REFUNDED event timestamp rather than return-request creation time; legacy fallback is retained. FIN-DSH-58 covers the cross-period case. Source/test commits: `93a908d4627c804af5d12e20c6a1e7c2811524e9` / `5abae2018b9e6d6a43d5e3b90764ef80560b4ea0`. Test pending Phase 3.
