@@ -782,3 +782,8 @@ FIN-032 corrects adjustment reconciliation posting-period semantics; FIN-033 mak
 - FIN-035: return refund/payment and return ledgers now commit atomically; FIN-DSH-61 injects a return-outbox failure and verifies rollback. Source commit e462c256be710a81e42b2f2d4093d4700abe1818; test commits f5d38d5a4af42ec29fa38040d8ba184e5dcbcdff, 4ad18e1eab3495030c6fff719607b5101337edb4 and ac266c2c365d23c3ef3e58032616bb118d037715.
 - FIN-001–FIN-035 are implemented in source; tests are pending consolidated Phase 3. Current branch head before docs: ac266c2c365d23c3ef3e58032616bb118d037715. No exact-head Actions run; Web/Admin statuses are external Vercel build-rate-limit failures.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No shared DB/staging operations, migrations, worker activation, deployment or merge.
+
+
+## Exact latest branch checkpoint — 23 November 2026
+
+Branch: remediation/phase-0-1-tenant-security. Exact HEAD: 56e583338bfe405009e74cab6630626108d5ec96. PR #138: OPEN / DRAFT / UNMERGED, head matches this SHA, base develop. Exact-head GitHub Actions workflow lookup returned no run. Combined status contains only Vercel Web/Admin build-rate-limit failures; these are external preview-provider statuses, not application tests. FIN-001–FIN-035 source changes are implemented; regression tests remain unexecuted pending consolidated Phase 3. No migration/shared DB/staging operation, grant/RLS change, worker activation, deployment or merge.
