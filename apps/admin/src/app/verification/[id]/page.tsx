@@ -114,7 +114,7 @@ export default function VerificationReviewPage() {
   }
 
   async function handleDeactivateOrg() {
-    if (!store) return;
+    if (!canManageOrgs || !store || deactivating) return;
     setDeactivating(true);
     setError(null);
     try {
@@ -130,7 +130,7 @@ export default function VerificationReviewPage() {
   }
 
   async function handleReactivateOrg() {
-    if (!store) return;
+    if (!canManageOrgs || !store || deactivating) return;
     setDeactivating(true);
     setError(null);
     try {
