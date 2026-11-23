@@ -1038,3 +1038,23 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - No API permission grants, backend business contracts, schema, migration, database, staging, worker, provider or deployment behavior changed. PR #138 remains draft/unmerged.
 
 **Next:** continue the remaining Admin route/action audit against API controller decorators and role contracts; do not repeat the already-completed 56-route page-level audit or UX-097 handler fixes. Keep the comprehensive campaign deferred to Phase 3.
+
+
+## 2026-11-23 — Admin capability-aware navigation and payment verification access (UX-098)
+
+- Continued Admin custom route/action-to-controller permission mapping. Compared the sidebar's all-of permission filtering with the actual route access conditions and endpoint-level capabilities.
+- Found that Carrier & Recovery allows either `admin:carrier:read` or `admin:shipping:recovery`, but the sidebar required `admin:carrier:read` only. A recovery-only operator could be authorized by the page but could not navigate to it.
+- Found that Payments exposes a verification-only tab for `admin:payments:verify`, but the page-level access gate and data loader did not admit a user with that permission alone. Refund-only and read-only paths were already separately represented.
+- Added a reusable navigation permission rule supporting all-of `perms` plus any-of `anyPerms`; configured Carrier & Recovery and Payments with their actual OR permission contracts.
+- Updated Payments route access and per-tab loading so queue access requires `admin:payments:verify`, all/stale tabs require `admin:payments:read`, and refund requests require `admin:refunds:approve`. A user without any of those permissions receives AccessDenied.
+- Added helper tests for all-of/any-of navigation policy and a page test for verification-only payment access.
+- Source commits: `07ff19c`, `f303153`, `14214f0`; focused tests: `d504ace`, `89624f6`.
+- Status: IMPLEMENTED / TESTING_PENDING. Tests were not executed. No backend permission grants or API contracts changed.
+
+### Validation context
+
+- CI #1408 ran on the preceding head `a76b0bef436af8bde2d9329b1cd6ee5980f593fc`. Lint and TypeScript typecheck passed; Flutter analyze and Flutter tests passed. The changed-file Prettier check failed because 245 files in the long-lived PR diff were reported unformatted; dependent API/Web/Admin/integration/migration/build jobs were skipped. This run does not validate UX-098, whose commits use `[skip ci]`.
+- CI #1407 was superseded/cancelled after its TypeScript failure; the failure was four unsupported `exact` properties in new Testing Library `ByRoleOptions`. Those assertions were corrected to anchored regular expressions before #1408.
+- Defer one consolidated repository-locked formatting pass and comprehensive tests to the planned implementation-complete validation batch. Do not create repeated formatter workflows or claim these tests passed.
+
+**Next:** continue the remaining Admin custom route/action-to-controller mapping, checking permission OR/AND semantics against actual route guards and API decorators. The 56-page route-level audit and UX-097/098 fixes must not be repeated.
