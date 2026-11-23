@@ -1138,3 +1138,21 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Status: IMPLEMENTED / TESTING_PENDING; no API, schema, database or staging behavior changed.
 
 **Next:** continue the remaining Admin operational UX/source audit beyond permission mapping. Keep comprehensive formatting and tests grouped in Phase 3.
+
+
+## 2026-11-23 — Catalog Requests action guards (UX-104)
+
+- Added action-time `catalog:requests:manage` checks and single-flight protection to Approve and Reject.
+- RejectDialog receives the permission capability, prevents duplicate submits and retains required rejection reason.
+- Added tests for duplicate approval dispatch and rejection payload. Tests not executed.
+- Commit: `00427e5f0cdd183aa7b8c910a93b8edd2e0d0723`.
+
+
+
+## 2026-11-23 — Dashboard protected-read gating (UX-105)
+
+- Fixed Data Quality and KPI Dashboard so protected API reads and retry callbacks are gated by `catalog:product-types:manage` and `admin:kpis:read`, respectively.
+- Added request-version invalidation to Data Quality and permission-aware request handling to KPI.
+- Added tests confirming unauthorized users do not trigger protected API reads. Tests not executed.
+- Commit: `8474b7acd264872a01d305bef515009eded104ed`.
+

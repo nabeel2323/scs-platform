@@ -141,3 +141,13 @@ This is a client-side action-boundary hardening; the backend permission checks r
 Product Type list/filter reads and selected-schema reads now use independent request-version guards. A slower response for an earlier category/status filter or previously selected Product Type can no longer overwrite the current selection. The Product Type Builder's main schema/attribute/readiness load now also invalidates stale requests on route-ID or permission changes, including stale readiness results and loading-state updates.
 
 This is client-side stale-response suppression only; no API or database behavior changed. No focused test was added. The source was included in CI #1419: lint and typecheck passed, Flutter analysis/tests passed, but changed-file formatting failed across 254 files. Web/Admin tests and dependent gates were skipped.
+
+
+## Catalog request review and dashboard read gates — UX-104 / UX-105 — 23 November 2026
+
+- Catalog Requests Approve/Reject now recheck `catalog:requests:manage` at action dispatch. Approval and rejection are single-flight, the rejection dialog receives the capability and cannot submit without it, and rejection still requires a reason. API controller guards are unchanged.
+- Added tests for single approval dispatch and the rejection payload/reviewer identity in `admin-catalog-requests-recovery.test.tsx`.
+- KPI Dashboard and Data Quality previously started protected API reads even when the route permission hook returned no access. Both now gate the initial read and retry action on the matching permission; request-version cleanup prevents stale responses after access changes.
+- Added tests asserting no KPI or Data Quality request is made for unauthorized users in `admin-dashboard-read-permissions.test.tsx`.
+- Source/test commit for UX-104: `00427e5f0cdd183aa7b8c910a93b8edd2e0d0723`; source/test commit for UX-105: `8474b7acd264872a01d305bef515009eded104ed`.
+- Both changes are IMPLEMENTED / TESTING_PENDING; focused tests have not been executed. CI #1420/#1421 did not run Web/Admin app tests because the formatting gate failed first.

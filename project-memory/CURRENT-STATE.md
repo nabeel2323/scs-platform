@@ -3,7 +3,7 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `892bb24f4522988c89dea507cb848d80fb4dbe2e` — UX-103 Product Type stale-response suppression; latest focused test commit: `3d59ae9b4b5f7d2f6316bb432836f66131edb1d7` (UX-101 failed-save/publish regression).
+**Latest source implementation commit:** `8474b7acd264872a01d305bef515009eded104ed` — UX-105 protected dashboard reads; latest focused test commit: `8474b7acd264872a01d305bef515009eded104ed` (UX-105 unauthorized read regression).
 **Latest implementation checkpoint head:** `e471e6b49e6f60a7c2c1b3719a96fcd7892f6ade` (UX-100 focused test commit; subsequent documentation-only commits synchronize this checkpoint).  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 

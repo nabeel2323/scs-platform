@@ -594,3 +594,14 @@ The shared ProductForm used by Admin product create/edit routes now receives and
 Product Type list/filter and selected-schema reads now use request-version guards so stale responses cannot overwrite the current selection. Product Type Builder schema/attribute/readiness loads invalidate stale requests on route-ID or access changes. No focused regression test was added. CI #1419 passed lint/typecheck and Flutter analysis/tests but failed the accumulated Prettier gate (254 files); Web/Admin tests and dependent gates were skipped. UX-103 remains IMPLEMENTED / TESTING_PENDING for Phase 3.
 
 **Next implementation:** continue the remaining Admin operational UX/source audit beyond permission mapping. Do not repeat UX-097–UX-103.
+
+
+## UX-104 — Catalog Requests action guards — 23 November 2026
+
+Catalog Requests Approve/Reject now recheck `catalog:requests:manage` at dispatch and prevent duplicate submissions. RejectDialog receives the permission capability and requires a reason. Tests cover approval single-flight and rejection payload/reviewer identity; they have not been executed. UX-104 remains IMPLEMENTED / TESTING_PENDING.
+
+## UX-105 — Dashboard protected-read gating — 23 November 2026
+
+Data Quality and KPI Dashboard now check their respective route permissions before starting initial reads or retries, and invalidate stale requests on access changes. Tests assert unauthorized users do not trigger the protected API reads; they have not been executed. UX-105 remains IMPLEMENTED / TESTING_PENDING.
+
+**Next implementation:** continue the remaining Admin operational UX/source audit beyond permission mapping. Do not repeat UX-097–UX-105.

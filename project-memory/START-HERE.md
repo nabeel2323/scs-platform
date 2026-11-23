@@ -76,7 +76,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest observed PR head after UX-103 documentation sync: `a451ad9ba16d3abd499fe4900ad1c8c78cee06d2`; no Actions run is attached to that documentation commit. The two Vercel statuses are external build-rate-limit failures. Re-fetch the live PR head and CI before the next action. Latest source checkpoint: `892bb24f4522988c89dea507cb848d80fb4dbe2e` (UX-103); latest focused test commit: `3d59ae9b4b5f7d2f6316bb432836f66131edb1d7` (UX-101).
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest observed PR head: `8474b7acd264872a01d305bef515009eded104ed` (UX-105 source/test commit); CI #1421 completed with lint/typecheck success, formatting failure and Flutter success. The two Vercel statuses are external build-rate-limit failures. Re-fetch the live PR head and CI before the next action. Latest source/test checkpoint: `8474b7acd264872a01d305bef515009eded104ed` (UX-105).
 
 ### Exact stopping point
 
@@ -531,3 +531,12 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - CI #1419: lint/typecheck and Flutter analysis/tests passed; Prettier gate failed across 254 files; Web/Admin tests and dependent gates skipped.
 - No focused UX-103 test was added. Comprehensive testing remains Phase 3.
 - Next: continue Admin operational UX/source audit beyond permission mapping.
+
+
+## Latest continuation — 23 November 2026 (Admin UX-104 / UX-105)
+
+- Catalog Requests Approve/Reject now enforce the route capability at action time and prevent duplicate submissions. Tests added for approval single-flight and rejection payload.
+- KPI and Data Quality protected reads now fail closed without their route permission; tests assert no unauthorized API request.
+- Source/test commits: `00427e5f0cdd183aa7b8c910a93b8edd2e0d0723` and `8474b7acd264872a01d305bef515009eded104ed`.
+- CI #1420/#1421: lint/typecheck and Flutter checks passed; formatting gate failed (254 / 255 files); Web/Admin tests and dependent gates skipped.
+- Next: continue Admin operational UX/source audit beyond permission mapping; Phase 3 remains the consolidated formatter and test campaign.

@@ -912,3 +912,12 @@ The next full workflow is required to verify these changes.
 - Branch `remediation/phase-0-1-tenant-security` live head: `a451ad9ba16d3abd499fe4900ad1c8c78cee06d2` (`docs(project): record Product Type UX-103 checkpoint [skip ci]`).
 - No Actions run is attached to the documentation-only head. Latest source run is CI #1419 on `892bb24f4522988c89dea507cb848d80fb4dbe2e`: lint/typecheck and Flutter analysis/tests passed; Prettier failed across 254 files; Web/Admin tests and dependent jobs skipped.
 - Vercel Admin and Web contexts are FAILURE with external deployment build-rate-limit notices; these are not application test results.
+
+
+## UX-104 / UX-105 and CI #1420 / #1421 validation checkpoint — 23 November 2026
+
+- UX-104 source/test commit: `00427e5f0cdd183aa7b8c910a93b8edd2e0d0723`; UX-105 source/test commit: `8474b7acd264872a01d305bef515009eded104ed`.
+- CI #1420 on UX-104: lint/typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed with 254 files needing formatting; Web/Admin tests and dependent jobs skipped.
+- CI #1421 on UX-105: lint/typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed with 255 files needing formatting; Web/Admin tests and dependent jobs skipped.
+- The focused Admin tests added in UX-104/105 were not executed by these runs because the Web/Admin test job is downstream of the formatting gate.
+- No merge, deployment, protected staging operation, database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.

@@ -1966,3 +1966,21 @@ This closes a UI-to-controller workflow omission; it does not change G-001–G-0
 - Source commit: `892bb24f4522988c89dea507cb848d80fb4dbe2e`.
 - CI #1419 on this source commit: lint and TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed with 254 files needing formatting. Web/Admin tests and dependent gates skipped.
 - Status: **IMPLEMENTED / TESTING_PENDING**.
+
+
+## Programme UX-104 — Catalog Requests action guards — 23 November 2026
+
+- Catalog Requests Approve now rechecks `catalog:requests:manage` at dispatch and uses a ref-backed single-flight guard; the action state disables competing row actions.
+- RejectDialog receives the same capability, checks it at dispatch, prevents duplicate submissions, and keeps the reason requirement. Backend permission enforcement is unchanged.
+- Added focused tests for one-time approval dispatch and rejection reason/reviewer payload. Not executed.
+- Source/test commit: `00427e5f0cdd183aa7b8c910a93b8edd2e0d0723`.
+- Status: IMPLEMENTED / TESTING_PENDING.
+
+
+## Programme UX-105 — Dashboard protected-read gating — 23 November 2026
+
+- Data Quality and KPI Dashboard now check their route permissions inside their read callbacks and before starting the initial effect; unauthorized users no longer trigger protected API reads.
+- Both pages invalidate in-flight reads on permission changes/unmount and suppress stale state updates.
+- Added `admin-dashboard-read-permissions.test.tsx` asserting that unauthorized users trigger neither Data Quality nor KPI API requests. Tests not executed.
+- Source/test commit: `8474b7acd264872a01d305bef515009eded104ed`.
+- Status: IMPLEMENTED / TESTING_PENDING.
