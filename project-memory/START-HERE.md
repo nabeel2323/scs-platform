@@ -649,7 +649,7 @@ Stale-payment discovery excludes CASH_ON_DELIVERY, and expirePayment itself refu
 - Settlement adjustment posting previously wrote `net_minor = -amount_minor` for every type, incorrectly treating a commission reversal (merchant credit) as a debit. It also allowed an approved adjustment to transition to POSTED without creating a settlement ledger row when no primary settlement existed.
 - Posting now calculates the sign by adjustment type: COMMISSION_REVERSAL increases merchant net; refund, delivery-fee and balance-debit adjustments reduce it. Amounts must be positive safe integers in minor units.
 - Posting locks the latest primary settlement row (PENDING/CALCULATED/DUE/PAID), serializing against settlement payment and other adjustment posts. If no primary settlement exists, posting conflicts and the adjustment remains APPROVED/unlinked.
-- Added unit cases for credit/debit sign and PostgreSQL FIN-DSH-33/34 for commission reversal net and no-settlement posting rejection. Tests not executed.
+- Added unit cases for credit/debit sign and PostgreSQL FIN-DSH-34/35 for commission reversal net and no-settlement posting rejection. Tests not executed.
 - Source commits: `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`. Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, staging, shared DB, grant/RLS, deployment or worker changes.
 
 
