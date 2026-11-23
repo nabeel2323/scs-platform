@@ -1224,3 +1224,15 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added PostgreSQL FIN-DSH-24/25 scenarios for changed amount and reason. Tests added, not executed.
 - Source/test commit: `72927529e64a719741b94b864f6adba7cafd4f0d`.
 - No schema, migration, provider, payout, staging, shared database or deployment changes.
+
+## 2026-11-23 — FIN-009 through FIN-013 and payment expiry history guard
+
+- FIN-009: dispute resolution now uses compare-and-set to prevent duplicate RESOLVED events/outbox messages; commit `2b8e2fa7cf2aab87d4186153a61748bc82805c52`.
+- FIN-010: return refund settlement adjustment locks the settlement row and serializes against mark-paid; commit `a1dc7b2cf31c83f2a59c0a72f0056f4955fe7143`.
+- FIN-011: return orphan-refund recovery validates payment/sub-order, amount, reason, buyer, currency and return linkage; commit `72927529e64a719741b94b864f6adba7cafd4f0d`.
+- FIN-012: post-refund settlement adjustment preserves original settlement currency; commit `ba3318724c3080d4c29baee1c81e972262e14ac4`.
+- FIN-013: payment expiration appends order cancellation history only when the conditional order update succeeds; source `028e30e9ebeb626b51b6d80bc28467c9c946c419`, test `83550c34c7dc11492fc6e5c5fc6fcb418b79243c`.
+- Additional missing financial-breakdown fail-closed fix: `cdb189e95dd7022793af33352a18c31f81117059`.
+- FIN-DSH-11–28 added but not executed. All remain IMPLEMENTED / TESTING_PENDING.
+- CI #1427: lint/typecheck and Flutter passed; changed-file Prettier failed (258 files); dependent API/Web/Admin/PostgreSQL/build/release jobs skipped. CI #1429 was cancelled. CI #1434 must be checked at its exact SHA.
+- No schema/migration, gateway/provider/automatic payout, staging/shared DB, grants/RLS, deployment or worker changes.
