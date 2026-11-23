@@ -1206,3 +1206,14 @@ The correction batch at `954200f` (CI #45260954714) addresses the privilege-awar
 5. Preserve G-001 independent review, G-036 security verification, and the full Phase 6 campaign as open gates.
 
 PR #138 stays draft/unmerged. No deployment, shared/staging database write, migration, grant/default-ACL change, RLS activation, worker activation or release operation is authorized or claimed.
+
+## Post-format verification update — 23 November 2026
+
+PR #138 remains OPEN / DRAFT / UNMERGED. The source/test correction checkpoint is `954200f9bf7866aa2f25d0585847a0c51eb19259`; the subsequent formatting commit is `4477ebd42ba46146b14df18094d025ab133c5d75`.
+
+CI #45260954714 tested source checkpoint `954200f9bf7866aa2f25d0585847a0c51eb19259` and concluded FAILED at changed-file Prettier. Install, lint and workspace typecheck passed; Flutter analyze/tests passed. API unit/coverage, PostgreSQL integration, migration, boundary, contract, Web/Admin, build, container and k6 jobs were skipped behind the formatting gate. The failure is historical for that pre-format SHA; Prettier corrections were subsequently applied and checked in bot commit `4477ebd42ba46146b14df18094d025ab133c5d75`. No application-test result is claimed from #452609.
+
+The formatting was applied across all reported files, including the audit utility, carrier test fixtures, integration assertions, and project-memory documents. A fresh exact-head CI run must verify the formatted branch. The earlier run's skip results must not be carried forward as passes.
+
+FIN-047 remains IMPLEMENTED / TESTING_PENDING. G-015's 14 boundary findings remain open and un-baselined. G-002 still lacks authorized live runtime identity and protected read-only staging evidence. G-001 independent review and G-036 verification remain open. Phase 6 is NOT STARTED. All deployment, shared database, grant, migration, RLS and worker restrictions remain in force.
+
