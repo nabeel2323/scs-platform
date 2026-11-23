@@ -3,9 +3,9 @@
 **Checkpoint:** 23 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest live branch head before this documentation refresh:** `0b8c452797c067139495a8820c95c62a0cafc37b` — documentation-only FIN-001 checkpoint. Latest source/test checkpoint: `117614884ff1e0d50ca116f0b28f249fd83761c0` (refund approval serialization/idempotency; tests added, not executed).
+**Latest live branch head before this documentation refresh:** `a6057735ea13d75579119994e0f8e2d1f286a8db` — documentation-only FIN-002 checkpoint. Latest source/test checkpoint: `60bf231f950dec8ede3c8945f76b22bc8e4b4451` (settlement idempotency and confirmed-funds gate; FIN-DSH-13–15 added, not executed).
 **Exact-head checks:** no GitHub Actions workflow run is attached to the documentation-only head `0b8c452797c067139495a8820c95c62a0cafc37b`. The last refreshed combined status reports Vercel Admin FAILURE at the external deployment build-rate-limit page; this is not an application test result.  
-Documentation-only handoff commits also use `[skip ci]`; re-fetch the live branch ref for the current documentation HEAD. FIN-DSH-11/12 PostgreSQL tests are added but have not been executed. The comprehensive Phase 3 campaign remains pending.
+Documentation-only handoff commits also use `[skip ci]`; re-fetch the live branch ref for the current documentation HEAD. FIN-DSH-11–15 PostgreSQL tests are added but have not been executed. The comprehensive Phase 3 campaign remains pending.
 
 ## Previous CI run at the 21 November checkpoint (historical)
 
@@ -968,3 +968,9 @@ The next full workflow is required to verify these changes.
 - Lint passed; TypeScript typecheck failed; Flutter analysis/tests passed. Typecheck errors included `payments.service.ts` settlement insert result possibly undefined and P12/P13 integration tests consuming a possibly undefined settlement return. Changed-file Prettier and downstream Web/Admin, API unit, PostgreSQL integration, migration, boundary, build/container, contract and release jobs were skipped.
 - Added explicit settlement insert-result narrowing in source commit `60bf231f950dec8ede3c8945f76b22bc8e4b4451`. This commit uses `[skip ci]`; it has not been CI-verified.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No merge, staging, shared DB, migration, payout, provider, deployment or worker action occurred.
+
+## CI #1425 — FIN-002 typecheck failure — 23 November 2026
+
+- [Workflow run](https://github.com/nabeel2323/scs-platform/actions/runs/45161885419) tested `994fee9a332f4c553fa09687101d8f6ecdec3103`.
+- Lint passed; TypeScript typecheck failed; Flutter analysis/tests passed. Typecheck reported possible-undefined settlement insert/result values in `payments.service.ts` and P12/P13 PostgreSQL integration tests. Changed-file Prettier and downstream Web/Admin, API unit/coverage, PostgreSQL integration, migration, boundary, build/container, contract and release jobs were skipped.
+- Added an explicit settlement insert-result guard in source commit `60bf231f950dec8ede3c8945f76b22bc8e4b4451`. That commit uses `[skip ci]`; exact-head typecheck remains pending.

@@ -76,7 +76,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest source/test checkpoint is `60bf231f950dec8ede3c8945f76b22bc8e4b4451` (FIN-002); FIN-DSH-11–15 were added but not executed. No Actions run is attached to that `[skip ci]` commit; its Vercel Web/Admin statuses are SUCCESS / Skipped — Not affected. Latest Actions run #1421 is on earlier SHA `8474b7acd264872a01d305bef515009eded104ed` and failed only the accumulated changed-file Prettier gate (255 files), with lint/typecheck and Flutter passing and dependent Web/Admin/API/integration/build gates skipped. Re-fetch live PR head/status before the next action.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest source/test checkpoint is `60bf231f950dec8ede3c8945f76b22bc8e4b4451` (FIN-002); FIN-DSH-11–15 were added but not executed. No Actions run is attached to that `[skip ci]` commit. Latest Actions run #1425 tested earlier SHA `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint and Flutter passed, typecheck failed, and changed-file formatting plus downstream Web/Admin/API/PostgreSQL/migration/build/release gates were skipped. A settlement insert-result type guard was added in `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; no rerun is claimed. Re-fetch live PR head/status before the next action.
 
 ### Exact stopping point
 
@@ -558,3 +558,11 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Source/test commit: `60bf231f950dec8ede3c8945f76b22bc8e4b4451`.
 - Next: continue source-first commercial/operational correctness audit, prioritizing remaining payment/settlement state transitions and persistence/event semantics. Do not expand gateway or payout scope.
 
+### Latest continuation — FIN-002 settlement calculation — 23 November 2026
+
+- Payment-row locking serializes settlement calculation against refund request/approval operations and concurrent settlement attempts.
+- Existing active settlement retries return the current PENDING/CALCULATED/DUE row; recalculation after PAID/ADJUSTMENT history conflicts.
+- Settlement calculation is blocked until the payment is CONFIRMED, CAPTURED, PARTIALLY_REFUNDED or REFUNDED.
+- FIN-DSH-13/14/15 cover concurrent idempotency, post-PAID rejection and pre-confirmation denial. Tests are added but not executed.
+- Source/test commit: `60bf231f950dec8ede3c8945f76b22bc8e4b4451`.
+- Next: continue source-first financial correctness review. Keep automatic gateway/payout out of scope.

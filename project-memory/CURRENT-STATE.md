@@ -20,12 +20,12 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
 | Latest implementation checkpoint head | `60bf231f950dec8ede3c8945f76b22bc8e4b4451` (FIN-002 source + PostgreSQL regression tests; not executed) |
-| Latest implementation/test | UX-100–105 Admin workflow/action/read-gate improvements, FIN-001 refund approval serialization/idempotency and FIN-002 settlement calculation idempotency. FIN-DSH-11–14 added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
+| Latest implementation/test | UX-100–105 Admin workflow/action/read-gate improvements, FIN-001 refund approval serialization/idempotency and FIN-002 settlement idempotency/confirmed-funds guard. FIN-DSH-11–15 added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for FIN-001 source/test head `117614884ff1e0d50ca116f0b28f249fd83761c0`; latest Actions run #1421 tested earlier `8474b7acd264872a01d305bef515009eded104ed`, passed lint/typecheck and Flutter, but failed changed-file Prettier (255 files); Web/Admin and dependent jobs skipped |
+| Exact-head GitHub Actions | No run for FIN-002 source/test head `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; latest Actions run #1425 tested earlier docs head `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint and Flutter passed, typecheck failed; formatting and dependent Web/Admin/API/PostgreSQL/migration/build jobs skipped |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest live PR head before this memory refresh | `60bf231f950dec8ede3c8945f76b22bc8e4b4451` — FIN-002 source/test commit; `[skip ci]`, no Actions run expected |\n| Latest inspected preview status | Admin FAILURE due external deployment rate limit; not an application test result |
+| Latest live PR head before this memory refresh | `a6057735ea13d75579119994e0f8e2d1f286a8db` — documentation-only FIN-002 acceptance synchronization; no Actions run expected |\n| Latest inspected preview status | Admin FAILURE due external deployment rate limit; not an application test result |
 | Focused client tests | Admin UX-030–058 and UX-097–099, Mobile UX-078–096 and Web UX-095 focused tests added/updated; not executed (Flutter suite passed only on earlier SHA `a76b0be`) |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
@@ -868,3 +868,10 @@ Merchant active-store and product reads now preserve last-successful data throug
 - Settlement calculation is serialized on the payment row, reuses an active settlement for retries, rejects recalculation after PAID/ADJUSTMENT history, and requires a confirmed/captured/refunded payment state before creating a settlement.
 - FIN-DSH-13/14/15 cover concurrent idempotency, post-PAID rejection and pre-confirmation denial. Not executed.
 - CI #1425 ran on earlier docs head `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint passed, typecheck failed, Flutter passed; downstream Web/Admin, API tests, PostgreSQL integration, formatting and release jobs were skipped. The typecheck failures included possible-undefined settlement return values in the new service/test code and existing P12 integration assertions. A result-narrowing guard was added in `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; no CI rerun is claimed.
+
+## Exact FIN-002 validation checkpoint — 23 November 2026
+
+- Source/test commit: `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; no Actions run is attached because it uses `[skip ci]`.
+- CI #1425 [workflow](https://github.com/nabeel2323/scs-platform/actions/runs/45161885419) tested earlier SHA `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint passed; TypeScript typecheck failed; Flutter analysis/tests passed; changed-file formatting and downstream Web/Admin, API unit/coverage, PostgreSQL integration, migration, boundary, build/container, contract and release jobs skipped.
+- The typecheck log included possible-undefined settlement insert/result values in the new service and P12/P13 integration test call sites. Added an explicit insert-result guard in `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; no rerun or verification is claimed.
+- Current PR head before this memory sync: `a6057735ea13d75579119994e0f8e2d1f286a8db`. PR #138 OPEN / DRAFT / UNMERGED.
