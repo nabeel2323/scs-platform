@@ -511,10 +511,12 @@ export class ReconciliationService {
     orgId: string | null | undefined,
     discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
+    // Reconcile in the accounting period when the adjustment became POSTED.
+    // createdAt is the draft/request timestamp and can belong to an earlier period.
     const conditions: any[] = [
       eq(settlementAdjustments.status, 'POSTED'),
-      gte(settlementAdjustments.createdAt, startDate),
-      lte(settlementAdjustments.createdAt, endDate),
+      gte(settlementAdjustments.updatedAt, startDate),
+      lte(settlementAdjustments.updatedAt, endDate),
     ];
     if (orgId) conditions.push(eq(settlementAdjustments.orgId, orgId));
 
@@ -556,13 +558,16 @@ export class ReconciliationService {
     orgId: string | null | undefined,
     discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
+    // Only posted adjustments affect the financial ledger. Attribute them to
+    // the POSTED transition (updatedAt), not the original draft creation time.
     const conditions: any[] = [
       inArray(
         settlementAdjustments.adjustmentType,
         ['DELIVERY_FEE_EXCEPTION', 'DELIVERY_FEE_REFUND'],
       ),
-      gte(settlementAdjustments.createdAt, startDate),
-      lte(settlementAdjustments.createdAt, endDate),
+      eq(settlementAdjustments.status, 'POSTED'),
+      gte(settlementAdjustments.updatedAt, startDate),
+      lte(settlementAdjustments.updatedAt, endDate),
     ];
     if (orgId) conditions.push(eq(settlementAdjustments.orgId, orgId));
 
