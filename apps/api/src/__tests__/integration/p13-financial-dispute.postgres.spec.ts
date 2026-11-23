@@ -42,6 +42,7 @@
  *   FIN-DSH-38  Failed reconciliation is atomic and leaves no partial discrepancy rows
  *   FIN-DSH-39  Payment/dispute immutable history and outbox event parity
  *   FIN-DSH-40  Dispute creation rolls back when outbox persistence fails
+ *   FIN-DSH-41  Settlement adjustment creation emits an atomic outbox event
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -2061,4 +2062,20 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       `SELECT id FROM outbox_events WHERE event_type = 'dispute.opened' AND aggregate_id = $1`, [failedDisputeId],
     )).rows).toHaveLength(0);
   }, 90_000);
+  it('FIN-DSH-41: creating a settlement adjustment atomically emits its creation outbox event', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const adjustment = await settlementAdjService.createAdjustment({
+      subOrderId: orderId, adjustmentType: 'COMMISSION_REVERSAL', amountMinor: 75,
+      currency: 'SYP', reason: 'Creation event parity regression',
+    }, adminA, orgA);
+    const events = await pool.query(
+      `SELECT event_type, payload FROM outbox_events
+       WHERE aggregate_id = $1 AND event_type = 'settlement_adjustment.created'`,
+      [adjustment.id],
+    );
+    expect(events.rows).toHaveLength(1);
+    expect(events.rows[0].payload.adjustmentId).toBe(adjustment.id);
+    expect(events.rows[0].payload.status).toBe('DRAFT');
+    expect(events.rows[0].payload.amountMinor).toBe(75);
+  }, 60_000);
 });

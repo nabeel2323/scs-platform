@@ -187,6 +187,18 @@ export class SettlementAdjustmentService {
         orgId: resolvedOrgId,
         notes: input.notes ?? null,
       });
+
+      await this.outbox.publish('settlement_adjustment.created', id, {
+        adjustmentId: id,
+        subOrderId: input.subOrderId,
+        adjustmentType: input.adjustmentType,
+        amountMinor: input.amountMinor,
+        currency: input.currency,
+        createdBy,
+        orgId: resolvedOrgId,
+        status: 'DRAFT',
+        fxStatus,
+      }, {}, null, tx);
     });
 
     this.logger.log(
