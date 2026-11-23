@@ -948,3 +948,12 @@ Merchant active-store and product reads now preserve last-successful data throug
 - Additional missing financial-breakdown fail-closed fix: `cdb189e95dd7022793af33352a18c31f81117059`.
 - FIN-DSH-11–28 are added but not executed. Status remains IMPLEMENTED / TESTING_PENDING.
 - CI #1427 on `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`: lint/typecheck and Flutter passed; Prettier failed (258 files); API/PostgreSQL/Web/Admin dependent jobs skipped. CI #1429 on `a7a2791b868bc89852b58b17fa11b8aaf87f3c81` was cancelled. CI #1434 on the subsequent test checkpoint is running; re-fetch exact head/results before relying on it.
+
+## CI #1434 — FIN-013 payment expiry race checkpoint — 23 November 2026
+
+- [Workflow run](https://github.com/nabeel2323/scs-platform/actions/runs/45165552569) tested exact SHA `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231`.
+- ESLint passed; TypeScript typecheck passed; Flutter analysis/tests passed.
+- Changed-file Prettier failed with 258 files needing formatting out of 410 PR-changed files (49 unchanged legacy formatting exceptions).
+- Web/Admin app tests, API unit/coverage, PostgreSQL integration, migration, boundary, build/container, contract/codegen, k6 and staging-release jobs were skipped.
+- This run does not execute FIN-DSH-11–28. They remain IMPLEMENTED / TESTING_PENDING.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No deployment or staging action occurred.
