@@ -683,3 +683,16 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - No shared DB/staging write, migration execution, grant/default-ACL/RLS change, environment change, worker activation, provider/gateway/payout change, deployment or merge.
 - Existing G-001 PARTIAL, G-002 IN PROGRESS/protected, G-036 IN PROGRESS; Phases 0–5 remain IN PROGRESS; Phase 6 NOT STARTED. PR #138 stays draft.
 - **Next FIN-022:** audit immutable financial event/history and transactional outbox consistency across payment, settlement, refund, return, dispute and settlement-adjustment transitions. Inspect producers, transaction boundaries, event payloads, outbox deduplication/aggregate identity and consumer ownership before modifying; add focused PostgreSQL concurrency/rollback cases. Keep implementation-first cadence and the consolidated Phase 3 test campaign.
+
+
+## Latest continuation checkpoint — 23 November 2026 (FIN-022)
+
+- Live repository/branch: `nabeel2323/scs-platform`, `remediation/phase-0-1-tenant-security`; PR #138 remains OPEN / DRAFT / UNMERGED to `develop`.
+- FIN-022 producer/outbox commits: `3784bca3dd9a21fa3123e555aebbdd13addfb21b`, `a77339ab1b50d881fc006a16b9613505458fcd27`, `ccde36322f9bcfd12f2de2bfad22390cd9b7f503`, `5d7eadf07e11801813a606dfeeda60b83c16eb19`, `e761195829d3fcd4bc2d9d0eecfd848188c32d53`.
+- Added atomic outbox events for payment creation and CREATED → AWAITING_PAYMENT; dispute OPENED, EVIDENCE_SUBMITTED and RESPONSE_SUBMITTED transitions are now row-locked and transactionally persisted with immutable history and outbox records; settlement-adjustment creation now emits `settlement_adjustment.created` in the same transaction.
+- Generic outbox dispatcher now claims pending non-carrier rows with `FOR UPDATE SKIP LOCKED`, a five-minute lease and worker ownership. Completion/failure updates are conditional on the lease owner. Raw SQL maps event columns to the camel-case shape consumed by dispatch.
+- Added PostgreSQL FIN-DSH-39–42 and unit coverage for the outbox claim SQL/projection. Tests have **not** been executed. The dispatcher remains a logging implementation, not an external event-bus integration.
+- Exact-head Actions: no workflow run. Vercel Web and Admin both FAILURE due external build-rate-limit. No application test result is claimed.
+- No migration, shared/staging DB write, grant/RLS, worker activation, environment change, provider/gateway/payout, deployment or merge action.
+- G-001 PARTIAL; G-002 IN PROGRESS/protected; G-036 IN PROGRESS; Phases 0–5 IN PROGRESS; Phase 6 NOT STARTED. PR #138 stays draft.
+- **Next FIN-023:** close the remaining checkout/refund transaction-boundary audit. In particular, checkout commits order/payment creation before the BANK_TRANSFER post-commit order/payment status transitions; a swallowed transition failure can leave order PAYMENT_PENDING while payment remains CREATED. Inspect recovery/idempotency paths and add rollback/concurrency regressions before changing it. Also review dispute-refund recovery where refund request and dispute resolution intentionally span separate transactions. Keep the consolidated Phase 3 validation cadence.

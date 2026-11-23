@@ -1329,6 +1329,13 @@ Reconciliation run versioning is serialized by a PostgreSQL transaction-scoped a
 
 PostgreSQL FIN-DSH-37/38 cover concurrent tenant version allocation, forward supersession and failure rollback. Tests are added but not executed. Commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`. Migration 0074 is source-only and has not been applied to shared/staging.
 
-### Next source-audit task — FIN-022
 
-Audit immutable financial event/history and transactional outbox consistency across payment, settlement, refund, return, dispute and settlement-adjustment transitions. Inspect every state-changing producer, transaction boundary, event type/payload, aggregate identity, deduplication key and consumer ownership. Verify event and outbox writes are atomic with state transitions, retries do not duplicate history, and failed transitions emit no events. Add focused PostgreSQL concurrency/rollback cases before changing code. Do not expand automatic gateway/payout scope or activate workers.
+## FIN-022 — Financial history and outbox consistency — 23 November 2026
+
+Payment creation and CREATED → AWAITING_PAYMENT now publish outbox messages in the same transactions as their immutable payment events. Dispute opening locks the order and persists the dispute, OPENED history and outbox together; evidence and response transitions lock the dispute and atomically persist history/outbox. Settlement-adjustment creation emits `settlement_adjustment.created` in its insert transaction. Generic outbox polling now claims pending non-carrier events using `FOR UPDATE SKIP LOCKED`, a five-minute lease and owner-conditional success/failure updates. SQL aliases claimed event fields to the dispatcher's camel-case contract.
+
+PostgreSQL FIN-DSH-39–42 and unit tests cover event parity, dispute rollback, adjustment creation event and two-instance outbox claim. Tests are added but not executed. The generic dispatcher still logs events rather than publishing to an external event bus. Commits: `3784bca3dd9a21fa3123e555aebbdd13addfb21b`, `a77339ab1b50d881fc006a16b9613505458fcd27`, `ccde36322f9bcfd12f2de2bfad22390cd9b7f503`, `5d7eadf07e11801813a606dfeeda60b83c16eb19`, `e761195829d3fcd4bc2d9d0eecfd848188c32d53`.
+
+### Next source-audit task — FIN-023
+
+Audit BANK_TRANSFER checkout's post-commit sequence: checkout commits payment/order rows, then separately moves the order to PAYMENT_PENDING and the payment from CREATED to AWAITING_PAYMENT, with the latter call currently best-effort. Determine how a failure/crash can leave mismatched states and whether retries are safely recoverable. Also inspect dispute refund creation versus the separate dispute-resolution transaction, ensuring the refund idempotency recovery path is race-safe and does not create contradictory history/outbox records. Add PostgreSQL crash/failure/concurrency tests before changing transaction boundaries. No shared/staging DB writes or automatic gateway/payout expansion.

@@ -1037,3 +1037,13 @@ The existing return-idempotency case already owns FIN-DSH-33. Settlement-adjustm
 - Exact-head Actions: no workflow run. Vercel Web failed on external build-rate-limit; Vercel Admin succeeded. No application test verification is claimed.
 - PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. No shared/staging database write, migration execution, grant/RLS, worker, environment, provider, payout, deployment or merge action.
 - FIN-021 status: IMPLEMENTED / TESTING_PENDING. Next: FIN-022 immutable financial history and transactional outbox consistency audit.
+
+
+## FIN-022 — Financial history/outbox consistency — 23 November 2026
+
+- Commits: `3784bca3dd9a21fa3123e555aebbdd13addfb21b`, `a77339ab1b50d881fc006a16b9613505458fcd27`, `ccde36322f9bcfd12f2de2bfad22390cd9b7f503`, `5d7eadf07e11801813a606dfeeda60b83c16eb19`, `e761195829d3fcd4bc2d9d0eecfd848188c32d53`.
+- Payment creation and CREATED → AWAITING_PAYMENT now emit outbox events atomically with payment history. Dispute opening now locks the order and writes dispute + OPENED event + outbox atomically; evidence and response writes lock the dispute and atomically persist history/outbox. Settlement-adjustment creation emits its creation event inside its insert transaction.
+- Generic outbox polling now atomically claims pending non-carrier events with `FOR UPDATE SKIP LOCKED`, five-minute lease ownership and conditional completion/retry updates. Claimed event fields are aliased to the shape expected by dispatch.
+- Added FIN-DSH-39/40/41/42 and unit claim tests. Tests not executed. Outbox dispatch is still logging-only; no external event bus or consumer guarantees are claimed.
+- Exact-head Actions: no run. Vercel Web/Admin both failed due external build-rate-limit. No migration/shared DB write/worker activation/deployment.
+- FIN-022: IMPLEMENTED / TESTING_PENDING for the audited producers and generic dispatcher claim path. Next FIN-023: checkout bank-transfer post-commit state split and dispute-refund recovery transaction audit.

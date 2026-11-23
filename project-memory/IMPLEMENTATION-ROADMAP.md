@@ -560,3 +560,12 @@ FIN-021 implements tenant-safe reconciliation version allocation, forward supers
 Commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`. Status: IMPLEMENTED / TESTING_PENDING. Migration 0074 is committed but not applied to any shared/staging database.
 
 **Next:** FIN-022 — audit immutable financial history and transactional outbox consistency across payment, settlement, refund, return, dispute and settlement-adjustment state transitions.
+
+
+## Financial correctness continuation — FIN-022 — 23 November 2026
+
+FIN-022 closes the audited payment/dispute/settlement-adjustment producer gaps: payment creation and awaiting-payment now emit transactional outbox events; dispute OPENED/evidence/response rows, history and outbox are committed atomically; settlement-adjustment creation emits an outbox event. Generic outbox polling now uses atomic `FOR UPDATE SKIP LOCKED` claiming with five-minute lease ownership and conditional completion/retry updates. FIN-DSH-39–42 and unit tests are added but not run. The dispatcher remains logging-only; no external event bus is wired.
+
+Commits: `3784bca3dd9a21fa3123e555aebbdd13addfb21b`, `a77339ab1b50d881fc006a16b9613505458fcd27`, `ccde36322f9bcfd12f2de2bfad22390cd9b7f503`, `5d7eadf07e11801813a606dfeeda60b83c16eb19`, `e761195829d3fcd4bc2d9d0eecfd848188c32d53`. Status: IMPLEMENTED / TESTING_PENDING.
+
+**Next:** FIN-023 — audit BANK_TRANSFER checkout's post-commit order/payment state transition and dispute-refund split transaction recovery.

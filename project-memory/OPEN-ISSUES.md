@@ -731,3 +731,12 @@ Implementation commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`. The service n
 **Remaining:** validate migration and integration scenarios in the consolidated Phase 3 campaign; inspect existing historical data assumptions in isolated CI; preserve all live database and staging restrictions.
 
 **Next:** FIN-022 immutable financial event/history and transactional outbox consistency audit across payment, settlement, refund, return, dispute and settlement-adjustment transitions.
+
+
+## FIN-022 — Financial history/outbox consistency
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** The audit found missing outbox messages for payment creation and the CREATED → AWAITING_PAYMENT transition, non-transactional dispute open/evidence/response history writes, missing dispute evidence/response outbox events, missing settlement-adjustment creation notification, and a generic outbox poller that did not claim rows across instances.
+
+The changes add transactional producer/history/outbox parity for those paths and an atomic `FOR UPDATE SKIP LOCKED` dispatcher claim with five-minute leases and owner-conditional finalization. PostgreSQL FIN-DSH-39–42 and unit coverage are committed in `3784bca3dd9a21fa3123e555aebbdd13addfb21b`, `a77339ab1b50d881fc006a16b9613505458fcd27`, `ccde36322f9bcfd12f2de2bfad22390cd9b7f503`, `5d7eadf07e11801813a606dfeeda60b83c16eb19`, `e761195829d3fcd4bc2d9d0eecfd848188c32d53`. Tests not executed. The dispatcher remains logging-only; no external event bus integration is claimed.
+
+**Next:** FIN-023 — inspect BANK_TRANSFER checkout's post-commit order/payment state transition and dispute-refund split transaction recovery. Confirm idempotency and crash/retry behavior before refactoring.

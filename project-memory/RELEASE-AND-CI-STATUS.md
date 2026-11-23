@@ -1137,3 +1137,12 @@ The next full workflow is required to verify these changes.
 - FIN-DSH-37/38 are added but not executed. FIN-021 remains IMPLEMENTED / TESTING_PENDING.
 - Migration 0074 is committed as source but has not been applied to shared/staging. No shared database writes, migration execution, grants/default ACL, RLS, environment, worker, provider, payout, deployment or merge action occurred.
 - PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. Full formatter, API unit/coverage, PostgreSQL integration, Web/Admin/mobile and migration validation remain grouped in Phase 3; Phase 6 has not started.
+
+
+## FIN-022 exact-head checkpoint — 23 November 2026
+
+- Latest source/test commit: `e761195829d3fcd4bc2d9d0eecfd848188c32d53`.
+- Exact-head GitHub Actions lookup: **no workflow runs**. Vercel Web and Vercel Admin statuses both FAILURE due external build-rate-limit; they are not API/PostgreSQL test results.
+- FIN-DSH-39–42 and outbox unit tests are committed but not executed. FIN-022 remains IMPLEMENTED / TESTING_PENDING.
+- No migration, shared/staging DB write, grant/default-ACL/RLS change, worker activation, provider/gateway/payout, environment, deployment or merge action occurred. Outbox dispatcher is still logging-only, not an external event-bus integration.
+- PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. Full formatter, API unit/coverage, PostgreSQL integration, Web/Admin/mobile and migration verification remain grouped in Phase 3; Phase 6 has not started.

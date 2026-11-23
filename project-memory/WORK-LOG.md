@@ -1338,3 +1338,16 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`. Tests not executed; IMPLEMENTED / TESTING_PENDING. Migration 0074 is source-only and not applied.
 - Exact-head Actions returned no run. Vercel Web failed due build-rate-limit; Vercel Admin succeeded. These are not application test results.
 - No shared/staging DB write, migration execution, grants/RLS, worker activation, environment change, deployment, gateway/provider or payout change.
+
+
+## 2026-11-23 — FIN-022 financial history and outbox consistency
+
+- Audited payment lifecycle history, return events, commission reversals, settlement adjustments, dispute events, generic outbox publishing and dispatcher polling.
+- Added `payment.created` in the checkout transaction and `payment.awaiting_payment` alongside the PAYMENT_AWAITING history row in its status-transition transaction.
+- Reworked dispute opening to lock the order and commit dispute row, OPENED event and `dispute.opened` outbox together. Evidence and response now lock the dispute and commit status/history/outbox together, emitting `dispute.evidence_submitted` and `dispute.response_submitted`.
+- Added `settlement_adjustment.created` to the same transaction as DRAFT adjustment creation.
+- Replaced generic outbox read-then-dispatch with atomic PostgreSQL `FOR UPDATE SKIP LOCKED` claiming, five-minute lease/worker ownership, conditional success/failure updates and explicit camel-case returned columns. Carrier events remain excluded for their dedicated worker.
+- Added FIN-DSH-39 through FIN-DSH-42 and unit tests for claim SQL and dispatch projection. Tests added, not executed. Dispatcher still logs locally; external event bus integration is not implemented.
+- Commits: `3784bca3dd9a21fa3123e555aebbdd13addfb21b`, `a77339ab1b50d881fc006a16b9613505458fcd27`, `ccde36322f9bcfd12f2de2bfad22390cd9b7f503`, `5d7eadf07e11801813a606dfeeda60b83c16eb19`, `e761195829d3fcd4bc2d9d0eecfd848188c32d53`.
+- No schema/migration/shared DB write, worker activation, deployment, gateway or payout change.
+- Next FIN-023: audit BANK_TRANSFER checkout's post-commit order/payment transition and dispute-refund split transaction recovery.

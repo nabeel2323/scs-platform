@@ -2177,3 +2177,14 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - **Status:** IMPLEMENTED / TESTING_PENDING. Exact-head Actions returned no run; Vercel Web build-rate-limit failure and Admin success are not application test evidence.
 - **No shared database/staging writes, migration execution, grant/RLS, worker, environment, provider, gateway, payout, deployment or merge action.**
 - **Next:** FIN-022 audit immutable financial event/history and transactional outbox consistency across payment, settlement, refund, return, dispute and settlement-adjustment transitions.
+
+
+## FIN-022 — Financial history and outbox consistency — 23 November 2026
+
+- **Findings:** payment creation and CREATED → AWAITING_PAYMENT had immutable history but no corresponding outbox event; dispute opening/evidence/response were not consistently transactional and evidence/response had no outbox event; settlement-adjustment DRAFT creation had no outbox event; generic outbox polling selected PENDING rows without cross-instance claim ownership.
+- **Implementation:** payment create/awaiting events are written in the same transaction as payment history/state. Dispute creation locks the order and commits dispute + OPENED event + outbox together; evidence and response lock the dispute and commit state/history/outbox together. Settlement-adjustment creation emits `settlement_adjustment.created` inside its insert transaction. Generic outbox uses atomic `FOR UPDATE SKIP LOCKED` claims, five-minute leases and owner-conditional success/retry updates; returned event columns are aliased to the dispatch contract.
+- **Regression coverage:** PostgreSQL FIN-DSH-39 verifies payment/dispute history and outbox parity; FIN-DSH-40 verifies dispute creation rollback on outbox failure; FIN-DSH-41 verifies adjustment creation outbox; FIN-DSH-42 races two dispatcher instances against one pending event. Unit tests verify the claim SQL and field projection. Tests added, not executed.
+- **Commits:** `3784bca3dd9a21fa3123e555aebbdd13addfb21b`, `a77339ab1b50d881fc006a16b9613505458fcd27`, `ccde36322f9bcfd12f2de2bfad22390cd9b7f503`, `5d7eadf07e11801813a606dfeeda60b83c16eb19`, `e761195829d3fcd4bc2d9d0eecfd848188c32d53`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. Exact-head Actions returned no run; Vercel Web/Admin rate-limit failures are not test evidence. The dispatcher remains a logging implementation; no external bus or consumer delivery guarantees are claimed.
+- **No migration/shared database/staging write, worker activation, grant/RLS, environment, provider/gateway/payout, deployment or merge action.**
+- **Next:** FIN-023 — inspect BANK_TRANSFER checkout's post-commit order/payment state transition and dispute-refund split transaction recovery.
