@@ -55,6 +55,12 @@ import {
 const ALLOWED_PROOF_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const MAX_PROOF_SIZE = 10 * 1024 * 1024; // 10 MB
 
+function assertPositiveMinorAmount(amount: number, fieldName: string): void {
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
+    throw new BadRequestException(`${fieldName} must be a positive safe integer in minor units`);
+  }
+}
+
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
@@ -278,6 +284,7 @@ export class PaymentsService {
 
     const fromStatus = payment.status;
     const confirmedAmount = input?.verifiedAmountMinor ?? payment.amountMinor;
+    assertPositiveMinorAmount(confirmedAmount, 'Verified amount');
 
     await this.db.db.transaction(async (tx) => {
       // Optimistic lock: only one concurrent verifier wins
@@ -374,6 +381,7 @@ export class PaymentsService {
     }
 
     const collectedAmount = input?.amountCollectedMinor ?? payment.amountMinor;
+    assertPositiveMinorAmount(collectedAmount, 'Collected amount');
     const fromStatus = payment.status;
 
     await this.db.db.transaction(async (tx) => {
@@ -576,9 +584,7 @@ export class PaymentsService {
       );
     }
 
-    if (amountMinor <= 0) {
-      throw new BadRequestException('Refund amount must be positive');
-    }
+    assertPositiveMinorAmount(amountMinor, 'Refund amount');
 
     const payment = await this.getPaymentOrThrow(paymentId);
     const order = await this.getOrderForPayment(payment.orderId);
@@ -923,6 +929,7 @@ export class PaymentsService {
       if (!breakdown) throw new NotFoundException('Financial breakdown not found');
 
       const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
+      assertPositiveMinorAmount(confirmedAmount, 'Confirmed payment amount');
       const refundResult = await tx
         .select({ total: sql<number>`COALESCE(SUM(amount_minor), 0)` })
         .from(refunds)

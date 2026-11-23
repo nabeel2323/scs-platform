@@ -17,6 +17,7 @@
  *   FIN-DSH-13  Concurrent settlement calculations reuse one payable settlement
  *   FIN-DSH-14  Recalculation after settlement PAID is rejected
  *   FIN-DSH-15  Settlement is blocked until payment is confirmed
+ *   FIN-DSH-16  Payment verification, COD confirmation and refund amounts must be positive safe integers
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -702,6 +703,53 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     expect(rows.rows[0].count).toBe(0);
   }, 60_000);
+
+  // ── FIN-DSH-16: Minor-unit amount validation ────────────────────
+
+  it('FIN-DSH-16: rejects fractional or non-positive verification, COD and refund amounts', async () => {
+    const verifyOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    await pool.query(
+      `UPDATE payment_records SET status = 'AWAITING_VERIFICATION' WHERE order_id = $1`,
+      [verifyOrderId],
+    );
+    const verifyPaymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [verifyOrderId],
+    )).rows[0].id;
+    await expect(
+      paymentsService.verifyPayment(verifyPaymentId, 'CONFIRMED', adminA, adminCaller, { verifiedAmountMinor: 1.5 }),
+    ).rejects.toThrow(/positive safe integer in minor units/i);
+    const verifyState = await pool.query(
+      `SELECT status FROM payment_records WHERE id = $1`, [verifyPaymentId],
+    );
+    expect(verifyState.rows[0].status).toBe('AWAITING_VERIFICATION');
+
+    const codOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    await pool.query(
+      `UPDATE payment_records SET payment_method = 'CASH_ON_DELIVERY', status = 'AWAITING_PAYMENT'
+       WHERE order_id = $1`,
+      [codOrderId],
+    );
+    const codPaymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [codOrderId],
+    )).rows[0].id;
+    const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
+    await expect(
+      paymentsService.confirmCash(codPaymentId, merchantA, merchantCaller, { amountCollectedMinor: 0 }),
+    ).rejects.toThrow(/positive safe integer in minor units/i);
+    const codState = await pool.query(
+      `SELECT status FROM payment_records WHERE id = $1`, [codPaymentId],
+    );
+    expect(codState.rows[0].status).toBe('AWAITING_PAYMENT');
+
+    const refundOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const refundPaymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [refundOrderId],
+    )).rows[0].id;
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    await expect(
+      paymentsService.requestRefund(refundPaymentId, 1.25, 'CUSTOMER_REQUEST', buyerA, buyerCaller),
+    ).rejects.toThrow(/positive safe integer in minor units/i);
+  }, 90_000);
 
   // ── FIN-DSH-09: Refund after settlement PAID ─────────────────────
 
