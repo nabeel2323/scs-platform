@@ -105,7 +105,7 @@ function CarrierConsole() {
             {queue.loading ? <div style={{ padding: 16 }}><SkeletonTable rows={4} cols={6} /></div>
               : queue.error ? <div style={{ padding: 16 }}><AdminErrorState message={queue.error} onRetry={queue.reload} /></div>
               : (queue.data?.queue.length ?? 0) === 0 ? <div style={{ padding: 16 }}><AdminEmptyState title="Recovery queue is clear" description="No shipments currently require carrier reconciliation." /></div>
-              : <RecoveryTable rows={queue.data?.queue ?? []} onRecovered={queue.reload} />}
+              : <RecoveryTable rows={queue.data?.queue ?? []} onRecovered={queue.reload} canRecover={canRecover} />}
           </AdminDetailSection>
         )}
       </div>
@@ -136,7 +136,7 @@ function ConfigTable({ rows }: { rows: CarrierConfiguration[] }) {
   return <AdminRelatedTable columns={cols} data={rows as unknown as Record<string, unknown>[]} />;
 }
 
-function RecoveryTable({ rows, onRecovered }: { rows: RecoveryQueueRow[]; onRecovered: () => void }) {
+function RecoveryTable({ rows, onRecovered, canRecover }: { rows: RecoveryQueueRow[]; onRecovered: () => void; canRecover: boolean }) {
   const action = useAdminMutation(onRecovered, () => canRecover);
   const cols: RelatedColumn[] = [
     { key: 'id', label: 'Shipment', render: (v) => <Link href={`/shipments/${v}`} style={{ fontFamily: 'monospace', fontSize: 12, color: '#1e6178' }}>{String(v).slice(0, 10)}…</Link> },
