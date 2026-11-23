@@ -1418,3 +1418,15 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Merchant approve/reject/receive/inspect/reject-after-inspection and buyer cancel/ship transitions now record ADMIN when a privileged caller performs the action; ordinary merchant/buyer callers retain their correct class.
 - Added PostgreSQL FIN-DSH-55 for admin override of MERCHANT_APPROVED and CANCELLED. Test not executed.
 - Commit: `47de1df8637d3cdff03ac6a70184613978357120`.
+
+
+## 2026-11-23 — FIN-027 refund-balance parity and CI syntax correction
+
+- Live branch was reconciled at source/test checkpoint `5b636df49155ea523bc730852ed900720a858a88`; PR #138 remains OPEN / DRAFT / UNMERGED against `develop`.
+- CI [#1446](https://github.com/nabeel2323/scs-platform/actions/runs/45189283326) tested prior head `8e32957d3435196222fbb9841e6063229b68b648`. Lint failed on two TypeScript parse errors: a missing closing brace before `catch` in `returns.service.ts` and a stray closing brace in `settlement-adjustment.service.ts`. Flutter analysis/tests passed; integration, unit, migration, Web/Admin, boundary, build/container, contract, k6 and staging-release jobs were skipped.
+- Corrected both syntax defects in commits `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`. No CI rerun was triggered because implementation-first sequencing and the constrained Actions budget remain binding.
+- FIN-027 source audit found `ReturnsService.getCumulativeRefundedAmount` excluded `APPROVED` refunds although `PaymentsService.requestRefund` counts them, and cast PostgreSQL `SUM(bigint)` to 32-bit `int`. It now includes APPROVED and reads the exact numeric total as text/BigInt, rejecting totals outside the safe-integer range. Source commit: `6ae8aba762215f69f42e74e4608a4fa31a02543b`.
+- Added PostgreSQL FIN-DSH-56 for approved-refund balance reservation and aggregates above the PostgreSQL 32-bit integer boundary. Test commit: `5b636df49155ea523bc730852ed900720a858a88`. Tests are added but NOT EXECUTED.
+- Exact-head Actions lookup after the source/test commits returned no workflow run. Vercel Web/Admin statuses are external build-rate-limit failures, not application test evidence.
+- No shared/staging database writes, migration execution, grants/RLS changes, worker activation, environment changes, deployment or merge occurred. Migration 0075 remains source-only; PR #138 remains draft.
+- Next: continue source-first audit of payment/refund/settlement event history, retry semantics and cross-ledger consistency. Keep the comprehensive Phase 3 test/migration campaign grouped until implementation is complete.
