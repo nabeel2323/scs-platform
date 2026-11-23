@@ -3,7 +3,7 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest feature implementation:** `5a7dfd6ea67de61bb016cc7a7ef31749760955d8` — FIN-028 settlement actor attribution (FIN-027 source: `6ae8aba762215f69f42e74e4608a4fa31a02543b`). **Latest focused test commit:** `05799cde897871ab9752af07bf70830ac834edbf` — FIN-DSH-57; FIN-DSH-56/57 added, not executed. **Latest syntax correction:** `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`. 
+**Latest feature implementation:** `77c2caaa322836cc8e7d651f6577df715c5e3228` — FIN-029 payment confirmation actor parity across payment/order history (FIN-028 source: `5a7dfd6ea67de61bb016cc7a7ef31749760955d8`). **Latest focused test commit:** `8fc1759a9e374f12513c82d301b2c9b934a98840` — FIN-DSH-54 extended; tests FIN-DSH-54/56/57 not executed. **Latest syntax correction:** `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`. 
 **Previous focused test commit:** `5b636df49155ea523bc730852ed900720a858a88` — FIN-DSH-56 for APPROVED refund balance and BIGINT aggregate safety; added, not executed. Latest focused test commit is FIN-DSH-57 at `05799cde897871ab9752af07bf70830ac834edbf`. 
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
@@ -20,7 +20,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
 | Latest implementation checkpoint head | `05799cde897871ab9752af07bf70830ac834edbf` (FIN-028 source/test checkpoint; FIN-DSH-56/57 added, not executed; docs-only checkpoint commits follow) |
-| Latest implementation/test | FIN-004–FIN-028 financial correctness: refund recovery, settlement/reconciliation lifecycle, proof-upload intents, actor attribution, return refund cap parity and BIGINT-safe aggregation. FIN-DSH-11–57 plus focused unit coverage are added but remain unexecuted pending Phase 3. Supplemental G-002 note preserves the unreconciled 111-table report. |
+| Latest implementation/test | FIN-004–FIN-029 financial correctness: refund recovery, settlement/reconciliation lifecycle, proof-upload intents, actor attribution, return refund cap parity and BIGINT-safe aggregation. FIN-DSH-11–57 plus focused unit coverage are added but remain unexecuted pending Phase 3. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
 | Latest Actions run | CI #1446 [run](https://github.com/nabeel2323/scs-platform/actions/runs/45189283326) tested prior SHA `8e32957d3435196222fbb9841e6063229b68b648`: lint failed on two TypeScript parse errors; Flutter passed; API/PostgreSQL/migration/Web/Admin/boundary/build/contract/k6/staging jobs skipped. Both parse defects were corrected afterward; no exact-head rerun exists. |
@@ -1094,3 +1094,10 @@ No shared/staging database writes, migration execution, grants/default ACL/RLS c
 The admin-only settlement calculation event now records `ADMIN` rather than `SYSTEM`. FIN-DSH-57 checks persisted actor ID and class. Latest FIN-028 source/test commits are `5a7dfd6ea67de61bb016cc7a7ef31749760955d8` and `05799cde897871ab9752af07bf70830ac834edbf`. FIN-DSH-56/57 are added but not executed. Exact-head GitHub Actions lookup is deferred; no exact-head CI pass is claimed.
 
 **Next:** continue source-first review of remaining payment/refund/reconciliation event producers, retry/idempotency semantics and cross-ledger consistency. PR #138 remains draft/open/unmerged; Phase 3 consolidated testing and Phase 6 release decision remain outstanding.
+
+
+## FIN-029 live update — 23 November 2026
+
+Payment verification now propagates the authenticated ADMIN/MERCHANT actor identity into the linked order status history, matching payment_events. Source/test commits are `77c2caaa322836cc8e7d651f6577df715c5e3228` / `8fc1759a9e374f12513c82d301b2c9b934a98840`. FIN-DSH-54 was extended to assert both ledgers; it has not been executed. FIN-DSH-56/57 also remain pending.
+
+**Next:** continue auditing remaining financial event producers and reconciliation time-window/retry semantics. PR #138 remains draft/open/unmerged; do not execute migrations or shared DB operations.
