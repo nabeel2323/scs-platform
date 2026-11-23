@@ -784,3 +784,8 @@ No migration is required. Tests remain pending the consolidated Phase 3 campaign
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Return-side refund aggregation now includes APPROVED reservations and avoids PostgreSQL 32-bit SUM(bigint) overflow using exact BigInt handling. FIN-DSH-56 is added but not executed. CI #1446 syntax blockers in the returns and settlement-adjustment services were corrected; no exact-head CI rerun has been performed.
 
 **Remaining:** run FIN-DSH-56 and review other refund/reconciliation aggregate consumers during the consolidated Phase 3 campaign. Do not apply migrations or change shared database state.
+
+
+## FIN-028 — Settlement calculation actor attribution
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Admin-only settlement calculation now records ADMIN rather than SYSTEM in immutable payment event history. FIN-DSH-57 is added but not executed. No migration is required. Execute the regression during the consolidated Phase 3 campaign and continue reviewing the remaining payment/refund/reconciliation event producers.
