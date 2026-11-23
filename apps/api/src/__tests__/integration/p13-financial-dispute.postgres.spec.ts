@@ -16,6 +16,7 @@
  *   FIN-DSH-10  Rollback when the REFUNDED transition loses a race (no double settlement debit)
  *   FIN-DSH-13  Concurrent settlement calculations reuse one payable settlement
  *   FIN-DSH-14  Recalculation after settlement PAID is rejected
+ *   FIN-DSH-15  Settlement is blocked until payment is confirmed
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -679,6 +680,27 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [orderId],
     );
     expect(rows.rows).toEqual([{ status: 'PAID', count: 1 }]);
+  }, 60_000);
+
+  // ── FIN-DSH-15: No settlement before payment confirmation ───────
+
+  it('FIN-DSH-15: refuses to calculate settlement while payment awaits confirmation', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    await pool.query(
+      `UPDATE payment_records SET status = 'AWAITING_PAYMENT', confirmed_amount_minor = NULL
+       WHERE order_id = $1`,
+      [orderId],
+    );
+
+    await expect(
+      paymentsService.calculateSettlement(orderId, adminA, adminCaller),
+    ).rejects.toThrow(/cannot calculate settlement for payment in AWAITING_PAYMENT status/i);
+
+    const rows = await pool.query(
+      `SELECT count(*)::int AS count FROM settlement_records WHERE sub_order_id = $1`,
+      [orderId],
+    );
+    expect(rows.rows[0].count).toBe(0);
   }, 60_000);
 
   // ── FIN-DSH-09: Refund after settlement PAID ─────────────────────

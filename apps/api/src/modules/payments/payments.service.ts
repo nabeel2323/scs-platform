@@ -881,6 +881,20 @@ export class PaymentsService {
         .limit(1);
       if (!payment) throw new NotFoundException('No payment found for this order');
 
+      // Settlement is a distribution of confirmed funds, not an estimate of
+      // the order amount. Never create a payable record before confirmation.
+      const settlementEligibleStatuses = [
+        'CONFIRMED',
+        'CAPTURED',
+        'PARTIALLY_REFUNDED',
+        'REFUNDED',
+      ];
+      if (!settlementEligibleStatuses.includes(payment.status)) {
+        throw new ConflictException(
+          `Cannot calculate settlement for payment in ${payment.status} status`,
+        );
+      }
+
       const [existingSettlement] = await tx
         .select()
         .from(settlementRecords)
