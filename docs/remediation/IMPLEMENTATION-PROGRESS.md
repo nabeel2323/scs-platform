@@ -1922,3 +1922,11 @@ This closes a UI-to-controller workflow omission; it does not change G-001–G-0
 - Status: **IMPLEMENTED / TESTING_PENDING**, not automated-test verified or CI-verified. No backend permission, role grant, schema, migration, database, staging, worker or deployment behavior changed.
 
 **Next:** finish the remaining Admin custom route/action-to-controller audit and inspect any custom handlers not covered by the shared `useAdminMutation` path. Keep the repository-locked formatting and comprehensive test campaign grouped at Phase 3.
+
+
+### Admin custom action mapping follow-up — 23 November 2026
+
+- Completed a source-level pass over the remaining direct custom mutation handlers for payments/refunds, calendar holidays, reconciliation, settlement adjustments, settlements, role permission updates, return resolution, order cancellation, verification review/organization status and product moderation.
+- The reviewed UI permission predicates match their API controller decorators. The shared `useAdminMutation` invocations reviewed in `EntityActions.tsx`, Carrier Recovery and Shipment Detail provide action-specific predicates/per-call overrides.
+- The only concrete UI-to-controller workflow omission found in this slice was settlement-adjustment rejection; UX-100 now exposes the API operation with the exact approval permission and required reason.
+- This audit is source evidence only. Focused UX-100 tests and the consolidated Admin/API test campaign remain pending.
