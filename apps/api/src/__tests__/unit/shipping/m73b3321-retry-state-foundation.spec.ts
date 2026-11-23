@@ -129,6 +129,9 @@ function createMocks(shipment: ShipmentRow, circuitBreakerOpen = false) {
       shipments: {
         findFirst: vi.fn(async () => shipment),
       },
+      stores: {
+        findFirst: vi.fn(async () => ({ orgId: 'org-001' })),
+      },
       carrierWebhookEvents: {
         findFirst: vi.fn(async () => null),
       },
