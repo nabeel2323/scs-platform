@@ -695,3 +695,9 @@ Next source audit: primary-settlement terminal-state interactions, adjustment le
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Settlement status contract now includes ADJUSTMENT and markSettlementPaid accepts posted adjustment rows. The existing row-locked transition persists the same payment history/outbox and preserves same-reference retry idempotency. FIN-DSH-68 covers payout and duplicate replay. Source/test commit: a6dc0c50ee83d1f397b982084e338b142d89b62e.
 
 Next audit: adjustment listing/reconciliation and primary settlement recalculation must keep ADJUSTMENT rows distinct from the primary settlement.
+
+## FIN-043 — primary settlement lookup isolation
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** calculateSettlement excludes independent ADJUSTMENT ledger rows from its primary settlement lookup, using explicit adjustmentId metadata and a legacy notes-prefix fallback. FIN-DSH-68 verifies that a posted and paid adjustment does not replace the original primary settlement in a subsequent calculation. Source/test commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0.
+
+Next: audit settlement listing and reconciliation projections for primary versus adjustment ledger semantics.

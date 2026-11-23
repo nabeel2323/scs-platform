@@ -1196,3 +1196,7 @@ Next: continue source-first review of adjustment lifecycle and outbox/reconcilia
 Added ADJUSTMENT to the settlement status contract and allowed it through markSettlementPaid. A posted adjustment ledger row can now transition to PAID using the same row lock, PAYMENT_SETTLEMENT_PAID history and payment.settlement_paid outbox path; matching-reference retries remain idempotent. FIN-DSH-68 added. Source/test commit: a6dc0c50ee83d1f397b982084e338b142d89b62e. Test added, not executed; [skip ci].
 
 Next: audit adjustment listing/reconciliation and ensure adjustment rows are excluded from primary settlement recalculation.
+
+## FIN-043 — primary settlement lookup isolation — 23 November 2026
+
+calculateSettlement now excludes adjustment ledger rows (new metadata marker and legacy posted-adjustment notes prefix) when finding the primary settlement. This prevents a posted/paid adjustment row from masking the original settlement during a later calculation retry. FIN-DSH-68 asserts primary settlement identity remains stable after adjustment payout. Source/test commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0. Test added, not executed; [skip ci].

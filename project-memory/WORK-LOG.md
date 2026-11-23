@@ -1540,3 +1540,11 @@ Reviewed repeated return-state transitions and tightened FIN-040 to use MAX(crea
 - Added PostgreSQL FIN-DSH-68 for adjustment payout and duplicate retry.
 - Source/test commit: a6dc0c50ee83d1f397b982084e338b142d89b62e. Test added, not executed; [skip ci].
 - Next: audit adjustment listing/reconciliation and ensure primary settlement calculation does not treat adjustment rows as the primary settlement.
+
+## 23 November 2026 — FIN-043 primary settlement lookup isolation
+
+- After FIN-042 enabled payout of ADJUSTMENT rows, the latest-row query in calculateSettlement could select the adjustment row instead of the primary settlement.
+- Updated primary settlement lookup to exclude new rows carrying adjustmentId metadata and legacy rows identified by the stable posted-adjustment note prefix.
+- Extended FIN-DSH-68 to assert the original primary settlement remains the calculation result after adjustment posting and payout.
+- Source/test commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0. Test added, not executed; [skip ci].
+- Next: audit settlement list/reconciliation projection semantics for primary versus adjustment rows.

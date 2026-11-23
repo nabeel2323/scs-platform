@@ -863,3 +863,7 @@ Remaining source audit: inspect adjustment ledger retrieval and reconciliation l
 ## FIN-042 — payout of posted adjustment ledgers
 
 **Status: IMPLEMENTED / TESTING_PENDING.** Added ADJUSTMENT to settlement statuses and enabled markSettlementPaid to transition posted adjustment ledger rows to PAID with normal payment history/outbox and same-reference retry idempotency. FIN-DSH-68 added. Commit: a6dc0c50ee83d1f397b982084e338b142d89b62e. Test not executed. Continue audit of adjustment listing/reconciliation and primary-settlement calculation filtering.
+
+## FIN-043 — primary settlement lookup isolation
+
+**Status: IMPLEMENTED / TESTING_PENDING.** Primary settlement lookup now excludes metadata-linked adjustment ledger rows and legacy rows with the stable posted-adjustment note prefix. FIN-DSH-68 verifies the primary settlement remains the result after adjustment payout. Commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0. Test not executed; include in consolidated Phase 3.

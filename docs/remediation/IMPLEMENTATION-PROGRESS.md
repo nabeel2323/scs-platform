@@ -2353,3 +2353,7 @@ The parity query now aggregates the latest return_request_events.created_at for 
 ## FIN-042 — payout of posted adjustment ledgers — 23 November 2026
 
 **Status: IMPLEMENTED / TESTING_PENDING.** The settlement status contract now includes ADJUSTMENT and markSettlementPaid accepts posted adjustment ledger rows. These rows can transition to PAID using the same row-locked payment history/outbox path as primary settlements; matching payment-reference retries remain idempotent. PostgreSQL FIN-DSH-68 covers adjustment payout and duplicate retry. Source/test commit: a6dc0c50ee83d1f397b982084e338b142d89b62e. Test added, not executed; [skip ci].
+
+## FIN-043 — primary settlement lookup isolation — 23 November 2026
+
+**Status: IMPLEMENTED / TESTING_PENDING.** calculateSettlement now excludes independent adjustment ledger rows from its primary settlement lookup. It uses adjustmentId metadata for new rows and the stable posted-adjustment notes prefix for legacy rows. FIN-DSH-68 verifies that the primary settlement remains discoverable after the adjustment row is posted and paid. Source/test commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0. Test added, not executed; [skip ci].

@@ -844,3 +844,9 @@ The FIN-040 parity query was tightened after review: it now aggregates the **lat
 **Status: IMPLEMENTED / TESTING_PENDING.** The adjustment posting workflow creates a separate settlement ledger row with status ADJUSTMENT. The common markSettlementPaid path previously accepted only CALCULATED/DUE, so posted adjustment credits/debits could not be marked PAID through the audited payout flow. ADJUSTMENT is now an explicit settlement status and is accepted by the same row-locked payment transition, which persists PAYMENT_SETTLEMENT_PAID and payment.settlement_paid. Same-reference retries remain idempotent. FIN-DSH-68 added. Source/test commit: a6dc0c50ee83d1f397b982084e338b142d89b62e.
 
 Next: continue source-first audit of settlement adjustment listing/reconciliation and verify adjustment rows remain separate from primary settlement calculation. Tests remain deferred to consolidated Phase 3.
+
+### FIN-043 — primary settlement lookup excludes adjustment ledger rows
+
+**Status: IMPLEMENTED / TESTING_PENDING.** After FIN-042 made posted adjustment rows payable, a paid adjustment could become the newest settlement row for its sub-order. calculateSettlement previously selected the newest row without distinguishing primary from adjustment ledgers, so a later calculation could return/conflict on the adjustment instead of resolving the primary settlement. The lookup now excludes rows carrying adjustmentId metadata and legacy rows with the stable posted-adjustment note prefix. FIN-DSH-68 now asserts that recalculation after an adjustment payout still resolves the original primary settlement. Source/test commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0.
+
+Next: audit settlement listing and reconciliation projections for primary versus adjustment rows; then finish source audit before consolidated Phase 3 tests.

@@ -1038,3 +1038,11 @@ Source/test commit: ad61d75b909341dd2936e03dbc592b0d244d9f72.
 | FIN-042 | Complete payout lifecycle for posted adjustment settlement rows | ADJUSTMENT is included in the settlement status contract and markSettlementPaid can transition it to PAID using the normal payment event/outbox path; same-reference retry remains idempotent. FIN-DSH-68 added. | Execute in consolidated Phase 3 and verify list/reconciliation behavior and primary settlement recalculation isolation. | P1 | IMPLEMENTED / TESTING_PENDING |
 
 Source/test commit: a6dc0c50ee83d1f397b982084e338b142d89b62e.
+
+## FIN-043 — primary settlement lookup isolation
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gate | Priority | Status |
+|---|---|---|---|---|---|
+| FIN-043 | Distinguish primary settlements from adjustment payout rows | calculateSettlement filters out adjustment rows using adjustmentId metadata and a legacy notes-prefix fallback; FIN-DSH-68 asserts primary settlement identity after adjustment payout. | Execute in consolidated Phase 3 and review list/reconciliation projection semantics. | P1 | IMPLEMENTED / TESTING_PENDING |
+
+Source/test commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0.
