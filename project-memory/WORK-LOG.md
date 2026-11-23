@@ -1282,3 +1282,19 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - **Regression coverage:** FIN-DSH-31 verifies a partial return with products 3000, discount 600, tax 240 and delivery fee 450 yields refund 880 and a 495 USD delivery-fee adjustment. Unit tests cover half-up allocation and an intermediate product beyond safe Number precision. Tests added, not executed.
 - **Source commit:** `122edb4bf1dc67ba01bfc33b97809cc037781f87`; unit/integration test commit: `e6823ee9b1c68f5b71229ffbda17c9f525b66565`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, provider, staging, shared DB or deployment behavior changed.
+
+
+## 2026-11-23 — FIN-017 exact return refund allocation and delivery currency
+
+- Replaced floating-point return-line discount/VAT allocation with BigInt-backed minor-unit arithmetic and explicit safe-integer guards. Full-return delivery-fee VAT uses the same exact ratio; delivery-fee exception adjustments preserve payment currency instead of hardcoding SYP.
+- Added PostgreSQL FIN-DSH-31 for partial return discount/VAT and payment-currency preservation in the delivery adjustment. Test not executed.
+- Source commit: 122edb4bf1dc67ba01bfc33b97809cc037781f87; test commit: e6823ee9b1c68f5b71229ffbda17c9f525b66565.
+- No schema/migration, gateway, payout, staging, shared DB or deployment change.
+
+## 2026-11-23 — FIN-018 concurrent return creation serialization
+
+- The one-active-return check, cumulative returned-quantity check and refundable-amount check previously ran before the insert transaction; concurrent requests could both pass against the same snapshot.
+- Return creation now locks the payment row inside the transaction and rechecks payment eligibility, active return, cumulative returned quantity and remaining refundable amount before inserting. This serializes competing return requests with refund operations.
+- Added PostgreSQL FIN-DSH-32, which holds the payment row while two requests pass their fast-fail checks, then asserts exactly one active request commits. Test not executed.
+- Source commit: 8a8364899f08180da9213be4d897a65fac9a897d; test commit: 705609fa2928d6e12e393b59bb990cfe0cf2343c.
+- No schema/migration, gateway, payout, staging, shared DB or deployment change.

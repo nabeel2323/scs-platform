@@ -634,3 +634,11 @@ Stale-payment discovery excludes CASH_ON_DELIVERY, and expirePayment itself refu
 - **Regression coverage:** FIN-DSH-31 verifies a partial return with products 3000, discount 600, tax 240 and delivery fee 450 yields refund 880 and a 495 USD delivery-fee adjustment. Unit tests cover half-up allocation and an intermediate product beyond safe Number precision. Tests added, not executed.
 - **Source commit:** `122edb4bf1dc67ba01bfc33b97809cc037781f87`; unit/integration test commit: `e6823ee9b1c68f5b71229ffbda17c9f525b66565`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, provider, staging, shared DB or deployment behavior changed.
+
+
+### FIN-017 and FIN-018 — Return workflow hardening
+
+- FIN-017 replaces floating-point return refund calculations with BigInt-backed minor-unit allocations for gross, order discount, VAT and delivery fees, and preserves payment currency in delivery-fee adjustments. FIN-DSH-31 added; not executed.
+- FIN-018 serializes return creation on the payment row and rechecks active-return, returned-quantity and refundable-amount invariants inside the transaction. FIN-DSH-32 proves two concurrent requests produce exactly one active return. Not executed.
+- Source/test commits: FIN-017 `122edb4bf1dc67ba01bfc33b97809cc037781f87` / `e6823ee9b1c68f5b71229ffbda17c9f525b66565`; FIN-018 `8a8364899f08180da9213be4d897a65fac9a897d` / `705609fa2928d6e12e393b59bb990cfe0cf2343c`.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No exact-head Actions run. Tests await consolidated Phase 3.

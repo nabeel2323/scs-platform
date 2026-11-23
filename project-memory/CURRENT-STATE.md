@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `68b5251200f9f3765a0568b796db056a18cd878e` — COD excluded from stale-payment expiry discovery and direct expiry.
-**Latest focused PostgreSQL test commit:** `6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac` — FIN-DSH-30 verifies stale COD remains collectible; not executed. No exact-head Actions run is attached.  
+**Latest source implementation commit:** `8a8364899f08180da9213be4d897a65fac9a897d` — serialized return creation on the payment row.
+**Latest focused PostgreSQL test commit:** `705609fa2928d6e12e393b59bb990cfe0cf2343c` — FIN-DSH-32 concurrent active-return creation; not executed. No exact-head Actions run is attached.  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,13 +19,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation checkpoint head | `6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac` (FIN-016 COD expiry regression; not executed) |
-| Latest implementation/test | FIN-004–FIN-016 financial lifecycle, refund recovery, order/payment projection, settlement locking, expiry, discount proration, exact commission reversal and COD-expiry safeguards. FIN-DSH-11–30 plus unit coverage added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
+| Latest implementation checkpoint head | `705609fa2928d6e12e393b59bb990cfe0cf2343c` (FIN-DSH-32 concurrent return creation regression; not executed) |
+| Latest implementation/test | FIN-004–FIN-018 financial lifecycle, refund recovery, order/payment projection, settlement locking, expiry, discount proration, exact commission reversal, COD expiry, exact return-refund allocation and concurrent return creation. FIN-DSH-11–32 plus unit coverage added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
 | Exact-head GitHub Actions | CI #1434 [run](https://github.com/nabeel2323/scs-platform/actions/runs/45165552569) tested `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231`: lint/typecheck and Flutter analysis/tests passed; changed-file Prettier failed; dependent Web/Admin/API/PostgreSQL/migration/build/release jobs skipped. FIN-DSH-11–28 remain unexecuted. |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest live PR head before this memory refresh | `6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac` — FIN-DSH-30 COD expiry regression; docs sync follows with `[skip ci]` |
+| Latest live PR head before this memory refresh | `705609fa2928d6e12e393b59bb990cfe0cf2343c` — FIN-DSH-32 concurrent return creation regression; docs sync follows with `[skip ci]` |
 | Latest inspected preview status | Admin FAILURE due external deployment rate limit; not an application test result |
 | Focused client tests | Admin UX-030–058 and UX-097–099, Mobile UX-078–096 and Web UX-095 focused tests added/updated; not executed (Flutter suite passed only on earlier SHA `a76b0be`) |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
@@ -991,3 +991,12 @@ Drizzle bigint-mode columns are returned as numbers, but PostgreSQL SUM(bigint) 
 - Return discounts, VAT and delivery-fee VAT now use exact BigInt half-up minor-unit allocation; partial delivery-fee exceptions use payment currency. FIN-DSH-31 and unit coverage added, not executed.
 - PR #138 remains OPEN / DRAFT / UNMERGED. Latest source/test commits use `[skip ci]`; no exact-head Actions run.
 - CI #1434 and #1436 evidence remains as recorded above; neither validates FIN-014–017. Vercel rate-limit failures are external provider statuses.
+
+
+## FIN-017 — Exact return refund allocation and delivery-fee currency — 23 November 2026
+
+Return refund allocation now uses BigInt-backed minor-unit arithmetic for line gross, proportional order discount, VAT and full-return delivery fee. It validates safe-integer amounts and preserves the payment currency in delivery-fee exception adjustments. FIN-DSH-31 verifies partial discount/VAT allocation and delivery-adjustment currency. Source commit: 122edb4bf1dc67ba01bfc33b97809cc037781f87; test commit: e6823ee9b1c68f5b71229ffbda17c9f525b66565. Not executed; IMPLEMENTED / TESTING_PENDING.
+
+## FIN-018 — Concurrent return creation serialization — 23 November 2026
+
+Return creation now locks the payment row inside the insert transaction and rechecks payment eligibility, active-return uniqueness, cumulative returned quantity and remaining refundable amount before inserting. This closes the race where concurrent requests could both pass the out-of-transaction active-return check. FIN-DSH-32 holds the payment row, starts two concurrent return requests, and asserts exactly one active request commits. Source commit: 8a8364899f08180da9213be4d897a65fac9a897d; test commit: 705609fa2928d6e12e393b59bb990cfe0cf2343c. Not executed; IMPLEMENTED / TESTING_PENDING.
