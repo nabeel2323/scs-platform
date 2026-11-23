@@ -84,3 +84,10 @@ Focused tests were added in `apps/admin/src/__tests__/verification-org-status-pe
 The shared sidebar now supports both all-of and any-of permission rules. Carrier & Recovery is visible when the caller has either `admin:carrier:read` or `admin:shipping:recovery`, matching the route's existing OR gate. Payments is visible when the caller has any of `admin:payments:read`, `admin:payments:verify` or `admin:refunds:approve`.
 
 The Payments route now admits verification-only users and loads the Verification Queue with `admin:payments:verify`. All Payments and Stale/Expiring remain restricted to `admin:payments:read`; Refund Requests remain restricted to `admin:refunds:approve`. A caller without any of these capabilities receives AccessDenied. Focused helper and page tests were added but not executed. No API/RBAC grants changed.
+
+
+## Shared Admin mutation permission rechecks — UX-099 — 23 November 2026
+
+The shared `useAdminMutation` helper now accepts an action-specific permission predicate and evaluates it immediately before dispatch. User status/membership, dispute, category, brand and offer governance actions use their corresponding permission hook. Carrier recovery and shipment exception/RTS, inventory return, carrier create/cancel and recovery actions are bound to their distinct permission conditions. User Detail profile save also rechecks `admin:users:write`.
+
+A focused test verifies the shared mutation does not dispatch after permission loss and does dispatch when authorized. It has not been executed. This is client-side defense in depth; API controller authorization remains authoritative.
