@@ -526,3 +526,8 @@ A follow-up audit inspected the action handlers behind the existing Admin route 
 ## 23 November 2026 — Admin navigation capability alignment (UX-098)
 
 The Admin sidebar previously modeled only all-of permission requirements. Source comparison showed two pages with legitimate OR access: Carrier & Recovery (`admin:carrier:read` OR `admin:shipping:recovery`) and Payments (`admin:payments:read` OR `admin:payments:verify` OR `admin:refunds:approve`). Navigation now supports `anyPerms`; the Payments page-level gate and loader also admit verification-only users while keeping each tab's endpoint under its specific permission. Focused tests were added but not executed. No API role grants or RBAC seed changes occurred.
+
+
+## 23 November 2026 — Shared Admin mutation guards (UX-099)
+
+The shared Admin mutation helper now accepts an action-specific permission predicate checked immediately before dispatch. User status/membership, dispute, category, brand and offer governance actions, Carrier Recovery, shipment exception/RTS, inventory returns, carrier create/cancel/recovery, and User Detail profile saves are bound to their corresponding permission hooks. Focused permission-loss test added but not executed. This is client-side defense in depth; backend authorization and grants are unchanged.
