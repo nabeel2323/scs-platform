@@ -82,7 +82,7 @@ const resolutions = [
 export function DisputeActions({ record, onDone }: { record: AdminRecord; onDone: () => void }) {
   const { hasAccess } = useRequirePerms(['support:disputes:resolve']);
   const [resolution, setResolution] = useState('');
-  const action = useAdminMutation(onDone);
+  const action = useAdminMutation(onDone, () => hasAccess);
   if (!hasAccess || ['RESOLVED', 'CLOSED'].includes(String(record['status']))) return null;
   return <form className={styles['card']} onSubmit={event => { event.preventDefault(); if (hasAccess && !action.busy && resolution.trim()) action.run(`disputes/${record.id}/resolve`, 'PATCH', { resolution: resolution.trim() }); }}>
     <h3>Resolve dispute</h3><div className={styles['toolbar']}><label>Decision template<select onChange={e => setResolution(e.target.value)} value={resolutions.some(([, code]) => code === resolution) ? resolution : ''}>
@@ -106,7 +106,7 @@ export function CategoryEditor({ record, onDone, onCancel }: { record?: AdminRec
     ...(record?.['storeId'] ? { storeId: String(record['storeId']) } : { scope: 'global' }),
   });
   const parents = useAdminResource<PaginatedResult<AdminRecord>>(`admin/categories?${params}`, hasAccess);
-  const action = useAdminMutation(onDone);
+  const action = useAdminMutation(onDone, () => hasAccess);
   if (!hasAccess) return null;
   const parentOptions = parents.data?.data || [];
   return <form onSubmit={event => {
@@ -142,7 +142,7 @@ export function BrandEditor({ record, onDone, onCancel }: { record?: AdminRecord
   const [logoUrl, setLogoUrl] = useState(String(record?.['logoUrl'] || ''));
   const [description, setDescription] = useState(String(record?.['description'] || ''));
   const [isActive, setActive] = useState(record?.['isActive'] !== false);
-  const action = useAdminMutation(onDone);
+  const action = useAdminMutation(onDone, () => hasAccess);
   const { hasAccess } = useRequirePerms(['catalog:brands:manage']);
   if (!hasAccess) return null;
   return <form onSubmit={event => {
@@ -173,7 +173,7 @@ export function BrandEditor({ record, onDone, onCancel }: { record?: AdminRecord
  */
 export function OfferGovernanceActions({ record, onDone }: { record: AdminRecord; onDone: () => void }) {
   const { hasAccess } = useRequirePerms(['catalog:offers:govern']);
-  const action = useAdminMutation(onDone);
+  const action = useAdminMutation(onDone, () => hasAccess);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
   const status = String(record['status'] || '');
