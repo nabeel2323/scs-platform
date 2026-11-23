@@ -1158,7 +1158,7 @@ export class ReturnsService {
                 .from(commissionReversals)
                 .innerJoin(returnRequests, eq(commissionReversals.returnRequestId, returnRequests.id))
                 .where(eq(returnRequests.subOrderId, ret.subOrderId));
-              const alreadyReversed = existingReversals[0]?.total ?? 0;
+              const alreadyReversed = Number(existingReversals[0]?.total ?? 0);
               commissionReversalMinor = calculateProportionalCommissionReversalMinor(
                 originalCommission,
                 orderNetGoods,
