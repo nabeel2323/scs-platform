@@ -1298,3 +1298,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added PostgreSQL FIN-DSH-32, which holds the payment row while two requests pass their fast-fail checks, then asserts exactly one active request commits. Test not executed.
 - Source commit: 8a8364899f08180da9213be4d897a65fac9a897d; test commit: 705609fa2928d6e12e393b59bb990cfe0cf2343c.
 - No schema/migration, gateway, payout, staging, shared DB or deployment change.
+
+
+## 2026-11-23 — FIN-019 settlement adjustment posting integrity
+
+- **Finding:** `SettlementAdjustmentService.postAdjustment` applied `netMinor = -amountMinor` to every adjustment type, incorrectly recording COMMISSION_REVERSAL as a merchant debit. It also transitioned an approved adjustment to POSTED even when no primary settlement existed, leaving no corresponding settlement ledger record.
+- **Implementation:** introduced type-specific settlement-net calculation (commission reversal is a positive merchant credit; refund/delivery-fee/balance-debit adjustments are negative), positive safe-integer amount validation, and a row lock on the latest primary settlement (PENDING/CALCULATED/DUE/PAID). Posting now conflicts if no primary settlement exists, preserving the adjustment in APPROVED state without a ledger link.
+- **Regression coverage:** unit cases cover credit/debit signs; PostgreSQL FIN-DSH-33 verifies commission reversal creates a positive-net ADJUSTMENT row; FIN-DSH-34 verifies no-settlement posting is rejected and the adjustment remains APPROVED/unlinked. Tests added, not executed.
+- **Source commits:** `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, staging, shared DB, grants/RLS, deployment or worker changes.

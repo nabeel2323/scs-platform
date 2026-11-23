@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `8a8364899f08180da9213be4d897a65fac9a897d` — serialized return creation on the payment row.
-**Latest focused PostgreSQL test commit:** `705609fa2928d6e12e393b59bb990cfe0cf2343c` — FIN-DSH-32 concurrent active-return creation; not executed. No exact-head Actions run is attached.  
+**Latest source implementation commit:** `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae` — FIN-019 settlement adjustment posting integrity.
+**Latest focused test commit:** `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae` — FIN-DSH-33/34; tests not executed. No exact-head Actions run is attached.  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,13 +19,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation checkpoint head | `705609fa2928d6e12e393b59bb990cfe0cf2343c` (FIN-DSH-32 concurrent return creation regression; not executed) |
-| Latest implementation/test | FIN-004–FIN-018 financial lifecycle, refund recovery, order/payment projection, settlement locking, expiry, discount proration, exact commission reversal, COD expiry, exact return-refund allocation and concurrent return creation. FIN-DSH-11–32 plus unit coverage added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
+| Latest implementation checkpoint head | `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae` (FIN-019; FIN-DSH-33/34 tests not executed) |
+| Latest implementation/test | FIN-004–FIN-019 financial lifecycle, refund recovery, order/payment projection, settlement locking, expiry, discount proration, exact commission reversal, COD expiry, exact return-refund allocation, concurrent return creation and settlement-adjustment posting integrity. FIN-DSH-11–34 plus unit coverage added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | CI #1434 [run](https://github.com/nabeel2323/scs-platform/actions/runs/45165552569) tested `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231`: lint/typecheck and Flutter analysis/tests passed; changed-file Prettier failed; dependent Web/Admin/API/PostgreSQL/migration/build/release jobs skipped. FIN-DSH-11–28 remain unexecuted. |
+| Latest Actions run | CI #1437 [run](https://github.com/nabeel2323/scs-platform/actions/runs/45166190673) tested earlier SHA `9dc7d04469180807e65053fe51819afffb3b78c0`: lint/typecheck and Flutter passed; changed-file Prettier failed (259 files); Web/Admin/API/PostgreSQL/migration/build/release jobs skipped. No exact-head run for FIN-019. |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest live PR head before this memory refresh | `705609fa2928d6e12e393b59bb990cfe0cf2343c` — FIN-DSH-32 concurrent return creation regression; docs sync follows with `[skip ci]` |
+| Latest live PR head before this memory refresh | `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae` — FIN-019 settlement adjustment posting integrity; docs sync follows with `[skip ci]` |
 | Latest inspected preview status | Admin FAILURE due external deployment rate limit; not an application test result |
 | Focused client tests | Admin UX-030–058 and UX-097–099, Mobile UX-078–096 and Web UX-095 focused tests added/updated; not executed (Flutter suite passed only on earlier SHA `a76b0be`) |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
@@ -1000,3 +1000,10 @@ Return refund allocation now uses BigInt-backed minor-unit arithmetic for line g
 ## FIN-018 — Concurrent return creation serialization — 23 November 2026
 
 Return creation now locks the payment row inside the insert transaction and rechecks payment eligibility, active-return uniqueness, cumulative returned quantity and remaining refundable amount before inserting. This closes the race where concurrent requests could both pass the out-of-transaction active-return check. FIN-DSH-32 holds the payment row, starts two concurrent return requests, and asserts exactly one active request commits. Source commit: 8a8364899f08180da9213be4d897a65fac9a897d; test commit: 705609fa2928d6e12e393b59bb990cfe0cf2343c. Not executed; IMPLEMENTED / TESTING_PENDING.
+
+
+## FIN-019 — Settlement adjustment posting integrity — 23 November 2026
+
+Settlement adjustment posting now gives COMMISSION_REVERSAL a positive merchant-net effect and keeps refund/delivery-fee/balance-debit adjustments negative. Amounts must be positive safe integers in minor units. Posting locks the primary settlement row and refuses to mark an adjustment POSTED if no primary settlement ledger exists; the APPROVED adjustment remains retryable. FIN-DSH-33/34 and unit cases were added but not executed. Source commits: `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`.
+
+**Live PR checkpoint:** PR #138 OPEN / DRAFT / UNMERGED to `develop`; source/test head `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`. CI #1437 tested earlier SHA `9dc7d04469180807e65053fe51819afffb3b78c0`: lint and TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed with 259 files needing formatting; Web/Admin/API/PostgreSQL/migration/boundary/build/contract/k6/staging release jobs were skipped. The current implementation head uses `[skip ci]`; no exact-head Actions run exists. Vercel Web/Admin rate-limit statuses are external preview-provider failures. No schema/migration, shared DB, staging, grant/RLS, deployment or worker changes.

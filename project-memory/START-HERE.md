@@ -76,7 +76,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest source/test checkpoint is `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9` (FIN-005 COD order payment projection); FIN-DSH-11–18 are added but not executed. No Actions run is attached to that `[skip ci]` commit. Latest Actions run #1425 tested earlier SHA `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint and Flutter passed, typecheck failed, and changed-file formatting plus downstream Web/Admin/API/PostgreSQL/migration/build/release gates were skipped. A settlement insert-result type guard was added in `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; FIN-003 adds safe-integer amount validation in `f554617c592ff57db296e0ca88614ac246468194`. No rerun is claimed. Re-fetch live PR head/status before the next action.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest implementation/test checkpoint before this memory synchronization is `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae` (FIN-019 settlement adjustment posting integrity). FIN-DSH-33/34 and focused unit coverage are added but not executed. CI #1437 tested earlier SHA `9dc7d04469180807e65053fe51819afffb3b78c0`: lint and TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed with 259 files needing formatting; Web/Admin/API/PostgreSQL/migration/boundary/build/contract/k6/staging release jobs were skipped. The current implementation head uses `[skip ci]`; no exact-head Actions run exists. Vercel Web/Admin rate-limit statuses are external preview-provider failures. Re-fetch live PR head/status before the next action.
 
 ### Exact stopping point
 
@@ -111,7 +111,7 @@ The uploaded `Advanced UX Enhancement Prompt.txt` reports 111/111 tables with RL
 - Phases 0–5 remain IN PROGRESS; Phase 6 consolidated verification is NOT STARTED.
 - PR #138 must remain draft/open/unmerged. No merge, deployment, protected staging operation, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement, environment change or worker activation is authorized.
 
-**Next implementation:** continue source-first financial/operational correctness audit after FIN-005, focusing on other persisted state transitions and immutable history/outbox consistency. FIN-001–FIN-005 are implemented with PostgreSQL regression cases pending execution. Do not repeat the completed 56-page route audit or UX-097–UX-105 work. Keep the repository-locked Prettier pass and comprehensive test campaign grouped at the implementation-complete Phase 3 checkpoint; fix any concrete security/correctness defect immediately.
+**Next implementation:** continue source-first financial and operational correctness audit beyond FIN-019, focusing on persisted state transitions, immutable history/outbox consistency, reconciliation and cross-ledger arithmetic. Do not repeat FIN-001–FIN-019 or the completed 56-page route audit / UX-097–UX-105 work. Keep the repository-locked Prettier pass and comprehensive test campaign grouped at the implementation-complete Phase 3 checkpoint; fix any concrete security/correctness defect immediately.
 
 ## Safety reminder
 
@@ -642,3 +642,12 @@ Stale-payment discovery excludes CASH_ON_DELIVERY, and expirePayment itself refu
 - FIN-018 serializes return creation on the payment row and rechecks active-return, returned-quantity and refundable-amount invariants inside the transaction. FIN-DSH-32 proves two concurrent requests produce exactly one active return. Not executed.
 - Source/test commits: FIN-017 `122edb4bf1dc67ba01bfc33b97809cc037781f87` / `e6823ee9b1c68f5b71229ffbda17c9f525b66565`; FIN-018 `8a8364899f08180da9213be4d897a65fac9a897d` / `705609fa2928d6e12e393b59bb990cfe0cf2343c`.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No exact-head Actions run. Tests await consolidated Phase 3.
+
+
+## FIN-019 — Settlement adjustment posting integrity — 23 November 2026
+
+- Settlement adjustment posting previously wrote `net_minor = -amount_minor` for every type, incorrectly treating a commission reversal (merchant credit) as a debit. It also allowed an approved adjustment to transition to POSTED without creating a settlement ledger row when no primary settlement existed.
+- Posting now calculates the sign by adjustment type: COMMISSION_REVERSAL increases merchant net; refund, delivery-fee and balance-debit adjustments reduce it. Amounts must be positive safe integers in minor units.
+- Posting locks the latest primary settlement row (PENDING/CALCULATED/DUE/PAID), serializing against settlement payment and other adjustment posts. If no primary settlement exists, posting conflicts and the adjustment remains APPROVED/unlinked.
+- Added unit cases for credit/debit sign and PostgreSQL FIN-DSH-33/34 for commission reversal net and no-settlement posting rejection. Tests not executed.
+- Source commits: `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`. Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, staging, shared DB, grant/RLS, deployment or worker changes.
