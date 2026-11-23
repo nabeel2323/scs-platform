@@ -76,7 +76,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-platform`, work branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Current branch head is `93844d781ff50cd3ba325c0d9e3ffe209bc128cc`; `develop` is `f74eb588cc58fc99b105e749d39dbfbacb4f9775`. The latest source commit is a grouped Returns/Shipping module-boundary refactor. Exact-head GitHub Actions lookup returns zero workflow runs because the commit includes `[skip ci]`; Vercel Web and Admin preview statuses are SUCCESS, but are not application-test results.
+Live GitHub reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-platform`, work branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest application-code checkpoint is `93844d781ff50cd3ba325c0d9e3ffe209bc128cc`; subsequent commits on this branch are documentation-only handoff updates. `develop` is `f74eb588cc58fc99b105e749d39dbfbacb4f9775`. The latest source commit is a grouped Returns/Shipping module-boundary refactor. Exact-head GitHub Actions lookup returns zero workflow runs because the commits include `[skip ci]`; Vercel Web and Admin preview status contexts were PENDING at the latest lookup and are not application-test results.
 
 ### Exact stopping point
 
@@ -89,7 +89,7 @@ Live GitHub reconciliation on 24 November 2026 confirms repository `nabeel2323/s
 ### Live PR and CI
 
 - PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) is OPEN / DRAFT / UNMERGED to `develop`; do not merge.
-- Current exact-head GitHub Actions count is **0** due to `[skip ci]`. Vercel Web and Admin contexts are SUCCESS, but do not substitute for the skipped API, integration or boundary checks.
+- Current exact-head GitHub Actions count is **0** due to `[skip ci]`. Vercel Web and Admin contexts were PENDING at the latest lookup; they do not substitute for the skipped API, integration or boundary checks.
 - The latest broad historical Actions failure remains CI #45257284797 on the pre-refactor source checkpoint. It reported 14 new E6 boundary violations, migration-audit inability to SELECT `_migration_log` as `scs_audit`, API coverage failures, PostgreSQL integration assertions and Web failures. Those results predate the 23/24 November boundary changes and must not be reported as current-head failures or as passes.
 - G-015 remains PARTIAL until E6 is run on the current source. Do not modify its 193-entry reviewed legacy baseline or weaken the gate.
 
