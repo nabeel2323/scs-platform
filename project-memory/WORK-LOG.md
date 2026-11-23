@@ -1501,3 +1501,10 @@ Return refund creation previously committed the payment refund/event/outbox firs
 - FIN-036 source/test commit: d84489f185cfc864074406f0c9029bc28f40dc94. No exact-head CI run is claimed; commits use [skip ci] under the implementation-first test cadence.
 - No migration, shared database/staging write, grants/default-ACL change, RLS enablement, worker activation, provider call, deployment or merge. PR #138 remains draft/unmerged.
 - **Next:** continue the source-first payment/refund/settlement lifecycle retry and cross-ledger consistency audit beyond FIN-036. Keep the consolidated Phase 3 campaign pending until implementation is complete.
+
+
+## 23 November 2026 — reconciliation typecheck correction follow-up
+
+- Reviewed the exact source diff after the grouped CI #1449 typecheck correction and found a literal newline escape in the RUNNING insert plus an unchanged nullable orgId assignment in the FAILED-run recovery insert.
+- Corrected both Drizzle insert shapes in `apps/api/src/modules/returns/reconciliation.service.ts`; nullable orgId is omitted when the reconciliation is global, preserving database NULL behavior.
+- Commit: `988b2fcd468f38c70c0f8910534640e5f2ca6151`. No CI or test execution is claimed; the commit uses `[skip ci]` under the implementation-first programme.

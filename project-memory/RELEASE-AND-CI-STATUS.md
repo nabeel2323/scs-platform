@@ -1242,3 +1242,10 @@ Branch: remediation/phase-0-1-tenant-security. Exact HEAD: 56e583338bfe405009e74
 - Typecheck correction commit: 8f4962a16b4e14ddd5af590377ca2686f9e90fe4. FIN-036 implementation and FIN-DSH-62 test commit: d84489f185cfc864074406f0c9029bc28f40dc94. Both use [skip ci]; neither has exact-head CI verification.
 - FIN-DSH-62 and all prior FIN regression tests remain pending the consolidated Phase 3 campaign. Do not claim tests passed.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No staging release, shared database mutation, migration, grants/default ACL change, RLS enablement, worker activation, deployment or merge occurred.
+
+
+## Typecheck correction follow-up — 23 November 2026
+
+- Source correction commit: 988b2fcd468f38c70c0f8910534640e5f2ca6151.
+- The previous typecheck fix had left a literal newline escape in the RUNNING reconciliation insert and had not corrected the nullable orgId insert shape in the FAILED-run recovery insert. Both are now corrected: newline is a real source line break, and nullable tenant IDs are omitted from Drizzle insert objects so PostgreSQL retains NULL semantics.
+- The correction uses [skip ci]. No exact-head TypeScript verification is claimed; retain CI #1449 as the last executed workflow and rerun the comprehensive campaign at the planned Phase 3 checkpoint.
