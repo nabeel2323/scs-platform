@@ -1156,3 +1156,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added tests confirming unauthorized users do not trigger protected API reads. Tests not executed.
 - Commit: `8474b7acd264872a01d305bef515009eded104ed`.
 
+
+
+## 2026-11-23 — FIN-001 Payment refund concurrency and idempotency
+
+- Continued the API financial correctness audit after the Admin workflow work. Source inspection found that separate partial refund approvals did not serialize on the shared payment row. Two concurrent approvals could each calculate from an incomplete aggregate and leave a fully refunded payment in `PARTIALLY_REFUNDED`.
+- `approveRefund` now locks the payment row before the refund transition and aggregate calculation. The payment status is derived from the latest locked row state and committed refund total.
+- `requestRefund` now performs caller-key idempotency lookup under the same payment lock, returns the existing record for identical retries, and rejects mismatched reuse. A conflict-safe insert covers concurrent reuse of a key against separate payment rows.
+- Added PostgreSQL integration cases FIN-DSH-11 and FIN-DSH-12. **Not executed**; both remain TESTING_PENDING for the consolidated Phase 3 campaign.
+- Source/test commit: `117614884ff1e0d50ca116f0b28f249fd83761c0`. No schema/migration/provider/gateway/payout/shared DB/staging/deployment change.
+- G-012 remains OPEN; this work does not expand automatic gateway or payout scope.

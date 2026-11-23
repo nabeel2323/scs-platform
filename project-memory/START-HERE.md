@@ -76,7 +76,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest source/test checkpoint: `8474b7acd264872a01d305bef515009eded104ed` (UX-105); last live PR head refreshed before this final memory synchronization: `fa97365b06f639446661e70a2ebb87a5351e55dd`. Re-fetch the live PR head and CI before the next action. The two Vercel statuses are external build-rate-limit failures. Re-fetch the live PR head and CI before the next action. Latest source/test checkpoint: `8474b7acd264872a01d305bef515009eded104ed` (UX-105).
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest source/test checkpoint is `117614884ff1e0d50ca116f0b28f249fd83761c0` (FIN-001); FIN-DSH-11/12 were added but not executed. No Actions run is attached to that `[skip ci]` commit; its Vercel Web/Admin statuses are SUCCESS / Skipped — Not affected. Latest Actions run #1421 is on earlier SHA `8474b7acd264872a01d305bef515009eded104ed` and failed only the accumulated changed-file Prettier gate (255 files), with lint/typecheck and Flutter passing and dependent Web/Admin/API/integration/build gates skipped. Re-fetch live PR head/status before the next action.
 
 ### Exact stopping point
 
@@ -540,3 +540,12 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Source/test commits: `00427e5f0cdd183aa7b8c910a93b8edd2e0d0723` and `8474b7acd264872a01d305bef515009eded104ed`.
 - CI #1420/#1421: lint/typecheck and Flutter checks passed; formatting gate failed (254 / 255 files); Web/Admin tests and dependent gates skipped.
 - Next: continue Admin operational UX/source audit beyond permission mapping; Phase 3 remains the consolidated formatter and test campaign.
+
+
+## FIN-001 — Payment refund concurrency and idempotency — 23 November 2026
+
+- `PaymentsService.approveRefund` now locks the payment row before applying a refund approval and recomputing the cumulative successful-refund total. This prevents concurrent partial approvals from leaving the payment in a stale `PARTIALLY_REFUNDED` state after the full confirmed amount has succeeded.
+- `PaymentsService.requestRefund` returns the original refund for an identical caller-supplied idempotency key/payload, even after payment state changes; mismatched key reuse is rejected. Concurrent cross-payment key collisions are handled by a conflict-safe insert and verification lookup.
+- Added PostgreSQL integration scenarios FIN-DSH-11 and FIN-DSH-12. Not executed; remain TESTING_PENDING.
+- Source/test commit: `117614884ff1e0d50ca116f0b28f249fd83761c0`. No schema/migration/provider/gateway/payout changes.
+- Next: continue source-first commercial/operational correctness audit; keep the consolidated test campaign in Phase 3.

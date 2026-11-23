@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `8474b7acd264872a01d305bef515009eded104ed` — UX-105 protected dashboard reads; latest focused test commit: `8474b7acd264872a01d305bef515009eded104ed` (UX-105 unauthorized read regression).
-**Latest implementation checkpoint head:** `e471e6b49e6f60a7c2c1b3719a96fcd7892f6ade` (UX-100 focused test commit; subsequent documentation-only commits synchronize this checkpoint).  
+**Latest source/test implementation commit:** `117614884ff1e0d50ca116f0b28f249fd83761c0` — FIN-001 refund approval serialization and request idempotency; PostgreSQL regression scenarios FIN-DSH-11/12 added but not executed.
+**Latest source/test checkpoint:** `117614884ff1e0d50ca116f0b28f249fd83761c0` (FIN-001); this commit uses `[skip ci]` and is not CI-verified.  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,13 +19,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation checkpoint head | `57d3a251b34b891e49a05e3f9b70756be1b4dbb7` (UX-099 focused test; latest implementation/test checkpoint is not CI-verified) |
-| Latest implementation/test | UX-097/098 Admin handler and capability-aware navigation fixes; UX-099 shared mutation permission rechecks; focused Admin tests added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
+| Latest implementation checkpoint head | `117614884ff1e0d50ca116f0b28f249fd83761c0` (FIN-001 source + PostgreSQL regression tests; not executed) |
+| Latest implementation/test | UX-100–105 Admin workflow/action/read-gate improvements plus FIN-001 refund approval serialization and idempotency. FIN-DSH-11/12 added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for UX-099 source/test head `57d3a251b34b891e49a05e3f9b70756be1b4dbb7`; CI #1408 failed on earlier `a76b0bef436af8bde2d9329b1cd6ee5980f593fc` at changed-file Prettier (245 files); typecheck and Flutter job passed there, but UX-099 is NOT CI-VERIFIED |
+| Exact-head GitHub Actions | No run for FIN-001 source/test head `117614884ff1e0d50ca116f0b28f249fd83761c0`; latest Actions run #1421 tested earlier `8474b7acd264872a01d305bef515009eded104ed`, passed lint/typecheck and Flutter, but failed changed-file Prettier (255 files); Web/Admin and dependent jobs skipped |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest inspected Vercel contexts | At last refreshed PR head `fa97365b06f639446661e70a2ebb87a5351e55dd`: Web FAILURE and Admin FAILURE at external build-rate-limit destination; not application test results |
+| Latest inspected Vercel contexts | On FIN-001 source commit `117614884ff1e0d50ca116f0b28f249fd83761c0`, Web/Admin both report SUCCESS / Skipped — Not affected; no Actions run is attached |
 | Focused client tests | Admin UX-030–058 and UX-097–099, Mobile UX-078–096 and Web UX-095 focused tests added/updated; not executed (Flutter suite passed only on earlier SHA `a76b0be`) |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
@@ -833,3 +833,13 @@ Merchant active-store and product reads now preserve last-successful data throug
 - No focused test was added; Phase 3 validation remains pending.
 - CI #1419 ran on this source commit: lint and TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed across 254 files. Web/Admin tests and dependent jobs skipped.
 - PR #138 was OPEN / DRAFT / UNMERGED to `develop` at the last live check. Refresh exact head after this documentation synchronization.
+
+
+## FIN-001 exact source checkpoint — 23 November 2026
+
+- Source/test commit: `117614884ff1e0d50ca116f0b28f249fd83761c0` (`fix(payments): serialize refund approvals and retries [skip ci]`).
+- `approveRefund` locks the payment row before applying a requested refund and recomputing the successful-refund total. `requestRefund` reuses an identical idempotency-key request and rejects mismatched key reuse.
+- PostgreSQL cases FIN-DSH-11/12 were added but **not executed**.
+- No GitHub Actions run is attached to this commit. The Vercel Web/Admin statuses on this SHA are both SUCCESS / Skipped — Not affected.
+- Latest Actions run #1421 remains historical evidence on `8474b7acd264872a01d305bef515009eded104ed`: lint/typecheck and Flutter succeeded; changed-file Prettier failed (255 files); Web/Admin tests and dependent gates skipped.
+- G-012 remains OPEN. No automatic gateway/payout, schema/migration, staging, shared DB or deployment change.
