@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchDataQualityMetrics, DataQualityMetrics } from '../../lib/api';
 import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 import {
@@ -40,16 +40,33 @@ export default function DataQualityPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const load = () => {
+  const requestVersion = useRef(0);
+
+  const load = useCallback(async () => {
+    if (!hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
     setError('');
-    fetchDataQualityMetrics()
-      .then(setMetrics)
-      .catch(e => setError(e instanceof Error ? e.message : 'Failed to load metrics'))
-      .finally(() => setLoading(false));
-  };
+    try {
+      const data = await fetchDataQualityMetrics();
+      if (requestId === requestVersion.current) setMetrics(data);
+    } catch (e: unknown) {
+      if (requestId === requestVersion.current) {
+        setError(e instanceof Error ? e.message : 'Failed to load metrics');
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
+  }, [hasAccess]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!hasAccess) {
+      setLoading(false);
+      return;
+    }
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [hasAccess, load]);
 
   if (!hasAccess) return <AccessDenied requiredPerms={['catalog:product-types:manage']} missingPerms={missingPerms} />;
 
@@ -84,7 +101,7 @@ export default function DataQualityPage() {
         {error && (
           <div style={{ padding: 14, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.md, marginBottom: 20, color: '#991b1b', ...typeScale.bodySm }}>
             {error}
-            <button onClick={load} style={{ marginLeft: 12, background: 'none', border: '1px solid #991b1b', borderRadius: radii.sm, padding: '2px 10px', cursor: 'pointer', color: '#991b1b', fontSize: 12 }}>
+            <button onClick={() => void load()} style={{ marginLeft: 12, background: 'none', border: '1px solid #991b1b', borderRadius: radii.sm, padding: '2px 10px', cursor: 'pointer', color: '#991b1b', fontSize: 12 }}>
               Retry
             </button>
           </div>

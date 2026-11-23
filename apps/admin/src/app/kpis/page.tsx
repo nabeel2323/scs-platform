@@ -24,6 +24,7 @@ export default function KpiDashboardPage() {
   const [to, setTo] = useState('');
 
   const load = useCallback(async (f?: string, t?: string) => {
+    if (!hasAccess) return;
     const requestId = ++requestVersion.current;
     setLoading(true);
     setError('');
@@ -37,12 +38,16 @@ export default function KpiDashboardPage() {
     } finally {
       if (requestId === requestVersion.current) setLoading(false);
     }
-  }, []);
+  }, [hasAccess]);
 
   useEffect(() => {
+    if (!hasAccess) {
+      setLoading(false);
+      return;
+    }
     void load();
     return () => { requestVersion.current += 1; };
-  }, [load]);
+  }, [hasAccess, load]);
 
   const fmt = (n: number) =>
     (n / 100).toLocaleString(undefined, { minimumFractionDigits: 2 });
