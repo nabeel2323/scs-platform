@@ -792,3 +792,14 @@ Merchant active-store and product reads now preserve last-successful data throug
 - Supplemental user-uploaded G-002 audit note is preserved in `docs/remediation/G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md`; 111/111 tables is not reconciled with the existing 114/116 counts. No G-002 status promotion or database action.
 
 **Next:** continue remaining Admin custom route/action-to-controller permission mapping and confirm every shared mutation call site supplies its specific permission predicate. Do not repeat UX-097/098/099. Batch one repository-locked formatter pass and the consolidated test campaign at the Phase 3 validation checkpoint.
+
+
+## Admin custom financial action mapping — 23 November 2026 (UX-100)
+
+- Live implementation commit: `14c8c5caa908a2194c8a3ec903de08f15e0db50e`; focused test commit: `e471e6b49e6f60a7c2c1b3719a96fcd7892f6ade`.
+- Compared the custom Admin reconciliation, settlement-adjustment, settlement, payment and role-permission actions with their API controller decorators. Reviewed page-level permission keys align with the matching endpoints.
+- Added the missing settlement-adjustment rejection UI for `POST /admin/settlement-adjustments/:id/reject`: pending-approval adjustments now expose Reject only to `admin:adjustments:approve` users, collect a required reason and send the controller's `{ reason }` payload.
+- Focused tests cover rejection payload and read-only visibility. Tests have not been executed. Changes are IMPLEMENTED / TESTING_PENDING, not automated-test or CI verified.
+- No backend permissions, financial transition behavior, database, migration, staging, worker or deployment behavior changed.
+
+**Next:** complete the remaining Admin custom action-handler audit, especially direct mutation handlers outside the shared mutation helper. Keep the consolidated Prettier and test campaign deferred to Phase 3.
