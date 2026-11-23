@@ -655,10 +655,20 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     expect(rows.rows[0].count).toBe(1);
 
+    const paymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
+    )).rows[0].id;
+    const history = await pool.query(
+      `SELECT count(*)::int AS count FROM payment_events
+       WHERE payment_record_id = $1 AND event_type = 'PAYMENT_SETTLEMENT_CALCULATED'`,
+      [paymentId],
+    );
+    expect(history.rows[0].count).toBe(1);
+
     const events = await pool.query(
       `SELECT count(*)::int AS count FROM outbox_events
        WHERE aggregate_id = $1 AND event_type = 'payment.settlement_calculated'`,
-      [(await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0].id],
+      [paymentId],
     );
     expect(events.rows[0].count).toBe(1);
   }, 60_000);
