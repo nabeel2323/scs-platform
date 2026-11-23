@@ -2549,12 +2549,22 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       bankPaymentId, 'CONFIRMED', merchantA, merchantCaller, { notes: 'Verified by merchant' },
     );
     const merchantVerification = await pool.query(
-      `SELECT actor_type FROM payment_events
+      `SELECT actor_id, actor_type FROM payment_events
        WHERE payment_record_id = $1 AND event_type = 'PAYMENT_CONFIRMED'
        ORDER BY created_at DESC LIMIT 1`,
       [bankPaymentId],
     );
-    expect(merchantVerification.rows[0].actor_type).toBe('MERCHANT');
+    expect(merchantVerification.rows[0]).toEqual({ actor_id: merchantA, actor_type: 'MERCHANT' });
+
+    // The order FSM transition is caused by the same authenticated verifier;
+    // its immutable history must not misclassify that user action as SYSTEM.
+    const orderVerification = await pool.query(
+      `SELECT changed_by, actor_type FROM order_status_history
+       WHERE order_id = $1 AND to_status = 'PAYMENT_CONFIRMED'
+       ORDER BY created_at DESC LIMIT 1`,
+      [bankOrderId],
+    );
+    expect(orderVerification.rows[0]).toEqual({ changed_by: merchantA, actor_type: 'MERCHANT' });
 
     const codCartId = randomUUID();
     await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [codCartId, buyerA]);
