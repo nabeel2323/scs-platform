@@ -3404,7 +3404,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     await settlementAdjService.postAdjustment(adjustment.id, adminA, orgA);
     const posted = (await pool.query(
-      `SELECT id, status, net_minor::int AS net FROM settlement_records
+      `SELECT id, payment_record_id, status, net_minor::int AS net FROM settlement_records
        WHERE sub_order_id = $1 AND status = 'ADJUSTMENT'
          AND metadata->>'adjustmentId' = $2`,
       [orderId, adjustment.id],
@@ -3430,9 +3430,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       `SELECT id, amount_minor::int AS amount FROM payment_events
        WHERE payment_record_id = $1 AND event_type = 'PAYMENT_SETTLEMENT_PAID'
          AND metadata->>'settlementId' = $2`,
-      [posted.id ? (await pool.query(
-        `SELECT payment_record_id FROM settlement_records WHERE id = $1`, [posted.id],
-      )).rows[0].payment_record_id : null, posted.id],
+      [posted.payment_record_id, posted.id],
     );
     expect(eventRows.rows).toHaveLength(1);
     expect(eventRows.rows[0].amount).toBe(125);
