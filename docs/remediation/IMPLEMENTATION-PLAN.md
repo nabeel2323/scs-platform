@@ -1369,3 +1369,8 @@ Each generated proof key now has a durable intent persisted before object storag
 ## FIN-026 — Payment event actor attribution — 23 November 2026
 
 verifyPayment, confirmCash and privileged return transitions previously hardcoded actor classes despite allowing privileged overrides. They now record ADMIN versus MERCHANT/BUYER from the authenticated caller. FIN-DSH-54/55 cover merchant verification, admin COD confirmation and privileged return overrides. No migration; tests not executed. Commit: e5733dc4a403c15da27d9064aa8703a89f6ee7f4.
+
+
+## FIN-027 — Return refund balance aggregation — 23 November 2026
+
+The return-side cumulative refund guard now matches the payment refund guard by counting `APPROVED` as reserved balance. PostgreSQL `SUM(bigint)` is read as exact numeric text and converted through BigInt, avoiding a 32-bit cast overflow and rejecting totals outside JavaScript's safe-integer range. FIN-DSH-56 covers both conditions. Source: `6ae8aba762215f69f42e74e4608a4fa31a02543b`; test: `5b636df49155ea523bc730852ed900720a858a88`. Tests remain pending the consolidated Phase 3 campaign.
