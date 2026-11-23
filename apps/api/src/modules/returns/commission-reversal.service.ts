@@ -97,7 +97,7 @@ export class CommissionReversalService {
       .from(commissionReversals)
       .innerJoin(returnRequests, eq(commissionReversals.returnRequestId, returnRequests.id))
       .where(eq(returnRequests.subOrderId, ret.subOrderId));
-    const alreadyReversed = existingReversals[0]?.total ?? 0;
+    const alreadyReversed = Number(existingReversals[0]?.total ?? 0);
     const remainingCommission = originalCommission - alreadyReversed;
 
     if (remainingCommission <= 0) {
