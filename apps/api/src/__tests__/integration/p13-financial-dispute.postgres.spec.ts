@@ -1637,6 +1637,12 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     };
 
     const first = await returnsService.createReturnRequest(request as any, buyerCaller);
+    // The first request's financial capacity may be consumed before a client
+    // retries. The idempotency key must still resolve to the original request.
+    await pool.query(
+      `UPDATE payment_records SET confirmed_amount_minor = 0 WHERE order_id = $1`,
+      [orderId],
+    );
     const retry = await returnsService.createReturnRequest(request as any, buyerCaller);
     expect(retry.id).toBe(first.id);
 

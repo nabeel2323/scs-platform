@@ -303,15 +303,6 @@ export class ReturnsService {
       }
     }
 
-    // Verify refund doesn't exceed confirmed payment
-    const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
-    const alreadyRefunded = await this.getCumulativeRefundedAmount(payment.id);
-    if (totalRefundMinor > confirmedAmount - alreadyRefunded) {
-      throw new BadRequestException(
-        `Refund amount ${totalRefundMinor} exceeds remaining refundable amount ${confirmedAmount - alreadyRefunded}`,
-      );
-    }
-
     // Idempotent retries must be resolved before the active-return fast-fail.
     const idempotencyKey = input.idempotencyKey ||
       `return:${input.subOrderId}:${caller.sub}:${crypto.randomUUID()}`;
@@ -325,6 +316,15 @@ export class ReturnsService {
         );
         return this.getReturnRequest(existing.id);
       }
+    }
+
+    // Verify refund doesn't exceed confirmed payment
+    const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
+    const alreadyRefunded = await this.getCumulativeRefundedAmount(payment.id);
+    if (totalRefundMinor > confirmedAmount - alreadyRefunded) {
+      throw new BadRequestException(
+        `Refund amount ${totalRefundMinor} exceeds remaining refundable amount ${confirmedAmount - alreadyRefunded}`,
+      );
     }
 
     // 6. Check one active return per sub-order
