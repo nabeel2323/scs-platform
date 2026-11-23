@@ -71,7 +71,7 @@ function DisputeDetailContent({ id }: { id: string }) {
   const handleResolve = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const normalizedResolution = resolution.trim();
-    if (!normalizedResolution || resolutionSubmitting) return;
+    if (!hasAccess || !normalizedResolution || resolutionSubmitting) return;
 
     setResolutionSubmitting(true);
     setResolutionError('');
