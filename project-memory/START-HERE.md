@@ -76,7 +76,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. The latest branch head before this memory/CI synchronization is `f9eaa99c163a66ce4f37b9ad70724865c184e9e0`; FIN-047 settlement-history pagination source is `ee6bf2f84803f2eb1f80ae931d9415923a760ff3`. FIN-047 implementation and the cross-module export/KPI/reconciliation consumer audit are complete; API, Web and Admin regression tests remain unexecuted. Exact-head GitHub Actions lookup returned no run; Vercel Web and Admin contexts are failures and are not application test evidence. The next commit adds the two finance Admin recovery suites to the existing focused Admin CI job and starts the consolidated Phase 3 campaign. Keep PR #138 draft/unmerged and preserve all staging, database, RLS/ACL, deployment and worker restrictions.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. The latest branch head before this memory/CI synchronization is `f9eaa99c163a66ce4f37b9ad70724865c184e9e0`; FIN-047 settlement-history pagination source is `ee6bf2f84803f2eb1f80ae931d9415923a760ff3`. FIN-047 implementation and the cross-module export/KPI/reconciliation consumer audit are complete; API, Web and Admin regression tests remain unexecuted. Exact-head GitHub Actions lookup returned no run; Vercel Web and Admin contexts are failures and are not application test evidence. The finance Admin recovery suites have been added to the focused Admin CI job. CI #45243772955 on `c036e7a483f634c9fad537c50fc8fc9dddb851a0` passed lint but failed typecheck on two stale paginated-response mocks and one index-signature access in Admin Settlements; all three are corrected in the next grouped commit. Exact-head CI rerun remains required. Keep PR #138 draft/unmerged and preserve all staging, database, RLS/ACL, deployment and worker restrictions.
 
 ### Exact stopping point
 
@@ -915,3 +915,11 @@ Live branch/PR/CI reconciliation immediately before this documentation sync:
 ## Current exact source pointer
 
 Newest implementation commit: ee6bf2f84803f2eb1f80ae931d9415923a760ff3. The following memory sync commit is documentation-only. Read the FIN-047 entry above before continuing.
+
+
+## CI #45243772955 — first consolidated verification findings
+
+- Exact head `c036e7a483f634c9fad537c50fc8fc9dddb851a0`; lint passed.
+- Workspace typecheck failed on two legacy Admin test mocks still returning an array from `fetchAdminSettlements` and one `metadata.adjustmentId` index-signature access. The mocks now use the paginated response shape and the UI uses bracket notation.
+- The earlier run #45243520666 on `86dbe607435d08f9e9ad483c1813ca52004df00a` was cancelled by the subsequent push after its lint failure on an invalid escaped template literal in the P13 financial-dispute PostgreSQL spec; that source syntax was corrected in `c036e7a`.
+- No test suite result is claimed from #45243772955 until all jobs complete; exact-head rerun is required for the TypeScript fixes.

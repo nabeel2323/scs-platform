@@ -1341,3 +1341,10 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - API pagination/controller/service and Web/Merchant regressions are included in the normal API coverage and Web full-suite jobs. The Admin job previously ran only the hydration/global-style subset; this commit adds `admin-settlements-recovery.test.tsx` and `admin-settlement-adjustments-recovery.test.tsx` to that focused job.
 - The next CI run is the consolidated Phase 3 verification attempt. Tests are still NOT VERIFIED until exact-head jobs finish. k6, protected staging release, staging E2E and provider sandboxes remain out of scope for this PR run.
 - No merge, deployment, migration, shared/staging DB write, environment mutation, worker activation, RLS enablement or grant/default-ACL change.
+
+
+## 23 November 2026 — CI #45243772955 typecheck diagnosis
+
+- Exact head `c036e7a483f634c9fad537c50fc8fc9dddb851a0`: lint passed; typecheck failed on two legacy `fetchAdminSettlements` mocks in `management.test.tsx` (array response instead of `PaginatedResult`) and one `metadata.adjustmentId` index-signature access in Admin Settlements.
+- The mocks now return `{ data, total, limit, offset }`, and the UI uses bracket notation. The preceding CI #45243520666 exposed one invalid escaped SQL template-literal delimiter in `p13-financial-dispute.postgres.spec.ts`; corrected in `c036e7a`.
+- The next grouped commit carries these fixes and must be checked by exact-head CI. No tests are claimed passed beyond lint on #45243772955.

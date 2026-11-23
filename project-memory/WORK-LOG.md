@@ -1611,3 +1611,10 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - API coverage already collects the new pagination unit/controller spec; Web CI runs the full suite including merchant settlement pagination. No tests have executed yet.
 - This grouped documentation/CI update intentionally omits `[skip ci]` to start the consolidated Phase 3 PR campaign. Exact-head status must be checked after push; do not treat the current pending state as a pass.
 - No migrations, shared/staging DB writes, environment changes, worker activation, RLS/ACL changes, deployment or merge.
+
+
+## 23 November 2026 — consolidated CI diagnosis and grouped TypeScript fixes
+
+- CI #45243520666 on `86dbe607435d08f9e9ad483c1813ca52004df00a` found an invalid escaped template-literal delimiter at line 3428 of `p13-financial-dispute.postgres.spec.ts`. Corrected in `c036e7a483f634c9fad537c50fc8fc9dddb851a0`.
+- CI #45243772955 on `c036e7a483f634c9fad537c50fc8fc9dddb851a0` passed lint and then failed workspace typecheck: two old Admin settlement test mocks returned arrays rather than the new paginated response, and Admin Settlements used dot notation for an index-signature metadata key.
+- Corrected both mocks to return `{ data, total, limit, offset }` and changed metadata access to `['adjustmentId']`. These are grouped in the next source commit. Exact-head CI rerun required; no API, PostgreSQL, Web/Admin or Flutter test pass is claimed yet.

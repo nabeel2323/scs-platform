@@ -192,7 +192,7 @@ export default function AdminSettlementsPage() {
                   </td>
                   <td style={{ padding: '10px 8px' }}>
                     <SettlementBadge status={
-                      s.status === 'PAID' && (s.metadata?.adjustmentId || s.notes?.startsWith('Posted adjustment '))
+                      s.status === 'PAID' && (s.metadata?.['adjustmentId'] || s.notes?.startsWith('Posted adjustment '))
                         ? 'ADJUSTMENT · PAID'
                         : s.status
                     } />

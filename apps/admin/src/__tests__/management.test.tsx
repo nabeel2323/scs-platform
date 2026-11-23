@@ -126,7 +126,7 @@ describe('Admin financial list read recovery', () => {
   it('retries the payment verification queue after a read failure', async () => {
     vi.mocked(fetchPaymentVerificationQueue)
       .mockRejectedValueOnce(new Error('Payment queue unavailable'))
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce({ data: [], total: 0, limit: 25, offset: 0 });
     render(<AdminPaymentsPage />);
     expect(await screen.findByText('Payment queue unavailable')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -623,7 +623,7 @@ describe('accessible dialogs and row actions', () => {
 
   it('hides settlement payment action from users with read-only settlement access', async () => {
     navigation.allowedPermissions = ['admin:settlements:read'];
-    vi.mocked(fetchAdminSettlements).mockResolvedValue([
+    vi.mocked(fetchAdminSettlements).mockResolvedValue({ data: [
       {
         id: 'settlement-1',
         subOrderId: 'sub-order-1',
@@ -638,7 +638,7 @@ describe('accessible dialogs and row actions', () => {
         status: 'DUE',
         createdAt: '2026-11-19T10:00:00.000Z',
       },
-    ]);
+    ], total: 1, limit: 25, offset: 0 });
     render(<AdminSettlementsPage />);
     await screen.findByText('DUE');
     expect(screen.queryByText('Mark Paid')).toBeNull();

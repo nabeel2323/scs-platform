@@ -3,7 +3,7 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest branch head before the CI-enabling checkpoint:** `f9eaa99c163a66ce4f37b9ad70724865c184e9e0`. **Latest feature implementation:** `ee6bf2f84803f2eb1f80ae931d9415923a760ff3` — FIN-047 settlement history pagination. API/controller/service and Admin/Merchant regression tests are added but not executed. FIN-001–FIN-047 financial source changes remain pending the consolidated Phase 3 verification campaign; do not treat added tests as passing. 
+**Latest branch head:** `c036e7a483f634c9fad537c50fc8fc9dddb851a0`. **Latest feature implementation:** `ee6bf2f84803f2eb1f80ae931d9415923a760ff3` — FIN-047 settlement history pagination. CI #45243772955 is running on this exact head: lint passed; typecheck failed on three Admin TypeScript errors (two stale `fetchAdminSettlements` mocks and one index-signature property access), now corrected in the next source commit. Full tests remain unverified. 
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -18,11 +18,11 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation checkpoint head | `f9eaa99c163a66ce4f37b9ad70724865c184e9e0` before this CI-enabling checkpoint; FIN-047 source is `ee6bf2f84803f2eb1f80ae931d9415923a760ff3`; tests remain unexecuted pending consolidated Phase 3 CI |
+| Latest implementation checkpoint head | `c036e7a483f634c9fad537c50fc8fc9dddb851a0` before grouped TypeScript fixes; CI #45243772955 lint passed, typecheck found three Admin errors corrected in the next commit; exact-head CI rerun required |
 | Latest implementation/test | FIN-001–FIN-047 financial source work is implemented, including refund/settlement lifecycle, adjustment payout and history pagination. FIN-DSH and focused unit/UI regressions are added but not executed; the consolidated Phase 3 campaign is now the next action. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Latest Actions run | No GitHub Actions run is attached to exact head `f9eaa99c163a66ce4f37b9ad70724865c184e9e0`; the latest branch commits used `[skip ci]`. Vercel Web and Admin contexts are FAILURE and are not application test results. This checkpoint adds the finance Admin recovery suites to CI and triggers the consolidated Phase 3 campaign. |
+| Latest Actions run | CI #45243772955 on `c036e7a483f634c9fad537c50fc8fc9dddb851a0`: lint passed; typecheck failed on three Admin TypeScript errors; the affected mocks/property access are corrected in the next commit. Mobile Flutter job was still running at checkpoint. Vercel Web/Admin contexts remain external preview failures, not application test results. |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
 | Latest live PR head before this memory refresh | `b9f9728659e71d3788cc58aa2b5ad9df29ab9731` — FIN-DSH-34/35 scenario numbering correction; docs sync follows with `[skip ci]` |
 | Latest inspected preview status | Admin FAILURE due external deployment rate limit; not an application test result |
@@ -1245,3 +1245,8 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - FIN-047 source commit `ee6bf2f84803f2eb1f80ae931d9415923a760ff3` adds bounded API/Admin/Merchant settlement pagination. Cross-module audit is complete: no settlement-ledger export consumer or primary-plus-adjustment aggregate was found; reconciliation iterates ledger rows for consistency checks; Admin revenue remains completed-order totals grouped by currency; adjustment approvals are a separate queue.
 - Exact-head Actions lookup returned no run. Vercel Web/Admin contexts are failures, not application tests. API and UI regressions remain unexecuted.
 - Next: add settlement and adjustment recovery specs to the focused Admin CI command and run the consolidated Phase 3 campaign. Do not merge/deploy or mutate shared/staging database, environment, RLS/ACL or workers.
+
+
+## CI #45243772955 — TypeScript corrections
+
+The first normal consolidated run after FIN-047 audit closure passed lint but failed workspace typecheck on three Admin errors: `management.test.tsx` still mocked the new paginated settlement response as an array in two places, and Admin Settlements accessed `metadata.adjustmentId` through an index signature without bracket notation. The test fixtures now return `{ data, total, limit, offset }`, and the metadata access uses `['adjustmentId']`. These corrections are grouped in the next commit; exact-head CI must rerun before claiming typecheck or tests verified.
