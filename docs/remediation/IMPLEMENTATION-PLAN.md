@@ -1299,3 +1299,8 @@ Commission reversal must use the order financial breakdown as the basis for allo
 #### FIN-015 — Exact commission reversal arithmetic
 
 Proportional commission reversal must use exact BigInt multiplication/division even when each minor-unit input is a safe JavaScript integer, because the product can exceed Number.MAX_SAFE_INTEGER. The shared helper validates safe-integer inputs, computes floor(original commission × returned net goods / order net goods), and caps the result at remaining commission. Unit coverage includes a case where floating-point arithmetic would overstate reversal by one minor unit. Implementation and test are present; test pending Phase 3. No schema/migration or gateway/payout scope change.
+
+
+#### FIN-016 — COD payment expiry exclusion
+
+Cash on delivery is collected at delivery and must not expire on the bank-transfer payment timeout. Stale-payment discovery must exclude CASH_ON_DELIVERY, and expirePayment must enforce the same rule at the service boundary. FIN-DSH-30 verifies a stale COD payment remains AWAITING_PAYMENT, its delivered order remains unchanged and no PAYMENT_EXPIRED event is emitted. Implementation is present; PostgreSQL test pending Phase 3. No schema/migration or gateway/payout scope change.

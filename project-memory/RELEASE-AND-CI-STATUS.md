@@ -3,8 +3,8 @@
 **Checkpoint:** 23 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source/test checkpoint before this documentation sync:** `4e67e5ef7541e87ef5d9698e3abad7529cd07219` (FIN-015 BigInt commission reversal unit regression; not executed). PR #138 remains OPEN / DRAFT / UNMERGED to develop.
-**Exact-head checks:** no GitHub Actions run is attached to the current source/test head. Latest completed CI #1434 on `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231`: lint passed; TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed; Web/Admin/API/PostgreSQL/migration/boundary/build/contract/k6/staging release jobs skipped. Vercel Admin was skipped as not affected and Web remains an external deployment rate-limit failure. No application test pass is claimed for FIN-014/015.
+**Latest source/test checkpoint before this documentation sync:** `6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac` (FIN-016 COD expiry PostgreSQL regression; not executed). PR #138 remains OPEN / DRAFT / UNMERGED to develop.
+**Exact-head checks:** no GitHub Actions run is attached to the current source/test head. Latest completed CI #1434 on `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231`: lint passed; TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed; Web/Admin/API/PostgreSQL/migration/boundary/build/contract/k6/staging release jobs skipped. Vercel Web/Admin statuses are external deployment rate-limit failures. No application test pass is claimed for FIN-014–016.
 
 ## Previous CI run at the 21 November checkpoint (historical)
 
@@ -1071,3 +1071,10 @@ The next full workflow is required to verify these changes.
 - FIN-015 source: 917397ffd5491d6fe52a18063c0266e831b67c38, e2338cf1e50e825bd1c22becbeab0a6a4757a5e4 and a596d49a752973cdc1b7039f3b325f0421252c9c; unit test commit 4e67e5ef7541e87ef5d9698e3abad7529cd07219. Test added, not executed.
 - No GitHub Actions run is attached to the current source/test head. CI #1434 on earlier SHA 31a0f17fa3f9ab6b8f9a7d6a435967f31f251231 passed lint/typecheck and Flutter, failed changed-file formatting, and skipped dependent application tests/build/release jobs.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No merge, deployment, staging write, shared DB change, migration, grant, RLS, worker activation, provider, gateway or payout action occurred.
+
+
+## FIN-016 validation checkpoint — 23 November 2026
+
+- Source commit: 68b5251200f9f3765a0568b796db056a18cd878e; PostgreSQL test commit: 6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac.
+- No GitHub Actions run is attached to FIN-016. The latest completed run #1434 tested earlier SHA 31a0f17fa3f9ab6b8f9a7d6a435967f31f251231: lint/typecheck and Flutter passed; changed-file formatting failed; Web/Admin/API/PostgreSQL/migration/build/release jobs were skipped.
+- PR #138 remains OPEN / DRAFT / UNMERGED. Vercel Web/Admin rate-limit failures are external provider statuses. No merge, deployment, staging write, shared DB change, migration, grants, RLS, worker activation, provider, gateway or payout action occurred.

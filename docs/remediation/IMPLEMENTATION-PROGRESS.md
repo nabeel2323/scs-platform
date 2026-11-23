@@ -7,7 +7,7 @@
 **Repository:** `nabeel2323/scs-platform`
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`
 <!-- prettier-ignore -->
-**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 remains OPEN / DRAFT / UNMERGED to develop. Latest source/test checkpoint: `4e67e5ef7541e87ef5d9698e3abad7529cd07219` (FIN-015 exact BigInt commission reversal unit regression); tests are added but not executed. FIN-DSH-11–29 plus unit coverage are pending consolidated Phase 3 validation. CI #1434 on earlier SHA `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` passed lint/typecheck and Flutter analysis/tests but failed changed-file Prettier; dependent Web/Admin/API/PostgreSQL/migration/build/boundary/release jobs were skipped. No exact-head Actions run is attached to current source/test commits. Vercel Web/Admin rate-limit statuses are external provider failures, not application test results. G-002 remains open: runtime identities, protected read-only catalog audit, exact FK/operation predicates and transaction-bound context proof remain outstanding. No staging deployment, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement or worker activation is authorized or claimed.
+**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 remains OPEN / DRAFT / UNMERGED to develop. Latest source/test checkpoint: `6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac` (FIN-016 COD expiry PostgreSQL regression); tests are added but not executed. FIN-DSH-11–30 plus unit coverage are pending consolidated Phase 3 validation. CI #1434 on earlier SHA `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` passed lint/typecheck and Flutter analysis/tests but failed changed-file Prettier; dependent Web/Admin/API/PostgreSQL/migration/build/boundary/release jobs were skipped. No exact-head Actions run is attached to current source/test commits. Vercel Web/Admin rate-limit statuses are external provider failures, not application test results. G-002 remains open: runtime identities, protected read-only catalog audit, exact FK/operation predicates and transaction-bound context proof remain outstanding. No staging deployment, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement or worker activation is authorized or claimed.
 
 ---
 
@@ -2118,3 +2118,12 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - Added a unit regression with individually safe integer operands whose Number product rounds the quotient up by one minor unit. Test added, not executed.
 - Source commits: 917397ffd5491d6fe52a18063c0266e831b67c38, e2338cf1e50e825bd1c22becbeab0a6a4757a5e4, a596d49a752973cdc1b7039f3b325f0421252c9c; unit test commit: 4e67e5ef7541e87ef5d9698e3abad7529cd07219.
 - Status: IMPLEMENTED / TESTING_PENDING. No schema/migration or gateway/payout scope change.
+
+
+## FIN-016 — COD payment expiry exclusion — 23 November 2026
+
+- **Finding:** stale-payment reconciliation selected CASH_ON_DELIVERY rows alongside bank-transfer payments; a COD payment could be expired despite collection being due at delivery.
+- **Implementation:** getStalePayments excludes CASH_ON_DELIVERY, and expirePayment has a direct service-level COD guard.
+- **Regression coverage:** FIN-DSH-30 creates a 365-day-old COD payment on a DELIVERED order, asserts it is absent from stale candidates, calls expirePayment directly, and verifies no payment expiry event or order/payment state mutation. Test added but **not executed**.
+- **Source commit:** 68b5251200f9f3765a0568b796db056a18cd878e; **test commit:** 6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac.
+- **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, payout, staging or shared DB change.
