@@ -154,7 +154,7 @@ export default function ProductTypeBuilderPage() {
 
   // Load products when the Products tab is activated.
   const loadProducts = useCallback(async () => {
-    if (!id) return;
+    if (!hasAccess || !id) return;
     const requestId = ++ptProductsRequestVersion.current;
     setPtProdLoading(true);
     setPtProdError('');

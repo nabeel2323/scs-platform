@@ -69,9 +69,9 @@ export default function ProductTypesPage() {
   }, [selected]);
 
   const handlePublish = async (id: string) => {
-    if (!hasAccess || publishingIds.current.has(id)) return;
+    if (!hasAccess || publishingIds.current.size > 0) return;
     if (!window.confirm('Publish this product type? It will become available for merchants.')) return;
-    if (!hasAccess || publishingIds.current.has(id)) return;
+    if (!hasAccess || publishingIds.current.size > 0) return;
     publishingIds.current.add(id);
     setPublishingId(id);
     try {
@@ -157,7 +157,7 @@ export default function ProductTypesPage() {
                       <div className={styles['actions']}>
                         <Link href={`/product-types/${pt.id}`} className={styles['viewLink']}>View</Link>
                         {pt.status === 'DRAFT' && (
-                          <button type="button" disabled={publishingId === pt.id} onClick={() => void handlePublish(pt.id)}>{publishingId === pt.id ? 'Publishing…' : 'Publish'}</button>
+                          <button type="button" disabled={publishingId !== null} onClick={() => void handlePublish(pt.id)}>{publishingId === pt.id ? 'Publishing…' : 'Publish'}</button>
                         )}
                       </div>
                     </td>
@@ -306,7 +306,7 @@ function ProductTypeForm({ categories, canManage, onDone, onCancel }: {
         </div>
       </div>
       <div className={styles['actions']} style={{ marginTop: 20 }}>
-        <button type="button" disabled={busy} onClick={handleSave}>
+        <button type="button" disabled={!canManage || busy} onClick={handleSave}>
           {busy ? 'Creating…' : 'Create Draft'}
         </button>
         <button type="button" onClick={onCancel}>Cancel</button>

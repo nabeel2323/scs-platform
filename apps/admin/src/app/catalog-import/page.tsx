@@ -65,6 +65,7 @@ export default function CatalogImportPage() {
   } | null>(null);
   const [overrides, setOverrides] = useState<ImportOverrides>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importActionPending = useRef(false);
 
   const loadImports = useCallback(async () => {
     if (!hasAccess) return;
@@ -91,10 +92,11 @@ export default function CatalogImportPage() {
   if (!hasAccess) return <AccessDenied requiredPerms={['catalog:imports:manage']} missingPerms={missingPerms} />;
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!hasAccess || stage === 'uploading' || stage === 'executing') return;
+    if (!hasAccess || importActionPending.current) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
+    importActionPending.current = true;
     setStage('uploading');
     setError('');
 
@@ -111,12 +113,16 @@ export default function CatalogImportPage() {
       setStage('dashboard');
     }
 
-    // Reset file input
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    } finally {
+      // Reset the input and release the upload lock after both upload and preview.
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      importActionPending.current = false;
+    }
   };
 
   const handleExecute = async () => {
-    if (!hasAccess || !currentImport || stage === 'executing') return;
+    if (!hasAccess || !currentImport || importActionPending.current) return;
+    importActionPending.current = true;
     setStage('executing');
     setError('');
 
@@ -131,6 +137,8 @@ export default function CatalogImportPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Execution failed');
       setStage('preview');
+    } finally {
+      importActionPending.current = false;
     }
   };
 
@@ -159,7 +167,8 @@ export default function CatalogImportPage() {
   };
 
   const handleRetryImport = async (importId: string) => {
-    if (!hasAccess || stage === 'executing') return;
+    if (!hasAccess || importActionPending.current) return;
+    importActionPending.current = true;
     setError('');
     setStage('executing');
     try {
@@ -170,6 +179,8 @@ export default function CatalogImportPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Retry failed');
       setStage('dashboard');
+    } finally {
+      importActionPending.current = false;
     }
   };
 
