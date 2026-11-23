@@ -635,6 +635,7 @@ export class PaymentsService {
     requestedBy: string,
     caller: CallerContext,
     input?: { idempotencyKey?: string; notes?: string },
+    txClient?: any,
   ) {
     // Validate reason
     if (!REFUND_REASONS.includes(reason as RefundReason)) {
@@ -657,8 +658,9 @@ export class PaymentsService {
     // record for legacy callers that do not yet send an idempotency key.
     const idempotencyKey = input?.idempotencyKey || crypto.randomUUID();
 
-    // Row-level lock + refundable calculation in a transaction
-    return this.db.db.transaction(async (tx) => {
+    // Row-level lock + refundable calculation in the caller's transaction when
+    // supplied; otherwise retain the service-managed transaction boundary.
+    const createRefundInTransaction = async (tx: any) => {
       // Lock the payment row
       const [lockedPayment] = await tx
         .select()
@@ -793,7 +795,11 @@ export class PaymentsService {
       );
 
       return { refundId, amountMinor, status: 'REQUESTED' };
-    });
+    };
+
+    return txClient
+      ? createRefundInTransaction(txClient)
+      : this.db.db.transaction(createRefundInTransaction);
   }
 
   /**

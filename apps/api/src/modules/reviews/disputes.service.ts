@@ -198,86 +198,73 @@ export class DisputesService {
     caller: CallerContext,
     refundInput?: { amountMinor: number; reason?: string; returnRequestId?: string },
   ) {
-    const dispute = await this.loadDispute(disputeId);
-
     if (!isTenantPrivileged(caller)) {
       throw new ForbiddenException('Only platform administrators can resolve disputes');
     }
 
-    // P13: a resolved/closed dispute is never re-resolved — prevents duplicate refunds
-    // and preserves the original resolution as the audit record.
-    if (dispute['status'] === 'RESOLVED' || dispute['status'] === 'CLOSED') {
-      throw new ConflictException(`Dispute is already ${dispute['status']}`);
-    }
+    await this.db.db.transaction(async (tx) => {
+      // Reserve the dispute row before creating a refund. The refund request,
+      // dispute transition, immutable events and both outbox records must either
+      // commit together or roll back together.
+      const [dispute] = await tx.select().from(disputes)
+        .where(eq(disputes.id, disputeId))
+        .for('update');
+      if (!dispute) throw new NotFoundException('Dispute not found');
+      if (dispute.status === 'RESOLVED' || dispute.status === 'CLOSED') {
+        throw new ConflictException(`Dispute is already ${dispute.status}`);
+      }
 
-    let refundResult: any = null;
+      let refundResult: any = null;
+      if (refundInput) {
+        if (!this.payments) {
+          throw new ConflictException('Refund service is unavailable; dispute cannot be resolved with a refund');
+        }
+        const payment = await tx.query.paymentRecords.findFirst({
+          where: eq(paymentRecords.orderId, dispute.orderId),
+        });
+        if (!payment) throw new NotFoundException('No payment found for this order');
 
-    // If refund requested, create via P12 path
-    if (refundInput && this.payments) {
-      const payment = await this.db.db.query.paymentRecords.findFirst({
-        where: eq(paymentRecords.orderId, dispute['orderId']),
-      });
-      if (!payment) throw new NotFoundException('No payment found for this order');
-
-      const idempotencyKey = `dispute-refund:${disputeId}`;
-
-      // P13 recovery: if a previous attempt committed the refund but failed before
-      // finishing the dispute transition, reuse it instead of hitting the
-      // unique idempotency-key constraint (which would make the dispute unresolvable).
-      const existingRefund = await this.db.db.query.refunds.findFirst({
-        where: eq(refunds.idempotencyKey, idempotencyKey),
-      });
-
-      const refundReason = refundInput.reason || 'PRODUCT_NOT_AS_DESCRIBED';
-
-      if (existingRefund) {
-        // Reuse is safe only when the committed refund is the exact financial
-        // request this retry is attempting to finish.
+        const refundReason = refundInput.reason || 'PRODUCT_NOT_AS_DESCRIBED';
+        const idempotencyKey = `dispute-refund:${disputeId}`;
+        const existingRefund = await tx.query.refunds.findFirst({
+          where: eq(refunds.idempotencyKey, idempotencyKey),
+        });
         if (
-          existingRefund.paymentRecordId !== payment.id ||
-          existingRefund.orderId !== dispute['orderId'] ||
-          Number(existingRefund.amountMinor) !== refundInput.amountMinor ||
-          existingRefund.reason !== refundReason ||
-          existingRefund.requestedBy !== dispute['raisedBy'] ||
-          existingRefund.currency !== payment.currency ||
-          (existingRefund.disputeId !== null && existingRefund.disputeId !== disputeId)
+          existingRefund &&
+          (
+            existingRefund.paymentRecordId !== payment.id ||
+            existingRefund.orderId !== dispute.orderId ||
+            Number(existingRefund.amountMinor) !== refundInput.amountMinor ||
+            existingRefund.reason !== refundReason ||
+            existingRefund.requestedBy !== dispute.raisedBy ||
+            existingRefund.currency !== payment.currency ||
+            (existingRefund.disputeId !== null && existingRefund.disputeId !== disputeId)
+          )
         ) {
           throw new ConflictException(
             'Dispute refund idempotency key was already used for a different request',
           );
         }
 
-        refundResult = {
-          refundId: existingRefund.id,
-          amountMinor: Number(existingRefund.amountMinor),
-          status: existingRefund.status,
-        };
-      } else {
         refundResult = await this.payments.requestRefund(
           payment.id,
           refundInput.amountMinor,
           refundReason,
-          dispute['raisedBy'],
+          dispute.raisedBy,
           { sub: adminUserId, role: caller.role },
           {
             idempotencyKey,
             notes: `Dispute ${disputeId} resolution refund`,
           },
+          tx,
         );
-      }
-    }
 
-    await this.db.db.transaction(async (tx) => {
-      // P13: link the refund back to this dispute inside the resolution transaction
-      if (refundResult) {
-        await tx
-          .update(refunds)
+        await tx.update(refunds)
           .set({ disputeId, updatedAt: new Date() })
           .where(eq(refunds.id, refundResult.refundId));
       }
 
-      const [resolvedDispute] = await tx
-        .update(disputes)
+      const [resolvedDispute] = await tx.update(disputes)
         .set({
           status: 'RESOLVED',
           resolution,
@@ -288,14 +275,11 @@ export class DisputesService {
         })
         .where(and(
           eq(disputes.id, disputeId),
+          eq(disputes.status, dispute.status),
           ne(disputes.status, 'RESOLVED'),
           ne(disputes.status, 'CLOSED'),
         ))
         .returning({ id: disputes.id });
-
-      // The preflight read above is not a concurrency boundary. Use a
-      // compare-and-set transition so simultaneous resolutions cannot append
-      // duplicate immutable events or publish duplicate outbox messages.
       if (!resolvedDispute) {
         throw new ConflictException('Dispute was already resolved or closed by another request');
       }
@@ -308,10 +292,9 @@ export class DisputesService {
         body: resolution,
         metadata: refundResult ? { refundId: refundResult.refundId, amountMinor: refundResult.amountMinor } : {},
       });
-
       await this.outbox.publish('dispute.resolved', disputeId, {
         disputeId,
-        orderId: dispute['orderId'],
+        orderId: dispute.orderId,
         resolution,
         refundId: refundResult?.refundId ?? null,
       }, {}, null, tx);
@@ -319,7 +302,6 @@ export class DisputesService {
 
     return this.loadDispute(disputeId);
   }
-
   async getDisputeEvents(disputeId: string, caller: CallerContext) {
     await this.getDispute(disputeId, caller);
     return this.db.db.query.disputeEvents.findMany({

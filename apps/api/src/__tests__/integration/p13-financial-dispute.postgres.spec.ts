@@ -46,6 +46,7 @@
  *   FIN-DSH-42  Multiple outbox dispatcher instances claim each event once
  *   FIN-DSH-43  BANK_TRANSFER checkout commits payment/order state atomically
  *   FIN-DSH-44  Checkout rolls back when payment outbox persistence fails
+ *   FIN-DSH-45  Dispute refund and resolution share one transaction
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -2182,5 +2183,41 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect((await pool.query(`SELECT id FROM payment_records WHERE order_id IN (SELECT id FROM orders WHERE master_order_id IN (SELECT id FROM master_orders WHERE idempotency_key = $1))`, [idempotencyKey])).rows).toHaveLength(0);
     const cart = await pool.query(`SELECT status FROM carts WHERE id = $1`, [cartId]);
     expect(cart.rows[0].status).toBe('ACTIVE');
+  }, 60_000);
+  it('FIN-DSH-45: dispute refund request and resolution roll back together when the final outbox write fails', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const dispute = await openDispute(orderId);
+    const outbox = (disputesService as any).outbox;
+    const originalPublish = outbox.publish.bind(outbox);
+    const publishSpy = vi.spyOn(outbox, 'publish').mockImplementation(async (...args: any[]) => {
+      if (args[0] === 'dispute.resolved') throw new Error('Synthetic dispute resolution outbox failure');
+      return originalPublish(...args);
+    });
+    try {
+      await expect(disputesService.resolveDispute(
+        dispute.id, adminA, 'Refund should roll back', adminCaller,
+        { amountMinor: 500, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
+      )).rejects.toThrow('Synthetic dispute resolution outbox failure');
+    } finally {
+      publishSpy.mockRestore();
+    }
+
+    const persistedDispute = await pool.query(`SELECT status FROM disputes WHERE id = $1`, [dispute.id]);
+    expect(persistedDispute.rows[0].status).toBe('OPEN');
+    expect((await pool.query(`SELECT id FROM refunds WHERE idempotency_key = $1`, [`dispute-refund:${dispute.id}`])).rows)
+      .toHaveLength(0);
+    expect((await pool.query(
+      `SELECT id FROM payment_events WHERE payment_record_id =
+       (SELECT id FROM payment_records WHERE order_id = $1) AND event_type = 'PAYMENT_REFUND_REQUESTED'`,
+      [orderId],
+    )).rows).toHaveLength(0);
+    expect((await pool.query(
+      `SELECT id FROM outbox_events WHERE aggregate_id IN ($1, (SELECT id FROM payment_records WHERE order_id = $2))
+       AND event_type IN ('payment.refund_requested', 'dispute.resolved')`,
+      [dispute.id, orderId],
+    )).rows).toHaveLength(0);
+    expect((await pool.query(
+      `SELECT id FROM dispute_events WHERE dispute_id = $1 AND event_type = 'RESOLVED'`, [dispute.id],
+    )).rows).toHaveLength(0);
   }, 60_000);
 });
