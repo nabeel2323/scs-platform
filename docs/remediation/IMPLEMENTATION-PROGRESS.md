@@ -2244,3 +2244,17 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - **Regression coverage:** PostgreSQL FIN-DSH-54/55 verify merchant bank-transfer verification, administrator COD cash confirmation, and privileged return overrides. Tests added, not executed.
 - **Commit:** e5733dc4a403c15da27d9064aa8703a89f6ee7f4.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No migration required; include in consolidated Phase 3 tests.
+
+
+## FIN-027 — Return refund balance aggregation — 23 November 2026
+
+- **Finding:** Return eligibility aggregation omitted `APPROVED` refunds while the payment refund path includes them, allowing a return request to ignore an already reserved refund balance. The aggregate also cast PostgreSQL `SUM(bigint)` to 32-bit `int`, which overflows for valid larger minor-unit totals.
+- **Implementation:** Include `APPROVED` in the reserved-refund statuses; retrieve the PostgreSQL numeric aggregate as text, convert with BigInt, and fail closed when outside the supported safe-integer range.
+- **Regression coverage:** PostgreSQL FIN-DSH-56 verifies APPROVED refunds reserve the refundable balance and an aggregate above 2,147,483,647 is handled without integer-cast overflow.
+- **Source commit:** `6ae8aba762215f69f42e74e4608a4fa31a02543b`. **Test commit:** `5b636df49155ea523bc730852ed900720a858a88`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. Tests not executed; include FIN-DSH-56 in the consolidated Phase 3 campaign.
+- **Safety:** No schema/migration, shared DB/staging write, deployment, worker activation, grant/RLS, gateway or payout change.
+
+### CI #1446 syntax blockers — 23 November 2026
+
+CI #1446 failed at lint on two parse errors in `returns.service.ts` and `settlement-adjustment.service.ts`. Both syntax defects were corrected in commits `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`. Flutter passed; all dependent API/PostgreSQL/migration/Web/Admin/build/boundary/contract/k6/staging jobs were skipped. No exact-head rerun has been performed; the corrections remain unverified by CI.
