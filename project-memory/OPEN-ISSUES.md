@@ -613,6 +613,6 @@ Source implementation is complete at `117614884ff1e0d50ca116f0b28f249fd83761c0`.
 
 ### FIN-002 — Settlement calculation idempotency
 
-**Status: IMPLEMENTED / TESTING_PENDING.** The settlement calculation now locks the payment row and reuses an existing active settlement instead of creating a duplicate. If a settlement has reached PAID or an adjustment record exists, recalculation is rejected and the explicit settlement-adjustment workflow remains required. PostgreSQL scenarios FIN-DSH-13/14 are added but not executed. No schema/migration or payout behavior changed.
+**Status: IMPLEMENTED / TESTING_PENDING.** The settlement calculation now locks the payment row and reuses an existing active settlement instead of creating a duplicate. If a settlement has reached PAID or an adjustment record exists, recalculation is rejected and the explicit settlement-adjustment workflow remains required. PostgreSQL scenarios FIN-DSH-13–15 are added but not executed. The service also refuses settlement calculation until payment is CONFIRMED, CAPTURED, PARTIALLY_REFUNDED or REFUNDED. No schema/migration or payout behavior changed.
 
 Next: continue source-first review of payment and settlement transitions; keep automatic gateway/payout scope unchanged.
