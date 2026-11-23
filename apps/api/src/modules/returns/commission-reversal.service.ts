@@ -241,7 +241,7 @@ export class CommissionReversalService {
       responsibilityCategory,
       idempotencyKey,
       status: 'POSTED',
-      currency,,
+      currency,
       notes: `Commission reversal for return ${returnRequestId}: ${responsibilityCategory} responsibility, ` +
              `netGoods=${returnNetGoods}/${orderNetGoods}, commission=${originalCommission}`,
       createdBy,
@@ -258,7 +258,7 @@ export class CommissionReversalService {
         reversalMinor,
         originalCommissionMinor: origCommission,
         responsibilityCategory,
-        currency,,
+        currency,
       },
       {},
       null,
