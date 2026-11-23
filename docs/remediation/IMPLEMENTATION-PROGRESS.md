@@ -2312,3 +2312,12 @@ The source/test correction batch at `954200f9bf7866aa2f25d0585847a0c51eb19259`:
 CI #45260954714 was queued on this exact source/test checkpoint when recorded. No results are claimed until that run finishes. The 14 new boundary findings remain un-baselined for a proper service-contract refactor. Remaining API/Web/PostgreSQL failures need domain-level triage; no change to acceptance criteria is implied. FIN-047 must remain TESTING_PENDING until pagination, merchant tenant-scope, Admin and Merchant recovery tests pass.
 
 No staging/production deployment, migration, shared database write, grant/default-ACL modification, RLS enablement or worker activation was performed. PR #138 remains OPEN / DRAFT / UNMERGED.
+
+## Post-format verification checkpoint — 23 November 2026
+
+**FIN-047 status remains IMPLEMENTED / TESTING_PENDING.** CI #45260954714 tested source checkpoint `954200f9bf7866aa2f25d0585847a0c51eb19259` and stopped at the changed-file Prettier gate. Install, lint and workspace typecheck passed; Flutter analyze/tests passed. API coverage, PostgreSQL integration, migration, boundary, contract, Web/Admin, build and container jobs were skipped. No application-test result is claimed from this run.
+
+Prettier write/check was subsequently completed for all affected source and memory files. The formatting-only commit is `4477ebd42ba46146b14df18094d025ab133c5d75`. A new exact-head consolidated CI run is required to verify the formatted branch and the audit/shipping/settlement changes. Do not promote FIN-047 to tested until its focused API, merchant tenant-scope, Admin recovery and Merchant recovery tests pass.
+
+The 14 new G-015 boundary findings remain open and must be resolved by a proper service-contract refactor. No baseline modification or cross-module import workaround is approved. G-002 database runtime identities and protected read-only evidence remain outstanding. No migration, grant/default-ACL change, shared database write, RLS enablement, deployment or worker activation was performed. PR #138 remains OPEN / DRAFT / UNMERGED.
+
