@@ -183,9 +183,9 @@ export class CommissionReversalService {
     const runTx = externalTx ?? this.db.db;
     try {
       await (externalTx
-        ? this.postReversalInTx(externalTx, reversalId, returnRequestId, ret.refundId, settlement?.id, originalCommission, reversalMinor, responsibilityCategory, idempotencyKey, returnNetGoods, orderNetGoods, originalCommission, createdBy, resolvedOrgId)
+        ? this.postReversalInTx(externalTx, reversalId, returnRequestId, ret.refundId, settlement?.id, payment.currency, originalCommission, reversalMinor, responsibilityCategory, idempotencyKey, returnNetGoods, orderNetGoods, originalCommission, createdBy, resolvedOrgId)
         : runTx.transaction(async (tx: any) => {
-            await this.postReversalInTx(tx, reversalId, returnRequestId, ret.refundId, settlement?.id, originalCommission, reversalMinor, responsibilityCategory, idempotencyKey, returnNetGoods, orderNetGoods, originalCommission, createdBy, resolvedOrgId);
+            await this.postReversalInTx(tx, reversalId, returnRequestId, ret.refundId, settlement?.id, payment.currency, originalCommission, reversalMinor, responsibilityCategory, idempotencyKey, returnNetGoods, orderNetGoods, originalCommission, createdBy, resolvedOrgId);
           })
         );
     } catch (err) {
@@ -214,7 +214,7 @@ export class CommissionReversalService {
   /** Internal: insert commission_reversals row + outbox event inside the given tx. */
   private async postReversalInTx(
     tx: any, reversalId: string, returnRequestId: string, refundId: string | null,
-    settlementId: string | undefined | null, originalCommission: number,
+    settlementId: string | undefined | null, currency: string, originalCommission: number,
     reversalMinor: number, responsibilityCategory: string, idempotencyKey: string,
     returnNetGoods: number, orderNetGoods: number, origCommission: number,
     createdBy: string | null, orgId?: string | null,
@@ -241,7 +241,7 @@ export class CommissionReversalService {
       responsibilityCategory,
       idempotencyKey,
       status: 'POSTED',
-      currency: payment.currency,
+      currency,,
       notes: `Commission reversal for return ${returnRequestId}: ${responsibilityCategory} responsibility, ` +
              `netGoods=${returnNetGoods}/${orderNetGoods}, commission=${originalCommission}`,
       createdBy,
@@ -258,7 +258,7 @@ export class CommissionReversalService {
         reversalMinor,
         originalCommissionMinor: origCommission,
         responsibilityCategory,
-        currency: payment.currency,
+        currency,,
       },
       {},
       null,
