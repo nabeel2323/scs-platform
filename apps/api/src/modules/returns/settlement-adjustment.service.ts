@@ -66,6 +66,15 @@ const ADMIN_ADJUSTMENT_PERMISSIONS = new Set([
   'admin:adjustments:write',
 ]);
 
+/**
+ * Settlement net is gross - refund - commission - fee. A commission reversal
+ * credits commission back to the merchant, so it increases net; other supported
+ * adjustment types in this workflow are debits and reduce net.
+ */
+export function calculateSettlementAdjustmentNetMinor(adjustmentType: string, amountMinor: number): number {
+  return adjustmentType === 'COMMISSION_REVERSAL' ? amountMinor : -amountMinor;
+}
+
 export interface CreateAdjustmentInput {
   subOrderId: string;
   returnRequestId?: string;
@@ -106,8 +115,8 @@ export class SettlementAdjustmentService {
     createdBy: string,
     orgId?: string | null,
   ) {
-    if (input.amountMinor <= 0) {
-      throw new BadRequestException('Adjustment amount must be positive');
+    if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0) {
+      throw new BadRequestException('Adjustment amount must be a positive safe integer in minor units');
     }
     if (!input.reason || input.reason.trim().length === 0) {
       throw new BadRequestException('Adjustment reason is required');
@@ -492,7 +501,7 @@ export class SettlementAdjustmentService {
           refundMinor: adj.adjustmentType === 'REFUND_SUPPLEMENT' || adj.adjustmentType === 'DELIVERY_FEE_REFUND' || adj.adjustmentType === 'DELIVERY_FEE_EXCEPTION' ? adj.amountMinor : 0,
           commissionMinor: adj.adjustmentType === 'COMMISSION_REVERSAL' ? adj.amountMinor : 0,
           feeMinor: adj.adjustmentType === 'BALANCE_ADJUSTMENT' ? adj.amountMinor : 0,
-          netMinor: -adj.amountMinor,
+          netMinor: calculateSettlementAdjustmentNetMinor(adj.adjustmentType, adj.amountMinor),
           currency: adj.currency,
           status: 'ADJUSTMENT',
           calculatedAt: new Date(),

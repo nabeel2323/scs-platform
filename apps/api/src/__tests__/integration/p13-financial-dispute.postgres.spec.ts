@@ -34,6 +34,7 @@
  *   FIN-DSH-30  COD payments are excluded from stale-payment expiry
  *   FIN-DSH-31  Return refund allocation and delivery exception currency
  *   FIN-DSH-32  Concurrent return creation preserves one-active-return invariant
+ *   FIN-DSH-33  Commission reversal adjustment posts as a merchant credit
  *   FIN-DSH-33  Return request idempotent retry and payload integrity
  *
  * All assertions are against persisted database state, not code inspection.
@@ -177,6 +178,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   let returnsService: ReturnsService;
   let paymentsService: PaymentsService;
   let disputesService: DisputesService;
+  let settlementAdjService: SettlementAdjustmentService;
 
   const merchantA = randomUUID();
   const buyerA = randomUUID();
@@ -244,7 +246,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications, undefined, paymentsService);
     const calendarService = new BusinessCalendarService(database);
     const commissionReversalService = new CommissionReversalService(database, outbox);
-    const settlementAdjService = new SettlementAdjustmentService(database, outbox);
+    settlementAdjService = new SettlementAdjustmentService(database, outbox);
     // P13 Phase 4: pilot gate is inactive in this suite (no flag, no env mode),
     // so ReturnsService behaviour is identical to Phase 3.1.1.
     const pilotService = new PilotControlService(
@@ -1664,6 +1666,57 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [first.id],
     );
     expect(outbox.rows[0].count).toBe(1);
+  }, 60_000);
+
+
+  // ── FIN-DSH-33: Commission reversal adjustment net sign ─────────
+
+  it('FIN-DSH-33: posts a commission reversal as a positive merchant credit', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
+
+    const adjustment = await settlementAdjService.createAdjustment({
+      subOrderId: orderId,
+      adjustmentType: 'COMMISSION_REVERSAL',
+      amountMinor: 125,
+      currency: settlement.currency,
+      reason: 'Approved commission reversal',
+    }, adminA, orgA);
+
+    const approvalHash = (await pool.query(
+      `SELECT approval_hash FROM settlement_adjustments WHERE id = $1`,
+      [adjustment.id],
+    )).rows[0].approval_hash as string;
+
+    await pool.query(
+      `UPDATE settlement_adjustments
+       SET status = 'APPROVED', fx_status = 'RESOLVED'
+       WHERE id = $1`,
+      [adjustment.id],
+    );
+    await pool.query(
+      `INSERT INTO settlement_adjustment_approvals
+       (id, adjustment_id, approver_id, approver_role, approval_hash)
+       VALUES ($1, $2, $3, 'FINANCE', $5), ($4, $2, $6, 'ADMIN', $5)`,
+      [randomUUID(), adjustment.id, buyerA, randomUUID(), approvalHash, merchantA],
+    );
+
+    await settlementAdjService.postAdjustment(adjustment.id, adminA, orgA);
+
+    const posted = await pool.query(
+      `SELECT commission_minor::int AS commission, refund_minor::int AS refund,
+              net_minor::int AS net, currency
+       FROM settlement_records
+       WHERE sub_order_id = $1 AND status = 'ADJUSTMENT'
+       ORDER BY calculated_at DESC LIMIT 1`,
+      [orderId],
+    );
+    expect(posted.rows).toEqual([{
+      commission: 125,
+      refund: 0,
+      net: 125,
+      currency: settlement.currency,
+    }]);
   }, 60_000);
 
   // ── FIN-DSH-10: Rollback under a losing REFUNDED race ────────────

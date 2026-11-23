@@ -21,6 +21,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import crypto from 'node:crypto';
+import { calculateSettlementAdjustmentNetMinor } from '../../../modules/returns/settlement-adjustment.service';
 
 // ── Pure-function mirrors of SettlementAdjustmentService logic ──────
 
@@ -284,5 +285,19 @@ describe('Settlement Adjustment — Posting Guard (Phase 3.1)', () => {
 
   it('can post when fx_status is RESOLVED', () => {
     expect(canPost('RESOLVED')).toBe(true);
+  });
+});
+
+
+describe('Settlement Adjustment — Posting net sign', () => {
+  it('posts a commission reversal as a positive merchant credit', () => {
+    expect(calculateSettlementAdjustmentNetMinor('COMMISSION_REVERSAL', 1250)).toBe(1250);
+  });
+
+  it('posts refund and fee adjustments as negative merchant debits', () => {
+    expect(calculateSettlementAdjustmentNetMinor('REFUND_SUPPLEMENT', 1250)).toBe(-1250);
+    expect(calculateSettlementAdjustmentNetMinor('DELIVERY_FEE_REFUND', 450)).toBe(-450);
+    expect(calculateSettlementAdjustmentNetMinor('DELIVERY_FEE_EXCEPTION', 450)).toBe(-450);
+    expect(calculateSettlementAdjustmentNetMinor('BALANCE_ADJUSTMENT', 300)).toBe(-300);
   });
 });
