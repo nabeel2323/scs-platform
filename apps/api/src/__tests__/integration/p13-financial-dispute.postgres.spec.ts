@@ -33,6 +33,7 @@
  *   FIN-DSH-29  Discount-adjusted commission reversal and currency
  *   FIN-DSH-30  COD payments are excluded from stale-payment expiry
  *   FIN-DSH-31  Return refund allocation and delivery exception currency
+ *   FIN-DSH-32  Concurrent return creation preserves one-active-return invariant
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -1149,6 +1150,79 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       status: 'DELIVERED',
       payment_status: 'AWAITING_PAYMENT',
     });
+  }, 60_000);
+
+  // ── FIN-DSH-32: Concurrent return creation serialization ───────
+
+  it('FIN-DSH-32: concurrent return requests serialize and only one active request is created', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderItemId = (await pool.query(
+      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`,
+      [orderId],
+    )).rows[0].id as string;
+    const paymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`,
+      [orderId],
+    )).rows[0].id as string;
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+
+    // Hold the payment row until both requests have passed their fast-fail
+    // checks and are waiting to enter the serialized creation transaction.
+    const lockClient = await pool.connect();
+    let requests: Promise<any>[] = [];
+    try {
+      await lockClient.query('BEGIN');
+      await lockClient.query(
+        `SELECT id FROM payment_records WHERE id = $1 FOR UPDATE`,
+        [paymentId],
+      );
+
+      const makeRequest = (key: string) => returnsService.createReturnRequest({
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        description: 'Concurrent return creation regression',
+        idempotencyKey: key,
+        lines: [{ orderItemId, quantity: 2 }],
+      }, buyerCaller);
+      requests = [
+        makeRequest(randomUUID()),
+        makeRequest(randomUUID()),
+      ];
+
+      let waiting = 0;
+      for (let attempt = 0; attempt < 200; attempt += 1) {
+        const activity = await pool.query(
+          `SELECT count(*)::int AS count
+           FROM pg_stat_activity
+           WHERE pid <> $1
+             AND wait_event_type = 'Lock'
+             AND query ILIKE '%payment_records%'`,
+          [lockClient.processID],
+        );
+        waiting = activity.rows[0].count;
+        if (waiting >= 2) break;
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      expect(waiting).toBeGreaterThanOrEqual(2);
+      await lockClient.query('COMMIT');
+    } catch (error) {
+      await lockClient.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      lockClient.release();
+    }
+
+    const results = await Promise.allSettled(requests);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+
+    const active = await pool.query(
+      `SELECT count(*)::int AS count FROM return_requests
+       WHERE sub_order_id = $1
+         AND status NOT IN ('REFUNDED','MERCHANT_REJECTED','CANCELLED','EXPIRED','REJECTED_AFTER_INSPECTION')`,
+      [orderId],
+    );
+    expect(active.rows[0].count).toBe(1);
   }, 60_000);
 
   // ── FIN-DSH-17: Settlement payment transition history and outbox ──
