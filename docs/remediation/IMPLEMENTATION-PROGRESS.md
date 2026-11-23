@@ -1894,3 +1894,17 @@ A user-uploaded audit note reports 111/111 tables with RLS disabled; 32 public-s
 The note contains no observation timestamp, database endpoint, SQL/query text, connection identity or relation-kind scope. It is preserved as supplemental, not independently reconciled evidence in [G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md](./G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md). Its 111-table count is not substituted for the detailed 114 public ordinary/partitioned table snapshot or historical 116 wording. Function-scope reconciliation, actual API/migration identities and protected read-only catalog evidence remain open. The 55-index count aligns with the existing G-013 candidate count; no index DDL is justified without workload evidence.
 
 No G-002 status is promoted. No SQL mutation, migration, grant/default-ACL change, RLS enablement, extension ownership change, staging write, deployment, restart, worker activation or test-record creation occurred.
+
+
+## Programme UX-099 — Shared Admin mutation permission rechecks — 23 November 2026
+
+This is client-side action safety and does not change G-001–G-036 audit finding status or server-side authorization.
+
+- Extended `useAdminMutation` with an optional action-specific permission predicate checked at request dispatch.
+- Bound User status/membership, dispute, category, brand and offer-governance actions to their actual permissions. Carrier recovery and shipment exception/RTS, inventory-return, carrier-write and carrier-recovery actions now use their distinct permission conditions.
+- User Detail profile submission rechecks `admin:users:write` and prevents duplicate save; profile edit UI is hidden if permission is lost.
+- Added `apps/admin/src/__tests__/admin-mutation-permission-guard.test.tsx` for permission loss before dispatch and the authorized path. Test has **not been executed**.
+- Source commits: `262f2d1`, `d52acd6`, `93ec686`, `20447d2`, `bed844f`, `9313b85`; test: `046160d`.
+- Status: **IMPLEMENTED / TESTING_PENDING**, not automated-test verified or CI-verified. No API grants, backend auth, schema, migration, DB, staging or deployment changes.
+
+**Next:** complete remaining Admin custom route/action-to-controller mapping and verify all `useAdminMutation` call sites use action-specific permissions. Phase 3 remains the consolidated formatting and test campaign.
