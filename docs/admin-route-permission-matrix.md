@@ -2,7 +2,7 @@
 
 **Audit date:** 22 November 2026  
 **Repository branch inspected:** `remediation/phase-0-1-tenant-security`  
-**Source checkpoint:** `14c8c5caa908a2194c8a3ec903de08f15e0db50e`  
+**Source checkpoint:** `8e795c3eee12d42938d525f2aaf2894b3b47e382`  
 **Scope:** all 56 `apps/admin/src/app/**/page.tsx` files in the inspected Git tree.
 
 This is a source-level UI permission inventory, not a replacement for API authorization. The Admin root layout wraps the application in `AuthGuard`; page-level permissions are checked with `useRequirePerms`, and generic list routes use the permission in `managementTables` through `ManagementPage`. The backend `PermissionsGuard` remains authoritative.
@@ -116,3 +116,14 @@ The follow-up source audit covered the custom direct mutation handlers for payme
 The shared `useAdminMutation` call sites reviewed in `EntityActions.tsx`, the Carrier Recovery table and Shipment Detail supply action-specific permission predicates; mixed carrier create/cancel/recovery actions use per-call overrides so write and recovery capabilities are not conflated. API authorization remains authoritative.
 
 The one missing custom financial action was the settlement-adjustment Reject workflow, now implemented as documented above. Focused tests remain pending Phase 3; this is a source audit, not runtime or automated-test verification.
+
+
+## Catalog governance direct-action guards and publish correctness — UX-101 — 23 November 2026
+
+- Product Type list/create/detail handlers now recheck `catalog:product-types:manage` before publish, create and category-update mutations. Publish operations are single-flight and show pending state.
+- Product Type Builder Save/Publish handlers recheck the same permission, prevent overlapping save/publish requests, and Publish now stops if saving dirty attributes or variant dimensions fails. Product-type product reads also stop when access is absent.
+- Catalog Import Center now gates initial history reads, upload, execute, retry, error inspection, template/report downloads and export on `catalog:imports:manage`. Upload/execute/retry are single-flight. The API continues to enforce both permission and ADMIN/SUPER_ADMIN role.
+- Attribute and Attribute Group forms now receive and recheck `catalog:attributes:manage` at create/update/deactivate/option/group mutation boundaries; mutation controls are disabled when the capability is absent.
+- Focused regression coverage in `admin-product-type-products-recovery.test.tsx` proves a failed dirty-configuration save does not call Publish. Tests have not been executed; the full campaign remains deferred to Phase 3.
+- Source commits: `bbe5a72`, `9af0646`, `553cb25`, `8e795c3`; test commits: `43c6e5e`, `997da23`, `3d59ae9`.
+- Status: **IMPLEMENTED / TESTING_PENDING**, not test-verified or CI-verified.

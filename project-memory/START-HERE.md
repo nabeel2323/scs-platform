@@ -504,3 +504,13 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Custom financial route/action permission mapping was compared with API controller decorators for reconciliation, settlement adjustments, settlements, payments and role permission updates. The reviewed permission predicates match the endpoint guards.
 - PR #138 remains open/draft/unmerged. No exact-head Actions run or test pass is claimed.
 - Next: continue direct custom mutation handler audit; batch comprehensive formatting and testing in Phase 3. No database, staging, migration, grants, RLS, worker or deployment action occurred.
+
+
+## Latest continuation — 23 November 2026 (Admin UX-101)
+
+- Added action-time permission checks to Product Type governance, Catalog Import Center, Attribute Management and Attribute Groups.
+- Product Type Builder Publish no longer proceeds when saving dirty configuration fails; focused regression test added but not executed.
+- Catalog Import Center upload/execute/retry actions are single-flight; permission and role enforcement in the API is unchanged.
+- Source commits: `bbe5a72`, `9af0646`, `553cb25`, `8e795c3`; tests: `43c6e5e`, `997da23`, `3d59ae9`.
+- PR #138 remains open/draft/unmerged; exact-head CI must be refreshed. No database, staging, migration, grants, RLS, worker or deployment action occurred.
+- Next: continue the Admin operational UX/source audit beyond permission mapping; Phase 3 remains the consolidated formatter and test campaign.

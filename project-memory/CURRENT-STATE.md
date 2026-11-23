@@ -803,3 +803,15 @@ Merchant active-store and product reads now preserve last-successful data throug
 - No backend permissions, financial transition behavior, database, migration, staging, worker or deployment behavior changed.
 
 **Next:** complete the remaining Admin custom action-handler audit, especially direct mutation handlers outside the shared mutation helper. Keep the consolidated Prettier and test campaign deferred to Phase 3.
+
+
+## Admin catalog governance action guard checkpoint — 23 November 2026 (UX-101)
+
+- Source checkpoint: `8e795c3eee12d42938d525f2aaf2894b3b47e382`; focused test checkpoint: `3d59ae9b4b5f7d2f6316bb432836f66131edb1d7`.
+- Product Type create/category-update/publish and Builder save/publish handlers now recheck `catalog:product-types:manage`; Builder Publish stops if saving dirty configuration fails.
+- Catalog Import Center gates reads and upload/execute/retry/report/template/export actions on `catalog:imports:manage`; long-running import actions are single-flight.
+- Attribute and Attribute Group mutation handlers recheck `catalog:attributes:manage`.
+- Focused test covers failed Product Type Builder save preventing publish; not executed. Changes are IMPLEMENTED / TESTING_PENDING, not CI-verified.
+- No backend permissions, database, migration, staging, worker or deployment behavior changed.
+
+**Next:** continue the remaining Admin operational UX/source audit beyond permission mapping; comprehensive formatting and testing remain grouped in Phase 3.

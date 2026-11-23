@@ -1103,3 +1103,16 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Focused UX-100 tests remain unexecuted. No API grants, backend authorization, schema, migration, database, staging, worker or deployment behavior changed.
 
 **Next:** proceed with the remaining Admin operational UX/source audit beyond permission mapping; keep comprehensive formatting and test execution grouped in Phase 3.
+
+
+## 2026-11-23 — Catalog governance action guards and Product Type publish correctness (UX-101)
+
+- Continued the Admin custom-action audit into Product Type governance, Catalog Import Center, Attribute Management and Attribute Groups.
+- Added `catalog:product-types:manage` action-time checks to Product Type create, category update and publish paths. Product Type Builder Save/Publish now recheck the permission, prevent overlapping requests and prevent Publish after a failed dirty-configuration save.
+- Catalog Import Center now guards the history read and all import/report/template/export actions with `catalog:imports:manage`; upload, execute and retry are single-flight. Existing API ADMIN/SUPER_ADMIN role guard remains authoritative.
+- Attribute create/update/deactivate/option and Attribute Group create handlers now recheck `catalog:attributes:manage`.
+- Added a regression test proving failed Product Type Builder configuration save prevents publish. Tests have not been executed.
+- Source commits: `bbe5a72`, `9af0646`, `553cb25`, `8e795c3`; tests: `43c6e5e`, `997da23`, `3d59ae9`.
+- Status: IMPLEMENTED / TESTING_PENDING. No API grants, backend permission semantics, schema, migration, database, staging, worker or deployment behavior changed.
+
+**Next:** continue the remaining Admin operational UX/source audit beyond permission mapping. Keep the consolidated formatting and test campaign grouped in Phase 3.

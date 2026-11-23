@@ -880,3 +880,11 @@ The next full workflow is required to verify these changes.
 - Latest known application CI remains #1408 on earlier SHA `a76b0bef436af8bde2d9329b1cd6ee5980f593fc`: lint/typecheck and Flutter analysis/tests passed; changed-file Prettier failed across 245 files, and dependent jobs were skipped. It does not verify UX-100.
 - Live PR #138 head after the documentation batch: `ea8015ba5f5cf239a3a34304645326bc9ec51038`; PR remains OPEN / DRAFT / UNMERGED to `develop`. Exact-head workflow lookup returned no Actions run. Combined statuses are Vercel Web and Admin FAILURE, both `Deployment rate limited — retry in 24 hours` and linking to the provider build-rate-limit page; these are not application test results.
 - No merge, deployment, protected staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
+
+
+## UX-101 exact-head and validation checkpoint — 23 November 2026
+
+- Source checkpoint: `8e795c3eee12d42938d525f2aaf2894b3b47e382`; focused test checkpoint: `3d59ae9b4b5f7d2f6316bb432836f66131edb1d7`.
+- Focused tests have not been executed. No automated test/typecheck/formatting pass is claimed for UX-101.
+- CI #1408 remains the latest confirmed historical application run on earlier SHA `a76b0bef436af8bde2d9329b1cd6ee5980f593fc`; it passed lint/typecheck and Flutter analysis/tests but failed changed-file Prettier across 245 PR files, causing dependent jobs to skip. It does not verify UX-101.
+- No merge, deployment, protected staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.

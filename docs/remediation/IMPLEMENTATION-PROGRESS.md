@@ -1930,3 +1930,17 @@ This closes a UI-to-controller workflow omission; it does not change G-001–G-0
 - The reviewed UI permission predicates match their API controller decorators. The shared `useAdminMutation` invocations reviewed in `EntityActions.tsx`, Carrier Recovery and Shipment Detail provide action-specific predicates/per-call overrides.
 - The only concrete UI-to-controller workflow omission found in this slice was settlement-adjustment rejection; UX-100 now exposes the API operation with the exact approval permission and required reason.
 - This audit is source evidence only. Focused UX-100 tests and the consolidated Admin/API test campaign remain pending.
+
+
+## Programme UX-101 — Catalog governance action guards and Product Type publish correctness — 23 November 2026
+
+- Added action-boundary checks for `catalog:product-types:manage` across Product Type list publish, create form, category update and Product Type Builder save/publish handlers.
+- Product Type Builder save now returns an explicit success result. Publish will not run after a failed save of dirty attribute/variant-dimension configuration. Save and Publish operations use in-flight refs and pending UI states to prevent duplicate requests.
+- Product Type Builder products-tab reads are gated on the same active permission.
+- Catalog Import Center initial reads and its upload/execute/retry/error/report/template/export actions now fail closed without `catalog:imports:manage`; upload/execute/retry use a shared single-flight guard. Backend permission and ADMIN/SUPER_ADMIN role checks are unchanged.
+- Attribute and Attribute Group create/update/deactivate/option actions now receive and recheck `catalog:attributes:manage`; controls are disabled when the capability is absent.
+- Added a focused Product Type Builder regression proving a failed dirty-configuration save does not dispatch Publish. Test has **not been executed**.
+- Source commits: `bbe5a72`, `9af0646`, `553cb25`, `8e795c3`; test commits: `43c6e5e`, `997da23`, `3d59ae9`.
+- Status: **IMPLEMENTED / TESTING_PENDING**. No API permission grants, role grants, schema, migration, database, staging, worker or deployment behavior changed.
+
+**Next:** continue the remaining Admin operational UX/source audit beyond permission mapping; keep the accumulated formatting and comprehensive test campaign grouped in Phase 3.
