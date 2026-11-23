@@ -18,9 +18,17 @@
  *   FIN-DSH-14  Recalculation after settlement PAID is rejected
  *   FIN-DSH-15  Settlement is blocked until payment is confirmed
  *   FIN-DSH-16  Payment verification, COD confirmation and refund amounts must be positive safe integers
-
- *   FIN-DSH-24  Refund adjustment serializes with settlement payment
- *   FIN-DSH-25  Post-refund adjustment preserves settlement currency
+ *   FIN-DSH-17  Settlement payment transition history and outbox
+ *   FIN-DSH-18  COD order/payment projection consistency
+ *   FIN-DSH-19  Missing financial breakdown blocks payment confirmation
+ *   FIN-DSH-20  Dispute refund recovery payload integrity
+ *   FIN-DSH-21  Partial refund order payment projection
+ *   FIN-DSH-22  Full refund order payment projection
+ *   FIN-DSH-23  Concurrent dispute resolution idempotency
+ *   FIN-DSH-24  Return refund recovery payload integrity
+ *   FIN-DSH-25  Return refund recovery reason integrity
+ *   FIN-DSH-26  Post-refund adjustment preserves settlement currency
+ *   FIN-DSH-27  Refund adjustment serializes with settlement payment
  *
  * All assertions are against persisted database state, not code inspection.
  */
