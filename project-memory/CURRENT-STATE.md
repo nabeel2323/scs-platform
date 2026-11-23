@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source/test implementation commit:** `f554617c592ff57db296e0ca88614ac246468194` — FIN-002 settlement calculation idempotency and paid-settlement protection; FIN-DSH-13–16 added but not executed.
-**Latest source/test checkpoint:** `f554617c592ff57db296e0ca88614ac246468194` (FIN-002); this commit uses `[skip ci]` and is not CI-verified.  
+**Latest source/test implementation commit:** `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` — FIN-013 expiry/order race regression and test portability; FIN-DSH-11–28 added but not executed.
+**Latest source/test checkpoint:** `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` (FIN-013 and integration test portability); uses `[skip ci]` and is not exact-head CI-verified.  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,7 +19,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation checkpoint head | `f554617c592ff57db296e0ca88614ac246468194` (FIN-003 source + PostgreSQL regression tests; not executed) |
+| Latest implementation checkpoint head | `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` (FIN-013 test update; FIN-DSH-11–28 added, not executed) |
 | Latest implementation/test | UX-100–105 Admin workflow/action/read-gate improvements, FIN-001 refund concurrency/idempotency, FIN-002 settlement idempotency/confirmed-funds guard and FIN-003 minor-unit amount validation. FIN-DSH-11–16 added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
@@ -937,3 +937,14 @@ Merchant active-store and product reads now preserve last-successful data throug
 - FIN-DSH-24/25 cover amount/reason mismatch; tests not executed, IMPLEMENTED / TESTING_PENDING.
 - No schema/migration, provider, gateway, payout, staging, shared DB or deployment change.
 - Re-fetch live PR head and exact-head CI before next work. Continue source-first financial/operational correctness audit.
+
+## FIN-009–FIN-013 financial correctness checkpoint — 23 November 2026
+
+- FIN-009 dispute resolution concurrency: compare-and-set transition prevents duplicate RESOLVED event/outbox writes. Commit `2b8e2fa7cf2aab87d4186153a61748bc82805c52`.
+- FIN-010 return refund vs settlement payment: lock serializes adjustment with settlement PAID transition. Commit `a1dc7b2cf31c83f2a59c0a72f0056f4955fe7143`.
+- FIN-011 return refund recovery payload integrity: validates payment/order/amount/reason/requester/currency/return identity. Commit `72927529e64a719741b94b864f6adba7cafd4f0d`.
+- FIN-012 settlement adjustment currency: preserves original settlement currency. Commit `ba3318724c3080d4c29baee1c81e972262e14ac4`.
+- FIN-013 payment expiry race: cancellation history only follows a successful conditional order update. Source `028e30e9ebeb626b51b6d80bc28467c9c946c419`; regression `83550c34c7dc11492fc6e5c5fc6fcb418b79243c`.
+- Additional missing financial-breakdown fail-closed fix: `cdb189e95dd7022793af33352a18c31f81117059`.
+- FIN-DSH-11–28 are added but not executed. Status remains IMPLEMENTED / TESTING_PENDING.
+- CI #1427 on `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`: lint/typecheck and Flutter passed; Prettier failed (258 files); API/PostgreSQL/Web/Admin dependent jobs skipped. CI #1429 on `a7a2791b868bc89852b58b17fa11b8aaf87f3c81` was cancelled. CI #1434 on the subsequent test checkpoint is running; re-fetch exact head/results before relying on it.
