@@ -1078,7 +1078,7 @@ The existing return-idempotency case already owns FIN-DSH-33. Settlement-adjustm
 
 ## Live reconciliation — 23 November 2026 (FIN-027)
 
-The source/test checkpoint is `5b636df49155ea523bc730852ed900720a858a88`; source changes are FIN-027 commit `6ae8aba762215f69f42e74e4608a4fa31a02543b` plus syntax corrections `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`. Documentation checkpoint commits follow.
+The source/test checkpoint is `5b636df49155ea523bc730852ed900720a858a88`; source changes are FIN-027 commit `6ae8aba762215f69f42e74e4608a4fa31a02543b` plus syntax corrections `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`, followed by brace-balance correction `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`. Documentation checkpoint commits follow.
 
 CI #1446 on `8e32957d3435196222fbb9841e6063229b68b648` failed lint because of the two syntax errors noted above; Flutter passed and all dependent test/build/release jobs were skipped. The syntax errors are corrected in source but not yet CI-verified. FIN-DSH-56 is added but not executed. Exact-head workflow lookup for the source/test checkpoint returned no run; Vercel Web/Admin failures are external build-rate-limit statuses.
 
