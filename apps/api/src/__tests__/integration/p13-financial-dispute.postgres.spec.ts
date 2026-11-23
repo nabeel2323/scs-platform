@@ -527,9 +527,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   }, 60_000);
 
 
-  // ── FIN-DSH-21: Concurrent dispute resolution idempotency ───────
+  // ── FIN-DSH-23: Concurrent dispute resolution idempotency ───────
 
-  it('FIN-DSH-21: concurrent identical dispute resolutions commit one resolution event and outbox message', async () => {
+  it('FIN-DSH-23: concurrent identical dispute resolutions commit one resolution event and outbox message', async () => {
     const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
     const dispute = await openDispute(orderId);
 
