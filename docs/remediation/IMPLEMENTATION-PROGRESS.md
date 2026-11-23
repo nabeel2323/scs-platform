@@ -2323,3 +2323,21 @@ Return refund creation previously committed the payment refund/event/outbox firs
 - **Regression coverage:** PostgreSQL FIN-DSH-62 corrupts the succeeded refund amount and verifies that finalization fails closed, the return remains REFUND_PENDING, and no REFUNDED event/outbox or commission reversal is written.
 - **Source/test commit:** d84489f185cfc864074406f0c9029bc28f40dc94.
 - **Status:** IMPLEMENTED / TESTING_PENDING. Test added, not executed; include in consolidated Phase 3 PostgreSQL campaign. No migration or shared database action.
+
+## FIN-037 — Failed return-refund state and retry parity — 23 November 2026
+
+**Status: IMPLEMENTED / TESTING_PENDING.** The REFUND_FAILED transition now updates the linked payment refund to FAILED, inserts PAYMENT_REFUND_FAILED history and payment.refund_failed outbox, and commits payment and return state/history/outbox under the consistent payment → refund → return lock order. Retry from REFUND_FAILED reuses the same refund row, reopens it to REQUESTED after a balance recheck, and appends a retry history/outbox entry. FIN-DSH-63 and FIN-DSH-64 cover the retry and rollback paths. Commit: 7be49a0420432d4e31733b77ee2c3042e738d242.
+
+## FIN-038 — Idempotent refund approval retry — 23 November 2026
+
+**Status: IMPLEMENTED / TESTING_PENDING.** approveRefund now treats an already-SUCCEEDED refund as a no-op success under payment/refund row locks; the successful payment event and outbox are not duplicated. FIN-DSH-65 covers concurrent identical approvals. Commit: 89757383fd53dcb69d2c753f134aaf39d1b47bbc.
+
+## FIN-039 — Idempotent settlement-paid retry — 23 November 2026
+
+**Status: IMPLEMENTED / TESTING_PENDING.** markSettlementPaid accepts an already-PAID settlement only when the payment reference exactly matches the committed reference, and returns the persisted row without duplicate history/outbox; a conflicting reference remains a conflict. FIN-DSH-17 updated. Commit: 4020853e3a51386f56e57b41b501a3060f680e82.
+
+## FIN-040 — Failed-refund and retry status reconciliation — 23 November 2026
+
+**Status: IMPLEMENTED / TESTING_PENDING.** Reconciliation now reports REFUND_FAILED returns whose linked refund is not FAILED and REFUND_PENDING returns whose linked refund remains FAILED. It preserves event-time accounting periods, a legacy created_at fallback, missing-refund detection and non-monetary REFUND_STATUS_MISMATCH descriptions. FIN-DSH-66 added. Commit: 6a4e0edccab8cdd0dfa250fa3b950ab62a206a63.
+
+All tests are added/updated, not executed. No migration or shared/staging database action is required for FIN-037–040. Keep the consolidated Phase 3 test campaign pending until the remaining source implementation audit is complete.

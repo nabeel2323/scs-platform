@@ -1249,3 +1249,16 @@ Branch: remediation/phase-0-1-tenant-security. Exact HEAD: 56e583338bfe405009e74
 - Source correction commit: 988b2fcd468f38c70c0f8910534640e5f2ca6151.
 - The previous typecheck fix had left a literal newline escape in the RUNNING reconciliation insert and had not corrected the nullable orgId insert shape in the FAILED-run recovery insert. Both are now corrected: newline is a real source line break, and nullable tenant IDs are omitted from Drizzle insert objects so PostgreSQL retains NULL semantics.
 - The correction uses [skip ci]. No exact-head TypeScript verification is claimed; retain CI #1449 as the last executed workflow and rerun the comprehensive campaign at the planned Phase 3 checkpoint.
+
+## 23 November 2026 — financial retry and reconciliation source batch
+
+- Repository: nabeel2323/scs-platform
+- Branch: remediation/phase-0-1-tenant-security
+- PR #138 targets develop and remains OPEN / DRAFT / UNMERGED at the last check.
+- FIN-037 failed return-refund parity: source/test commit 7be49a0420432d4e31733b77ee2c3042e738d242.
+- FIN-038 idempotent refund approval: source/test commit 89757383fd53dcb69d2c753f134aaf39d1b47bbc.
+- FIN-039 idempotent settlement-paid retry: source/test commit 4020853e3a51386f56e57b41b501a3060f680e82.
+- FIN-040 reconciliation of failed/retried refund status divergence: source/test commit 6a4e0edccab8cdd0dfa250fa3b950ab62a206a63.
+- Regression coverage added/updated: FIN-DSH-63, FIN-DSH-64, FIN-DSH-65, FIN-DSH-66, and FIN-DSH-17.
+
+All commits in this batch used [skip ci] in line with the recorded implementation-first testing cadence. The tests are added but not executed; no exact-head Actions run or green CI result is claimed. Prior preview-provider rate-limit failures must not be represented as source-code test failures or successful CI. Do not merge, deploy, run migrations, write to shared/staging databases, activate workers, or alter RLS/ACL settings as part of this source-only work. Keep the Phase 3 test campaign pending until the remaining implementation audit is complete.

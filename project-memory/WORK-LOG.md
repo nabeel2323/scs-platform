@@ -1508,3 +1508,13 @@ Return refund creation previously committed the payment refund/event/outbox firs
 - Reviewed the exact source diff after the grouped CI #1449 typecheck correction and found a literal newline escape in the RUNNING insert plus an unchanged nullable orgId assignment in the FAILED-run recovery insert.
 - Corrected both Drizzle insert shapes in `apps/api/src/modules/returns/reconciliation.service.ts`; nullable orgId is omitted when the reconciliation is global, preserving database NULL behavior.
 - Commit: `988b2fcd468f38c70c0f8910534640e5f2ca6151`. No CI or test execution is claimed; the commit uses `[skip ci]` under the implementation-first programme.
+
+## 23 November 2026 — FIN-037–FIN-040 payment/refund/settlement retry audit
+
+- Continued from the FIN-036 handoff on remediation/phase-0-1-tenant-security / PR #138.
+- FIN-037: identified that a REFUND_FAILED return only updated return_requests, leaving its linked payment refund active. Added atomic payment refund failure state/event/outbox and return state/history/outbox. A retry reopens the same FAILED refund to REQUESTED only after a remaining-balance check. FIN-DSH-63/64 added. Commit 7be49a0420432d4e31733b77ee2c3042e738d242.
+- FIN-038: made approveRefund idempotent after SUCCEEDED so a concurrent/lost-response replay returns existing success without a second payment event/outbox. FIN-DSH-65 added. Commit 89757383fd53dcb69d2c753f134aaf39d1b47bbc.
+- FIN-039: made markSettlementPaid idempotent for a matching paymentReference after PAID; mismatched references remain conflicts. Updated FIN-DSH-17 to expect two successful identical concurrent commands but one persisted history/outbox event. Commit 4020853e3a51386f56e57b41b501a3060f680e82.
+- FIN-040: expanded reconciliation to detect REFUND_FAILED with non-FAILED refund state and REFUND_PENDING with FAILED refund state, using matching return state event timestamps and legacy created_at fallback. FIN-DSH-66 covers both legacy mismatches. Commit 6a4e0edccab8cdd0dfa250fa3b950ab62a206a63.
+- All regression tests added/updated but not executed; commits use [skip ci]. No migration, shared/staging DB write, worker activation, provider call, deployment or merge.
+- Next: source-first review settlement/refund/payment history and outbox parity, then complete implementation audit before the consolidated Phase 3 test campaign.

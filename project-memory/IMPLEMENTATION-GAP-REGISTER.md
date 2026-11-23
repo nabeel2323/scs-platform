@@ -984,3 +984,33 @@ PaymentsService.requestRefund now accepts an optional caller-owned transaction c
 ## FIN-035 — Atomic return-refund and return-ledger transition — 23 November 2026
 
 Return refund creation previously committed the payment refund/event/outbox first, then linked the refund and advanced the return request in a second transaction. It now locks the payment and performs refund creation (reusing PaymentsService's caller-owned transaction), return linkage, REFUND_PENDING state/history and return outbox in one transaction. The existing idempotency recovery path remains for legacy split-transaction rows. PostgreSQL FIN-DSH-61 injects failure at return outbox persistence and asserts that refund, payment event/outbox and return changes all roll back. Source commit: e462c256be710a81e42b2f2d4093d4700abe1818; test commit: f5d38d5a4af42ec29fa38040d8ba184e5dcbcdff, with scoped outbox assertion correction 4ad18e1eab3495030c6fff719607b5101337edb4 and test index update ac266c2c365d23c3ef3e58032616bb118d037715. Tests not executed.
+
+## FIN-036 — Return refund finalization lineage and amount integrity — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-036 | Atomic return finalization across payment/refund/return ledgers | Payment, refund and return are locked in a consistent order; exact lineage, succeeded states, currency, buyer/order linkage and safe amount equality are verified before downstream financial writes. FIN-DSH-62 added. | Execute the regression in the consolidated Phase 3 campaign. | P1 | IMPLEMENTED / TESTING_PENDING | No migration; no shared/staging DB changes; PR #138 remains draft. |
+
+## FIN-037 — Failed return-refund status and retry parity — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-037 | Atomic failed-refund state, payment event/outbox and return transition | The linked refund changes to FAILED; PAYMENT_REFUND_FAILED and payment.refund_failed are written with REFUND_FAILED return history/outbox in one payment → refund → return locked transaction. Retry reopens the same row to REQUESTED only after checking remaining refundable balance. FIN-DSH-63/64 added. | Execute FIN-DSH-63/64 in the consolidated Phase 3 campaign; confirm existing production rows that already diverged remain visible to reconciliation. | P1 | IMPLEMENTED / TESTING_PENDING | No migration; no shared/staging DB changes; PR #138 remains draft. |
+
+## FIN-038 — Refund approval retry idempotency — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-038 | Idempotent replay of a committed refund approval | A repeat approval of an already-SUCCEEDED refund returns the persisted result under payment/refund locks without duplicating payment history or outbox. FIN-DSH-65 added. | Execute the concurrent duplicate-approval regression and retain conflict behavior for failed/non-requested states. | P1 | IMPLEMENTED / TESTING_PENDING | No migration; no shared/staging DB changes; PR #138 remains draft. |
+
+## FIN-039 — Settlement-paid retry idempotency — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-039 | Idempotent settlement paid command | Same-reference retries after PAID return the stored settlement without additional PAYMENT_SETTLEMENT_PAID or outbox rows; a different payment reference is rejected. FIN-DSH-17 updated. | Execute concurrent same-reference retry and mismatched-reference assertions in consolidated Phase 3. | P1 | IMPLEMENTED / TESTING_PENDING | No migration; no shared/staging DB changes; PR #138 remains draft. |
+
+## FIN-040 — Failed-refund/retry reconciliation parity — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-040 | Detect current return/refund state divergence after failed or retried refunds | Reconciliation reports REFUND_FAILED paired with a non-FAILED refund and REFUND_PENDING paired with FAILED; missing/dangling linked refunds are reported and current-state event timestamps drive period attribution with a created_at fallback. FIN-DSH-66 added. | Execute both legacy divergence scenarios in the consolidated Phase 3 run; no automatic repair or financial mutation is performed by reconciliation. | P1 | IMPLEMENTED / TESTING_PENDING | No migration; no shared/staging DB changes; PR #138 remains draft. |

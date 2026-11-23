@@ -1167,3 +1167,16 @@ Branch: remediation/phase-0-1-tenant-security. Exact HEAD: 56e583338bfe405009e74
 - **FIN-036:** return finalization now locks and validates payment/refund/return lineage and exact amount before updating return history, settlement/commission ledgers or outbox. PostgreSQL FIN-DSH-62 added; not executed. Source/test commit d84489f185cfc864074406f0c9029bc28f40dc94.
 - **Next:** continue source-first financial lifecycle/retry/cross-ledger audit beyond FIN-036; do not repeat FIN-001–FIN-036. Full Phase 3 test campaign remains NOT STARTED.
 - **Gates:** G-001 PARTIAL (independent review pending); G-002 IN PROGRESS (protected runtime identities/catalog and reviewed least-privilege/RLS design pending); G-036 IN PROGRESS. No shared DB/staging write, migration, grant/default-ACL change, RLS enablement, worker activation, deployment or merge. PR #138 remains draft/unmerged.
+
+## 23 November 2026 — FIN-037 through FIN-040 continuation
+
+The source-first payment/refund/settlement retry audit continued beyond FIN-036.
+
+- **FIN-037 — Failed return-refund parity:** committed in 7be49a0420432d4e31733b77ee2c3042e738d242. REFUND_FAILED now updates the linked refunds row to FAILED, appends PAYMENT_REFUND_FAILED and payment.refund_failed, and commits those changes with return status/history/outbox. The REFUND_FAILED → REFUND_PENDING retry reopens the same refund row as REQUESTED after a locked remaining-balance check; it does not create another refund row. FIN-DSH-63/64 added.
+- **FIN-038 — Refund approval retry:** committed in 89757383fd53dcb69d2c753f134aaf39d1b47bbc. A retry after a committed SUCCEEDED approval returns the persisted refund without duplicate history/outbox; invalid statuses still conflict. FIN-DSH-65 added.
+- **FIN-039 — Settlement payment retry:** committed in 4020853e3a51386f56e57b41b501a3060f680e82. Repeating a PAID transition with the same payment reference is a read-only success; a conflicting reference is rejected. FIN-DSH-17 updated to exercise concurrent identical calls and one-event/one-outbox behavior.
+- **FIN-040 — Reconciliation of failed refund state:** committed in 6a4e0edccab8cdd0dfa250fa3b950ab62a206a63. Reconciliation now detects REFUND_FAILED paired with any non-FAILED refund state and REFUND_PENDING paired with FAILED. It preserves transition-time period attribution and reports non-monetary REFUND_STATUS_MISMATCH evidence. FIN-DSH-66 added.
+
+**Verification state:** tests added, not executed. All four implementation commits used [skip ci]; no exact-head Actions run or green status is claimed. No schema migration or database operation is required by these changes. PR #138 remains draft/unmerged pending the existing security-evidence and consolidated-test gates.
+
+**Next:** continue the source-first review of settlement/payment/refund history and outbox parity, then reconcile any legacy adjustment/retry paths before starting the deferred full Phase 3 campaign.

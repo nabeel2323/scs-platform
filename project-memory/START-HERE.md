@@ -797,3 +797,32 @@ Branch: remediation/phase-0-1-tenant-security. Exact HEAD: 56e583338bfe405009e74
 - Typecheck blockers were addressed in 8f4962a16b4e14ddd5af590377ca2686f9e90fe4 and a follow-up source correction in 988b2fcd468f38c70c0f8910534640e5f2ca6151 fixed malformed newline insertion and nullable orgId handling in both RUNNING/FAILED reconciliation inserts. FIN-036 source and regression test are in d84489f185cfc864074406f0c9029bc28f40dc94. These commits use [skip ci]; no exact-head verification is claimed.
 - **Next:** continue source-first payment/refund/settlement lifecycle and cross-ledger audit beyond FIN-036. Do not repeat FIN-001–FIN-036. Consolidated Phase 3 testing remains deferred until implementation is complete.
 - G-001 remains PARTIAL pending independent security review; G-002 remains IN PROGRESS pending protected runtime identity/catalog evidence and reviewed RLS design. PR #138 must remain draft and unmerged. No shared DB/staging writes, migrations, grants/default-ACL changes, RLS enablement, worker activation, deployment or merge.
+
+## Latest continuation checkpoint — FIN-037 through FIN-040 — 23 November 2026
+
+**Live workstream:** SCS Platform / Phase 0–1 tenant and financial correctness remediation. Re-read the live PR #138 and branch head before continuing; the checkpoint below records the latest implementation/test commits, not permission to merge or deploy.
+
+- Repository: nabeel2323/scs-platform
+- Working branch: remediation/phase-0-1-tenant-security
+- PR: #138, against develop, still OPEN / DRAFT / UNMERGED at the last repository check
+- Latest source/test commit in this batch: 6a4e0edccab8cdd0dfa250fa3b950ab62a206a63
+- FIN-037 source/test: 7be49a0420432d4e31733b77ee2c3042e738d242
+- FIN-038 source/test: 89757383fd53dcb69d2c753f134aaf39d1b47bbc
+- FIN-039 source/test: 4020853e3a51386f56e57b41b501a3060f680e82
+- FIN-040 source/test: 6a4e0edccab8cdd0dfa250fa3b950ab62a206a63
+
+### Completed in this continuation
+
+FIN-037 synchronizes failed return-refund transitions across payment and return ledgers. The failure now marks the linked refund FAILED, appends PAYMENT_REFUND_FAILED and payment.refund_failed, and writes the return state/history/outbox in one payment → refund → return locked transaction. Retrying from REFUND_FAILED reopens the same logical refund row to REQUESTED only after the remaining refundable balance is revalidated; one refund row is retained. PostgreSQL FIN-DSH-63/64 cover failure/retry and transaction rollback.
+
+FIN-038 makes approveRefund idempotent after a committed SUCCEEDED state. Concurrent retries return the existing result without duplicating payment history or outbox; FAILED and other invalid states remain conflicts. FIN-DSH-65 covers the concurrent duplicate command.
+
+FIN-039 makes markSettlementPaid idempotent for a PAID settlement only when the submitted payment reference matches the committed reference. A mismatched reference remains a conflict. The existing FIN-DSH-17 concurrency test now expects both identical commands to succeed while persisting one event and one outbox message.
+
+FIN-040 extends reconciliation to detect legacy cross-ledger divergence for both REFUND_FAILED returns linked to non-FAILED refunds and REFUND_PENDING returns linked to FAILED refunds. It uses the matching current-state event timestamp with a created_at fallback for legacy rows. FIN-DSH-66 covers both mismatch directions.
+
+### Current verification and restrictions
+
+All new regression tests are added but **not executed**. The source/test commits use [skip ci] under the recorded implementation-first cadence. Do not claim exact-head CI success. No migration, shared/staging database write, RLS/ACL change, background worker activation, provider call, deployment or merge was performed. Keep PR #138 draft until the recorded G-001/G-002 evidence gates and consolidated Phase 3 test campaign are complete.
+
+**Next task:** continue a source-first audit of settlement/refund/payment event-history and transactional outbox parity, including legacy retry and adjustment paths. Keep implementation moving in grouped commits; defer the consolidated Phase 3 campaign until implementation is complete. Always recheck exact PR head and CI before the next change.

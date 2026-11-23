@@ -831,3 +831,21 @@ Return refund creation previously committed the payment refund/event/outbox firs
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Return finalization now locks payment, refund and return rows in one transaction and verifies exact ledger lineage, succeeded payment/refund state, currency, buyer/order association and exact positive safe-integer amount before any downstream settlement, commission, history or outbox write. FIN-DSH-62 covers a succeeded refund whose amount no longer matches the return request; it must fail closed without finalizing the return. Test added, not executed. Source/test commit: d84489f185cfc864074406f0c9029bc28f40dc94.
 
 **Next:** continue the source-first audit of payment/refund/settlement lifecycle retries and cross-ledger consistency beyond FIN-036. Consolidated Phase 3 remains deferred until implementation is complete.
+
+## FIN-037 — Failed return-refund state and retry parity
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** The REFUND_FAILED transition now synchronizes the linked payment refund to FAILED, writes PAYMENT_REFUND_FAILED and payment.refund_failed, and commits the payment and return ledgers with their history/outbox in one transaction. The retry path reopens the same logical refund row as REQUESTED only after verifying the return is REFUND_FAILED and checking remaining refundable balance. FIN-DSH-63/64 added. Source/test commit: 7be49a0420432d4e31733b77ee2c3042e738d242.
+
+## FIN-038 — Idempotent refund approval retry
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Duplicate approval after a committed SUCCEEDED transition now returns the existing result without repeating event or outbox writes. FIN-DSH-65 added. Source/test commit: 89757383fd53dcb69d2c753f134aaf39d1b47bbc.
+
+## FIN-039 — Idempotent settlement-paid retry
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** A matching payment-reference retry after PAID returns the existing settlement; a different reference conflicts and cannot rewrite the payout record. FIN-DSH-17 updated. Source/test commit: 4020853e3a51386f56e57b41b501a3060f680e82.
+
+## FIN-040 — Failed refund state reconciliation
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** The reconciler now checks REFUND_FAILED → FAILED and prevents REFUND_PENDING → FAILED mismatches, reports missing/dangling linked refunds, and attributes findings to the current transition timestamp with a legacy created_at fallback. FIN-DSH-66 covers both legacy divergence directions. Source/test commit: 6a4e0edccab8cdd0dfa250fa3b950ab62a206a63.
+
+**Remaining programme gate:** FIN-DSH-63–66 are added but not executed. Run the full consolidated Phase 3 PostgreSQL/unit/security campaign only after the remaining source implementation audit is complete. Keep PR #138 draft/unmerged and do not apply migrations or modify shared/staging state.
