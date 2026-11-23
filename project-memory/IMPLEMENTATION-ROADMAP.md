@@ -614,3 +614,8 @@ Commit: `e5733dc4a403c15da27d9064aa8703a89f6ee7f4`.
 ## Financial correctness continuation — FIN-027 — 23 November 2026
 
 FIN-027 aligns return-side refundable-balance aggregation with PaymentsService: APPROVED refunds now reserve balance, and PostgreSQL SUM(bigint) is handled as exact numeric text/BigInt rather than a 32-bit cast. FIN-DSH-56 covers both regressions. Source/test commits: `6ae8aba762215f69f42e74e4608a4fa31a02543b` / `5b636df49155ea523bc730852ed900720a858a88`. Tests not executed; Phase 3 remains pending.
+
+
+## Financial correctness continuation — FIN-028 — 23 November 2026
+
+The admin-only settlement calculation event now records ADMIN rather than SYSTEM. FIN-DSH-57 verifies persisted actor ID/class. Source/test commits: `5a7dfd6ea67de61bb016cc7a7ef31749760955d8` / `05799cde897871ab9752af07bf70830ac834edbf`. Test remains pending Phase 3.
