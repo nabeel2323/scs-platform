@@ -141,6 +141,9 @@ function createMocks(shipment: ShipmentRow) {
       shipments: {
         findFirst: vi.fn(async () => shipment),
       },
+      stores: {
+        findFirst: vi.fn(async () => ({ orgId: 'org-001' })),
+      },
       carrierWebhookEvents: {
         findFirst: vi.fn(async () => null),
       },
@@ -394,7 +397,7 @@ describe('B331-U-10: Tenant Mismatch', () => {
 
     await expect(
       (worker as any).handleCancel(makeEvent({ metadata: { storeId: 'store-A' } })),
-    ).rejects.toThrow(/Tenant mismatch/);
+    ).rejects.toThrow(/outbox event store does not match its shipment/);
   });
 });
 
