@@ -1002,3 +1002,26 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - UX-095 is IMPLEMENTED / TESTING_PENDING. G-036 is IN PROGRESS; do not close before exact-head verification and independent review.
 
 **Next:** complete the Mobile route-permission and organization-context transition audit, then finish remaining Admin route/action permission mapping. Keep the comprehensive test campaign deferred to Phase 3.
+
+
+## 23 November 2026 — Mobile route/action permission and organization-context audit (UX-096)
+
+**Implementation checkpoint:** `84d7f4d713902819b21b89a12074986b17781c48`  
+**PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED to `develop`
+
+- Corrected offer route permissions: `/merchant/offers` and offer detail are read routes requiring `merchant:stores:read`; `/merchant/offers/new` requires `catalog:offers:write`.
+- Kept offer browsing available to read-only merchants. The create FAB/empty-state action, offer detail lifecycle controls and offer-submit handler now require `catalog:offers:write`.
+- Updated Mobile Catalog shortcuts and dashboard Offers card to use read permissions (`merchant:stores:read` for offers and `catalog:categories:read` for categories).
+- Corrected Merchant Orders driver assignment to use `fulfillment:shipments:assign`, matching the API controller. Order acceptance/preparation/status actions remain under `merchant:orders:write`. The handler and UI now enforce the separate permission.
+- Added handler guards for product save and offer creation.
+- Merchant shell now watches active organization, role and permissions; it resets the selected tab, keys the tab subtree by the effective scope and hides the previous workspace while the profile permission projection reloads.
+- Verified the existing organization switch flow in both organization screens: the returned token is persisted and installed before active-org state changes; organization-scoped providers are invalidated and router refresh is triggered. Existing provider-invalidation tests remain in place.
+
+### Focused tests and safety
+
+- Added/updated Mobile route-permission tests for offer read versus create.
+- Added positive/negative widget tests for driver assignment permission.
+- Tests were **not executed**. Commits use `[skip ci]`; no exact-head GitHub Actions run is available.
+- No API business behavior, schema, database, migration, staging, grants, RLS, workers or deployment changed.
+
+**Status:** UX-096 IMPLEMENTED / TESTING_PENDING. Mobile route/action/org-context implementation slice is complete at source level. **Next:** finish remaining Admin route/action permission mapping, then the consolidated testing phase.
