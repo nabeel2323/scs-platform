@@ -1618,3 +1618,12 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - CI #45243520666 on `86dbe607435d08f9e9ad483c1813ca52004df00a` found an invalid escaped template-literal delimiter at line 3428 of `p13-financial-dispute.postgres.spec.ts`. Corrected in `c036e7a483f634c9fad537c50fc8fc9dddb851a0`.
 - CI #45243772955 on `c036e7a483f634c9fad537c50fc8fc9dddb851a0` passed lint and then failed workspace typecheck: two old Admin settlement test mocks returned arrays rather than the new paginated response, and Admin Settlements used dot notation for an index-signature metadata key.
 - Corrected both mocks to return `{ data, total, limit, offset }` and changed metadata access to `['adjustmentId']`. These are grouped in the next source commit. Exact-head CI rerun required; no API, PostgreSQL, Web/Admin or Flutter test pass is claimed yet.
+
+
+## 23 November 2026 — FIN-047 consolidated CI result and formatter blocker
+
+- Verified branch head `d81f16cb2bab97c9896ead6ce7edb9bb8e92e63b`; PR #138 remains OPEN / DRAFT / UNMERGED.
+- CI #45245048568: lint PASS, workspace typecheck PASS, Flutter analyze PASS, Flutter tests PASS.
+- `pnpm format:check:changed` FAILED and reported 279 files. Because the step is in the blocking Lint & Typecheck job, API unit/coverage, PostgreSQL integration, Web/Admin tests, migration, boundary, contract, build and container jobs were skipped. This is not a successful Phase 3 campaign.
+- Vercel Web PASS; Vercel Admin FAILURE due external build-rate-limit.
+- All pagination/tenant/typecheck corrections are committed. Next: resolve the 279-file formatter gate in a grouped cleanup without disabling required checks, then rerun the consolidated campaign. No merge/deploy/database/environment/RLS/ACL/worker changes.

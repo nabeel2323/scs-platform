@@ -1348,3 +1348,12 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Exact head `c036e7a483f634c9fad537c50fc8fc9dddb851a0`: lint passed; typecheck failed on two legacy `fetchAdminSettlements` mocks in `management.test.tsx` (array response instead of `PaginatedResult`) and one `metadata.adjustmentId` index-signature access in Admin Settlements.
 - The mocks now return `{ data, total, limit, offset }`, and the UI uses bracket notation. The preceding CI #45243520666 exposed one invalid escaped SQL template-literal delimiter in `p13-financial-dispute.postgres.spec.ts`; corrected in `c036e7a`.
 - The next grouped commit carries these fixes and must be checked by exact-head CI. No tests are claimed passed beyond lint on #45243772955.
+
+
+## FIN-047 consolidated CI — 23 November 2026
+
+- Exact head `d81f16cb2bab97c9896ead6ce7edb9bb8e92e63b`; PR #138 OPEN / DRAFT / UNMERGED to `develop`.
+- GitHub Actions run [#45245048568](https://github.com/nabeel2323/scs-platform/actions/runs/45245048568): lint PASS, workspace typecheck PASS, Flutter analyze PASS, Flutter tests PASS.
+- Required changed-file Prettier gate FAILED with 279 files. It is part of the blocking Lint & Typecheck job, so API unit/coverage, PostgreSQL integration, Web/Admin tests, migration, boundary, contract, build and container jobs were skipped. Do not claim financial tests passed.
+- Vercel Web PASS; Vercel Admin FAILURE due external provider build-rate-limit.
+- No deployment, migration, shared/staging DB write, environment mutation, worker activation, RLS/ACL change or merge. Next: resolve formatting debt in a grouped cleanup without disabling required checks, then rerun the consolidated test campaign.

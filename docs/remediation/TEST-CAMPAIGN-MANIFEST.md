@@ -15,7 +15,7 @@ Run from the repository root after `pnpm install --frozen-lockfile`.
 | `pnpm lint` | ESLint across workspace packages | Required CI gate |
 | `pnpm typecheck` | TypeScript checks across workspace | Required CI gate |
 | `pnpm build` | Workspace production build | Required CI gate |
-| `pnpm format:check` | Prettier validation | Advisory in CI until repository-wide line-ending/formatting debt is resolved |
+| `pnpm format:check` | Full-repository Prettier validation | Advisory outside the PR workflow; the PR workflow runs blocking `pnpm format:check:changed` on all PR-changed files. CI #45245048568 reported 279 files and stopped downstream jobs; resolve this debt without disabling the required gate |
 | `pnpm boundary-lint` | Modular-monolith E6 boundary checker | Advisory in CI while known cross-module import debt remains |
 | `pnpm contracts:build` | Build API contract package | Required before web/admin contract tests |
 | `pnpm contracts:generate` | Generate TypeScript API client | Contract drift guard runs in CI |
@@ -87,3 +87,8 @@ The migration-full-apply job uses isolated CI PostgreSQL. It is not evidence tha
 ### FIN-047 financial UI coverage
 
 The Admin CI job also runs `admin-settlements-recovery.test.tsx` and `admin-settlement-adjustments-recovery.test.tsx`. The broader Admin management suite remains outside this focused CI command because its two documented baseline failures are unrelated; this does not exclude settlement pagination and adjustment recovery regressions.
+
+
+### Current PR formatter gate — 23 November 2026
+
+The PR workflow's `pnpm format:check:changed` step is blocking (despite the separate full-repository `format:check` being described as advisory). Exact-head CI #45245048568 reported 279 changed files with formatting differences; because the step runs inside the Lint & Typecheck job, API/Web/Admin and integration tests were skipped. Do not assume the Admin or Merchant settlement regressions passed. Do not disable the check; the formatting debt must be resolved in a grouped cleanup before the consolidated test campaign can continue.
