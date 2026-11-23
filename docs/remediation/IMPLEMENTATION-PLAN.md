@@ -1304,3 +1304,8 @@ Proportional commission reversal must use exact BigInt multiplication/division e
 #### FIN-016 — COD payment expiry exclusion
 
 Cash on delivery is collected at delivery and must not expire on the bank-transfer payment timeout. Stale-payment discovery must exclude CASH_ON_DELIVERY, and expirePayment must enforce the same rule at the service boundary. FIN-DSH-30 verifies a stale COD payment remains AWAITING_PAYMENT, its delivered order remains unchanged and no PAYMENT_EXPIRED event is emitted. Implementation is present; PostgreSQL test pending Phase 3. No schema/migration or gateway/payout scope change.
+
+
+## FIN-019 — Settlement adjustment posting integrity — 23 November 2026
+
+Settlement adjustment posting must preserve the financial sign convention `net = gross - refund - commission - fee`: a commission reversal is a merchant credit and therefore increases net, while refund, delivery-fee and balance-debit adjustments reduce net. Amounts must be positive safe integers in minor units. Posting must lock and attach an existing primary settlement; an approved adjustment must not be marked POSTED without a corresponding ledger row. The implementation adds a type-specific net helper, amount validation, primary-settlement row locking and fail-closed behavior when no primary settlement exists. Unit sign tests and PostgreSQL FIN-DSH-33/34 are added; execution remains pending Phase 3. No schema/migration, gateway or payout scope change.

@@ -859,3 +859,10 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 
 | FIN-017 | Return refund allocation precision and delivery-fee currency | Return line discounts/VAT used floating-point ratios; delivery-fee exception adjustments hardcoded SYP instead of the original payment currency. | Use BigInt-backed proportional minor-unit rounding for line discount/VAT and delivery-fee tax; persist payment currency for the adjustment. FIN-DSH-31. | P1 | IMPLEMENTED / TESTING_PENDING | Source 122edb4bf1dc67ba01bfc33b97809cc037781f87; PostgreSQL test e6823ee9b1c68f5b71229ffbda17c9f525b66565 pending Phase 3. No schema change. |
 | FIN-018 | Concurrent return creation race | Active-return, cumulative returned quantity and refundable amount were checked before the insert transaction; concurrent requests could both pass stale reads. | Lock payment row and recheck eligibility, active return, returned quantities and remaining refundable amount inside the transaction. FIN-DSH-32. | P1 | IMPLEMENTED / TESTING_PENDING | Source 8a8364899f08180da9213be4d897a65fac9a897d; PostgreSQL test 705609fa2928d6e12e393b59bb990cfe0cf2343c pending Phase 3. No schema change. |
+
+
+## FIN-019 — Settlement adjustment posting integrity — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-019 | Settlement adjustment posting integrity | Posting previously recorded commission reversals as negative merchant net and could mark adjustments POSTED without a primary settlement ledger row. | Apply type-specific credit/debit signs, validate positive safe-integer minor-unit amounts, lock the primary settlement during posting, and keep approved adjustments unposted until a primary settlement exists. FIN-DSH-33/34 and unit coverage added. | P1 | IMPLEMENTED / TESTING_PENDING | Tests not executed; no schema/migration or shared DB changes; manual-payment-only scope remains binding. |
