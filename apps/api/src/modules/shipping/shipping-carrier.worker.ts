@@ -2,14 +2,14 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { eq, and, or, isNull, lt, lte, like, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { StorageService } from '../../common/storage/storage.service';
+import { MerchantService } from '../merchant/index';
+import { CarrierWebhookRoutingService } from './carrier-webhook-routing';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { CarrierCredentialsService } from './carrier-credentials.service';
 import { CarrierConfigurationsService } from './carrier-configurations.service';
 import { outboxEvents } from '../audit/audit.schema';
 import { shipments } from '../orders/shipment.schema';
-import { stores } from '../merchant/merchant.schema';
 import { carrierWebhookEvents, carrierCredentials, shipmentLabels } from './shipping.schema';
-import { resolveShipmentForCredential } from './carrier-webhook-routing';
 import {
   generateIdempotencyKey,
   CarrierCreateStatus,
@@ -78,6 +78,8 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     private readonly retryPolicy: CarrierRetryPolicy,
     private readonly circuitBreaker: CarrierCircuitBreaker,
     private readonly storage: StorageService,
+    private readonly merchant: MerchantService,
+    private readonly webhookRouting: CarrierWebhookRoutingService,
   ) {}
 
   onModuleInit() {
@@ -289,10 +291,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       });
     }
 
-    const store = await this.db.db.query.stores.findFirst({
-      where: eq(stores.id, shipment.storeId),
-      columns: { orgId: true },
-    });
+    const store = await this.merchant.getStoreTenantContextForSystem(shipment.storeId);
     if (!store?.orgId) {
       throw new NonRetryableCarrierError('Carrier shipment has no valid owning organization', {
         providerKey,
@@ -1177,8 +1176,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           );
         }
 
-        const resolution = await resolveShipmentForCredential(
-          this.db,
+        const resolution = await this.webhookRouting.resolveShipmentForCredential(
           credential,
           webhookEvent.providerKey,
           webhookEvent.externalDeliveryId,

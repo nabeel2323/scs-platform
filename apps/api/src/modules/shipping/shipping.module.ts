@@ -23,14 +23,16 @@ import { CarrierCircuitBreaker } from './carrier-circuit-breaker';
 import { CarrierReconciliationService } from './carrier-reconciliation.service';
 import { CarrierTrackingPoller } from './carrier-tracking-poller';
 import { AuditModule } from '../audit/audit.module';
-// M7.3-A: Carrier → Order delivery bridge (circular dep via forwardRef)
+import { IdentityModule } from '../identity/index';
+import { MerchantModule } from '../merchant/index';
+import { CarrierWebhookRoutingService } from './carrier-webhook-routing';
 import { OrdersModule } from '../orders/orders.module';
 
 /**
  * ShippingModule — M7.2.3-A Shipping, Delivery & Carrier Integration.
  *
- * Dependency direction: OrdersModule → ShippingModule (unidirectional).
- * ShippingModule does NOT import OrdersModule.
+ * OrdersModule consumes ShippingService. The reverse reference is limited to
+ * the explicitly forwarded carrier-to-order system lookup.
  *
  * Uses global modules:
  * - DatabaseService (from DatabaseModule @Global)
@@ -72,7 +74,9 @@ import { OrdersModule } from '../orders/orders.module';
 @Module({
   imports: [
     AuditModule, // M7.2.3-C: audit trail for recovery operations
-    forwardRef(() => OrdersModule), // M7.3-A: carrier → order delivery bridge
+    IdentityModule, // Platform organization lookup stays inside Identity
+    MerchantModule, // Store ownership lookup stays inside Merchant
+    forwardRef(() => OrdersModule), // Carrier reads use Orders-owned contracts
   ],
   controllers: [
     ShippingController,
@@ -89,6 +93,7 @@ import { OrdersModule } from '../orders/orders.module';
     CarrierCredentialsService,
     CarrierConfigurationsService,
     WebhookSecurityService,
+    CarrierWebhookRoutingService,
     ShippingCarrierWorker,
     // M7.2.3-B.1
     CarrierEmailResolver,

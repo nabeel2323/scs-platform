@@ -2,6 +2,8 @@ import { ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { assertActiveOrgMembership } from '../../../common/tenant-scope';
+import { IdentityService } from '../../../modules/identity/index';
+import { MerchantService } from '../../../modules/merchant/index';
 import { CarrierCredentialsService } from '../../../modules/shipping/carrier-credentials.service';
 import { CarrierConfigurationsService } from '../../../modules/shipping/carrier-configurations.service';
 import { ShippingService } from '../../../modules/shipping/shipping.service';
@@ -141,6 +143,63 @@ describe('Shipping and carrier tenant context', () => {
     expect(provider.credentials.decryptCredentials).not.toHaveBeenCalled();
   });
 
+  it('resolves the PLATFORM organization through the Identity module contract', async () => {
+    const findFirst = vi.fn().mockResolvedValue({ id: 'platform-org' });
+    const service = Object.create(IdentityService.prototype) as any;
+    service.db = { db: { query: { organizations: { findFirst } } } };
+
+    await expect(service.getPlatformOrganizationId()).resolves.toBe('platform-org');
+    expect(new PgDialect().sqlToQuery(findFirst.mock.calls[0]?.[0].where).params).toContain(
+      'PLATFORM',
+    );
+  });
+
+  it('keeps Aramex platform credentials constrained to the Identity-owned organization', async () => {
+    const credentialFindFirst = vi.fn().mockResolvedValue({ id: 'platform-credential' });
+    const resolved = { payload: { userName: 'synthetic' }, primaryUrl: null };
+    const provider = Object.create(AramexProvider.prototype) as any;
+    provider.identity = { getPlatformOrganizationId: vi.fn().mockResolvedValue('platform-org') };
+    provider.db = { db: { query: { carrierCredentials: { findFirst: credentialFindFirst } } } };
+    provider.resolveCredentialsById = vi.fn().mockResolvedValue(resolved);
+
+    await expect(provider.resolvePlatformCredential()).resolves.toEqual(resolved);
+    expect(provider.identity.getPlatformOrganizationId).toHaveBeenCalledOnce();
+
+    const params = new PgDialect().sqlToQuery(credentialFindFirst.mock.calls[0]?.[0].where).params;
+    expect(params).toContain('platform-org');
+    expect(params).toContain('aramex');
+    expect(params).toContain(true);
+    expect(provider.resolveCredentialsById).toHaveBeenCalledWith(
+      'platform-credential',
+      'platform-org',
+    );
+  });
+
+  it('resolves system store ownership through Merchant module contracts', async () => {
+    const findFirst = vi.fn().mockResolvedValue({ id: 'store-a', orgId: 'org-a' });
+    const findMany = vi.fn().mockResolvedValue([{ id: 'store-a' }, { id: 'store-b' }]);
+    const service = Object.create(MerchantService.prototype) as any;
+    service.db = { db: { query: { stores: { findFirst, findMany } } } };
+
+    await expect(service.getStoreTenantContextForSystem('store-a')).resolves.toEqual({
+      id: 'store-a',
+      orgId: 'org-a',
+    });
+    await expect(service.listStoreIdsForOrgSystem('org-a')).resolves.toEqual([
+      'store-a',
+      'store-b',
+    ]);
+
+    expect(findFirst).toHaveBeenCalledOnce();
+    expect(findMany).toHaveBeenCalledOnce();
+    expect(new PgDialect().sqlToQuery(findFirst.mock.calls[0]?.[0].where).params).toContain(
+      'store-a',
+    );
+    expect(new PgDialect().sqlToQuery(findMany.mock.calls[0]?.[0].where).params).toContain(
+      'org-a',
+    );
+  });
+
   it('rejects an Aramex credential whose organization does not match the store', async () => {
     const storeFindFirst = vi.fn().mockResolvedValue({ orgId: 'org-a' });
     const configFindFirst = vi.fn().mockResolvedValue({ credentialId: 'credential-b' });
@@ -174,9 +233,9 @@ describe('Shipping and carrier tenant context', () => {
   });
 
   it('rejects outbox events whose store metadata does not match their shipment', async () => {
-    const storeFindFirst = vi.fn().mockResolvedValue({ orgId: 'org-a' });
+    const storeTenantContext = vi.fn().mockResolvedValue({ id: 'store-a', orgId: 'org-a' });
     const worker = Object.create(ShippingCarrierWorker.prototype) as any;
-    worker.db = { db: { query: { stores: { findFirst: storeFindFirst } } } };
+    worker.merchant = { getStoreTenantContextForSystem: storeTenantContext };
 
     await expect(
       worker.assertOutboxTenantMatchesShipment(
@@ -185,13 +244,13 @@ describe('Shipping and carrier tenant context', () => {
       ),
     ).rejects.toBeInstanceOf(NonRetryableCarrierError);
 
-    expect(storeFindFirst).not.toHaveBeenCalled();
+    expect(storeTenantContext).not.toHaveBeenCalled();
   });
 
   it('rejects outbox events whose organization metadata does not match the shipment store', async () => {
-    const storeFindFirst = vi.fn().mockResolvedValue({ orgId: 'org-a' });
+    const storeTenantContext = vi.fn().mockResolvedValue({ id: 'store-a', orgId: 'org-a' });
     const worker = Object.create(ShippingCarrierWorker.prototype) as any;
-    worker.db = { db: { query: { stores: { findFirst: storeFindFirst } } } };
+    worker.merchant = { getStoreTenantContextForSystem: storeTenantContext };
 
     await expect(
       worker.assertOutboxTenantMatchesShipment(
@@ -200,6 +259,6 @@ describe('Shipping and carrier tenant context', () => {
       ),
     ).rejects.toBeInstanceOf(NonRetryableCarrierError);
 
-    expect(storeFindFirst).toHaveBeenCalled();
+    expect(storeTenantContext).toHaveBeenCalledWith('store-a');
   });
 });

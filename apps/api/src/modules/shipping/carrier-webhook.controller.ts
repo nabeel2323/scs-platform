@@ -18,7 +18,7 @@ import { CarrierCredentialsService } from './carrier-credentials.service';
 import { CarrierObservabilityService } from './carrier-observability';
 import { carrierWebhookEvents, carrierCredentials } from './shipping.schema';
 import { outboxEvents } from '../audit/audit.schema';
-import { resolveShipmentForCredential } from './carrier-webhook-routing';
+import { CarrierWebhookRoutingService } from './carrier-webhook-routing';
 
 /**
  * CarrierWebhookController — inbound carrier webhook endpoint.
@@ -69,6 +69,7 @@ export class CarrierWebhookController {
     private readonly security: WebhookSecurityService,
     private readonly credentials: CarrierCredentialsService,
     private readonly observability: CarrierObservabilityService,
+    private readonly webhookRouting: CarrierWebhookRoutingService,
   ) {}
 
   @Post(':providerKey')
@@ -273,8 +274,7 @@ export class CarrierWebhookController {
     // credential that verified this webhook. Never trust tenant IDs in payloads.
     let resolution;
     try {
-      resolution = await resolveShipmentForCredential(
-        this.db,
+      resolution = await this.webhookRouting.resolveShipmentForCredential(
         credential,
         providerKey,
         externalDeliveryId,

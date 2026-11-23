@@ -3807,6 +3807,27 @@ export class OrdersService {
   }
 
   /**
+   * Carrier-webhook projection: Orders owns the shipment predicate. Store IDs
+   * must already be scoped to the authenticated credential's organization.
+   * Limit two ensures Shipping can fail closed on ambiguous references.
+   */
+  async findShipmentsByCarrierReference(
+    providerKey: string,
+    externalDeliveryId: string,
+    storeIds: string[],
+  ): Promise<any[]> {
+    if (storeIds.length === 0) return [];
+    return this.db.db.query.shipments.findMany({
+      where: and(
+        eq(shipments.carrierShipmentId, externalDeliveryId),
+        eq(shipments.shippingProviderKey, providerKey),
+        inArray(shipments.storeId, storeIds),
+      ),
+      limit: 2,
+    });
+  }
+
+  /**
    * Get shipment by order ID.
    */
   async getShipmentByOrderId(orderId: string) {

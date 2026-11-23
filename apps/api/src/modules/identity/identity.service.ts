@@ -1231,6 +1231,15 @@ export class IdentityService {
     return org;
   }
 
+  /** Identity-owned PLATFORM organization lookup for trusted internal consumers. */
+  async getPlatformOrganizationId(): Promise<string | null> {
+    const organization = await this.db.db.query.organizations.findFirst({
+      where: eq(organizations.type, 'PLATFORM'),
+      columns: { id: true },
+    });
+    return organization?.id ?? null;
+  }
+
   /**
    * Update organization fields.
    * Deactivated organizations cannot be edited (G7) — reactivate first.

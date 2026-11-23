@@ -251,6 +251,27 @@ export class MerchantService {
     });
   }
 
+  /** System-only store ownership projection for trusted background workflows. */
+  async getStoreTenantContextForSystem(
+    storeId: string,
+  ): Promise<{ id: string; orgId: string | null } | null> {
+    if (!storeId) return null;
+    return (await this.db.db.query.stores.findFirst({
+      where: eq(stores.id, storeId),
+      columns: { id: true, orgId: true },
+    })) ?? null;
+  }
+
+  /** Store IDs for a workflow whose credential has already established org scope. */
+  async listStoreIdsForOrgSystem(orgId: string): Promise<string[]> {
+    if (!orgId) return [];
+    const rows = await this.db.db.query.stores.findMany({
+      where: eq(stores.orgId, orgId),
+      columns: { id: true },
+    });
+    return rows.map((row) => row.id);
+  }
+
   async getCustomersByOrg(orgId: string, caller?: CallerContext) {
     if (caller && !isTenantPrivileged(caller)) {
       if (caller.activeOrg !== orgId) {

@@ -51,8 +51,8 @@ import { CommissionReversalService } from './commission-reversal.service';
 import { SettlementAdjustmentService } from './settlement-adjustment.service';
 import { REFUND_REASONS, RefundReason } from '../payments/payments.types';
 import { eq, and, sql, desc, inArray } from 'drizzle-orm';
-import { P13_LEASE_KEY } from '../operations/p13-ops.config';
-import { readRows } from '../operations/raw-result';
+import { P13_RETURN_EXPIRATION_LEASE_KEY } from '../../common/worker/worker-lease.constants';
+import { readRows } from '../../common/database/raw-query-result';
 import crypto from 'node:crypto';
 
 export type ReturnEscalationAuthority =
@@ -1334,7 +1334,7 @@ export class ReturnsService {
           await tx.execute(sql`
           SELECT lease_key
           FROM worker_leases
-          WHERE lease_key = ${P13_LEASE_KEY}
+          WHERE lease_key = ${P13_RETURN_EXPIRATION_LEASE_KEY}
             AND holder_id = ${authority.holderId}
             AND epoch = ${authority.epoch}
             AND expires_at > now()
@@ -1352,7 +1352,7 @@ export class ReturnsService {
         transitionConditions.push(sql`EXISTS (
           SELECT 1
           FROM worker_leases
-          WHERE lease_key = ${P13_LEASE_KEY}
+          WHERE lease_key = ${P13_RETURN_EXPIRATION_LEASE_KEY}
             AND holder_id = ${authority.holderId}
             AND epoch = ${authority.epoch}
             AND expires_at > now()

@@ -25,11 +25,13 @@ function createHarness(activeCredentials: any[]) {
     decryptWebhookSecret: vi.fn().mockResolvedValue('test-webhook-secret'),
   };
   const observability = { incrementCounter: vi.fn() };
+  const webhookRouting = { resolveShipmentForCredential: vi.fn() };
   const controller = new CarrierWebhookController(
     db as any,
     security as any,
     credentials as any,
     observability as any,
+    webhookRouting as any,
   );
   const response = {
     status: vi.fn().mockReturnThis(),
@@ -42,7 +44,7 @@ function createHarness(activeCredentials: any[]) {
       'x-carrier-timestamp': String(Math.floor(Date.now() / 1000)),
     },
   };
-  return { controller, db, security, credentials, response, request };
+  return { controller, db, security, credentials, webhookRouting, response, request };
 }
 
 describe('CarrierWebhookController tenant credential routing', () => {
@@ -67,6 +69,7 @@ describe('CarrierWebhookController tenant credential routing', () => {
     });
     expect(harness.credentials.decryptWebhookSecret).not.toHaveBeenCalled();
     expect(harness.db.db.insert).not.toHaveBeenCalled();
+    expect(harness.webhookRouting.resolveShipmentForCredential).not.toHaveBeenCalled();
   });
 
   it('keeps the legacy route available when exactly one active credential exists', async () => {

@@ -34,6 +34,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { DatabaseService } from '../../../common/database/database.service';
+import { IdentityService } from '../../identity/index';
 import { CarrierCredentialsService } from '../carrier-credentials.service';
 import { CarrierConfigurationsService } from '../carrier-configurations.service';
 import { CarrierEmailResolver } from '../carrier-email-resolver';
@@ -66,7 +67,6 @@ import { resolveCarrierEndpoint } from '../carrier-endpoints';
 import { carrierEndpointAllowlistRegistry } from '../ssrf-protection';
 import { shipments } from '../../orders/shipment.schema';
 import { stores } from '../../merchant/merchant.schema';
-import { organizations } from '../../identity/identity.schema';
 import { carrierCredentials } from '../shipping.schema';
 import { buildClientInfo } from './aramex-clientinfo.builder';
 import { mapAramexStatus } from './aramex-status.mapper';
@@ -132,6 +132,7 @@ export class AramexProvider extends ShippingProvider {
 
   constructor(
     private readonly db: DatabaseService,
+    private readonly identity: IdentityService,
     private readonly credentials: CarrierCredentialsService,
     private readonly configurations: CarrierConfigurationsService,
     private readonly emailResolver: CarrierEmailResolver,
@@ -1039,11 +1040,8 @@ export class AramexProvider extends ShippingProvider {
     payload: AramexCredentialPayload;
     primaryUrl: string | null;
   }> {
-    const platformOrg = await this.db.db.query.organizations.findFirst({
-      where: eq(organizations.type, 'PLATFORM'),
-      columns: { id: true },
-    });
-    if (!platformOrg) {
+    const platformOrgId = await this.identity.getPlatformOrganizationId();
+    if (!platformOrgId) {
       throw new NonRetryableCarrierError(
         'No platform organization is configured for Aramex reference lookups',
         { providerKey: this.key, operation: 'resolvePlatformCredential' },
@@ -1052,7 +1050,7 @@ export class AramexProvider extends ShippingProvider {
 
     const credential = await this.db.db.query.carrierCredentials.findFirst({
       where: and(
-        eq(carrierCredentials.orgId, platformOrg.id),
+        eq(carrierCredentials.orgId, platformOrgId),
         eq(carrierCredentials.providerKey, ARAMEX_PROVIDER_KEY),
         eq(carrierCredentials.isActive, true),
       ),
@@ -1065,7 +1063,7 @@ export class AramexProvider extends ShippingProvider {
       });
     }
 
-    return this.resolveCredentialsById(credential.id, platformOrg.id);
+    return this.resolveCredentialsById(credential.id, platformOrgId);
   }
 
   // ── Private: HTTP Client ────────────────────────────────────────────────
