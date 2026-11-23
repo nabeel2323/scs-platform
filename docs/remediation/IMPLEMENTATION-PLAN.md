@@ -1394,3 +1394,13 @@ Monthly reconciliation now attributes refund and commission-reversal checks to t
 ## FIN-031 — Cross-period duplicate refund detection — 23 November 2026
 
 Duplicate-refund reconciliation now scopes candidate returns by successful refund `updated_at` in the accounting period, then counts all successful refunds for each candidate return across periods. Tenant scoping is retained. FIN-DSH-59 covers a prior-period duplicate plus a current-period success. Source: `6089a1fd821c35c0dcd9f0cde849e145326905e1`; test: `4bdd2935d48ea2c6ef3d633aa6af2f3fe39369ab`. Test pending Phase 3.
+
+
+## FIN-032 — Settlement-adjustment accounting-period correctness — 23 November 2026
+
+Reconciliation previously used adjustment creation time for POSTED-adjustment approval and delivery-fee-cap checks. This misattributed adjustments created in an earlier period but posted in the current period; delivery-fee-cap checks also included DRAFT and other unposted adjustments. Both checks now require status POSTED and use the adjustment transition timestamp (updated_at) as the accounting-period timestamp. PostgreSQL FIN-DSH-60 covers a prior-period-created adjustment posted in the current period and confirms that an unposted draft is excluded. Source commit: 0c65476d1135d18504ae910083299683fdb8d072; test commit: 39a8ee35e81e919601e49d0564fee023d5a39871. Test added, not executed.
+
+
+## FIN-033 — Exact payment refund aggregate arithmetic — 23 November 2026
+
+Three payment-side SUM(bigint) aggregates used for refund reservation, refund approval projection and settlement calculation were exposed as JavaScript numbers without an explicit precision guard. They now return PostgreSQL numeric text, convert through BigInt, and fail closed when negative or outside Number.MAX_SAFE_INTEGER. Unit coverage verifies totals above the 32-bit boundary, unsafe aggregate rejection and malformed/negative values. Source commit: 633d56a06e073ee416e5b7a989167ef5828f13d8; test commit: 115b0dab007e4071f6a32ee1e564427a86732249. Tests added, not executed.

@@ -1212,3 +1212,11 @@ The next full workflow is required to verify these changes.
 - Latest source change: `6089a1fd821c35c0dcd9f0cde849e145326905e1` (cross-period duplicate refund detection).
 - Latest focused test: `4bdd2935d48ea2c6ef3d633aa6af2f3fe39369ab` (FIN-DSH-59). Test not executed.
 - No exact-head Actions run is claimed; implementation commits use `[skip ci]` and consolidated Phase 3 validation remains deferred. PR #138 remains OPEN / DRAFT / UNMERGED.
+
+
+## FIN-032/033 continuation checkpoint — 23 November 2026
+
+- FIN-032 source: 0c65476d1135d18504ae910083299683fdb8d072; PostgreSQL regression FIN-DSH-60: 39a8ee35e81e919601e49d0564fee023d5a39871.
+- FIN-033 source: 633d56a06e073ee416e5b7a989167ef5828f13d8; unit regression: 115b0dab007e4071f6a32ee1e564427a86732249.
+- Current exact branch head before documentation: 115b0dab007e4071f6a32ee1e564427a86732249. No GitHub Actions workflow run is attached to this head; combined status contains only Vercel Web/Admin build-rate-limit failures. Tests have not been executed.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No migration, shared DB/staging operation, worker activation, deployment or merge.

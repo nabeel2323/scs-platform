@@ -964,3 +964,13 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 | ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
 |---|---|---|---|---|---|---|
 | FIN-031 | Cross-period duplicate refund detection | Reconciliation identifies returns with at least one SUCCEEDED refund updated in-period and counts all SUCCEEDED refunds across periods. FIN-DSH-59 covers a prior-period duplicate and current-period completion. | Execute FIN-DSH-59 in consolidated Phase 3 and continue reconciliation period/source-time review. | P1 | IMPLEMENTED / TESTING_PENDING | No migration; no shared DB changes; PR #138 remains draft. |
+
+
+## FIN-032 — Settlement-adjustment accounting-period correctness — 23 November 2026
+
+Reconciliation previously used adjustment creation time for POSTED-adjustment approval and delivery-fee-cap checks. This misattributed adjustments created in an earlier period but posted in the current period; delivery-fee-cap checks also included DRAFT and other unposted adjustments. Both checks now require status POSTED and use the adjustment transition timestamp (updated_at) as the accounting-period timestamp. PostgreSQL FIN-DSH-60 covers a prior-period-created adjustment posted in the current period and confirms that an unposted draft is excluded. Source commit: 0c65476d1135d18504ae910083299683fdb8d072; test commit: 39a8ee35e81e919601e49d0564fee023d5a39871. Test added, not executed.
+
+
+## FIN-033 — Exact payment refund aggregate arithmetic — 23 November 2026
+
+Three payment-side SUM(bigint) aggregates used for refund reservation, refund approval projection and settlement calculation were exposed as JavaScript numbers without an explicit precision guard. They now return PostgreSQL numeric text, convert through BigInt, and fail closed when negative or outside Number.MAX_SAFE_INTEGER. Unit coverage verifies totals above the 32-bit boundary, unsafe aggregate rejection and malformed/negative values. Source commit: 633d56a06e073ee416e5b7a989167ef5828f13d8; test commit: 115b0dab007e4071f6a32ee1e564427a86732249. Tests added, not executed.

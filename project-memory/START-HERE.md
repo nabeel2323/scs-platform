@@ -753,3 +753,17 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - FIN-026 now also covers ReturnsService transitions. Privileged admin overrides of merchant-side and buyer-side actions record ADMIN; normal merchant and buyer actions retain MERCHANT/BUYER.
 - PostgreSQL FIN-DSH-55 covers admin override of MERCHANT_APPROVED and CANCELLED. Test not executed.
 - Latest implementation commit: `47de1df8637d3cdff03ac6a70184613978357120`.
+
+## Latest continuation — FIN-032/033 — 23 November 2026
+
+FIN-001–FIN-031 remain completed in source and must not be repeated. FIN-032 corrects settlement-adjustment reconciliation to use the POSTED transition timestamp and exclude unposted adjustments; FIN-DSH-60 is added. FIN-033 converts all three payment-side refund/settlement SUM(bigint) aggregates through exact PostgreSQL numeric text and BigInt with a safe-integer guard; unit coverage is added. Both findings are IMPLEMENTED / TESTING_PENDING.
+
+**Next implementation:** continue source-first review of payment/refund retry contracts and cross-ledger state/event/outbox parity beyond FIN-033. Keep consolidated Phase 3 testing deferred until implementation and integration are complete.
+
+
+## FIN-032/033 continuation checkpoint — 23 November 2026
+
+- FIN-032 source: 0c65476d1135d18504ae910083299683fdb8d072; PostgreSQL regression FIN-DSH-60: 39a8ee35e81e919601e49d0564fee023d5a39871.
+- FIN-033 source: 633d56a06e073ee416e5b7a989167ef5828f13d8; unit regression: 115b0dab007e4071f6a32ee1e564427a86732249.
+- Current exact branch head before documentation: 115b0dab007e4071f6a32ee1e564427a86732249. No GitHub Actions workflow run is attached to this head; combined status contains only Vercel Web/Admin build-rate-limit failures. Tests have not been executed.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No migration, shared DB/staging operation, worker activation, deployment or merge.
