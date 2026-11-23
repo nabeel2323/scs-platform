@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 const {
+  perms,
   fetchAdminPayments,
   fetchPaymentVerificationQueue,
   verifyPayment,
@@ -9,6 +10,7 @@ const {
   fetchRequestedRefunds,
   approveRefund,
 } = vi.hoisted(() => ({
+  perms: [] as string[],
   fetchAdminPayments: vi.fn(),
   fetchPaymentVerificationQueue: vi.fn(),
   verifyPayment: vi.fn(),
@@ -26,8 +28,11 @@ vi.mock('../lib/api', () => ({
   approveRefund: (...args: unknown[]) => approveRefund(...args),
 }));
 vi.mock('../hooks/useRequirePerms', () => ({
-  useRequirePerms: () => ({ hasAccess: true, missingPerms: [] }),
-  AccessDenied: () => <div>Access denied</div>,
+  useRequirePerms: (required: string[]) => {
+    const missingPerms = required.filter((permission) => !perms.includes(permission));
+    return { hasAccess: missingPerms.length === 0, missingPerms };
+  },
+  AccessDenied: ({ missingPerms }: { missingPerms: string[] }) => <div>Access denied: {missingPerms.join(', ')}</div>,
 }));
 vi.mock('@scs/ui-kit', () => ({
   PageHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
@@ -69,6 +74,7 @@ const payment = {
 
 describe('admin payments read recovery', () => {
   beforeEach(() => {
+    perms.splice(0, perms.length, 'admin:payments:read', 'admin:payments:verify', 'admin:refunds:approve');
     fetchAdminPayments.mockReset().mockResolvedValue([]);
     fetchPaymentVerificationQueue.mockReset().mockResolvedValue([payment]);
     verifyPayment.mockReset().mockResolvedValue(payment);
@@ -97,6 +103,16 @@ describe('admin payments read recovery', () => {
       'Showing the last successfully loaded results.',
     );
     expect(screen.queryByText('No payments found in this view.')).toBeNull();
+  });
+
+  it('allows a verification-only user to access the payment queue without payments read permission', async () => {
+    perms.splice(0, perms.length, 'admin:payments:verify');
+
+    render(<AdminPaymentsPage />);
+
+    expect(await screen.findByText('REF-001')).toBeTruthy();
+    expect(screen.queryByText(/Access denied/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Verification Queue' })).toBeTruthy();
   });
 
   it('does not render a false empty state after an initial read failure', async () => {
