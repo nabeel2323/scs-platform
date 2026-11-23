@@ -782,57 +782,62 @@ export class ReturnsService {
   private async createRefundRequest(ret: any, _caller: CallerContext) {
     const idempotencyKey = `return-refund:${ret.id}`;
 
-    // Recovery path: if a prior attempt committed the refund but failed before
-    // flipping the return to REFUND_PENDING, reuse it instead of hitting the
-    // unique idempotency-key constraint (which would strand the return).
-    const payment = await this.db.db.query.paymentRecords.findFirst({
-      where: eq(paymentRecords.id, ret.paymentRecordId),
-    });
-    if (!payment) throw new NotFoundException('No payment found for this return');
+    // Keep the payment refund, return linkage, return state/history and both
+    // outbox messages in one transaction. The idempotency lookup also recovers
+    // legacy rows from an earlier split-transaction attempt.
+    await this.db.db.transaction(async (tx) => {
+      const [payment] = await tx
+        .select()
+        .from(paymentRecords)
+        .where(eq(paymentRecords.id, ret.paymentRecordId))
+        .for('update')
+        .limit(1);
+      if (!payment) throw new NotFoundException('No payment found for this return');
 
-    const existingRefund = await this.db.db.query.refunds.findFirst({
-      where: eq(refunds.idempotencyKey, idempotencyKey),
-    });
+      const [existingRefund] = await tx
+        .select()
+        .from(refunds)
+        .where(eq(refunds.idempotencyKey, idempotencyKey))
+        .limit(1);
 
-    let refund: { refundId: string; amountMinor: number; status: string };
-    if (existingRefund) {
-      // Recovery must be an exact retry of this return's original refund
-      // request; a reused key with changed terms must not advance the return.
-      if (
-        existingRefund.paymentRecordId !== payment.id ||
-        existingRefund.orderId !== ret.subOrderId ||
-        Number(existingRefund.amountMinor) !== Number(ret.requestedRefundMinor) ||
-        existingRefund.reason !== ret.reason ||
-        existingRefund.requestedBy !== ret.buyerId ||
-        existingRefund.currency !== payment.currency ||
-        (existingRefund.returnRequestId !== null && existingRefund.returnRequestId !== ret.id)
-      ) {
-        throw new ConflictException(
-          'Return refund idempotency key was already used for a different request',
+      let refund: { refundId: string; amountMinor: number; status: string };
+      if (existingRefund) {
+        // Recovery must be an exact retry of this return's original refund
+        // request; a reused key with changed terms must not advance the return.
+        if (
+          existingRefund.paymentRecordId !== payment.id ||
+          existingRefund.orderId !== ret.subOrderId ||
+          Number(existingRefund.amountMinor) !== Number(ret.requestedRefundMinor) ||
+          existingRefund.reason !== ret.reason ||
+          existingRefund.requestedBy !== ret.buyerId ||
+          existingRefund.currency !== payment.currency ||
+          (existingRefund.returnRequestId !== null && existingRefund.returnRequestId !== ret.id)
+        ) {
+          throw new ConflictException(
+            'Return refund idempotency key was already used for a different request',
+          );
+        }
+
+        refund = {
+          refundId: existingRefund.id,
+          amountMinor: Number(existingRefund.amountMinor),
+          status: existingRefund.status,
+        };
+      } else {
+        refund = await this.payments.requestRefund(
+          ret.paymentRecordId,
+          Number(ret.requestedRefundMinor),
+          ret.reason,
+          ret.buyerId,
+          { sub: ret.buyerId, role: 'SYSTEM' },  // system-initiated
+          { idempotencyKey, notes: `Return ${ret.id}` },
+          tx,
         );
       }
 
-      refund = {
-        refundId: existingRefund.id,
-        amountMinor: Number(existingRefund.amountMinor),
-        status: existingRefund.status,
-      };
-    } else {
-      refund = await this.payments.requestRefund(
-        // P12 requestRefund creates the refund with FOR UPDATE cumulative locking
-        ret.paymentRecordId,
-        Number(ret.requestedRefundMinor),
-        ret.reason,
-        ret.buyerId,
-        { sub: ret.buyerId, role: 'SYSTEM' },  // system-initiated
-        { idempotencyKey, notes: `Return ${ret.id}` },
-      );
-    }
-
-    await this.db.db.transaction(async (tx) => {
-      // Link refund to return request
+      // Link refund to return request inside the same payment transaction.
       await tx.update(refunds)
-        .set({ returnRequestId: ret.id })
+        .set({ returnRequestId: ret.id, updatedAt: new Date() })
         .where(eq(refunds.id, refund.refundId));
 
       const flip = await tx
