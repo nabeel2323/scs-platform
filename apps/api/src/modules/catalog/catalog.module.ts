@@ -12,12 +12,40 @@ import { ConditionalRulesService } from './conditional-rules.service';
 import { MerchantXlsxParserService } from './merchant-xlsx-parser.service';
 import { ImportValidationService } from './import-validation.service';
 import { ProductGovernanceService } from './product-governance.service';
+import { CatalogPricingLookupService } from './catalog-pricing-lookup.service';
 import { AuditModule } from '../audit/index';
 
 @Module({
   imports: [AuditModule],
-  controllers: [CatalogController, CatalogTaxonomyController, CatalogOfferController, CatalogRequestsController],
-  providers: [CatalogService, CatalogTaxonomyService, CatalogOfferService, CatalogRequestsService, SearchService, ConditionalRulesService, MerchantXlsxParserService, ImportValidationService, ProductGovernanceService],
-  exports: [CatalogService, CatalogTaxonomyService, CatalogOfferService, CatalogRequestsService, SearchService, ConditionalRulesService, MerchantXlsxParserService, ImportValidationService, ProductGovernanceService],
+  controllers: [
+    CatalogController,
+    CatalogTaxonomyController,
+    CatalogOfferController,
+    CatalogRequestsController,
+  ],
+  providers: [
+    CatalogService,
+    CatalogTaxonomyService,
+    CatalogOfferService,
+    CatalogRequestsService,
+    SearchService,
+    ConditionalRulesService,
+    MerchantXlsxParserService,
+    ImportValidationService,
+    ProductGovernanceService,
+    CatalogPricingLookupService,
+  ],
+  exports: [
+    CatalogService,
+    CatalogTaxonomyService,
+    CatalogOfferService,
+    CatalogRequestsService,
+    SearchService,
+    ConditionalRulesService,
+    MerchantXlsxParserService,
+    ImportValidationService,
+    ProductGovernanceService,
+    CatalogPricingLookupService,
+  ],
 })
 export class CatalogModule {}
