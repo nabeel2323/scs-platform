@@ -564,6 +564,10 @@ Repeated settlement calculation must not create a second payable record after an
 
 Repeated settlement calculation must not create a second payable record after an existing settlement has been paid. The calculation path must serialize against refund requests/approvals on the payment row, reuse an existing active PENDING/CALCULATED/DUE settlement for identical retries, and reject recalculation once PAID/ADJUSTMENT history exists. It must also reject settlement calculation until payment status is CONFIRMED, CAPTURED, PARTIALLY_REFUNDED or REFUNDED; order amount alone is not evidence of received funds. Subsequent financial corrections must use the explicit settlement-adjustment workflow. PostgreSQL acceptance scenarios FIN-DSH-13/14/15 cover concurrent calls, post-PAID rejection and pre-confirmation denial. Implementation is present; tests await the consolidated Phase 3 campaign. This does not authorize automatic gateway or payout behavior and does not change G-012's product decision.
 
+#### FIN-003 — Payment minor-unit amount validation
+
+Manual payment verification, COD cash confirmation, refund requests and settlement calculation must reject zero, negative, fractional and unsafe numeric values before financial state changes or BIGINT persistence. Amounts are positive safe integers in minor units. This guard does not impose an amount ceiling or change existing actual-received-amount semantics; any policy for underpayment, overpayment or exact equality remains a separate product/finance decision. PostgreSQL acceptance case FIN-DSH-16 covers invalid inputs and unchanged payment state. Implementation is present; test pending the consolidated Phase 3 campaign. No gateway/payout scope change.
+
 ### 5.8 Procurement scope decision (G-021)
 
 - Obtain a business decision whether RFQ, quotation, negotiation, purchase order approvals and credit terms are required for the intended release.

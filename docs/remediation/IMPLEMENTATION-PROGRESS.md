@@ -2034,3 +2034,12 @@ This closes a UI-to-controller workflow omission; it does not change G-001–G-0
 - CI #1425 on `994fee9a332f4c553fa09687101d8f6ecdec3103` passed lint and Flutter analysis/tests but failed TypeScript typecheck. Errors identified a possibly-undefined Drizzle insert return in `PaymentsService.calculateSettlement`, propagated to P12/P13 test callers.
 - Source commit `60bf231f950dec8ede3c8945f76b22bc8e4b4451` adds an explicit guard that throws if the insert returns no persisted settlement row, narrowing the service result type.
 - This correction has not been re-run in CI; no typecheck or PostgreSQL test pass is claimed.
+
+## FIN-003 — Payment minor-unit amount validation — 23 November 2026
+
+- **Finding:** manual payment verification, COD cash confirmation and refund request handlers accepted unvalidated numeric values. Zero/negative values could be stored as confirmed/collected amounts, and fractional/unsafe JavaScript numbers were not rejected before BIGINT persistence.
+- **Implementation:** introduced shared `assertPositiveMinorAmount` validation in `PaymentsService.verifyPayment`, `confirmCash`, `requestRefund` and `calculateSettlement`. Amounts must be positive safe integers in minor units before transaction/state changes.
+- **Scope:** no maximum, equality, underpayment or overpayment rule was added; existing manual-verification semantics remain unchanged.
+- **Regression coverage:** FIN-DSH-16 rejects fractional verification/refund values and zero COD collection, and verifies rejected verification/COD attempts leave payment status unchanged. Test added but **not executed**.
+- **Source/test commit:** `f554617c592ff57db296e0ca88614ac246468194`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, payout, staging, shared DB or deployment behavior changed.

@@ -476,3 +476,7 @@ PostgreSQL regression cases FIN-DSH-11 and FIN-DSH-12 were added but have not be
 ## FIN-002 — Settlement calculation idempotency — 23 November 2026
 
 A second payable settlement could be created if `calculateSettlement` was called again after the prior settlement reached PAID. The path now locks the payment row, reuses an existing PENDING/CALCULATED/DUE settlement for retries, and rejects recalculation after PAID/ADJUSTMENT history. FIN-DSH-13–15 cover concurrent calculation, post-PAID rejection and refusal to settle an unconfirmed payment; tests are added but not executed. The service now requires CONFIRMED, CAPTURED, PARTIALLY_REFUNDED or REFUNDED status before settlement calculation. Source/test commit: `60bf231f950dec8ede3c8945f76b22bc8e4b4451`. Status: IMPLEMENTED / TESTING_PENDING. No gateway/payout scope expansion.
+
+## FIN-003 — Payment minor-unit amount validation — 23 November 2026
+
+Manual payment verification, COD cash confirmation, refund requests and settlement confirmed amounts now require positive safe integers in minor units. This rejects zero, negative, fractional and unsafe-number values before financial writes. No maximum/equality rule was introduced for actual received amounts. FIN-DSH-16 covers invalid values and unchanged verification/COD payment states; test added but not executed. Source/test commit: `f554617c592ff57db296e0ca88614ac246468194`. Status: IMPLEMENTED / TESTING_PENDING.
