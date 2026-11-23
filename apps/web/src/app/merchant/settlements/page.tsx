@@ -234,7 +234,7 @@ export default function MerchantSettlementsPage() {
                       </td>
                       <td style={{ padding: '11px 10px' }}>
                         <StatusBadge status={
-                          settlement.status === 'PAID' && (settlement.metadata?.adjustmentId || settlement.notes?.startsWith('Posted adjustment '))
+                          settlement.status === 'PAID' && (settlement.metadata?.['adjustmentId'] || settlement.notes?.startsWith('Posted adjustment '))
                             ? 'ADJUSTMENT · PAID'
                             : settlement.status
                         } />
