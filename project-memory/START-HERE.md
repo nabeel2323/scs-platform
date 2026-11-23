@@ -756,3 +756,9 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - No exact-head GitHub Actions run has been returned for the latest commit. Vercel Web/Admin failures are external build-rate-limit statuses.
 - No shared/staging database write, migration execution, grants/RLS, worker activation, environment change, provider/gateway/payout, deployment or merge action.
 - **Next:** continue source-auditing payment/refund/settlement event history and retry semantics. Keep the consolidated Phase 3 verification campaign pending until implementation is complete.
+
+## FIN-026 follow-up — privileged return event attribution — 23 November 2026
+
+- FIN-026 now also covers ReturnsService transitions. Privileged admin overrides of merchant-side and buyer-side actions record ADMIN; normal merchant and buyer actions retain MERCHANT/BUYER.
+- PostgreSQL FIN-DSH-55 covers admin override of MERCHANT_APPROVED and CANCELLED. Test not executed.
+- Latest implementation commit: `47de1df8637d3cdff03ac6a70184613978357120`.

@@ -2240,7 +2240,7 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 ## FIN-026 — Payment event actor attribution — 23 November 2026
 
 - **Finding:** verifyPayment authorized both admins and merchant owners but hardcoded ADMIN in immutable event history. confirmCash authorized privileged callers but hardcoded MERCHANT.
-- **Implementation:** Both methods now derive actor class from the authenticated caller, recording ADMIN for privileged callers and MERCHANT for merchant callers. Actor IDs continue to come from the authenticated request.
-- **Regression coverage:** PostgreSQL FIN-DSH-54 verifies merchant bank-transfer verification and administrator COD cash confirmation. Test added, not executed.
+- **Implementation:** Payment methods and merchant-/buyer-side return transition handlers now derive actor class from the authenticated caller, recording ADMIN for privileged callers and MERCHANT/BUYER for normal callers. Actor IDs continue to come from the authenticated request.
+- **Regression coverage:** PostgreSQL FIN-DSH-54/55 verify merchant bank-transfer verification, administrator COD cash confirmation, and privileged return overrides. Tests added, not executed.
 - **Commit:** e5733dc4a403c15da27d9064aa8703a89f6ee7f4.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No migration required; include in consolidated Phase 3 tests.

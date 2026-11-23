@@ -604,7 +604,7 @@ Commits: `a457d352d0ee71e6e020f164e838f5a02a81c512`, `ff67348b950b51a482fa4cf624
 
 ## Financial correctness continuation — FIN-026 — 23 November 2026
 
-Payment verification and COD cash confirmation previously hardcoded ADMIN and MERCHANT respectively, even though both actions allow more than one caller class. The event now records ADMIN for privileged callers and MERCHANT for merchant callers. PostgreSQL FIN-DSH-54 covers merchant verification and admin COD cash confirmation. No schema migration. Tests not executed.
+Payment verification, COD cash confirmation, and merchant-/buyer-side return transitions previously hardcoded actor classes even though privileged callers can perform these transitions. Events now record ADMIN for privileged callers and the appropriate MERCHANT/BUYER class otherwise. PostgreSQL FIN-DSH-54/55 cover payment and return overrides. No schema migration. Tests not executed.
 
 Commit: `e5733dc4a403c15da27d9064aa8703a89f6ee7f4`.
 

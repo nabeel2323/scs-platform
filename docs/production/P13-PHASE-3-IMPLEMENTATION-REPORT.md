@@ -199,4 +199,4 @@ State machine: `DRAFT → PENDING_APPROVAL → APPROVED → POSTED` (plus REJECT
 
 ## FIN-026 — Payment event actor attribution — 23 November 2026
 
-Payment verification and COD cash confirmation now persist ADMIN versus MERCHANT according to the authenticated caller. This corrects the prior hardcoded actor classes without changing authorization or payment-state behavior. PostgreSQL FIN-DSH-54 covers merchant bank-transfer verification and administrator COD cash confirmation. No migration; tests remain pending the consolidated Phase 3 campaign.
+Payment verification, COD cash confirmation and privileged return transitions now persist ADMIN versus MERCHANT/BUYER according to the authenticated caller. This corrects prior hardcoded actor classes without changing authorization or state behavior. PostgreSQL FIN-DSH-54/55 cover merchant bank-transfer verification, administrator COD cash confirmation and privileged return overrides. No migration; tests remain pending the consolidated Phase 3 campaign.

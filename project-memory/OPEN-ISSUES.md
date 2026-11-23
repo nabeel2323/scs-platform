@@ -774,6 +774,6 @@ Migration 0075 is source-only. The cleanup method is not registered with a sched
 
 ## FIN-026 — Payment event actor attribution
 
-**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Payment verification and COD cash confirmation now persist ADMIN versus MERCHANT based on the authenticated caller, rather than hardcoding one actor class. FIN-DSH-54 verifies merchant verification and administrator cash confirmation.
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Payment verification, COD cash confirmation, and privileged return transitions now persist ADMIN versus MERCHANT/BUYER based on the authenticated caller, rather than hardcoding the nominal role. FIN-DSH-54 verifies merchant verification and administrator cash confirmation; FIN-DSH-55 verifies administrator overrides of merchant-side and buyer-side return transitions.
 
 No migration is required. Tests remain pending the consolidated Phase 3 campaign.

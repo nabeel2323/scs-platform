@@ -1368,4 +1368,4 @@ Each generated proof key now has a durable intent persisted before object storag
 
 ## FIN-026 — Payment event actor attribution — 23 November 2026
 
-verifyPayment and confirmCash previously hardcoded actor classes despite allowing both admin and merchant callers. They now record ADMIN versus MERCHANT from the authenticated caller. FIN-DSH-54 covers merchant verification and admin COD confirmation. No migration; test not executed. Commit: e5733dc4a403c15da27d9064aa8703a89f6ee7f4.
+verifyPayment, confirmCash and privileged return transitions previously hardcoded actor classes despite allowing privileged overrides. They now record ADMIN versus MERCHANT/BUYER from the authenticated caller. FIN-DSH-54/55 cover merchant verification, admin COD confirmation and privileged return overrides. No migration; tests not executed. Commit: e5733dc4a403c15da27d9064aa8703a89f6ee7f4.

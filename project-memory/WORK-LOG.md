@@ -1411,3 +1411,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Both event producers now derive ADMIN versus MERCHANT from the authenticated caller. No client-supplied actor class is trusted.
 - Added PostgreSQL FIN-DSH-54 for merchant bank-transfer verification and administrator COD cash confirmation. Test not executed.
 - Commit: `e5733dc4a403c15da27d9064aa8703a89f6ee7f4`. No migration, shared DB write, worker activation, deployment or merge.
+
+### FIN-026 follow-up — privileged return event attribution — 23 November 2026
+
+- Extended the FIN-026 audit to ReturnsService. Admin callers are explicitly allowed to perform merchant-side and buyer-side return transitions, but the event producers hardcoded MERCHANT or BUYER.
+- Merchant approve/reject/receive/inspect/reject-after-inspection and buyer cancel/ship transitions now record ADMIN when a privileged caller performs the action; ordinary merchant/buyer callers retain their correct class.
+- Added PostgreSQL FIN-DSH-55 for admin override of MERCHANT_APPROVED and CANCELLED. Test not executed.
+- Commit: `47de1df8637d3cdff03ac6a70184613978357120`.
