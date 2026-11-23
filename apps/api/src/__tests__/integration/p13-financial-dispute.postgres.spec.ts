@@ -60,6 +60,7 @@
  *   FIN-DSH-56  Return refund caps include APPROVED and large BIGINT totals
  *   FIN-DSH-57  Admin settlement calculation records ADMIN actor attribution
  *   FIN-DSH-58  Reconciliation period follows refund completion event, not return creation
+ *   FIN-DSH-59  Duplicate return refunds remain detectable across accounting periods
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -2756,6 +2757,58 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const types = rows.rows.map((row: any) => row.discrepancy_type);
     expect(types).toContain('REFUND_STATUS_MISMATCH');
     expect(types).toContain('MISSING_COMMISSION_REVERSAL');
+  }, 90_000);
+
+
+  it('FIN-DSH-59: detects duplicate successful refunds when one completed in the current period', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const item = (await pool.query(
+      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [orderId],
+    )).rows[0];
+    const ret = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      description: 'Cross-period duplicate refund reconciliation',
+      lines: [{ orderItemId: item.id, quantity: 1 }],
+    }, buyerCaller);
+    const payment = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
+    )).rows[0];
+
+    await pool.query(
+      `UPDATE return_requests SET created_at = now() - interval '2 days' WHERE id = $1`,
+      [ret.id],
+    );
+    await pool.query(
+      `INSERT INTO refunds
+       (id, payment_record_id, order_id, idempotency_key, amount_minor, currency, status, reason,
+        requested_by, return_request_id, created_at, updated_at)
+       VALUES
+       ($1, $2, $3, $4, 500, 'SYP', 'SUCCEEDED', 'PRODUCT_NOT_AS_DESCRIBED', $5, $6,
+        now() - interval '2 days', now() - interval '2 days'),
+       ($7, $2, $3, $8, 500, 'SYP', 'SUCCEEDED', 'PRODUCT_NOT_AS_DESCRIBED', $5, $6,
+        now(), now())`,
+      [
+        randomUUID(), payment.id, orderId, `fin031-old-${randomUUID()}`, buyerA, ret.id,
+        randomUUID(), `fin031-current-${randomUUID()}`,
+      ],
+    );
+
+    const period = new Date().toISOString().slice(0, 10);
+    const run = await reconciliationService.executeReconciliation(
+      period, period, 'SYP', adminA, orgA,
+    );
+    const duplicate = await pool.query(
+      `SELECT actual_minor FROM reconciliation_discrepancies
+       WHERE run_id = $1 AND discrepancy_type = 'DUPLICATE_REFUND'
+         AND source_ref = $2`,
+      [run.runId, `return:${ret.id}`],
+    );
+    expect(duplicate.rows).toHaveLength(1);
+    expect(duplicate.rows[0].actual_minor).toBe(2);
   }, 90_000);
 
 });
