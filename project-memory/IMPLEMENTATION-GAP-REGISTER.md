@@ -943,3 +943,10 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 | ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
 |---|---|---|---|---|---|---|
 | FIN-028 | Accurate actor class on admin settlement calculation events | Admin-only settlement calculation now records ADMIN in immutable payment history rather than SYSTEM. PostgreSQL FIN-DSH-57 verifies actor ID and actor class. | Execute FIN-DSH-57 in consolidated Phase 3 and continue auditing remaining financial event producers for actor/history/outbox parity. | P1 | IMPLEMENTED / TESTING_PENDING | No migration; no shared DB changes; PR #138 remains draft. |
+
+
+## FIN-029 — Payment confirmation order-history actor parity — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-029 | Payment/order event actor consistency | verifyPayment now persists the same authenticated ADMIN/MERCHANT actor ID/class in payment_events and order_status_history. FIN-DSH-54 covers both rows. | Execute FIN-DSH-54 in consolidated Phase 3 and continue auditing other payment/order event pairs. | P1 | IMPLEMENTED / TESTING_PENDING | No migration; no shared DB changes; PR #138 remains draft. |
