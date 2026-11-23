@@ -127,3 +127,10 @@ The one missing custom financial action was the settlement-adjustment Reject wor
 - Focused regression coverage in `admin-product-type-products-recovery.test.tsx` proves a failed dirty-configuration save does not call Publish. Tests have not been executed; the full campaign remains deferred to Phase 3.
 - Source commits: `bbe5a72`, `9af0646`, `553cb25`, `8e795c3`; test commits: `43c6e5e`, `997da23`, `3d59ae9`.
 - Status: **IMPLEMENTED / TESTING_PENDING**, not test-verified or CI-verified.
+
+
+## Product editor action-time permission guard — UX-102 — 23 November 2026
+
+The shared ProductForm used by the Admin create and edit routes now receives the route's `catalog:products:write` capability, checks it immediately before Save dispatch, and uses an in-flight ref to prevent duplicate create/update submissions. The Save control is disabled when the capability is absent. The matching API routes are `POST/PATCH /admin/products` and `PUT /admin/products/:id/attribute-values`, all guarded by `catalog:products:write`.
+
+This is a client-side action-boundary hardening; the backend permission checks remain authoritative. No test was added specifically for ProductForm; comprehensive testing is deferred to Phase 3.

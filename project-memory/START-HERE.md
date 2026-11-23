@@ -514,3 +514,11 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Source commits: `bbe5a72`, `9af0646`, `553cb25`, `8e795c3`; tests: `43c6e5e`, `997da23`, `3d59ae9`.
 - PR #138 remains open/draft/unmerged; exact-head CI must be refreshed. No database, staging, migration, grants, RLS, worker or deployment action occurred.
 - Next: continue the Admin operational UX/source audit beyond permission mapping; Phase 3 remains the consolidated formatter and test campaign.
+
+
+## Latest continuation — 23 November 2026 (Admin UX-102)
+
+- Shared ProductForm Save now checks `catalog:products:write` and prevents duplicate create/update dispatches; both route wrappers pass the capability.
+- Source commit: `383ea13c589d9023aab24d3b2d15c5c0db2cd751`.
+- CI #1417 passed lint/typecheck and Flutter analysis/tests; changed-file formatting failed across 251 files, and dependent Web/Admin test jobs were skipped. It predates UX-102.
+- Next: continue Admin operational UX/source audit beyond permission mapping; Phase 3 remains the consolidated formatter/test campaign.

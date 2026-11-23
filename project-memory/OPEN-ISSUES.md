@@ -580,3 +580,10 @@ The Admin settlement-adjustment page now exposes the existing API rejection oper
 Product Type list/create/category-update and Builder save/publish handlers now recheck `catalog:product-types:manage`; the Builder does not publish when saving dirty configuration fails. Catalog Import Center gates its reads and import/report/template/export actions on `catalog:imports:manage`, with single-flight upload/execute/retry. Attribute and Attribute Group mutation forms recheck `catalog:attributes:manage`. A focused test covers failed Product Type Builder save preventing Publish; it has not been executed. UX-101 remains IMPLEMENTED / TESTING_PENDING for Phase 3.
 
 **Next implementation:** continue the remaining Admin operational UX/source audit beyond permission mapping. Do not repeat UX-097–UX-101.
+
+
+## UX-102 — Product editor action-time permission guard — 23 November 2026
+
+The shared ProductForm used by Admin product create/edit routes now receives and rechecks `catalog:products:write` at Save dispatch and prevents duplicate create/update submissions with a ref-backed guard. The API continues enforcing the same permission. No ProductForm-specific test was added; UX-102 remains IMPLEMENTED / TESTING_PENDING for Phase 3.
+
+**Next implementation:** continue the remaining Admin operational UX/source audit beyond permission mapping. Do not repeat UX-097–UX-102.

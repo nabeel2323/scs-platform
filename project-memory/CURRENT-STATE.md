@@ -815,3 +815,12 @@ Merchant active-store and product reads now preserve last-successful data throug
 - No backend permissions, database, migration, staging, worker or deployment behavior changed.
 
 **Next:** continue the remaining Admin operational UX/source audit beyond permission mapping; comprehensive formatting and testing remain grouped in Phase 3.
+
+
+## Admin ProductForm guard checkpoint — 23 November 2026 (UX-102)
+
+- Source checkpoint: `383ea13c589d9023aab24d3b2d15c5c0db2cd751`.
+- ProductForm create/edit now receives and rechecks `catalog:products:write` at Save dispatch, with a ref-backed duplicate-submit guard.
+- No ProductForm-specific test was added; consolidated Phase 3 validation remains pending.
+- The prior CI run #1417 (on `0b7da6170bdf01f1da441eb9789e566dfec1c76c`) passed lint/typecheck and Flutter analysis/tests, but its changed-file formatting gate failed across 251 files. Web/Admin tests and dependent gates were skipped.
+- Latest PR head is now `383ea13c589d9023aab24d3b2d15c5c0db2cd751`; refresh exact-head CI before the next implementation batch.

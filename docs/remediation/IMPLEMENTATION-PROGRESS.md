@@ -1944,3 +1944,14 @@ This closes a UI-to-controller workflow omission; it does not change G-001–G-0
 - Status: **IMPLEMENTED / TESTING_PENDING**. No API permission grants, role grants, schema, migration, database, staging, worker or deployment behavior changed.
 
 **Next:** continue the remaining Admin operational UX/source audit beyond permission mapping; keep the accumulated formatting and comprehensive test campaign grouped in Phase 3.
+
+
+## Programme UX-102 — Product editor action-time permission guard — 23 November 2026
+
+- The shared Admin ProductForm now receives `canWrite` from both create and edit route gates.
+- Save returns early when `catalog:products:write` is absent and uses a ref-backed single-flight guard against duplicate create/update submissions.
+- The Save button is disabled when write capability is absent or a save is in progress.
+- API endpoints remain unchanged and continue enforcing `catalog:products:write`.
+- No ProductForm-specific test was added; validation is pending the consolidated Phase 3 campaign.
+- Source commit: `383ea13c589d9023aab24d3b2d15c5c0db2cd751`.
+- Status: **IMPLEMENTED / TESTING_PENDING**, not automated-test or CI verified.

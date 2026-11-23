@@ -1116,3 +1116,14 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Status: IMPLEMENTED / TESTING_PENDING. No API grants, backend permission semantics, schema, migration, database, staging, worker or deployment behavior changed.
 
 **Next:** continue the remaining Admin operational UX/source audit beyond permission mapping. Keep the consolidated formatting and test campaign grouped in Phase 3.
+
+
+## 2026-11-23 — Product editor action-time permission guard (UX-102)
+
+- Continued the Admin custom form audit and found that the shared ProductForm create/edit Save handler did not recheck the route's `catalog:products:write` capability at dispatch.
+- Passed `canWrite` from both route wrappers, added an action-boundary permission check and a ref-backed single-flight guard, and disabled Save when permission is absent or a save is active.
+- API routes continue enforcing `catalog:products:write`; no backend authorization changed.
+- No ProductForm-specific test was added. Validation remains pending Phase 3.
+- Source commit: `383ea13c589d9023aab24d3b2d15c5c0db2cd751`.
+
+**Next:** continue the remaining Admin operational UX/source audit beyond permission mapping; keep the accumulated formatter and test campaign grouped in Phase 3.
