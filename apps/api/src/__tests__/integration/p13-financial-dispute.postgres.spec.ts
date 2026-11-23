@@ -38,6 +38,8 @@
  *   FIN-DSH-34  Commission reversal adjustment posts as a merchant credit
  *   FIN-DSH-35  Adjustment cannot be posted without a primary settlement
  *   FIN-DSH-36  Reconciliation ledger signs and non-monetary discrepancy persistence
+ *   FIN-DSH-37  Concurrent organization-scoped run versions and forward supersession links
+ *   FIN-DSH-38  Failed reconciliation is atomic and leaves no partial discrepancy rows
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -1910,4 +1912,81 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     90_000,
   );
 
+  // ── FIN-DSH-37: Reconciliation versioning, tenant isolation and atomic failure ──
+
+  it('FIN-DSH-37: serializes concurrent versions per organization and links predecessor to successor', async () => {
+    const periodStart = '2098-04-01';
+    const periodEnd = '2098-04-30';
+    const orgB = randomUUID();
+    const [firstA, secondA, firstB] = await Promise.all([
+      reconciliationService.executeReconciliation(periodStart, periodEnd, 'SYP', adminA, orgA),
+      reconciliationService.executeReconciliation(periodStart, periodEnd, 'SYP', adminA, orgA),
+      reconciliationService.executeReconciliation(periodStart, periodEnd, 'SYP', adminA, orgB),
+    ]);
+
+    expect([firstA.version, secondA.version].sort()).toEqual([1, 2]);
+    expect(firstB.version).toBe(1);
+
+    const orgARuns = await pool.query(
+      `SELECT id, version, superseded_by FROM reconciliation_runs
+       WHERE period_start = $1 AND period_end = $2 AND currency = 'SYP' AND org_id = $3
+       ORDER BY version`,
+      [periodStart, periodEnd, orgA],
+    );
+    expect(orgARuns.rows).toHaveLength(2);
+    expect(orgARuns.rows[0].superseded_by).toBe(orgARuns.rows[1].id);
+    expect(orgARuns.rows[1].superseded_by).toBeNull();
+
+    const orgBRuns = await pool.query(
+      `SELECT id, version, superseded_by FROM reconciliation_runs
+       WHERE period_start = $1 AND period_end = $2 AND currency = 'SYP' AND org_id = $3`,
+      [periodStart, periodEnd, orgB],
+    );
+    expect(orgBRuns.rows).toHaveLength(1);
+    expect(orgBRuns.rows[0].version).toBe(1);
+    expect(orgBRuns.rows[0].superseded_by).toBeNull();
+  }, 90_000);
+
+  it('FIN-DSH-38: rolls back partial discrepancies and persists a clean FAILED run after a check throws', async () => {
+    const periodStart = '2098-05-01';
+    const periodEnd = '2098-05-31';
+    const missingRefundSpy = vi.spyOn(reconciliationService as any, 'checkMissingRefunds')
+      .mockImplementationOnce(async (_tx: any, _start: Date, _end: Date, _org: string, discrepancies: any[]) => {
+        discrepancies.push({
+          type: 'MISSING_REFUND',
+          sourceRef: 'return:synthetic-failure-probe',
+          expected: 100, actual: 0, delta: 100,
+          description: 'Synthetic discrepancy used to verify rollback',
+        });
+      });
+    const failingCheckSpy = vi.spyOn(reconciliationService as any, 'checkCommissionReversals')
+      .mockRejectedValueOnce(new Error('Synthetic reconciliation check failure'));
+
+    try {
+      await expect(
+        reconciliationService.executeReconciliation(periodStart, periodEnd, 'SYP', adminA, orgA),
+      ).rejects.toThrow('Synthetic reconciliation check failure');
+    } finally {
+      missingRefundSpy.mockRestore();
+      failingCheckSpy.mockRestore();
+    }
+
+    const runs = await pool.query(
+      `SELECT id, status, version, discrepancy_count, summary
+       FROM reconciliation_runs
+       WHERE period_start = $1 AND period_end = $2 AND currency = 'SYP' AND org_id = $3`,
+      [periodStart, periodEnd, orgA],
+    );
+    expect(runs.rows).toHaveLength(1);
+    expect(runs.rows[0].status).toBe('FAILED');
+    expect(runs.rows[0].version).toBe(1);
+    expect(runs.rows[0].discrepancy_count).toBe(0);
+    expect(runs.rows[0].summary).toEqual({ executionError: 1 });
+
+    const discrepancies = await pool.query(
+      `SELECT id FROM reconciliation_discrepancies WHERE run_id = $1`,
+      [runs.rows[0].id],
+    );
+    expect(discrepancies.rows).toHaveLength(0);
+  }, 90_000);
 });

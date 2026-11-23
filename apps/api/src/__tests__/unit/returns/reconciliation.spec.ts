@@ -178,36 +178,6 @@ describe('Reconciliation — Discrepancy Classification', () => {
   });
 });
 
-describe('Reconciliation — Rerun Safety (Phase 3.1 versioned runs)', () => {
-  it('rerun creates a NEW version — previous run is preserved', () => {
-    // Phase 3.1: each rerun creates a new run with incremented version.
-    // Previous runs and their discrepancies are NEVER deleted.
-    const run1Version = 1;
-    const run1Discrepancies = 3;
-    const run2Version = 2;
-    const run2Discrepancies = 2;
-
-    // Both runs exist independently
-    expect(run2Version).toBeGreaterThan(run1Version);
-    // Run 1 still has its original discrepancies
-    expect(run1Discrepancies).toBe(3);
-    // Run 2 has its own discrepancies
-    expect(run2Discrepancies).toBe(2);
-    // Total discrepancy records = sum of both runs
-    const totalRecords = run1Discrepancies + run2Discrepancies;
-    expect(totalRecords).toBe(5);
-  });
-
-  it('version increments monotonically for same period/currency', () => {
-    const versions: number[] = [1, 2, 3];
-    for (let i = 1; i < versions.length; i++) {
-      const current: number = versions[i]!;
-      const previous: number = versions[i - 1]!;
-      expect(current).toBeGreaterThan(previous);
-    }
-  });
-});
-
 describe('Reconciliation — Adjustment Approval Verification', () => {
   it('POSTED adjustment with dual approval but missing finance → flagged', () => {
     expect(hasSufficientApprovals(true, 1, 0, 1)).toBe(false);

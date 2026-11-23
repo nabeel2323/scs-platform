@@ -140,13 +140,13 @@ Discrepancies are tracked in `reconciliation_discrepancies`:
 
 3. **Performance:** For very large periods, the reconciliation may take time proportional to the number of returns, settlements and adjustments. Consider executing during off-peak hours for periods with high transaction volumes.
 
-4. **Tenant isolation:** API execution and run/discrepancy reads are scoped to the caller's financial organization. However, the current unique-version index is not organization-scoped, so identical period/currency/version values can collide across organizations. FIN-021 must align the database uniqueness contract with the scoped query before production reliance.
+4. **Tenant isolation and version allocation:** API execution and run/discrepancy reads are scoped to the caller's financial organization. FIN-021 serializes version allocation per organization/period/currency and migration 0074 makes the unique index organization-scoped, treating NULL organization as one global scope. Migration 0074 must be applied only through the approved deployment process; this repository change does not authorize a shared-database migration.
 
 ## 8. Recovery Paths
 
 | Scenario | Recovery |
 |----------|----------|
-| Reconciliation run fails mid-execution | Current code may leave a RUNNING run or partial discrepancy evidence. Preserve the record, inspect its status and discrepancies, and escalate; FIN-021 must implement failure-safe finalization before automated retry guidance is restored. |
+| Reconciliation run fails mid-execution | FIN-021 runs checks and discrepancy persistence in one transaction. The transaction rolls back all partial rows; a separate best-effort transaction records a FAILED run with zero discrepancies and a generic execution-error summary. If the database is unavailable for the failure record too, no failed-run row may be available. Retry only after reviewing the failure and source data. |
 | Discrepancy requires financial correction | Create settlement adjustment through approval workflow |
 | Missing commission reversal | Trigger manual reversal via `CommissionReversalService.processCommissionReversal()` |
 | Duplicate refund detected | Investigate payment provider; mark one refund as REJECTED if confirmed duplicate |
@@ -159,3 +159,10 @@ Discrepancies are tracked in `reconciliation_discrepancies`:
 - FIN-DSH-36 and the focused unit regressions are committed but have **not been executed**. The reconciliation run-lifecycle and cross-organization versioning limitations above remain open as FIN-021.
 - No shared/staging database writes, schema migration, grants/RLS, worker activation, deployment, gateway, automatic payout or release action is authorized by this runbook update.
 - PR #138 remains OPEN / DRAFT / UNMERGED. Treat the runbook as operational documentation only; do not interpret it as production authorization.
+
+## FIN-021 — Reconciliation run lifecycle — 23 November 2026
+
+- Version allocation is serialized by a transaction-scoped advisory lock keyed by tenant, period and currency; the unique index is organization-scoped and treats NULL organization as one global scope.
+- The run row, all checks, discrepancy inserts and COMPLETED transition share one transaction. Any exception rolls back the run and all discrepancy rows; a separate best-effort transaction records a FAILED run with zero discrepancies and a generic execution-error summary.
+- `superseded_by` now points from the prior run to its successor. Migration 0074 repairs the historical backward links and replaces the global unique index. It is committed as source only and has not been applied to a shared/staging database.
+- FIN-DSH-37 and FIN-DSH-38 cover concurrent same-tenant versions, independent tenant version 1, forward links, and failure rollback/FAILED persistence. Tests are added but not executed.
