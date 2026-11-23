@@ -1191,3 +1191,10 @@ The next full workflow is required to verify these changes.
 - Latest focused test: `05799cde897871ab9752af07bf70830ac834edbf` (PostgreSQL FIN-DSH-57). FIN-DSH-56/57 are added but not executed.
 - The syntax corrections for CI #1446 are included in the branch; no exact-head Actions run has been triggered because these implementation commits use `[skip ci]` and the consolidated campaign remains deferred.
 - PR #138 remains OPEN / DRAFT / UNMERGED. Vercel build-rate-limit contexts are external preview-provider failures, not application tests. No staging release, shared DB change, migration execution or deployment.
+
+
+## FIN-029 source/test checkpoint — 23 November 2026
+
+- Latest source change: `77c2caaa322836cc8e7d651f6577df715c5e3228` (payment verifier actor propagated to order history).
+- Latest focused test: `8fc1759a9e374f12513c82d301b2c9b934a98840` (FIN-DSH-54 extended to check both payment/order history). Test not executed.
+- No exact-head Actions run is claimed; commits use `[skip ci]` and consolidated Phase 3 validation remains deferred. PR #138 remains OPEN / DRAFT / UNMERGED.
