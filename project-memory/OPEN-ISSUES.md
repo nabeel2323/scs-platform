@@ -871,3 +871,46 @@ The merchant and Admin settlement screens now expose adjustment rows and disting
 - G-015 retains 14 new module-boundary violations. Refactor through injected contracts; do not edit the reviewed baseline or add schema re-export workarounds.
 - After exact-head CI, triage the broad Web/API/PostgreSQL baseline failures by domain. G-002, G-001 independent review, G-036 verification and Phase 6 remain open.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No protected staging audit, deployment, shared database mutation, migration, grant, RLS or worker activation is authorized.
+
+## 23 November 2026 — service-boundary implementation checkpoint
+
+**Active PR:** #138, OPEN / DRAFT / UNMERGED to `develop`.
+**Branch:** `remediation/phase-0-1-tenant-security`.
+**Implementation checkpoint:** `0a023175ea5cfd7bd24c4fb36ee8c0b32f531adb`.
+
+### Work completed in this continuation
+
+- FIN-047 settlement pagination remains implemented: bounded page size, stable ordering, total count, matching merchant row/count scope, and Admin/Merchant page navigation. Consumer audit found no settlement export or aggregate that double-counts primary and adjustment rows.
+- The least-privilege DB audit now checks effective SELECT permission with `has_table_privilege` before reading `_migration_log` or `backfill_errors`. It reports existence/permission and null row summaries when SELECT is absent. No privilege was granted.
+- Carrier worker test fixtures now include the owning-store lookup required by the unchanged production tenant guard. PostgreSQL tenant assertions match the guard's actual rejection. The outbox test checks its carrier exclusion SQL literal in generated SQL. CI allows the focused Admin recovery tests to run after Web failure (install/contracts must succeed); Web failure remains fatal.
+- G-015 service-boundary work now removes direct schema imports in four consuming areas:
+  - Pricing consumes Catalog's variant pricing lookup contract for ownership and tier enrichment.
+  - Operations Pilot Control consumes Identity and Merchant public services for organization/store validation.
+  - Reviews consumes Orders' order/line projection and Catalog's product/variant predicate.
+  - Realtime consumes Orders' order-room/driver assignment lookup and Merchant's canonical store resolver. Store membership and organization checks remain enforced.
+- Added focused tests for Catalog pricing and review lookups, Pricing fixtures, Operations allowlist tenant rules, Orders realtime access, Reviews subject scope, and Realtime room authorization. Updated affected PostgreSQL integration fixtures to match the new Pilot Control service dependencies.
+- Do not claim the E6 boundary count has fallen by a specific amount until the boundary job runs; it was skipped in the latest run. The original 14 new violations remain un-baselined in the reviewed register pending exact E6 evidence.
+
+### Latest verification evidence
+
+CI #45266315504 tested implementation checkpoint `0a023175ea5cfd7bd24c4fb36ee8c0b32f531adb` and concluded FAILED at the changed-file Prettier gate. Lint and TypeScript typecheck completed without errors; the mobile Flutter analyze/tests passed. Seven files need formatting:
+`apps/api/src/__tests__/integration/p4-operational-readiness.postgres.spec.ts`,
+`apps/api/src/__tests__/unit/operations/pilot-control-public-contract.spec.ts`,
+`apps/api/src/modules/catalog/catalog-pricing-lookup.service.ts`,
+`apps/api/src/modules/catalog/catalog-review-lookup.service.ts`,
+`apps/api/src/modules/orders/order-realtime-access.service.ts`,
+`apps/api/src/modules/orders/orders.module.ts`,
+and `apps/api/src/modules/orders/orders.service.ts`.
+API unit/coverage, PostgreSQL integration, migration full apply, E6 boundary lint, Web/Admin, build, contract generation and k6 were skipped behind the formatting gate. No application-test pass is claimed for these changes.
+
+External Vercel preview statuses continue to report the provider build-rate limit; those are not application test results.
+
+### Next actions and restrictions
+
+1. Format the entire changed source/test/memory set once, run Prettier check, and trigger one exact-head consolidated CI verification.
+2. Inspect the exact E6 boundary results and address any remaining direct schema coupling through module-owned service contracts. Do not edit the 193-entry reviewed baseline or create schema re-export barrels.
+3. Keep FIN-047 at IMPLEMENTED / TESTING_PENDING until the API pagination/tenant tests, Admin recovery and Merchant recovery tests pass.
+4. Continue G-002 source evidence and actual FK/method-predicate mapping. Protected staging/runtime identity inspection remains unavailable without authorization. G-001 independent review and G-036 focused security verification remain open; Phase 6 remains NOT STARTED.
+
+No migration, database grant/default-ACL change, RLS enablement, shared/staging database write, deployment, worker activation, merge or release was performed. PR #138 remains draft and unmerged.
+
