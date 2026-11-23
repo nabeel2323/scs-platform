@@ -75,23 +75,34 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN/DRAFT/UNMERGED against `develop`. The latest implementation/test checkpoint before the current documentation synchronization is `d0d0b2642d7a001cd3253d043edb9279a74824aa`; subsequent source commits implement the same UX-093 context correction.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. The live PR head at the last check was `071cbc41e4d72c02ba039d2a7110e8eaaba2711c`; the latest source/test checkpoint is `856d527aeb65abc9feeb565f1dbc8c07df7d5331`. Re-fetch live refs and CI before the next action.
 
-The current Mobile implementation continuation covers UX-078–UX-093:
-- UX-078–UX-086: Buyer Store/Orders/Search/Product Detail/Notifications/Home/Checkout and Merchant Dashboard/Catalog recovery.
-- UX-087: Merchant Offer Detail stale-safe offer/analytics refresh and unavailable-metrics handling.
-- UX-088: Merchant Inventory active-store, inventory-page and warehouse-directory refresh/retry while preserving last-successful data.
-- UX-089: Merchant Pricing list/detail/tier refresh and recovery, including a truthful unavailable tier count on failed initial tier reads.
-- UX-090: Merchant Customers stale-safe directory/statistics, retry and awaited refresh while preserving search/sort state.
-- UX-091: Merchant Orders awaits active-store/order refresh and supports pull-to-refresh for populated and successful empty queues.
-- UX-092: Store Profile awaits store-directory/active-store/warehouse refresh, supports pull-to-refresh, preserves last-successful details and exposes independent warehouse retry.
-- UX-093: both organization-switch flows invalidate organization-scoped caches; active-store resolution matches the selected organization; login/logout reset authenticated cache and identity context, and new login clears the persisted previous active organization.
+### Exact stopping point
 
-Focused tests were added across these slices but have not been executed. They remain TESTING_PENDING for the consolidated Phase 3 campaign. Admin recovery UX-046–UX-058 also remains implemented with focused tests pending execution. UX-093 is client cache/context hygiene only; it does not replace backend tenant authorization or close RLS/grant findings.
+- UX-094 Mobile category permission/API contract alignment is implemented.
+- UX-095 Web merchant route/action permission alignment and active-organization context invalidation is implemented.
+- UX-096 Mobile route/action permission and organization-context transition alignment is implemented.
+- G-036 realtime store/order room authorization is implemented in source; focused tests are pending execution and independent review.
+- The next planned work was the remaining Admin route/action permission mapping. The page-level Admin route audit already covered all 56 Admin page files and the generic ManagementPage configuration.
+- UX-097 continued that Admin audit at handler level. Verification organization deactivate/reactivate, Organizations status toggle and update-request review, and dispute resolution now recheck the required permission inside their async handlers. Focused tests simulate permission loss while confirmation dialogs are open. They have not been executed.
 
-**Next implementation:** complete the Mobile route permission and organization-context transition audit (including route guards and remaining route refresh semantics), then finish the outstanding Web/Admin route and action permission mapping. Do not repeat UX-078–UX-093 without new source evidence. G-001 remains PARTIAL pending independent security review; G-002 remains IN PROGRESS pending protected runtime identity/catalog evidence and reviewed access design. Phase 3 remains the consolidated full testing campaign.
+### Latest CI correction state
 
-All implementation/test commits use `[skip ci]`. The exact-head GitHub Actions lookup returned no run for `d0d0b26`; Vercel Web/Admin failures point to the external build-rate-limit page. These are not application test results. PR #138 remains draft and is not release authorization.
+CI #1395 failed on prior PR head `ff304ce6c0bcf63a654ff8fbd04130254cdb669e`:
+- API TypeScript typecheck failed because validated Socket.IO regex capture groups were still typed as possibly undefined.
+- Flutter analysis failed because a nullable profile role was passed to a non-null permission helper and a runtime-dependent EmptyState was declared const.
+
+The API correction is `0d4644f634d65bd5fbe4fec818c6f8439023254e`; the Mobile correction is `5f08755ce69edfcbae5ca84462ffda245bfc1eb4`. These fixes, UX-097 source changes and focused tests are **IMPLEMENTED / TESTING_PENDING**. No exact-head GitHub Actions run is attached to the corrective source/test head. Vercel preview statuses are not application test evidence.
+
+### Remaining project gates
+
+- G-001 remains PARTIAL pending independent security review and reviewer-directed remediation, if any.
+- G-002 remains IN PROGRESS pending actual API/migration runtime identities, protected read-only staging catalog evidence and reviewed least-privilege/transaction-bound RLS design.
+- G-036 remains IN PROGRESS pending exact-head verification and independent review.
+- Phases 0–5 remain IN PROGRESS; Phase 6 consolidated verification is NOT STARTED.
+- PR #138 must remain draft/open/unmerged. No merge, deployment, protected staging operation, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement, environment change or worker activation is authorized.
+
+**Next implementation:** continue the remaining Admin custom route/action-to-controller permission mapping. Do not repeat the completed 56-page route audit or UX-097 fixes. Implement only concrete source-confirmed permission gaps. Keep comprehensive testing deferred to the consolidated Phase 3 campaign, while fixing any concrete security/correctness defect immediately.
 
 ## Safety reminder
 
