@@ -278,7 +278,13 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     // inactive here (no P13_PILOT_MODE, no p13.pilot.enabled flag), so the gate
     // is a pass-through and these Phase 3 assertions are unchanged.
     const opsAlerts = new OpsAlertService(database);
-    const pilotService = new PilotControlService(database, new AuditService(database), opsAlerts);
+    const pilotService = new PilotControlService(
+      database,
+      new AuditService(database),
+      opsAlerts,
+      {} as never,
+      {} as never,
+    );
     returnsService = new ReturnsService(
       database,
       outbox,
