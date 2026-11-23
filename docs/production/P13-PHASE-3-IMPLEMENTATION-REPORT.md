@@ -195,3 +195,8 @@ State machine: `DRAFT → PENDING_APPROVAL → APPROVED → POSTED` (plus REJECT
 - PostgreSQL FIN-DSH-46–53 were added/updated; tests and isolated migration apply remain pending the consolidated Phase 3 campaign.
 
 - Replaced managed proofs are retired through a durable cleanup intent created in the same payment transaction; process crashes after commit cannot strand the previous key without a recovery record.
+
+
+## FIN-026 — Payment event actor attribution — 23 November 2026
+
+Payment verification and COD cash confirmation now persist ADMIN versus MERCHANT according to the authenticated caller. This corrects the prior hardcoded actor classes without changing authorization or payment-state behavior. PostgreSQL FIN-DSH-54 covers merchant bank-transfer verification and administrator COD cash confirmation. No migration; tests remain pending the consolidated Phase 3 campaign.

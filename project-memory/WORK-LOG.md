@@ -1403,3 +1403,11 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Hardened object-not-found detection for S3-compatible providers: accept HTTP 404 or a recognized code/name in any of the SDK's `name`, `Code`, or `code` fields. A generic `name='Error'` no longer masks a `Code='NotFound'` value.
 - Generic storage errors continue through retry/backoff; they are never interpreted as object absence.
 - Commit: `ff67348b950b51a482fa4cf624549a146551c383`. No tests executed.
+
+
+## 2026-11-23 — FIN-026 payment event actor attribution
+
+- Source audit found verifyPayment allowed both administrators and merchant owners but always persisted ADMIN in event history; confirmCash allowed privileged callers but always persisted MERCHANT.
+- Both event producers now derive ADMIN versus MERCHANT from the authenticated caller. No client-supplied actor class is trusted.
+- Added PostgreSQL FIN-DSH-54 for merchant bank-transfer verification and administrator COD cash confirmation. Test not executed.
+- Commit: `e5733dc4a403c15da27d9064aa8703a89f6ee7f4`. No migration, shared DB write, worker activation, deployment or merge.

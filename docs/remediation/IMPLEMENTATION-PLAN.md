@@ -1360,3 +1360,12 @@ Design a durable upload-intent/recovery workflow that survives process crashes. 
 ### FIN-024 follow-up — uncertain upload response
 
 Transition validation now precedes storage upload. If `putObject` times out after object acceptance, the service checks the generated key and deletes the object if present. FIN-DSH-48 covers this path. Commit: `847647c424097e5ace69236d0c3b4592f85d30e9`. Tests not executed. Durable recovery for a process crash between upload and DB transaction remains FIN-025.
+
+
+## FIN-025 — Durable payment-proof upload recovery — 23 November 2026
+
+Each generated proof key now has a durable intent persisted before object storage is called. Payment row, immutable event, outbox and new intent COMMITTED state share one transaction. Replaced managed proofs receive a cleanup intent in the same transaction. A callable recovery method uses stale-age eligibility, SKIP LOCKED claims, lease fencing, global payment-row reference checks, exact-key HEAD/DELETE and bounded exponential retries. No bucket listing or broad delete exists; the method is not scheduled or activated. Migration 0075 is source-only. FIN-DSH-46–53 added/updated; tests not executed.
+
+## FIN-026 — Payment event actor attribution — 23 November 2026
+
+verifyPayment and confirmCash previously hardcoded actor classes despite allowing both admin and merchant callers. They now record ADMIN versus MERCHANT from the authenticated caller. FIN-DSH-54 covers merchant verification and admin COD confirmation. No migration; test not executed. Commit: e5733dc4a403c15da27d9064aa8703a89f6ee7f4.

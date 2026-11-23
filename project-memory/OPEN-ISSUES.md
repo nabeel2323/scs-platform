@@ -753,15 +753,27 @@ Implementation commits: `a5fa4806e310159b6f2708d366764ffe4fa3892f`, `442b03a77e4
 
 ## FIN-024 — Payment proof upload lifecycle
 
-**Status: IMPLEMENTED / TESTING_PENDING_WITH_RESIDUAL. Priority: P1.** The proof service could upload an object before its DB transaction and leave it orphaned on failure; replacement could also strand the previous proof. The API controller did not expose the existing file-buffer upload path.
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** The payment proof API accepts bounded multipart uploads while retaining receipt URL/reference compatibility. FIN-025 closes the process-crash orphan window with durable per-object intents, atomic payment/event/outbox commit, and bounded exact-key cleanup. Previous managed proofs are retired through a cleanup intent created in the same transaction as the replacement; external URLs are never deleted.
 
-Commits: `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7d7b8487771e8ec`. The controller now accepts multipart files with size/MIME limits. On caught DB failure, the service verifies the current DB reference before deleting only the new object. The previous managed object is deleted only after successful replacement commit; external URLs are untouched. FIN-DSH-46/47 added; tests not executed.
+Commits: `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7d7b8487771e8ec`, `a457d352d0ee71e6e020f164e838f5a02a81c512`. FIN-DSH-46–53 cover failed/uncertain uploads, replacement lifecycle, stale cleanup, global payment-reference preservation, retries, concurrency and retired-proof recovery. Tests not executed; migration 0075 is source-only and cleanup is not scheduled or activated.
 
-**Residual:** process crash after object upload but before DB transaction can leave an orphan; if cleanup verification/deletion fails, the object is intentionally retained. No durable upload-intent or orphan sweeper exists.
-
-**Next:** FIN-025 — design and implement crash-safe upload intent/recovery and bounded orphan cleanup with lease/retry and reference checks; never use broad bucket listing/deletion.
-
+**Remaining gate:** execute isolated migration and PostgreSQL scenarios during the consolidated Phase 3 campaign. Do not activate a cleanup worker or run migration 0075 against a shared database under the current restrictions.
 
 ### FIN-024 follow-up — uncertain upload response
 
-FIN-024 also moves payment transition validation ahead of storage writes and compensates an upload timeout by checking/deleting the unique object key if it exists. FIN-DSH-48 covers this path. Latest test commit: `847647c424097e5ace69236d0c3b4592f85d30e9`. Test not executed. Process crash after object upload but before DB transaction still requires FIN-025 durable upload intent/recovery.
+FIN-024 moved payment transition validation ahead of storage writes. FIN-DSH-48 now verifies that an uncertain putObject response leaves a durable cleanup intent; FIN-025 provides the bounded recovery path. Test not executed.
+
+
+## FIN-025 — Durable payment-proof upload recovery
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Every generated object key is recorded before upload. Payment row, immutable event, outbox event and new proof intent commit atomically. Replaced managed proofs receive cleanup intents in the same transaction. The callable cleanup method claims only stale intents with SKIP LOCKED and fenced leases, checks all payment rows for references, HEADs/DELETEs only the exact recorded key, and applies bounded exponential retry with terminal FAILED state.
+
+Migration 0075 is source-only. The cleanup method is not registered with a scheduler, worker or route and has not been activated. FIN-DSH-46–53 are added/updated but not executed. No bucket listing or broad deletion is used.
+
+**Next:** FIN-026 — audit and correct payment event actor attribution where both administrators and merchant users are authorized to perform the same financial transition.
+
+## FIN-026 — Payment event actor attribution
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Payment verification and COD cash confirmation now persist ADMIN versus MERCHANT based on the authenticated caller, rather than hardcoding one actor class. FIN-DSH-54 verifies merchant verification and administrator cash confirmation.
+
+No migration is required. Tests remain pending the consolidated Phase 3 campaign.

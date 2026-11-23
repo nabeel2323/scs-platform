@@ -922,3 +922,10 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 | ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
 |---|---|---|---|---|---|---|
 | FIN-025 | Crash-safe payment proof upload intent and bounded orphan cleanup | Migration 0075 and Drizzle intent table persist every generated key before upload; payment row/event/outbox/intent commit atomically; replaced managed proofs receive a cleanup intent in the same transaction; stale cleanup claims with SKIP LOCKED and lease fencing, checks all payment-row references before exact-key deletion, and retries with bounded backoff. FIN-DSH-49–53 added; FIN-DSH-46/48 updated. | Execute isolated migration and PostgreSQL tests in the consolidated Phase 3 campaign; add/approve a future scheduler/worker only through the existing activation gate; review lease-duration and S3 not-found behavior against the deployed provider. | P1 | IMPLEMENTED / TESTING_PENDING | Migration 0075 not applied; cleanup method not scheduled/activated; no bucket listing; no shared/staging DB changes; PR #138 remains draft. |
+
+
+## FIN-026 — Payment event actor attribution — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-026 | Accurate actor class on payment verification and COD confirmation events | verifyPayment and confirmCash now set actor_type from authenticated caller class (ADMIN versus MERCHANT), matching the authorization contract. PostgreSQL FIN-DSH-54 covers merchant verification and admin COD confirmation. | Execute the PostgreSQL regression in the consolidated Phase 3 campaign and review other payment-event producers for the same mismatch. | P1 | IMPLEMENTED / TESTING_PENDING | No migration; no shared DB changes; PR #138 remains draft. |

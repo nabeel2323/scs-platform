@@ -745,3 +745,14 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - Latest source correction commit: `ff67348b950b51a482fa4cf624549a146551c383`.
 - S3-compatible not-found detection now checks HTTP 404 plus all provider error-name/code fields instead of letting a generic error name mask a provider `NotFound` code. Generic storage failures remain retryable and are never treated as proof that an object is absent.
 - No tests were executed. Exact-head GitHub Actions lookup returned no run; Vercel Web/Admin statuses are external build-rate-limit failures.
+
+
+## Latest continuation checkpoint — 23 November 2026 (FIN-026)
+
+- Latest implementation commit: `e5733dc4a403c15da27d9064aa8703a89f6ee7f4`; branch remains `remediation/phase-0-1-tenant-security`; PR #138 remains open, draft and unmerged.
+- FIN-025 is implemented: durable upload intents, atomic proof/payment/outbox commit, transactional retirement intent for previous managed proofs, global payment-row reference checks, exact-key cleanup, bounded retry and concurrent SKIP LOCKED claims. Migration 0075 remains source-only; cleanup method is not scheduled or activated.
+- FIN-DSH-46–53 cover proof lifecycle and cleanup recovery; tests have not been executed.
+- FIN-026 fixes payment event actor attribution for verifyPayment and confirmCash. FIN-DSH-54 covers merchant verification and admin COD confirmation; test not executed.
+- No exact-head GitHub Actions run has been returned for the latest commit. Vercel Web/Admin failures are external build-rate-limit statuses.
+- No shared/staging database write, migration execution, grants/RLS, worker activation, environment change, provider/gateway/payout, deployment or merge action.
+- **Next:** continue source-auditing payment/refund/settlement event history and retry semantics. Keep the consolidated Phase 3 verification campaign pending until implementation is complete.

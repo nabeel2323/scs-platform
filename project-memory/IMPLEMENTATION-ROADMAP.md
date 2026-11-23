@@ -592,3 +592,20 @@ Commits: `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7
 ### FIN-024 follow-up — 23 November 2026
 
 Payment proof transition validation now occurs before upload, and uncertain putObject timeouts are compensated by checking/deleting the generated key when present. FIN-DSH-48 added. Latest commit: `847647c424097e5ace69236d0c3b4592f85d30e9`. Test not executed; process-crash orphan recovery remains FIN-025.
+
+
+## Financial correctness continuation — FIN-025 — 23 November 2026
+
+FIN-025 adds durable payment-proof object intents before storage upload. Payment row, event, outbox and COMMITTED intent state share one transaction; replaced managed proofs receive a durable cleanup intent in the same transaction. The cleanup method uses a 60-minute age threshold, SKIP LOCKED claims, five-minute fenced leases, global payment-row reference checks, exact-key HEAD/DELETE and bounded exponential retry. FIN-DSH-46–53 added/updated; tests not executed. Migration 0075 is source-only and the cleanup method is not scheduled or activated.
+
+Commits: `a457d352d0ee71e6e020f164e838f5a02a81c512`, `ff67348b950b51a482fa4cf624549a146551c383`.
+
+**Next:** FIN-026 — correct immutable payment-event actor attribution for payment verification and COD cash confirmation when an administrator or merchant may perform the action.
+
+## Financial correctness continuation — FIN-026 — 23 November 2026
+
+Payment verification and COD cash confirmation previously hardcoded ADMIN and MERCHANT respectively, even though both actions allow more than one caller class. The event now records ADMIN for privileged callers and MERCHANT for merchant callers. PostgreSQL FIN-DSH-54 covers merchant verification and admin COD cash confirmation. No schema migration. Tests not executed.
+
+Commit: `e5733dc4a403c15da27d9064aa8703a89f6ee7f4`.
+
+**Next:** continue the source audit of payment/refund/settlement transitions for remaining audit-history or retry inconsistencies; keep the consolidated Phase 3 verification campaign pending until implementation is complete.
