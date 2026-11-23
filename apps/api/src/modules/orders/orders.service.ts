@@ -1796,6 +1796,20 @@ export class OrdersService {
     return order;
   }
 
+  /**
+   * Returns only variant identifiers from a persisted order's lines.
+   * Callers cannot use this projection to mutate or bypass order ownership.
+   */
+  async listPurchasedVariantIds(orderId: string): Promise<string[]> {
+    const items = await this.db.db.query.orderItems.findMany({
+      where: eq(orderItems.orderId, orderId),
+      columns: { variantId: true },
+    });
+    return items
+      .map((item) => item.variantId)
+      .filter((variantId): variantId is string => typeof variantId === 'string' && variantId.length > 0);
+  }
+
   async getOrderWithItems(id: string, caller?: CallerContext) {
     const order = await this.getOrder(id);
     if (caller) await assertOrderAccessible(this.db, caller, order);
