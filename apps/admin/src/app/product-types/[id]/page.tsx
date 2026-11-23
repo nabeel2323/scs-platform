@@ -176,13 +176,13 @@ export default function ProductTypeBuilderPage() {
     } finally {
       if (requestId === ptProductsRequestVersion.current) setPtProdLoading(false);
     }
-  }, [id]);
+  }, [hasAccess, id]);
 
   useEffect(() => {
-    if (activeTab !== 'products') return;
+    if (activeTab !== 'products' || !hasAccess) return;
     void loadProducts();
     return () => { ptProductsRequestVersion.current += 1; };
-  }, [activeTab, loadProducts]);
+  }, [activeTab, hasAccess, loadProducts]);
 
   // Handlers
   const handleAddAttribute = useCallback((attrId: string) => {

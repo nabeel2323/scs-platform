@@ -111,8 +111,6 @@ export default function CatalogImportPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
       setStage('dashboard');
-    }
-
     } finally {
       // Reset the input and release the upload lock after both upload and preview.
       if (fileInputRef.current) fileInputRef.current.value = '';
