@@ -250,7 +250,13 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     alerts = new OpsAlertService(database);
     audit = new AuditService(database);
     controls = new OpsControlService(database, audit, alerts);
-    pilotLegacy = new PilotControlService(database, audit, alerts);
+    pilotLegacy = new PilotControlService(
+      database,
+      audit,
+      alerts,
+      {} as never,
+      {} as never,
+    );
     monitor = new P13MonitorService(database, alerts, leases);
 
     const calendar = new BusinessCalendarService(database);
