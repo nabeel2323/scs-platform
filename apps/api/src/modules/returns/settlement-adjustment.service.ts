@@ -43,7 +43,7 @@ import {
 import { settlementRecords } from '../payments/payments.schema';
 import { orders } from '../orders/orders.schema';
 import { stores } from '../merchant/merchant.schema';
-import { eq, and, sql, desc, isNull } from 'drizzle-orm';
+import { eq, and, sql, desc, isNull, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /** Valid state transitions for the adjustment state machine. */
@@ -470,29 +470,36 @@ export class SettlementAdjustmentService {
         );
       }
 
-      // Find the latest settlement for this sub-order (scoped by org)
-      const settlement = await tx.query.settlementRecords.findFirst({
-        where: eq(settlementRecords.subOrderId, adj.subOrderId),
-        orderBy: [desc(settlementRecords.calculatedAt)],
-      });
+      // Lock the primary settlement row. This serializes posting against
+      // markSettlementPaid and against other adjustments for this order. Never
+      // mark an adjustment POSTED without a persisted settlement ledger entry.
+      const [settlement] = await tx
+        .select()
+        .from(settlementRecords)
+        .where(and(
+          eq(settlementRecords.subOrderId, adj.subOrderId),
+          inArray(settlementRecords.status, ['PENDING', 'CALCULATED', 'DUE', 'PAID']),
+        ))
+        .orderBy(desc(settlementRecords.calculatedAt))
+        .limit(1)
+        .for('update');
 
-      // Transition to POSTED
+      if (!settlement) {
+        throw new ConflictException(
+          'Cannot post settlement adjustment before a primary settlement has been calculated',
+        );
+      }
+
+      // Transition to POSTED only in the same transaction that writes its ledger row.
       await tx.update(settlementAdjustments)
         .set({
           status: 'POSTED',
-          settlementId: settlement?.id ?? null,
+          settlementId: settlement.id,
           updatedAt: new Date(),
         })
         .where(eq(settlementAdjustments.id, adjustmentId));
 
-      // If there's a settlement, create an ADJUSTMENT settlement record
-      if (settlement) {
-        const orderRow = await tx.query.orders.findFirst({
-          where: eq(orders.id, adj.subOrderId),
-          columns: { storeId: true },
-        });
-
-        await tx.insert(settlementRecords).values({
+      await tx.insert(settlementRecords).values({
           id: crypto.randomUUID(),
           subOrderId: adj.subOrderId,
           paymentRecordId: settlement.paymentRecordId,

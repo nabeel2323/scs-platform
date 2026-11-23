@@ -35,6 +35,7 @@
  *   FIN-DSH-31  Return refund allocation and delivery exception currency
  *   FIN-DSH-32  Concurrent return creation preserves one-active-return invariant
  *   FIN-DSH-33  Commission reversal adjustment posts as a merchant credit
+ *   FIN-DSH-34  Adjustment cannot be posted without a primary settlement
  *   FIN-DSH-33  Return request idempotent retry and payload integrity
  *
  * All assertions are against persisted database state, not code inspection.
@@ -1717,6 +1718,52 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       net: 125,
       currency: settlement.currency,
     }]);
+  }, 60_000);
+
+
+  // ── FIN-DSH-34: Posting requires a primary settlement ledger ────
+
+  it('FIN-DSH-34: keeps an approved adjustment unposted until a primary settlement exists', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const adjustment = await settlementAdjService.createAdjustment({
+      subOrderId: orderId,
+      adjustmentType: 'DELIVERY_FEE_REFUND',
+      amountMinor: 450,
+      currency: 'SYP',
+      reason: 'Delivery fee correction',
+    }, adminA, orgA);
+
+    const approvalHash = (await pool.query(
+      `SELECT approval_hash FROM settlement_adjustments WHERE id = $1`,
+      [adjustment.id],
+    )).rows[0].approval_hash as string;
+    await pool.query(
+      `UPDATE settlement_adjustments
+       SET status = 'APPROVED', fx_status = 'RESOLVED'
+       WHERE id = $1`,
+      [adjustment.id],
+    );
+    await pool.query(
+      `INSERT INTO settlement_adjustment_approvals
+       (id, adjustment_id, approver_id, approver_role, approval_hash)
+       VALUES ($1, $2, $3, 'FINANCE', $5), ($4, $2, $6, 'ADMIN', $5)`,
+      [randomUUID(), adjustment.id, buyerA, randomUUID(), approvalHash, merchantA],
+    );
+
+    await expect(
+      settlementAdjService.postAdjustment(adjustment.id, adminA, orgA),
+    ).rejects.toThrow('Cannot post settlement adjustment before a primary settlement');
+
+    const persisted = await pool.query(
+      `SELECT status, settlement_id FROM settlement_adjustments WHERE id = $1`,
+      [adjustment.id],
+    );
+    expect(persisted.rows).toEqual([{ status: 'APPROVED', settlement_id: null }]);
+    const ledger = await pool.query(
+      `SELECT id FROM settlement_records WHERE sub_order_id = $1`,
+      [orderId],
+    );
+    expect(ledger.rows).toHaveLength(0);
   }, 60_000);
 
   // ── FIN-DSH-10: Rollback under a losing REFUNDED race ────────────
