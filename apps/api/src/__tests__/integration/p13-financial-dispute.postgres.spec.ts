@@ -1213,9 +1213,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(obx.rows[0].n).toBe(1);
   }, 90_000);
 
-  // ── FIN-DSH-24: Refund adjustment vs concurrent settlement payment ─
+  // ── FIN-DSH-27: Refund adjustment vs concurrent settlement payment ─
 
-  it('FIN-DSH-24: preserves the paid settlement and creates an adjustment when refund completion races payment', async () => {
+  it('FIN-DSH-27: preserves the paid settlement and creates an adjustment when refund completion races payment', async () => {
     const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
     const pendingRet = await advanceReturnToRefundPending(
       returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
@@ -1301,9 +1301,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   }, 60_000);
 
 
-  // ── FIN-DSH-25: Adjustment currency follows original settlement ──
+  // ── FIN-DSH-26: Adjustment currency follows original settlement ──
 
-  it('FIN-DSH-25: post-refund adjustment preserves the original settlement currency', async () => {
+  it('FIN-DSH-26: post-refund adjustment preserves the original settlement currency', async () => {
     const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
     await pool.query(
       `UPDATE payment_records SET currency = 'USD' WHERE order_id = $1`,
