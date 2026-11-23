@@ -2028,3 +2028,9 @@ This closes a UI-to-controller workflow omission; it does not change G-001–G-0
 - FIN-DSH-13 verifies concurrent idempotency and one outbox event; FIN-DSH-14 verifies post-PAID rejection; FIN-DSH-15 verifies an AWAITING_PAYMENT payment cannot be settled. Tests added, not executed.
 - CI #1425 tested earlier SHA `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint and Flutter passed, typecheck failed, downstream tests/format/build skipped. The settlement insert-result narrowing guard was added afterward; exact-head validation remains pending.
 - No schema/migration, provider, automatic payout, staging, shared database or deployment behavior changed.
+
+## FIN-002 typecheck remediation note — 23 November 2026
+
+- CI #1425 on `994fee9a332f4c553fa09687101d8f6ecdec3103` passed lint and Flutter analysis/tests but failed TypeScript typecheck. Errors identified a possibly-undefined Drizzle insert return in `PaymentsService.calculateSettlement`, propagated to P12/P13 test callers.
+- Source commit `60bf231f950dec8ede3c8945f76b22bc8e4b4451` adds an explicit guard that throws if the insert returns no persisted settlement row, narrowing the service result type.
+- This correction has not been re-run in CI; no typecheck or PostgreSQL test pass is claimed.
