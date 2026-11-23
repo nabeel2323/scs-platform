@@ -2257,4 +2257,4 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 
 ### CI #1446 syntax blockers — 23 November 2026
 
-CI #1446 failed at lint on two parse errors in `returns.service.ts` and `settlement-adjustment.service.ts`. Both syntax defects were corrected in commits `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`. Flutter passed; all dependent API/PostgreSQL/migration/Web/Admin/build/boundary/contract/k6/staging jobs were skipped. No exact-head rerun has been performed; the corrections remain unverified by CI.
+CI #1446 failed at lint on two parse errors in `returns.service.ts` and `settlement-adjustment.service.ts`. Both syntax defects were corrected in commits `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`; a follow-up brace-balance and indentation correction in `returns.service.ts` is committed as `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`. Flutter passed; all dependent API/PostgreSQL/migration/Web/Admin/build/boundary/contract/k6/staging jobs were skipped. No exact-head rerun has been performed; the corrections remain unverified by CI.
