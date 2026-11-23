@@ -41,10 +41,10 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
     final canCreate = profile?.hasPermission('merchant:products:write') ?? false;
     final canDelete =
         profile?.hasPermission('catalog:products:delete') ?? false;
-    final canManageOffers =
-        profile?.hasPermission('catalog:offers:write') ?? false;
-    final canManageCategories =
-        profile?.hasPermission('catalog:categories:write') ?? false;
+    final canReadOffers =
+        profile?.hasPermission('merchant:stores:read') ?? false;
+    final canReadCategories =
+        profile?.hasPermission('catalog:categories:read') ?? false;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Catalog'),
