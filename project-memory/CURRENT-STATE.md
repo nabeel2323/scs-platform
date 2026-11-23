@@ -19,14 +19,14 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation checkpoint head | `856d527aeb65abc9feeb565f1dbc8c07df7d5331` (UX-097 focused tests; implementation/test pending verification) |
-| Latest implementation/test | UX-097 Admin action-handler permission rechecks; API realtime room type narrowing and Mobile nullable-role corrections after CI #1395; focused tests added but not executed |
+| Latest implementation checkpoint head | `57d3a251b34b891e49a05e3f9b70756be1b4dbb7` (UX-099 focused test; latest implementation/test checkpoint is not CI-verified) |
+| Latest implementation/test | UX-097/098 Admin handler and capability-aware navigation fixes; UX-099 shared mutation permission rechecks; focused Admin tests added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for corrective source/test head `856d527aeb65abc9feeb565f1dbc8c07df7d5331`; CI #1395 failed on earlier `ff304ce6c0bcf63a654ff8fbd04130254cdb669e`; corrections NOT CI-VERIFIED |
+| Exact-head GitHub Actions | No run for UX-099 source/test head `57d3a251b34b891e49a05e3f9b70756be1b4dbb7`; CI #1408 failed on earlier `a76b0bef436af8bde2d9329b1cd6ee5980f593fc` at changed-file Prettier (245 files); typecheck and Flutter job passed there, but UX-099 is NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest inspected Vercel contexts | At PR head `071cbc41`: Web/Admin PENDING preview-provider checks; not application test results |
-| Focused client tests | Admin UX-030–058 and UX-097, Mobile UX-078–096, Web UX-095 focused tests added/updated; not executed |
+| Latest inspected Vercel contexts | At PR head `7f7b5332`: Web FAILURE and Admin FAILURE at external build-rate-limit destination; not application test results |
+| Focused client tests | Admin UX-030–058 and UX-097–099, Mobile UX-078–096 and Web UX-095 focused tests added/updated; not executed (Flutter suite passed only on earlier SHA `a76b0be`) |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
 ## Current remediation status
