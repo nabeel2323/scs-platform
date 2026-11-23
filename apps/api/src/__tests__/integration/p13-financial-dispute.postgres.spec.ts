@@ -1401,6 +1401,61 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(adjustment.rows).toEqual([{ currency: 'USD', status: 'ADJUSTMENT' }]);
   }, 60_000);
 
+
+  // ── FIN-DSH-29: Discount-adjusted commission reversal and currency ──
+
+  it('FIN-DSH-29: partial return allocates order discount and preserves payment currency in both ledgers', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    await pool.query(
+      `UPDATE payment_records SET currency = 'USD' WHERE order_id = $1`,
+      [orderId],
+    );
+    await pool.query(
+      `UPDATE order_financial_breakdown
+       SET products_minor = 3000, discount_minor = 600, commission_minor = 300
+       WHERE order_id = $1`,
+      [orderId],
+    );
+
+    const pendingRet = await advanceReturnToRefundPending(
+      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+    );
+    await pool.query(
+      `UPDATE return_requests SET responsibility_category = 'MERCHANT' WHERE id = $1`,
+      [pendingRet.id],
+    );
+    const refundId = pendingRet.refundId as string;
+    const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
+    expect(settlement.currency).toBe('USD');
+    await paymentsService.markSettlementPaid(settlement.id, adminA, adminCaller, {
+      paymentReference: 'USD-DISCOUNT-REVERSAL-FIN-29',
+    });
+    await paymentsService.approveRefund(refundId, adminA, adminCaller);
+    await returnsService.transitionReturn(pendingRet.id, 'REFUNDED', adminCaller);
+
+    const reversal = await pool.query(
+      `SELECT reversal_minor::int AS reversal, currency
+       FROM commission_reversals WHERE return_request_id = $1`,
+      [pendingRet.id],
+    );
+    expect(reversal.rows).toEqual([{ reversal: 100, currency: 'USD' }]);
+
+    const refundAmount = (await pool.query(
+      `SELECT amount_minor::int AS amount FROM refunds WHERE id = $1`,
+      [refundId],
+    )).rows[0].amount;
+    const adjustment = await pool.query(
+      `SELECT commission_minor::int AS commission, currency, net_minor::int AS net
+       FROM settlement_records WHERE sub_order_id = $1 AND status = 'ADJUSTMENT'`,
+      [orderId],
+    );
+    expect(adjustment.rows).toEqual([{
+      commission: 100,
+      currency: 'USD',
+      net: 100 - refundAmount,
+    }]);
+  }, 90_000);
+
   // ── FIN-DSH-10: Rollback under a losing REFUNDED race ────────────
 
   it('FIN-DSH-10: concurrent REFUNDED transitions roll back the loser — single event, single settlement debit', async () => {

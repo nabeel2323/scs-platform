@@ -25,7 +25,8 @@ import { recordOpsCounter } from '../operations/ops-counters';
 import { commissionReversals } from './financial.schema';
 import { returnRequests, returnRequestItems } from './returns.schema';
 import { orders, orderFinancialBreakdown, orderItems } from '../orders/orders.schema';
-import { settlementRecords } from '../payments/payments.schema';
+import { paymentRecords, settlementRecords } from '../payments/payments.schema';
+import { calculateReturnNetGoodsMinor } from './returns-financials';
 import { stores } from '../merchant/merchant.schema';
 import { eq, and, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
@@ -73,6 +74,11 @@ export class CommissionReversalService {
     });
     if (!ret) throw new BadRequestException('Return request not found');
 
+    const payment = await this.db.db.query.paymentRecords.findFirst({
+      where: eq(paymentRecords.id, ret.paymentRecordId),
+    });
+    if (!payment) throw new BadRequestException('Payment record not found for return');
+
     // Load the financial breakdown for this sub-order
     const breakdown = await this.db.db.query.orderFinancialBreakdown.findFirst({
       where: eq(orderFinancialBreakdown.orderId, ret.subOrderId),
@@ -115,14 +121,22 @@ export class CommissionReversalService {
     const orderItemMap = new Map(orderItemRows.map(oi => [oi.id, oi]));
 
     // Calculate the net-goods basis for this return's items
-    const returnNetGoods = items.reduce((sum, item) => {
+    const returnGrossGoods = items.reduce((sum: bigint, item) => {
       const oi = orderItemMap.get(item.orderItemId);
       if (!oi) return sum;
-      const unitPrice = Number(oi.unitPriceMinor);
-      return sum + (unitPrice * item.quantity);
-    }, 0);
+      const unitPriceMinor = Number(oi.unitPriceMinor);
+      if (!Number.isSafeInteger(unitPriceMinor) || unitPriceMinor < 0) {
+        throw new RangeError('Returned order item price must be a non-negative safe integer');
+      }
+      return sum + (BigInt(unitPriceMinor) * BigInt(item.quantity));
+    }, 0n);
 
-    // Total order net goods (from breakdown)
+    // Allocate the order-level discount proportionally to the returned goods.
+    const returnNetGoods = calculateReturnNetGoodsMinor(
+      returnGrossGoods,
+      breakdown.productsMinor,
+      breakdown.discountMinor,
+    );
     const orderNetGoods = breakdown.productsMinor - breakdown.discountMinor;
 
     if (orderNetGoods <= 0 || returnNetGoods <= 0) {
@@ -227,7 +241,7 @@ export class CommissionReversalService {
       responsibilityCategory,
       idempotencyKey,
       status: 'POSTED',
-      currency: 'SYP',
+      currency: payment.currency,
       notes: `Commission reversal for return ${returnRequestId}: ${responsibilityCategory} responsibility, ` +
              `netGoods=${returnNetGoods}/${orderNetGoods}, commission=${originalCommission}`,
       createdBy,
@@ -244,7 +258,7 @@ export class CommissionReversalService {
         reversalMinor,
         originalCommissionMinor: origCommission,
         responsibilityCategory,
-        currency: 'SYP',
+        currency: payment.currency,
       },
       {},
       null,

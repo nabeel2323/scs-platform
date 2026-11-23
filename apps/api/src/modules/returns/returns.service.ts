@@ -23,6 +23,7 @@ import {
   returnRequests, returnRequestItems, returnRequestEvents,
 } from './returns.schema';
 import { commissionReversals } from './financial.schema';
+import { calculateReturnNetGoodsMinor } from './returns-financials';
 import { orders, orderItems, orderFinancialBreakdown } from '../orders/orders.schema';
 import { paymentRecords, refunds, settlementRecords } from '../payments/payments.schema';
 import { shipments } from '../orders/shipment.schema';
@@ -1135,11 +1136,20 @@ export class ReturnsService {
             });
             const orderItemMap: Map<string, any> = new Map(orderItemRows.map((oi: any) => [oi.id, oi]));
 
-            const returnNetGoods = items.reduce((sum: number, item: any) => {
+            const returnGrossGoods = items.reduce((sum: bigint, item: any) => {
               const oi = orderItemMap.get(item.orderItemId);
               if (!oi) return sum;
-              return sum + (Number(oi.unitPriceMinor) * item.quantity);
-            }, 0);
+              const unitPriceMinor = Number(oi.unitPriceMinor);
+              if (!Number.isSafeInteger(unitPriceMinor) || unitPriceMinor < 0) {
+                throw new RangeError('Returned order item price must be a non-negative safe integer');
+              }
+              return sum + (BigInt(unitPriceMinor) * BigInt(item.quantity));
+            }, 0n);
+            const returnNetGoods = calculateReturnNetGoodsMinor(
+              returnGrossGoods,
+              breakdown.productsMinor,
+              breakdown.discountMinor,
+            );
 
             if (returnNetGoods > 0) {
               // Cumulative-target proportional reversal, capped at remaining
