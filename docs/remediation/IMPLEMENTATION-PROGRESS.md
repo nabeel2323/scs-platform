@@ -1885,3 +1885,12 @@ This client access-alignment work does not change G-001–G-036 finding status o
 - Status: **IMPLEMENTED / TESTING_PENDING**, not automated-test verified or CI-verified. No backend role grant, API contract, schema, migration, database, staging or deployment behavior changed.
 
 **Next:** continue the remaining Admin custom route/action-to-controller mapping. The 56-page route-level audit is complete; do not repeat it. Comprehensive validation and formatting remain in the consolidated Phase 3 campaign.
+
+
+## G-002 supplemental audit evidence — 23 November 2026
+
+A user-uploaded audit note reports 111/111 tables with RLS disabled; 32 public-schema functions with none marked SECURITY DEFINER; anon/authenticated without BYPASSRLS; service_role with BYPASSRLS; 55 foreign-key constraints without covering indexes; earlier plaintext OTP log observations; no separate Render worker service observed; and a startup migration/RBAC-seed command with 63 migrations reportedly applied.
+
+The note contains no observation timestamp, database endpoint, SQL/query text, connection identity or relation-kind scope. It is preserved as supplemental, not independently reconciled evidence in [G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md](./G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md). Its 111-table count is not substituted for the detailed 114 public ordinary/partitioned table snapshot or historical 116 wording. Function-scope reconciliation, actual API/migration identities and protected read-only catalog evidence remain open. The 55-index count aligns with the existing G-013 candidate count; no index DDL is justified without workload evidence.
+
+No G-002 status is promoted. No SQL mutation, migration, grant/default-ACL change, RLS enablement, extension ownership change, staging write, deployment, restart, worker activation or test-record creation occurred.
