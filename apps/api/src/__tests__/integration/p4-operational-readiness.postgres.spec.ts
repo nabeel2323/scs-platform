@@ -11,6 +11,7 @@
  * started inside the spec. An alert is only claimed "operational" here when a
  * row (and where applicable a delivered payload) exists.
  */
+import { NotFoundException } from '@nestjs/common';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import { AddressInfo } from 'node:net';
@@ -1162,7 +1163,32 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       if (mode === 'allowlist') process.env['P13_PILOT_MODE'] = 'allowlist';
       else delete process.env['P13_PILOT_MODE'];
       try {
-        return new PilotControlService(db, audit, alerts);
+        const identityContract = {
+          getOrg: async (orgId: string) => {
+            const result = await pool.query('SELECT id FROM organizations WHERE id = $1', [orgId]);
+            const organization = result.rows[0];
+            if (!organization) throw new NotFoundException('Organization not found');
+            return organization;
+          },
+        };
+        const merchantContract = {
+          getStore: async (storeId: string) => {
+            const result = await pool.query(
+              'SELECT id, org_id AS "orgId" FROM stores WHERE id = $1',
+              [storeId],
+            );
+            const store = result.rows[0];
+            if (!store) throw new NotFoundException('Store not found');
+            return store;
+          },
+        };
+        return new PilotControlService(
+          db,
+          audit,
+          alerts,
+          identityContract as never,
+          merchantContract as never,
+        );
       } finally {
         if (previous === undefined) delete process.env['P13_PILOT_MODE'];
         else process.env['P13_PILOT_MODE'] = previous;
