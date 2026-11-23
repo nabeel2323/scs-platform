@@ -609,3 +609,8 @@ Payment verification, COD cash confirmation, and merchant-/buyer-side return tra
 Commit: `e5733dc4a403c15da27d9064aa8703a89f6ee7f4`.
 
 **Next:** continue the source audit of payment/refund/settlement transitions for remaining audit-history or retry inconsistencies; keep the consolidated Phase 3 verification campaign pending until implementation is complete.
+
+
+## Financial correctness continuation — FIN-027 — 23 November 2026
+
+FIN-027 aligns return-side refundable-balance aggregation with PaymentsService: APPROVED refunds now reserve balance, and PostgreSQL SUM(bigint) is handled as exact numeric text/BigInt rather than a 32-bit cast. FIN-DSH-56 covers both regressions. Source/test commits: `6ae8aba762215f69f42e74e4608a4fa31a02543b` / `5b636df49155ea523bc730852ed900720a858a88`. Tests not executed; Phase 3 remains pending.
