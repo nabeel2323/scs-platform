@@ -1133,3 +1133,21 @@ Three payment-side SUM(bigint) aggregates used for refund reservation, refund ap
 - FIN-033 source: 633d56a06e073ee416e5b7a989167ef5828f13d8; unit regression: 115b0dab007e4071f6a32ee1e564427a86732249.
 - Current exact branch head before documentation: 115b0dab007e4071f6a32ee1e564427a86732249. No GitHub Actions workflow run is attached to this head; combined status contains only Vercel Web/Admin build-rate-limit failures. Tests have not been executed.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No migration, shared DB/staging operation, worker activation, deployment or merge.
+
+
+## FIN-034 — Caller-owned refund transaction support — 23 November 2026
+
+PaymentsService.requestRefund now accepts an optional caller-owned transaction client and reuses it rather than opening a nested transaction. This aligns the implementation with the existing dispute-resolution caller, which passes its transaction so refund creation, payment event/outbox, refund linkage and dispute resolution remain atomic. Existing PostgreSQL FIN-DSH-45 covers injected failure rollback; tests remain unexecuted. Source commit: 2c4b4538cc10e3d4e6217ca56967c89e52657fd8.
+
+
+## FIN-035 — Atomic return-refund and return-ledger transition — 23 November 2026
+
+Return refund creation previously committed the payment refund/event/outbox first, then linked the refund and advanced the return request in a second transaction. It now locks the payment and performs refund creation (reusing PaymentsService's caller-owned transaction), return linkage, REFUND_PENDING state/history and return outbox in one transaction. The existing idempotency recovery path remains for legacy split-transaction rows. PostgreSQL FIN-DSH-61 injects failure at return outbox persistence and asserts that refund, payment event/outbox and return changes all roll back. Source commit: e462c256be710a81e42b2f2d4093d4700abe1818; test commit: f5d38d5a4af42ec29fa38040d8ba184e5dcbcdff, with scoped outbox assertion correction 4ad18e1eab3495030c6fff719607b5101337edb4 and test index update ac266c2c365d23c3ef3e58032616bb118d037715. Tests not executed.
+
+
+## FIN-034/035 continuation checkpoint — 23 November 2026
+
+- FIN-034: requestRefund now reuses an optional caller-owned transaction; source commit 2c4b4538cc10e3d4e6217ca56967c89e52657fd8.
+- FIN-035: return refund/payment and return ledgers now commit atomically; FIN-DSH-61 injects a return-outbox failure and verifies rollback. Source commit e462c256be710a81e42b2f2d4093d4700abe1818; test commits f5d38d5a4af42ec29fa38040d8ba184e5dcbcdff, 4ad18e1eab3495030c6fff719607b5101337edb4 and ac266c2c365d23c3ef3e58032616bb118d037715.
+- FIN-001–FIN-035 are implemented in source; tests are pending consolidated Phase 3. Current branch head before docs: ac266c2c365d23c3ef3e58032616bb118d037715. No exact-head Actions run; Web/Admin statuses are external Vercel build-rate-limit failures.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No shared DB/staging operations, migrations, worker activation, deployment or merge.

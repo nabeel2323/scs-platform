@@ -1220,3 +1220,11 @@ The next full workflow is required to verify these changes.
 - FIN-033 source: 633d56a06e073ee416e5b7a989167ef5828f13d8; unit regression: 115b0dab007e4071f6a32ee1e564427a86732249.
 - Current exact branch head before documentation: 115b0dab007e4071f6a32ee1e564427a86732249. No GitHub Actions workflow run is attached to this head; combined status contains only Vercel Web/Admin build-rate-limit failures. Tests have not been executed.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No migration, shared DB/staging operation, worker activation, deployment or merge.
+
+
+## FIN-034/035 continuation checkpoint — 23 November 2026
+
+- FIN-034: requestRefund now reuses an optional caller-owned transaction; source commit 2c4b4538cc10e3d4e6217ca56967c89e52657fd8.
+- FIN-035: return refund/payment and return ledgers now commit atomically; FIN-DSH-61 injects a return-outbox failure and verifies rollback. Source commit e462c256be710a81e42b2f2d4093d4700abe1818; test commits f5d38d5a4af42ec29fa38040d8ba184e5dcbcdff, 4ad18e1eab3495030c6fff719607b5101337edb4 and ac266c2c365d23c3ef3e58032616bb118d037715.
+- FIN-001–FIN-035 are implemented in source; tests are pending consolidated Phase 3. Current branch head before docs: ac266c2c365d23c3ef3e58032616bb118d037715. No exact-head Actions run; Web/Admin statuses are external Vercel build-rate-limit failures.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No shared DB/staging operations, migrations, worker activation, deployment or merge.
