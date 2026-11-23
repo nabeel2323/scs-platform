@@ -950,3 +950,10 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 | ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
 |---|---|---|---|---|---|---|
 | FIN-029 | Payment/order event actor consistency | verifyPayment now persists the same authenticated ADMIN/MERCHANT actor ID/class in payment_events and order_status_history. FIN-DSH-54 covers both rows. | Execute FIN-DSH-54 in consolidated Phase 3 and continue auditing other payment/order event pairs. | P1 | IMPLEMENTED / TESTING_PENDING | No migration; no shared DB changes; PR #138 remains draft. |
+
+
+## FIN-030 — Refund-completion period attribution — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-030 | Reconciliation period attribution for returns/refunds | Missing-refund and commission-reversal checks now use the REFUNDED event timestamp, with a created_at fallback for legacy rows lacking that event. FIN-DSH-58 covers a return created in a prior period and refunded in the current period. | Execute FIN-DSH-58 and review remaining reconciliation checks for use of source-event time versus aggregate-row creation time. | P1 | IMPLEMENTED / TESTING_PENDING | No migration; no shared DB changes; PR #138 remains draft. |
