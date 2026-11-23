@@ -55,6 +55,24 @@ describe('ReviewsService order subject ownership', () => {
     expect(h.insert).not.toHaveBeenCalled();
   });
 
+  it('preserves the empty-order-lines validation before product lookup', async () => {
+    const h = createService();
+    h.listPurchasedVariantIds.mockResolvedValue([]);
+
+    await expect(
+      h.service.createReview({
+        orderId: 'order-a',
+        reviewerId: 'buyer-a',
+        subjectId: 'product-a',
+        subjectType: 'PRODUCT',
+        rating: 5,
+      }),
+    ).rejects.toThrow('The order contains no reviewable product lines');
+
+    expect(h.hasVariantForProduct).not.toHaveBeenCalled();
+    expect(h.insert).not.toHaveBeenCalled();
+  });
+
   it('rejects a product review when none of the order variants belong to that product', async () => {
     const h = createService();
 
