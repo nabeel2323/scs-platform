@@ -1181,6 +1181,10 @@ export class PaymentsService {
   async expirePayment(paymentId: string) {
     const payment = await this.getPaymentOrThrow(paymentId);
 
+    // COD is collected at delivery, so it must not expire merely because
+    // the order has been awaiting collection for longer than the bank-transfer window.
+    if (payment.paymentMethod === 'CASH_ON_DELIVERY') return;
+
     if (payment.status !== 'AWAITING_PAYMENT' && payment.status !== 'AWAITING_VERIFICATION') {
       return; // Already handled or not expirable
     }
@@ -1477,6 +1481,7 @@ export class PaymentsService {
     return this.db.db.query.paymentRecords.findMany({
       where: and(
         inArray(paymentRecords.status, ['AWAITING_PAYMENT', 'AWAITING_VERIFICATION']),
+        sql`${paymentRecords.paymentMethod} IS DISTINCT FROM 'CASH_ON_DELIVERY'`,
         sql`${paymentRecords.createdAt} < ${cutoff.toISOString()}`,
       ),
       orderBy: [paymentRecords.createdAt],
