@@ -494,3 +494,13 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - UX-095 Web merchant access alignment and G-036 realtime room authorization remain implemented but unverified as recorded in [CURRENT-STATE.md](./CURRENT-STATE.md).
 - No merge, deployment, staging operation, shared database change, migration, grant/default-ACL change, RLS enablement or worker activation occurred.
 - **Next task:** finish the remaining Admin route/action permission mapping. Keep comprehensive testing deferred to Phase 3.
+
+
+## Latest continuation — 23 November 2026 (Admin UX-100)
+
+- Implemented the missing approver-only settlement-adjustment Reject action with required reason and the API's exact `{ reason }` payload.
+- Added focused rejection-flow and read-only visibility tests; not executed.
+- Source commit: `14c8c5c`; focused test commit: `e471e6b`. All implementation/test commits use `[skip ci]`.
+- Custom financial route/action permission mapping was compared with API controller decorators for reconciliation, settlement adjustments, settlements, payments and role permission updates. The reviewed permission predicates match the endpoint guards.
+- PR #138 remains open/draft/unmerged. No exact-head Actions run or test pass is claimed.
+- Next: continue direct custom mutation handler audit; batch comprehensive formatting and testing in Phase 3. No database, staging, migration, grants, RLS, worker or deployment action occurred.
