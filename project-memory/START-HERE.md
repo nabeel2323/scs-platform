@@ -76,7 +76,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. The live PR head at the last check was `38a22e0e48ec166abbbc96ec3bec3e861936a03d`; latest source/test checkpoint is `89624f61bd48a9009aef603333f30205ad14907e`. Re-fetch live refs and CI before the next action.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Re-fetch the live PR head and CI before the next action. The latest source/test checkpoint before this documentation synchronization is `57d3a251b34b891e49a05e3f9b70756be1b4dbb7` (UX-099).
 
 ### Exact stopping point
 
@@ -84,9 +84,10 @@ Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/s
 - UX-095 Web merchant route/action permission alignment and active-organization context invalidation is implemented.
 - UX-096 Mobile route/action permission and organization-context transition alignment is implemented.
 - G-036 realtime store/order room authorization is implemented in source; focused tests are pending execution and independent review.
-- The Admin page-level route audit already covered all 56 Admin page files and the generic ManagementPage configuration.
-- UX-097 added handler-time permission rechecks for verification organization deactivate/reactivate, Organizations status toggle and update-request review, and dispute resolution. Focused tests simulate permission loss while confirmation dialogs are open; not executed.
-- UX-098 added any-of navigation permission semantics, exposed Carrier & Recovery to either its read or recovery capability, and fixed Payments so a user with only `admin:payments:verify` can access the verification queue. All/stale payments and refund requests remain separately permission-gated. Focused helper/page tests were added but not executed.
+- The Admin page-level route audit already covered all 56 Admin page files and generic ManagementPage configuration.
+- UX-097 added handler-time permission rechecks for verification organization deactivate/reactivate, Organizations status toggle and update-request review, and dispute resolution.
+- UX-098 added any-of navigation permission semantics, exposed Carrier & Recovery to either its read or recovery capability, and fixed Payments so a user with only `admin:payments:verify` can access the verification queue.
+- UX-099 added action-specific permission callbacks to the shared Admin mutation helper; bound User status/membership, dispute, category, brand, offer governance, Carrier Recovery, shipment exception/RTS, inventory-return, carrier create/cancel/recovery and User Detail profile actions to their actual permissions. Focused tests were added for permission loss before dispatch; not executed.
 
 ### Latest CI correction state
 
@@ -96,17 +97,21 @@ CI #1395 failed on prior PR head `ff304ce6c0bcf63a654ff8fbd04130254cdb669e`:
 
 The API correction is `0d4644f634d65bd5fbe4fec818c6f8439023254e`; the Mobile correction is `5f08755ce69edfcbae5ca84462ffda245bfc1eb4`.
 
-CI #1408 ran on `a76b0bef436af8bde2d9329b1cd6ee5980f593fc`: lint and TypeScript typecheck passed, and the Flutter analyze/test job passed. The changed-file Prettier gate failed because 245 files in the cumulative PR diff were unformatted; all dependent Web/Admin, API unit, PostgreSQL integration, migration, boundary, build/container, contract and k6 jobs were skipped. The latest UX-098 commits were made after that run with `[skip ci]`, so they are not CI-verified. CI #1407 was superseded after a test type error; unsupported `ByRoleOptions.exact` assertions were corrected to anchored regex matchers.
+CI #1408 ran on `a76b0bef436af8bde2d9329b1cd6ee5980f593fc`: lint and TypeScript typecheck passed, and Flutter analyze/tests passed. The changed-file Prettier gate failed because 245 files in the cumulative PR diff were unformatted; all dependent Web/Admin, API unit, PostgreSQL integration, migration, boundary, build/container, contract and k6 jobs were skipped. UX-098/099 commits use `[skip ci]` and are not CI-verified. CI #1407 was superseded after a test type error; unsupported `ByRoleOptions.exact` assertions were corrected to anchored regex matchers.
+
+### Supplemental G-002 evidence
+
+The uploaded `Advanced UX Enhancement Prompt.txt` reports 111/111 tables with RLS disabled, 32 public functions with none SECURITY DEFINER, role BYPASSRLS distinctions, 55 FK constraints without covering indexes, OTP log observations, worker topology uncertainty and startup migration/seed behavior. It lacks observation timestamp, endpoint, query text, connection identity and relation-kind scope. It is preserved separately in `docs/remediation/G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md`; its 111-table count is not reconciled with the detailed 114 and historical 116 counts. Do not treat it as new verified staging evidence.
 
 ### Remaining project gates
 
 - G-001 remains PARTIAL pending independent security review and reviewer-directed remediation, if any.
-- G-002 remains IN PROGRESS pending actual API/migration runtime identities, protected read-only staging catalog evidence and reviewed least-privilege/transaction-bound RLS design.
+- G-002 remains IN PROGRESS pending actual API/migration runtime identities, protected read-only staging catalog evidence, reconciliation of 111/114/116 counts and reviewed least-privilege/transaction-bound RLS design.
 - G-036 remains IN PROGRESS pending exact-head verification and independent review.
 - Phases 0–5 remain IN PROGRESS; Phase 6 consolidated verification is NOT STARTED.
 - PR #138 must remain draft/open/unmerged. No merge, deployment, protected staging operation, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement, environment change or worker activation is authorized.
 
-**Next implementation:** continue remaining Admin custom route/action-to-controller permission mapping. Do not repeat the completed 56-page route audit or UX-097/098 fixes. Implement only concrete source-confirmed permission gaps. Plan one repository-locked Prettier pass for the accumulated PR diff and the comprehensive test campaign at the implementation-complete Phase 3 checkpoint; fix any concrete security/correctness defect immediately.
+**Next implementation:** continue remaining Admin custom route/action-to-controller permission mapping and confirm every shared mutation call site supplies its specific permission predicate. Do not repeat the completed 56-page route audit or UX-097/098/099 fixes. Plan one repository-locked Prettier pass for the accumulated PR diff and the comprehensive test campaign at the implementation-complete Phase 3 checkpoint; fix any concrete security/correctness defect immediately.
 
 ## Safety reminder
 
