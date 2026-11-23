@@ -516,3 +516,8 @@ The Mobile route/action audit slice is now implemented on PR #138:
 - Both organization-switch entry points persist/install the new token before updating active-org state, invalidate organization-scoped providers and refresh the router. The existing scope-invalidation test covers cache refresh.
 
 Focused Mobile route and driver-assignment tests are added but not executed. The next implementation slice is the remaining Admin route/action permission mapping; full verification remains deferred to the consolidated testing phase.
+
+
+## 23 November 2026 — Admin action-handler permission recheck (UX-097)
+
+A follow-up audit inspected the action handlers behind the existing Admin route permission matrix. Verification organization deactivate/reactivate, Organizations status toggle and update-request review, and dispute resolution previously relied on rendered-control visibility without rechecking the permission inside the async handler. The handlers now fail closed when the corresponding `admin:users:write` or `support:disputes:resolve` grant is absent at execution time; organization handlers also prevent duplicate in-flight actions. Focused tests simulate permission loss while confirmation dialogs remain open. Tests are added but not executed. This is client action-safety hardening only; API authorization remains authoritative and no permission grant changed.
