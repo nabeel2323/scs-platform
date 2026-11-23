@@ -579,6 +579,9 @@ export class OrdersService {
         `Unsupported payment method: ${paymentMethod}. Supported methods: ${SUPPORTED_PAYMENT_METHODS.join(', ')}`,
       );
     }
+    if (paymentMethod === 'BANK_TRANSFER' && !this.payments) {
+      throw new BadRequestException('Bank transfer checkout is unavailable because payment processing is not configured');
+    }
 
     try {
     await this.db.db.transaction(async (tx) => {
