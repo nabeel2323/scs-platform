@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae` — FIN-019 settlement adjustment posting integrity.
-**Latest focused test commit:** `b9f9728659e71d3788cc58aa2b5ad9df29ab9731` — FIN-DSH-34/35 numbering correction; tests not executed. No exact-head Actions run is attached.  
+**Latest source implementation commit:** `6ae8aba762215f69f42e74e4608a4fa31a02543b` — FIN-027 return refund balance aggregation; syntax corrections: `a06086769028ad55a371376abfca2a211ef317c4`, `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`. 
+**Latest focused test commit:** `5b636df49155ea523bc730852ed900720a858a88` — FIN-DSH-56 for APPROVED refund balance and BIGINT aggregate safety; tests not executed. No exact-head Actions run is attached. 
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,11 +19,11 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation checkpoint head | `b9f9728659e71d3788cc58aa2b5ad9df29ab9731` (FIN-019; FIN-DSH-34/35 tests not executed) |
-| Latest implementation/test | FIN-004–FIN-019 financial lifecycle, refund recovery, order/payment projection, settlement locking, expiry, discount proration, exact commission reversal, COD expiry, exact return-refund allocation, concurrent return creation and settlement-adjustment posting integrity. FIN-DSH-11–35 plus unit coverage added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
+| Latest implementation checkpoint head | `5b636df49155ea523bc730852ed900720a858a88` (FIN-027; FIN-DSH-56 added, not executed; docs-only checkpoint commits follow) |
+| Latest implementation/test | FIN-004–FIN-027 financial correctness: refund recovery, settlement/reconciliation lifecycle, proof-upload intents, actor attribution, return refund cap parity and BIGINT-safe aggregation. FIN-DSH-11–56 plus focused unit coverage are added but remain unexecuted pending Phase 3. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Latest Actions run | CI #1437 [run](https://github.com/nabeel2323/scs-platform/actions/runs/45166190673) tested earlier SHA `9dc7d04469180807e65053fe51819afffb3b78c0`: lint/typecheck and Flutter passed; changed-file Prettier failed (259 files); Web/Admin/API/PostgreSQL/migration/build/release jobs skipped. No exact-head run for FIN-019. |
+| Latest Actions run | CI #1446 [run](https://github.com/nabeel2323/scs-platform/actions/runs/45189283326) tested prior SHA `8e32957d3435196222fbb9841e6063229b68b648`: lint failed on two TypeScript parse errors; Flutter passed; API/PostgreSQL/migration/Web/Admin/boundary/build/contract/k6/staging jobs skipped. Both parse defects were corrected afterward; no exact-head rerun exists. |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
 | Latest live PR head before this memory refresh | `b9f9728659e71d3788cc58aa2b5ad9df29ab9731` — FIN-DSH-34/35 scenario numbering correction; docs sync follows with `[skip ci]` |
 | Latest inspected preview status | Admin FAILURE due external deployment rate limit; not an application test result |
@@ -1074,3 +1074,16 @@ The existing return-idempotency case already owns FIN-DSH-33. Settlement-adjustm
 - Latest source/test commit: `847647c424097e5ace69236d0c3b4592f85d30e9`.
 - Payment status transition validation now runs before upload. If an object-store upload throws after the object was accepted, the service checks the unique key and deletes it if present. Added PostgreSQL FIN-DSH-48. Tests not executed.
 - FIN-DSH-46/47/48 are pending the consolidated Phase 3 run. Process crash between successful upload and DB transaction can still leave an orphan; FIN-025 remains open.
+
+
+## Live reconciliation — 23 November 2026 (FIN-027)
+
+The source/test checkpoint is `5b636df49155ea523bc730852ed900720a858a88`; source changes are FIN-027 commit `6ae8aba762215f69f42e74e4608a4fa31a02543b` plus syntax corrections `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`. Documentation checkpoint commits follow.
+
+CI #1446 on `8e32957d3435196222fbb9841e6063229b68b648` failed lint because of the two syntax errors noted above; Flutter passed and all dependent test/build/release jobs were skipped. The syntax errors are corrected in source but not yet CI-verified. FIN-DSH-56 is added but not executed. Exact-head workflow lookup for the source/test checkpoint returned no run; Vercel Web/Admin failures are external build-rate-limit statuses.
+
+PR #138 remains OPEN / DRAFT / UNMERGED against `develop`. G-001 remains PARTIAL pending independent review; G-002 remains IN PROGRESS pending actual runtime identities, protected read-only staging evidence and reviewed RLS design; G-036 remains IN PROGRESS pending exact-head verification and independent review. Phases 0–5 remain in progress and Phase 6 is NOT STARTED.
+
+No shared/staging database writes, migration execution, grants/default ACL/RLS changes, worker activation, environment changes, deployment or merge occurred. Migration 0075 remains source-only and the FIN-025 cleanup method remains inactive.
+
+**Next:** continue the source-first financial correctness audit beyond FIN-027, focusing on payment/refund/settlement event history, retry semantics and cross-ledger consistency. Keep the consolidated Phase 3 test/migration campaign grouped until implementation is complete.
