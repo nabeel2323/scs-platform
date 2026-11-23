@@ -103,12 +103,15 @@ export default function ProductTypeBuilderPage() {
   const [ptProdLoading, setPtProdLoading] = useState(false);
   const [ptProdError, setPtProdError] = useState('');
   const ptProductsRequestVersion = useRef(0);
+  const schemaRequestVersion = useRef(0);
 
   // Dirty tracking
   const [dirty, setDirty] = useState(false);
 
   // Load schema + all available attributes
   const load = useCallback(async () => {
+    if (!hasAccess || !id) return;
+    const requestId = ++schemaRequestVersion.current;
     setLoading(true);
     setError(null);
     try {
@@ -116,6 +119,7 @@ export default function ProductTypeBuilderPage() {
         fetchProductTypeSchema(id),
         fetchAttributes(),
       ]);
+      if (requestId !== schemaRequestVersion.current) return;
       setSchema(schemaData);
       setAllAttributes(allAttrs);
 
@@ -136,21 +140,27 @@ export default function ProductTypeBuilderPage() {
       if (schemaData.status === 'DRAFT') {
         try {
           const r = await fetchProductTypePublishReadiness(id);
-          setReadiness(r);
+          if (requestId === schemaRequestVersion.current) setReadiness(r);
         } catch {
-          setReadiness(null);
+          if (requestId === schemaRequestVersion.current) setReadiness(null);
         }
       } else {
         setReadiness(null);
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load product type schema');
+      if (requestId === schemaRequestVersion.current) {
+        setError(e instanceof Error ? e.message : 'Failed to load product type schema');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === schemaRequestVersion.current) setLoading(false);
     }
-  }, [id]);
+  }, [hasAccess, id]);
 
-  useEffect(() => { if (ready && hasAccess && id) load(); }, [ready, hasAccess, id, load]);
+  useEffect(() => {
+    if (!ready || !hasAccess || !id) return;
+    void load();
+    return () => { schemaRequestVersion.current += 1; };
+  }, [ready, hasAccess, id, load]);
 
   // Load products when the Products tab is activated.
   const loadProducts = useCallback(async () => {

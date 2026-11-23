@@ -33,10 +33,14 @@ export default function ProductTypesPage() {
   const [selected, setSelected] = useState<ProductType | null>(null);
   const [schema, setSchema] = useState<ProductTypeSchema | null>(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
+  const requestVersion = useRef(0);
+  const schemaRequestVersion = useRef(0);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const publishingIds = useRef(new Set<string>());
 
   const load = useCallback(async () => {
+    if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
     setError(null);
     try {
@@ -47,25 +51,45 @@ export default function ProductTypesPage() {
         }),
         fetchAdminCategories(),
       ]);
-      setTypes(typeData);
-      setCategories(catData);
+      if (requestId === requestVersion.current) {
+        setTypes(typeData);
+        setCategories(catData);
+      }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load product types');
+      if (requestId === requestVersion.current) {
+        setError(e instanceof Error ? e.message : 'Failed to load product types');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestVersion.current) setLoading(false);
     }
-  }, [categoryFilter, statusFilter]);
+  }, [ready, hasAccess, categoryFilter, statusFilter]);
 
-  useEffect(() => { if (ready && hasAccess) load(); }, [ready, hasAccess, load]);
-
-  // Load schema when a product type is selected
   useEffect(() => {
-    if (!selected) { setSchema(null); return; }
+    if (!ready || !hasAccess) return;
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [ready, hasAccess, load]);
+
+  // Load schema when a product type is selected; ignore stale selection responses.
+  useEffect(() => {
+    const requestId = ++schemaRequestVersion.current;
+    if (!selected) {
+      setSchema(null);
+      setSchemaLoading(false);
+      return () => { schemaRequestVersion.current += 1; };
+    }
     setSchemaLoading(true);
     fetchProductTypeSchema(selected.id)
-      .then(setSchema)
-      .catch(() => setSchema(null))
-      .finally(() => setSchemaLoading(false));
+      .then(data => {
+        if (requestId === schemaRequestVersion.current) setSchema(data);
+      })
+      .catch(() => {
+        if (requestId === schemaRequestVersion.current) setSchema(null);
+      })
+      .finally(() => {
+        if (requestId === schemaRequestVersion.current) setSchemaLoading(false);
+      });
+    return () => { schemaRequestVersion.current += 1; };
   }, [selected]);
 
   const handlePublish = async (id: string) => {
