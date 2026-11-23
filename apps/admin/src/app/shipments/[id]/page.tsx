@@ -222,7 +222,7 @@ function ExceptionActionsPanel({ id, exceptionStatus, exceptionType, onDone }: {
   id: string; exceptionStatus: string | null; exceptionType: string | null; onDone: () => void;
 }) {
   const { hasAccess } = useRequirePerms(['fulfillment:shipments:write']);
-  const action = useAdminMutation(onDone);
+  const action = useAdminMutation(onDone, () => hasAccess);
   const [type, setType] = useState(exceptionType || EXCEPTION_TYPES[0]);
   const [notes, setNotes] = useState('');
   if (!hasAccess) return null;
@@ -261,7 +261,7 @@ function RtsActionsPanel({ id, exceptionStatus, exceptionType, onDone }: {
   id: string; exceptionStatus: string | null; exceptionType: string | null; onDone: () => void;
 }) {
   const { hasAccess } = useRequirePerms(['fulfillment:shipments:write']);
-  const action = useAdminMutation(onDone);
+  const action = useAdminMutation(onDone, () => hasAccess);
   const [notes, setNotes] = useState('');
   const [rejectNotes, setRejectNotes] = useState('');
   if (!hasAccess) return null;
@@ -329,7 +329,7 @@ function ReturnActionsPanel({ id, exceptionStatus, exceptionType, onDone }: {
     hasAccess && eligible ? `shipments/${encodeURIComponent(id)}/return-eligibility` : null,
     hasAccess && eligible,
   );
-  const action = useAdminMutation(onDone);
+  const action = useAdminMutation(onDone, () => hasAccess);
   const [qtys, setQtys] = useState<Record<string, number>>({});
   const [conds, setConds] = useState<Record<string, string>>({});
 
@@ -409,7 +409,7 @@ function CarrierActionsPanel({ id, carrierCreateStatus, cancelled, recoverable, 
 }) {
   const { hasAccess: canWrite } = useRequirePerms(['fulfillment:shipments:write']);
   const { hasAccess: canRecover } = useRequirePerms(['admin:shipping:recovery']);
-  const action = useAdminMutation(onDone);
+  const action = useAdminMutation(onDone, () => canWrite || canRecover);
   const [reason, setReason] = useState('');
   if (!canWrite && !canRecover) return null;
 
@@ -419,20 +419,20 @@ function CarrierActionsPanel({ id, carrierCreateStatus, cancelled, recoverable, 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {canWrite && carrierCreateStatus !== 'SUCCESS' && !cancelled && (
             <button type="button" disabled={action.busy} style={{ ...btn, background: '#1d5fa8', borderColor: '#1d5fa8', color: '#fff' }}
-              onClick={() => action.run(`shipments/${encodeURIComponent(id)}/create`, 'POST')}>
+              onClick={() => action.run(`shipments/${encodeURIComponent(id)}/create`, 'POST', undefined, () => canWrite)}>
               Queue carrier create</button>
           )}
           {canWrite && !cancelled && (
             <>
               <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Cancellation reason" style={{ ...field, minWidth: 200 }} />
               <button type="button" disabled={action.busy} style={btn}
-                onClick={() => action.run(`shipments/${encodeURIComponent(id)}/cancel`, 'POST', { reason: reason.trim() || 'Cancelled by admin' })}>
+                onClick={() => action.run(`shipments/${encodeURIComponent(id)}/cancel`, 'POST', { reason: reason.trim() || 'Cancelled by admin' }, () => canWrite)}>
                 Cancel shipment</button>
             </>
           )}
           {canRecover && recoverable && (
             <button type="button" disabled={action.busy} style={{ ...btn, background: '#b45309', borderColor: '#b45309', color: '#fff' }}
-              onClick={() => { if (window.confirm('Run carrier reconciliation for this shipment?')) action.run(`carrier/shipments/${encodeURIComponent(id)}/recover`, 'POST'); }}>
+              onClick={() => { if (canRecover && window.confirm('Run carrier reconciliation for this shipment?')) action.run(`carrier/shipments/${encodeURIComponent(id)}/recover`, 'POST', undefined, () => canRecover); }}>
               Reconcile / recover</button>
           )}
         </div>
