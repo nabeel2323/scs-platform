@@ -2855,4 +2855,66 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     )).toBe(false);
   }, 90_000);
 
+
+  it('FIN-DSH-61: return refund creation rolls back payment and return ledgers together', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const item = (await pool.query(
+      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [orderId],
+    )).rows[0];
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
+    const ret = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      lines: [{ orderItemId: item.id, quantity: 1 }],
+    }, buyerCaller);
+    await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
+    await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, { trackingNumber: 'TRK-FIN-ATOMIC' });
+    await returnsService.transitionReturn(ret.id, 'RECEIVED', merchantCaller);
+    await returnsService.transitionReturn(ret.id, 'INSPECTED', merchantCaller, { condition: 'GOOD' });
+
+    const outbox = (returnsService as any).outbox;
+    const originalPublish = outbox.publish.bind(outbox);
+    const publishSpy = vi.spyOn(outbox, 'publish').mockImplementation(async (...args: any[]) => {
+      if (args[0] === 'return.refund_pending') {
+        throw new Error('Injected return outbox persistence failure');
+      }
+      return originalPublish(...args);
+    });
+
+    try {
+      await expect(
+        returnsService.transitionReturn(ret.id, 'REFUND_PENDING', merchantCaller),
+      ).rejects.toThrow('Injected return outbox persistence failure');
+    } finally {
+      publishSpy.mockRestore();
+    }
+
+    const returnState = await pool.query(
+      `SELECT status, refund_id FROM return_requests WHERE id = $1`, [ret.id],
+    );
+    expect(returnState.rows[0]).toEqual({ status: 'INSPECTED', refund_id: null });
+
+    const refundRows = await pool.query(
+      `SELECT id FROM refunds WHERE idempotency_key = $1`, [`return-refund:${ret.id}`],
+    );
+    expect(refundRows.rows).toHaveLength(0);
+
+    const paymentEventsRows = await pool.query(
+      `SELECT id FROM payment_events
+       WHERE payment_record_id = (SELECT id FROM payment_records WHERE order_id = $1)
+         AND event_type = 'PAYMENT_REFUND_REQUESTED'`,
+      [orderId],
+    );
+    expect(paymentEventsRows.rows).toHaveLength(0);
+
+    const outboxRows = await pool.query(
+      `SELECT id FROM outbox_events
+       WHERE event_type = 'payment.refund_requested'`,
+    );
+    expect(outboxRows.rows).toHaveLength(0);
+  }, 90_000);
+
 });
