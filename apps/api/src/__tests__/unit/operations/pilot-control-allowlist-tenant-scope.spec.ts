@@ -1,26 +1,29 @@
 import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { PgDialect } from 'drizzle-orm/pg-core';
 import { PilotControlService } from '../../../modules/operations/pilot-control.service';
 
 describe('PilotControlService allowlist tenant consistency', () => {
-  it('rejects a store that does not belong to the requested organization', async () => {
-    const orgFindFirst = vi.fn().mockResolvedValue({ id: 'org-a' });
-    const storeFindFirst = vi.fn().mockResolvedValue(null);
+  function buildService(
+    identity: { getOrg: ReturnType<typeof vi.fn> },
+    merchant: { getStore: ReturnType<typeof vi.fn> },
+  ) {
     const insert = vi.fn();
     const service = new PilotControlService(
-      {
-        db: {
-          query: {
-            organizations: { findFirst: orgFindFirst },
-            stores: { findFirst: storeFindFirst },
-          },
-          insert,
-        },
-      } as any,
+      { db: { insert } } as any,
       { record: vi.fn() } as any,
       { raise: vi.fn() } as any,
+      identity as any,
+      merchant as any,
     );
+    return { service, insert };
+  }
+
+  it('rejects a store that does not belong to the requested organization', async () => {
+    const identity = { getOrg: vi.fn().mockResolvedValue({ id: 'org-a' }) };
+    const merchant = {
+      getStore: vi.fn().mockResolvedValue({ id: 'store-b', orgId: 'org-b' }),
+    };
+    const { service, insert } = buildService(identity, merchant);
 
     await expect(
       service.addAllowlistEntry({
@@ -30,34 +33,28 @@ describe('PilotControlService allowlist tenant consistency', () => {
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
 
-    const query = storeFindFirst.mock.calls[0]?.[0] as { where: any };
-    const compiled = new PgDialect().sqlToQuery(query.where);
-    expect(compiled.params).toEqual(expect.arrayContaining(['store-b', 'org-a']));
+    expect(identity.getOrg).toHaveBeenCalledWith('org-a');
+    expect(merchant.getStore).toHaveBeenCalledWith('store-b');
     expect(insert).not.toHaveBeenCalled();
   });
 
   it('rejects a nonexistent organization before resolving a store', async () => {
-    const orgFindFirst = vi.fn().mockResolvedValue(null);
-    const storeFindFirst = vi.fn();
-    const insert = vi.fn();
-    const service = new PilotControlService(
-      {
-        db: {
-          query: {
-            organizations: { findFirst: orgFindFirst },
-            stores: { findFirst: storeFindFirst },
-          },
-          insert,
-        },
-      } as any,
-      {} as any,
-      {} as any,
-    );
+    const identity = {
+      getOrg: vi.fn().mockRejectedValue(new NotFoundException('Organization not found')),
+    };
+    const merchant = { getStore: vi.fn() };
+    const { service, insert } = buildService(identity, merchant);
 
     await expect(
-      service.addAllowlistEntry({ orgId: 'missing-org', storeId: 'store-a' }),
+      service.addAllowlistEntry({
+        orgId: 'org-missing',
+        storeId: 'store-a',
+        actorId: 'admin-a',
+      }),
     ).rejects.toBeInstanceOf(NotFoundException);
-    expect(storeFindFirst).not.toHaveBeenCalled();
+
+    expect(identity.getOrg).toHaveBeenCalledWith('org-missing');
+    expect(merchant.getStore).not.toHaveBeenCalled();
     expect(insert).not.toHaveBeenCalled();
   });
 });
