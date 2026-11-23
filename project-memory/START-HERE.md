@@ -881,3 +881,13 @@ PR #138 remains OPEN / DRAFT / UNMERGED on `remediation/phase-0-1-tenant-securit
 CI #45260954714 tested source checkpoint `954200f9bf7866aa2f25d0585847a0c51eb19259` and concluded FAILED at changed-file Prettier. Install, lint and workspace typecheck passed; Flutter analyze/tests passed. API unit/coverage, PostgreSQL integration, migration, boundary, contract, Web/Admin, build, container and k6 jobs were skipped behind the formatting gate. The failure is historical for that pre-format SHA; Prettier corrections were subsequently applied and checked in bot commit `4477ebd42ba46146b14df18094d025ab133c5d75`. No application-test result is claimed from #452609.
 
 The formatter commit applies Prettier to the previously flagged source and handoff files. A new exact-head CI run is still required. FIN-047 stays IMPLEMENTED / TESTING_PENDING. Do not merge, deploy, change database grants/RLS, apply migrations or activate workers. The next work is to inspect the new CI, then resume the proper G-015 module-contract refactor and G-002 source evidence.
+
+## Current handoff pointer — 23 November 2026
+
+- Active PR: #138, OPEN / DRAFT / UNMERGED to `develop`.
+- Branch: `remediation/phase-0-1-tenant-security`.
+- Source/test correction checkpoint: `954200f9bf7866aa2f25d0585847a0c51eb19259`.
+- Formatting commits: `4477ebd42ba46146b14df18094d025ab133c5d75` and `e663973d55d655b1a1a43439cbe728613e7f7f38`.
+- CI #45262860596 tested the earlier documentation head `158a7d64a188ab98ebfa8248da1c964c2a5391d2`. The required Prettier gate failed on eight handoff files; lint and typecheck passed, Flutter passed, and all dependent application jobs were skipped. The second formatter pass corrected those files. Do not claim the earlier run as verification of the latest head.
+- Next: inspect exact-head CI after this handoff update. FIN-047 remains IMPLEMENTED / TESTING_PENDING. The 14 G-015 boundary findings remain un-baselined. Preserve all G-002 database, staging and release restrictions.
+
