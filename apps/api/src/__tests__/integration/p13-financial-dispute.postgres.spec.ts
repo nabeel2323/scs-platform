@@ -761,6 +761,50 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     ).rejects.toThrow(/positive safe integer in minor units/i);
   }, 90_000);
 
+  // ── FIN-DSH-18: COD order/payment projection consistency ─────────
+
+  it('FIN-DSH-18: confirms the order payment projection without rewinding its fulfillment status', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    await pool.query(
+      `UPDATE orders SET status = 'DELIVERED', payment_status = 'AWAITING_PAYMENT' WHERE id = $1`,
+      [orderId],
+    );
+    await pool.query(
+      `UPDATE payment_records
+       SET payment_method = 'CASH_ON_DELIVERY', status = 'AWAITING_PAYMENT', confirmed_amount_minor = NULL
+       WHERE order_id = $1`,
+      [orderId],
+    );
+    const paymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
+    )).rows[0].id;
+    const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
+
+    const payment = await paymentsService.confirmCash(
+      paymentId,
+      merchantA,
+      merchantCaller,
+      { amountCollectedMinor: 3450 },
+    );
+
+    expect(payment.status).toBe('CONFIRMED');
+    const order = await pool.query(
+      `SELECT status, payment_status FROM orders WHERE id = $1`,
+      [orderId],
+    );
+    expect(order.rows[0]).toEqual({
+      status: 'DELIVERED',
+      payment_status: 'CONFIRMED',
+    });
+    const event = await pool.query(
+      `SELECT event_type, from_status, to_status
+       FROM payment_events
+       WHERE payment_record_id = $1 AND event_type = 'PAYMENT_CONFIRMED'`,
+      [paymentId],
+    );
+    expect(event.rows).toHaveLength(1);
+  }, 60_000);
+
   // ── FIN-DSH-17: Settlement payment transition history and outbox ──
 
   it('FIN-DSH-17: concurrent settlement pay attempts persist one PAID event and one outbox event', async () => {

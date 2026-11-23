@@ -403,8 +403,14 @@ export class PaymentsService {
         throw new ConflictException('Payment already confirmed — concurrent confirmation');
       }
 
-      // Finalize financials
+      // Finalize financials and synchronize the denormalized order payment state.
+      // COD orders are allowed to progress through fulfillment before collection,
+      // so confirmation must not rewind their operational order status.
       await this.finalizeFinancialBreakdown(tx, payment.orderId);
+      await tx
+        .update(orders)
+        .set({ paymentStatus: 'CONFIRMED', updatedAt: new Date() })
+        .where(eq(orders.id, payment.orderId));
 
       // Append event
       await tx.insert(paymentEvents).values({
