@@ -957,7 +957,14 @@ The next full workflow is required to verify these changes.
 
 ## FIN-002 source checkpoint — 23 November 2026
 
-- PR #138 source/test commit: `3090d06d2c178a54c526c703376e3f8077240c27` (`fix(payments): require confirmed funds before settlement [skip ci]`).
+- PR #138 source/test commit: `60bf231f950dec8ede3c8945f76b22bc8e4b4451` (`fix(payments): require confirmed funds before settlement [skip ci]`).
 - This source commit uses `[skip ci]`; no workflow run or CI verification is claimed for the exact source SHA. A prior run #1425 may be evaluating an earlier branch head and must not be credited to this commit.
 - FIN-DSH-13/14/15 cover concurrent settlement idempotency, post-PAID recalculation denial and refusal to settle AWAITING_PAYMENT. Tests are added but not executed.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No merge, staging operation, shared DB change, migration, provider call, payout, deployment or worker activation occurred.
+
+## FIN-002 typecheck checkpoint — 23 November 2026
+
+- CI #1425 [workflow](https://github.com/nabeel2323/scs-platform/actions/runs/45161885419) tested `994fee9a332f4c553fa09687101d8f6ecdec3103`.
+- Lint passed; TypeScript typecheck failed; Flutter analysis/tests passed. Typecheck errors included `payments.service.ts` settlement insert result possibly undefined and P12/P13 integration tests consuming a possibly undefined settlement return. Changed-file Prettier and downstream Web/Admin, API unit, PostgreSQL integration, migration, boundary, build/container, contract and release jobs were skipped.
+- Added explicit settlement insert-result narrowing in source commit `60bf231f950dec8ede3c8945f76b22bc8e4b4451`. This commit uses `[skip ci]`; it has not been CI-verified.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No merge, staging, shared DB, migration, payout, provider, deployment or worker action occurred.

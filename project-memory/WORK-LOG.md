@@ -1173,6 +1173,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Refactored calculation to lock the associated payment row, check for an existing settlement under that lock, return an existing PENDING/CALCULATED/DUE record idempotently, and reject recalculation after PAID/ADJUSTMENT history so explicit adjustment workflows remain authoritative.
 - Moved the financial breakdown and successful-refund aggregate reads inside the payment-locked transaction, serializing them against refund requests/approvals using the same lock.
 - Added PostgreSQL integration cases FIN-DSH-13 (concurrent calls reuse one settlement and emit one outbox event), FIN-DSH-14 (PAID settlement cannot be recalculated), and FIN-DSH-15 (unconfirmed payment cannot be settled). Tests not executed.
-- Source/test commit: `3090d06d2c178a54c526c703376e3f8077240c27`; `[skip ci]` used in accordance with the grouped-validation/Actions-budget decision.
+- Source/test commit: `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; `[skip ci]` used in accordance with the grouped-validation/Actions-budget decision.
 - Status: IMPLEMENTED / TESTING_PENDING. No schema, migration, API contract, provider, payout, staging, shared DB or deployment change.
 - Next: continue source-first payment/settlement correctness audit without expanding gateway/payout scope.
+
+## 2026-11-23 — FIN-002 settlement idempotency and eligibility
+
+- `calculateSettlement` now serializes on the payment row, returns an existing PENDING/CALCULATED/DUE settlement for retries, rejects a new payable settlement after PAID/ADJUSTMENT history, and refuses calculation until payment is CONFIRMED, CAPTURED, PARTIALLY_REFUNDED or REFUNDED.
+- FIN-DSH-13–15 cover concurrent calculation, post-PAID denial and pre-confirmation denial. Tests not executed.
+- CI #1425 on `994fee9` passed lint and Flutter but failed typecheck; logs identified possible-undefined settlement insert result and test result types. Added an explicit insert-result guard in source commit `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; exact-head validation pending.

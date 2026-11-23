@@ -803,7 +803,7 @@ Source-confirmed gaps closed in implementation: product pull-to-refresh invalida
 
 ## FIN-002 — Settlement calculation idempotency — 23 November 2026
 
-- Source/test commit: `3090d06d2c178a54c526c703376e3f8077240c27`.
+- Source/test commit: `60bf231f950dec8ede3c8945f76b22bc8e4b4451`.
 - `calculateSettlement` locks the payment row, reads refund totals under that lock, returns an existing PENDING/CALCULATED/DUE settlement for retries, and rejects recalculation after PAID/ADJUSTMENT history exists.
 - Added PostgreSQL cases FIN-DSH-13–15 for concurrent calculation idempotency, post-PAID rejection, and rejection before payment confirmation. Not executed.
 - No migration/schema change. IMPLEMENTED / TESTING_PENDING.
