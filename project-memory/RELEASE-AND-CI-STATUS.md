@@ -871,3 +871,12 @@ The next full workflow is required to verify these changes.
 - The first run #1407 on `4fa97ad` failed typecheck because three new tests used an unsupported `exact` property in `ByRoleOptions`; the assertions were corrected to anchored regular expressions in `53fbebb` and `a76b0be`. Run #1407 was cancelled/superseded by #1408.
 - Subsequent UX-098 commits (`07ff19c`, `d504ace`, `f303153`, `14214f0`, `89624f6`) use `[skip ci]`; they are not covered by #1408. No automated test, typecheck or CI pass is claimed for UX-098.
 - Plan: batch one repository-locked Prettier pass across the accumulated PR diff with the consolidated implementation-complete validation; do not create repeated formatter workflows. Preserve the remaining Actions-minute budget. No protected staging release, merge, deployment or shared database mutation occurred.
+
+
+## UX-100 exact-head and validation checkpoint — 23 November 2026
+
+- Source commit: `14c8c5caa908a2194c8a3ec903de08f15e0db50e`; focused test commit: `e471e6b49e6f60a7c2c1b3719a96fcd7892f6ade`. Subsequent commits synchronize project documentation.
+- Both source/test commits use `[skip ci]`; no GitHub Actions run verifies UX-100. The focused test cases have been added but **not executed**.
+- Latest known application CI remains #1408 on earlier SHA `a76b0bef436af8bde2d9329b1cd6ee5980f593fc`: lint/typecheck and Flutter analysis/tests passed; changed-file Prettier failed across 245 files, and dependent jobs were skipped. It does not verify UX-100.
+- Live PR #138 status must be refreshed after this documentation batch. The last exact-head status observed before the UX-100 commits had no Actions run and only external Vercel Web/Admin build-rate-limit failures.
+- No merge, deployment, protected staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
