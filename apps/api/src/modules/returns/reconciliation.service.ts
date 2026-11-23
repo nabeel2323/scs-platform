@@ -169,18 +169,15 @@ export class ReconciliationService {
 
     try {
       const result = await this.db.db.transaction(async (tx) => {
-        const txDb = tx as any;
+        const txDb = tx;
         await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
 
-        const latestRun = await txDb.query.reconciliationRuns.findFirst({
-          where: and(
+        const [latestRun] = await txDb.select().from(reconciliationRuns).where(and(
             eq(reconciliationRuns.periodStart, periodStart),
             eq(reconciliationRuns.periodEnd, periodEnd),
             eq(reconciliationRuns.currency, currency),
             tenantId ? eq(reconciliationRuns.orgId, tenantId) : isNull(reconciliationRuns.orgId),
-          ),
-          orderBy: [sql`${reconciliationRuns.version} DESC`],
-        });
+          )).orderBy(sql`${reconciliationRuns.version} DESC`).limit(1);
         const nextVersion = (latestRun?.version ?? 0) + 1;
         const runId = crypto.randomUUID();
         failedRunId = runId;
@@ -239,17 +236,14 @@ export class ReconciliationService {
       if (failedRunId) {
         try {
           await this.db.db.transaction(async (tx) => {
-            const txDb = tx as any;
+            const txDb = tx;
             await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
-            const latestRun = await txDb.query.reconciliationRuns.findFirst({
-              where: and(
-                eq(reconciliationRuns.periodStart, periodStart),
-                eq(reconciliationRuns.periodEnd, periodEnd),
-                eq(reconciliationRuns.currency, currency),
-                tenantId ? eq(reconciliationRuns.orgId, tenantId) : isNull(reconciliationRuns.orgId),
-              ),
-              orderBy: [sql`${reconciliationRuns.version} DESC`],
-            });
+            const [latestRun] = await txDb.select().from(reconciliationRuns).where(and(
+            eq(reconciliationRuns.periodStart, periodStart),
+            eq(reconciliationRuns.periodEnd, periodEnd),
+            eq(reconciliationRuns.currency, currency),
+            tenantId ? eq(reconciliationRuns.orgId, tenantId) : isNull(reconciliationRuns.orgId),
+          )).orderBy(sql`${reconciliationRuns.version} DESC`).limit(1);
             const failedVersion = (latestRun?.version ?? 0) + 1;
             await txDb.insert(reconciliationRuns).values({
               id: failedRunId, periodStart, periodEnd, currency, version: failedVersion,
@@ -315,9 +309,7 @@ export class ReconciliationService {
         continue;
       }
 
-      const refund = await db.query.refunds.findFirst({
-        where: eq(refunds.id, ret.refundId),
-      });
+      const [refund] = await db.select().from(refunds).where(eq(refunds.id, ret.refundId)).limit(1);
       if (!refund) {
         discrepancies.push({
           type: 'INCOMPLETE_SOURCE_DATA' as DiscrepancyType,
@@ -363,9 +355,7 @@ export class ReconciliationService {
         continue;
       }
 
-      const reversals = await db.query.commissionReversals.findMany({
-        where: eq(commissionReversals.returnRequestId, ret.id),
-      });
+      const reversals = await db.select().from(commissionReversals).where(eq(commissionReversals.returnRequestId, ret.id));
 
       if (reversals.length === 0) {
         discrepancies.push({
@@ -385,9 +375,7 @@ export class ReconciliationService {
         });
       }
 
-      const breakdown = await db.query.orderFinancialBreakdown.findFirst({
-        where: eq(orderFinancialBreakdown.orderId, ret.subOrderId),
-      });
+      const [breakdown] = await db.select().from(orderFinancialBreakdown).where(eq(orderFinancialBreakdown.orderId, ret.subOrderId)).limit(1);
       if (breakdown) {
         const originalCommissionMinor = Number(breakdown.commissionMinor);
         const totalReversed = sumSafeMinorUnitAmounts(
@@ -509,9 +497,7 @@ export class ReconciliationService {
       .where(and(...conditions));
 
     for (const adj of postedAdjustments) {
-      const approvals = await db.query.settlementAdjustmentApprovals.findMany({
-        where: eq(settlementAdjustmentApprovals.adjustmentId, adj.id),
-      });
+      const approvals = await db.select().from(settlementAdjustmentApprovals).where(eq(settlementAdjustmentApprovals.adjustmentId, adj.id));
 
       if (adj.requiresDualApproval) {
         const financeApprovals = approvals.filter(a => a.approverRole === 'FINANCE');
@@ -559,9 +545,7 @@ export class ReconciliationService {
       .where(and(...conditions));
 
     for (const adj of adjustments) {
-      const breakdown = await db.query.orderFinancialBreakdown.findFirst({
-        where: eq(orderFinancialBreakdown.orderId, adj.subOrderId),
-      });
+      const [breakdown] = await db.select().from(orderFinancialBreakdown).where(eq(orderFinancialBreakdown.orderId, adj.subOrderId)).limit(1);
       if (breakdown) {
         const productsMinor = Number(breakdown.productsMinor);
         const discountMinor = Number(breakdown.discountMinor);
