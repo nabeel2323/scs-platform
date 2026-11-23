@@ -1251,3 +1251,16 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added a unit regression using operands where floating-point multiplication rounds the quotient up by one minor unit. Test not executed.
 - Source commits: 917397ffd5491d6fe52a18063c0266e831b67c38, e2338cf1e50e825bd1c22becbeab0a6a4757a5e4, a596d49a752973cdc1b7039f3b325f0421252c9c; test commit: 4e67e5ef7541e87ef5d9698e3abad7529cd07219.
 - Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, payout, staging, shared DB or deployment change.
+
+
+## 2026-11-23 — FIN-016 COD excluded from stale-payment expiry
+
+- COD payment collection is due at delivery, not within the bank-transfer payment window. The stale-payment reconciliation query now excludes CASH_ON_DELIVERY, and expirePayment rejects COD at the service boundary as a defense in depth.
+- Added PostgreSQL FIN-DSH-30: a 365-day-old COD payment attached to a DELIVERED order is absent from stale-payment candidates; direct expiry is a no-op; no PAYMENT_EXPIRED event is emitted; order/payment states remain unchanged.
+- Source commit: 68b5251200f9f3765a0568b796db056a18cd878e; test commit: 6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac.
+- Test added, not executed. No schema/migration, gateway, payout, staging, shared DB or deployment change.
+
+## FIN-015 follow-up — PostgreSQL SUM(bigint) normalization
+
+- Both commission reversal paths now convert the PostgreSQL SUM(bigint) aggregate to Number before passing it into the safe-integer BigInt helper. This avoids runtime rejection of a numeric string while retaining range validation.
+- Commits: e5765b53be5a199ac075e75b92d4a93e05a2415d and c2864af871f36336a263b74056329ae3dcf4a381.

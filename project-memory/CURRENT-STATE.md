@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `a596d49a752973cdc1b7039f3b325f0421252c9c` — exact BigInt commission reversal used by both return adjustment paths.
-**Latest focused unit-test commit:** `4e67e5ef7541e87ef5d9698e3abad7529cd07219` — regression for unsafe Number multiplication; not executed. No exact-head Actions run is attached.  
+**Latest source implementation commit:** `68b5251200f9f3765a0568b796db056a18cd878e` — COD excluded from stale-payment expiry discovery and direct expiry.
+**Latest focused PostgreSQL test commit:** `6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac` — FIN-DSH-30 verifies stale COD remains collectible; not executed. No exact-head Actions run is attached.  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,13 +19,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation checkpoint head | `4e67e5ef7541e87ef5d9698e3abad7529cd07219` (FIN-015 exact-arithmetic unit regression; not executed) |
-| Latest implementation/test | FIN-004–FIN-015 financial lifecycle, refund recovery, order/payment projection, settlement locking, expiry, discount proration and exact commission reversal improvements. FIN-DSH-11–29 plus unit coverage added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
+| Latest implementation checkpoint head | `6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac` (FIN-016 COD expiry regression; not executed) |
+| Latest implementation/test | FIN-004–FIN-016 financial lifecycle, refund recovery, order/payment projection, settlement locking, expiry, discount proration, exact commission reversal and COD-expiry safeguards. FIN-DSH-11–30 plus unit coverage added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
 | Exact-head GitHub Actions | CI #1434 [run](https://github.com/nabeel2323/scs-platform/actions/runs/45165552569) tested `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231`: lint/typecheck and Flutter analysis/tests passed; changed-file Prettier failed; dependent Web/Admin/API/PostgreSQL/migration/build/release jobs skipped. FIN-DSH-11–28 remain unexecuted. |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest live PR head before this memory refresh | `1ebc2ed9bc63795d4d9ea4e24f348feed5ee74aa` — live head re-fetched at this synchronization |
+| Latest live PR head before this memory refresh | `6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac` — FIN-DSH-30 COD expiry regression; docs sync follows with `[skip ci]` |
 | Latest inspected preview status | Admin FAILURE due external deployment rate limit; not an application test result |
 | Focused client tests | Admin UX-030–058 and UX-097–099, Mobile UX-078–096 and Web UX-095 focused tests added/updated; not executed (Flutter suite passed only on earlier SHA `a76b0be`) |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
@@ -965,3 +965,12 @@ Return commission reversal now prorates order-level discounts across returned go
 ## FIN-015 — Exact commission reversal arithmetic — 23 November 2026
 
 Proportional commission reversal previously multiplied two safe-integer Number values before division; their product can exceed MAX_SAFE_INTEGER and round the result by a minor unit. A shared BigInt helper now validates the inputs, computes the exact floor ratio, caps it at remaining commission and is used by both ReturnsService settlement adjustments and CommissionReversalService. Added a unit regression with safe-integer operands whose Number product rounds the quotient up by one minor unit. Source commits: 917397ffd5491d6fe52a18063c0266e831b67c38, e2338cf1e50e825bd1c22becbeab0a6a4757a5e4, a596d49a752973cdc1b7039f3b325f0421252c9c; unit test commit: 4e67e5ef7541e87ef5d9698e3abad7529cd07219. Not executed; IMPLEMENTED / TESTING_PENDING.
+
+
+## FIN-016 — COD excluded from stale-payment expiry — 23 November 2026
+
+COD payments are collected at delivery, so elapsed bank-transfer payment windows must not expire them. The stale-payment reconciliation query now excludes CASH_ON_DELIVERY, and expirePayment has a second service-level guard against direct invocation. FIN-DSH-30 sets an old COD payment on a DELIVERED order, asserts it is absent from stale candidates, and verifies no payment-expired event or order/payment state change occurs. Source commit: 68b5251200f9f3765a0568b796db056a18cd878e; PostgreSQL test commit: 6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac. Test added, not executed; IMPLEMENTED / TESTING_PENDING.
+
+## FIN-015 follow-up — PostgreSQL bigint aggregate normalization
+
+Drizzle bigint-mode columns are returned as numbers, but PostgreSQL SUM(bigint) may be returned by node-postgres as a numeric string. Both commission reversal call paths now explicitly convert the aggregate to Number before the shared safe-integer helper validates it. Commits: e5765b53be5a199ac075e75b92d4a93e05a2415d and c2864af871f36336a263b74056329ae3dcf4a381. FIN-DSH-29 exercises the zero aggregate case; not executed.

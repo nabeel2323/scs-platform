@@ -611,3 +611,8 @@ Positive safe-integer validation now covers verified payment amount, COD cash co
 - FIN-014 prorates order-level discounts over returned goods and preserves payment currency in both commission reversal and settlement adjustment ledgers. FIN-DSH-29 covers a partial discounted return. Source commits: 6221c9c10bba4652b19c1aeaca59a8d1c3d9c79d and 00da339e62dbeef87a55434b3ed5ea1a85cb6508.
 - FIN-015 replaces unsafe Number multiplication in proportional commission reversal with exact BigInt arithmetic in both service paths. A unit regression proves a one-minor-unit floating-point over-reversal is avoided. Source commits: 917397ffd5491d6fe52a18063c0266e831b67c38, e2338cf1e50e825bd1c22becbeab0a6a4757a5e4, a596d49a752973cdc1b7039f3b325f0421252c9c; unit test: 4e67e5ef7541e87ef5d9698e3abad7529cd07219.
 - Tests are added but not executed. No schema/migration, gateway, payout, staging, shared DB or deployment change. G-012 remains OPEN.
+
+
+### FIN-016 — COD expiry protection
+
+Stale-payment discovery excludes CASH_ON_DELIVERY, and expirePayment itself refuses to expire COD even if called directly. COD remains collectible at delivery regardless of the bank-transfer expiry window. FIN-DSH-30 covers a 365-day-old COD payment on a DELIVERED order and asserts payment status, order status and expiry events remain unchanged. Source commit 68b5251200f9f3765a0568b796db056a18cd878e; test commit 6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac. Not executed.
