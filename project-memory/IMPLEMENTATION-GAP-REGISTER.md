@@ -1014,3 +1014,11 @@ Return refund creation previously committed the payment refund/event/outbox firs
 | ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
 |---|---|---|---|---|---|---|
 | FIN-040 | Detect current return/refund state divergence after failed or retried refunds | Reconciliation reports REFUND_FAILED paired with a non-FAILED refund and REFUND_PENDING paired with FAILED; missing/dangling linked refunds are reported and current-state event timestamps drive period attribution with a created_at fallback. FIN-DSH-66 added. | Execute both legacy divergence scenarios in the consolidated Phase 3 run; no automatic repair or financial mutation is performed by reconciliation. | P1 | IMPLEMENTED / TESTING_PENDING | No migration; no shared/staging DB changes; PR #138 remains draft. |
+
+### FIN-040 correction — latest current-state event period attribution
+
+| ID | Correction | Evidence-backed current state | Remaining gate | Priority | Status |
+|---|---|---|---|---|---|
+| FIN-040A | Latest matching transition determines period | Reconciliation groups by return/current status, uses MAX(event.created_at), and applies the period filter to the latest matching event; created_at is fallback only for legacy rows without a matching event. FIN-DSH-66 verifies an older prior-month event is not counted after a later re-entry. | Execute in consolidated Phase 3. | P1 | IMPLEMENTED / TESTING_PENDING |
+
+Follow-up source/test commit: b63376cf26240d3dc21b6f26782158a09674c1c7.

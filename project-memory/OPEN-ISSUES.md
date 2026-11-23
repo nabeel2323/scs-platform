@@ -849,3 +849,7 @@ Return refund creation previously committed the payment refund/event/outbox firs
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** The reconciler now checks REFUND_FAILED → FAILED and prevents REFUND_PENDING → FAILED mismatches, reports missing/dangling linked refunds, and attributes findings to the current transition timestamp with a legacy created_at fallback. FIN-DSH-66 covers both legacy divergence directions. Source/test commit: 6a4e0edccab8cdd0dfa250fa3b950ab62a206a63.
 
 **Remaining programme gate:** FIN-DSH-63–66 are added but not executed. Run the full consolidated Phase 3 PostgreSQL/unit/security campaign only after the remaining source implementation audit is complete. Keep PR #138 draft/unmerged and do not apply migrations or modify shared/staging state.
+
+### FIN-040 period attribution correction
+
+The reconciliation query now uses the latest event matching the current return status, so repeated REFUND_PENDING/REFUND_FAILED transitions are attributed to the period of the latest transition. FIN-DSH-66 verifies a prior-period event does not leak into a later retry state. Source/test follow-up: b63376cf26240d3dc21b6f26782158a09674c1c7. Execution remains pending.

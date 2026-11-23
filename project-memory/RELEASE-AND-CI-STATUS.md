@@ -1262,3 +1262,7 @@ Branch: remediation/phase-0-1-tenant-security. Exact HEAD: 56e583338bfe405009e74
 - Regression coverage added/updated: FIN-DSH-63, FIN-DSH-64, FIN-DSH-65, FIN-DSH-66, and FIN-DSH-17.
 
 All commits in this batch used [skip ci] in line with the recorded implementation-first testing cadence. The tests are added but not executed; no exact-head Actions run or green CI result is claimed. Prior preview-provider rate-limit failures must not be represented as source-code test failures or successful CI. Do not merge, deploy, run migrations, write to shared/staging databases, activate workers, or alter RLS/ACL settings as part of this source-only work. Keep the Phase 3 test campaign pending until the remaining implementation audit is complete.
+
+### FIN-040 period-attribution correction
+
+Source/test follow-up commit: b63376cf26240d3dc21b6f26782158a09674c1c7. The reconciliation query now scopes each current failed/pending return to the latest event matching its current state, using created_at only for legacy rows with no matching event. FIN-DSH-66 was extended to prove prior-period state events do not contaminate the later period. This commit used [skip ci]; tests remain unexecuted.

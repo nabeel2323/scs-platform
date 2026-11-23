@@ -1180,3 +1180,7 @@ The source-first payment/refund/settlement retry audit continued beyond FIN-036.
 **Verification state:** tests added, not executed. All four implementation commits used [skip ci]; no exact-head Actions run or green status is claimed. No schema migration or database operation is required by these changes. PR #138 remains draft/unmerged pending the existing security-evidence and consolidated-test gates.
 
 **Next:** continue the source-first review of settlement/payment/refund history and outbox parity, then reconcile any legacy adjustment/retry paths before starting the deferred full Phase 3 campaign.
+
+### FIN-040 period-attribution follow-up
+
+A final review corrected the parity check to aggregate the latest matching current-state event and filter by that timestamp, avoiding stale prior-state events being reported in a later retry period. FIN-DSH-66 now covers prior-month versus current-month re-entry attribution. Follow-up source/test commit: b63376cf26240d3dc21b6f26782158a09674c1c7. Tests remain added but unexecuted.

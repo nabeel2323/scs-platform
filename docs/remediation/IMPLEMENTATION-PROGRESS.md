@@ -2341,3 +2341,7 @@ Return refund creation previously committed the payment refund/event/outbox firs
 **Status: IMPLEMENTED / TESTING_PENDING.** Reconciliation now reports REFUND_FAILED returns whose linked refund is not FAILED and REFUND_PENDING returns whose linked refund remains FAILED. It preserves event-time accounting periods, a legacy created_at fallback, missing-refund detection and non-monetary REFUND_STATUS_MISMATCH descriptions. FIN-DSH-66 added. Commit: 6a4e0edccab8cdd0dfa250fa3b950ab62a206a63.
 
 All tests are added/updated, not executed. No migration or shared/staging database action is required for FIN-037–040. Keep the consolidated Phase 3 test campaign pending until the remaining source implementation audit is complete.
+
+### FIN-040 follow-up — latest-state event period scope
+
+The parity query now aggregates the latest return_request_events.created_at for the current return status and applies the reconciliation period filter to that timestamp. Legacy rows without a matching status event retain created_at fallback. FIN-DSH-66 was extended to assert that an earlier-month REFUND_PENDING event is not attributed to that month after a later re-entry in the current month. Follow-up source/test commit: b63376cf26240d3dc21b6f26782158a09674c1c7.

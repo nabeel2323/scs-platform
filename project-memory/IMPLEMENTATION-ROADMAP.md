@@ -679,3 +679,7 @@ Return finalization previously trusted the refund snapshot and checked only that
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Reconciliation now flags REFUND_FAILED returns unless the linked refund is FAILED, and REFUND_PENDING returns if the linked refund remains FAILED. Missing or dangling refund links are also reported. Period attribution uses the event matching the current return state and falls back to created_at for legacy rows without that event. FIN-DSH-66 covers both divergence directions. Source/test commit: 6a4e0edccab8cdd0dfa250fa3b950ab62a206a63.
 
 **Next:** continue source-first auditing of settlement/refund/payment history and outbox parity. The consolidated Phase 3 campaign remains deferred until implementation is complete; no migration or shared/staging database action is authorized by these code-only changes.
+
+### FIN-040 follow-up — latest current-state event period filter
+
+The initial FIN-040 change was tightened to group by return and use MAX(created_at) for the event matching its current return status, with the created_at fallback only for legacy rows lacking that event. The period filter applies to that latest event, not any historical event for the same status. FIN-DSH-66 now verifies a prior-month transition is not misattributed after a later re-entry. Follow-up source/test commit: b63376cf26240d3dc21b6f26782158a09674c1c7.

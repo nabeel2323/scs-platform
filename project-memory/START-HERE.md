@@ -805,7 +805,7 @@ Branch: remediation/phase-0-1-tenant-security. Exact HEAD: 56e583338bfe405009e74
 - Repository: nabeel2323/scs-platform
 - Working branch: remediation/phase-0-1-tenant-security
 - PR: #138, against develop, still OPEN / DRAFT / UNMERGED at the last repository check
-- Latest source/test commit in this batch: 6a4e0edccab8cdd0dfa250fa3b950ab62a206a63
+- Latest source/test commit in this batch: b63376cf26240d3dc21b6f26782158a09674c1c7
 - FIN-037 source/test: 7be49a0420432d4e31733b77ee2c3042e738d242
 - FIN-038 source/test: 89757383fd53dcb69d2c753f134aaf39d1b47bbc
 - FIN-039 source/test: 4020853e3a51386f56e57b41b501a3060f680e82
@@ -826,3 +826,9 @@ FIN-040 extends reconciliation to detect legacy cross-ledger divergence for both
 All new regression tests are added but **not executed**. The source/test commits use [skip ci] under the recorded implementation-first cadence. Do not claim exact-head CI success. No migration, shared/staging database write, RLS/ACL change, background worker activation, provider call, deployment or merge was performed. Keep PR #138 draft until the recorded G-001/G-002 evidence gates and consolidated Phase 3 test campaign are complete.
 
 **Next task:** continue a source-first audit of settlement/refund/payment event-history and transactional outbox parity, including legacy retry and adjustment paths. Keep implementation moving in grouped commits; defer the consolidated Phase 3 campaign until implementation is complete. Always recheck exact PR head and CI before the next change.
+
+### FIN-040 follow-up — latest-event period attribution
+
+The FIN-040 parity query was tightened after review: it now aggregates the **latest matching return-state event** and applies the accounting period filter to that event, with created_at fallback only when no matching state event exists. The FIN-DSH-66 regression now proves that an old REFUND_PENDING event from the prior month does not leak into that month's reconciliation after a later re-entry in the current month. Follow-up source/test commit: b63376cf26240d3dc21b6f26782158a09674c1c7.
+
+**Latest source/test head:** b63376cf26240d3dc21b6f26782158a09674c1c7. The tests remain unexecuted under the deferred consolidated Phase 3 plan.

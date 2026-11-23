@@ -1518,3 +1518,7 @@ Return refund creation previously committed the payment refund/event/outbox firs
 - FIN-040: expanded reconciliation to detect REFUND_FAILED with non-FAILED refund state and REFUND_PENDING with FAILED refund state, using matching return state event timestamps and legacy created_at fallback. FIN-DSH-66 covers both legacy mismatches. Commit 6a4e0edccab8cdd0dfa250fa3b950ab62a206a63.
 - All regression tests added/updated but not executed; commits use [skip ci]. No migration, shared/staging DB write, worker activation, provider call, deployment or merge.
 - Next: source-first review settlement/refund/payment history and outbox parity, then complete implementation audit before the consolidated Phase 3 test campaign.
+
+### FIN-040 follow-up — latest event period attribution
+
+Reviewed repeated return-state transitions and tightened FIN-040 to use MAX(created_at) for the latest event matching the current status, with a created_at fallback for legacy rows only. Updated FIN-DSH-66 to verify a prior-month REFUND_PENDING event does not create a prior-period discrepancy after the return re-enters REFUND_PENDING in the current month. Follow-up source/test commit: b63376cf26240d3dc21b6f26782158a09674c1c7. Tests remain unexecuted.
