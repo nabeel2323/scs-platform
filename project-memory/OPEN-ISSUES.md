@@ -650,3 +650,8 @@ FIN-006 is IMPLEMENTED / TESTING_PENDING. The dispute-resolution recovery path n
 ## FIN-007 — Refund approval order payment projection — 23 November 2026
 
 FIN-007 is IMPLEMENTED / TESTING_PENDING. Refund approval now updates the denormalized order payment state atomically with the payment/refund transition, while preserving order fulfillment state. FIN-DSH-21/22 add PostgreSQL coverage for partial/full refunds; tests not executed. Source/test commit: `5b68edac4d148f68656b4331a9612cd1752eab3d`. No schema, migration, provider, payout, staging or shared DB changes.
+
+
+## FIN-008 — Return refund idempotency payload integrity — 23 November 2026
+
+FIN-008 is IMPLEMENTED / TESTING_PENDING. Return orphan-refund recovery now reuses a refund only when payment/sub-order, amount, reason, buyer/requester, currency and return link match. FIN-DSH-24/25 add PostgreSQL amount/reason mismatch cases; tests not executed. Source/test commit: `72927529e64a719741b94b864f6adba7cafd4f0d`. No schema, migration, provider, payout, staging or shared database changes.

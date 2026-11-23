@@ -1215,3 +1215,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added PostgreSQL FIN-DSH-21/22 for partial and full refunds; tests added, not executed.
 - Source/test commit: `5b68edac4d148f68656b4331a9612cd1752eab3d`.
 - No schema, migration, provider, payout, staging, shared database or deployment changes.
+
+
+## 2026-11-23 — FIN-008 return refund idempotency payload integrity
+
+- Found that return orphan-refund recovery reused the deterministic `return-refund:<returnId>` key without validating the original financial payload.
+- Added exact-match checks for payment/sub-order, amount, reason, buyer/requester, currency and return link. Mismatches conflict before refund linking or advancing the return.
+- Added PostgreSQL FIN-DSH-24/25 scenarios for changed amount and reason. Tests added, not executed.
+- Source/test commit: `72927529e64a719741b94b864f6adba7cafd4f0d`.
+- No schema, migration, provider, payout, staging, shared database or deployment changes.

@@ -928,3 +928,12 @@ Merchant active-store and product reads now preserve last-successful data throug
 - FIN-DSH-21/22 cover partial/full refund projection and preserved DELIVERED status. Tests not executed; IMPLEMENTED / TESTING_PENDING.
 - No schema/migration, provider, gateway, payout, staging, shared DB or deployment change.
 - Re-fetch PR #138 and exact-head CI before the next task. Continue source-first financial/operational correctness review.
+
+
+## FIN-008 — Return refund idempotency payload integrity — 23 November 2026
+
+- Source/test commit: `72927529e64a719741b94b864f6adba7cafd4f0d`.
+- Return orphan-refund recovery validates payment/sub-order, amount, reason, buyer/requester, currency and return link before reuse. Mismatches fail closed before refund linking or REFUND_PENDING transition.
+- FIN-DSH-24/25 cover amount/reason mismatch; tests not executed, IMPLEMENTED / TESTING_PENDING.
+- No schema/migration, provider, gateway, payout, staging, shared DB or deployment change.
+- Re-fetch live PR head and exact-head CI before next work. Continue source-first financial/operational correctness audit.

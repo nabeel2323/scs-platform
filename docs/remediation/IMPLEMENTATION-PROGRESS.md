@@ -2079,3 +2079,12 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - **Regression coverage:** FIN-DSH-21 verifies PARTIALLY_REFUNDED projection and preserved DELIVERED order status; FIN-DSH-22 verifies REFUNDED projection and preserved DELIVERED status. Added but **not executed**.
 - **Source/test commit:** `5b68edac4d148f68656b4331a9612cd1752eab3d`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, payout, staging, shared database or deployment behavior changed.
+
+
+## FIN-008 — Return refund idempotency payload integrity — 23 November 2026
+
+- **Finding:** `ReturnsService.createRefundRequest` reused an orphan refund found by deterministic `return-refund:<returnId>` key without checking whether its financial terms matched the return retry.
+- **Implementation:** recovery now verifies payment, sub-order, amount, reason, buyer/requester, currency and return link before reuse. Mismatches conflict before linking the refund or advancing the return to REFUND_PENDING.
+- **Regression coverage:** FIN-DSH-24/25 add PostgreSQL cases for changed amount and changed reason; tests added but **not executed**.
+- **Source/test commit:** `72927529e64a719741b94b864f6adba7cafd4f0d`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, payout, staging, shared database or deployment behavior changed.

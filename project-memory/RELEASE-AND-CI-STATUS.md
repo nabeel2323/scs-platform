@@ -1019,3 +1019,11 @@ The next full workflow is required to verify these changes.
 - FIN-DSH-21/22 were added but not executed. Status: IMPLEMENTED / TESTING_PENDING.
 - No exact-head CI result is claimed until Actions evidence is refreshed.
 - No deployment, staging operation, shared DB mutation, schema migration, grants/default-ACL change or RLS enablement occurred.
+
+
+## FIN-008 validation status — 23 November 2026
+
+- Source/test commit: `72927529e64a719741b94b864f6adba7cafd4f0d`.
+- FIN-DSH-24/25 were added but not executed. Status: IMPLEMENTED / TESTING_PENDING.
+- No exact-head CI result is claimed until Actions evidence is refreshed.
+- No deployment, staging operation, shared DB mutation, schema migration, grants/default-ACL change or RLS enablement occurred.
