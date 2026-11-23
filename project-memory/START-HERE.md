@@ -75,7 +75,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. The live PR head at the last check was `071cbc41e4d72c02ba039d2a7110e8eaaba2711c`; the latest source/test checkpoint is `856d527aeb65abc9feeb565f1dbc8c07df7d5331`. Re-fetch live refs and CI before the next action.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. The live PR head at the last check was `38a22e0e48ec166abbbc96ec3bec3e861936a03d`; latest source/test checkpoint is `89624f61bd48a9009aef603333f30205ad14907e`. Re-fetch live refs and CI before the next action.
 
 ### Exact stopping point
 
@@ -83,8 +83,9 @@ Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/s
 - UX-095 Web merchant route/action permission alignment and active-organization context invalidation is implemented.
 - UX-096 Mobile route/action permission and organization-context transition alignment is implemented.
 - G-036 realtime store/order room authorization is implemented in source; focused tests are pending execution and independent review.
-- The next planned work was the remaining Admin route/action permission mapping. The page-level Admin route audit already covered all 56 Admin page files and the generic ManagementPage configuration.
-- UX-097 continued that Admin audit at handler level. Verification organization deactivate/reactivate, Organizations status toggle and update-request review, and dispute resolution now recheck the required permission inside their async handlers. Focused tests simulate permission loss while confirmation dialogs are open. They have not been executed.
+- The Admin page-level route audit already covered all 56 Admin page files and the generic ManagementPage configuration.
+- UX-097 added handler-time permission rechecks for verification organization deactivate/reactivate, Organizations status toggle and update-request review, and dispute resolution. Focused tests simulate permission loss while confirmation dialogs are open; not executed.
+- UX-098 added any-of navigation permission semantics, exposed Carrier & Recovery to either its read or recovery capability, and fixed Payments so a user with only `admin:payments:verify` can access the verification queue. All/stale payments and refund requests remain separately permission-gated. Focused helper/page tests were added but not executed.
 
 ### Latest CI correction state
 
@@ -92,7 +93,9 @@ CI #1395 failed on prior PR head `ff304ce6c0bcf63a654ff8fbd04130254cdb669e`:
 - API TypeScript typecheck failed because validated Socket.IO regex capture groups were still typed as possibly undefined.
 - Flutter analysis failed because a nullable profile role was passed to a non-null permission helper and a runtime-dependent EmptyState was declared const.
 
-The API correction is `0d4644f634d65bd5fbe4fec818c6f8439023254e`; the Mobile correction is `5f08755ce69edfcbae5ca84462ffda245bfc1eb4`. These fixes, UX-097 source changes and focused tests are **IMPLEMENTED / TESTING_PENDING**. No exact-head GitHub Actions run is attached to the corrective source/test head. Vercel preview statuses are not application test evidence.
+The API correction is `0d4644f634d65bd5fbe4fec818c6f8439023254e`; the Mobile correction is `5f08755ce69edfcbae5ca84462ffda245bfc1eb4`.
+
+CI #1408 ran on `a76b0bef436af8bde2d9329b1cd6ee5980f593fc`: lint and TypeScript typecheck passed, and the Flutter analyze/test job passed. The changed-file Prettier gate failed because 245 files in the cumulative PR diff were unformatted; all dependent Web/Admin, API unit, PostgreSQL integration, migration, boundary, build/container, contract and k6 jobs were skipped. The latest UX-098 commits were made after that run with `[skip ci]`, so they are not CI-verified. CI #1407 was superseded after a test type error; unsupported `ByRoleOptions.exact` assertions were corrected to anchored regex matchers.
 
 ### Remaining project gates
 
@@ -102,7 +105,7 @@ The API correction is `0d4644f634d65bd5fbe4fec818c6f8439023254e`; the Mobile cor
 - Phases 0–5 remain IN PROGRESS; Phase 6 consolidated verification is NOT STARTED.
 - PR #138 must remain draft/open/unmerged. No merge, deployment, protected staging operation, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement, environment change or worker activation is authorized.
 
-**Next implementation:** continue the remaining Admin custom route/action-to-controller permission mapping. Do not repeat the completed 56-page route audit or UX-097 fixes. Implement only concrete source-confirmed permission gaps. Keep comprehensive testing deferred to the consolidated Phase 3 campaign, while fixing any concrete security/correctness defect immediately.
+**Next implementation:** continue remaining Admin custom route/action-to-controller permission mapping. Do not repeat the completed 56-page route audit or UX-097/098 fixes. Implement only concrete source-confirmed permission gaps. Plan one repository-locked Prettier pass for the accumulated PR diff and the comprehensive test campaign at the implementation-complete Phase 3 checkpoint; fix any concrete security/correctness defect immediately.
 
 ## Safety reminder
 
