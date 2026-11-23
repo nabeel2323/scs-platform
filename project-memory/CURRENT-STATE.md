@@ -3,7 +3,7 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `6ae8aba762215f69f42e74e4608a4fa31a02543b` — FIN-027 return refund balance aggregation; syntax corrections: `a06086769028ad55a371376abfca2a211ef317c4`, `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`. 
+**Latest source implementation commit:** `6ae8aba762215f69f42e74e4608a4fa31a02543b` — FIN-027 return refund balance aggregation; syntax corrections: `a06086769028ad55a371376abfca2a211ef317c4`, `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`, plus follow-up brace-balance correction `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`. 
 **Latest focused test commit:** `5b636df49155ea523bc730852ed900720a858a88` — FIN-DSH-56 for APPROVED refund balance and BIGINT aggregate safety; tests not executed. No exact-head Actions run is attached. 
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
