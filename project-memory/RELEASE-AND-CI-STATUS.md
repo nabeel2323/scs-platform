@@ -1055,3 +1055,12 @@ The next full workflow is required to verify these changes.
 - Web/Admin app tests, API unit/coverage, PostgreSQL integration, migration, boundary, build/container, contract/codegen, k6 and staging-release jobs were skipped.
 - This run does not execute FIN-DSH-11–28. They remain IMPLEMENTED / TESTING_PENDING.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No deployment or staging action occurred.
+
+
+## CI #1432 / #1434 — FIN-008 and typecheck correction — 23 November 2026
+
+- CI #1432 [run](https://github.com/nabeel2323/scs-platform/actions/runs/45165010516) on `72927529e64a719741b94b864f6adba7cafd4f0d` failed TypeScript compilation because the PostgreSQL test accessed `PoolClient.processID`, which is not exposed by the installed pg typings. Flutter analysis/tests passed; downstream Web/Admin/API/PostgreSQL/migration/build/release jobs were skipped.
+- Corrected the test to obtain the backend PID with `SELECT pg_backend_pid()` on the held transaction client and validate it as a positive safe integer. Fix commit: `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231`.
+- CI #1434 [run](https://github.com/nabeel2323/scs-platform/actions/runs/45165552569) on that exact SHA: lint passed; TypeScript typecheck passed; changed-file Prettier failed; Flutter analysis/tests passed; downstream Web/Admin/API/PostgreSQL/migration/build/contract/container/k6/staging jobs skipped.
+- FIN-DSH-11–28 remain added but not executed. Later source commits after `31a0f17` are not covered by CI #1434.
+- PR #138 remains OPEN / DRAFT / UNMERGED. Vercel Admin/Web rate-limit failures are external provider statuses, not application test results.
