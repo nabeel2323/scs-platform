@@ -1030,3 +1030,11 @@ Follow-up source/test commit: b63376cf26240d3dc21b6f26782158a09674c1c7.
 | FIN-041 | Safe replay and primary-ledger consistency for posted adjustments | Already-POSTED retries require a durable ADJUSTMENT settlement row and do not duplicate ledger/outbox writes. New adjustment rows carry adjustmentId, parentSettlementId and postedBy metadata; legacy notes-prefix lookup is retained. Posting rejects currency mismatch and verifies the primary settlement store matches the sub-order. FIN-DSH-67 added. | Execute FIN-DSH-67 in consolidated Phase 3 and continue audit of adjustment ledger retrieval/reconciliation. | P1 | IMPLEMENTED / TESTING_PENDING |
 
 Source/test commit: ad61d75b909341dd2936e03dbc592b0d244d9f72.
+
+## FIN-042 — payout of posted adjustment ledgers
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gate | Priority | Status |
+|---|---|---|---|---|---|
+| FIN-042 | Complete payout lifecycle for posted adjustment settlement rows | ADJUSTMENT is included in the settlement status contract and markSettlementPaid can transition it to PAID using the normal payment event/outbox path; same-reference retry remains idempotent. FIN-DSH-68 added. | Execute in consolidated Phase 3 and verify list/reconciliation behavior and primary settlement recalculation isolation. | P1 | IMPLEMENTED / TESTING_PENDING |
+
+Source/test commit: a6dc0c50ee83d1f397b982084e338b142d89b62e.

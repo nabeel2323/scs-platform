@@ -838,3 +838,9 @@ The FIN-040 parity query was tightened after review: it now aggregates the **lat
 **Status: IMPLEMENTED / TESTING_PENDING.** postAdjustment now treats a replay of a POSTED adjustment as an idempotent success only when its adjustment settlement ledger row exists. The ledger row stores adjustmentId, parentSettlementId and postedBy in metadata, and the lookup retains a notes-based compatibility path for existing posted rows. Posting also rejects an adjustment whose currency differs from the primary settlement and verifies the primary settlement store still matches the sub-order. FIN-DSH-67 covers same-adjustment replay, one ledger row/one outbox event, and currency mismatch rejection. Source/test commit: ad61d75b909341dd2936e03dbc592b0d244d9f72.
 
 **Next source audit:** continue settlement adjustment lifecycle/outbox/reconciliation parity, including primary-settlement terminal-state interactions and adjustment ledger discoverability. Do not start consolidated Phase 3 tests until implementation audit is complete.
+
+### FIN-042 — pay posted adjustment ledger rows
+
+**Status: IMPLEMENTED / TESTING_PENDING.** The adjustment posting workflow creates a separate settlement ledger row with status ADJUSTMENT. The common markSettlementPaid path previously accepted only CALCULATED/DUE, so posted adjustment credits/debits could not be marked PAID through the audited payout flow. ADJUSTMENT is now an explicit settlement status and is accepted by the same row-locked payment transition, which persists PAYMENT_SETTLEMENT_PAID and payment.settlement_paid. Same-reference retries remain idempotent. FIN-DSH-68 added. Source/test commit: a6dc0c50ee83d1f397b982084e338b142d89b62e.
+
+Next: continue source-first audit of settlement adjustment listing/reconciliation and verify adjustment rows remain separate from primary settlement calculation. Tests remain deferred to consolidated Phase 3.

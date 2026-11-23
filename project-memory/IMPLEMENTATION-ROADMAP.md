@@ -689,3 +689,9 @@ The initial FIN-040 change was tightened to group by return and use MAX(created_
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** postAdjustment now supports safe replay after a committed POSTED transition by requiring the persisted ADJUSTMENT settlement row; it does not duplicate ledger/outbox writes. The row records adjustmentId, parentSettlementId and postedBy metadata, with a notes-based compatibility lookup for legacy posted rows. Posting now validates adjustment currency against the primary settlement and validates the primary settlement store against the sub-order. FIN-DSH-67 covers replay and mismatch rejection. Source/test commit: ad61d75b909341dd2936e03dbc592b0d244d9f72.
 
 Next source audit: primary-settlement terminal-state interactions, adjustment ledger discoverability and reconciliation/outbox parity.
+
+## FIN-042 — payout of posted adjustment ledgers
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Settlement status contract now includes ADJUSTMENT and markSettlementPaid accepts posted adjustment rows. The existing row-locked transition persists the same payment history/outbox and preserves same-reference retry idempotency. FIN-DSH-68 covers payout and duplicate replay. Source/test commit: a6dc0c50ee83d1f397b982084e338b142d89b62e.
+
+Next audit: adjustment listing/reconciliation and primary settlement recalculation must keep ADJUSTMENT rows distinct from the primary settlement.

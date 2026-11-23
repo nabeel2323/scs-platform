@@ -859,3 +859,7 @@ The reconciliation query now uses the latest event matching the current return s
 **Status: IMPLEMENTED / TESTING_PENDING.** POSTED adjustment retries now verify the durable ADJUSTMENT ledger row and return idempotently without duplicate event/ledger writes. New adjustment rows carry explicit adjustmentId, parentSettlementId and postedBy metadata; legacy rows use the stable notes prefix as a compatibility lookup. Currency mismatch and sub-order/store mismatch fail closed. FIN-DSH-67 added. Commit: ad61d75b909341dd2936e03dbc592b0d244d9f72. Tests not executed; include in consolidated Phase 3 campaign.
 
 Remaining source audit: inspect adjustment ledger retrieval and reconciliation linkage, and behavior against PAID/terminal primary settlements.
+
+## FIN-042 — payout of posted adjustment ledgers
+
+**Status: IMPLEMENTED / TESTING_PENDING.** Added ADJUSTMENT to settlement statuses and enabled markSettlementPaid to transition posted adjustment ledger rows to PAID with normal payment history/outbox and same-reference retry idempotency. FIN-DSH-68 added. Commit: a6dc0c50ee83d1f397b982084e338b142d89b62e. Test not executed. Continue audit of adjustment listing/reconciliation and primary-settlement calculation filtering.

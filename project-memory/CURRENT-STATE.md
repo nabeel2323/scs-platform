@@ -1190,3 +1190,9 @@ A final review corrected the parity check to aggregate the latest matching curre
 Implemented replay-safe adjustment posting. A repeated post of an already-POSTED adjustment now checks for its durable ADJUSTMENT settlement row and returns without duplicate ledger or outbox writes. New ledger rows include adjustmentId, parentSettlementId and postedBy metadata; a legacy notes lookup supports rows written before this metadata. Posting rejects currency mismatch with the primary settlement and verifies the primary settlement store matches the sub-order. FIN-DSH-67 added. Source/test commit: ad61d75b909341dd2936e03dbc592b0d244d9f72. Tests added but not executed; [skip ci].
 
 Next: continue source-first review of adjustment lifecycle and outbox/reconciliation parity, especially primary-settlement terminal-state interactions and adjustment ledger discoverability.
+
+## FIN-042 — payout of posted adjustment ledgers — 23 November 2026
+
+Added ADJUSTMENT to the settlement status contract and allowed it through markSettlementPaid. A posted adjustment ledger row can now transition to PAID using the same row lock, PAYMENT_SETTLEMENT_PAID history and payment.settlement_paid outbox path; matching-reference retries remain idempotent. FIN-DSH-68 added. Source/test commit: a6dc0c50ee83d1f397b982084e338b142d89b62e. Test added, not executed; [skip ci].
+
+Next: audit adjustment listing/reconciliation and ensure adjustment rows are excluded from primary settlement recalculation.

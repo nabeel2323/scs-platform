@@ -1531,3 +1531,12 @@ Reviewed repeated return-state transitions and tightened FIN-040 to use MAX(crea
 - Added PostgreSQL FIN-DSH-67 for same-adjustment replay, single ledger/outbox persistence and currency mismatch rejection.
 - Source/test commit: ad61d75b909341dd2936e03dbc592b0d244d9f72. Test added, not executed; [skip ci]. No migration/shared DB/deployment/merge.
 - Next: audit adjustment ledger retrieval, reconciliation linkage and primary-settlement terminal-state interactions.
+
+## 23 November 2026 — FIN-042 posted adjustment payout lifecycle
+
+- Found that settlement adjustment posting creates an ADJUSTMENT settlement row, but markSettlementPaid accepted only CALCULATED/DUE, leaving posted adjustment credits/debits unable to reach PAID through the existing payout workflow.
+- Added ADJUSTMENT to SETTLEMENT_STATUSES and allowed it through the same row-locked markSettlementPaid transition.
+- Payment history/outbox and matching-reference retry idempotency are reused; no alternate payout path introduced.
+- Added PostgreSQL FIN-DSH-68 for adjustment payout and duplicate retry.
+- Source/test commit: a6dc0c50ee83d1f397b982084e338b142d89b62e. Test added, not executed; [skip ci].
+- Next: audit adjustment listing/reconciliation and ensure primary settlement calculation does not treat adjustment rows as the primary settlement.

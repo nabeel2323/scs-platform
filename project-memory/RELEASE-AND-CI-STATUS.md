@@ -1274,3 +1274,10 @@ Source/test follow-up commit: b63376cf26240d3dc21b6f26782158a09674c1c7. The reco
 - Added explicit adjustmentId/parentSettlementId/postedBy metadata to adjustment ledger rows, plus notes-prefix fallback for legacy rows.
 - Posting rejects currency mismatch with the primary settlement and verifies the primary settlement store matches the sub-order.
 - FIN-DSH-67 added. Commit uses [skip ci]; test not executed. No migration, shared DB write, staging mutation, deployment or merge.
+
+## 23 November 2026 — FIN-042 adjustment payout
+
+- Source/test commit: a6dc0c50ee83d1f397b982084e338b142d89b62e.
+- Added ADJUSTMENT to the settlement status contract and allowed posted adjustment ledger rows through markSettlementPaid.
+- Payout uses existing row-locked payment history/outbox and same-reference idempotent replay behavior.
+- FIN-DSH-68 added. [skip ci]; test not executed. No migration, shared DB write, staging mutation, deployment or merge.
