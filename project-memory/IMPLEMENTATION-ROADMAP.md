@@ -619,3 +619,8 @@ FIN-027 aligns return-side refundable-balance aggregation with PaymentsService: 
 ## Financial correctness continuation — FIN-028 — 23 November 2026
 
 The admin-only settlement calculation event now records ADMIN rather than SYSTEM. FIN-DSH-57 verifies persisted actor ID/class. Source/test commits: `5a7dfd6ea67de61bb016cc7a7ef31749760955d8` / `05799cde897871ab9752af07bf70830ac834edbf`. Test remains pending Phase 3.
+
+
+## Financial correctness continuation — FIN-029 — 23 November 2026
+
+Payment verification now records matching authenticated ADMIN/MERCHANT actor identity in payment and order history. FIN-DSH-54 covers both. Source/test commits: `77c2caaa322836cc8e7d651f6577df715c5e3228` / `8fc1759a9e374f12513c82d301b2c9b934a98840`. Test pending Phase 3.
