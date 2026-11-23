@@ -1389,3 +1389,8 @@ Payment confirmation now propagates the authenticated ADMIN/MERCHANT actor class
 ## FIN-030 — Refund-completion period attribution — 23 November 2026
 
 Monthly reconciliation now attributes refund and commission-reversal checks to the append-only `REFUNDED` transition timestamp, rather than the original return-request creation timestamp. A fallback preserves legacy rows without a REFUNDED event. FIN-DSH-58 covers a cross-period return/refund. Source: `93a908d4627c804af5d12e20c6a1e7c2811524e9`; test: `5abae2018b9e6d6a43d5e3b90764ef80560b4ea0`. Test pending Phase 3.
+
+
+## FIN-031 — Cross-period duplicate refund detection — 23 November 2026
+
+Duplicate-refund reconciliation now scopes candidate returns by successful refund `updated_at` in the accounting period, then counts all successful refunds for each candidate return across periods. Tenant scoping is retained. FIN-DSH-59 covers a prior-period duplicate plus a current-period success. Source: `6089a1fd821c35c0dcd9f0cde849e145326905e1`; test: `4bdd2935d48ea2c6ef3d633aa6af2f3fe39369ab`. Test pending Phase 3.
