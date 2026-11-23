@@ -610,3 +610,9 @@ Data Quality and KPI Dashboard now check their respective route permissions befo
 ## FIN-001 — Refund approval serialization and idempotency — 23 November 2026
 
 Source implementation is complete at `117614884ff1e0d50ca116f0b28f249fd83761c0`. Refund approvals now serialize on the payment row before recalculating the successful refund total; identical request retries reuse the existing refund by idempotency key, and mismatched key reuse conflicts. PostgreSQL regression scenarios FIN-DSH-11/12 were added but not executed. This is IMPLEMENTED / TESTING_PENDING, not verified. G-012 remains OPEN and unchanged: no automatic gateway or payout scope was introduced.
+
+### FIN-002 — Settlement calculation idempotency
+
+**Status: IMPLEMENTED / TESTING_PENDING.** The settlement calculation now locks the payment row and reuses an existing active settlement instead of creating a duplicate. If a settlement has reached PAID or an adjustment record exists, recalculation is rejected and the explicit settlement-adjustment workflow remains required. PostgreSQL scenarios FIN-DSH-13/14 are added but not executed. No schema/migration or payout behavior changed.
+
+Next: continue source-first review of payment and settlement transitions; keep automatic gateway/payout scope unchanged.
