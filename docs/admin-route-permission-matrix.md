@@ -2,7 +2,7 @@
 
 **Audit date:** 22 November 2026  
 **Repository branch inspected:** `remediation/phase-0-1-tenant-security`  
-**Source checkpoint:** `cd1d7de837d3c519db4a249479effe65db5fce53`  
+**Source checkpoint:** `14c8c5caa908a2194c8a3ec903de08f15e0db50e`  
 **Scope:** all 56 `apps/admin/src/app/**/page.tsx` files in the inspected Git tree.
 
 This is a source-level UI permission inventory, not a replacement for API authorization. The Admin root layout wraps the application in `AuthGuard`; page-level permissions are checked with `useRequirePerms`, and generic list routes use the permission in `managementTables` through `ManagementPage`. The backend `PermissionsGuard` remains authoritative.
