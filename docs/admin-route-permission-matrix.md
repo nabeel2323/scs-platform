@@ -60,7 +60,7 @@ This is a source-level UI permission inventory, not a replacement for API author
 - Focused Admin component tests cover read-only and write-authorized behavior for both pages.
 - This source audit covers all 56 Admin page files and the generic `ManagementPage` configuration. It does not claim every API route or every backend operation has been exhaustively reconciled.
 - Comprehensive role-by-role/deep-link/action verification remains in the consolidated Phase 3 testing campaign.
-- Next mapping work: mobile screen/action permission affordances, remaining web route-to-API mapping, and worker/provider ownership.
+- Next mapping work: remaining Admin custom route/action-to-controller permission semantics, remaining web route-to-API mapping, and worker/provider ownership.
 
 
 ## Dashboard and commission read-gate correction — 22 November 2026
@@ -77,3 +77,10 @@ Focused regression coverage is added in `apps/admin/src/__tests__/dashboard-perm
 A follow-up source audit checked mutation handlers, not only visible controls. Verification organization deactivate/reactivate, Organizations status toggle and update-request review, and dispute resolution now recheck their required permission inside the async handler immediately before the mutation. Organization actions also reject duplicate in-flight execution. This prevents a stale confirmation dialog from retaining the ability to submit after the active permission projection changes.
 
 Focused tests were added in `apps/admin/src/__tests__/verification-org-status-permissions.test.tsx` and `apps/admin/src/__tests__/admin-organization-action-permissions.test.tsx`. They have not been executed and remain in the consolidated Phase 3 campaign. Existing API permission guards are unchanged and authoritative.
+
+
+## Capability-aware navigation and Payments access — UX-098 — 23 November 2026
+
+The shared sidebar now supports both all-of and any-of permission rules. Carrier & Recovery is visible when the caller has either `admin:carrier:read` or `admin:shipping:recovery`, matching the route's existing OR gate. Payments is visible when the caller has any of `admin:payments:read`, `admin:payments:verify` or `admin:refunds:approve`.
+
+The Payments route now admits verification-only users and loads the Verification Queue with `admin:payments:verify`. All Payments and Stale/Expiring remain restricted to `admin:payments:read`; Refund Requests remain restricted to `admin:refunds:approve`. A caller without any of these capabilities receives AccessDenied. Focused helper and page tests were added but not executed. No API/RBAC grants changed.
