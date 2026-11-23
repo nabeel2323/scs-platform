@@ -1176,3 +1176,35 @@ The first normal consolidated run after FIN-047 audit closure passed lint but fa
 - The touched outbox-dispatcher test exposed a case-sensitive SQL assertion against PostgreSQL's uppercase NOT LIKE; corrected to compare lowercased SQL in commit 3ef930973014bdb43e10a62c337a61831835c174. The latest CI run is the exact-head recheck for this correction.
 - FIN-047 remains IMPLEMENTED / TESTING_PENDING. Do not merge/deploy. No migration or shared/staging DB write, environment mutation, worker activation, RLS/ACL change, or production operation was performed.
 - Next: finish collecting CI #45257284797 API coverage and PostgreSQL integration results; run the Admin settlement recovery tests independently because the Web suite currently fails before Admin is reached; then address the 14 modular-boundary violations and _migration_log audit grant through their proper owners/reviewed changes. Do not change test expectations or weaken gates to hide failures.
+
+## Live continuation — 23 November 2026
+
+**Current implementation checkpoint:** `954200f9bf7866aa2f25d0585847a0c51eb19259` on `remediation/phase-0-1-tenant-security`. PR #138 remains OPEN / DRAFT / UNMERGED against `develop`. Documentation-only memory synchronization commits follow this source checkpoint.
+
+### Where work stopped
+
+FIN-047 settlement-history pagination and the consumer audit are implemented. Admin and Merchant endpoints use bounded offset pagination (default 25, maximum 100), total counts, stable createdAt/id ordering, and matching merchant row/count scope. Both clients expose page navigation. The consumer review found no settlement export or aggregate that sums primary and adjustment rows. FIN-047 remains IMPLEMENTED / TESTING_PENDING.
+
+### Verification evidence and failure analysis
+
+CI #45257284797 tested source SHA `3ef930973014bdb43e10a62c337a61831835c174` and completed FAILED:
+
+- Changed-file Prettier, lint, workspace typecheck and Flutter analyze/tests passed.
+- Boundary Lint failed with 14 new cross-module imports against its reviewed 193-entry baseline (206 current violations). These are not added to the baseline; G-015 remains open for a proper module-contract refactor.
+- Migration Full Apply failed because the least-privilege `scs_audit` role had no SELECT on `_migration_log`, while the audit utility attempted to count rows. No grant should be added.
+- Web tests: 9 failed, 212 passed; Merchant settlements recovery passed 5/5. The Web failure stopped the subsequent Admin test step.
+- API coverage: 22 test files failed, 248 passed, 6 skipped; 89 tests failed, 4,634 passed, 176 skipped. Two shipping cancellation unit suites failed because their mocks omitted the owning-store lookup used by the production tenant guard. The outbox unit test incorrectly expected a SQL literal to be a bound parameter.
+- PostgreSQL integration: 82 files discovered; 1,599/1,706 passed and 41 assertions failed. This includes broader catalog, webhook, financial and shipping test debt; do not attribute the whole failure set to FIN-047.
+
+The correction batch at `954200f` (CI #45260954714) addresses the privilege-aware read-only audit, carrier fixture store lookups, two tenant-error assertions, the outbox SQL-literal assertion, and the Admin CI step's dependency on Web success. It does not change application tenant enforcement or database permissions. CI #45260954714 was queued when this checkpoint was recorded; inspect its exact-head conclusion before marking anything verified.
+
+### Remaining priorities
+
+1. Inspect CI #45260954714 and confirm the audit passes without granting SELECT to `scs_audit`, carrier suites recover, the outbox test passes, and Admin finance tests execute even if Web remains red.
+2. Triage unrelated Web/API/PostgreSQL failures in grouped domain-owned batches; do not weaken assertions or mark the full suite green prematurely.
+3. Resolve the 14 modular-boundary findings through injected service contracts rather than changing the reviewed baseline or adding cosmetic barrel imports.
+4. Continue G-002 source inventory, actual FK and method-level predicate proof. Runtime identity evidence and protected read-only staging inspection still require explicit authorization.
+5. Preserve G-001 independent review, G-036 security verification, and the full Phase 6 campaign as open gates.
+
+PR #138 stays draft/unmerged. No deployment, shared/staging database write, migration, grant/default-ACL change, RLS activation, worker activation or release operation is authorized or claimed.
+
