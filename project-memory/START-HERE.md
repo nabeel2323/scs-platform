@@ -593,3 +593,14 @@ Positive safe-integer validation now covers verified payment amount, COD cash co
 - FIN-DSH-18 verifies the payment is CONFIRMED, order status remains DELIVERED, order payment_status becomes CONFIRMED, and one PAYMENT_CONFIRMED event is persisted. Not executed.
 - Source/test commit: `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`.
 - Status: IMPLEMENTED / TESTING_PENDING. No schema/migration or staging/shared database/deployment action.
+
+
+## FIN-009–FIN-013 financial audit continuation — 23 November 2026
+
+- FIN-009: dispute resolution compare-and-set prevents duplicate resolution events/outbox messages; source/test `2b8e2fa7cf2aab87d4186153a61748bc82805c52`.
+- FIN-010: return refund settlement adjustment serializes against mark-paid; source/test `a1dc7b2cf31c83f2a59c0a72f0056f4955fe7143`.
+- FIN-011: return orphan-refund recovery validates the complete financial payload; source/test `72927529e64a719741b94b864f6adba7cafd4f0d`.
+- FIN-012: settlement adjustment preserves original settlement currency; source/test `ba3318724c3080d4c29baee1c81e972262e14ac4`.
+- FIN-013: payment expiry appends order cancellation history only when the conditional order update succeeds; source `028e30e9ebeb626b51b6d80bc28467c9c946c419`, regression `83550c34c7dc11492fc6e5c5fc6fcb418b79243c`.
+- Additional payment confirmation fail-closed behavior for missing financial breakdown is in `cdb189e95dd7022793af33352a18c31f81117059`.
+- FIN-DSH-11–28 are added but not executed. Keep all these items IMPLEMENTED / TESTING_PENDING until the consolidated PostgreSQL integration campaign passes.
