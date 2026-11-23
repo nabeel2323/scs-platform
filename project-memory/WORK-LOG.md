@@ -1540,3 +1540,11 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Pushed source/test/CI corrections in commits ending `71a9cf1`, `fc5053f`, `ab782ab`, `86e7d92`, `e318775`, `990e7b7` and `954200f`. CI #45260954714 was queued against `954200f`; no result from that run is claimed yet.
 - Deliberately left the 14 boundary violations un-baselined for a proper service-contract refactor. Broad remaining API/PostgreSQL/Web failures are not represented as FIN-047 regressions without evidence.
 - No migration, grant, RLS, staging/shared database operation, deployment, worker activation or merge was performed. FIN-047 remains IMPLEMENTED / TESTING_PENDING; PR #138 remains draft.
+
+## 23 November 2026 — formatter recovery
+
+- CI #45260954714 tested `954200f9bf7866aa2f25d0585847a0c51eb19259`. Install, lint and workspace typecheck passed; Flutter passed. The changed-file Prettier check failed and all downstream application-test and release jobs were skipped.
+- A one-time formatter action applied `pnpm exec prettier --write` and verified with `pnpm exec prettier --check` across the affected source and memory files. It pushed formatting-only commit `4477ebd42ba46146b14df18094d025ab133c5d75`.
+- The formatting correction has not yet received an exact-head CI run. No test results from #452609 are promoted to the formatter commit.
+- PR #138 remains draft/unmerged. No deployment, migration, shared database write, grant, RLS change or worker activation was performed.
+
