@@ -76,15 +76,16 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. The latest source/test checkpoint is `05799cde897871ab9752af07bf70830ac834edbf`; FIN-028 source is `5a7dfd6ea67de61bb016cc7a7ef31749760955d8`, and FIN-DSH-57 is added but not executed. FIN-027 source/test are `6ae8aba762215f69f42e74e4608a4fa31a02543b` / `5b636df49155ea523bc730852ed900720a858a88`. The latest syntax correction is `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`; earlier syntax corrections are `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`. Documentation-only synchronization commits follow.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. The latest source/test checkpoint is `8fc1759a9e374f12513c82d301b2c9b934a98840`; FIN-029 source is `77c2caaa322836cc8e7d651f6577df715c5e3228`, and FIN-DSH-54 was extended but not executed. FIN-028 source is `5a7dfd6ea67de61bb016cc7a7ef31749760955d8`, with FIN-DSH-57 added but not executed. FIN-027 source/test are `6ae8aba762215f69f42e74e4608a4fa31a02543b` / `5b636df49155ea523bc730852ed900720a858a88`. The latest syntax correction is `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`; earlier syntax corrections are `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`. Documentation-only synchronization commits follow.
 
 ### Exact stopping point
 
-- FIN-001–FIN-028 are already implemented in source; do not repeat them. Their PostgreSQL/unit regressions are added but remain unexecuted pending the consolidated Phase 3 campaign.
+- FIN-001–FIN-029 are already implemented in source; do not repeat them. Their PostgreSQL/unit regressions are added but remain unexecuted pending the consolidated Phase 3 campaign.
 - FIN-025 durable payment-proof upload intents and cleanup recovery are implemented. Migration 0075 is source-only; cleanup is callable but not scheduled or activated.
 - FIN-026 payment and return actor attribution is implemented, including privileged ADMIN overrides. FIN-DSH-54/55 are added but not executed.
 - FIN-027 aligns return-side refund accounting with PaymentsService: APPROVED refunds reserve refundable balance, and PostgreSQL SUM(bigint) is handled using exact numeric text/BigInt with a safe-integer guard. FIN-DSH-56 covers approved-refund reservation and totals above the 32-bit integer boundary. Test is added, not executed.
 - FIN-028 corrects admin-only settlement calculation history from SYSTEM to ADMIN actor attribution. FIN-DSH-57 verifies persisted actor ID/class. Test is added, not executed.
+- FIN-029 corrects payment-confirmation order history to retain the authenticated ADMIN/MERCHANT actor class, matching payment history. FIN-DSH-54 now verifies both rows. Test remains unexecuted.
 - CI #1446 exposed two syntax defects in `returns.service.ts` and `settlement-adjustment.service.ts`. They were corrected in `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`, followed by a brace-balance/indentation correction in `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`; none has been rerun through CI.
 
 ### Latest CI and verification
@@ -99,7 +100,7 @@ CI [#1446](https://github.com/nabeel2323/scs-platform/actions/runs/45189283326) 
 - Phases 0–5 remain IN PROGRESS; Phase 6 consolidated verification is NOT STARTED.
 - PR #138 must remain draft/open/unmerged. Do not merge, deploy, bypass protected staging approval, mutate shared databases, execute migration 0070/0071/0075, change grants/default ACLs, enable RLS, change environments or activate workers.
 
-**Next implementation:** continue source-first audit of payment/refund/settlement event history, retry semantics and cross-ledger consistency beyond FIN-028. Do not repeat completed FIN-001–FIN-028 work. Keep formatting and the comprehensive test/migration campaign grouped at the implementation-complete Phase 3 checkpoint; fix any concrete security or correctness defect immediately.
+**Next implementation:** continue source-first audit of payment/refund/settlement event history, retry semantics and cross-ledger consistency beyond FIN-029. Do not repeat completed FIN-001–FIN-029 work. Keep formatting and the comprehensive test/migration campaign grouped at the implementation-complete Phase 3 checkpoint; fix any concrete security or correctness defect immediately.
 
 ## Safety reminder
 
