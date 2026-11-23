@@ -751,6 +751,64 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     ).rejects.toThrow(/positive safe integer in minor units/i);
   }, 90_000);
 
+  // ── FIN-DSH-17: Settlement payment transition history and outbox ──
+
+  it('FIN-DSH-17: concurrent settlement pay attempts persist one PAID event and one outbox event', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
+
+    const results = await Promise.allSettled([
+      paymentsService.markSettlementPaid(settlement.id, adminA, adminCaller, {
+        paymentReference: 'BANK-REF-FIN-17',
+        notes: 'Manual settlement transfer confirmed',
+      }),
+      paymentsService.markSettlementPaid(settlement.id, adminA, adminCaller, {
+        paymentReference: 'BANK-REF-FIN-17',
+        notes: 'Duplicate concurrent request',
+      }),
+    ]);
+
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+
+    const paid = await pool.query(
+      `SELECT status, payment_reference FROM settlement_records WHERE id = $1`,
+      [settlement.id],
+    );
+    expect(paid.rows).toEqual([{ status: 'PAID', payment_reference: 'BANK-REF-FIN-17' }]);
+
+    const paymentId = (await pool.query(
+      `SELECT payment_record_id FROM settlement_records WHERE id = $1`,
+      [settlement.id],
+    )).rows[0].payment_record_id;
+
+    const history = await pool.query(
+      `SELECT event_type, from_status, to_status, amount_minor::int AS amount, actor_id
+       FROM payment_events
+       WHERE payment_record_id = $1 AND event_type = 'PAYMENT_SETTLEMENT_PAID'`,
+      [paymentId],
+    );
+    expect(history.rows).toHaveLength(1);
+    expect(history.rows[0]).toMatchObject({
+      event_type: 'PAYMENT_SETTLEMENT_PAID',
+      from_status: 'CALCULATED',
+      to_status: 'PAID',
+      amount: settlement.netMinor,
+      actor_id: adminA,
+    });
+
+    const outbox = await pool.query(
+      `SELECT event_type, payload->>'settlementId' AS settlement_id
+       FROM outbox_events
+       WHERE aggregate_id = $1 AND event_type = 'payment.settlement_paid'`,
+      [paymentId],
+    );
+    expect(outbox.rows).toEqual([{
+      event_type: 'payment.settlement_paid',
+      settlement_id: settlement.id,
+    }]);
+  }, 60_000);
+
   // ── FIN-DSH-09: Refund after settlement PAID ─────────────────────
 
   it('FIN-DSH-09: refund succeeding after settlement is PAID creates an ADJUSTMENT and preserves the paid record', async () => {

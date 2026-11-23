@@ -965,7 +965,7 @@ export class PaymentsService {
       await tx.insert(paymentEvents).values({
         id: crypto.randomUUID(),
         paymentRecordId: payment.id,
-        eventType: 'PAYMENT_REFUND_SUCCEEDED',
+        eventType: 'PAYMENT_SETTLEMENT_CALCULATED',
         fromStatus: payment.status,
         toStatus: payment.status,
         actorId,
@@ -1007,34 +1007,81 @@ export class PaymentsService {
     caller: CallerContext,
     input?: { paymentReference?: string; notes?: string },
   ) {
+    const settlementSnapshot = await this.getSettlement(settlementId);
     if (!isTenantPrivileged(caller)) {
-      await assertStoreInOrg(
-        this.db,
-        caller,
-        (await this.getSettlement(settlementId)).merchantStoreId,
+      await assertStoreInOrg(this.db, caller, settlementSnapshot.merchantStoreId);
+    }
+
+    await this.db.db.transaction(async (tx) => {
+      // Lock the settlement row so concurrent pay attempts produce exactly
+      // one terminal transition, immutable history row and outbox event.
+      const [settlement] = await tx
+        .select()
+        .from(settlementRecords)
+        .where(eq(settlementRecords.id, settlementId))
+        .for('update')
+        .limit(1);
+
+      if (!settlement) throw new NotFoundException('Settlement not found');
+      if (!['CALCULATED', 'DUE'].includes(settlement.status)) {
+        throw new ConflictException('Settlement not in payable status');
+      }
+
+      const paidAt = new Date();
+      const [updated] = await tx
+        .update(settlementRecords)
+        .set({
+          status: 'PAID',
+          paidAt,
+          paymentReference: input?.paymentReference || null,
+          notes: input?.notes || null,
+          updatedAt: paidAt,
+        })
+        .where(
+          and(
+            eq(settlementRecords.id, settlementId),
+            inArray(settlementRecords.status, ['CALCULATED', 'DUE']),
+          ),
+        )
+        .returning({ id: settlementRecords.id });
+
+      if (!updated) {
+        throw new ConflictException('Settlement not in payable status');
+      }
+
+      await tx.insert(paymentEvents).values({
+        id: crypto.randomUUID(),
+        paymentRecordId: settlement.paymentRecordId,
+        eventType: 'PAYMENT_SETTLEMENT_PAID',
+        fromStatus: settlement.status,
+        toStatus: 'PAID',
+        actorId,
+        actorType: isTenantPrivileged(caller) ? 'ADMIN' : 'MERCHANT',
+        amountMinor: settlement.netMinor,
+        notes: input?.notes || 'Settlement marked as paid',
+        metadata: {
+          settlementId,
+          paymentReference: input?.paymentReference || null,
+        },
+      });
+
+      await this.outbox.publish(
+        'payment.settlement_paid',
+        settlement.paymentRecordId,
+        {
+          settlementId,
+          subOrderId: settlement.subOrderId,
+          paymentId: settlement.paymentRecordId,
+          merchantStoreId: settlement.merchantStoreId,
+          netMinor: settlement.netMinor,
+          currency: settlement.currency,
+          paymentReference: input?.paymentReference || null,
+        },
+        {},
+        null,
+        tx,
       );
-    }
-
-    const flip = await this.db.db
-      .update(settlementRecords)
-      .set({
-        status: 'PAID',
-        paidAt: new Date(),
-        paymentReference: input?.paymentReference || null,
-        notes: input?.notes || null,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(settlementRecords.id, settlementId),
-          inArray(settlementRecords.status, ['CALCULATED', 'DUE']),
-        ),
-      )
-      .returning({ id: settlementRecords.id });
-
-    if (flip.length === 0) {
-      throw new ConflictException('Settlement not in payable status');
-    }
+    });
 
     return this.getSettlement(settlementId);
   }
