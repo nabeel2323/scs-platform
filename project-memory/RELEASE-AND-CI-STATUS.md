@@ -954,3 +954,10 @@ The next full workflow is required to verify these changes.
 - Added FIN-DSH-13/14 to the PostgreSQL financial integration suite; neither test has been executed.
 - Latest historical Actions run remains #1421 on earlier SHA `8474b7acd264872a01d305bef515009eded104ed`; it is not validation of FIN-001 or FIN-002.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No merge, staging operation, shared DB change, migration, provider call, payout, deployment or worker activation occurred.
+
+## FIN-002 source checkpoint — 23 November 2026
+
+- PR #138 source/test commit: `3090d06d2c178a54c526c703376e3f8077240c27` (`fix(payments): require confirmed funds before settlement [skip ci]`).
+- This source commit uses `[skip ci]`; no workflow run or CI verification is claimed for the exact source SHA. A prior run #1425 may be evaluating an earlier branch head and must not be credited to this commit.
+- FIN-DSH-13/14/15 cover concurrent settlement idempotency, post-PAID recalculation denial and refusal to settle AWAITING_PAYMENT. Tests are added but not executed.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No merge, staging operation, shared DB change, migration, provider call, payout, deployment or worker activation occurred.
