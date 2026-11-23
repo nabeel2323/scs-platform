@@ -126,7 +126,7 @@ describe('Admin financial list read recovery', () => {
   it('retries the payment verification queue after a read failure', async () => {
     vi.mocked(fetchPaymentVerificationQueue)
       .mockRejectedValueOnce(new Error('Payment queue unavailable'))
-      .mockResolvedValueOnce({ data: [], total: 0, limit: 25, offset: 0 });
+      .mockResolvedValueOnce([]);
     render(<AdminPaymentsPage />);
     expect(await screen.findByText('Payment queue unavailable')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -137,7 +137,7 @@ describe('Admin financial list read recovery', () => {
   it('retries the settlements list after a read failure', async () => {
     vi.mocked(fetchAdminSettlements)
       .mockRejectedValueOnce(new Error('Settlements unavailable'))
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce({ data: [], total: 0, limit: 25, offset: 0 });
     render(<AdminSettlementsPage />);
     expect(await screen.findByText('Settlements unavailable')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
