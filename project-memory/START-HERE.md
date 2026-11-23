@@ -84,7 +84,7 @@ Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/s
 - FIN-025 durable payment-proof upload intents and cleanup recovery are implemented. Migration 0075 is source-only; cleanup is callable but not scheduled or activated.
 - FIN-026 payment and return actor attribution is implemented, including privileged ADMIN overrides. FIN-DSH-54/55 are added but not executed.
 - FIN-027 aligns return-side refund accounting with PaymentsService: APPROVED refunds reserve refundable balance, and PostgreSQL SUM(bigint) is handled using exact numeric text/BigInt with a safe-integer guard. FIN-DSH-56 covers approved-refund reservation and totals above the 32-bit integer boundary. Test is added, not executed.
-- CI #1446 exposed two syntax defects in `returns.service.ts` and `settlement-adjustment.service.ts`. They were corrected in `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`; these corrections have not been rerun through CI.
+- CI #1446 exposed two syntax defects in `returns.service.ts` and `settlement-adjustment.service.ts`. They were corrected in `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`, followed by a brace-balance/indentation correction in `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`; none has been rerun through CI.
 
 ### Latest CI and verification
 
