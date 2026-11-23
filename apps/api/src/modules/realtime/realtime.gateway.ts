@@ -9,7 +9,6 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { RedisService } from '../../common/redis/redis.service';
@@ -21,9 +20,8 @@ import {
   isTenantPrivileged,
   type CallerContext,
 } from '../../common/tenant-scope';
-import { stores } from '../merchant/merchant.schema';
-import { masterOrders, orders } from '../orders/orders.schema';
-import { shipments } from '../orders/shipment.schema';
+import { MerchantService } from '../merchant/index';
+import { OrderRealtimeAccessService } from '../orders/index';
 
 /**
  * Realtime WebSocket Gateway — `/realtime`
@@ -59,6 +57,8 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     private readonly jwt: JwtService,
     private readonly redis: RedisService,
     private readonly db: DatabaseService,
+    private readonly merchant: MerchantService,
+    private readonly orderAccess: OrderRealtimeAccessService,
   ) {}
 
   afterInit() {
@@ -231,11 +231,14 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       return false;
     }
 
-    const store = await this.db.db.query.stores.findFirst({
-      where: eq(stores.id, storeId),
-      columns: { id: true },
-    });
-    if (!store) return false;
+    let store: Awaited<ReturnType<MerchantService['getStore']>>;
+    try {
+      store = await this.merchant.getStore(storeId);
+    } catch {
+      return false;
+    }
+    // Room identifiers are canonical store IDs, not public slugs.
+    if (store.id !== storeId) return false;
     if (privileged) return true;
 
     try {
@@ -255,28 +258,21 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     orderId: string,
   ): Promise<boolean> {
     const permissions = this.socketPermissions(client);
-    const order = await this.db.db.query.orders.findFirst({
-      where: eq(orders.id, orderId),
-      columns: { buyerId: true, storeId: true },
-    });
+    const roomAccess = await this.orderAccess.getRoomAccess(orderId);
+    if (!roomAccess) return false;
 
-    if (!order) {
+    if (roomAccess.kind === 'masterOrder') {
       // Buyer tracking may use the master-order identifier rather than a
       // merchant sub-order identifier.
-      const masterOrder = await this.db.db.query.masterOrders.findFirst({
-        where: eq(masterOrders.id, orderId),
-        columns: { buyerId: true },
-      });
-      if (!masterOrder) return false;
       if (isTenantPrivileged(caller)) return permissions.includes('orders:read');
-      return masterOrder.buyerId === caller.sub && permissions.includes('orders:read');
+      return roomAccess.buyerId === caller.sub && permissions.includes('orders:read');
     }
 
     if (isTenantPrivileged(caller)) {
       return permissions.includes('orders:read') || permissions.includes('merchant:orders:read');
     }
 
-    if (order.buyerId === caller.sub && permissions.includes('orders:read')) {
+    if (roomAccess.buyerId === caller.sub && permissions.includes('orders:read')) {
       return true;
     }
 
@@ -285,8 +281,8 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       permissions.includes('merchant:orders:read')
     ) {
       try {
-        await assertStoreInOrg(this.db, caller, order.storeId);
-        await assertStoreMember(this.db, caller, order.storeId);
+        await assertStoreInOrg(this.db, caller, roomAccess.storeId);
+        await assertStoreMember(this.db, caller, roomAccess.storeId);
         return true;
       } catch {
         return false;
@@ -294,11 +290,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     }
 
     if (caller.role === 'DRIVER' && permissions.includes('fulfillment:shipments:read')) {
-      const assignment = await this.db.db.query.shipments.findFirst({
-        where: and(eq(shipments.orderId, orderId), eq(shipments.assignedDriverId, caller.sub)),
-        columns: { id: true },
-      });
-      return !!assignment;
+      return this.orderAccess.isDriverAssignedToOrder(orderId, caller.sub);
     }
 
     return false;
