@@ -389,7 +389,7 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
       metadata: { storeId: 'wrong-store-id' },
     };
 
-    await expect((worker as any).handleCancel(event)).rejects.toThrow(/tenant mismatch/i);
+    await expect((worker as any).handleCancel(event)).rejects.toThrow(/outbox event store does not match its shipment/i);
   });
 
   // ── B3321-PG-07: Retry counter does not lose updates ───────────────────
