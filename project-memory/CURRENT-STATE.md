@@ -3,7 +3,7 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `6ae8aba762215f69f42e74e4608a4fa31a02543b` — FIN-027 return refund balance aggregation; syntax corrections: `a06086769028ad55a371376abfca2a211ef317c4`, `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`, plus follow-up brace-balance correction `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`. 
+**Latest feature implementation:** `6ae8aba762215f69f42e74e4608a4fa31a02543b` — FIN-027 return refund balance aggregation. **Latest source correction:** `4a7ebc784a1b3e469d82b0dec899dbb2838e682b` — final return-service brace balance/indentation. 
 **Latest focused test commit:** `5b636df49155ea523bc730852ed900720a858a88` — FIN-DSH-56 for APPROVED refund balance and BIGINT aggregate safety; tests not executed. No exact-head Actions run is attached. 
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
@@ -19,7 +19,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation checkpoint head | `5b636df49155ea523bc730852ed900720a858a88` (FIN-027; FIN-DSH-56 added, not executed; docs-only checkpoint commits follow) |
+| Latest implementation checkpoint head | `4a7ebc784a1b3e469d82b0dec899dbb2838e682b` (FIN-027 source + syntax corrections; FIN-DSH-56 test commit `5b636df49155ea523bc730852ed900720a858a88` added, not executed; docs-only checkpoint commits follow) |
 | Latest implementation/test | FIN-004–FIN-027 financial correctness: refund recovery, settlement/reconciliation lifecycle, proof-upload intents, actor attribution, return refund cap parity and BIGINT-safe aggregation. FIN-DSH-11–56 plus focused unit coverage are added but remain unexecuted pending Phase 3. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
@@ -1078,7 +1078,7 @@ The existing return-idempotency case already owns FIN-DSH-33. Settlement-adjustm
 
 ## Live reconciliation — 23 November 2026 (FIN-027)
 
-The source/test checkpoint is `5b636df49155ea523bc730852ed900720a858a88`; source changes are FIN-027 commit `6ae8aba762215f69f42e74e4608a4fa31a02543b` plus syntax corrections `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`, followed by brace-balance correction `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`. Documentation checkpoint commits follow.
+The latest source checkpoint is `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`; FIN-027 feature implementation is `6ae8aba762215f69f42e74e4608a4fa31a02543b`, and FIN-DSH-56 test commit is `5b636df49155ea523bc730852ed900720a858a88`. Earlier syntax correction commits are `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`. Documentation checkpoint commits follow.
 
 CI #1446 on `8e32957d3435196222fbb9841e6063229b68b648` failed lint because of the two syntax errors noted above; Flutter passed and all dependent test/build/release jobs were skipped. The syntax errors are corrected in source but not yet CI-verified. FIN-DSH-56 is added but not executed. Exact-head workflow lookup for the source/test checkpoint returned no run; Vercel Web/Admin failures are external build-rate-limit statuses.
 
