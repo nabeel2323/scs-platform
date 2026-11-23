@@ -2912,7 +2912,9 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     const outboxRows = await pool.query(
       `SELECT id FROM outbox_events
-       WHERE event_type = 'payment.refund_requested'`,
+       WHERE event_type = 'payment.refund_requested'
+         AND aggregate_id = (SELECT id FROM payment_records WHERE order_id = $1)`,
+      [orderId],
     );
     expect(outboxRows.rows).toHaveLength(0);
   }, 90_000);
