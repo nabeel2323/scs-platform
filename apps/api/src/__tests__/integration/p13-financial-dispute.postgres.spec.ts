@@ -2811,4 +2811,48 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(duplicate.rows[0].actual_minor).toBe(2);
   }, 90_000);
 
+
+  it('FIN-DSH-60: adjustment reconciliation uses posting period and ignores unposted drafts', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const postedAdjustmentId = randomUUID();
+    const draftAdjustmentId = randomUUID();
+
+    // Both adjustments were created in an earlier period. Only the first was
+    // posted in the current period; the draft must not enter financial checks.
+    await pool.query(
+      `INSERT INTO settlement_adjustments
+       (id, sub_order_id, adjustment_type, amount_minor, currency, status, reason,
+        requires_dual_approval, created_by, org_id, created_at, updated_at)
+       VALUES
+       ($1, $3, 'DELIVERY_FEE_EXCEPTION', 999999, 'SYP', 'POSTED',
+        'Cross-period posted adjustment', true, $4, $5,
+        now() - interval '2 days', now()),
+       ($2, $3, 'DELIVERY_FEE_REFUND', 999999, 'SYP', 'DRAFT',
+        'Unposted draft adjustment', true, $4, $5,
+        now() - interval '2 days', now())`,
+      [postedAdjustmentId, draftAdjustmentId, orderId, adminA, orgA],
+    );
+
+    const period = new Date().toISOString().slice(0, 10);
+    const run = await reconciliationService.executeReconciliation(
+      period, period, 'SYP', adminA, orgA,
+    );
+    const rows = await pool.query(
+      `SELECT discrepancy_type, source_ref
+       FROM reconciliation_discrepancies
+       WHERE run_id = $1 AND source_ref IN ($2, $3)`,
+      [run.runId, `adjustment:${postedAdjustmentId}`, `adjustment:${draftAdjustmentId}`],
+    );
+    const postedTypes = rows.rows
+      .filter((row: any) => row.source_ref === `adjustment:${postedAdjustmentId}`)
+      .map((row: any) => row.discrepancy_type);
+    expect(postedTypes).toContain('UNAPPROVED_ADJUSTMENT');
+    expect(postedTypes).toContain('DELIVERY_FEE_OVER_REFUND');
+    expect(rows.rows.some((row: any) =>
+      row.source_ref === `adjustment:${draftAdjustmentId}`,
+    )).toBe(false);
+  }, 90_000);
+
 });
