@@ -566,3 +566,10 @@ The merchant category directory is now read-only for merchant roles and requires
 - UX-096 Mobile route/action permission and organization-context transition alignment is implemented; focused route and driver-assignment tests are added but not executed.
 - G-036 realtime store/order room authorization is implemented in source with focused gateway tests added but not executed.
 - **Next:** finish the remaining Admin route/action permission mapping. Comprehensive testing remains deferred to the consolidated testing phase.
+
+
+## UX-100 — Admin settlement adjustment rejection action — 23 November 2026
+
+The Admin settlement-adjustment page now exposes the existing API rejection operation for pending-approval adjustments. Only users with `admin:adjustments:approve` see the Reject action; submission requires a reason and sends the API's `{ reason }` payload. This closes a UI workflow omission without changing backend permission or financial transition logic. Focused tests cover the rejection request and read-only visibility but have not been executed; UX-100 remains IMPLEMENTED / TESTING_PENDING for Phase 3.
+
+**Next implementation:** continue the remaining Admin custom action-handler audit, especially direct mutation handlers outside the shared `useAdminMutation` path. Do not repeat the completed 56-page route audit or UX-097–UX-100.
