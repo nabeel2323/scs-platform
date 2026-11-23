@@ -190,87 +190,121 @@ export class PaymentsService {
     const payment = await this.getPaymentOrThrow(paymentId);
     const order = await this.getOrderForPayment(payment.orderId);
 
-    // Buyer owns this payment
     if (order.buyerId !== caller.sub && !isTenantPrivileged(caller)) {
       throw new ForbiddenException('You do not have access to this payment');
     }
-
     if (payment.paymentMethod !== 'BANK_TRANSFER') {
       throw new BadRequestException('Proof submission is only for bank transfer payments');
     }
-
-    // Valid states for proof submission
     if (!['AWAITING_PAYMENT', 'REJECTED'].includes(payment.status)) {
       throw new ConflictException(`Cannot submit proof in ${payment.status} status`);
     }
 
-    // Handle file upload if provided
-    let storedReceiptUrl = input.receiptUrl || null;
-    if (input.fileBuffer && this.storage) {
-      const ext = (input.fileName || 'receipt').split('.').pop() || 'jpg';
-      const storageKey = `payment-proofs/${paymentId}/${crypto.randomUUID()}.${ext}`;
+    const previousReceiptUrl = payment.receiptUrl ?? null;
+    const uploadsBucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
+    let storedReceiptUrl = input.receiptUrl || previousReceiptUrl;
+    let newStorageKey: string | null = null;
+
+    if (input.fileBuffer) {
+      if (!this.storage) {
+        throw new BadRequestException('Payment proof storage is not configured');
+      }
+      if (input.fileBuffer.length > MAX_PROOF_SIZE) {
+        throw new BadRequestException('Payment proof exceeds the 10 MB upload limit');
+      }
+      const contentType = input.contentType || 'image/jpeg';
+      if (!ALLOWED_PROOF_TYPES.has(contentType)) {
+        throw new BadRequestException('Unsupported payment proof file type');
+      }
+      const rawExtension = input.fileName?.includes('.') ? input.fileName.split('.').pop() : 'jpg';
+      const extension = (rawExtension || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'jpg';
+      newStorageKey = `payment-proofs/${paymentId}/${crypto.randomUUID()}.${extension}`;
       await this.storage.putObject({
-        bucket: process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads',
-        key: storageKey,
+        bucket: uploadsBucket,
+        key: newStorageKey,
         body: input.fileBuffer,
-        contentType: input.contentType || 'image/jpeg',
+        contentType,
       });
-      storedReceiptUrl = storageKey;
+      storedReceiptUrl = newStorageKey;
     }
 
-    // Atomic transition
     const fromStatus = payment.status;
     const toStatus = 'AWAITING_VERIFICATION';
     assertPaymentTransition(fromStatus, toStatus);
 
-    await this.db.db.transaction(async (tx) => {
-      const flip = await tx
-        .update(paymentRecords)
-        .set({
-          status: toStatus,
+    try {
+      await this.db.db.transaction(async (tx) => {
+        const flip = await tx.update(paymentRecords)
+          .set({
+            status: toStatus,
+            receiptUrl: storedReceiptUrl,
+            receiptReference: input.receiptReference || payment.receiptReference,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(paymentRecords.id, paymentId), eq(paymentRecords.status, fromStatus)))
+          .returning({ id: paymentRecords.id });
+        if (flip.length === 0) {
+          throw new ConflictException('Payment status already changed — concurrent update');
+        }
+
+        await tx.insert(paymentEvents).values({
+          id: crypto.randomUUID(),
+          paymentRecordId: paymentId,
+          eventType: 'PAYMENT_PROOF_SUBMITTED',
+          fromStatus,
+          toStatus,
+          actorId: buyerId,
+          actorType: 'BUYER',
+          notes: input.notes || null,
           receiptUrl: storedReceiptUrl,
-          receiptReference: input.receiptReference || payment.receiptReference,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(paymentRecords.id, paymentId), eq(paymentRecords.status, fromStatus)))
-        .returning({ id: paymentRecords.id });
-
-      if (flip.length === 0) {
-        throw new ConflictException('Payment status already changed — concurrent update');
-      }
-
-      await tx.insert(paymentEvents).values({
-        id: crypto.randomUUID(),
-        paymentRecordId: paymentId,
-        eventType: 'PAYMENT_PROOF_SUBMITTED',
-        fromStatus,
-        toStatus,
-        actorId: buyerId,
-        actorType: 'BUYER',
-        notes: input.notes || null,
-        receiptUrl: storedReceiptUrl,
-      });
-
-      await this.outbox.publish(
-        'payment.proof_submitted',
-        paymentId,
-        {
+        });
+        await this.outbox.publish('payment.proof_submitted', paymentId, {
           paymentId,
           orderId: payment.orderId,
           receiptUrl: storedReceiptUrl,
           receiptReference: input.receiptReference,
-        },
-        {},
-        null,
-        tx,
-      );
-    });
+        }, {}, null, tx);
+      });
+    } catch (error) {
+      // Compensate an upload only after verifying that no committed payment row
+      // references it. If the database cannot be queried, leave the object in
+      // place rather than risk deleting a proof after an uncertain commit.
+      if (newStorageKey && this.storage) {
+        try {
+          const persisted = await this.db.db.query.paymentRecords.findFirst({
+            where: eq(paymentRecords.id, paymentId),
+            columns: { receiptUrl: true },
+          });
+          if (persisted?.receiptUrl !== newStorageKey) {
+            await this.storage.deleteObject(uploadsBucket, newStorageKey);
+          }
+        } catch (cleanupError: any) {
+          this.logger.warn(`Could not safely clean up uncommitted payment proof ${newStorageKey}: ${cleanupError?.message || 'verification failed'}`);
+        }
+      }
+      throw error;
+    }
+
+    // Retire the previous managed object only after the replacement is committed.
+    // External receipt URLs and keys outside this payment's prefix are never deleted.
+    const managedPrefix = `payment-proofs/${paymentId}/`;
+    if (
+      newStorageKey &&
+      previousReceiptUrl &&
+      previousReceiptUrl.startsWith(managedPrefix) &&
+      previousReceiptUrl !== newStorageKey &&
+      this.storage
+    ) {
+      try {
+        await this.storage.deleteObject(uploadsBucket, previousReceiptUrl);
+      } catch (cleanupError: any) {
+        this.logger.warn(`Could not retire previous payment proof ${previousReceiptUrl}: ${cleanupError?.message || 'delete failed'}`);
+      }
+    }
 
     this.logger.log(`Payment ${paymentId}: proof submitted by buyer ${buyerId}`);
-
     return this.getPaymentOrThrow(paymentId);
   }
-
   // ═══════════════════════════════════════════════════════════════
   // MANUAL VERIFICATION (admin confirms/rejects proof)
   // ═══════════════════════════════════════════════════════════════

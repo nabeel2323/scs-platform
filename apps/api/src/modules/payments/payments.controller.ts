@@ -21,7 +21,10 @@ import {
   Req,
   BadRequestException,
   ForbiddenException,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -59,13 +62,29 @@ export class PaymentsController {
   @Post('payments/:id/proof')
   @UseGuards(PermissionsGuard)
   @RequirePermission('orders:write')
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_req, file, callback) => {
+      const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+      if (allowed.includes(file.mimetype)) callback(null, true);
+      else callback(new BadRequestException('Unsupported payment proof file type'), false);
+    },
+  }))
   async submitProof(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
     @Body() body: { receiptUrl?: string; receiptReference?: string; notes?: string },
+    @UploadedFile() file?: { buffer: Buffer; originalname: string; mimetype: string; size: number },
   ) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    return this.payments.submitProof(id, user.sub, body, caller);
+    return this.payments.submitProof(id, user.sub, {
+      ...body,
+      ...(file ? {
+        fileBuffer: file.buffer,
+        fileName: file.originalname,
+        contentType: file.mimetype,
+      } : {}),
+    }, caller);
   }
 
   /** POST /v1/payments/:id/confirm-cash — merchant confirms COD cash collection. */

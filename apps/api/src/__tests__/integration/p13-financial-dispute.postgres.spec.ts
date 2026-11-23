@@ -47,6 +47,8 @@
  *   FIN-DSH-43  BANK_TRANSFER checkout commits payment/order state atomically
  *   FIN-DSH-44  Checkout rolls back when payment outbox persistence fails
  *   FIN-DSH-45  Dispute refund and resolution share one transaction
+ *   FIN-DSH-46  Failed proof persistence cleans only the new object
+ *   FIN-DSH-47  Successful proof replacement retires the old managed object
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -2219,5 +2221,77 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect((await pool.query(
       `SELECT id FROM dispute_events WHERE dispute_id = $1 AND event_type = 'RESOLVED'`, [dispute.id],
     )).rows).toHaveLength(0);
+  }, 60_000);
+  it('FIN-DSH-46: failed proof persistence deletes only the new upload and preserves the committed proof', async () => {
+    const cartId = randomUUID();
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
+    await pool.query(
+      `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
+       VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
+      [randomUUID(), cartId, storeA, variantA, offerA],
+    );
+    const checkout = await ordersService.checkout({
+      buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'BANK_TRANSFER',
+      idempotencyKey: `fin024-fail-${randomUUID()}`
+    });
+    const orderId = checkout.subOrders[0]!.id;
+    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const oldKey = `payment-proofs/${payment.id}/previous.pdf`;
+    await pool.query(`UPDATE payment_records SET status = 'REJECTED', receipt_url = $2 WHERE id = $1`, [payment.id, oldKey]);
+
+    const storage = { putObject: vi.fn().mockResolvedValue(undefined), deleteObject: vi.fn().mockResolvedValue(undefined) };
+    const uploadsBucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
+    (paymentsService as any).storage = storage;
+    const outbox = (paymentsService as any).outbox;
+    const publishSpy = vi.spyOn(outbox, 'publish').mockRejectedValueOnce(new Error('Synthetic proof outbox failure'));
+    try {
+      await expect(paymentsService.submitProof(payment.id, buyerA, {
+        fileBuffer: Buffer.from('new receipt'), fileName: 'new-proof.pdf', contentType: 'application/pdf',
+      }, { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA })).rejects.toThrow('Synthetic proof outbox failure');
+    } finally {
+      publishSpy.mockRestore();
+      (paymentsService as any).storage = undefined;
+    }
+
+    expect(storage.putObject).toHaveBeenCalledOnce();
+    const uploadedKey = storage.putObject.mock.calls[0][0].key;
+    expect(storage.deleteObject).toHaveBeenCalledWith(uploadsBucket, uploadedKey);
+    expect(storage.deleteObject).not.toHaveBeenCalledWith(uploadsBucket, oldKey);
+    const persisted = await pool.query(`SELECT status, receipt_url FROM payment_records WHERE id = $1`, [payment.id]);
+    expect(persisted.rows[0]).toEqual({ status: 'REJECTED', receipt_url: oldKey });
+  }, 60_000);
+
+  it('FIN-DSH-47: successful proof replacement commits the new key before retiring the previous managed object', async () => {
+    const cartId = randomUUID();
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
+    await pool.query(
+      `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
+       VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
+      [randomUUID(), cartId, storeA, variantA, offerA],
+    );
+    const checkout = await ordersService.checkout({
+      buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'BANK_TRANSFER',
+      idempotencyKey: `fin024-success-${randomUUID()}`
+    });
+    const orderId = checkout.subOrders[0]!.id;
+    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const oldKey = `payment-proofs/${payment.id}/previous.pdf`;
+    await pool.query(`UPDATE payment_records SET status = 'REJECTED', receipt_url = $2 WHERE id = $1`, [payment.id, oldKey]);
+
+    const storage = { putObject: vi.fn().mockResolvedValue(undefined), deleteObject: vi.fn().mockResolvedValue(undefined) };
+    (paymentsService as any).storage = storage;
+    try {
+      await paymentsService.submitProof(payment.id, buyerA, {
+        fileBuffer: Buffer.from('replacement receipt'), fileName: 'replacement.pdf', contentType: 'application/pdf',
+      }, { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA });
+    } finally {
+      (paymentsService as any).storage = undefined;
+    }
+    const uploadedKey = storage.putObject.mock.calls[0][0].key;
+    const persisted = await pool.query(`SELECT status, receipt_url FROM payment_records WHERE id = $1`, [payment.id]);
+    expect(persisted.rows[0].status).toBe('AWAITING_VERIFICATION');
+    expect(persisted.rows[0].receipt_url).toBe(uploadedKey);
+    expect(storage.deleteObject).toHaveBeenCalledWith(uploadsBucket, oldKey);
+    expect(storage.deleteObject).not.toHaveBeenCalledWith(uploadsBucket, uploadedKey);
   }, 60_000);
 });
