@@ -73,6 +73,7 @@ export function calculateExpectedSettlementNetMinor(
   refundMinor: number,
   commissionMinor: number,
   feeMinor: number,
+  isAdjustmentLedgerRow?: boolean,
 ): number | null {
   const amounts = [grossMinor, refundMinor, commissionMinor, feeMinor];
   if (amounts.some(amount => !Number.isSafeInteger(amount))) {
@@ -83,7 +84,7 @@ export function calculateExpectedSettlementNetMinor(
   const expected =
     BigInt(grossMinor) -
     BigInt(refundMinor) +
-    (status === 'ADJUSTMENT' ? commission : -commission) -
+    ((isAdjustmentLedgerRow ?? status === 'ADJUSTMENT') ? commission : -commission) -
     BigInt(feeMinor);
   const result = Number(expected);
   return Number.isSafeInteger(result) ? result : null;
@@ -548,6 +549,10 @@ export class ReconciliationService {
       .select({
         id: settlementRecords.id,
         status: settlementRecords.status,
+        isAdjustmentLedgerRow: sql<boolean>`(
+          COALESCE(${settlementRecords.metadata}->>'adjustmentId', '') <> ''
+          OR COALESCE(${settlementRecords.notes}, '') LIKE 'Posted adjustment %'
+        )`,
         grossMinor: settlementRecords.grossMinor,
         refundMinor: settlementRecords.refundMinor,
         commissionMinor: settlementRecords.commissionMinor,
@@ -572,6 +577,7 @@ export class ReconciliationService {
         Number(s.refundMinor),
         Number(s.commissionMinor),
         Number(s.feeMinor),
+        s.isAdjustmentLedgerRow,
       );
       const actualNet = Number(s.netMinor);
 

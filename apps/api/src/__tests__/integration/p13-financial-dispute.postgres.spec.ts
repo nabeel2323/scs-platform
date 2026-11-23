@@ -1912,6 +1912,16 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
         [randomUUID(), adjustment.id, buyerA, randomUUID(), approvalHash, merchantA],
       );
       await settlementAdjService.postAdjustment(adjustment.id, adminA, orgA);
+      const adjustmentLedger = await pool.query(
+        `SELECT id FROM settlement_records
+         WHERE sub_order_id = $1 AND metadata->>'adjustmentId' = $2`,
+        [commissionOrderId, adjustment.id],
+      );
+      expect(adjustmentLedger.rows).toHaveLength(1);
+      await paymentsService.markSettlementPaid(
+        adjustmentLedger.rows[0].id, adminA, adminCaller,
+        { paymentReference: 'FIN-DSH-36-ADJ-PAID' },
+      );
 
       const refundOrderId = await createDeliveredOrder(
         pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,

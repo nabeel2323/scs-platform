@@ -94,6 +94,18 @@ describe('Reconciliation — Settlement Formula Verification', () => {
     expect(calculateExpectedSettlementNetMinor('ADJUSTMENT', 0, 0, 150, 0)).toBe(150);
   });
 
+  it('keeps a paid commission-reversal adjustment as a merchant credit using ledger identity', () => {
+    expect(calculateExpectedSettlementNetMinor('PAID', 0, 0, 150, 0, true)).toBe(150);
+  });
+
+  it('keeps a paid refund-plus-commission adjustment on the adjustment ledger formula', () => {
+    expect(calculateExpectedSettlementNetMinor('PAID', 0, 2000, 150, 0, true)).toBe(-1850);
+  });
+
+  it('continues to treat a paid primary settlement as a commission debit', () => {
+    expect(calculateExpectedSettlementNetMinor('PAID', 10000, 0, 500, 100, false)).toBe(9400);
+  });
+
   it('combines a refund debit and commission credit in an adjustment row', () => {
     expect(calculateExpectedSettlementNetMinor('ADJUSTMENT', 0, 2000, 150, 0)).toBe(-1850);
   });
