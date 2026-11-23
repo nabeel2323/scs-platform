@@ -1379,3 +1379,8 @@ The return-side cumulative refund guard now matches the payment refund guard by 
 ## FIN-028 — Settlement calculation actor attribution — 23 November 2026
 
 The admin-only settlement calculation path now persists `PAYMENT_SETTLEMENT_CALCULATED.actor_type = ADMIN` instead of the misleading SYSTEM class. FIN-DSH-57 verifies actor ID and class in PostgreSQL. Source: `5a7dfd6ea67de61bb016cc7a7ef31749760955d8`; test: `05799cde897871ab9752af07bf70830ac834edbf`. Test remains pending Phase 3.
+
+
+## FIN-029 — Payment confirmation order-history actor parity — 23 November 2026
+
+Payment confirmation now propagates the authenticated ADMIN/MERCHANT actor class into the linked order status history, matching the payment event's actor ID/class. FIN-DSH-54 covers both ledgers. Source: `77c2caaa322836cc8e7d651f6577df715c5e3228`; test: `8fc1759a9e374f12513c82d301b2c9b934a98840`. Test remains pending Phase 3.
