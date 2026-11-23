@@ -894,3 +894,10 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 | ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
 |---|---|---|---|---|---|---|
 | FIN-022 | Payment/dispute/settlement-adjustment history and generic outbox delivery claim | Payment create/awaiting and dispute open/evidence/response now emit outbox events atomically with immutable history/state; settlement-adjustment creation emits its event in its insert transaction. Generic dispatcher claims pending rows using SKIP LOCKED and five-minute worker leases; final updates require lease ownership. FIN-DSH-39–42 and unit tests added. | Run unit/PostgreSQL tests in consolidated Phase 3; verify lease expiry/reclaim under process crash and retry behavior. Audit the remaining BANK_TRANSFER checkout post-commit transition and dispute-refund recovery split transaction. | P1 | IMPLEMENTED / TESTING_PENDING | Commits `3784bca3dd9a21fa3123e555aebbdd13addfb21b` through `e761195829d3fcd4bc2d9d0eecfd848188c32d53`; no migration/shared DB changes; outbox remains logging-only; PR #138 stays draft. |
+
+
+## FIN-023 — Checkout and dispute-refund atomicity — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-023 | BANK_TRANSFER checkout and dispute-refund transaction boundaries | Order/payment states, histories and outbox now commit with checkout; dispute refund request, payment event/outbox, refund link and dispute resolution/history/outbox share one transaction. FIN-DSH-43/44/45 added. | Run PostgreSQL tests; inspect legacy orphan refund recovery under concurrent retries and audit payment proof storage/DB failure cleanup. | P1 | IMPLEMENTED / TESTING_PENDING | Commits `a5fa4806e310159b6f2708d366764ffe4fa3892f` through `71c8acb5a890a8b7350915cc4eca80dd6104874c`; no shared DB changes; PR #138 remains draft. |

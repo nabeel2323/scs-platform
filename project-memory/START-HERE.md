@@ -696,3 +696,15 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - No migration, shared/staging DB write, grant/RLS, worker activation, environment change, provider/gateway/payout, deployment or merge action.
 - G-001 PARTIAL; G-002 IN PROGRESS/protected; G-036 IN PROGRESS; Phases 0–5 IN PROGRESS; Phase 6 NOT STARTED. PR #138 stays draft.
 - **Next FIN-023:** close the remaining checkout/refund transaction-boundary audit. In particular, checkout commits order/payment creation before the BANK_TRANSFER post-commit order/payment status transitions; a swallowed transition failure can leave order PAYMENT_PENDING while payment remains CREATED. Inspect recovery/idempotency paths and add rollback/concurrency regressions before changing it. Also review dispute-refund recovery where refund request and dispute resolution intentionally span separate transactions. Keep the consolidated Phase 3 validation cadence.
+
+
+## Latest continuation checkpoint — 23 November 2026 (FIN-023)
+
+- Active branch `remediation/phase-0-1-tenant-security`; PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. Current source/test HEAD: `71c8acb5a890a8b7350915cc4eca80dd6104874c`.
+- BANK_TRANSFER checkout now commits the order transition to PAYMENT_PENDING, payment transition CREATED → AWAITING_PAYMENT, both immutable histories and all matching outbox events inside the original checkout transaction. The post-commit best-effort payment/order state mutation was removed; BANK_TRANSFER checkout fails closed if PaymentsService is unavailable.
+- Dispute resolution now locks the dispute row and calls refund creation with the same transaction client. Refund row, payment event/outbox, refund-to-dispute link, dispute RESOLVED state, dispute event and resolution outbox commit or roll back together. Existing idempotent orphan-refund recovery remains supported for historical rows.
+- Added PostgreSQL FIN-DSH-43/44 (bank-transfer success and outbox-failure rollback) and FIN-DSH-45 (refund + dispute resolution atomic rollback). Tests added but **not executed**.
+- Exact-head GitHub Actions lookup returned no run. Vercel Web/Admin both FAILURE due external build-rate-limit. No application test result is claimed.
+- No shared/staging DB write, migration, grant/RLS, worker activation, provider/gateway/payout, deployment or merge action. PR #138 remains draft.
+- FIN-023 status: IMPLEMENTED / TESTING_PENDING. Existing G-001 PARTIAL; G-002 IN PROGRESS/protected; G-036 IN PROGRESS; Phases 0–5 IN PROGRESS; Phase 6 NOT STARTED.
+- **Next FIN-024:** audit payment proof upload lifecycle: storage upload occurs before the payment proof DB transaction; inspect orphan cleanup on DB failure, retries, file replacement and authorization. Add storage/DB rollback tests and safe cleanup without deleting a previously committed proof.

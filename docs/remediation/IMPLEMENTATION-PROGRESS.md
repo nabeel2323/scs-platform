@@ -2188,3 +2188,14 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - **Status:** IMPLEMENTED / TESTING_PENDING. Exact-head Actions returned no run; Vercel Web/Admin rate-limit failures are not test evidence. The dispatcher remains a logging implementation; no external bus or consumer delivery guarantees are claimed.
 - **No migration/shared database/staging write, worker activation, grant/RLS, environment, provider/gateway/payout, deployment or merge action.**
 - **Next:** FIN-023 — inspect BANK_TRANSFER checkout's post-commit order/payment state transition and dispute-refund split transaction recovery.
+
+
+## FIN-023 — Checkout and dispute-refund transaction boundaries — 23 November 2026
+
+- **Findings:** BANK_TRANSFER checkout committed the order/payment before separate best-effort order/payment state transitions; a swallowed payment transition error could leave order PAYMENT_PENDING with payment CREATED. Dispute resolution created a refund in one transaction and finalized the dispute in another, permitting an orphan refund if the latter failed.
+- **Implementation:** BANK_TRANSFER order/payment state, both immutable history records and payment/order outbox messages now commit in the original checkout transaction. The post-commit best-effort mutation was removed; checkout fails closed if PaymentsService is unavailable. `PaymentsService.requestRefund` now accepts an optional caller transaction client. Dispute resolution locks the dispute row and performs refund creation, payment event/outbox, refund linkage, dispute resolution, dispute event/outbox in one transaction. Legacy orphan-refund idempotency recovery and strict payload validation remain.
+- **Regression coverage:** PostgreSQL FIN-DSH-43 verifies order/payment status, history and outbox parity; FIN-DSH-44 injects awaiting-event failure and verifies full checkout rollback; FIN-DSH-45 injects final dispute-outbox failure and verifies refund/payment/dispute rows all roll back. Tests added, not executed.
+- **Commits:** `a5fa4806e310159b6f2708d366764ffe4fa3892f`, `442b03a77e4645fba01b8f33d3d2351265365b9d`, `71c8acb5a890a8b7350915cc4eca80dd6104874c`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. Exact-head Actions returned no run; Vercel Web/Admin rate-limit failures are not test evidence.
+- **No migration/shared DB/staging write, worker activation, grant/RLS, environment, provider/gateway/payout, deployment or merge action.**
+- **Next:** FIN-024 — audit payment proof storage upload, DB failure cleanup, retry and replacement semantics.

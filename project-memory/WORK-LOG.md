@@ -1351,3 +1351,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Commits: `3784bca3dd9a21fa3123e555aebbdd13addfb21b`, `a77339ab1b50d881fc006a16b9613505458fcd27`, `ccde36322f9bcfd12f2de2bfad22390cd9b7f503`, `5d7eadf07e11801813a606dfeeda60b83c16eb19`, `e761195829d3fcd4bc2d9d0eecfd848188c32d53`.
 - No schema/migration/shared DB write, worker activation, deployment, gateway or payout change.
 - Next FIN-023: audit BANK_TRANSFER checkout's post-commit order/payment transition and dispute-refund split transaction recovery.
+
+
+## 2026-11-23 — FIN-023 checkout and dispute-refund atomicity
+
+- Removed the BANK_TRANSFER checkout split-brain window: order PAYMENT_PENDING + payment AWAITING_PAYMENT, order/payment immutable history and payment/order outbox events are now persisted inside the original checkout transaction. Removed the swallowed post-commit transition; fail closed when BANK_TRANSFER is requested without PaymentsService.
+- Added optional transaction-client support to `PaymentsService.requestRefund`. Dispute resolution now locks the dispute row first and performs refund request, payment history/outbox, refund-dispute linkage, dispute resolution/history/outbox in one transaction. Preserved strict idempotency payload validation and recovery for legacy orphan refund rows.
+- Added PostgreSQL FIN-DSH-43/44/45 for bank-transfer success, checkout rollback on outbox failure and refund/dispute rollback on final outbox failure. Tests added, not executed.
+- Commits: `a5fa4806e310159b6f2708d366764ffe4fa3892f`, `442b03a77e4645fba01b8f33d3d2351265365b9d`, `71c8acb5a890a8b7350915cc4eca80dd6104874c`.
+- No migration/shared DB write, worker activation, deployment, gateway/provider or payout change.
+- Next FIN-024: payment proof upload storage/DB rollback and retry-safe cleanup audit.

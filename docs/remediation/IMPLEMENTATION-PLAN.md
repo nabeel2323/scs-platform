@@ -1336,6 +1336,13 @@ Payment creation and CREATED → AWAITING_PAYMENT now publish outbox messages in
 
 PostgreSQL FIN-DSH-39–42 and unit tests cover event parity, dispute rollback, adjustment creation event and two-instance outbox claim. Tests are added but not executed. The generic dispatcher still logs events rather than publishing to an external event bus. Commits: `3784bca3dd9a21fa3123e555aebbdd13addfb21b`, `a77339ab1b50d881fc006a16b9613505458fcd27`, `ccde36322f9bcfd12f2de2bfad22390cd9b7f503`, `5d7eadf07e11801813a606dfeeda60b83c16eb19`, `e761195829d3fcd4bc2d9d0eecfd848188c32d53`.
 
-### Next source-audit task — FIN-023
 
-Audit BANK_TRANSFER checkout's post-commit sequence: checkout commits payment/order rows, then separately moves the order to PAYMENT_PENDING and the payment from CREATED to AWAITING_PAYMENT, with the latter call currently best-effort. Determine how a failure/crash can leave mismatched states and whether retries are safely recoverable. Also inspect dispute refund creation versus the separate dispute-resolution transaction, ensuring the refund idempotency recovery path is race-safe and does not create contradictory history/outbox records. Add PostgreSQL crash/failure/concurrency tests before changing transaction boundaries. No shared/staging DB writes or automatic gateway/payout expansion.
+## FIN-023 — Checkout and dispute-refund transaction boundaries — 23 November 2026
+
+BANK_TRANSFER checkout now updates the order to PAYMENT_PENDING and the payment to AWAITING_PAYMENT, appends both immutable history transitions and publishes matching outbox events inside the original checkout transaction. The post-commit best-effort mutation has been removed; checkout fails closed if the payment service is unavailable. `PaymentsService.requestRefund` accepts an optional transaction client. Dispute resolution now locks the dispute row and includes refund request, payment history/outbox, refund-dispute linkage, dispute RESOLVED state/history/outbox in one transaction. Existing orphan-refund idempotency recovery is retained.
+
+PostgreSQL FIN-DSH-43/44/45 cover success parity and rollback injection. Tests are added but not executed. Commits: `a5fa4806e310159b6f2708d366764ffe4fa3892f`, `442b03a77e4645fba01b8f33d3d2351265365b9d`, `71c8acb5a890a8b7350915cc4eca80dd6104874c`.
+
+### Next source-audit task — FIN-024
+
+Audit payment proof upload lifecycle: storage upload currently occurs before the payment proof DB transaction. Inspect failure cleanup, idempotent retries, proof replacement and authorization. Implement safe orphan cleanup that never deletes a previously committed proof; add storage-mock and PostgreSQL rollback/retry tests. No shared/staging DB changes or external payment gateway scope.

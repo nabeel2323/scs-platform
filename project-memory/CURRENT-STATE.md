@@ -1047,3 +1047,13 @@ The existing return-idempotency case already owns FIN-DSH-33. Settlement-adjustm
 - Added FIN-DSH-39/40/41/42 and unit claim tests. Tests not executed. Outbox dispatch is still logging-only; no external event bus or consumer guarantees are claimed.
 - Exact-head Actions: no run. Vercel Web/Admin both failed due external build-rate-limit. No migration/shared DB write/worker activation/deployment.
 - FIN-022: IMPLEMENTED / TESTING_PENDING for the audited producers and generic dispatcher claim path. Next FIN-023: checkout bank-transfer post-commit state split and dispute-refund recovery transaction audit.
+
+
+## FIN-023 — Checkout and dispute-refund transaction boundaries — 23 November 2026
+
+- Commit: `71c8acb5a890a8b7350915cc4eca80dd6104874c` (with related FIN-023 implementation in `a5fa4806e310159b6f2708d366764ffe4fa3892f` and `442b03a77e4645fba01b8f33d3d2351265365b9d`).
+- BANK_TRANSFER order/payment state, immutable histories and outbox events now persist in the checkout transaction. The old post-commit best-effort state mutation was removed. Checkout fails closed if BANK_TRANSFER is requested without PaymentsService.
+- Dispute resolution now locks the dispute and reuses the same transaction client for refund creation. Refund, payment history/outbox, dispute link, resolved state/history and dispute outbox are atomic. Historical orphan refund idempotency recovery remains supported.
+- Added PostgreSQL FIN-DSH-43/44/45 for successful state parity, checkout rollback on outbox failure, and refund/resolution rollback on final outbox failure. Tests not executed.
+- Exact-head Actions: no run. Vercel Web/Admin both failed due external build-rate-limit. No test verification claimed. PR #138 remains OPEN / DRAFT / UNMERGED. No shared/staging DB write, migration, deployment or worker activation.
+- FIN-023: IMPLEMENTED / TESTING_PENDING. Next FIN-024: payment proof upload storage/DB failure cleanup and retry safety.

@@ -740,3 +740,12 @@ Implementation commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`. The service n
 The changes add transactional producer/history/outbox parity for those paths and an atomic `FOR UPDATE SKIP LOCKED` dispatcher claim with five-minute leases and owner-conditional finalization. PostgreSQL FIN-DSH-39–42 and unit coverage are committed in `3784bca3dd9a21fa3123e555aebbdd13addfb21b`, `a77339ab1b50d881fc006a16b9613505458fcd27`, `ccde36322f9bcfd12f2de2bfad22390cd9b7f503`, `5d7eadf07e11801813a606dfeeda60b83c16eb19`, `e761195829d3fcd4bc2d9d0eecfd848188c32d53`. Tests not executed. The dispatcher remains logging-only; no external event bus integration is claimed.
 
 **Next:** FIN-023 — inspect BANK_TRANSFER checkout's post-commit order/payment state transition and dispute-refund split transaction recovery. Confirm idempotency and crash/retry behavior before refactoring.
+
+
+## FIN-023 — Checkout and dispute-refund atomicity
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** BANK_TRANSFER checkout previously committed the order/payment creation, then changed order and payment states in best-effort post-commit operations; a failure could leave PAYMENT_PENDING order with CREATED payment. Dispute refund creation and dispute resolution also used separate transactions, allowing an orphan refund if the final dispute/outbox write failed.
+
+Implementation commits: `a5fa4806e310159b6f2708d366764ffe4fa3892f`, `442b03a77e4645fba01b8f33d3d2351265365b9d`, `71c8acb5a890a8b7350915cc4eca80dd6104874c`. BANK_TRANSFER state/history/outbox now commit with checkout. Dispute resolution locks the dispute and calls requestRefund using the same transaction client; refund/payment event/outbox and dispute state/history/outbox commit or roll back together. Legacy orphan-refund idempotency recovery remains supported. FIN-DSH-43/44/45 added; tests not executed.
+
+**Next:** FIN-024 — audit payment proof storage upload versus DB transaction failure, orphan cleanup, retry and replacement semantics. Cleanup must never delete a previously committed proof.

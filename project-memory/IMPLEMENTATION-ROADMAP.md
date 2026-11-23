@@ -569,3 +569,12 @@ FIN-022 closes the audited payment/dispute/settlement-adjustment producer gaps: 
 Commits: `3784bca3dd9a21fa3123e555aebbdd13addfb21b`, `a77339ab1b50d881fc006a16b9613505458fcd27`, `ccde36322f9bcfd12f2de2bfad22390cd9b7f503`, `5d7eadf07e11801813a606dfeeda60b83c16eb19`, `e761195829d3fcd4bc2d9d0eecfd848188c32d53`. Status: IMPLEMENTED / TESTING_PENDING.
 
 **Next:** FIN-023 — audit BANK_TRANSFER checkout's post-commit order/payment state transition and dispute-refund split transaction recovery.
+
+
+## Financial correctness continuation — FIN-023 — 23 November 2026
+
+FIN-023 closes two transaction-boundary defects. BANK_TRANSFER checkout now persists order PAYMENT_PENDING, payment AWAITING_PAYMENT, immutable histories and matching outbox messages in the original checkout transaction; no swallowed post-commit state mutation remains. Dispute resolution locks the dispute and creates/links the refund in the same transaction as payment history/outbox and dispute resolution history/outbox. Historical orphan-refund idempotency recovery is retained. FIN-DSH-43/44/45 added but not executed.
+
+Commits: `a5fa4806e310159b6f2708d366764ffe4fa3892f`, `442b03a77e4645fba01b8f33d3d2351265365b9d`, `71c8acb5a890a8b7350915cc4eca80dd6104874c`. Status: IMPLEMENTED / TESTING_PENDING.
+
+**Next:** FIN-024 — audit payment proof upload storage/DB transaction boundaries, orphan cleanup and retry/replacement safety.
