@@ -754,3 +754,14 @@ Source-confirmed gaps closed in implementation: product pull-to-refresh invalida
 - No API business behavior, schema, migration, database grants, staging data, worker configuration or deployment changed.
 
 **Status:** IMPLEMENTED / TESTING_PENDING. Next: complete remaining Admin route/action permission mapping; comprehensive testing remains deferred to Phase 3.
+
+
+## UX-097 — Admin action-handler permission rechecks — 23 November 2026
+
+- Continued the Admin route/action source audit after UX-095/096. The page-level matrix already covered all 56 Admin page files; this follow-up inspected action execution paths against the existing permission projection and API controller contracts.
+- Found UI-only permission gates on verification organization deactivate/reactivate, Organizations status toggle and update-request review, and dispute resolution. A pending confirmation or event callback could still invoke its handler after the permission projection changed.
+- Added fail-closed handler-time checks: `admin:users:write` for verification/organization status and organization update-request review, and `support:disputes:resolve` for dispute resolution. Organization handlers also reject duplicate work while an action is in flight.
+- Focused tests added in `apps/admin/src/__tests__/verification-org-status-permissions.test.tsx` and `apps/admin/src/__tests__/admin-organization-action-permissions.test.tsx`. They simulate permission loss while a confirmation dialog remains open. Tests have not been executed.
+- Source commits: `112cee3`, `94f86da`, `41fca82`; tests: `c0aa312`, `856d527`. Status: IMPLEMENTED / TESTING_PENDING, not test-verified or CI-verified. Existing API guards remain authoritative; no permission grants or API contracts changed.
+
+**Next:** continue remaining Admin custom route/action-to-controller mapping, avoiding repetition of the 56-page route audit and these UX-097 handlers. Comprehensive validation remains deferred to Phase 3.
