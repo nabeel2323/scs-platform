@@ -91,3 +91,19 @@ The Payments route now admits verification-only users and loads the Verification
 The shared `useAdminMutation` helper now accepts an action-specific permission predicate and evaluates it immediately before dispatch. User status/membership, dispute, category, brand and offer governance actions use their corresponding permission hook. Carrier recovery queue actions receive and recheck `admin:shipping:recovery`; shipment exception/RTS, inventory return, carrier create/cancel and recovery actions are bound to their distinct permission conditions. User Detail profile save also rechecks `admin:users:write`.
 
 A focused test verifies the shared mutation does not dispatch after permission loss and does dispatch when authorized. It has not been executed. This is client-side defense in depth; API controller authorization remains authoritative.
+
+
+## Custom financial action mapping and settlement rejection — 23 November 2026
+
+A source-level comparison of the remaining custom financial pages with their API controller decorators confirmed these action contracts:
+
+- Reconciliation run and discrepancy resolution use `admin:reconciliation:write`, matching the controller's `POST /admin/reconciliation/run` and `POST /admin/reconciliation/discrepancies/:id/resolve` guards.
+- Settlement adjustment submit uses `admin:adjustments:write`; approve, reject and post use `admin:adjustments:approve`.
+- Settlement payment marking uses `admin:settlements:write`.
+- Role permission updates use `admin:roles:write`.
+- Payment verification and refund approval use `admin:payments:verify` and `admin:refunds:approve` respectively.
+- Return resolution and business-calendar holiday mutations use `admin:returns:write`; shipment exception/RTS and carrier recovery use their separate `fulfillment:shipments:write` and `admin:shipping:recovery` permissions.
+
+**Gap corrected:** the API exposed `POST /admin/settlement-adjustments/:id/reject` with the `admin:adjustments:approve` guard, but the Admin adjustment detail list did not offer a rejection action. The page now provides an approver-only rejection form requiring a reason and submits the exact controller payload. Read-only users do not see Approve or Reject.
+
+Focused tests were added to `apps/admin/src/__tests__/admin-settlement-adjustments-recovery.test.tsx` for rejection payload/flow and read-only visibility. They have not been executed; comprehensive validation remains in Phase 3. No API permissions, role grants or financial service behavior changed.
