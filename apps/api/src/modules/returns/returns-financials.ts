@@ -68,3 +68,33 @@ export function calculateProportionalCommissionReversalMinor(
   const capped = raw > BigInt(remaining) ? BigInt(remaining) : raw;
   return Number(capped);
 }
+
+
+/**
+ * Round a proportional minor-unit allocation to the nearest integer using
+ * half-up semantics. BigInt keeps amount × numerator exact for large values.
+ */
+export function roundProportionalMinorUnits(
+  amountMinor: bigint,
+  numeratorMinor: number,
+  denominatorMinor: number,
+): number {
+  if (amountMinor < 0n) {
+    throw new RangeError('Proportional amount cannot be negative');
+  }
+  if (!Number.isSafeInteger(numeratorMinor) || numeratorMinor < 0) {
+    throw new RangeError('Proportional numerator must be a non-negative safe integer');
+  }
+  if (!Number.isSafeInteger(denominatorMinor) || denominatorMinor <= 0) {
+    throw new RangeError('Proportional denominator must be a positive safe integer');
+  }
+
+  const numerator = BigInt(numeratorMinor);
+  const denominator = BigInt(denominatorMinor);
+  const rounded = (amountMinor * numerator + denominator / 2n) / denominator;
+  const result = Number(rounded);
+  if (!Number.isSafeInteger(result)) {
+    throw new RangeError('Proportional result exceeds the safe integer range');
+  }
+  return result;
+}

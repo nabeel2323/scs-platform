@@ -23,7 +23,7 @@ import {
   returnRequests, returnRequestItems, returnRequestEvents,
 } from './returns.schema';
 import { commissionReversals } from './financial.schema';
-import { calculateProportionalCommissionReversalMinor, calculateReturnNetGoodsMinor } from './returns-financials';
+import { calculateProportionalCommissionReversalMinor, calculateReturnNetGoodsMinor, roundProportionalMinorUnits } from './returns-financials';
 import { orders, orderItems, orderFinancialBreakdown } from '../orders/orders.schema';
 import { paymentRecords, refunds, settlementRecords } from '../payments/payments.schema';
 import { shipments } from '../orders/shipment.schema';
@@ -205,10 +205,8 @@ export class ReturnsService {
     });
     const productsMinor = breakdown?.productsMinor ?? order.subtotalMinor;
     const discountMinor = breakdown?.discountMinor ?? order.discountMinor;
-    const discountRatio = productsMinor > 0 ? discountMinor / productsMinor : 0;
-    const vatRate = productsMinor > 0
-      ? (breakdown?.taxMinor ?? order.taxMinor) / (productsMinor - discountMinor)
-      : 0;
+    const netGoodsMinor = productsMinor - discountMinor;
+    const taxMinor = breakdown?.taxMinor ?? order.taxMinor;
 
     // Check cumulative returned quantities
     const priorReturns = await this.getCumulativeReturnedQuantities(input.subOrderId);
@@ -232,14 +230,36 @@ export class ReturnsService {
         );
       }
 
-      // Calculate line refund: unit_price × qty, then apply discount ratio, then add VAT
-      const lineGrossMinor = orderItem.unitPriceMinor * line.quantity;
-      const lineDiscountMinor = Math.round(lineGrossMinor * discountRatio);
-      const lineNetMinor = lineGrossMinor - lineDiscountMinor;
-      const lineTaxMinor = Math.round(lineNetMinor * vatRate);
-      const lineRefundMinor = lineNetMinor + lineTaxMinor;
+      // Calculate discount and VAT allocations with exact integer minor-unit
+      // arithmetic. Floating-point ratios can drift by a cent on large amounts.
+      const unitPriceMinor = Number(orderItem.unitPriceMinor);
+      if (!Number.isSafeInteger(unitPriceMinor) || unitPriceMinor < 0) {
+        throw new BadRequestException('Order item price must be a non-negative safe integer');
+      }
+      const lineGrossMinorBig = BigInt(unitPriceMinor) * BigInt(line.quantity);
+      const lineGrossMinor = Number(lineGrossMinorBig);
+      if (!Number.isSafeInteger(lineGrossMinor)) {
+        throw new BadRequestException('Return line gross amount exceeds the safe integer range');
+      }
+      const lineDiscountMinor = productsMinor > 0
+        ? roundProportionalMinorUnits(lineGrossMinorBig, discountMinor, productsMinor)
+        : 0;
+      const lineNetMinorBig = lineGrossMinorBig - BigInt(lineDiscountMinor);
+      if (lineNetMinorBig < 0n) {
+        throw new BadRequestException('Allocated line discount exceeds the line gross amount');
+      }
+      const lineTaxMinor = netGoodsMinor > 0
+        ? roundProportionalMinorUnits(lineNetMinorBig, taxMinor, netGoodsMinor)
+        : 0;
+      const lineRefundMinor = Number(lineNetMinorBig + BigInt(lineTaxMinor));
+      if (!Number.isSafeInteger(lineRefundMinor)) {
+        throw new BadRequestException('Return line refund exceeds the safe integer range');
+      }
 
       totalRefundMinor += lineRefundMinor;
+      if (!Number.isSafeInteger(totalRefundMinor)) {
+        throw new BadRequestException('Total return refund exceeds the safe integer range');
+      }
       resolvedLines.push({
         orderItemId: line.orderItemId,
         quantity: line.quantity,
@@ -257,8 +277,14 @@ export class ReturnsService {
 
     if (isFullReturn) {
       const deliveryFeeMinor = breakdown?.deliveryFeeMinor ?? order.deliveryFeeMinor ?? 0;
-      // Delivery fee is pre-VAT; add VAT
-      const deliveryRefundMinor = deliveryFeeMinor + Math.round(deliveryFeeMinor * vatRate);
+      // Delivery fee is pre-VAT; add VAT using the same exact ratio.
+      const deliveryTaxMinor = netGoodsMinor > 0
+        ? roundProportionalMinorUnits(BigInt(deliveryFeeMinor), taxMinor, netGoodsMinor)
+        : 0;
+      const deliveryRefundMinor = deliveryFeeMinor + deliveryTaxMinor;
+      if (!Number.isSafeInteger(deliveryRefundMinor) || !Number.isSafeInteger(totalRefundMinor + deliveryRefundMinor)) {
+        throw new BadRequestException('Delivery-fee refund exceeds the safe integer range');
+      }
       totalRefundMinor += deliveryRefundMinor;
     }
 
@@ -355,13 +381,16 @@ export class ReturnsService {
     if (deliveryFeeExceptionAdjustmentId === 'PENDING' && input.deliveryFeeException) {
       try {
         const deliveryFeeMinor = breakdown?.deliveryFeeMinor ?? order.deliveryFeeMinor ?? 0;
-        const deliveryRefundMinor = deliveryFeeMinor + Math.round(deliveryFeeMinor * vatRate);
+        const deliveryTaxMinor = netGoodsMinor > 0
+          ? roundProportionalMinorUnits(BigInt(deliveryFeeMinor), taxMinor, netGoodsMinor)
+          : 0;
+        const deliveryRefundMinor = deliveryFeeMinor + deliveryTaxMinor;
         const adj = await this.settlementAdj.createAdjustment({
           subOrderId: input.subOrderId,
           returnRequestId: id,
           adjustmentType: 'DELIVERY_FEE_EXCEPTION',
           amountMinor: deliveryRefundMinor,
-          currency: 'SYP',
+          currency: payment.currency,
           reason: `Delivery-fee exception for partial return: ${input.deliveryFeeException.reason}`,
           notes: input.deliveryFeeException.reason,
         }, caller.sub);
