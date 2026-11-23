@@ -88,6 +88,6 @@ The Payments route now admits verification-only users and loads the Verification
 
 ## Shared Admin mutation permission rechecks — UX-099 — 23 November 2026
 
-The shared `useAdminMutation` helper now accepts an action-specific permission predicate and evaluates it immediately before dispatch. User status/membership, dispute, category, brand and offer governance actions use their corresponding permission hook. Carrier recovery and shipment exception/RTS, inventory return, carrier create/cancel and recovery actions are bound to their distinct permission conditions. User Detail profile save also rechecks `admin:users:write`.
+The shared `useAdminMutation` helper now accepts an action-specific permission predicate and evaluates it immediately before dispatch. User status/membership, dispute, category, brand and offer governance actions use their corresponding permission hook. Carrier recovery queue actions receive and recheck `admin:shipping:recovery`; shipment exception/RTS, inventory return, carrier create/cancel and recovery actions are bound to their distinct permission conditions. User Detail profile save also rechecks `admin:users:write`.
 
 A focused test verifies the shared mutation does not dispatch after permission loss and does dispatch when authorized. It has not been executed. This is client-side defense in depth; API controller authorization remains authoritative.
