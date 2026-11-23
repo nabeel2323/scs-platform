@@ -76,7 +76,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest implementation/test checkpoint before this memory synchronization is `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae` (FIN-019 settlement adjustment posting integrity). FIN-DSH-33/34 and focused unit coverage are added but not executed. CI #1437 tested earlier SHA `9dc7d04469180807e65053fe51819afffb3b78c0`: lint and TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed with 259 files needing formatting; Web/Admin/API/PostgreSQL/migration/boundary/build/contract/k6/staging release jobs were skipped. The current implementation head uses `[skip ci]`; no exact-head Actions run exists. Vercel Web/Admin rate-limit statuses are external preview-provider failures. Re-fetch live PR head/status before the next action.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest implementation/test checkpoint before this memory synchronization is `b9f9728659e71d3788cc58aa2b5ad9df29ab9731` (FIN-019 settlement adjustment posting integrity; PostgreSQL scenarios FIN-DSH-34/35). Focused tests are added but not executed. CI #1437 tested earlier SHA `9dc7d04469180807e65053fe51819afffb3b78c0`: lint and TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed with 259 files needing formatting; Web/Admin/API/PostgreSQL/migration/boundary/build/contract/k6/staging release jobs were skipped. The current implementation head uses `[skip ci]`; no exact-head Actions run exists. Vercel Web/Admin rate-limit statuses are external preview-provider failures. Re-fetch live PR head/status before the next action.
 
 ### Exact stopping point
 
@@ -651,3 +651,8 @@ Stale-payment discovery excludes CASH_ON_DELIVERY, and expirePayment itself refu
 - Posting locks the latest primary settlement row (PENDING/CALCULATED/DUE/PAID), serializing against settlement payment and other adjustment posts. If no primary settlement exists, posting conflicts and the adjustment remains APPROVED/unlinked.
 - Added unit cases for credit/debit sign and PostgreSQL FIN-DSH-33/34 for commission reversal net and no-settlement posting rejection. Tests not executed.
 - Source commits: `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`. Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, staging, shared DB, grant/RLS, deployment or worker changes.
+
+
+## FIN-019 test scenario numbering correction — 23 November 2026
+
+The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent retry. The new settlement-adjustment cases are uniquely numbered FIN-DSH-34 (commission reversal credit sign) and FIN-DSH-35 (no primary settlement blocks posting). Test-only correction commit: `b9f9728659e71d3788cc58aa2b5ad9df29ab9731`. Tests remain unexecuted.

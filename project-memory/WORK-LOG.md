@@ -1307,3 +1307,9 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - **Regression coverage:** unit cases cover credit/debit signs; PostgreSQL FIN-DSH-33 verifies commission reversal creates a positive-net ADJUSTMENT row; FIN-DSH-34 verifies no-settlement posting is rejected and the adjustment remains APPROVED/unlinked. Tests added, not executed.
 - **Source commits:** `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, staging, shared DB, grants/RLS, deployment or worker changes.
+
+
+## 2026-11-23 — FIN-019 regression scenario numbering correction
+
+- The integration suite already used FIN-DSH-33 for return idempotent retry. Renumbered the new settlement-adjustment cases to FIN-DSH-34 (commission reversal positive net) and FIN-DSH-35 (no primary settlement blocks posting).
+- Commit: `b9f9728659e71d3788cc58aa2b5ad9df29ab9731`. Tests remain added but not executed.
