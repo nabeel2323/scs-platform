@@ -822,6 +822,7 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
   }
 
   Future<void> _submit() async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('catalog:offers:write') != true) return;
     final store = ref.read(activeStoreProvider).valueOrNull;
     if (store == null || _selectedProduct == null) return;
 
