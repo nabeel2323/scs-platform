@@ -890,4 +890,3 @@ The formatter commit applies Prettier to the previously flagged source and hando
 - Formatting commits: `4477ebd42ba46146b14df18094d025ab133c5d75` and `e663973d55d655b1a1a43439cbe728613e7f7f38`.
 - CI #45262860596 tested the earlier documentation head `158a7d64a188ab98ebfa8248da1c964c2a5391d2`. The required Prettier gate failed on eight handoff files; lint and typecheck passed, Flutter passed, and all dependent application jobs were skipped. The second formatter pass corrected those files. Do not claim the earlier run as verification of the latest head.
 - Next: inspect exact-head CI after this handoff update. FIN-047 remains IMPLEMENTED / TESTING_PENDING. The 14 G-015 boundary findings remain un-baselined. Preserve all G-002 database, staging and release restrictions.
-
