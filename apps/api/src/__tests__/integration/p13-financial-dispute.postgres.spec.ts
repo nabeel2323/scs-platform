@@ -57,6 +57,7 @@
  *   FIN-DSH-53  Retired previous proofs remain recoverable after replacement commit
  *   FIN-DSH-54  Payment verification events preserve the actual actor class
  *   FIN-DSH-55  Privileged return transitions preserve ADMIN actor attribution
+ *   FIN-DSH-56  Return refund caps include APPROVED and large BIGINT totals
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -2621,4 +2622,58 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
     expect(cancelledEvent.rows[0].actor_type).toBe('ADMIN');
   }, 90_000);
+
+  it('FIN-DSH-56: return refund caps include APPROVED and safely handle large BIGINT totals', async () => {
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+
+    const approvedOrderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const approvedPayment = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [approvedOrderId],
+    )).rows[0];
+    await pool.query(
+      `INSERT INTO refunds
+       (id, payment_record_id, order_id, idempotency_key, amount_minor, currency, status, reason, requested_by)
+       VALUES ($1, $2, $3, $4, 3400, 'SYP', 'APPROVED', 'PRODUCT_NOT_AS_DESCRIBED', $5)`,
+      [randomUUID(), approvedPayment.id, approvedOrderId, `fin027-approved-${randomUUID()}`, buyerA],
+    );
+    const approvedItem = (await pool.query(
+      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [approvedOrderId],
+    )).rows[0];
+    await expect(returnsService.createReturnRequest({
+      subOrderId: approvedOrderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      description: 'Approved refund must reserve refundable balance',
+      lines: [{ orderItemId: approvedItem.id, quantity: 3 }],
+    }, buyerCaller)).rejects.toThrow(/remaining refundable payment amount/i);
+
+    const largeOrderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const largePayment = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [largeOrderId],
+    )).rows[0];
+    await pool.query(
+      `UPDATE payment_records SET confirmed_amount_minor = 3000000000 WHERE id = $1`,
+      [largePayment.id],
+    );
+    await pool.query(
+      `INSERT INTO refunds
+       (id, payment_record_id, order_id, idempotency_key, amount_minor, currency, status, reason, requested_by)
+       VALUES ($1, $2, $3, $4, 2147483648, 'SYP', 'SUCCEEDED', 'PRODUCT_NOT_AS_DESCRIBED', $5)`,
+      [randomUUID(), largePayment.id, largeOrderId, `fin027-large-${randomUUID()}`, buyerA],
+    );
+    const largeItem = (await pool.query(
+      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [largeOrderId],
+    )).rows[0];
+    const largeBalanceReturn = await returnsService.createReturnRequest({
+      subOrderId: largeOrderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      description: 'BIGINT refund aggregate must not overflow a PostgreSQL integer cast',
+      lines: [{ orderItemId: largeItem.id, quantity: 1 }],
+    }, buyerCaller);
+    expect(largeBalanceReturn.id).toBeTruthy();
+  }, 90_000);
+
 });
