@@ -107,3 +107,12 @@ A source-level comparison of the remaining custom financial pages with their API
 **Gap corrected:** the API exposed `POST /admin/settlement-adjustments/:id/reject` with the `admin:adjustments:approve` guard, but the Admin adjustment detail list did not offer a rejection action. The page now provides an approver-only rejection form requiring a reason and submits the exact controller payload. Read-only users do not see Approve or Reject.
 
 Focused tests were added to `apps/admin/src/__tests__/admin-settlement-adjustments-recovery.test.tsx` for rejection payload/flow and read-only visibility. They have not been executed; comprehensive validation remains in Phase 3. No API permissions, role grants or financial service behavior changed.
+
+
+## Direct custom mutation and shared-helper audit — 23 November 2026
+
+The follow-up source audit covered the custom direct mutation handlers for payments/refunds, business-calendar holidays, reconciliation, settlement adjustments, settlements, role permission updates, return resolution, order cancellation, verification review/organization status, and product moderation. Their UI permission predicates correspond to the relevant API controller decorators. No additional permission-key mismatch was found in these inspected handlers.
+
+The shared `useAdminMutation` call sites reviewed in `EntityActions.tsx`, the Carrier Recovery table and Shipment Detail supply action-specific permission predicates; mixed carrier create/cancel/recovery actions use per-call overrides so write and recovery capabilities are not conflated. API authorization remains authoritative.
+
+The one missing custom financial action was the settlement-adjustment Reject workflow, now implemented as documented above. Focused tests remain pending Phase 3; this is a source audit, not runtime or automated-test verification.
