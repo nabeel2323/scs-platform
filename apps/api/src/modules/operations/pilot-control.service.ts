@@ -238,7 +238,7 @@ export class PilotControlService {
         }
         throw error;
       }
-      if (store.orgId !== input.orgId) {
+      if (store.id !== input.storeId || store.orgId !== input.orgId) {
         throw new NotFoundException('Store not found in the target organization');
       }
     }
