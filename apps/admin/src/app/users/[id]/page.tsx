@@ -175,9 +175,10 @@ function UserDetailContent({ id }: { id: string }) {
                 setEditingProfile(true);
               }}>Edit profile</button>
             )}
-            {editingProfile ? (
+            {editingProfile && canWriteUsers ? (
               <form onSubmit={async event => {
                 event.preventDefault();
+                if (!canWriteUsers || profileSaving) return;
                 setProfileError('');
                 setProfileSaving(true);
                 try {
