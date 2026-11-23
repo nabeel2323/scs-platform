@@ -1426,13 +1426,23 @@ export class ReturnsService {
 
   private async getCumulativeRefundedAmount(paymentRecordId: string): Promise<number> {
     const result = await this.db.db
-      .select({ total: sql<string>`COALESCE(SUM(${refunds.amountMinor}), 0)::int` })
+      .select({ total: sql<string>`COALESCE(SUM(${refunds.amountMinor}), 0)::text` })
       .from(refunds)
       .where(and(
         eq(refunds.paymentRecordId, paymentRecordId),
-        inArray(refunds.status, ['SUCCEEDED', 'PROCESSING', 'REQUESTED']),
+        inArray(refunds.status, ['SUCCEEDED', 'PROCESSING', 'REQUESTED', 'APPROVED']),
       ));
-    return Number(result[0]?.total ?? 0);
+
+    // Match PaymentsService.requestRefund: APPROVED refunds reserve the
+    // refundable balance too. SUM(bigint) is numeric in PostgreSQL; keep it
+    // exact until the safe-integer boundary required by this service's API.
+    const total = BigInt(result[0]?.total ?? '0');
+    if (total < 0n || total > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new ConflictException(
+        'Cumulative refund amount exceeds the supported safe minor-unit range',
+      );
+    }
+    return Number(total);
   }
 
   private async assertReturnIdempotencyMatch(
