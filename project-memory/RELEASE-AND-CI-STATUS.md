@@ -1266,3 +1266,11 @@ All commits in this batch used [skip ci] in line with the recorded implementatio
 ### FIN-040 period-attribution correction
 
 Source/test follow-up commit: b63376cf26240d3dc21b6f26782158a09674c1c7. The reconciliation query now scopes each current failed/pending return to the latest event matching its current state, using created_at only for legacy rows with no matching event. FIN-DSH-66 was extended to prove prior-period state events do not contaminate the later period. This commit used [skip ci]; tests remain unexecuted.
+
+## 23 November 2026 — FIN-041 adjustment posting retry
+
+- Source/test commit: ad61d75b909341dd2936e03dbc592b0d244d9f72.
+- Added idempotent replay for already-POSTED settlement adjustments, requiring a durable adjustment ledger row and preventing duplicate settlement ledger/outbox writes.
+- Added explicit adjustmentId/parentSettlementId/postedBy metadata to adjustment ledger rows, plus notes-prefix fallback for legacy rows.
+- Posting rejects currency mismatch with the primary settlement and verifies the primary settlement store matches the sub-order.
+- FIN-DSH-67 added. Commit uses [skip ci]; test not executed. No migration, shared DB write, staging mutation, deployment or merge.

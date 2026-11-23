@@ -832,3 +832,9 @@ All new regression tests are added but **not executed**. The source/test commits
 The FIN-040 parity query was tightened after review: it now aggregates the **latest matching return-state event** and applies the accounting period filter to that event, with created_at fallback only when no matching state event exists. The FIN-DSH-66 regression now proves that an old REFUND_PENDING event from the prior month does not leak into that month's reconciliation after a later re-entry in the current month. Follow-up source/test commit: b63376cf26240d3dc21b6f26782158a09674c1c7.
 
 **Latest source/test head:** b63376cf26240d3dc21b6f26782158a09674c1c7. The tests remain unexecuted under the deferred consolidated Phase 3 plan.
+
+### FIN-041 — settlement-adjustment posting replay and currency integrity
+
+**Status: IMPLEMENTED / TESTING_PENDING.** postAdjustment now treats a replay of a POSTED adjustment as an idempotent success only when its adjustment settlement ledger row exists. The ledger row stores adjustmentId, parentSettlementId and postedBy in metadata, and the lookup retains a notes-based compatibility path for existing posted rows. Posting also rejects an adjustment whose currency differs from the primary settlement and verifies the primary settlement store still matches the sub-order. FIN-DSH-67 covers same-adjustment replay, one ledger row/one outbox event, and currency mismatch rejection. Source/test commit: ad61d75b909341dd2936e03dbc592b0d244d9f72.
+
+**Next source audit:** continue settlement adjustment lifecycle/outbox/reconciliation parity, including primary-settlement terminal-state interactions and adjustment ledger discoverability. Do not start consolidated Phase 3 tests until implementation audit is complete.

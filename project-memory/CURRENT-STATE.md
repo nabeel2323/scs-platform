@@ -1184,3 +1184,9 @@ The source-first payment/refund/settlement retry audit continued beyond FIN-036.
 ### FIN-040 period-attribution follow-up
 
 A final review corrected the parity check to aggregate the latest matching current-state event and filter by that timestamp, avoiding stale prior-state events being reported in a later retry period. FIN-DSH-66 now covers prior-month versus current-month re-entry attribution. Follow-up source/test commit: b63376cf26240d3dc21b6f26782158a09674c1c7. Tests remain added but unexecuted.
+
+## FIN-041 — settlement-adjustment posting replay and currency integrity — 23 November 2026
+
+Implemented replay-safe adjustment posting. A repeated post of an already-POSTED adjustment now checks for its durable ADJUSTMENT settlement row and returns without duplicate ledger or outbox writes. New ledger rows include adjustmentId, parentSettlementId and postedBy metadata; a legacy notes lookup supports rows written before this metadata. Posting rejects currency mismatch with the primary settlement and verifies the primary settlement store matches the sub-order. FIN-DSH-67 added. Source/test commit: ad61d75b909341dd2936e03dbc592b0d244d9f72. Tests added but not executed; [skip ci].
+
+Next: continue source-first review of adjustment lifecycle and outbox/reconciliation parity, especially primary-settlement terminal-state interactions and adjustment ledger discoverability.

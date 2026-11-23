@@ -1522,3 +1522,12 @@ Return refund creation previously committed the payment refund/event/outbox firs
 ### FIN-040 follow-up — latest event period attribution
 
 Reviewed repeated return-state transitions and tightened FIN-040 to use MAX(created_at) for the latest event matching the current status, with a created_at fallback for legacy rows only. Updated FIN-DSH-66 to verify a prior-month REFUND_PENDING event does not create a prior-period discrepancy after the return re-enters REFUND_PENDING in the current month. Follow-up source/test commit: b63376cf26240d3dc21b6f26782158a09674c1c7. Tests remain unexecuted.
+
+## 23 November 2026 — FIN-041 settlement-adjustment retry audit
+
+- Found that postAdjustment rejected retries after a successful commit, even though the caller may have lost the response. Added an idempotent POSTED replay path that requires the corresponding ADJUSTMENT ledger row.
+- Added adjustmentId, parentSettlementId and postedBy to settlement_records.metadata for newly posted adjustment rows; preserved a stable notes-prefix fallback for legacy rows.
+- Added fail-closed validation that adjustment currency matches the primary settlement and that the primary settlement store still matches the sub-order.
+- Added PostgreSQL FIN-DSH-67 for same-adjustment replay, single ledger/outbox persistence and currency mismatch rejection.
+- Source/test commit: ad61d75b909341dd2936e03dbc592b0d244d9f72. Test added, not executed; [skip ci]. No migration/shared DB/deployment/merge.
+- Next: audit adjustment ledger retrieval, reconciliation linkage and primary-settlement terminal-state interactions.

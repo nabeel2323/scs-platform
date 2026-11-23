@@ -683,3 +683,9 @@ Return finalization previously trusted the refund snapshot and checked only that
 ### FIN-040 follow-up — latest current-state event period filter
 
 The initial FIN-040 change was tightened to group by return and use MAX(created_at) for the event matching its current return status, with the created_at fallback only for legacy rows lacking that event. The period filter applies to that latest event, not any historical event for the same status. FIN-DSH-66 now verifies a prior-month transition is not misattributed after a later re-entry. Follow-up source/test commit: b63376cf26240d3dc21b6f26782158a09674c1c7.
+
+## FIN-041 — settlement-adjustment posting replay and currency integrity
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** postAdjustment now supports safe replay after a committed POSTED transition by requiring the persisted ADJUSTMENT settlement row; it does not duplicate ledger/outbox writes. The row records adjustmentId, parentSettlementId and postedBy metadata, with a notes-based compatibility lookup for legacy posted rows. Posting now validates adjustment currency against the primary settlement and validates the primary settlement store against the sub-order. FIN-DSH-67 covers replay and mismatch rejection. Source/test commit: ad61d75b909341dd2936e03dbc592b0d244d9f72.
+
+Next source audit: primary-settlement terminal-state interactions, adjustment ledger discoverability and reconciliation/outbox parity.

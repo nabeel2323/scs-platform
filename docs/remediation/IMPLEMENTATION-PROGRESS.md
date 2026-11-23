@@ -2345,3 +2345,7 @@ All tests are added/updated, not executed. No migration or shared/staging databa
 ### FIN-040 follow-up — latest-state event period scope
 
 The parity query now aggregates the latest return_request_events.created_at for the current return status and applies the reconciliation period filter to that timestamp. Legacy rows without a matching status event retain created_at fallback. FIN-DSH-66 was extended to assert that an earlier-month REFUND_PENDING event is not attributed to that month after a later re-entry in the current month. Follow-up source/test commit: b63376cf26240d3dc21b6f26782158a09674c1c7.
+
+## FIN-041 — settlement-adjustment posting replay and currency integrity — 23 November 2026
+
+**Status: IMPLEMENTED / TESTING_PENDING.** postAdjustment now handles a retry after a committed POSTED transition by confirming the adjustment's durable ADJUSTMENT settlement ledger row and returning without a second ledger or outbox write. New adjustment rows store adjustmentId, parentSettlementId and postedBy metadata, with a stable notes-prefix fallback for legacy posted rows. Posting validates that adjustment currency matches the primary settlement and that the primary settlement store still matches the sub-order. PostgreSQL FIN-DSH-67 covers same-adjustment replay, one ledger/outbox event and currency mismatch rejection. Source/test commit: ad61d75b909341dd2936e03dbc592b0d244d9f72. Test added, not executed; [skip ci].

@@ -853,3 +853,9 @@ Return refund creation previously committed the payment refund/event/outbox firs
 ### FIN-040 period attribution correction
 
 The reconciliation query now uses the latest event matching the current return status, so repeated REFUND_PENDING/REFUND_FAILED transitions are attributed to the period of the latest transition. FIN-DSH-66 verifies a prior-period event does not leak into a later retry state. Source/test follow-up: b63376cf26240d3dc21b6f26782158a09674c1c7. Execution remains pending.
+
+## FIN-041 — settlement-adjustment posting replay and currency integrity
+
+**Status: IMPLEMENTED / TESTING_PENDING.** POSTED adjustment retries now verify the durable ADJUSTMENT ledger row and return idempotently without duplicate event/ledger writes. New adjustment rows carry explicit adjustmentId, parentSettlementId and postedBy metadata; legacy rows use the stable notes prefix as a compatibility lookup. Currency mismatch and sub-order/store mismatch fail closed. FIN-DSH-67 added. Commit: ad61d75b909341dd2936e03dbc592b0d244d9f72. Tests not executed; include in consolidated Phase 3 campaign.
+
+Remaining source audit: inspect adjustment ledger retrieval and reconciliation linkage, and behavior against PAID/terminal primary settlements.

@@ -1022,3 +1022,11 @@ Return refund creation previously committed the payment refund/event/outbox firs
 | FIN-040A | Latest matching transition determines period | Reconciliation groups by return/current status, uses MAX(event.created_at), and applies the period filter to the latest matching event; created_at is fallback only for legacy rows without a matching event. FIN-DSH-66 verifies an older prior-month event is not counted after a later re-entry. | Execute in consolidated Phase 3. | P1 | IMPLEMENTED / TESTING_PENDING |
 
 Follow-up source/test commit: b63376cf26240d3dc21b6f26782158a09674c1c7.
+
+## FIN-041 — settlement-adjustment posting replay and currency integrity
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gate | Priority | Status |
+|---|---|---|---|---|---|
+| FIN-041 | Safe replay and primary-ledger consistency for posted adjustments | Already-POSTED retries require a durable ADJUSTMENT settlement row and do not duplicate ledger/outbox writes. New adjustment rows carry adjustmentId, parentSettlementId and postedBy metadata; legacy notes-prefix lookup is retained. Posting rejects currency mismatch and verifies the primary settlement store matches the sub-order. FIN-DSH-67 added. | Execute FIN-DSH-67 in consolidated Phase 3 and continue audit of adjustment ledger retrieval/reconciliation. | P1 | IMPLEMENTED / TESTING_PENDING |
+
+Source/test commit: ad61d75b909341dd2936e03dbc592b0d244d9f72.
