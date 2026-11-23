@@ -1430,3 +1430,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Exact-head Actions lookup after the source/test commits returned no workflow run. Vercel Web/Admin statuses are external build-rate-limit failures, not application test evidence.
 - No shared/staging database writes, migration execution, grants/RLS changes, worker activation, environment changes, deployment or merge occurred. Migration 0075 remains source-only; PR #138 remains draft.
 - Next: continue source-first audit of payment/refund/settlement event history, retry semantics and cross-ledger consistency. Keep the comprehensive Phase 3 test/migration campaign grouped until implementation is complete.
+
+
+## 2026-11-23 — FIN-028 settlement calculation actor attribution
+
+- Source audit found `PaymentsService.calculateSettlement` is admin-only but wrote `PAYMENT_SETTLEMENT_CALCULATED` history with `actor_type = SYSTEM`, misattributing a user-initiated privileged action.
+- Changed the immutable event actor type to ADMIN; actor ID remains the authenticated admin ID supplied by the controller/service call.
+- Added PostgreSQL FIN-DSH-57 asserting persisted actor ID and ADMIN actor type.
+- Source commit: `5a7dfd6ea67de61bb016cc7a7ef31749760955d8`. Test commit: `05799cde897871ab9752af07bf70830ac834edbf`. Test added, not executed.
+- No schema/migration, shared DB, staging, worker, provider, payout, environment, deployment or merge action. All implementation commits use `[skip ci]`; consolidated Phase 3 validation remains pending.
+- Next: continue auditing refund/reconciliation event producers and retry/idempotency paths for authenticated actor and immutable history/outbox parity.
