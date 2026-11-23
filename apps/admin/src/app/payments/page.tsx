@@ -51,9 +51,15 @@ function formatMinor(minor: number | null, currency?: string) {
 }
 
 export default function AdminPaymentsPage() {
-  const { hasAccess, missingPerms } = useRequirePerms(['admin:payments:read']);
+  const { hasAccess } = useRequirePerms(['admin:payments:read']);
   const { hasAccess: canVerifyPayments } = useRequirePerms(['admin:payments:verify']);
   const { hasAccess: canApproveRefunds } = useRequirePerms(['admin:refunds:approve']);
+  const hasAnyPaymentAccess = hasAccess || canVerifyPayments || canApproveRefunds;
+  const missingPaymentPermissions = [
+    ...(!hasAccess ? ['admin:payments:read'] : []),
+    ...(!canVerifyPayments ? ['admin:payments:verify'] : []),
+    ...(!canApproveRefunds ? ['admin:refunds:approve'] : []),
+  ];
   const [tab, setTab] = useState<Tab>(canVerifyPayments ? 'queue' : hasAccess ? 'all' : 'refunds');
   const [payments, setPayments] = useState<AdminPayment[]>([]);
   const [refunds, setRefunds] = useState<AdminRefund[]>([]);
@@ -65,13 +71,20 @@ export default function AdminPaymentsPage() {
   const [acting, setActing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!hasAccess && !(tab === 'refunds' && canApproveRefunds)) return;
-    if (tab === 'queue' && !canVerifyPayments) {
-      setTab('all');
-      return;
-    }
-    if (tab === 'refunds' && !canApproveRefunds) {
-      setTab(canVerifyPayments ? 'queue' : 'all');
+    const canReadCurrentTab = tab === 'queue'
+      ? canVerifyPayments
+      : tab === 'refunds'
+        ? canApproveRefunds
+        : hasAccess;
+    if (!canReadCurrentTab) {
+      const fallbackTab: Tab | null = canVerifyPayments
+        ? 'queue'
+        : hasAccess
+          ? 'all'
+          : canApproveRefunds
+            ? 'refunds'
+            : null;
+      if (fallbackTab && fallbackTab !== tab) setTab(fallbackTab);
       return;
     }
 
@@ -106,9 +119,9 @@ export default function AdminPaymentsPage() {
   }, [tab, hasAccess, canVerifyPayments, canApproveRefunds]);
 
   useEffect(() => {
-    if (hasAccess || (tab === 'refunds' && canApproveRefunds)) void load();
+    if (hasAnyPaymentAccess) void load();
     return () => { requestVersion.current += 1; };
-  }, [load, hasAccess, tab, canApproveRefunds]);
+  }, [load, hasAnyPaymentAccess, tab]);
 
   const handleVerify = async (paymentId: string, decision: 'CONFIRMED' | 'REJECTED') => {
     if (!canVerifyPayments) return;
@@ -158,8 +171,13 @@ export default function AdminPaymentsPage() {
 
   const hasLoadedCurrentTab = loadedTab === tab;
 
-  if (!hasAccess && !canApproveRefunds) {
-    return <AccessDenied requiredPerms={['admin:payments:read']} missingPerms={missingPerms} />;
+  if (!hasAnyPaymentAccess) {
+    return (
+      <AccessDenied
+        requiredPerms={['admin:payments:read', 'admin:payments:verify', 'admin:refunds:approve']}
+        missingPerms={missingPaymentPermissions}
+      />
+    );
   }
 
   return (
