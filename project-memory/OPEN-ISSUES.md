@@ -7,7 +7,7 @@
 
 ### G-002 continuation — 22 November 2026
 
-The source operation map now covers 26 service files plus supporting outbox, carrier, tracking, reconciliation, operations-control and worker paths. A separate schema review records candidate owner paths and principal classes across the major tenant, buyer/order, financial, user-private and system tables. These documents are source-only evidence, not an approved policy. Still open: complete the remaining import-executor/carrier recovery/bootstrap/migration/CLI paths; verify FK constraints and plain UUID relationships against migrations/catalog; map exact read/insert/update/delete predicates and route principals; obtain actual API/migration runtime identities and the protected read-only staging catalog snapshot; resolve 114-versus-116. No shared database changes, migration, grants, RLS, deployment or worker activation are authorized.
+The source operation map now covers 26 service files plus supporting outbox, carrier, tracking, reconciliation, operations-control and worker paths. A separate schema review records candidate owner paths and principal classes across the major tenant, buyer/order, financial, user-private and system tables. These documents are source-only evidence, not an approved policy. Still open: complete the remaining import-executor/carrier recovery/bootstrap/migration/CLI paths; verify FK constraints and plain UUID relationships against migrations/catalog; map exact read/insert/update/delete predicates and route principals; obtain actual API/migration runtime identities and the protected read-only staging catalog snapshot; resolve 114-versus-116. A user-uploaded supplemental note reports 111/111 tables with RLS disabled and 32 public functions with none SECURITY DEFINER, but it lacks timestamp, endpoint, query, connection identity and relation-kind scope. Preserve it as supplemental evidence only; do not substitute 111 for the detailed 114 or historical 116 counts. See [G-002 supplemental audit note](../docs/remediation/G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md). No shared database changes, migration, grants, RLS, deployment or worker activation are authorized.
 
 
 
@@ -78,7 +78,7 @@ The following are navigation-level reminders, not a replacement for the full fin
 - **G-020:** migration is CI-verified but has not been applied to the shared database.
 - **G-021/G-022:** retain the open/blocked states and dependencies exactly as recorded in the authoritative tracker; do not infer closure.
 
-For exact statuses, priorities, evidence and dependencies, consult the 35-row register in [IMPLEMENTATION-PROGRESS.md](../docs/remediation/IMPLEMENTATION-PROGRESS.md).
+For exact statuses, priorities, evidence and dependencies, consult the 36-row register in [IMPLEMENTATION-PROGRESS.md](../docs/remediation/IMPLEMENTATION-PROGRESS.md).
 
 ## CI and formatting follow-up
 
@@ -92,7 +92,7 @@ For exact statuses, priorities, evidence and dependencies, consult the 35-row re
 1. Standardize or retire the remaining legacy M5/M6 UAT and migration harness scripts. Keep them local-only; remove fixed credentials and arbitrary DATABASE_URL overrides, and add explicit environment/confirmation guards.
 2. Add a uniform staging target/approval guard to all bootstrap-staging platform/merchant/store/staff/RBAC scripts before any future invocation.
 3. Complete method-level service-to-table ownership-predicate mapping, including the four direct-DB controllers, shared tenant-scope helpers, provider/webhook, bootstrap, worker and operator contexts.
-4. Use the enhanced audit-db-access utility only after explicit protected read-only authorization to verify live API/migration identities, public relation-kind counts, partition RLS/privileges and the 114-versus-116 discrepancy. Do not apply RLS or change grants before this evidence and independent review.
+4. Use the enhanced audit-db-access utility only after explicit protected read-only authorization to verify live API/migration identities, public relation-kind counts, partition RLS/privileges and the 111-versus-114-versus-116 discrepancy. Do not apply RLS or change grants before this evidence and independent review.
 5. Keep PR #138 draft/unmerged. Defer comprehensive unit/API/PostgreSQL/migration/security/tenant/concurrency/E2E/performance tests until implementation and integration are complete; do not consume repeated Actions runs during implementation.
 
 
