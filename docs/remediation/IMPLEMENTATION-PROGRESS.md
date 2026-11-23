@@ -2050,3 +2050,13 @@ This closes a UI-to-controller workflow omission; it does not change G-001–G-0
 - Positive safe-integer minor-unit validation now guards payment verification, COD cash confirmation, refund requests and settlement confirmed amounts.
 - FIN-DSH-16 covers fractional/zero inputs and unchanged verification/COD payment state. Added but not executed.
 - No new amount cap/equality policy, schema/migration, provider, gateway, payout, staging, shared DB or deployment behavior.
+
+## FIN-004 — Settlement lifecycle event consistency — 23 November 2026
+
+Settlement calculation now writes `PAYMENT_SETTLEMENT_CALCULATED` rather than the unrelated refund-success event. Marking PAID now locks the settlement row and atomically updates the settlement, appends `PAYMENT_SETTLEMENT_PAID` history with actor/amount/reference metadata, and writes `payment.settlement_paid` to the transactional outbox. FIN-DSH-13 asserts calculation history/outbox; FIN-DSH-17 verifies concurrent pay attempts yield one winner and one history/outbox pair. Not executed.
+
+## FIN-005 — COD order payment projection consistency — 23 November 2026
+
+COD cash confirmation now synchronizes the denormalized `orders.payment_status` to CONFIRMED in the same transaction as the payment transition, while preserving fulfillment/order status (for example DELIVERED). FIN-DSH-18 verifies order/payment projection and payment event. Not executed.
+
+Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699150cb896a23eb171eab0ae5a00`, `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`. Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, automatic payout, staging, shared DB or deployment changes.
