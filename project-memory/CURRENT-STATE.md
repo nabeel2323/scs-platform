@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `41fca82355dfe4c4c4b49ceac57720d2cbfd458f` — Admin organization status and dispute resolution handlers now recheck write permissions at execution time. Supporting CI corrections: API realtime room-ID narrowing `0d4644f634d65bd5fbe4fec818c6f8439023254e`; Mobile nullable-role/const correction `5f08755ce69edfcbae5ca84462ffda245bfc1eb4`. Verification status handler guard `112cee31c5cdfadd33d75851b4a3b9eb56f2827a`; organization handler guards `94f86dac9365e89795bf90d9d82c91618aff9740`. Latest focused Admin tests: verification status permission-loss `c0aa31229d3e4d1505671730a73486bdefe49e5b`; organization status/review permission-loss `856d527aeb65abc9feeb565f1dbc8c07df7d5331`.
-**Latest implementation checkpoint head:** `856d527aeb65abc9feeb565f1dbc8c07df7d5331` (latest focused test commit; PR #138 head before this documentation synchronization).  
+**Latest source implementation commit:** `14214f0cbc976adda0fcfe8f45909918a46b2ec7` — Payments route now admits verification-only users and loads the queue under `admin:payments:verify`; supporting capability-aware Admin sidebar commits `07ff19c1ce48b14e0d3449cbfdc1d97fe0c30175` (permission helper) and `f30315328c98b65bbc3a372d91e14e608ded8507` (carrier/payments any-of nav). UX-097 handler guards remain in `41fca82355dfe4c4c4b49ceac57720d2cbfd458f`. Latest focused tests: `89624f61bd48a9009aef603333f30205ad14907e` (Payments verification-only) and `d504acecc7205d4046a51f72233d18f5e7687e7e` (navigation all-of/any-of); UX-097 tests `c0aa31229d3e4d1505671730a73486bdefe49e5b` and `856d527aeb65abc9feeb565f1dbc8c07df7d5331`.
+**Latest implementation checkpoint head:** `89624f61bd48a9009aef603333f30205ad14907e` (latest focused test commit; PR #138 head before this documentation synchronization).  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -768,3 +768,15 @@ Merchant active-store and product reads now preserve last-successful data throug
 - No merge, deployment, staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement, worker activation or provider call occurred.
 
 **Next:** continue the remaining Admin custom route/action-to-controller permission mapping. Do not repeat the completed 56-page route audit or UX-097 handler fixes. Keep the consolidated test campaign deferred to Phase 3.
+
+
+## Exact-head reconciliation — 23 November 2026 (UX-098)
+
+- PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. Latest live PR head before this state update: `38a22e0e48ec166abbbc96ec3bec3e861936a03d`; latest source/test checkpoint: `89624f61bd48a9009aef603333f30205ad14907e`.
+- UX-098 adds any-of permission semantics for Admin sidebar entries, exposes Carrier & Recovery to either read or recovery operators, and allows a payment-verification-only user to reach the verification queue. Each Payments tab remains restricted to its own permission.
+- CI #1408 on prior SHA `a76b0bef436af8bde2d9329b1cd6ee5980f593fc`: `pnpm lint` and `pnpm typecheck` passed; Flutter analysis and tests passed; changed-file Prettier failed because 245 files in the cumulative PR diff were unformatted. Web/Admin, API unit, PostgreSQL integration, migration, boundary, build/container, contract and k6 jobs were skipped. This run predates UX-098 and is not validation of it.
+- CI #1407 was superseded/cancelled after an Admin test typing error; the `ByRoleOptions.exact` usage was corrected to regex matchers. No current Actions run exists for UX-098 commits. Vercel Web/Admin contexts on the latest docs head are external build-rate-limit failures, not application tests.
+- G-001 remains PARTIAL; G-002 remains IN PROGRESS; G-036 remains IN PROGRESS; Phase 6 remains NOT STARTED. UX-097/098 are IMPLEMENTED / TESTING_PENDING.
+- No merge, deployment, staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
+
+**Next:** continue remaining Admin custom route/action-to-controller permission mapping. Do not repeat the completed 56-page page-level audit or UX-097/098 fixes. Batch the accumulated formatting correction and comprehensive test campaign at the implementation-complete Phase 3 checkpoint.
