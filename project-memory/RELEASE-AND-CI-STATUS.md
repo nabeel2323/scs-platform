@@ -1183,3 +1183,11 @@ The next full workflow is required to verify these changes.
 - FIN-027 source/test commits followed: `6ae8aba762215f69f42e74e4608a4fa31a02543b` and `5b636df49155ea523bc730852ed900720a858a88`. Exact-head Actions lookup for the latter returned no run; tests remain unexecuted.
 - Vercel Web/Admin FAILURE statuses point to external build-rate limits and are not application test results. No staging release, deployment or database operation occurred.
 - PR #138 remains OPEN / DRAFT / UNMERGED. Comprehensive Phase 3 validation remains deferred until implementation is complete.
+
+
+## FIN-028 source/test checkpoint — 23 November 2026
+
+- Latest source change: `5a7dfd6ea67de61bb016cc7a7ef31749760955d8` (admin settlement calculation actor class).
+- Latest focused test: `05799cde897871ab9752af07bf70830ac834edbf` (PostgreSQL FIN-DSH-57). FIN-DSH-56/57 are added but not executed.
+- The syntax corrections for CI #1446 are included in the branch; no exact-head Actions run has been triggered because these implementation commits use `[skip ci]` and the consolidated campaign remains deferred.
+- PR #138 remains OPEN / DRAFT / UNMERGED. Vercel build-rate-limit contexts are external preview-provider failures, not application tests. No staging release, shared DB change, migration execution or deployment.
