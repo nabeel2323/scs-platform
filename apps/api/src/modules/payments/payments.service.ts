@@ -653,7 +653,7 @@ export class PaymentsService {
         fromStatus,
         toStatus: decision,
         actorId,
-        actorType: 'ADMIN',
+        actorType: isTenantPrivileged(caller) ? 'ADMIN' : 'MERCHANT',
         amountMinor: decision === 'CONFIRMED' ? confirmedAmount : null,
         notes: input?.notes || null,
       });
@@ -757,7 +757,7 @@ export class PaymentsService {
         fromStatus,
         toStatus: 'CONFIRMED',
         actorId,
-        actorType: 'MERCHANT',
+        actorType: isTenantPrivileged(caller) ? 'ADMIN' : 'MERCHANT',
         amountMinor: collectedAmount,
         notes: input?.notes || 'Cash collected at delivery',
       });

@@ -55,6 +55,7 @@
  *   FIN-DSH-51  Cleanup failures use bounded retry and backoff
  *   FIN-DSH-52  Concurrent cleanup callers cannot claim the same intent
  *   FIN-DSH-53  Retired previous proofs remain recoverable after replacement commit
+ *   FIN-DSH-54  Payment verification events preserve the actual actor class
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -2517,4 +2518,64 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       (paymentsService as any).storage = undefined;
     }
   }, 60_000);
+
+  it('FIN-DSH-54: payment verification and COD confirmation record the actual actor class', async () => {
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
+
+    const bankCartId = randomUUID();
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [bankCartId, buyerA]);
+    await pool.query(
+      `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
+       VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
+      [randomUUID(), bankCartId, storeA, variantA, offerA],
+    );
+    const bankCheckout = await ordersService.checkout({
+      buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'BANK_TRANSFER',
+      idempotencyKey: `fin026-bank-${randomUUID()}`,
+    });
+    const bankOrderId = bankCheckout.subOrders[0]!.id;
+    const bankPaymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [bankOrderId],
+    )).rows[0].id;
+
+    await paymentsService.submitProof(bankPaymentId, buyerA, {
+      receiptUrl: 'https://receipts.example.test/merchant-verified.pdf',
+    }, buyerCaller);
+    await paymentsService.verifyPayment(
+      bankPaymentId, 'CONFIRMED', merchantA, merchantCaller, { notes: 'Verified by merchant' },
+    );
+    const merchantVerification = await pool.query(
+      `SELECT actor_type FROM payment_events
+       WHERE payment_record_id = $1 AND event_type = 'PAYMENT_CONFIRMED'
+       ORDER BY created_at DESC LIMIT 1`,
+      [bankPaymentId],
+    );
+    expect(merchantVerification.rows[0].actor_type).toBe('MERCHANT');
+
+    const codCartId = randomUUID();
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [codCartId, buyerA]);
+    await pool.query(
+      `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
+       VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
+      [randomUUID(), codCartId, storeA, variantA, offerA],
+    );
+    const codCheckout = await ordersService.checkout({
+      buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'CASH_ON_DELIVERY',
+      idempotencyKey: `fin026-cod-${randomUUID()}`,
+    });
+    const codOrderId = codCheckout.subOrders[0]!.id;
+    const codPaymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [codOrderId],
+    )).rows[0].id;
+
+    await paymentsService.confirmCash(codPaymentId, adminA, adminCaller);
+    const adminCashConfirmation = await pool.query(
+      `SELECT actor_type FROM payment_events
+       WHERE payment_record_id = $1 AND event_type = 'PAYMENT_CONFIRMED'
+       ORDER BY created_at DESC LIMIT 1`,
+      [codPaymentId],
+    );
+    expect(adminCashConfirmation.rows[0].actor_type).toBe('ADMIN');
+  }, 90_000);
 });
