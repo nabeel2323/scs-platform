@@ -31,6 +31,7 @@
  *   FIN-DSH-27  Refund adjustment serializes with settlement payment
  *   FIN-DSH-28  Payment expiry/order transition race
  *   FIN-DSH-29  Discount-adjusted commission reversal and currency
+ *   FIN-DSH-30  COD payments are excluded from stale-payment expiry
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -1099,6 +1100,54 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [paymentId],
     );
     expect(payment.rows[0].status).toBe('EXPIRED');
+  }, 60_000);
+
+  // ── FIN-DSH-30: COD payments are excluded from expiry ───────────
+
+  it('FIN-DSH-30: stale COD payments remain collectible and are not expired', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    await pool.query(
+      `UPDATE orders SET status = 'DELIVERED', payment_status = 'AWAITING_PAYMENT' WHERE id = $1`,
+      [orderId],
+    );
+    await pool.query(
+      `UPDATE payment_records
+       SET payment_method = 'CASH_ON_DELIVERY',
+           status = 'AWAITING_PAYMENT',
+           created_at = now() - interval '365 days'
+       WHERE order_id = $1`,
+      [orderId],
+    );
+    const paymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
+    )).rows[0].id as string;
+
+    const stalePayments = await paymentsService.getStalePayments();
+    expect(stalePayments.some(payment => payment.id === paymentId)).toBe(false);
+
+    await paymentsService.expirePayment(paymentId);
+
+    const payment = await pool.query(
+      `SELECT status FROM payment_records WHERE id = $1`,
+      [paymentId],
+    );
+    expect(payment.rows[0].status).toBe('AWAITING_PAYMENT');
+
+    const expiredEvents = await pool.query(
+      `SELECT count(*)::int AS count FROM payment_events
+       WHERE payment_record_id = $1 AND event_type = 'PAYMENT_EXPIRED'`,
+      [paymentId],
+    );
+    expect(expiredEvents.rows[0].count).toBe(0);
+
+    const order = await pool.query(
+      `SELECT status, payment_status FROM orders WHERE id = $1`,
+      [orderId],
+    );
+    expect(order.rows[0]).toEqual({
+      status: 'DELIVERED',
+      payment_status: 'AWAITING_PAYMENT',
+    });
   }, 60_000);
 
   // ── FIN-DSH-17: Settlement payment transition history and outbox ──
