@@ -1074,10 +1074,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 
 - Continued the Admin action-handler audit beyond the verification/organization/dispute pages. The shared `useAdminMutation` helper previously only prevented duplicate in-flight requests; several components relied exclusively on hiding controls when `useRequirePerms` returned false.
 - Added an action-specific permission callback to `useAdminMutation`, checked immediately before the API request. Bound User status/membership, dispute, category, brand and offer-governance mutations to their actual permission hook result.
-- Bound Carrier & Recovery queue actions to `admin:shipping:recovery`. Bound shipment exception/RTS actions to `fulfillment:shipments:write`, inventory returns to `fulfillment:shipments:return` plus eligibility, and carrier create/cancel vs recovery actions to their distinct write/recovery permissions.
+- Bound Carrier & Recovery queue actions to `admin:shipping:recovery` (passed explicitly to the RecoveryTable action component). Bound shipment exception/RTS actions to `fulfillment:shipments:write`, inventory returns to `fulfillment:shipments:return` plus eligibility, and carrier create/cancel vs recovery actions to their distinct write/recovery permissions.
 - User Detail profile submission now rechecks `admin:users:write` and rejects duplicate saves; the edit form is hidden when the permission is no longer present.
 - Added `admin-mutation-permission-guard.test.tsx` to verify that a permission removed before the click prevents the shared mutation, while an authorized action proceeds. Test not executed.
-- Source commits: `262f2d1`, `d52acd6`, `93ec686`, `20447d2`, `bed844f`, `9313b85`; focused test: `046160d`.
+- Source commits: `262f2d1`, `d52acd6`, `93ec686`, `20447d2`, `bed844f`, `9313b85`, `5ea1145`, `91d69e4`; focused tests: `046160d`, `57d3a25`.
 - Status: IMPLEMENTED / TESTING_PENDING. No API permission grants, backend authorization contracts, database, migration, staging, worker or provider behavior changed.
 
 **Next:** continue remaining Admin custom route/action-to-controller mapping and confirm all `useAdminMutation` call sites use an action-specific permission callback. Do not repeat UX-097/098/099. Keep the consolidated test and formatting campaign deferred to Phase 3.
