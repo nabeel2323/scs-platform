@@ -1384,3 +1384,8 @@ The admin-only settlement calculation path now persists `PAYMENT_SETTLEMENT_CALC
 ## FIN-029 — Payment confirmation order-history actor parity — 23 November 2026
 
 Payment confirmation now propagates the authenticated ADMIN/MERCHANT actor class into the linked order status history, matching the payment event's actor ID/class. FIN-DSH-54 covers both ledgers. Source: `77c2caaa322836cc8e7d651f6577df715c5e3228`; test: `8fc1759a9e374f12513c82d301b2c9b934a98840`. Test remains pending Phase 3.
+
+
+## FIN-030 — Refund-completion period attribution — 23 November 2026
+
+Monthly reconciliation now attributes refund and commission-reversal checks to the append-only `REFUNDED` transition timestamp, rather than the original return-request creation timestamp. A fallback preserves legacy rows without a REFUNDED event. FIN-DSH-58 covers a cross-period return/refund. Source: `93a908d4627c804af5d12e20c6a1e7c2811524e9`; test: `5abae2018b9e6d6a43d5e3b90764ef80560b4ea0`. Test pending Phase 3.
