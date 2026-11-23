@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `84d7f4d713902819b21b89a12074986b17781c48` — Mobile catalog directory shortcuts now use read permissions; the Mobile permission/org-context batch also corrects offers read/create and driver assignment grants. Web source increments also include merchant route/action permission alignment, request-version-protected store/order/catalog reads, and server-side G-036 realtime room authorization (`a9df4861518e8c4269bad9dab3ccba5b7dac1be7`, `7010a0ea0aaba746a80286a0c1e3ca62ce281093`, `eaf65eaf80eb8144f2a6fc23215c0886f118685b`). Latest focused test commits: Mobile route matrix `d803f2e8c3d606f152adf6ac67bee8c2e5f25073`; Mobile driver-assignment permission widget tests `2469711687cbdceb58d7091e3b958c5c1da60e91`; Web route matrix `7fce2ef1f49745410d579d8bd5be98cb7d3aee28`; API realtime room authorization `df1964a1e1aa962cb1aad5fda1107b160966c3b1`. Latest completed client slices: UX-094 Mobile category permission alignment and UX-095 Web merchant route/action permission alignment.  
-**Latest implementation checkpoint head:** `84d7f4d713902819b21b89a12074986b17781c48` (PR #138 head before this documentation synchronization).  
+**Latest source implementation commit:** `41fca82355dfe4c4c4b49ceac57720d2cbfd458f` — Admin organization status and dispute resolution handlers now recheck write permissions at execution time. Supporting CI corrections: API realtime room-ID narrowing `0d4644f634d65bd5fbe4fec818c6f8439023254e`; Mobile nullable-role/const correction `5f08755ce69edfcbae5ca84462ffda245bfc1eb4`. Verification status handler guard `112cee31c5cdfadd33d75851b4a3b9eb56f2827a`; organization handler guards `94f86dac9365e89795bf90d9d82c91618aff9740`. Latest focused Admin tests: verification status permission-loss `c0aa31229d3e4d1505671730a73486bdefe49e5b`; organization status/review permission-loss `856d527aeb65abc9feeb565f1dbc8c07df7d5331`.
+**Latest implementation checkpoint head:** `856d527aeb65abc9feeb565f1dbc8c07df7d5331` (latest focused test commit; PR #138 head before this documentation synchronization).  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -747,3 +747,12 @@ Merchant active-store and product reads now preserve last-successful data throug
 - Focused Mobile route and driver-assignment tests were added; they have not been executed. No GitHub Actions run exists for the exact implementation checkpoint; Vercel Web/Admin statuses remain external build-rate-limit failures.
 - G-036 and UX-095 remain as recorded above. No merge, deployment, staging operation, shared database change, migration, grant/default-ACL change, RLS enablement or worker activation occurred.
 - **Next:** finish the remaining Admin route/action permission mapping. Comprehensive testing remains deferred to Phase 3.
+
+
+## Exact-head reconciliation — 23 November 2026 (CI corrections and Admin UX-097)
+
+- PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; implementation/test checkpoint head before this documentation synchronization: `856d527aeb65abc9feeb565f1dbc8c07df7d5331`.
+- CI #1395 failed on the earlier head `ff304ce6c0bcf63a654ff8fbd04130254cdb669e`: API typecheck reported two possibly-undefined validated Socket.IO room captures; Flutter analysis reported a nullable profile role and a non-constant dynamic EmptyState. These are corrected in `0d4644f`, `5f08755` respectively.
+- Admin UX-097 adds handler-time permission checks for verification organization deactivate/reactivate, organization status changes and update-request review, and dispute resolution. Focused tests cover permission loss while confirmation dialogs are open; tests have not been executed.
+- No GitHub Actions run is attached to the new source/test commits; no test or CI pass is claimed. Current Vercel contexts must be refreshed after this documentation synchronization; they are preview-provider checks, not application test evidence.
+- No merge, deployment, staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement, worker activation or provider call occurred.
