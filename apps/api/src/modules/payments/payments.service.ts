@@ -289,10 +289,10 @@ export class PaymentsService {
     // External receipt URLs and keys outside this payment's prefix are never deleted.
     const managedPrefix = `payment-proofs/${paymentId}/`;
     if (
-      newStorageKey &&
+      storedReceiptUrl &&
       previousReceiptUrl &&
       previousReceiptUrl.startsWith(managedPrefix) &&
-      previousReceiptUrl !== newStorageKey &&
+      previousReceiptUrl !== storedReceiptUrl &&
       this.storage
     ) {
       try {
