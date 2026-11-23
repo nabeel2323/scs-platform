@@ -913,3 +913,16 @@ External Vercel preview statuses continue to report the provider build-rate limi
 4. Continue G-002 source evidence and actual FK/method-predicate mapping. Protected staging/runtime identity inspection remains unavailable without authorization. G-001 independent review and G-036 focused security verification remain open; Phase 6 remains NOT STARTED.
 
 No migration, database grant/default-ACL change, RLS enablement, shared/staging database write, deployment, worker activation, merge or release was performed. PR #138 remains draft and unmerged.
+
+## 24 November 2026 — residual Returns and Shipping module-boundary refactor
+
+- Source commit: `93844d781ff50cd3ba325c0d9e3ffe209bc128cc` — [PR #138](https://github.com/nabeel2323/scs-platform/pull/138), still OPEN / DRAFT / UNMERGED against `develop`.
+- Moved the P13 return-expiration lease key into a common worker constant and the raw SQL `readRows` accessor into a common database helper. ReturnsService and ReturnExpirationWorker now consume those common contracts; the Operations configuration retains its compatibility export.
+- Added IdentityService's PLATFORM-organization lookup and MerchantService's system-only store ownership/store-ID projections. Aramex uses the Identity contract; the shipping worker and authenticated webhook routing use the Merchant contract.
+- Moved carrier shipment matching into an OrdersService query contract. The lookup remains constrained to the provider, external carrier reference, and store IDs for the authenticated credential organization, and is capped at two rows so ambiguous references fail closed.
+- Replaced direct Returns/Shipping imports of Operations helpers and Identity/Merchant/Orders schemas with common or module-owned contracts. Added/updated focused tests for the query predicate, credential/provider mismatch, empty tenant store set, ambiguous shipment references, pre-auth routing, Identity lookup, Merchant store scope, and worker outbox ownership.
+- **Verification:** tests were added/updated but were not executed. No formatter, lint, typecheck, E6 or broad CI run has been executed for this commit. GitHub Actions reports zero runs for this exact SHA because the commit uses `[skip ci]`. Vercel Web and Admin status contexts are SUCCESS, but these are preview statuses, not application-test evidence.
+- G-015 remains PARTIAL until the exact-head boundary check verifies that the residual unbaselined imports are gone. The 193-entry legacy baseline was not changed. G-001 independent review, G-002 runtime identity/transaction-context/policy gates, G-036 verification, and Phase 6 remain open.
+- No shared database, Supabase grants/RLS, migration, Render configuration, staging, external carrier, SMS/OTP, deployment, or worker activation action occurred.
+
+**Next:** run formatting and focused API typecheck/unit suites plus E6 boundary lint for this commit, then continue the remaining implementation-first gaps. Keep the full regression/migration campaign grouped at the planned Phase 3 checkpoint; do not merge or deploy PR #138.

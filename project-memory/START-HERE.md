@@ -2,7 +2,7 @@
 
 > **Mandatory entry point for every new ChatGPT conversation about this repository.**
 >
-> Last reconciled: 23 November 2026  
+> Last reconciled: 24 November 2026  
 > Repository: [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 > Current work branch: `remediation/phase-0-1-tenant-security`
 
@@ -28,7 +28,7 @@ Then read the relevant authoritative technical documents linked below. Do not du
 - [Audit-driven remediation implementation plan](../docs/remediation/IMPLEMENTATION-PLAN.md) — authoritative phases, findings, acceptance criteria and release gates.
 - [Audit-driven implementation progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md) — authoritative finding register, current progress and evidence log.
 - [G-002 RLS architecture design](../docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md) — read-only target database role model, transaction-bound tenant context, ownership classification and rollout gates.
-- [G-002 database operation map](../docs/remediation/G-002-DATABASE-OPERATION-MAP-2026-11-22.md) — preliminary operation map covering 33 service files plus supporting outbox/worker/monitor/lease paths; raw SQL and actor handoffs are explicitly distinguished.
+- [G-002 database operation map](../docs/remediation/G-002-DATABASE-OPERATION-MAP-2026-11-22.md) — source map covering 53 service/worker/provider candidates and 28 module controllers; raw SQL, actor handoffs and unverified runtime identities are distinguished.
 - [G-002 table ownership and predicate candidates](../docs/remediation/G-002-TABLE-OWNERSHIP-AND-PREDICATE-CANDIDATES-2026-11-22.md) — schema-backed candidate ownership paths for identity, store, catalog, order, financial, user-private and system rows; not an approved policy.
 - [G-002 migration foreign-key crosswalk](../docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md) — migration-defined FKs, deferred relationships, non-FK org_id metadata, system-table scope and migration 0070/0071 boundaries.
 - [G-002 supplemental audit note](../docs/remediation/G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md) — preserves the user-uploaded 111-table/function/role/worker/OTP observations and explicitly reconciles them as unverified supplemental evidence against the 114/116-table history.
@@ -76,33 +76,32 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest verified branch head is `d81f16cb2bab97c9896ead6ce7edb9bb8e92e63b`; FIN-047 source is `ee6bf2f84803f2eb1f80ae931d9415923a760ff3`. The cross-module settlement consumer audit is complete. Consolidated CI #45245048568 ran on this exact head: lint and workspace typecheck passed; Flutter analyze and tests passed; changed-file Prettier check failed on 279 files, causing API unit/coverage, PostgreSQL integration, Web/Admin, migration, build, boundary and contract jobs to be skipped. Vercel Web passed; Vercel Admin failed due provider build-rate-limit. The next task is to resolve the formatting gate without disabling required checks, then rerun the consolidated campaign. Keep PR #138 draft/unmerged and preserve all staging, database, RLS/ACL, deployment and worker restrictions.
+Live GitHub reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-platform`, work branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Current branch head is `93844d781ff50cd3ba325c0d9e3ffe209bc128cc`; `develop` is `f74eb588cc58fc99b105e749d39dbfbacb4f9775`. The latest source commit is a grouped Returns/Shipping module-boundary refactor. Exact-head GitHub Actions lookup returns zero workflow runs because the commit includes `[skip ci]`; Vercel Web and Admin preview statuses are SUCCESS, but are not application-test results.
 
 ### Exact stopping point
 
-- FIN-001–FIN-031 are already implemented in source; do not repeat them. Their PostgreSQL/unit regressions are added but remain unexecuted pending the consolidated Phase 3 campaign.
-- FIN-025 durable payment-proof upload intents and cleanup recovery are implemented. Migration 0075 is source-only; cleanup is callable but not scheduled or activated.
-- FIN-026 payment and return actor attribution is implemented, including privileged ADMIN overrides. FIN-DSH-54/55 are added but not executed.
-- FIN-027 aligns return-side refund accounting with PaymentsService: APPROVED refunds reserve refundable balance, and PostgreSQL SUM(bigint) is handled using exact numeric text/BigInt with a safe-integer guard. FIN-DSH-56 covers approved-refund reservation and totals above the 32-bit integer boundary. Test is added, not executed.
-- FIN-028 corrects admin-only settlement calculation history from SYSTEM to ADMIN actor attribution. FIN-DSH-57 verifies persisted actor ID/class. Test is added, not executed.
-- FIN-029 corrects payment-confirmation order history to retain the authenticated ADMIN/MERCHANT actor class, matching payment history. FIN-DSH-54 now verifies both rows. Test remains unexecuted.
-- FIN-030 makes refund reconciliation use the REFUNDED event timestamp instead of the original return creation timestamp. FIN-DSH-58 covers cross-period returns. Test remains unexecuted.
-- FIN-031 makes duplicate-refund detection include all successful refunds for a return when at least one completed in the target period. FIN-DSH-59 covers cross-period duplicates. Test remains unexecuted.
-- CI #1446 exposed two syntax defects in `returns.service.ts` and `settlement-adjustment.service.ts`. They were corrected in `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`, followed by a brace-balance/indentation correction in `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`; none has been rerun through CI.
+- FIN-047 settlement-history pagination and its source audit remain implemented / TESTING_PENDING; do not repeat the work.
+- The prior G-015 source batch at `0a023175ea5cfd7bd24c4fb36ee8c0b32f531adb` already moved Pricing, Operations, Reviews and Realtime imports behind module contracts. This continuation handles the residual Returns/Shipping boundary findings: common P13 lease/raw-result helpers, Identity's PLATFORM organization lookup, Merchant's system store ownership contract, and Orders' credential-scoped shipment lookup contract.
+- Shipping webhook routing now runs through an injectable service only after the credential is authenticated. The shipment search is scoped to store IDs owned by that credential organization and returns at most two candidates to preserve fail-closed ambiguity handling.
+- Focused API tests were added/updated for the new service/query contracts, provider mismatch, empty store scope, ambiguous match, pre-auth routing and worker outbox tenant checks. They have **not** been executed.
+- The code commit is `93844d781ff50cd3ba325c0d9e3ffe209bc128cc`; the following documentation commit synchronizes this handoff. No exact-head formatter, lint, typecheck, E6 or test campaign has yet validated this code.
 
-### Latest CI and verification
+### Live PR and CI
 
-CI [#1446](https://github.com/nabeel2323/scs-platform/actions/runs/45189283326) tested prior SHA `8e32957d3435196222fbb9841e6063229b68b648` and failed in Lint & Typecheck on the two TypeScript parse errors above. Flutter analysis/tests passed. Integration, API unit/coverage, migration, Web/Admin, boundary lint, build/container, contract/codegen, k6 and staging-release jobs were skipped because lint failed. The syntax corrections and FIN-027 source/test commits use `[skip ci]`; exact-head workflow lookup for `5b636df49155ea523bc730852ed900720a858a88` returned no run. No tests are claimed as executed. Vercel Web/Admin failure contexts are external build-rate-limit failures, not application test results.
+- PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) is OPEN / DRAFT / UNMERGED to `develop`; do not merge.
+- Current exact-head GitHub Actions count is **0** due to `[skip ci]`. Vercel Web and Admin contexts are SUCCESS, but do not substitute for the skipped API, integration or boundary checks.
+- The latest broad historical Actions failure remains CI #45257284797 on the pre-refactor source checkpoint. It reported 14 new E6 boundary violations, migration-audit inability to SELECT `_migration_log` as `scs_audit`, API coverage failures, PostgreSQL integration assertions and Web failures. Those results predate the 23/24 November boundary changes and must not be reported as current-head failures or as passes.
+- G-015 remains PARTIAL until E6 is run on the current source. Do not modify its 193-entry reviewed legacy baseline or weaken the gate.
 
 ### Remaining project gates
 
-- G-001 remains PARTIAL pending independent security review and reviewer-directed remediation, if any.
-- G-002 remains IN PROGRESS pending actual API/migration runtime identities, protected read-only staging catalog evidence, reconciliation of 111/114/116 table counts and reviewed least-privilege/transaction-bound RLS design.
+- G-001 remains PARTIAL pending independent security review.
+- G-002 remains IN PROGRESS: actual API/migration identities, protected read-only catalog evidence, transaction-bound tenant context, table-specific ownership/predicate design, cross-parent integrity and the 111/114/116 relation-count discrepancy remain unresolved.
 - G-036 remains IN PROGRESS pending exact-head verification and independent review.
 - Phases 0–5 remain IN PROGRESS; Phase 6 consolidated verification is NOT STARTED.
-- PR #138 must remain draft/open/unmerged. Do not merge, deploy, bypass protected staging approval, mutate shared databases, execute migration 0070/0071/0075, change grants/default ACLs, enable RLS, change environments or activate workers.
+- Keep PR #138 draft/open/unmerged. Do not deploy, use protected staging writes, mutate shared databases, apply migrations 0070/0071/0075, change grants/default ACLs, enable RLS, change Render configuration, invoke external carriers/SMS/OTP, or activate workers.
 
-**Next implementation:** continue source-first audit of payment/refund/settlement event history, retry semantics and cross-ledger consistency beyond FIN-031. Do not repeat completed FIN-001–FIN-031 work. Keep formatting and the comprehensive test/migration campaign grouped at the implementation-complete Phase 3 checkpoint; fix any concrete security or correctness defect immediately.
+**Next task:** format the changed files, run focused API typecheck/unit suites and E6 boundary lint for the current source, then continue the next implementation-first gap. Defer the comprehensive test/migration campaign to the planned implementation-complete Phase 3 checkpoint. Fix any concrete correctness/security defect immediately.
 
 ## Safety reminder
 
