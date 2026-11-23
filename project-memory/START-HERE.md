@@ -80,7 +80,7 @@ Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/s
 
 ### Exact stopping point
 
-- FIN-001–FIN-026 are already implemented in source; do not repeat them. Their PostgreSQL/unit regressions are added but remain unexecuted pending the consolidated Phase 3 campaign.
+- FIN-001–FIN-028 are already implemented in source; do not repeat them. Their PostgreSQL/unit regressions are added but remain unexecuted pending the consolidated Phase 3 campaign.
 - FIN-025 durable payment-proof upload intents and cleanup recovery are implemented. Migration 0075 is source-only; cleanup is callable but not scheduled or activated.
 - FIN-026 payment and return actor attribution is implemented, including privileged ADMIN overrides. FIN-DSH-54/55 are added but not executed.
 - FIN-027 aligns return-side refund accounting with PaymentsService: APPROVED refunds reserve refundable balance, and PostgreSQL SUM(bigint) is handled using exact numeric text/BigInt with a safe-integer guard. FIN-DSH-56 covers approved-refund reservation and totals above the 32-bit integer boundary. Test is added, not executed.
