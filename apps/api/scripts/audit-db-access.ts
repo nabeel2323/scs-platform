@@ -322,10 +322,24 @@ async function main(): Promise<void> {
     `);
 
     const specialObjectSummaries: Record<string, unknown> = {};
-    const migrationLedgerExists = await client.query<QueryResultRow>(`
-      SELECT to_regclass('public._migration_log') IS NOT NULL AS relation_exists
+    const migrationLedgerAccess = await client.query<QueryResultRow>(`
+      SELECT to_regclass('public._migration_log') IS NOT NULL AS relation_exists,
+             COALESCE(
+               has_table_privilege(
+                 current_user,
+                 to_regclass('public._migration_log'),
+                 'SELECT'
+               ),
+               false
+             ) AS can_select
     `);
-    if (migrationLedgerExists.rows[0]?.['relation_exists']) {
+    const migrationLedgerExists = Boolean(
+      migrationLedgerAccess.rows[0]?.['relation_exists'],
+    );
+    const migrationLedgerCanSelect = Boolean(
+      migrationLedgerAccess.rows[0]?.['can_select'],
+    );
+    if (migrationLedgerExists && migrationLedgerCanSelect) {
       const ledger = await client.query<QueryResultRow>(`
         SELECT count(*)::int AS row_count,
                max(name) AS latest_migration_name,
@@ -334,16 +348,40 @@ async function main(): Promise<void> {
       `);
       specialObjectSummaries['migrationLedger'] = {
         exists: true,
+        canSelect: true,
         ...ledger.rows[0],
       };
     } else {
-      specialObjectSummaries['migrationLedger'] = { exists: false };
+      // The audit deliberately runs under a role without application-table
+      // grants. Report the catalog-visible object and effective privilege,
+      // but never attempt to read its rows without SELECT.
+      specialObjectSummaries['migrationLedger'] = {
+        exists: migrationLedgerExists,
+        canSelect: migrationLedgerCanSelect,
+        row_count: null,
+        latest_migration_name: null,
+        latest_applied_at: null,
+      };
     }
 
-    const backfillErrorsExists = await client.query<QueryResultRow>(`
-      SELECT to_regclass('public.backfill_errors') IS NOT NULL AS relation_exists
+    const backfillErrorsAccess = await client.query<QueryResultRow>(`
+      SELECT to_regclass('public.backfill_errors') IS NOT NULL AS relation_exists,
+             COALESCE(
+               has_table_privilege(
+                 current_user,
+                 to_regclass('public.backfill_errors'),
+                 'SELECT'
+               ),
+               false
+             ) AS can_select
     `);
-    if (backfillErrorsExists.rows[0]?.['relation_exists']) {
+    const backfillErrorsExists = Boolean(
+      backfillErrorsAccess.rows[0]?.['relation_exists'],
+    );
+    const backfillErrorsCanSelect = Boolean(
+      backfillErrorsAccess.rows[0]?.['can_select'],
+    );
+    if (backfillErrorsExists && backfillErrorsCanSelect) {
       const backfillErrors = await client.query<QueryResultRow>(`
         SELECT count(*)::int AS row_count,
                count(DISTINCT migration)::int AS migration_count,
@@ -354,10 +392,19 @@ async function main(): Promise<void> {
       `);
       specialObjectSummaries['backfillErrors'] = {
         exists: true,
+        canSelect: true,
         ...backfillErrors.rows[0],
       };
     } else {
-      specialObjectSummaries['backfillErrors'] = { exists: false };
+      specialObjectSummaries['backfillErrors'] = {
+        exists: backfillErrorsExists,
+        canSelect: backfillErrorsCanSelect,
+        row_count: null,
+        migration_count: null,
+        latest_created_at: null,
+        entity_types: null,
+        error_types: null,
+      };
     }
 
     const defaultAcls = await client.query<QueryResultRow>(`
