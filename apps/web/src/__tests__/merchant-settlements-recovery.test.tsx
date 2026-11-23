@@ -65,19 +65,19 @@ const adjustment = {
 describe('merchant settlements projection and recovery', () => {
   beforeEach(() => {
     api.fetchMyStores.mockReset().mockResolvedValue(stores);
-    api.fetchMerchantSettlements.mockReset().mockResolvedValue([]);
+    api.fetchMerchantSettlements.mockReset().mockResolvedValue({ data: [], total: 0, limit: 25, offset: 0 });
   });
 
   afterEach(() => cleanup());
 
   it('loads the active store settlement list and displays adjustment payout details', async () => {
-    api.fetchMerchantSettlements.mockResolvedValueOnce([adjustment]);
+    api.fetchMerchantSettlements.mockResolvedValueOnce({ data: [adjustment], total: 1, limit: 25, offset: 0 });
     render(<MerchantSettlementsPage />);
 
     expect(await screen.findByText('suborder…')).toBeTruthy();
     expect(screen.getByText('ADJUSTMENT · PAID')).toBeTruthy();
     expect(screen.getByText('ADJ-REF-1')).toBeTruthy();
-    expect(api.fetchMerchantSettlements).toHaveBeenCalledWith('store-1', undefined);
+    expect(api.fetchMerchantSettlements).toHaveBeenCalledWith('store-1', undefined, { limit: 25, offset: 0 });
   });
 
   it('loads the selected store and status filter', async () => {
@@ -86,13 +86,32 @@ describe('merchant settlements projection and recovery', () => {
     fireEvent.change(await screen.findByLabelText('Select store'), { target: { value: 'store-2' } });
     fireEvent.change(screen.getByLabelText('Filter by status'), { target: { value: 'ADJUSTMENT' } });
 
-    expect(api.fetchMerchantSettlements).toHaveBeenCalledWith('store-2', 'ADJUSTMENT');
+    expect(api.fetchMerchantSettlements).toHaveBeenCalledWith('store-2', 'ADJUSTMENT', { limit: 25, offset: 0 });
+  });
+
+  it('loads the next page when more than 25 settlements exist', async () => {
+    api.fetchMerchantSettlements
+      .mockResolvedValueOnce({ data: [adjustment], total: 26, limit: 25, offset: 0 })
+      .mockResolvedValueOnce({ data: [{ ...adjustment, id: 'settlement-26', subOrderId: 'page-two-123456' }], total: 26, limit: 25, offset: 25 });
+
+    render(<MerchantSettlementsPage />);
+
+    expect(await screen.findByText('Showing 1–25 of 26 settlements')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(api.fetchMerchantSettlements).toHaveBeenLastCalledWith(
+      'store-1',
+      undefined,
+      { limit: 25, offset: 25 },
+    );
+    expect(await screen.findByText('page-two…')).toBeTruthy();
+    expect(await screen.findByText('Page 2 of 2')).toBeTruthy();
   });
 
   it('shows a retry action instead of a false empty state after a failed read', async () => {
     api.fetchMerchantSettlements
       .mockRejectedValueOnce(new Error('Settlements unavailable'))
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce({ data: [], total: 0, limit: 25, offset: 0 });
 
     render(<MerchantSettlementsPage />);
 

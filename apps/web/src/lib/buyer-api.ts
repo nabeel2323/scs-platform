@@ -2644,14 +2644,24 @@ export interface MerchantSettlement {
   createdAt: string;
 }
 
+export interface MerchantSettlementPage {
+  data: MerchantSettlement[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export async function fetchMerchantSettlements(
   storeId: string,
   status?: string,
-): Promise<MerchantSettlement[]> {
+  pagination?: { limit?: number; offset?: number },
+): Promise<MerchantSettlementPage> {
   const params = new URLSearchParams({ storeId });
   if (status) params.set('status', status);
-  const res = await authFetch(`${API_URL}/v1/merchant/settlements?${params}`);
-  if (!res.ok) throw await ApiError.from(res, `Fetch merchant settlements failed (${res.status})`);
+  if (pagination?.limit !== undefined) params.set('limit', String(pagination.limit));
+  if (pagination?.offset !== undefined) params.set('offset', String(pagination.offset));
+  const res = await authFetch(API_URL + '/v1/merchant/settlements?' + params);
+  if (!res.ok) throw await ApiError.from(res, 'Fetch merchant settlements failed (' + res.status + ')');
   return res.json();
 }
 

@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { PaymentsController } from '../../../modules/payments/payments.controller';
 
@@ -36,11 +37,22 @@ describe('PaymentsController merchant listing tenant context (G-030)', () => {
     };
     const controller = new PaymentsController(payments as any, {} as any);
 
-    await controller.merchantSettlements(user, 'store-a', 'CALCULATED');
+    await controller.merchantSettlements(user, 'store-a', 'CALCULATED', '50', '25');
 
     expect(payments.listMerchantSettlements).toHaveBeenCalledWith(
       { sub: 'merchant-user-a', role: 'MERCHANT', activeOrg: 'org-a' },
-      { storeId: 'store-a', status: 'CALCULATED' },
+      { storeId: 'store-a', status: 'CALCULATED', limit: 50, offset: 25 },
     );
+  });
+
+  it('rejects invalid pagination before querying the merchant settlement service', async () => {
+    const payments = { listMerchantSettlements: vi.fn() };
+    const controller = new PaymentsController(payments as any, {} as any);
+
+    await expect(
+      controller.merchantSettlements(user, 'store-a', 'CALCULATED', '101', '0'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(payments.listMerchantSettlements).not.toHaveBeenCalled();
   });
 });

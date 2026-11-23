@@ -35,6 +35,7 @@ import {
 } from '../../common/guards/current-user.decorator';
 import { CallerContext, assertOrderAccessible } from '../../common/tenant-scope';
 import { DatabaseService } from '../../common/database/database.service';
+import { parseSettlementPagination } from './settlement-pagination';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -205,8 +206,17 @@ export class PaymentsController {
   @Get('admin/settlements')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:settlements:read')
-  async listSettlements(@Query('storeId') storeId?: string, @Query('status') status?: string) {
-    return this.payments.listSettlements({ storeId, status });
+  async listSettlements(
+    @Query('storeId') storeId?: string,
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.payments.listSettlements({
+      storeId,
+      status,
+      ...parseSettlementPagination(limit, offset),
+    });
   }
 
   // ── Merchant Endpoints ────────────────────────────────────────
@@ -232,8 +242,14 @@ export class PaymentsController {
     @CurrentUser() user: JwtPayload,
     @Query('storeId') storeId?: string,
     @Query('status') status?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    return this.payments.listMerchantSettlements(caller, { storeId, status });
+    return this.payments.listMerchantSettlements(caller, {
+      storeId,
+      status,
+      ...parseSettlementPagination(limit, offset),
+    });
   }
 }

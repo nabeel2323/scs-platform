@@ -50,6 +50,7 @@ import {
   SUPPORTED_PAYMENT_METHODS,
   DEFAULT_PAYMENT_EXPIRY_HOURS,
 } from './payments.types';
+import { normalizeSettlementPagination } from './settlement-pagination';
 
 // ── Allowed upload MIME types for payment proofs ────────────────
 const ALLOWED_PROOF_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
@@ -86,6 +87,19 @@ export function toSafeMinorUnitTotal(value: string | number | bigint | null | un
   }
   if (total < 0n || total > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new ConflictException(`${fieldName} aggregate exceeds the supported safe integer range`);
+  }
+  return Number(total);
+}
+
+function toSafeSettlementCount(value: string | number | bigint | null | undefined): number {
+  let total: bigint;
+  try {
+    total = BigInt(value ?? 0);
+  } catch {
+    throw new ConflictException('Settlement count is not a valid integer');
+  }
+  if (total < 0n || total > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new ConflictException('Settlement count exceeds the supported safe integer range');
   }
   return Number(total);
 }
@@ -1973,7 +1987,7 @@ export class PaymentsService {
    */
   async listMerchantSettlements(
     caller: CallerContext,
-    filters?: { storeId?: string; status?: string },
+    filters?: { storeId?: string; status?: string; limit?: number; offset?: number },
   ) {
     if (isTenantPrivileged(caller)) {
       return this.listSettlements(filters);
@@ -1987,19 +2001,33 @@ export class PaymentsService {
       await assertStoreInOrg(this.db, caller, filters.storeId);
     }
 
+    const pagination = normalizeSettlementPagination(filters);
     const conditions = [eq(stores.orgId, caller.activeOrg)];
     if (filters?.storeId) conditions.push(eq(stores.id, filters.storeId));
     if (filters?.status) conditions.push(eq(settlementRecords.status, filters.status));
+    const where = and(...conditions);
 
-    const rows = await this.db.db
-      .select({ settlement: settlementRecords })
-      .from(settlementRecords)
-      .innerJoin(stores, eq(settlementRecords.merchantStoreId, stores.id))
-      .where(and(...conditions))
-      .orderBy(desc(settlementRecords.createdAt))
-      .limit(100);
+    const [rows, countRows] = await Promise.all([
+      this.db.db
+        .select({ settlement: settlementRecords })
+        .from(settlementRecords)
+        .innerJoin(stores, eq(settlementRecords.merchantStoreId, stores.id))
+        .where(where)
+        .orderBy(desc(settlementRecords.createdAt), desc(settlementRecords.id))
+        .limit(pagination.limit)
+        .offset(pagination.offset),
+      this.db.db
+        .select({ total: sql.raw('count(*)::text') })
+        .from(settlementRecords)
+        .innerJoin(stores, eq(settlementRecords.merchantStoreId, stores.id))
+        .where(where),
+    ]);
 
-    return rows.map((row) => row.settlement);
+    return {
+      data: rows.map((row) => row.settlement),
+      total: toSafeSettlementCount(countRows[0]?.total as string | number | bigint | undefined),
+      ...pagination,
+    };
   }
 
   /**
@@ -2015,7 +2043,10 @@ export class PaymentsService {
   /**
    * List settlements with optional filters.
    */
-  async listSettlements(filters?: { storeId?: string; status?: string }) {
+  async listSettlements(
+    filters?: { storeId?: string; status?: string; limit?: number; offset?: number },
+  ) {
+    const pagination = normalizeSettlementPagination(filters);
     const conditions = [];
     if (filters?.storeId) {
       conditions.push(eq(settlementRecords.merchantStoreId, filters.storeId));
@@ -2023,11 +2054,26 @@ export class PaymentsService {
     if (filters?.status) {
       conditions.push(eq(settlementRecords.status, filters.status));
     }
-    return this.db.db.query.settlementRecords.findMany({
-      where: conditions.length > 0 ? and(...conditions) : undefined,
-      orderBy: [desc(settlementRecords.createdAt)],
-      limit: 100,
-    });
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [data, countRows] = await Promise.all([
+      this.db.db.query.settlementRecords.findMany({
+        where,
+        orderBy: [desc(settlementRecords.createdAt), desc(settlementRecords.id)],
+        limit: pagination.limit,
+        offset: pagination.offset,
+      }),
+      this.db.db
+        .select({ total: sql.raw('count(*)::text') })
+        .from(settlementRecords)
+        .where(where),
+    ]);
+
+    return {
+      data,
+      total: toSafeSettlementCount(countRows[0]?.total as string | number | bigint | undefined),
+      ...pagination,
+    };
   }
 
   /**

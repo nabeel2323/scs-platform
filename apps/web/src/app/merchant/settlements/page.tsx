@@ -18,6 +18,8 @@ import {
 } from '../../../components/Shared';
 import { PageHeader, colors, radii } from '@scs/ui-kit';
 
+const SETTLEMENT_PAGE_SIZE = 25;
+
 const SETTLEMENT_STATUSES = [
   { value: '', label: 'All statuses' },
   { value: 'PENDING', label: 'Pending' },
@@ -35,6 +37,8 @@ export default function MerchantSettlementsPage() {
   const [storesLoading, setStoresLoading] = useState(true);
   const [storesError, setStoresError] = useState('');
   const [settlements, setSettlements] = useState<MerchantSettlement[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -50,6 +54,8 @@ export default function MerchantSettlementsPage() {
     setStores([]);
     setStoreId('');
     setSettlements([]);
+    setTotal(0);
+    setPage(0);
     setError('');
     fetchMyStores()
       .then((result) => {
@@ -71,6 +77,7 @@ export default function MerchantSettlementsPage() {
     const version = ++requestVersion.current;
     if (!user || !storeId) {
       setSettlements([]);
+      setTotal(0);
       setError('');
       setLoading(false);
       return;
@@ -79,9 +86,15 @@ export default function MerchantSettlementsPage() {
     let cancelled = false;
     setLoading(true);
     setError('');
-    fetchMerchantSettlements(storeId, statusFilter || undefined)
+    fetchMerchantSettlements(storeId, statusFilter || undefined, {
+      limit: SETTLEMENT_PAGE_SIZE,
+      offset: page * SETTLEMENT_PAGE_SIZE,
+    })
       .then((result) => {
-        if (!cancelled && requestVersion.current === version) setSettlements(result);
+        if (!cancelled && requestVersion.current === version) {
+          setSettlements(result.data);
+          setTotal(result.total);
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled && requestVersion.current === version) {
@@ -95,7 +108,7 @@ export default function MerchantSettlementsPage() {
       cancelled = true;
       requestVersion.current += 1;
     };
-  }, [user, activeOrgId, storeId, statusFilter, reloadSettlements]);
+  }, [user, activeOrgId, storeId, statusFilter, reloadSettlements, page]);
 
   if (authLoading || storesLoading) return <LoadingSpinner />;
 
@@ -121,7 +134,10 @@ export default function MerchantSettlementsPage() {
               <select
                 aria-label="Select store"
                 value={storeId}
-                onChange={(event) => setStoreId(event.target.value)}
+                onChange={(event) => {
+                  setStoreId(event.target.value);
+                  setPage(0);
+                }}
                 style={{
                   padding: '8px 12px', borderRadius: radii.md,
                   border: `1px solid ${colors.border}`, fontSize: 14, minWidth: 220,
@@ -137,7 +153,10 @@ export default function MerchantSettlementsPage() {
               <select
                 aria-label="Filter by status"
                 value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value);
+                  setPage(0);
+                }}
                 style={{
                   padding: '8px 12px', borderRadius: radii.md,
                   border: `1px solid ${colors.border}`, fontSize: 14,
@@ -227,10 +246,36 @@ export default function MerchantSettlementsPage() {
                   ))}
                 </tbody>
               </table>
-              <div style={{ padding: '8px 12px', color: colors.muted, fontSize: 11 }}>
-                Showing the latest {settlements.length} records returned by the settlement service.
-              </div>
             </div>
+          )}
+          {!loading && !error && total > 0 && (total > SETTLEMENT_PAGE_SIZE || page > 0) && (
+            <nav
+              aria-label="Settlement pages"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 12, fontSize: 12, color: colors.muted }}
+            >
+              <span>
+                Showing {page * SETTLEMENT_PAGE_SIZE + 1}–{Math.min((page + 1) * SETTLEMENT_PAGE_SIZE, total)} of {total} settlements
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  disabled={page === 0}
+                  onClick={() => setPage((current) => Math.max(0, current - 1))}
+                  style={{ padding: '7px 12px', borderRadius: radii.md, border: '1px solid ' + colors.border, background: '#fff', color: '#334155', cursor: page === 0 ? 'not-allowed' : 'pointer', fontSize: 12 }}
+                >
+                  Previous
+                </button>
+                <span>Page {page + 1} of {Math.max(1, Math.ceil(total / SETTLEMENT_PAGE_SIZE))}</span>
+                <button
+                  type="button"
+                  disabled={(page + 1) * SETTLEMENT_PAGE_SIZE >= total}
+                  onClick={() => setPage((current) => current + 1)}
+                  style={{ padding: '7px 12px', borderRadius: radii.md, border: '1px solid ' + colors.border, background: '#fff', color: '#334155', cursor: (page + 1) * SETTLEMENT_PAGE_SIZE >= total ? 'not-allowed' : 'pointer', fontSize: 12 }}
+                >
+                  Next
+                </button>
+              </div>
+            </nav>
           )}
         </>
       )}

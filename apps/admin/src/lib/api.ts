@@ -2017,10 +2017,14 @@ export async function markSettlementPaid(
 export async function fetchAdminSettlements(params?: {
   storeId?: string;
   status?: string;
-}): Promise<AdminSettlement[]> {
+  limit?: number;
+  offset?: number;
+}): Promise<PaginatedResult<AdminSettlement>> {
   const sp = new URLSearchParams();
   if (params?.storeId) sp.set('storeId', params.storeId);
   if (params?.status) sp.set('status', params.status);
+  if (params?.limit !== undefined) sp.set('limit', String(params.limit));
+  if (params?.offset !== undefined) sp.set('offset', String(params.offset));
   const qs = sp.toString();
-  return adminRequest(`admin/settlements${qs ? `?${qs}` : ''}`);
+  return adminRequest('admin/settlements' + (qs ? '?' + qs : ''));
 }

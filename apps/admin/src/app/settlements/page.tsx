@@ -37,18 +37,23 @@ function fmt(minor: number, currency: string) {
   return `${(minor / 100).toLocaleString()} ${currency}`;
 }
 
+const SETTLEMENT_PAGE_SIZE = 25;
+
 export default function AdminSettlementsPage() {
   const { hasAccess, missingPerms } = useRequirePerms(['admin:settlements:read']);
   const { hasAccess: canWrite } = useRequirePerms(['admin:settlements:write']);
   const [settlements, setSettlements] = useState<AdminSettlement[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [actionError, setActionError] = useState('');
   const requestVersion = useRef(0);
   const [acting, setActing] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('');
-  const [loadedFilter, setLoadedFilter] = useState<string | null>(null);
-  const hasCurrentResults = loadedFilter === filter;
+  const queryKey = filter + ':' + page;
+  const [loadedQueryKey, setLoadedQueryKey] = useState<string | null>(null);
+  const hasCurrentResults = loadedQueryKey === queryKey;
 
   const load = useCallback(async () => {
     if (!hasAccess) return;
@@ -57,10 +62,15 @@ export default function AdminSettlementsPage() {
     setLoadError('');
     setActionError('');
     try {
-      const data = await fetchAdminSettlements(filter ? { status: filter } : undefined);
+      const data = await fetchAdminSettlements({
+        ...(filter ? { status: filter } : {}),
+        limit: SETTLEMENT_PAGE_SIZE,
+        offset: page * SETTLEMENT_PAGE_SIZE,
+      });
       if (requestId === requestVersion.current) {
-        setSettlements(data);
-        setLoadedFilter(filter);
+        setSettlements(data.data);
+        setTotal(data.total);
+        setLoadedQueryKey(queryKey);
       }
     } catch (err: any) {
       if (requestId === requestVersion.current) {
@@ -69,7 +79,7 @@ export default function AdminSettlementsPage() {
     } finally {
       if (requestId === requestVersion.current) setLoading(false);
     }
-  }, [filter, hasAccess]);
+  }, [filter, hasAccess, page, queryKey]);
 
   useEffect(() => {
     if (hasAccess) void load();
@@ -82,7 +92,11 @@ export default function AdminSettlementsPage() {
     setActionError('');
     try {
       await markSettlementPaid(id);
-      await load();
+      if (filter && settlements.length === 1 && page > 0) {
+        setPage((current) => Math.max(0, current - 1));
+      } else {
+        await load();
+      }
     } catch (err: any) {
       setActionError(err.message || 'Failed to mark settlement as paid');
     } finally {
@@ -102,7 +116,10 @@ export default function AdminSettlementsPage() {
         <label style={{ ...typeScale.label, fontSize: 12 }}>Status:</label>
         <select
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onChange={(e) => {
+            setFilter(e.target.value);
+            setPage(0);
+          }}
           style={{
             padding: '6px 10px',
             borderRadius: radii.sm,
@@ -199,6 +216,25 @@ export default function AdminSettlementsPage() {
             </tbody>
           </table>
         </Card>
+      )}
+      {hasCurrentResults && total > 0 && (total > SETTLEMENT_PAGE_SIZE || page > 0) && (
+        <nav
+          aria-label="Settlement pages"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 12, fontSize: 12, color: colors.muted }}
+        >
+          <span>
+            Showing {page * SETTLEMENT_PAGE_SIZE + 1}–{Math.min((page + 1) * SETTLEMENT_PAGE_SIZE, total)} of {total} settlements
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Button size="sm" variant="secondary" disabled={loading || page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))}>
+              Previous
+            </Button>
+            <span>Page {page + 1} of {Math.max(1, Math.ceil(total / SETTLEMENT_PAGE_SIZE))}</span>
+            <Button size="sm" variant="secondary" disabled={loading || (page + 1) * SETTLEMENT_PAGE_SIZE >= total} onClick={() => setPage((current) => current + 1)}>
+              Next
+            </Button>
+          </div>
+        </nav>
       )}
     </div>
   );

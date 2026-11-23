@@ -18,7 +18,7 @@ vi.mock('../hooks/useRequirePerms', () => ({
 vi.mock('@scs/ui-kit', () => ({
   PageHeader: ({ title }: { title: string }) => <header><h1>{title}</h1></header>,
   Card: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => <button onClick={onClick}>{children}</button>,
+  Button: ({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) => <button onClick={onClick} disabled={disabled}>{children}</button>,
   colors: { border: '#ddd', borderLight: '#eee', muted: '#888' },
   typeScale: { label: {} },
   radii: { sm: 4 },
@@ -44,14 +44,14 @@ const settlement = {
 describe('admin settlements read recovery', () => {
   beforeEach(() => {
     hasAccess.mockReset().mockReturnValue(true);
-    fetchAdminSettlements.mockReset().mockResolvedValue([]);
+    fetchAdminSettlements.mockReset().mockResolvedValue({ data: [], total: 0, limit: 25, offset: 0 });
     markSettlementPaid.mockReset().mockResolvedValue(settlement);
   });
 
   afterEach(() => cleanup());
 
   it('retries an initial failure without presenting a false empty state', async () => {
-    fetchAdminSettlements.mockRejectedValueOnce(new Error('Settlement service unavailable')).mockResolvedValueOnce([]);
+    fetchAdminSettlements.mockRejectedValueOnce(new Error('Settlement service unavailable')).mockResolvedValueOnce({ data: [], total: 0, limit: 25, offset: 0 });
 
     render(<AdminSettlementsPage />);
 
@@ -70,7 +70,7 @@ describe('admin settlements read recovery', () => {
       grossMinor: 0,
       netMinor: 125,
     };
-    fetchAdminSettlements.mockResolvedValueOnce([adjustment]).mockResolvedValueOnce([]);
+    fetchAdminSettlements.mockResolvedValueOnce({ data: [adjustment], total: 1, limit: 25, offset: 0 }).mockResolvedValueOnce({ data: [], total: 0, limit: 25, offset: 0 });
     markSettlementPaid.mockResolvedValueOnce({ ...adjustment, status: 'PAID' });
 
     render(<AdminSettlementsPage />);
@@ -92,7 +92,7 @@ describe('admin settlements read recovery', () => {
       grossMinor: 0,
       netMinor: 125,
     };
-    fetchAdminSettlements.mockResolvedValueOnce([paidAdjustment]);
+    fetchAdminSettlements.mockResolvedValueOnce({ data: [paidAdjustment], total: 1, limit: 25, offset: 0 });
 
     render(<AdminSettlementsPage />);
 
@@ -100,8 +100,24 @@ describe('admin settlements read recovery', () => {
     expect(screen.queryByRole('button', { name: 'Mark Paid' })).toBeNull();
   });
 
+  it('pages through settlement history beyond the first page', async () => {
+    const laterSettlement = { ...settlement, id: 'settlement-26', subOrderId: 'page-two-123456' };
+    fetchAdminSettlements
+      .mockResolvedValueOnce({ data: [settlement], total: 26, limit: 25, offset: 0 })
+      .mockResolvedValueOnce({ data: [laterSettlement], total: 26, limit: 25, offset: 25 });
+
+    render(<AdminSettlementsPage />);
+
+    expect(await screen.findByText('Showing 1–25 of 26 settlements')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(await screen.findByText('page-two')).toBeTruthy();
+    expect(fetchAdminSettlements).toHaveBeenLastCalledWith({ limit: 25, offset: 25 });
+    expect(await screen.findByText('Page 2 of 2')).toBeTruthy();
+  });
+
   it('preserves the last successful rows after a failed same-filter refresh', async () => {
-    fetchAdminSettlements.mockResolvedValueOnce([settlement]).mockRejectedValueOnce(new Error('Settlement refresh failed'));
+    fetchAdminSettlements.mockResolvedValueOnce({ data: [settlement], total: 1, limit: 25, offset: 0 }).mockRejectedValueOnce(new Error('Settlement refresh failed'));
 
     render(<AdminSettlementsPage />);
 
