@@ -460,7 +460,8 @@ Completed the Admin attribute directory recovery slice. Attribute Groups and Att
 
 - UX-094 Mobile merchant category permission/contract alignment is implemented; merchant-owned category CRUD remains blocked until the backend ownership contract is decided.
 - UX-095 Web merchant route/action permission alignment is implemented: direct route guards, permission-filtered navigation/dashboard, operation-specific action controls, and workspace remount/stale-response protection on active organization or permission changes.
+- UX-096 Mobile route/action permission and organization-context transition alignment is implemented: offer read/create separation, operation-specific driver assignment permission, read-only offer controls, and merchant-shell remount on organization/permission changes.
 - G-036 server-side realtime room authorization is implemented in source with focused API gateway tests added. Store/order rooms now require tenant ownership, buyer ownership, driver assignment or platform-staff read permission as appropriate.
-- These focused tests have not been executed; exact-head CI and independent review remain pending.
+- Focused tests have been added but not executed; exact-head CI and independent review remain pending.
 
-**Next implementation task:** complete the Mobile route-permission and organization-context transition audit, then finish remaining Admin route/action permission mapping. Keep the comprehensive test campaign in Phase 3.
+**Next implementation task:** finish the remaining Admin route/action permission mapping. Keep the comprehensive test campaign in Phase 3.
