@@ -1361,3 +1361,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Commits: `a5fa4806e310159b6f2708d366764ffe4fa3892f`, `442b03a77e4645fba01b8f33d3d2351265365b9d`, `71c8acb5a890a8b7350915cc4eca80dd6104874c`.
 - No migration/shared DB write, worker activation, deployment, gateway/provider or payout change.
 - Next FIN-024: payment proof upload storage/DB rollback and retry-safe cleanup audit.
+
+
+## 2026-11-23 — FIN-024 payment proof upload lifecycle
+
+- Exposed the existing file-buffer proof path through the payment proof endpoint using multipart `file`, 10 MB limit and JPEG/PNG/WebP/PDF MIME allowlist; retained receipt URL/reference JSON compatibility.
+- Sanitized file extensions and generated unique per-payment object keys. Missing storage configuration now fails closed.
+- Added compensation after DB transaction failure: re-read the payment row and delete the new object only if it is not referenced. If DB verification fails, preserve the object rather than risk deleting a committed proof. Previous managed proof deletion occurs only after replacement commit; external URLs are not deleted. No-new-file updates retain the existing proof.
+- Added PostgreSQL FIN-DSH-46/47 for failed DB/outbox persistence and successful proof replacement. Tests added, not executed.
+- Commits: `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7d7b8487771e8ec`.
+- Residual crash window after upload and before DB transaction can leave orphan objects; no durable upload-intent/sweeper exists. Next FIN-025 addresses crash-safe cleanup. No migration/shared DB write/worker activation/deployment.

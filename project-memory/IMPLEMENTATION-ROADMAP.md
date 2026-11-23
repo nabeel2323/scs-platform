@@ -578,3 +578,12 @@ FIN-023 closes two transaction-boundary defects. BANK_TRANSFER checkout now pers
 Commits: `a5fa4806e310159b6f2708d366764ffe4fa3892f`, `442b03a77e4645fba01b8f33d3d2351265365b9d`, `71c8acb5a890a8b7350915cc4eca80dd6104874c`. Status: IMPLEMENTED / TESTING_PENDING.
 
 **Next:** FIN-024 — audit payment proof upload storage/DB transaction boundaries, orphan cleanup and retry/replacement safety.
+
+
+## Financial correctness continuation — FIN-024 — 23 November 2026
+
+Payment proof upload is now exposed as multipart through the API (10 MB/MIME allowlist), uses unique per-payment object keys and validates storage configuration. DB failure compensation verifies the payment row before deleting the new object; old managed proof is retired only after replacement commit; external URLs are never deleted. FIN-DSH-46/47 added but not executed. Residual: a process crash between upload and DB transaction can leave an orphan; cleanup failures intentionally preserve objects. Status: IMPLEMENTED / TESTING_PENDING_WITH_RESIDUAL.
+
+Commits: `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7d7b8487771e8ec`.
+
+**Next:** FIN-025 — durable upload intent/recovery and bounded orphan cleanup with leases, retries and DB-reference checks.

@@ -749,3 +749,14 @@ The changes add transactional producer/history/outbox parity for those paths and
 Implementation commits: `a5fa4806e310159b6f2708d366764ffe4fa3892f`, `442b03a77e4645fba01b8f33d3d2351265365b9d`, `71c8acb5a890a8b7350915cc4eca80dd6104874c`. BANK_TRANSFER state/history/outbox now commit with checkout. Dispute resolution locks the dispute and calls requestRefund using the same transaction client; refund/payment event/outbox and dispute state/history/outbox commit or roll back together. Legacy orphan-refund idempotency recovery remains supported. FIN-DSH-43/44/45 added; tests not executed.
 
 **Next:** FIN-024 — audit payment proof storage upload versus DB transaction failure, orphan cleanup, retry and replacement semantics. Cleanup must never delete a previously committed proof.
+
+
+## FIN-024 — Payment proof upload lifecycle
+
+**Status: IMPLEMENTED / TESTING_PENDING_WITH_RESIDUAL. Priority: P1.** The proof service could upload an object before its DB transaction and leave it orphaned on failure; replacement could also strand the previous proof. The API controller did not expose the existing file-buffer upload path.
+
+Commits: `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7d7b8487771e8ec`. The controller now accepts multipart files with size/MIME limits. On caught DB failure, the service verifies the current DB reference before deleting only the new object. The previous managed object is deleted only after successful replacement commit; external URLs are untouched. FIN-DSH-46/47 added; tests not executed.
+
+**Residual:** process crash after object upload but before DB transaction can leave an orphan; if cleanup verification/deletion fails, the object is intentionally retained. No durable upload-intent or orphan sweeper exists.
+
+**Next:** FIN-025 — design and implement crash-safe upload intent/recovery and bounded orphan cleanup with lease/retry and reference checks; never use broad bucket listing/deletion.

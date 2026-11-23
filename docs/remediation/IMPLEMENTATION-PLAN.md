@@ -1343,6 +1343,15 @@ BANK_TRANSFER checkout now updates the order to PAYMENT_PENDING and the payment 
 
 PostgreSQL FIN-DSH-43/44/45 cover success parity and rollback injection. Tests are added but not executed. Commits: `a5fa4806e310159b6f2708d366764ffe4fa3892f`, `442b03a77e4645fba01b8f33d3d2351265365b9d`, `71c8acb5a890a8b7350915cc4eca80dd6104874c`.
 
-### Next source-audit task — FIN-024
 
-Audit payment proof upload lifecycle: storage upload currently occurs before the payment proof DB transaction. Inspect failure cleanup, idempotent retries, proof replacement and authorization. Implement safe orphan cleanup that never deletes a previously committed proof; add storage-mock and PostgreSQL rollback/retry tests. No shared/staging DB changes or external payment gateway scope.
+## FIN-024 — Payment proof upload lifecycle — 23 November 2026
+
+The payment proof API now accepts multipart file uploads (10 MB, JPEG/PNG/WebP/PDF) while retaining receipt URL/reference compatibility. Storage configuration and file constraints are validated; generated keys are scoped to the payment. If the DB transaction fails, the service checks the persisted payment row and deletes the new object only when it is not referenced. If verification fails, the object is retained. Previous managed proof deletion occurs only after a successful replacement commit; external URLs are never deleted and omitted replacement fields preserve the existing proof.
+
+PostgreSQL FIN-DSH-46/47 cover failure compensation and replacement ordering. Tests added but not executed. Commits: `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7d7b8487771e8ec`.
+
+**Residual:** process crash between storage upload and DB transaction may leave an orphan; cleanup verification/delete failures also intentionally leave the object. No durable upload-intent or sweeper exists.
+
+### Next source-audit task — FIN-025
+
+Design a durable upload-intent/recovery workflow that survives process crashes. Use bounded lease/retry and verify payment-row references before deletion. Never perform broad bucket listing/deletion or delete any object referenced by a committed payment row. Add PostgreSQL and storage-mock tests for crash recovery, retries, concurrent replacement and cleanup failure. No shared/staging DB writes or worker activation.

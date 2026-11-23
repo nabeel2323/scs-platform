@@ -901,3 +901,10 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 | ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
 |---|---|---|---|---|---|---|
 | FIN-023 | BANK_TRANSFER checkout and dispute-refund transaction boundaries | Order/payment states, histories and outbox now commit with checkout; dispute refund request, payment event/outbox, refund link and dispute resolution/history/outbox share one transaction. FIN-DSH-43/44/45 added. | Run PostgreSQL tests; inspect legacy orphan refund recovery under concurrent retries and audit payment proof storage/DB failure cleanup. | P1 | IMPLEMENTED / TESTING_PENDING | Commits `a5fa4806e310159b6f2708d366764ffe4fa3892f` through `71c8acb5a890a8b7350915cc4eca80dd6104874c`; no shared DB changes; PR #138 remains draft. |
+
+
+## FIN-024 — Payment proof upload lifecycle — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-024 | Multipart payment proof storage and safe replacement/compensation | API accepts bounded multipart files; service validates storage config/MIME/size, uses per-payment keys, deletes unreferenced new objects after caught DB failure, and retires prior managed proof only after commit. FIN-DSH-46/47 added. | Add durable upload-intent and crash recovery/orphan sweeper with bounded lease/retry and payment-row reference checks; validate in Phase 3. | P1 | IMPLEMENTED / TESTING_PENDING_WITH_RESIDUAL | Commits `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7d7b8487771e8ec`; no migration/shared DB change yet; PR #138 stays draft. |

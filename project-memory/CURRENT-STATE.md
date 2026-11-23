@@ -1057,3 +1057,13 @@ The existing return-idempotency case already owns FIN-DSH-33. Settlement-adjustm
 - Added PostgreSQL FIN-DSH-43/44/45 for successful state parity, checkout rollback on outbox failure, and refund/resolution rollback on final outbox failure. Tests not executed.
 - Exact-head Actions: no run. Vercel Web/Admin both failed due external build-rate-limit. No test verification claimed. PR #138 remains OPEN / DRAFT / UNMERGED. No shared/staging DB write, migration, deployment or worker activation.
 - FIN-023: IMPLEMENTED / TESTING_PENDING. Next FIN-024: payment proof upload storage/DB failure cleanup and retry safety.
+
+
+## FIN-024 — Payment proof upload lifecycle — 23 November 2026
+
+- Source/test commits: `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7d7b8487771e8ec`.
+- Added multipart proof upload support to the payment proof endpoint with a 10 MB cap and JPEG/PNG/WebP/PDF allowlist. Service rejects missing storage configuration, validates size/MIME, sanitizes extension and uses generated per-payment object keys.
+- On DB transaction failure, the service re-reads the payment row and deletes the newly uploaded object only when it is not referenced. If verification is unavailable, it leaves the object for safety. On success, an old managed proof is deleted only after the new key is committed; external URLs are not deleted and no-proof updates retain the prior proof.
+- Added PostgreSQL FIN-DSH-46/47 for failure cleanup and replacement ordering. Tests not executed.
+- Residual: process crash between upload and DB transaction can leave an orphan; cleanup verification/deletion failures can also leave safe orphans. Durable upload-intent/sweeper is next FIN-025.
+- Exact-head Actions: no run. Vercel Web/Admin both failed due external build-rate-limit. PR #138 remains OPEN / DRAFT / UNMERGED. No migration/shared DB/staging write, worker activation or deployment.

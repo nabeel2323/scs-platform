@@ -708,3 +708,15 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - No shared/staging DB write, migration, grant/RLS, worker activation, provider/gateway/payout, deployment or merge action. PR #138 remains draft.
 - FIN-023 status: IMPLEMENTED / TESTING_PENDING. Existing G-001 PARTIAL; G-002 IN PROGRESS/protected; G-036 IN PROGRESS; Phases 0–5 IN PROGRESS; Phase 6 NOT STARTED.
 - **Next FIN-024:** audit payment proof upload lifecycle: storage upload occurs before the payment proof DB transaction; inspect orphan cleanup on DB failure, retries, file replacement and authorization. Add storage/DB rollback tests and safe cleanup without deleting a previously committed proof.
+
+
+## Latest continuation checkpoint — 23 November 2026 (FIN-024)
+
+- Active branch `remediation/phase-0-1-tenant-security`; PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. Current source/test HEAD: `41c8db370a30124e981c42c1e7d7b8487771e8ec`.
+- Payment proof endpoint now accepts multipart `file` uploads (10 MB maximum; JPEG/PNG/WebP/PDF allowlist) as well as existing receipt URL/reference fields. Service validates storage configuration, size and MIME type, sanitizes extension, and writes to a per-payment generated key.
+- If the DB transaction fails, cleanup first re-reads the payment row; it deletes the new upload only if no committed row references it. If verification fails, it deliberately leaves the object rather than risk deleting a committed proof. Existing proof is retained on failed replacement; a previous managed proof is retired only after a successful replacement commit. External URLs are never deleted.
+- Added PostgreSQL FIN-DSH-46/47 for failed persistence cleanup and successful replacement ordering. Tests not executed.
+- **Residual risk:** a process crash after S3 upload but before the DB transaction can leave an orphan object; a DB failure while verifying cleanup also intentionally leaves the new object. No durable upload-intent/sweeper is implemented yet. FIN-024 is IMPLEMENTED / TESTING_PENDING with this residual explicitly open.
+- Exact-head GitHub Actions lookup returned no run. Vercel Web/Admin both FAILURE due external build-rate-limit; no application test result is claimed.
+- No migration, shared/staging DB write, grant/RLS, worker activation, provider/gateway/payout, deployment or merge action. PR remains draft.
+- **Next FIN-025:** design durable payment-proof upload intent/recovery and orphan cleanup that can survive process crashes and retries without deleting any key referenced by a committed payment row. Include cleanup lease/retry, age threshold and tests; do not add a broad bucket-list delete operation.

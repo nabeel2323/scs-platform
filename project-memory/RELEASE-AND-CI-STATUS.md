@@ -1155,3 +1155,12 @@ The next full workflow is required to verify these changes.
 - FIN-DSH-43/44/45 are committed but not executed. FIN-023 remains IMPLEMENTED / TESTING_PENDING.
 - No migration/shared DB/staging write, grant/default-ACL/RLS change, worker activation, provider/gateway/payout, environment, deployment or merge action occurred.
 - PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. Full formatter, API unit/coverage, PostgreSQL integration, Web/Admin/mobile and migration verification remain grouped in Phase 3; Phase 6 has not started.
+
+
+## FIN-024 exact-head checkpoint — 23 November 2026
+
+- Latest source/test commit: `41c8db370a30124e981c42c1e7d7b8487771e8ec`.
+- Exact-head GitHub Actions lookup: **no workflow runs**. Vercel Web/Admin both FAILURE due external build-rate-limit; neither is application test evidence.
+- FIN-DSH-46/47 added but not executed. FIN-024 remains IMPLEMENTED / TESTING_PENDING_WITH_RESIDUAL.
+- No migration/shared DB/staging write, grant/RLS, worker activation, environment, provider/gateway/payout, deployment or merge action occurred. Process-crash orphan cleanup remains open for FIN-025.
+- PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; consolidated Phase 3 validation and Phase 6 release gates remain outstanding.

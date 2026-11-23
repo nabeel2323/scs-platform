@@ -2199,3 +2199,14 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - **Status:** IMPLEMENTED / TESTING_PENDING. Exact-head Actions returned no run; Vercel Web/Admin rate-limit failures are not test evidence.
 - **No migration/shared DB/staging write, worker activation, grant/RLS, environment, provider/gateway/payout, deployment or merge action.**
 - **Next:** FIN-024 — audit payment proof storage upload, DB failure cleanup, retry and replacement semantics.
+
+
+## FIN-024 — Payment proof upload lifecycle — 23 November 2026
+
+- **Findings:** service upload could succeed before the DB transaction and leave an orphan on failure; replacing a proof could strand the old object; the controller accepted receipt URL/reference fields but did not expose the existing file-buffer path.
+- **Implementation:** added multipart `file` support with a 10 MB limit and JPEG/PNG/WebP/PDF allowlist. Service validates storage availability, file size and MIME, sanitizes extension, generates unique per-payment keys and preserves the prior proof when no replacement is supplied. On DB failure it re-reads the payment row and deletes the new object only if no committed row references it; if verification fails it intentionally leaves the object. After successful replacement commit, the previous managed proof is deleted; external URLs are never deleted.
+- **Regression coverage:** PostgreSQL FIN-DSH-46 verifies failure compensation deletes only the new upload and preserves the old proof; FIN-DSH-47 verifies the new key is committed before old-object retirement. Tests added, not executed.
+- **Commits:** `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7d7b8487771e8ec`.
+- **Status:** IMPLEMENTED / TESTING_PENDING_WITH_RESIDUAL. A process crash between upload and DB transaction can leave an orphan; no durable upload-intent/sweeper exists. Cleanup verification/deletion failures preserve objects for safety.
+- **No migration/shared DB/staging write, worker activation, grants/RLS, environment, provider/gateway/payout, deployment or merge action.**
+- **Next:** FIN-025 — implement crash-safe upload intent/recovery and bounded orphan cleanup with lease/retry and DB-reference checks.
