@@ -8,11 +8,12 @@ import { CartService } from './cart.service';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { AutoCompleteWorker } from './auto-complete.worker';
+import { OrderRealtimeAccessService } from './order-realtime-access.service';
 
 @Module({
   imports: [PromotionsModule, NotificationsModule, forwardRef(() => ShippingModule), PaymentsModule],
   controllers: [CartController, OrdersController],
-  providers: [CartService, OrdersService, AutoCompleteWorker],
-  exports: [CartService, OrdersService],
+  providers: [CartService, OrdersService, AutoCompleteWorker, OrderRealtimeAccessService],
+  exports: [CartService, OrdersService, OrderRealtimeAccessService],
 })
 export class OrdersModule {}
