@@ -1044,6 +1044,61 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(event.rows).toHaveLength(1);
   }, 60_000);
 
+  // ── FIN-DSH-28: Expiration/order transition race ────────────────
+
+  it('FIN-DSH-28: does not append cancellation history when a concurrent order transition wins', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    await pool.query(
+      `UPDATE orders SET status = 'PAYMENT_PENDING', payment_status = 'AWAITING_PAYMENT' WHERE id = $1`,
+      [orderId],
+    );
+    await pool.query(
+      `UPDATE payment_records SET status = 'AWAITING_PAYMENT', confirmed_amount_minor = NULL WHERE order_id = $1`,
+      [orderId],
+    );
+    const paymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
+    )).rows[0].id as string;
+
+    const originalGetOrder = paymentsService.getOrderForPayment.bind(paymentsService);
+    const readRace = vi.spyOn(paymentsService, 'getOrderForPayment').mockImplementationOnce(async (id: string) => {
+      const order = await originalGetOrder(id);
+      await pool.query(
+        `UPDATE orders SET status = 'ACCEPTED' WHERE id = $1 AND status = 'PAYMENT_PENDING'`,
+        [id],
+      );
+      return order;
+    });
+
+    try {
+      await paymentsService.expirePayment(paymentId);
+    } finally {
+      readRace.mockRestore();
+    }
+
+    const order = await pool.query(
+      `SELECT status, payment_status FROM orders WHERE id = $1`,
+      [orderId],
+    );
+    expect(order.rows[0]).toEqual({
+      status: 'ACCEPTED',
+      payment_status: 'AWAITING_PAYMENT',
+    });
+
+    const history = await pool.query(
+      `SELECT count(*)::int AS count FROM order_status_history
+       WHERE order_id = $1 AND from_status = 'PAYMENT_PENDING' AND to_status = 'CANCELLED'`,
+      [orderId],
+    );
+    expect(history.rows[0].count).toBe(0);
+
+    const payment = await pool.query(
+      `SELECT status FROM payment_records WHERE id = $1`,
+      [paymentId],
+    );
+    expect(payment.rows[0].status).toBe('EXPIRED');
+  }, 60_000);
+
   // ── FIN-DSH-17: Settlement payment transition history and outbox ──
 
   it('FIN-DSH-17: concurrent settlement pay attempts persist one PAID event and one outbox event', async () => {
