@@ -96,7 +96,7 @@ describe('Verification organization status action permissions', () => {
     mocks.perms = [REVIEW];
     rerender(<VerificationReviewPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Deactivate', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: /^Deactivate$/ }));
     await waitFor(() => expect(mocks.deactivateAdminOrganization).not.toHaveBeenCalled());
   });
 
@@ -109,7 +109,7 @@ describe('Verification organization status action permissions', () => {
     mocks.perms = [REVIEW];
     rerender(<VerificationReviewPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reactivate', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: /^Reactivate$/ }));
     await waitFor(() => expect(mocks.deactivateAdminOrganization).not.toHaveBeenCalled());
   });
 });
