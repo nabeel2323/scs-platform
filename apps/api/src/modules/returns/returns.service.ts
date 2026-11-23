@@ -487,6 +487,7 @@ export class ReturnsService {
           `Delivery-fee exception adjustment ${adj.id} created for return ${returnRequestId}: ` +
           `${deliveryRefundMinor} SYP (requires dual approval)`,
         );
+        }
       } catch (err: any) {
         this.logger.error(
           `Failed to create delivery-fee exception adjustment for return ${id}: ${err?.message}`,
