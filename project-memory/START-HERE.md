@@ -464,3 +464,13 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - UX-095 Web merchant route/action permission alignment and G-036 realtime store/order room authorization are implemented in source. See [CURRENT-STATE.md](./CURRENT-STATE.md), [WORK-LOG.md](./WORK-LOG.md), [G-036 plan section](../docs/remediation/IMPLEMENTATION-PLAN.md) and [progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md).
 - No merge, deployment, staging operation, shared database change, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
 - **Next task:** finish the Mobile route-permission and organization-context transition audit following UX-094, then complete remaining Admin route/action permission mapping. Comprehensive testing remains deferred to the dedicated testing phase.
+
+
+## Latest continuation checkpoint — 23 November 2026 (Mobile UX-096)
+
+- Implementation checkpoint: `84d7f4d713902819b21b89a12074986b17781c48`; PR #138 remains OPEN / DRAFT / UNMERGED to `develop`.
+- UX-096 completes the current Mobile route/action and organization-context source slice: offer read/create separation, driver assignment permission alignment, read-only offer controls, product/offer write-handler guards, and merchant-shell remount/reset on active-org or permission changes.
+- Focused route and driver-assignment tests are added but not executed. No GitHub Actions run exists for the exact implementation checkpoint; Vercel Web/Admin failures are external build-rate-limit statuses.
+- UX-095 Web merchant access alignment and G-036 realtime room authorization remain implemented but unverified as recorded in [CURRENT-STATE.md](./CURRENT-STATE.md).
+- No merge, deployment, staging operation, shared database change, migration, grant/default-ACL change, RLS enablement or worker activation occurred.
+- **Next task:** finish the remaining Admin route/action permission mapping. Keep comprehensive testing deferred to Phase 3.
