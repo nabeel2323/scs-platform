@@ -20,6 +20,7 @@
  *   FIN-DSH-16  Payment verification, COD confirmation and refund amounts must be positive safe integers
 
  *   FIN-DSH-24  Refund adjustment serializes with settlement payment
+ *   FIN-DSH-25  Post-refund adjustment preserves settlement currency
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -1297,6 +1298,37 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       refund: refundMinor,
       net: -refundMinor,
     }]);
+  }, 60_000);
+
+
+  // ── FIN-DSH-25: Adjustment currency follows original settlement ──
+
+  it('FIN-DSH-25: post-refund adjustment preserves the original settlement currency', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    await pool.query(
+      `UPDATE payment_records SET currency = 'USD' WHERE order_id = $1`,
+      [orderId],
+    );
+
+    const pendingRet = await advanceReturnToRefundPending(
+      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+    );
+    const refundId = pendingRet.refundId as string;
+    const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
+    expect(settlement.currency).toBe('USD');
+
+    await paymentsService.markSettlementPaid(settlement.id, adminA, adminCaller, {
+      paymentReference: 'USD-SETTLEMENT-FIN-25',
+    });
+    await paymentsService.approveRefund(refundId, adminA, adminCaller);
+    await returnsService.transitionReturn(pendingRet.id, 'REFUNDED', adminCaller);
+
+    const adjustment = await pool.query(
+      `SELECT currency, status FROM settlement_records
+       WHERE sub_order_id = $1 AND status = 'ADJUSTMENT'`,
+      [orderId],
+    );
+    expect(adjustment.rows).toEqual([{ currency: 'USD', status: 'ADJUSTMENT' }]);
   }, 60_000);
 
   // ── FIN-DSH-10: Rollback under a losing REFUNDED race ────────────

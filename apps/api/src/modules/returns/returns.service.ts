@@ -1190,7 +1190,9 @@ export class ReturnsService {
         commissionMinor: commissionReversalMinor,
         feeMinor: 0,
         netMinor: commissionReversalMinor - refundAmountMinor,
-        currency: 'SYP',
+        // Preserve the original settlement currency; adjustments must never
+        // silently convert a non-SYP payment into a SYP ledger entry.
+        currency: settlement.currency,
         status: 'ADJUSTMENT',
         calculatedAt: new Date(),
         notes: `Post-refund adjustment for return ${ret.id}` +
