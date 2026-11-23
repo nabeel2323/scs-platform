@@ -87,6 +87,7 @@ export class PaymentsService {
     currency: string,
     paymentMethod: PaymentMethod,
     idempotencyKey: string,
+    buyerId?: string,
   ): Promise<string> {
     if (!isSupportedPaymentMethod(paymentMethod)) {
       throw new BadRequestException(
@@ -104,8 +105,8 @@ export class PaymentsService {
       expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
     }
 
-    // COD starts at AWAITING_PAYMENT (confirmed at delivery)
-    // Bank transfer starts at CREATED → AWAITING_PAYMENT (post-checkout side effect)
+    // COD and bank transfer begin in AWAITING_PAYMENT; bank transfer retains
+    // the CREATED → AWAITING_PAYMENT transition in immutable history below.
     const initialStatus: PaymentStatus =
       paymentMethod === 'CASH_ON_DELIVERY' ? 'AWAITING_PAYMENT' : 'CREATED';
 
@@ -136,6 +137,29 @@ export class PaymentsService {
     await this.outbox.publish('payment.created', id, {
       paymentId: id, orderId, paymentMethod, amountMinor, currency, status: initialStatus,
     }, {}, null, tx);
+
+    // Bank-transfer payment gating is part of checkout persistence, not a
+    // best-effort post-commit side effect. Preserve the CREATED → AWAITING_PAYMENT
+    // history sequence while keeping both states and outbox records in checkout's tx.
+    if (paymentMethod === 'BANK_TRANSFER') {
+      await tx.update(paymentRecords)
+        .set({ status: 'AWAITING_PAYMENT', updatedAt: new Date() })
+        .where(eq(paymentRecords.id, id));
+      await tx.insert(paymentEvents).values({
+        id: crypto.randomUUID(),
+        paymentRecordId: id,
+        eventType: 'PAYMENT_AWAITING',
+        fromStatus: 'CREATED',
+        toStatus: 'AWAITING_PAYMENT',
+        actorId: buyerId ?? null,
+        actorType: 'SYSTEM',
+        notes: 'Bank transfer checkout — awaiting buyer proof upload',
+      });
+      await this.outbox.publish('payment.awaiting_payment', id, {
+        paymentId: id, orderId, buyerId: buyerId ?? null,
+        fromStatus: 'CREATED', toStatus: 'AWAITING_PAYMENT',
+      }, {}, null, tx);
+    }
 
     return id;
   }

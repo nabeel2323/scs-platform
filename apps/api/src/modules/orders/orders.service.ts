@@ -740,6 +740,7 @@ export class OrdersService {
             currencyByStore.get(storeId) || 'SYP',
             paymentMethod as any,
             input.idempotencyKey ? `${input.idempotencyKey}:${storeId}` : crypto.randomUUID(),
+            input.buyerId,
           );
         }
 
@@ -753,6 +754,31 @@ export class OrdersService {
           actorType: 'BUYER',
           reason: 'Checkout',
         });
+
+        if (paymentMethod === 'BANK_TRANSFER') {
+          await tx.update(orders)
+            .set({
+              status: 'PAYMENT_PENDING',
+              paymentStatus: 'AWAITING_PAYMENT',
+              updatedAt: new Date(),
+            })
+            .where(eq(orders.id, subOrderId));
+          await tx.insert(orderStatusHistory).values({
+            id: crypto.randomUUID(),
+            orderId: subOrderId,
+            fromStatus: 'SUBMITTED',
+            toStatus: 'PAYMENT_PENDING',
+            changedBy: input.buyerId,
+            actorType: 'SYSTEM',
+            reason: 'Awaiting bank transfer proof upload',
+          });
+          await this.outbox.publish('order.payment_pending', subOrderId, {
+            orderId: subOrderId,
+            masterOrderId: masterId,
+            buyerId: input.buyerId,
+            paymentMethod: 'BANK_TRANSFER',
+          }, {}, null, tx);
+        }
 
         subOrderIds.push(subOrderId);
         subOrderData.push({ id: subOrderId, storeId, totalMinor: fin.totalMinor, itemCount: storeItems.length });
@@ -822,31 +848,11 @@ export class OrdersService {
       }
     }
 
-    // P12: Post-checkout payment gating — payment method determines order FSM path.
-    // COD: auto-advance to PENDING_CONFIRMATION (merchant can accept immediately).
-    // BANK_TRANSFER: transition to PAYMENT_PENDING (buyer must submit proof first).
+    // P12: COD/VOUCHER post-checkout gating. BANK_TRANSFER's order/payment
+    // transition and their immutable history/outbox records were committed with
+    // checkout above, so no best-effort state mutation remains after commit.
     for (const sub of subOrderData) {
-      if (paymentMethod === 'BANK_TRANSFER') {
-        // Bank transfer: SUBMITTED → PAYMENT_PENDING (awaiting buyer proof)
-        await this.db.db
-          .update(orders)
-          .set({ status: 'PAYMENT_PENDING', updatedAt: new Date() })
-          .where(eq(orders.id, sub.id));
-        await this.recordStatusChange(
-          sub.id, 'SUBMITTED', 'PAYMENT_PENDING', input.buyerId, 'SYSTEM',
-          'Awaiting bank transfer proof upload',
-        );
-        // Transition payment record: CREATED → AWAITING_PAYMENT
-        if (this.payments) {
-          try {
-            const pay = await this.payments.getPaymentForOrder(sub.id);
-            if (pay && pay.status === 'CREATED') {
-              await this.payments.transitionToAwaitingVerification(pay.id, input.buyerId);
-            }
-          } catch { /* best-effort — payment record already created in tx */ }
-        }
-      } else {
-        // COD / VOUCHER / default: auto-advance to PENDING_CONFIRMATION
+      if (paymentMethod !== 'BANK_TRANSFER') {
         await this.autoAdvanceToPendingConfirmation(sub.id, input.buyerId, sub.storeId);
       }
     }
@@ -4121,7 +4127,7 @@ export class OrdersService {
   // FSM transition matrix — canonical 16 statuses per Implementation Plan §5
   private static readonly TRANSITIONS: Record<string, string[]> = {
     DRAFT: ['SUBMITTED'],
-    SUBMITTED: ['PENDING_CONFIRMATION'], // auto-advance
+    SUBMITTED: ['PENDING_CONFIRMATION', 'PAYMENT_PENDING'], // checkout payment gate
     PENDING_CONFIRMATION: ['ACCEPTED', 'PARTIALLY_ACCEPTED', 'REJECTED', 'CANCELLED', 'PAYMENT_PENDING'], // merchant + P12 payment gate
     ACCEPTED: ['PREPARING', 'CANCELLED'],
     PARTIALLY_ACCEPTED: ['PREPARING', 'CANCELLED'],

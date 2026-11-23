@@ -44,6 +44,8 @@
  *   FIN-DSH-40  Dispute creation rolls back when outbox persistence fails
  *   FIN-DSH-41  Settlement adjustment creation emits an atomic outbox event
  *   FIN-DSH-42  Multiple outbox dispatcher instances claim each event once
+ *   FIN-DSH-43  BANK_TRANSFER checkout commits payment/order state atomically
+ *   FIN-DSH-44  Checkout rolls back when payment outbox persistence fails
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -2106,4 +2108,79 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(persisted.rows[0].locked_at).toBeNull();
     expect(persisted.rows[0].locked_by).toBeNull();
   }, 30_000);
+  // ── FIN-DSH-43: BANK_TRANSFER checkout state is atomic ──────────
+
+  it('FIN-DSH-43: BANK_TRANSFER checkout commits order/payment state, history and outbox together', async () => {
+    const cartId = randomUUID();
+    const idempotencyKey = `fin023-bank-${randomUUID()}`;
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
+    await pool.query(
+      `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
+       VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
+      [randomUUID(), cartId, storeA, variantA, offerA],
+    );
+    const checkout = await ordersService.checkout({
+      buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'BANK_TRANSFER', idempotencyKey,
+    });
+    const orderId = checkout.subOrders[0]!.id;
+    const persisted = await pool.query(
+      `SELECT status, payment_status FROM orders WHERE id = $1`, [orderId],
+    );
+    expect(persisted.rows[0]).toEqual({ status: 'PAYMENT_PENDING', payment_status: 'AWAITING_PAYMENT' });
+    const payment = await pool.query(
+      `SELECT id, status FROM payment_records WHERE order_id = $1`, [orderId],
+    );
+    expect(payment.rows).toHaveLength(1);
+    expect(payment.rows[0].status).toBe('AWAITING_PAYMENT');
+    const paymentHistory = await pool.query(
+      `SELECT event_type, from_status, to_status FROM payment_events
+       WHERE payment_record_id = $1 ORDER BY created_at, event_type`, [payment.rows[0].id],
+    );
+    expect(paymentHistory.rows.map((row: any) => row.event_type)).toEqual(
+      expect.arrayContaining(['PAYMENT_CREATED', 'PAYMENT_AWAITING']),
+    );
+    const orderHistory = await pool.query(
+      `SELECT from_status, to_status FROM order_status_history WHERE order_id = $1`, [orderId],
+    );
+    expect(orderHistory.rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ from_status: null, to_status: 'SUBMITTED' }),
+      expect.objectContaining({ from_status: 'SUBMITTED', to_status: 'PAYMENT_PENDING' }),
+    ]));
+    const outbox = await pool.query(
+      `SELECT event_type FROM outbox_events WHERE aggregate_id IN ($1, $2)`,
+      [payment.rows[0].id, orderId],
+    );
+    expect(outbox.rows.map((row: any) => row.event_type)).toEqual(expect.arrayContaining([
+      'payment.created', 'payment.awaiting_payment', 'order.payment_pending',
+    ]));
+  }, 60_000);
+
+  it('FIN-DSH-44: bank-transfer checkout rolls back all order/payment/history/outbox rows if awaiting event persistence fails', async () => {
+    const cartId = randomUUID();
+    const idempotencyKey = `fin023-fail-${randomUUID()}`;
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
+    await pool.query(
+      `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
+       VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
+      [randomUUID(), cartId, storeA, variantA, offerA],
+    );
+    const outbox = (ordersService as any).outbox;
+    const originalPublish = outbox.publish.bind(outbox);
+    const publishSpy = vi.spyOn(outbox, 'publish').mockImplementation(async (...args: any[]) => {
+      if (args[0] === 'payment.awaiting_payment') throw new Error('Synthetic awaiting outbox failure');
+      return originalPublish(...args);
+    });
+    try {
+      await expect(ordersService.checkout({
+        buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'BANK_TRANSFER', idempotencyKey,
+      })).rejects.toThrow('Synthetic awaiting outbox failure');
+    } finally {
+      publishSpy.mockRestore();
+    }
+    expect((await pool.query(`SELECT id FROM master_orders WHERE idempotency_key = $1`, [idempotencyKey])).rows).toHaveLength(0);
+    expect((await pool.query(`SELECT id FROM orders WHERE master_order_id IN (SELECT id FROM master_orders WHERE idempotency_key = $1)`, [idempotencyKey])).rows).toHaveLength(0);
+    expect((await pool.query(`SELECT id FROM payment_records WHERE order_id IN (SELECT id FROM orders WHERE master_order_id IN (SELECT id FROM master_orders WHERE idempotency_key = $1))`, [idempotencyKey])).rows).toHaveLength(0);
+    const cart = await pool.query(`SELECT status FROM carts WHERE id = $1`, [cartId]);
+    expect(cart.rows[0].status).toBe('ACTIVE');
+  }, 60_000);
 });
