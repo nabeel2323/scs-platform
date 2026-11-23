@@ -1058,3 +1058,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Defer one consolidated repository-locked formatting pass and comprehensive tests to the planned implementation-complete validation batch. Do not create repeated formatter workflows or claim these tests passed.
 
 **Next:** continue the remaining Admin custom route/action-to-controller mapping, checking permission OR/AND semantics against actual route guards and API decorators. The 56-page route-level audit and UX-097/098 fixes must not be repeated.
+
+
+## 2026-11-23 — Supplemental G-002 audit note reconciled
+
+- Reviewed the user-uploaded `Advanced UX Enhancement Prompt.txt`. It reports 111/111 tables with RLS disabled, 32 public-schema functions with none SECURITY DEFINER, anon/authenticated without BYPASSRLS, service_role with BYPASSRLS, 55 foreign-key constraints without covering indexes, prior plaintext OTP log observations, one Render API service/no separate worker, and a startup migration/RBAC-seed command with 63 migrations reported applied.
+- The attachment supplies no observation timestamp, exact database endpoint, SQL/query text, connection identity or relation-kind scope. Preserved it as supplemental reported evidence in `docs/remediation/G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md`; it is not promoted to a verified live snapshot.
+- The 111-table count remains unreconciled with the existing detailed 19-November 114 public ordinary/partitioned table inventory and historical 116 wording. The 32-function result may be consistent with the earlier zero SECURITY DEFINER result but requires same-scope enumeration. The 55-index count matches the existing G-013 follow-up. OTP/runtime and embedded-worker status remain unverified.
+- No SQL was run, no credentials or connection details were accessed, and no grants, RLS, migration, staging, Render, worker or deployment action occurred.
+
+**Next G-002 evidence:** use the protected read-only staging audit to reconcile table/function scope and establish actual API/migration runtime identities. Do not bypass approval or mutate the shared database.
