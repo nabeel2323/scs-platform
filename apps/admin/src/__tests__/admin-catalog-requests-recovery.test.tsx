@@ -77,6 +77,40 @@ describe('admin catalog requests read recovery', () => {
     expect(screen.getByText('New Category')).toBeTruthy();
   });
 
+
+  it('approves a pending request once and refreshes the list', async () => {
+    fetchAdminCatalogRequests.mockResolvedValueOnce([request('request-approve', 'CATEGORY', 'Office Supplies')]);
+    render(<RequestsPage />);
+
+    expect(await screen.findByText('Office Supplies')).toBeTruthy();
+    const approve = screen.getByRole('button', { name: 'Approve' });
+    fireEvent.click(approve);
+    fireEvent.click(approve);
+
+    await waitFor(() => expect(approveCatalogRequest).toHaveBeenCalledTimes(1));
+    expect(approveCatalogRequest).toHaveBeenCalledWith('request-approve', 'reviewer-1');
+    expect(await screen.findByText('No requests found')).toBeTruthy();
+  });
+
+  it('rejects a pending request with a reason and sends the reviewer identity', async () => {
+    fetchAdminCatalogRequests.mockResolvedValueOnce([request('request-reject', 'BRAND', 'Example Brand')]);
+    render(<RequestsPage />);
+
+    expect(await screen.findByText('Example Brand')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    fireEvent.change(screen.getByPlaceholderText('Reason for rejection…'), {
+      target: { value: 'Insufficient evidence' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Reject Request' }));
+
+    await waitFor(() => expect(rejectCatalogRequest).toHaveBeenCalledWith(
+      'request-reject',
+      'reviewer-1',
+      'Insufficient evidence',
+    ));
+    expect(await screen.findByText('No requests found')).toBeTruthy();
+  });
+
   it('does not request catalog data when the user lacks the management permission', () => {
     hasAccess.mockReturnValue(false);
 

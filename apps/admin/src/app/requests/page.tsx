@@ -159,6 +159,8 @@ function RequestsPageContent() {
   const [rejecting, setRejecting] = useState<AdminCatalogRequest | null>(null);
   const [loadedFilterKey, setLoadedFilterKey] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
+  const [actingId, setActingId] = useState<string | null>(null);
+  const actingRef = useRef(false);
   const requestVersion = useRef(0);
   const currentFilterKey = `${typeFilter}:${statusFilter}`;
   const hasCurrentResults = loadedFilterKey === currentFilterKey;
@@ -195,14 +197,26 @@ function RequestsPageContent() {
   }, [reload]);
 
   const handleApprove = async (req: AdminCatalogRequest) => {
+    if (!hasAccess || actingRef.current || rejecting) return;
+    actingRef.current = true;
+    setActingId(req.id);
     const reviewerId = getUser()?.id || '';
     setActionError('');
     try {
       await approveCatalogRequest(req.id, reviewerId);
-      void reload();
+      await reload();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Failed to approve request');
+    } finally {
+      actingRef.current = false;
+      setActingId(null);
     }
+  };
+
+  const openRejectDialog = (req: AdminCatalogRequest) => {
+    if (!hasAccess || actingRef.current || actingId) return;
+    setActionError('');
+    setRejecting(req);
   };
 
   if (!hasAccess)
@@ -366,10 +380,10 @@ function RequestsPageContent() {
                     <td style={css.td}>
                       {r.status === 'PENDING' ? (
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button style={css.btnPrimary} onClick={() => handleApprove(r)}>
-                            Approve
+                          <button style={css.btnPrimary} disabled={actingId !== null || rejecting !== null} onClick={() => void handleApprove(r)}>
+                            {actingId === r.id ? 'Approving…' : 'Approve'}
                           </button>
-                          <button style={css.btnDanger} onClick={() => setRejecting(r)}>
+                          <button style={css.btnDanger} disabled={actingId !== null || rejecting !== null} onClick={() => openRejectDialog(r)}>
                             Reject
                           </button>
                         </div>
@@ -390,6 +404,7 @@ function RequestsPageContent() {
       {rejecting && (
         <RejectDialog
           request={rejecting}
+          canManage={hasAccess}
           onClose={() => setRejecting(null)}
           onDone={() => {
             setRejecting(null);
@@ -405,20 +420,24 @@ function RequestsPageContent() {
 /* ── Reject Dialog ───────────────────────────────────────────── */
 function RejectDialog({
   request,
+  canManage,
   onClose,
   onDone,
   onError,
 }: {
   request: AdminCatalogRequest;
+  canManage: boolean;
   onClose: () => void;
   onDone: () => void;
   onError: (msg: string) => void;
 }) {
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
+  const pendingRef = useRef(false);
 
   const handleReject = async () => {
-    if (!reason.trim()) return;
+    if (!canManage || pendingRef.current || !reason.trim()) return;
+    pendingRef.current = true;
     setSaving(true);
     try {
       const reviewerId = getUser()?.id || '';
@@ -427,12 +446,13 @@ function RejectDialog({
     } catch (e) {
       onError(e instanceof Error ? e.message : 'Failed to reject request');
     } finally {
+      pendingRef.current = false;
       setSaving(false);
     }
   };
 
   return (
-    <dialog open style={css.dialog} onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <dialog open style={css.dialog} onClick={(e) => e.target === e.currentTarget && !saving && onClose()}>
       <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 600 }}>Reject Request</h2>
       <p style={{ margin: '0 0 12px', fontSize: 13, color: '#5b6b74' }}>
         Rejecting request for <strong>{TYPE_LABELS[request.type]}</strong>. Provide a reason for the
@@ -452,10 +472,10 @@ function RejectDialog({
         }}
       />
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-        <button style={css.btn} onClick={onClose}>
+        <button style={css.btn} disabled={saving} onClick={onClose}>
           Cancel
         </button>
-        <button style={css.btnDanger} disabled={saving || !reason.trim()} onClick={handleReject}>
+        <button style={css.btnDanger} disabled={!canManage || saving || !reason.trim()} onClick={() => void handleReject()}>
           {saving ? 'Rejecting…' : 'Reject Request'}
         </button>
       </div>
