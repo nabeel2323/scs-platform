@@ -8,7 +8,7 @@ const { adminRequest, hasAccess } = vi.hoisted(() => ({
 
 vi.mock('../lib/api', () => ({ adminRequest: (...args: unknown[]) => adminRequest(...args) }));
 vi.mock('../hooks/useRequirePerms', () => ({
-  useRequirePerms: () => ({ hasAccess: hasAccess(), missingPerms: [] }),
+  useRequirePerms: (permissions: string[]) => ({ hasAccess: hasAccess(permissions[0]), missingPerms: [] }),
   AccessDenied: () => <div>Access denied</div>,
 }));
 vi.mock('@scs/ui-kit', () => ({
@@ -54,6 +54,33 @@ describe('admin settlement adjustments read recovery', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry adjustments' }));
     expect(await screen.findByText('No settlement adjustments found.')).toBeTruthy();
+  });
+
+
+  it('allows approvers to reject a pending adjustment with a required reason', async () => {
+    adminRequest.mockResolvedValueOnce([adjustment('adjustment-2', 'PENDING_APPROVAL', 'Return adjustment')]).mockResolvedValueOnce([]);
+    render(<SettlementAdjustmentsPage />);
+
+    expect(await screen.findByText('Return adjustment')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    fireEvent.change(screen.getByLabelText('Rejection reason'), { target: { value: 'Insufficient supporting evidence' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm rejection' }));
+
+    expect(await screen.findByText('No settlement adjustments found.')).toBeTruthy();
+    expect(adminRequest).toHaveBeenNthCalledWith(2, 'admin/settlement-adjustments/adjustment-2/reject', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ reason: 'Insufficient supporting evidence' }),
+    }));
+  });
+
+  it('does not expose rejection to read-only adjustment users', async () => {
+    hasAccess.mockImplementation((permission: string) => permission !== 'admin:adjustments:approve');
+    adminRequest.mockResolvedValueOnce([adjustment('adjustment-3', 'PENDING_APPROVAL', 'Return adjustment')]);
+    render(<SettlementAdjustmentsPage />);
+
+    expect(await screen.findByText('Return adjustment')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Reject' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
 
   it('preserves the last successful rows after a failed same-filter refresh', async () => {
