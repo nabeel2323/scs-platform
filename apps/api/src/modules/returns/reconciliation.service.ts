@@ -627,22 +627,46 @@ export class ReconciliationService {
     orgId: string | null | undefined,
     discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
-    const returnRefunds = await db
-      .select({
-        returnId: returnRequests.id,
-        count: sql<number>`count(*)::int`,
-      })
+    // First identify returns with at least one refund that succeeded in this
+    // accounting period. Then count ALL successful refunds for those returns,
+    // including earlier-period successes, so a cross-period duplicate cannot
+    // disappear from the duplicate check.
+    const periodReturnRows = await db
+      .select({ returnId: refunds.returnRequestId })
       .from(refunds)
       .innerJoin(returnRequests, eq(refunds.returnRequestId, returnRequests.id))
       .innerJoin(orders, eq(returnRequests.subOrderId, orders.id))
       .innerJoin(stores, eq(orders.storeId, stores.id))
       .where(and(
         eq(refunds.status, 'SUCCEEDED'),
-        gte(returnRequests.createdAt, startDate),
-        lte(returnRequests.createdAt, endDate),
+        gte(refunds.updatedAt, startDate),
+        lte(refunds.updatedAt, endDate),
+        sql`${refunds.returnRequestId} IS NOT NULL`,
         orgId ? eq(stores.orgId, orgId) : undefined,
       ))
-      .groupBy(returnRequests.id);
+      .groupBy(refunds.returnRequestId);
+
+    const periodReturnIds = periodReturnRows
+      .map((row: { returnId: string | null }) => row.returnId)
+      .filter((id: string | null): id is string => id !== null);
+
+    const returnRefunds = periodReturnIds.length === 0
+      ? []
+      : await db
+        .select({
+          returnId: returnRequests.id,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(refunds)
+        .innerJoin(returnRequests, eq(refunds.returnRequestId, returnRequests.id))
+        .innerJoin(orders, eq(returnRequests.subOrderId, orders.id))
+        .innerJoin(stores, eq(orders.storeId, stores.id))
+        .where(and(
+          eq(refunds.status, 'SUCCEEDED'),
+          inArray(refunds.returnRequestId, periodReturnIds),
+          orgId ? eq(stores.orgId, orgId) : undefined,
+        ))
+        .groupBy(returnRequests.id);
 
     for (const row of returnRefunds) {
       if (row.count > 1) {
