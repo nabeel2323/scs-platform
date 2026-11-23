@@ -851,3 +851,12 @@ The next full workflow is required to verify these changes.
 - Combined statuses remain Vercel Web FAILURE and Vercel Admin FAILURE at the external build-rate-limit destination; these are not application test results.
 - Mobile UX-096 route/action and organization-context changes are implemented; focused tests were added but not executed. UX-095 and G-036 remain implemented but unverified.
 - k6 and protected staging release remain unrun. No merge, deployment, protected staging operation, shared database mutation, migration, grants/default ACL change, RLS enablement or worker activation occurred.
+
+
+## CI #1395 failure and follow-up corrections — 23 November 2026
+
+- CI [#1395](https://github.com/nabeel2323/scs-platform/actions/runs/45086755579) ran on PR #138 head `ff304ce6c0bcf63a654ff8fbd04130254cdb669e` and failed in two jobs. `Lint & Typecheck` failed API typecheck with TS2345 at `realtime.gateway.ts` because validated regex capture `id` remained possibly undefined. `Mobile (flutter analyze · test)` failed on nullable `UserProfile.role` passed to a non-null String parameter and a non-constant EmptyState whose description depends on runtime permission state.
+- All downstream jobs were skipped: API unit/coverage, Web/Admin tests, E6 boundary lint, migration full apply, contracts/codegen, container smoke, PostgreSQL integration, k6 and build. Staging release was skipped. This run is a failure, not verification of the implementation batch.
+- Corrected API narrowing in `0d4644f634d65bd5fbe4fec818c6f8439023254e` and Mobile nullability/const handling in `5f08755ce69edfcbae5ca84462ffda245bfc1eb4`.
+- Subsequent Admin UX-097 action-handler permission checks and focused tests were committed through `856d527aeb65abc9feeb565f1dbc8c07df7d5331`. No workflow run is currently claimed for those commits; tests/typecheck/analyze remain pending.
+- Vercel Web/Admin statuses are external preview-provider statuses and do not replace application CI. No staging release, merge, deployment, shared database mutation, migration, grant/default-ACL change, RLS enablement or worker activation occurred.
