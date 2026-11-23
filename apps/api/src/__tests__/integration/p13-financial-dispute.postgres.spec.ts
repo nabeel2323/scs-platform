@@ -858,6 +858,62 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     ).rejects.toThrow(/positive safe integer in minor units/i);
   }, 90_000);
 
+  // ── FIN-DSH-21: Partial refund order payment projection ──────────
+
+  it('FIN-DSH-21: partial refund approval synchronizes order payment status without changing fulfillment', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const paymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
+    )).rows[0].id;
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const refund = await paymentsService.requestRefund(
+      paymentId, 1000, 'CUSTOMER_REQUEST', buyerA, buyerCaller,
+      { idempotencyKey: `fin-order-projection-partial-${randomUUID()}` },
+    );
+
+    const approved = await paymentsService.approveRefund(refund.refundId, adminA, adminCaller);
+    expect(approved.status).toBe('SUCCEEDED');
+
+    const state = await pool.query(
+      `SELECT o.status, o.payment_status, p.status AS payment_record_status
+       FROM orders o JOIN payment_records p ON p.order_id = o.id WHERE o.id = $1`,
+      [orderId],
+    );
+    expect(state.rows[0]).toEqual({
+      status: 'DELIVERED',
+      payment_status: 'PARTIALLY_REFUNDED',
+      payment_record_status: 'PARTIALLY_REFUNDED',
+    });
+  }, 60_000);
+
+  // ── FIN-DSH-22: Full refund order payment projection ──────────────
+
+  it('FIN-DSH-22: full refund approval synchronizes order payment status without changing fulfillment', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const paymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
+    )).rows[0].id;
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const refund = await paymentsService.requestRefund(
+      paymentId, 3450, 'CUSTOMER_REQUEST', buyerA, buyerCaller,
+      { idempotencyKey: `fin-order-projection-full-${randomUUID()}` },
+    );
+
+    const approved = await paymentsService.approveRefund(refund.refundId, adminA, adminCaller);
+    expect(approved.status).toBe('SUCCEEDED');
+
+    const state = await pool.query(
+      `SELECT o.status, o.payment_status, p.status AS payment_record_status
+       FROM orders o JOIN payment_records p ON p.order_id = o.id WHERE o.id = $1`,
+      [orderId],
+    );
+    expect(state.rows[0]).toEqual({
+      status: 'DELIVERED',
+      payment_status: 'REFUNDED',
+      payment_record_status: 'REFUNDED',
+    });
+  }, 60_000);
+
   // ── FIN-DSH-18: COD order/payment projection consistency ─────────
 
   it('FIN-DSH-18: confirms the order payment projection without rewinding its fulfillment status', async () => {

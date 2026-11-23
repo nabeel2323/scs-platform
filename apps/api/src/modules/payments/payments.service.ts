@@ -852,6 +852,13 @@ export class PaymentsService {
           .where(eq(paymentRecords.id, payment.id));
       }
 
+      // Keep the denormalized order projection in sync with the authoritative
+      // payment state. Refunds never alter fulfillment/order status.
+      await tx
+        .update(orders)
+        .set({ paymentStatus: newPaymentStatus, updatedAt: new Date() })
+        .where(eq(orders.id, payment.orderId));
+
       await tx.insert(paymentEvents).values({
         id: crypto.randomUUID(),
         paymentRecordId: payment.id,
