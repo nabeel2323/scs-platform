@@ -1984,3 +1984,12 @@ This closes a UI-to-controller workflow omission; it does not change G-001–G-0
 - Added `admin-dashboard-read-permissions.test.tsx` asserting that unauthorized users trigger neither Data Quality nor KPI API requests. Tests not executed.
 - Source/test commit: `8474b7acd264872a01d305bef515009eded104ed`.
 - Status: IMPLEMENTED / TESTING_PENDING.
+
+
+## Programme FIN-001 — Payment refund concurrency and idempotency — 23 November 2026
+
+- Fixed a refund-approval race: `approveRefund` now locks the associated `payment_records` row before changing refund status and recomputing the cumulative successful refund total. This serializes distinct approvals for the same payment and keeps the final payment status consistent.
+- Implemented request idempotency for caller-supplied keys. Identical retries return the existing refund record; a key reused with a different payment, amount, reason or requester is rejected. A conflict-safe insert handles concurrent reuse across separate payment rows.
+- Added PostgreSQL regression scenarios FIN-DSH-11 and FIN-DSH-12 to `p13-financial-dispute.postgres.spec.ts`. Tests have **not** been executed.
+- Source/test commit: `117614884ff1e0d50ca116f0b28f249fd83761c0`. Status: **IMPLEMENTED / TESTING_PENDING**.
+- No schema, migration, provider integration, automatic payout, database deployment or shared database action occurred. G-012 remains OPEN and unchanged.

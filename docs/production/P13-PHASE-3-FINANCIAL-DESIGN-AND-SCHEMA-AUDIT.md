@@ -184,3 +184,8 @@ Based on this audit, the implementation order is:
 6. **Reconciliation service**: Monthly report generation and discrepancy detection
 7. **Admin UI**: Commission, adjustment, reconciliation oversight pages
 8. **Tests**: Unit, integration, concurrency, authorization
+
+
+## 2026-11-23 — FIN-001 refund concurrency/idempotency source alignment
+
+The P12/P13 refund flow now serializes approval updates on the associated payment row before recomputing cumulative successful refunds. Request retries with the same idempotency key and identical request attributes reuse the existing refund record; mismatched reuse conflicts. PostgreSQL regression scenarios FIN-DSH-11/12 cover concurrent partial approvals and concurrent idempotent retries. Tests are added but not executed. This is a source implementation checkpoint only; no schema, migration, provider, gateway, payout, staging or shared database behavior changed.
