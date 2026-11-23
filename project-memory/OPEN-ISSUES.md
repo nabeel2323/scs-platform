@@ -679,3 +679,10 @@ FIN-008 is IMPLEMENTED / TESTING_PENDING. Return orphan-refund recovery now reus
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Proportional commission reversal now uses a shared BigInt helper in both return settlement adjustment and commission reversal posting. It avoids Number precision loss when individually safe integer amounts multiply to a product above Number.MAX_SAFE_INTEGER. A unit regression demonstrates the one-minor-unit error prevented. Test not executed. Source commits: 917397ffd5491d6fe52a18063c0266e831b67c38, e2338cf1e50e825bd1c22becbeab0a6a4757a5e4, a596d49a752973cdc1b7039f3b325f0421252c9c; test commit: 4e67e5ef7541e87ef5d9698e3abad7529cd07219.
 
 Next: continue the source-first financial and commercial correctness audit, especially settlement/reversal reconciliation and persisted financial event consistency. Keep all automated validation grouped in Phase 3; do not expand automatic gateway or payout scope.
+
+
+## FIN-016 — COD excluded from stale-payment expiry
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Stale-payment reconciliation previously selected every AWAITING_PAYMENT/AWAITING_VERIFICATION record, including CASH_ON_DELIVERY. Because COD is collected at delivery, it must not expire after the bank-transfer payment window. The candidate query now excludes COD and expirePayment independently rejects direct COD expiry. FIN-DSH-30 covers a stale COD payment on a DELIVERED order, unchanged payment/order state and absence of PAYMENT_EXPIRED events. Source commit 68b5251200f9f3765a0568b796db056a18cd878e; test commit 6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac. Test not executed.
+
+Next: continue the source-first payment and return lifecycle audit; keep Phase 3 formatter and full API/PostgreSQL verification grouped. Do not introduce gateways or automated payouts.

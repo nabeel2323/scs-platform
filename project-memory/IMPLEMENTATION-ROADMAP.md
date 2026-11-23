@@ -513,3 +513,10 @@ Next: continue source-first audit of payment/settlement transitions and persiste
 - Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, staging, shared DB or deployment changes. G-012 remains OPEN.
 
 Next: continue financial/commercial source audit; then one consolidated formatter, API unit and PostgreSQL integration campaign in Phase 3.
+
+
+## FIN-016 — COD payment expiry exclusion — 23 November 2026
+
+COD is collected at delivery and must not be expired by the bank-transfer timeout. Both stale-payment candidate discovery and the expirePayment service boundary now exclude CASH_ON_DELIVERY. FIN-DSH-30 covers a stale COD payment attached to a DELIVERED order. Test added, not executed. Source commit 68b5251200f9f3765a0568b796db056a18cd878e; test commit 6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac.
+
+Next: continue financial lifecycle audit, then run the consolidated Phase 3 test campaign. G-012 manual-payment-only scope remains binding.
