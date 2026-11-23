@@ -1344,7 +1344,9 @@ export class PaymentsService {
         fromStatus: payment.status,
         toStatus: payment.status,
         actorId,
-        actorType: 'SYSTEM',
+        // Settlement calculation is an explicitly privileged admin action,
+        // not a background/system transition.
+        actorType: 'ADMIN',
         amountMinor: netMinor,
         notes: `Settlement calculated: gross=${grossMinor}, refund=${refundMinor}, commission=${commissionMinor}, fee=${feeMinor}, net=${netMinor}`,
       });
