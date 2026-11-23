@@ -43,6 +43,7 @@
  *   FIN-DSH-39  Payment/dispute immutable history and outbox event parity
  *   FIN-DSH-40  Dispute creation rolls back when outbox persistence fails
  *   FIN-DSH-41  Settlement adjustment creation emits an atomic outbox event
+ *   FIN-DSH-42  Multiple outbox dispatcher instances claim each event once
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -2078,4 +2079,28 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(events.rows[0].payload.status).toBe('DRAFT');
     expect(events.rows[0].payload.amountMinor).toBe(75);
   }, 60_000);
+  it('FIN-DSH-42: two outbox dispatcher instances cannot claim and dispatch the same pending event', async () => {
+    const eventId = randomUUID();
+    await pool.query(
+      `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, metadata, status)
+       VALUES ($1, 'test.concurrent_claim', $2, '{}'::jsonb, '{}'::jsonb, 'PENDING')`,
+      [eventId, randomUUID()],
+    );
+
+    const dispatcherA = new OutboxDispatcher({ db } as DatabaseService);
+    const dispatcherB = new OutboxDispatcher({ db } as DatabaseService);
+    const slowDispatch = async () => new Promise<void>(resolve => setTimeout(resolve, 100));
+    const dispatchA = vi.spyOn(dispatcherA as any, 'dispatch').mockImplementation(slowDispatch);
+    const dispatchB = vi.spyOn(dispatcherB as any, 'dispatch').mockImplementation(slowDispatch);
+
+    await Promise.all([(dispatcherA as any).poll(), (dispatcherB as any).poll()]);
+
+    expect(dispatchA.mock.calls.length + dispatchB.mock.calls.length).toBe(1);
+    const persisted = await pool.query(
+      `SELECT status, locked_at, locked_by FROM outbox_events WHERE id = $1`, [eventId],
+    );
+    expect(persisted.rows[0].status).toBe('DISPATCHED');
+    expect(persisted.rows[0].locked_at).toBeNull();
+    expect(persisted.rows[0].locked_by).toBeNull();
+  }, 30_000);
 });
