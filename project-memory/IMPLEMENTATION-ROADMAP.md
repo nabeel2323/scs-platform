@@ -503,3 +503,13 @@ Next: continue source-first audit of payment/settlement transitions and persiste
 - FIN-012 missing financial breakdown blocks manual/COD payment confirmation and rolls back. Commit `cdb189e95dd7022793af33352a18c31f81117059`.
 - FIN-013 payment expiry records cancellation history only after the conditional order update succeeds. Source/test commits `028e30e9ebeb626b51b6d80bc28467c9c946c419`, `83550c34c7dc11492fc6e5c5fc6fcb418b79243c`.
 - FIN-DSH-11–28 are added but not executed. Status for all is IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, automatic payout, staging, shared DB, grant/RLS, deployment or worker changes.
+
+
+## FIN-014–FIN-015 — Commission reversal correctness — 23 November 2026
+
+- FIN-014: return commission reversals now use the same order-level discount allocation basis as the original order and retain payment currency in the commission reversal and settlement adjustment ledgers. FIN-DSH-29 added; not executed.
+- FIN-015: proportional commission reversal uses exact BigInt multiplication/division in both service paths; a unit regression covers a Number rounding case that overstates reversal by one minor unit. Added; not executed.
+- FIN-014 source commits: 6221c9c10bba4652b19c1aeaca59a8d1c3d9c79d and 00da339e62dbeef87a55434b3ed5ea1a85cb6508. FIN-015 source commits: 917397ffd5491d6fe52a18063c0266e831b67c38, e2338cf1e50e825bd1c22becbeab0a6a4757a5e4, a596d49a752973cdc1b7039f3b325f0421252c9c; unit test commit 4e67e5ef7541e87ef5d9698e3abad7529cd07219.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, staging, shared DB or deployment changes. G-012 remains OPEN.
+
+Next: continue financial/commercial source audit; then one consolidated formatter, API unit and PostgreSQL integration campaign in Phase 3.

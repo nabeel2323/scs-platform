@@ -668,3 +668,14 @@ FIN-008 is IMPLEMENTED / TESTING_PENDING. Return orphan-refund recovery now reus
 - No schema/migration, gateway/provider/automatic payout, staging/shared DB, grants/RLS, deployment or worker changes.
 
 **Next implementation:** continue the source-first financial and operational correctness audit beyond FIN-013. FIN-DSH-11–28 remain unexecuted; consolidate formatting and full API/PostgreSQL/Web/Admin/mobile validation in Phase 3 after implementation gaps are complete.
+
+
+## FIN-014 — Discount-adjusted commission reversal and currency integrity
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Return commission reversal now allocates order-level discounts proportionally over returned goods and preserves the original payment currency in the commission reversal and settlement adjustment records. PostgreSQL FIN-DSH-29 covers a partial discounted return and verifies both ledgers. Test not executed. Source commits: 6221c9c10bba4652b19c1aeaca59a8d1c3d9c79d and 00da339e62dbeef87a55434b3ed5ea1a85cb6508.
+
+## FIN-015 — Exact commission reversal arithmetic
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Proportional commission reversal now uses a shared BigInt helper in both return settlement adjustment and commission reversal posting. It avoids Number precision loss when individually safe integer amounts multiply to a product above Number.MAX_SAFE_INTEGER. A unit regression demonstrates the one-minor-unit error prevented. Test not executed. Source commits: 917397ffd5491d6fe52a18063c0266e831b67c38, e2338cf1e50e825bd1c22becbeab0a6a4757a5e4, a596d49a752973cdc1b7039f3b325f0421252c9c; test commit: 4e67e5ef7541e87ef5d9698e3abad7529cd07219.
+
+Next: continue the source-first financial and commercial correctness audit, especially settlement/reversal reconciliation and persisted financial event consistency. Keep all automated validation grouped in Phase 3; do not expand automatic gateway or payout scope.
