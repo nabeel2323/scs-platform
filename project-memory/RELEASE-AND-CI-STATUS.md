@@ -1035,7 +1035,6 @@ The next full workflow is required to verify these changes.
 - FIN-011: return orphan-refund recovery validates payment/sub-order, amount, reason, buyer, currency and return linkage; commit `72927529e64a719741b94b864f6adba7cafd4f0d`.
 - FIN-012: post-refund settlement adjustment preserves original settlement currency; commit `ba3318724c3080d4c29baee1c81e972262e14ac4`.
 - FIN-013: payment expiration appends order cancellation history only when the conditional order update succeeds; source `028e30e9ebeb626b51b6d80bc28467c9c946c419`, test `83550c34c7dc11492fc6e5c5fc6fcb418b79243c`.
-- Additional missing financial-breakdown fail-closed fix: `cdb189e95dd7022793af33352a18c31f81117059`.
 - FIN-DSH-11–28 added but not executed. All remain IMPLEMENTED / TESTING_PENDING.
 - CI #1427: lint/typecheck and Flutter passed; changed-file Prettier failed (258 files); dependent API/Web/Admin/PostgreSQL/build/release jobs skipped. CI #1429 was cancelled. CI #1434 must be checked at its exact SHA.
 - No schema/migration, gateway/provider/automatic payout, staging/shared DB, grants/RLS, deployment or worker changes.
