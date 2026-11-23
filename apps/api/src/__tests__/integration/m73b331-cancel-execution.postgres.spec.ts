@@ -550,7 +550,7 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
         id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: shipmentId,
         metadata: { storeId: 'different-store-id' },
       }),
-    ).rejects.toThrow(/Tenant mismatch/);
+    ).rejects.toThrow(/outbox event store does not match its shipment/i);
 
     expect(provider.callCount).toBe(0);
   });
