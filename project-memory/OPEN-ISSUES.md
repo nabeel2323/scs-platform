@@ -777,3 +777,10 @@ Migration 0075 is source-only. The cleanup method is not registered with a sched
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Payment verification, COD cash confirmation, and privileged return transitions now persist ADMIN versus MERCHANT/BUYER based on the authenticated caller, rather than hardcoding the nominal role. FIN-DSH-54 verifies merchant verification and administrator cash confirmation; FIN-DSH-55 verifies administrator overrides of merchant-side and buyer-side return transitions.
 
 No migration is required. Tests remain pending the consolidated Phase 3 campaign.
+
+
+## FIN-027 — Return refund balance aggregation
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Return-side refund aggregation now includes APPROVED reservations and avoids PostgreSQL 32-bit SUM(bigint) overflow using exact BigInt handling. FIN-DSH-56 is added but not executed. CI #1446 syntax blockers in the returns and settlement-adjustment services were corrected; no exact-head CI rerun has been performed.
+
+**Remaining:** run FIN-DSH-56 and review other refund/reconciliation aggregate consumers during the consolidated Phase 3 campaign. Do not apply migrations or change shared database state.
