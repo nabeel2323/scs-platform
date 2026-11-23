@@ -1590,3 +1590,14 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Merchant and Admin settlement list methods each cap results at 100 rows and currently do not expose pagination. No export/report service was found in the reviewed Admin/Analytics module paths that aggregates settlement records.
 - Next: verify whether additional finance export/report consumers exist outside these modules, then decide whether pagination is required. Do not change order revenue KPI definitions to settlement net amounts without an explicit product decision.
 - Exact branch/PR/CI status before this docs sync: head `615becfe8b1b9f14407e8872bb26a2e51ec790af`; PR #138 open/draft/unmerged; no exact-head Actions run; Vercel Web/Admin statuses are external build-rate-limit failures.
+
+
+## 23 November 2026 — FIN-047 settlement history pagination
+
+- Audited the 100-row settlement list ceiling and confirmed no settlement export/report consumer in the inspected Admin/Analytics modules. Admin revenue KPI aggregates orders.total_minor, not settlement_records; preserve that definition.
+- Added shared strict pagination parsing (default 25, max 100), validated non-negative safe offsets, response totals, stable createdAt/id ordering and same merchant tenant filter for page and count queries.
+- Wired Admin and Merchant settlement clients/pages to the paginated response with Previous/Next navigation and total/page display. Filter changes reset page; Admin marking the final row on a later page steps back.
+- Added focused API controller/service pagination tests and Admin/Merchant UI pagination regression tests.
+- Source commit: ee6bf2f84803f2eb1f80ae931d9415923a760ff3. Tests/typechecks/build/lint not executed. [skip ci]; no exact-head CI pass claimed.
+- No migration, shared/staging database write, deployment, merge, environment mutation, worker activation or RLS/ACL change.
+- Next: complete remaining report/export consumer audit outside reviewed Admin/Analytics paths, then execute consolidated Phase 3 test campaign.

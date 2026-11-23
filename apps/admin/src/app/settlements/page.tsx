@@ -92,7 +92,7 @@ export default function AdminSettlementsPage() {
     setActionError('');
     try {
       await markSettlementPaid(id);
-      if (filter && settlements.length === 1 && page > 0) {
+      if (settlements.length === 1 && page > 0) {
         setPage((current) => Math.max(0, current - 1));
       } else {
         await load();

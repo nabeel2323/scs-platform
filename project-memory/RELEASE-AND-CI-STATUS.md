@@ -1321,3 +1321,12 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Combined status: Vercel Web FAILURE and Vercel Admin FAILURE; both target the external build-rate-limit page. These are provider failures, not application tests.
 - No tests were executed for FIN-044–046. The consolidated Phase 3 campaign remains pending.
 - No merge, deployment, migration, shared/staging DB write, environment mutation, worker activation or RLS/ACL change.
+
+
+## 23 November 2026 — FIN-047 settlement history pagination
+
+- Source commit: ee6bf2f84803f2eb1f80ae931d9415923a760ff3.
+- Added bounded pagination and total counts to Admin/Merchant settlement APIs; merchant count query retains the same organization/store/status scope as row retrieval. Added stable tie-break ordering.
+- Added Admin and Merchant pagination UI plus API and UI regression tests. Tests, typechecks, builds and lint have NOT been run; no pass is claimed.
+- Commit used [skip ci] under the consolidated-testing cadence. Exact-head Actions status must be refreshed; prior Vercel Web/Admin statuses were external rate-limit failures.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No migration, shared/staging DB write, environment mutation, deployment, worker activation or RLS/ACL change.

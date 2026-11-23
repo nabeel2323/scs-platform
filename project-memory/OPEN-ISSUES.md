@@ -894,3 +894,8 @@ Remaining audit: verify settlement listing limits, financial exports and aggrega
 ## Remaining settlement projection audit — 23 November 2026
 
 The merchant and Admin settlement screens now expose adjustment rows and distinguish paid adjustments. The underlying list services still return at most 100 rows per request and do not yet expose offset/cursor pagination. Before deciding whether pagination or export work is required, inspect real product requirements and all settlement consumers; do not silently change report definitions or add an automatic payout scope. Admin revenue KPI aggregation is based on orders.total_minor, not settlement_records. Next audit: confirm whether any export or finance report aggregates the settlement ledger, and ensure primary plus adjustment rows are not double-counted.
+
+
+## FIN-047 — Settlement history pagination — 23 November 2026
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Removed the silent 100-row ceiling from Admin and Merchant settlement history by introducing bounded offset pagination (default 25, maximum 100), total counts, stable createdAt/id ordering and consistent merchant org/store/status scope for rows and counts. Both UIs now expose page navigation and total counts. Added controller/service pagination tests and Admin/Merchant UI paging tests. Source commit: ee6bf2f84803f2eb1f80ae931d9415923a760ff3. Tests and typechecks are not executed. No exports or settlement-ledger aggregates were found in the reviewed Admin/Analytics modules; the Admin revenue KPI remains order-total sourced. Remaining: inspect other report/export consumers outside reviewed paths, then consolidated Phase 3 verification.

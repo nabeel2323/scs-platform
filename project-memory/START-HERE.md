@@ -882,6 +882,21 @@ This checkpoint supersedes earlier next-action notes that only called for a gene
 - Next: continue source-first review of settlement listing limits, accounting exports and any aggregate financial KPIs that may include both primary and adjustment ledger rows. Preserve explicit adjustment identity and avoid double counting.
 
 
+
+
+## Live continuation — 23 November 2026, settlement pagination
+
+- Repository: nabeel2323/scs-platform; branch: remediation/phase-0-1-tenant-security; PR #138 remains OPEN / DRAFT / UNMERGED against develop.
+- Source implementation commit: ee6bf2f84803f2eb1f80ae931d9415923a760ff3 — FIN-047 settlement history pagination. Admin and merchant settlement endpoints now accept validated limit/offset, default to 25 rows and cap each request at 100. Responses contain data, total, limit, and offset; ordering uses createdAt plus id for stable page boundaries. Merchant count and row queries share the same org/store/status scope.
+- Admin and Merchant settlement screens now have Previous/Next controls and total/page indicators. Store/status filter changes reset the page; Admin moves back one page when marking the last visible row paid.
+- Added API pagination parsing/service scope tests and Admin/Merchant page-navigation regression tests. These are added but NOT EXECUTED. No test, typecheck, build, or lint pass is claimed.
+- Reporting audit found no settlement-ledger export consumer in the reviewed Admin/Analytics paths. Admin revenue KPI remains order-total sourced (orders.total_minor), so it is not a sum of primary plus adjustment settlement rows. Do not change KPI semantics without a product decision.
+- [skip ci] was used under the existing consolidated-testing cadence. No exact-head Actions run is claimed; prior Vercel Web/Admin contexts were external build-rate-limit failures. Refresh status at the next session.
+- No schema migration, shared/staging DB write, environment mutation, deployment, worker activation, RLS/ACL change, merge, or PR promotion occurred.
+- Next: finish source review of any remaining settlement consumers/export paths outside inspected modules; then perform consolidated Phase 3 tests (API focused unit + typecheck, Admin/Merchant tests + typechecks, integration/reconciliation suites) and fix failures in grouped commits. Keep PR #138 draft and do not merge/deploy until release gates pass.
+
+## Historical checkpoint — before settlement pagination
+
 ## Final live checkpoint — 23 November 2026
 
 Live branch/PR/CI reconciliation immediately before this documentation sync:
@@ -894,3 +909,8 @@ Live branch/PR/CI reconciliation immediately before this documentation sync:
 - Exact-head workflow lookup: no GitHub Actions workflow run returned. Combined statuses: Vercel Web and Admin FAILURE, both linking to the provider build-rate-limit page. These are not application test results.
 - All tests described in the FIN-044–046 continuation are added/updated but unexecuted. No CI pass is claimed. Implementation and docs commits use `[skip ci]` under the agreed consolidated-testing cadence.
 - Next: audit the 100-row settlement listing cap, exports and any financial aggregates that could combine primary and adjustment ledger rows. Existing Admin revenue KPI is order-total sourced; it is not a settlement ledger sum. Keep PR draft and all shared/staging/deployment restrictions in force.
+
+
+## Current exact source pointer
+
+Newest implementation commit: ee6bf2f84803f2eb1f80ae931d9415923a760ff3. The following memory sync commit is documentation-only. Read the FIN-047 entry above before continuing.
