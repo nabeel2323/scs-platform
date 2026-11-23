@@ -686,3 +686,10 @@ FIN-047 source and cross-module consumer audit are complete. The first consolida
 FIN-047 pagination and the consumer audit are implemented, but verification remains pending. CI #45257284797 passed formatting/lint/typecheck and Flutter, but the boundary, migration audit, API coverage, PostgreSQL integration and Web test jobs failed. The audit script and narrowly scoped test/workflow fixes were committed at source checkpoint `954200f9bf7866aa2f25d0585847a0c51eb19259`; exact-head CI #45260954714 was queued and must be inspected before changing status.
 
 The 14 new modular-boundary findings remain open under G-015. They must be resolved by service-contract refactoring, not baseline edits or import-path workarounds. G-002 continues to require authorized runtime identity and protected read-only staging evidence. No release or shared database operations are authorized. Phase 6 remains NOT STARTED.
+
+## 23 November 2026 — post-format verification sequence
+
+CI #45260954714 failed at the required changed-file Prettier step on source checkpoint `954200f`; lint/typecheck and Flutter passed, while dependent application-test jobs were skipped. Formatter commit `4477ebd42ba46146b14df18094d025ab133c5d75` subsequently applied and checked formatting to the affected sources and memory files. Run one exact-head consolidated CI check before changing verification status.
+
+The 14 G-015 boundary violations remain un-baselined for service-contract refactoring. G-002 runtime identity and protected read-only evidence remain pending. Phase 6 remains NOT STARTED.
+
