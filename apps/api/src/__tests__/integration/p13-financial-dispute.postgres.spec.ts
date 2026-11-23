@@ -3412,6 +3412,12 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     )).rows[0];
     expect(posted).toMatchObject({ status: 'ADJUSTMENT', net: 125 });
 
+    // Simulate a legacy adjustment row: older records have no adjustmentId
+    // metadata and rely on the durable notes prefix for classification.
+    await pool.query(
+      \`UPDATE settlement_records SET metadata = '{}'::jsonb WHERE id = $1\`, [posted.id],
+    );
+
     const first = await paymentsService.markSettlementPaid(
       posted.id, adminA, adminCaller, { paymentReference: 'ADJ-BANK-REF-68' },
     );

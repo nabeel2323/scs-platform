@@ -1650,7 +1650,7 @@ export class PaymentsService {
           // semantics; adjustment notes remain identifiable for old rows that
           // do not carry adjustmentId metadata.
           notes: settlement.status === 'ADJUSTMENT'
-            ? [settlement.notes, input?.notes].filter(Boolean).join('\\n') || null
+            ? [settlement.notes, input?.notes].filter(Boolean).join('\n') || null
             : input?.notes || null,
           updatedAt: paidAt,
         })
