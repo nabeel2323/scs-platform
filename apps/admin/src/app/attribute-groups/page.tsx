@@ -120,6 +120,7 @@ export default function AttributeGroupsPage() {
         {creating && (
           <DetailDialog title="New Attribute Group" onClose={() => setCreating(false)}>
             <GroupForm
+              canManage={hasAccess}
               onDone={() => { setCreating(false); load(); }}
               onCancel={() => setCreating(false)}
             />
@@ -139,7 +140,7 @@ export default function AttributeGroupsPage() {
 
 /* ── Group Form ────────────────────────────────────────────── */
 
-function GroupForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+function GroupForm({ canManage, onDone, onCancel }: { canManage: boolean; onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState('');
   const [nameAr, setNameAr] = useState('');
   const [kind, setKind] = useState('');
@@ -147,6 +148,7 @@ function GroupForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
   const [formError, setFormError] = useState<string | null>(null);
 
   const handleSave = async () => {
+    if (!canManage || busy) return;
     if (!name.trim()) { setFormError('Name is required'); return; }
     setBusy(true);
     setFormError(null);
@@ -185,7 +187,7 @@ function GroupForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
         </div>
       </div>
       <div className={styles['actions']} style={{ marginTop: 20 }}>
-        <button type="button" disabled={busy} onClick={handleSave}>
+        <button type="button" disabled={!canManage || busy} onClick={handleSave}>
           {busy ? 'Creating…' : 'Create Group'}
         </button>
         <button type="button" onClick={onCancel}>Cancel</button>

@@ -167,6 +167,7 @@ export default function AttributesPage() {
           <DetailDialog title="New Attribute" onClose={() => setCreating(false)}>
             <AttributeForm
               mode="create"
+              canManage={hasAccess}
               onDone={() => { setCreating(false); load(); }}
               onCancel={() => setCreating(false)}
             />
@@ -179,6 +180,7 @@ export default function AttributesPage() {
             <AttributeForm
               mode="edit"
               attribute={editing}
+              canManage={hasAccess}
               onDone={() => { setEditing(null); load(); }}
               onCancel={() => setEditing(null)}
             />
@@ -220,8 +222,9 @@ function StatusBadge({ status }: { status: string }) {
 
 /* ── Attribute Form (Create / Edit) ────────────────────────── */
 
-function AttributeForm({ mode, attribute, onDone, onCancel }: {
+function AttributeForm({ mode, attribute, canManage, onDone, onCancel }: {
   mode: 'create' | 'edit';
+  canManage: boolean;
   attribute?: AttributeDefinition;
   onDone: () => void;
   onCancel: () => void;
@@ -252,6 +255,7 @@ function AttributeForm({ mode, attribute, onDone, onCancel }: {
   const showOptions = HAS_OPTIONS.has(type);
 
   const handleSave = async () => {
+    if (!canManage || busy) return;
     setBusy(true);
     setFormError(null);
     try {
@@ -296,8 +300,9 @@ function AttributeForm({ mode, attribute, onDone, onCancel }: {
   };
 
   const handleDeactivate = async () => {
-    if (!attribute) return;
+    if (!canManage || !attribute || busy) return;
     if (!window.confirm(`Deactivate attribute "${attribute.name}"? It will be hidden from new product types.`)) return;
+    if (!canManage || busy) return;
     setBusy(true);
     try {
       await deleteAttribute(attribute.id);
@@ -310,7 +315,7 @@ function AttributeForm({ mode, attribute, onDone, onCancel }: {
   };
 
   const handleAddOption = async () => {
-    if (!newOptValue.trim()) return;
+    if (!canManage || busy || !newOptValue.trim()) return;
     setBusy(true);
     setFormError(null);
     try {
@@ -467,7 +472,7 @@ function AttributeForm({ mode, attribute, onDone, onCancel }: {
               Label
               <input value={newOptLabel} onChange={e => setNewOptLabel(e.target.value)} placeholder="e.g. 16 GB" maxLength={200} />
             </label>
-            <button type="button" disabled={busy || !newOptValue.trim()} onClick={handleAddOption}>
+            <button type="button" disabled={!canManage || busy || !newOptValue.trim()} onClick={handleAddOption}>
               Add
             </button>
           </div>
@@ -476,11 +481,11 @@ function AttributeForm({ mode, attribute, onDone, onCancel }: {
 
       {/* Actions */}
       <div className={styles['actions']} style={{ marginTop: 20 }}>
-        <button type="button" disabled={busy} onClick={handleSave}>
+        <button type="button" disabled={!canManage || busy} onClick={handleSave}>
           {busy ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Attribute'}
         </button>
         {isEdit && attribute?.status === 'ACTIVE' && (
-          <button type="button" disabled={busy} onClick={handleDeactivate} style={{ color: '#991b1b' }}>
+          <button type="button" disabled={!canManage || busy} onClick={handleDeactivate} style={{ color: '#991b1b' }}>
             Deactivate
           </button>
         )}

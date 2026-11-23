@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ProductType, ProductTypeSchema, AdminCategory,
@@ -33,6 +33,8 @@ export default function ProductTypesPage() {
   const [selected, setSelected] = useState<ProductType | null>(null);
   const [schema, setSchema] = useState<ProductTypeSchema | null>(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const publishingIds = useRef(new Set<string>());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,13 +69,20 @@ export default function ProductTypesPage() {
   }, [selected]);
 
   const handlePublish = async (id: string) => {
+    if (!hasAccess || publishingIds.current.has(id)) return;
     if (!window.confirm('Publish this product type? It will become available for merchants.')) return;
+    if (!hasAccess || publishingIds.current.has(id)) return;
+    publishingIds.current.add(id);
+    setPublishingId(id);
     try {
       await publishProductType(id);
-      load();
+      await load();
       if (selected?.id === id) setSelected(null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Publish failed');
+    } finally {
+      publishingIds.current.delete(id);
+      setPublishingId(null);
     }
   };
 
@@ -148,7 +157,7 @@ export default function ProductTypesPage() {
                       <div className={styles['actions']}>
                         <Link href={`/product-types/${pt.id}`} className={styles['viewLink']}>View</Link>
                         {pt.status === 'DRAFT' && (
-                          <button type="button" onClick={() => handlePublish(pt.id)}>Publish</button>
+                          <button type="button" disabled={publishingId === pt.id} onClick={() => void handlePublish(pt.id)}>{publishingId === pt.id ? 'Publishing…' : 'Publish'}</button>
                         )}
                       </div>
                     </td>
@@ -165,6 +174,7 @@ export default function ProductTypesPage() {
           <DetailDialog title="New Product Type" onClose={() => setCreating(false)}>
             <ProductTypeForm
               categories={categories}
+              canManage={hasAccess}
               onDone={() => { setCreating(false); load(); }}
               onCancel={() => setCreating(false)}
             />
@@ -179,6 +189,8 @@ export default function ProductTypesPage() {
                 productType={selected}
                 schema={schema}
                 categories={categories}
+                canManage={hasAccess}
+                publishing={publishingId === selected.id}
                 onPublish={() => handlePublish(selected.id)}
                 onUpdate={() => { load(); setSelected(null); }}
               />
@@ -224,8 +236,9 @@ function ScopeTag({ scope }: { scope: string }) {
 
 /* ── Create Form ───────────────────────────────────────────── */
 
-function ProductTypeForm({ categories, onDone, onCancel }: {
+function ProductTypeForm({ categories, canManage, onDone, onCancel }: {
   categories: AdminCategory[];
+  canManage: boolean;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -238,6 +251,7 @@ function ProductTypeForm({ categories, onDone, onCancel }: {
   const [formError, setFormError] = useState<string | null>(null);
 
   const handleSave = async () => {
+    if (!canManage || busy) return;
     if (!code.trim()) { setFormError('Code is required'); return; }
     if (!name.trim()) { setFormError('Name is required'); return; }
     setBusy(true);
@@ -303,10 +317,12 @@ function ProductTypeForm({ categories, onDone, onCancel }: {
 
 /* ── Detail View ───────────────────────────────────────────── */
 
-function ProductTypeDetail({ productType, schema, categories, onPublish, onUpdate }: {
+function ProductTypeDetail({ productType, schema, categories, canManage, publishing, onPublish, onUpdate }: {
   productType: ProductType;
   schema: ProductTypeSchema | null;
   categories: AdminCategory[];
+  canManage: boolean;
+  publishing: boolean;
   onPublish: () => void;
   onUpdate: () => void;
 }) {
@@ -324,6 +340,7 @@ function ProductTypeDetail({ productType, schema, categories, onPublish, onUpdat
   }, [pt.id, pt.categoryId]);
 
   const handleSaveCategory = async () => {
+    if (!canManage || catBusy) return;
     setCatBusy(true);
     setCatError(null);
     try {
@@ -371,7 +388,7 @@ function ProductTypeDetail({ productType, schema, categories, onPublish, onUpdat
               </select>
               <button
                 type="button"
-                disabled={!catChanged || catBusy}
+                disabled={!canManage || !catChanged || catBusy}
                 onClick={handleSaveCategory}
                 style={{ fontSize: 12, padding: '4px 12px' }}
               >
@@ -423,7 +440,7 @@ function ProductTypeDetail({ productType, schema, categories, onPublish, onUpdat
       {/* Actions */}
       <div className={styles['actions']} style={{ margin: '16px 0' }}>
         {pt.status === 'DRAFT' && (
-          <button type="button" onClick={onPublish}>Publish</button>
+          <button type="button" disabled={!canManage || publishing} onClick={onPublish}>{publishing ? 'Publishing…' : 'Publish'}</button>
         )}
       </div>
 

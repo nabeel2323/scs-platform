@@ -67,6 +67,7 @@ export default function CatalogImportPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadImports = useCallback(async () => {
+    if (!hasAccess) return;
     const requestId = ++importsRequestVersion.current;
     setLoading(true);
     setImportsError('');
@@ -80,7 +81,7 @@ export default function CatalogImportPage() {
     } finally {
       if (requestId === importsRequestVersion.current) setLoading(false);
     }
-  }, []);
+  }, [hasAccess]);
 
   useEffect(() => {
     void loadImports();
@@ -90,6 +91,7 @@ export default function CatalogImportPage() {
   if (!hasAccess) return <AccessDenied requiredPerms={['catalog:imports:manage']} missingPerms={missingPerms} />;
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!hasAccess || stage === 'uploading' || stage === 'executing') return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -114,7 +116,7 @@ export default function CatalogImportPage() {
   };
 
   const handleExecute = async () => {
-    if (!currentImport) return;
+    if (!hasAccess || !currentImport || stage === 'executing') return;
     setStage('executing');
     setError('');
 
@@ -147,6 +149,7 @@ export default function CatalogImportPage() {
   );
 
   const handleViewErrors = async (importId: string) => {
+    if (!hasAccess) return;
     try {
       const errs = await fetchCatalogImportErrors(importId);
       setImportErrors(errs);
@@ -156,6 +159,7 @@ export default function CatalogImportPage() {
   };
 
   const handleRetryImport = async (importId: string) => {
+    if (!hasAccess || stage === 'executing') return;
     setError('');
     setStage('executing');
     try {
@@ -167,6 +171,21 @@ export default function CatalogImportPage() {
       setError(err instanceof Error ? err.message : 'Retry failed');
       setStage('dashboard');
     }
+  };
+
+  const handleDownloadReport = (importId: string) => {
+    if (!hasAccess) return;
+    return downloadCatalogImportReport(importId);
+  };
+
+  const handleDownloadTemplate = (type: string) => {
+    if (!hasAccess) return;
+    return downloadCatalogTemplate(type);
+  };
+
+  const handleExportCatalog = () => {
+    if (!hasAccess) return;
+    return exportCatalog();
   };
 
   const handleBackToDashboard = () => {
@@ -203,9 +222,9 @@ export default function CatalogImportPage() {
             onFileSelect={handleFileSelect}
             onRefresh={loadImports}
             onViewErrors={handleViewErrors}
-            onDownloadReport={downloadCatalogImportReport}
-            onDownloadTemplate={downloadCatalogTemplate}
-            onExportCatalog={exportCatalog}
+            onDownloadReport={handleDownloadReport}
+            onDownloadTemplate={handleDownloadTemplate}
+            onExportCatalog={handleExportCatalog}
             importErrors={importErrors}
             onRetryImport={handleRetryImport}
           />
