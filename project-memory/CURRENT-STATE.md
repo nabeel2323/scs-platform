@@ -946,7 +946,7 @@ Merchant active-store and product reads now preserve last-successful data throug
 - FIN-012 missing financial breakdown: manual/COD confirmation fails closed and rolls back payment state when the required breakdown row is absent. Commit `cdb189e95dd7022793af33352a18c31f81117059`.
 - FIN-013 payment expiry race: cancellation history only follows a successful conditional order update. Source `028e30e9ebeb626b51b6d80bc28467c9c946c419`; regression `83550c34c7dc11492fc6e5c5fc6fcb418b79243c`.
 - FIN-DSH-11–28 are added but not executed. Status remains IMPLEMENTED / TESTING_PENDING.
-- CI #1427 on `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`: lint/typecheck and Flutter passed; Prettier failed (258 files); API/PostgreSQL/Web/Admin dependent jobs skipped. CI #1429 on `a7a2791b868bc89852b58b17fa11b8aaf87f3c81` was cancelled. CI #1434 on the subsequent test checkpoint is running; re-fetch exact head/results before relying on it.
+- CI #1427 on `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`: lint/typecheck and Flutter passed; Prettier failed (258 files); API/PostgreSQL/Web/Admin dependent jobs skipped. CI #1429 on `a7a2791b868bc89852b58b17fa11b8aaf87f3c81` was cancelled. CI #1434 completed on `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231`: lint/typecheck and Flutter passed; Prettier failed; dependent API/PostgreSQL/Web/Admin/build/release jobs skipped.
 
 ## CI #1434 — FIN-013 payment expiry race checkpoint — 23 November 2026
 
