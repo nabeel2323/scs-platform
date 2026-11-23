@@ -286,7 +286,7 @@ export class DisputesService {
           .where(eq(refunds.id, refundResult.refundId));
       }
 
-      await tx
+      const [resolvedDispute] = await tx
         .update(disputes)
         .set({
           status: 'RESOLVED',
@@ -296,7 +296,19 @@ export class DisputesService {
           updatedAt: new Date(),
           ...(refundInput?.returnRequestId ? { returnRequestId: refundInput.returnRequestId } : {}),
         })
-        .where(eq(disputes.id, disputeId));
+        .where(and(
+          eq(disputes.id, disputeId),
+          ne(disputes.status, 'RESOLVED'),
+          ne(disputes.status, 'CLOSED'),
+        ))
+        .returning({ id: disputes.id });
+
+      // The preflight read above is not a concurrency boundary. Use a
+      // compare-and-set transition so simultaneous resolutions cannot append
+      // duplicate immutable events or publish duplicate outbox messages.
+      if (!resolvedDispute) {
+        throw new ConflictException('Dispute was already resolved or closed by another request');
+      }
 
       await tx.insert(disputeEvents).values({
         id: crypto.randomUUID(),

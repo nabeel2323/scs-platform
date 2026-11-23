@@ -526,6 +526,57 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(refund.rows[0].dispute_id).toBeNull();
   }, 60_000);
 
+
+  // ── FIN-DSH-21: Concurrent dispute resolution idempotency ───────
+
+  it('FIN-DSH-21: concurrent identical dispute resolutions commit one resolution event and outbox message', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const dispute = await openDispute(orderId);
+
+    const results = await Promise.allSettled([
+      disputesService.resolveDispute(
+        dispute.id, adminA, 'Approved after review', adminCaller,
+        { amountMinor: 1000, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
+      ),
+      disputesService.resolveDispute(
+        dispute.id, adminA, 'Approved after review', adminCaller,
+        { amountMinor: 1000, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
+      ),
+    ]);
+
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+
+    const state = await pool.query(
+      `SELECT status, resolution FROM disputes WHERE id = $1`, [dispute.id],
+    );
+    expect(state.rows[0]).toEqual({
+      status: 'RESOLVED',
+      resolution: 'Approved after review',
+    });
+
+    const events = await pool.query(
+      `SELECT count(*)::int AS count FROM dispute_events
+       WHERE dispute_id = $1 AND event_type = 'RESOLVED'`,
+      [dispute.id],
+    );
+    expect(events.rows[0].count).toBe(1);
+
+    const outbox = await pool.query(
+      `SELECT count(*)::int AS count FROM outbox_events
+       WHERE aggregate_id = $1 AND event_type = 'dispute.resolved'`,
+      [dispute.id],
+    );
+    expect(outbox.rows[0].count).toBe(1);
+
+    const refunds = await pool.query(
+      `SELECT count(*)::int AS count, count(*) FILTER (WHERE dispute_id = $1)::int AS linked
+       FROM refunds WHERE order_id = $2`,
+      [dispute.id, orderId],
+    );
+    expect(refunds.rows[0]).toEqual({ count: 1, linked: 1 });
+  }, 90_000);
+
   // ── FIN-DSH-07: Simultaneous return + dispute refunds ────────────
 
   it('FIN-DSH-07: concurrent return-initiated and dispute-initiated refunds respect the cumulative cap', async () => {
