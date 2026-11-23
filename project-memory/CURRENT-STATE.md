@@ -25,7 +25,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | PR #138 | Open; draft; not merged; base `develop` |
 | Exact-head GitHub Actions | No run for UX-099 source/test head `57d3a251b34b891e49a05e3f9b70756be1b4dbb7`; CI #1408 failed on earlier `a76b0bef436af8bde2d9329b1cd6ee5980f593fc` at changed-file Prettier (245 files); typecheck and Flutter job passed there, but UX-099 is NOT CI-VERIFIED |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest inspected Vercel contexts | At PR head `a451ad9ba16d3abd499fe4900ad1c8c78cee06d2`: Web FAILURE and Admin FAILURE at external build-rate-limit destination; not application test results |
+| Latest inspected Vercel contexts | At last refreshed PR head `fa97365b06f639446661e70a2ebb87a5351e55dd`: Web FAILURE and Admin FAILURE at external build-rate-limit destination; not application test results |
 | Focused client tests | Admin UX-030–058 and UX-097–099, Mobile UX-078–096 and Web UX-095 focused tests added/updated; not executed (Flutter suite passed only on earlier SHA `a76b0be`) |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
