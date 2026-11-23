@@ -22,7 +22,7 @@ describe('OutboxDispatcher cross-instance claim safety', () => {
     expect(query.sql).toContain('locked_by');
     expect(query.sql.toLowerCase()).toContain('not like');
     expect(query.sql).toContain('AS "eventType"');
-    expect(query.params).toContain('shipping.carrier.%');
+    expect(query.sql.toLowerCase()).toContain("not like 'shipping.carrier.%'");
   });
 
   it('does not dispatch a row twice within one process poll loop', async () => {
