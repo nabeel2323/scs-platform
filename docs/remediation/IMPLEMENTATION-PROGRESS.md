@@ -2070,3 +2070,12 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - **Source/test commit:** `9899113a4f574d2733b957d2f1b489e35a71fe0f`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, payout, staging, shared database or deployment behavior changed.
 - **Next:** continue source-first financial/operational correctness review. Preserve the consolidated Phase 3 test campaign and the existing G-012 manual-payment scope.
+
+
+## FIN-007 — Refund approval order payment projection — 23 November 2026
+
+- **Finding:** refund approval updated the authoritative `payment_records.status` but did not synchronize the denormalized `orders.payment_status`. A successful partial/full refund could leave the order projection stale.
+- **Implementation:** `PaymentsService.approveRefund` now updates `orders.payment_status` to the newly derived payment state in the same transaction as refund/payment status, payment history and outbox writes. It deliberately does not alter order fulfillment status.
+- **Regression coverage:** FIN-DSH-21 verifies PARTIALLY_REFUNDED projection and preserved DELIVERED order status; FIN-DSH-22 verifies REFUNDED projection and preserved DELIVERED status. Added but **not executed**.
+- **Source/test commit:** `5b68edac4d148f68656b4331a9612cd1752eab3d`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, payout, staging, shared database or deployment behavior changed.

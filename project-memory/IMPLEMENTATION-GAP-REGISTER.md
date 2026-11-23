@@ -828,3 +828,6 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 
 
 | FIN-006 | Dispute refund idempotency payload integrity | `DisputesService.resolveDispute` reused an existing deterministic refund key without verifying that the existing financial request matched the retry. | Only recover an orphan refund when payment/order, amount, reason, requester, currency and dispute link match; otherwise conflict before linking refund or resolving dispute. FIN-DSH-20 adds PostgreSQL amount/reason mismatch cases. | P1 | IMPLEMENTED / TESTING_PENDING | Source/test commit `9899113a4f574d2733b957d2f1b489e35a71fe0f`; PostgreSQL cases await Phase 3. No schema change. |
+
+
+| FIN-007 | Refund approval order payment projection | `PaymentsService.approveRefund` changed `payment_records.status` without synchronizing the corresponding denormalized `orders.payment_status`. | Update the order payment projection atomically with refund approval while preserving order fulfillment status. FIN-DSH-21/22 cover partial/full refund projections. | P1 | IMPLEMENTED / TESTING_PENDING | Source/test commit `5b68edac4d148f68656b4331a9612cd1752eab3d`; PostgreSQL cases await Phase 3. No schema change. |

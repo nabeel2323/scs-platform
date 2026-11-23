@@ -645,3 +645,8 @@ Next: continue source-first review of payment and settlement transitions; keep a
 FIN-006 is IMPLEMENTED / TESTING_PENDING. The dispute-resolution recovery path now reuses an orphan refund only when payment/order, amount, reason, requester, currency and dispute link match the retry. FIN-DSH-20 adds PostgreSQL cases for amount and reason mismatch; tests not executed. Source/test commit: `9899113a4f574d2733b957d2f1b489e35a71fe0f`. No schema, migration, provider, payout, staging or shared database changes.
 
 **Next:** continue source-first financial and operational correctness review; keep the full test campaign grouped in Phase 3.
+
+
+## FIN-007 — Refund approval order payment projection — 23 November 2026
+
+FIN-007 is IMPLEMENTED / TESTING_PENDING. Refund approval now updates the denormalized order payment state atomically with the payment/refund transition, while preserving order fulfillment state. FIN-DSH-21/22 add PostgreSQL coverage for partial/full refunds; tests not executed. Source/test commit: `5b68edac4d148f68656b4331a9612cd1752eab3d`. No schema, migration, provider, payout, staging or shared DB changes.

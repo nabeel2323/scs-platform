@@ -1011,3 +1011,11 @@ The next full workflow is required to verify these changes.
 - FIN-DSH-20 amount/reason mismatch regression scenarios were added but not executed. Status: IMPLEMENTED / TESTING_PENDING.
 - No exact-head CI result is claimed here; refresh GitHub Actions for the latest branch head.
 - No deployment, staging operation, shared database mutation, schema migration, grant/default-ACL change or RLS enablement occurred.
+
+
+## FIN-007 validation status — 23 November 2026
+
+- Source/test commit: `5b68edac4d148f68656b4331a9612cd1752eab3d`.
+- FIN-DSH-21/22 were added but not executed. Status: IMPLEMENTED / TESTING_PENDING.
+- No exact-head CI result is claimed until Actions evidence is refreshed.
+- No deployment, staging operation, shared DB mutation, schema migration, grants/default-ACL change or RLS enablement occurred.

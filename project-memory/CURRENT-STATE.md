@@ -919,3 +919,12 @@ Merchant active-store and product reads now preserve last-successful data throug
 - Added PostgreSQL FIN-DSH-20 cases for mismatched amount and reason. Not executed; IMPLEMENTED / TESTING_PENDING.
 - No schema/migration, provider, gateway, payout, staging, shared database or deployment change.
 - Re-fetch the live PR head and exact-head CI before the next implementation group. Continue the source-first financial/operational correctness audit; do not expand automatic gateway/payout scope.
+
+
+## FIN-007 — Refund approval order payment projection — 23 November 2026
+
+- Source/test commit: `5b68edac4d148f68656b4331a9612cd1752eab3d`.
+- `PaymentsService.approveRefund` now synchronizes `orders.payment_status` with the derived payment state inside the refund approval transaction, without changing fulfillment status.
+- FIN-DSH-21/22 cover partial/full refund projection and preserved DELIVERED status. Tests not executed; IMPLEMENTED / TESTING_PENDING.
+- No schema/migration, provider, gateway, payout, staging, shared DB or deployment change.
+- Re-fetch PR #138 and exact-head CI before the next task. Continue source-first financial/operational correctness review.

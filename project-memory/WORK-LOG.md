@@ -1206,3 +1206,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added PostgreSQL FIN-DSH-20 scenarios for amount and reason mismatch. Tests added, not executed.
 - Source/test commit: `9899113a4f574d2733b957d2f1b489e35a71fe0f`.
 - No schema, migration, provider, payout, staging, shared database or deployment changes.
+
+
+## 2026-11-23 — FIN-007 refund/order payment projection consistency
+
+- Found that `approveRefund` updated the payment record but left the order's denormalized `payment_status` stale after a successful refund.
+- The approval transaction now updates the order payment projection to the derived payment state, without changing fulfillment/order status.
+- Added PostgreSQL FIN-DSH-21/22 for partial and full refunds; tests added, not executed.
+- Source/test commit: `5b68edac4d148f68656b4331a9612cd1752eab3d`.
+- No schema, migration, provider, payout, staging, shared database or deployment changes.
