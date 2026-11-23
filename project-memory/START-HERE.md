@@ -873,3 +873,12 @@ Newest implementation commit: ee6bf2f84803f2eb1f80ae931d9415923a760ff3. The foll
 - The touched outbox-dispatcher test exposed a case-sensitive SQL assertion against PostgreSQL's uppercase NOT LIKE; corrected to compare lowercased SQL in commit 3ef930973014bdb43e10a62c337a61831835c174. The latest CI run is the exact-head recheck for this correction.
 - FIN-047 remains IMPLEMENTED / TESTING_PENDING. Do not merge/deploy. No migration or shared/staging DB write, environment mutation, worker activation, RLS/ACL change, or production operation was performed.
 - Next: finish collecting CI #45257284797 API coverage and PostgreSQL integration results; run the Admin settlement recovery tests independently because the Web suite currently fails before Admin is reached; then address the 14 modular-boundary violations and _migration_log audit grant through their proper owners/reviewed changes. Do not change test expectations or weaken gates to hide failures.
+
+## Post-format continuation — 23 November 2026
+
+PR #138 remains OPEN / DRAFT / UNMERGED on `remediation/phase-0-1-tenant-security`. Source/test checkpoint: `954200f9bf7866aa2f25d0585847a0c51eb19259`. Formatter commit: `4477ebd42ba46146b14df18094d025ab133c5d75`.
+
+CI #45260954714 tested source checkpoint `954200f9bf7866aa2f25d0585847a0c51eb19259` and concluded FAILED at changed-file Prettier. Install, lint and workspace typecheck passed; Flutter analyze/tests passed. API unit/coverage, PostgreSQL integration, migration, boundary, contract, Web/Admin, build, container and k6 jobs were skipped behind the formatting gate. The failure is historical for that pre-format SHA; Prettier corrections were subsequently applied and checked in bot commit `4477ebd42ba46146b14df18094d025ab133c5d75`. No application-test result is claimed from #452609.
+
+The formatter commit applies Prettier to the previously flagged source and handoff files. A new exact-head CI run is still required. FIN-047 stays IMPLEMENTED / TESTING_PENDING. Do not merge, deploy, change database grants/RLS, apply migrations or activate workers. The next work is to inspect the new CI, then resume the proper G-015 module-contract refactor and G-002 source evidence.
+
