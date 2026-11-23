@@ -63,6 +63,9 @@
  *   FIN-DSH-59  Duplicate return refunds remain detectable across accounting periods
  *   FIN-DSH-60  Adjustment reconciliation uses posting period and ignores unposted drafts
  *   FIN-DSH-61  Return refund, return state/history and both outbox events roll back together
+ *   FIN-DSH-62  Return refund finalization rejects an amount mismatch
+ *   FIN-DSH-63  Failed refund state, payment history and retry stay in sync
+ *   FIN-DSH-64  Failure outbox persistence rolls back both payment and return ledgers
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -2971,6 +2974,174 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [ret.id],
     );
     expect(reversals.rows).toHaveLength(0);
+  }, 90_000);
+
+
+  it('FIN-DSH-63: failed return refund updates the payment ledger and retry reuses the same refund', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const pendingReturn = await advanceReturnToRefundPending(
+      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+    );
+    const refundId = pendingReturn.refundId as string;
+    const paymentId = (await pool.query(
+      `SELECT payment_record_id FROM return_requests WHERE id = $1`, [pendingReturn.id],
+    )).rows[0].payment_record_id as string;
+
+    const failed = await returnsService.transitionReturn(
+      pendingReturn.id, 'REFUND_FAILED', adminCaller,
+      { notes: 'External refund transfer was rejected' },
+    );
+    expect(failed.status).toBe('REFUND_FAILED');
+
+    const failedRefund = await pool.query(
+      `SELECT status FROM refunds WHERE id = $1`, [refundId],
+    );
+    expect(failedRefund.rows[0].status).toBe('FAILED');
+
+    const failedPaymentEvent = await pool.query(
+      `SELECT actor_id, actor_type, amount_minor
+       FROM payment_events
+       WHERE payment_record_id = $1 AND event_type = 'PAYMENT_REFUND_FAILED'`,
+      [paymentId],
+    );
+    expect(failedPaymentEvent.rows).toHaveLength(1);
+    expect(failedPaymentEvent.rows[0].actor_id).toBe(adminA);
+    expect(failedPaymentEvent.rows[0].actor_type).toBe('ADMIN');
+
+    const failedOutbox = await pool.query(
+      `SELECT id FROM outbox_events
+       WHERE event_type = 'payment.refund_failed' AND aggregate_id = $1`,
+      [paymentId],
+    );
+    expect(failedOutbox.rows).toHaveLength(1);
+
+    const failedReservation = await pool.query(
+      `SELECT COALESCE(SUM(amount_minor), 0)::text AS total
+       FROM refunds WHERE payment_record_id = $1
+         AND status IN ('REQUESTED', 'PROCESSING', 'SUCCEEDED', 'APPROVED')`,
+      [paymentId],
+    );
+    expect(failedReservation.rows[0].total).toBe('0');
+
+    const retried = await returnsService.transitionReturn(
+      pendingReturn.id, 'REFUND_PENDING', adminCaller,
+    );
+    expect(retried.status).toBe('REFUND_PENDING');
+    expect(retried.refundId).toBe(refundId);
+
+    const currentRefund = await pool.query(
+      `SELECT status FROM refunds WHERE id = $1`, [refundId],
+    );
+    expect(currentRefund.rows[0].status).toBe('REQUESTED');
+
+    const refundCount = await pool.query(
+      `SELECT count(*)::int AS count FROM refunds
+       WHERE idempotency_key = $1`, [`return-refund:${pendingReturn.id}`],
+    );
+    expect(refundCount.rows[0].count).toBe(1);
+
+    const eventCounts = await pool.query(
+      `SELECT event_type, count(*)::int AS count FROM payment_events
+       WHERE payment_record_id = $1
+         AND event_type IN ('PAYMENT_REFUND_REQUESTED', 'PAYMENT_REFUND_FAILED')
+       GROUP BY event_type`,
+      [paymentId],
+    );
+    const counts = Object.fromEntries(eventCounts.rows.map((row: any) => [row.event_type, row.count]));
+    expect(counts.PAYMENT_REFUND_REQUESTED).toBe(2);
+    expect(counts.PAYMENT_REFUND_FAILED).toBe(1);
+
+    const requestedOutbox = await pool.query(
+      `SELECT count(*)::int AS count FROM outbox_events
+       WHERE event_type = 'payment.refund_requested' AND aggregate_id = $1`,
+      [paymentId],
+    );
+    expect(requestedOutbox.rows[0].count).toBe(2);
+
+    const returnEvents = await pool.query(
+      `SELECT event_type, actor_id, actor_type FROM return_request_events
+       WHERE return_request_id = $1 AND event_type = 'REFUND_FAILED'`,
+      [pendingReturn.id],
+    );
+    expect(returnEvents.rows).toEqual([{
+      event_type: 'REFUND_FAILED',
+      actor_id: adminA,
+      actor_type: 'ADMIN',
+    }]);
+  }, 90_000);
+
+  it('FIN-DSH-64: return failure outbox error rolls back the refund/payment and return ledgers', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const pendingReturn = await advanceReturnToRefundPending(
+      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+    );
+    const refundId = pendingReturn.refundId as string;
+    const paymentId = (await pool.query(
+      `SELECT payment_record_id FROM return_requests WHERE id = $1`, [pendingReturn.id],
+    )).rows[0].payment_record_id as string;
+
+    const outbox = (returnsService as any).outbox;
+    const originalPublish = outbox.publish.bind(outbox);
+    const publishSpy = vi.spyOn(outbox, 'publish').mockImplementation(async (...args: any[]) => {
+      if (args[0] === 'return.refund_failed') {
+        throw new Error('Injected return failure outbox persistence failure');
+      }
+      return originalPublish(...args);
+    });
+
+    try {
+      await expect(
+        returnsService.transitionReturn(
+          pendingReturn.id, 'REFUND_FAILED', adminCaller,
+          { notes: 'External refund transfer was rejected' },
+        ),
+      ).rejects.toThrow('Injected return failure outbox persistence failure');
+    } finally {
+      publishSpy.mockRestore();
+    }
+
+    const state = await pool.query(
+      `SELECT r.status AS return_status, f.status AS refund_status
+       FROM return_requests r JOIN refunds f ON f.id = r.refund_id
+       WHERE r.id = $1`,
+      [pendingReturn.id],
+    );
+    expect(state.rows[0]).toEqual({
+      return_status: 'REFUND_PENDING',
+      refund_status: 'REQUESTED',
+    });
+
+    const paymentEventsRows = await pool.query(
+      `SELECT id FROM payment_events
+       WHERE payment_record_id = $1 AND event_type = 'PAYMENT_REFUND_FAILED'`,
+      [paymentId],
+    );
+    expect(paymentEventsRows.rows).toHaveLength(0);
+
+    const paymentOutboxRows = await pool.query(
+      `SELECT id FROM outbox_events
+       WHERE event_type = 'payment.refund_failed' AND aggregate_id = $1`,
+      [paymentId],
+    );
+    expect(paymentOutboxRows.rows).toHaveLength(0);
+
+    const returnEventsRows = await pool.query(
+      `SELECT id FROM return_request_events
+       WHERE return_request_id = $1 AND event_type = 'REFUND_FAILED'`,
+      [pendingReturn.id],
+    );
+    expect(returnEventsRows.rows).toHaveLength(0);
+
+    const returnOutboxRows = await pool.query(
+      `SELECT id FROM outbox_events
+       WHERE event_type = 'return.refund_failed' AND aggregate_id = $1`,
+      [pendingReturn.id],
+    );
+    expect(returnOutboxRows.rows).toHaveLength(0);
   }, 90_000);
 
 });

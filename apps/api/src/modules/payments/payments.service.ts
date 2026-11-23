@@ -1259,6 +1259,185 @@ export class PaymentsService {
     return this.getRefund(refundId);
   }
 
+  /**
+   * Record a failed refund attempt in the caller-owned payment/return transaction.
+   * The caller must already hold the payment → refund locks and persist its
+   * corresponding domain transition before committing this transaction.
+   */
+  async failRefundInTransaction(
+    tx: any,
+    payment: any,
+    refund: any,
+    caller: CallerContext,
+    failureReason?: string,
+  ): Promise<void> {
+    if (!isTenantPrivileged(caller)) {
+      throw new ForbiddenException('Only platform staff can mark a refund as failed');
+    }
+    if (
+      refund.paymentRecordId !== payment.id ||
+      refund.orderId !== payment.orderId ||
+      refund.currency !== payment.currency
+    ) {
+      throw new ConflictException('Refund does not belong to the supplied payment');
+    }
+    const retryableStatuses = ['REQUESTED', 'PROCESSING', 'APPROVED'];
+    if (!retryableStatuses.includes(refund.status)) {
+      throw new ConflictException(`Cannot fail refund in ${refund.status} status`);
+    }
+
+    const [updated] = await tx
+      .update(refunds)
+      .set({ status: 'FAILED', updatedAt: new Date() })
+      .where(and(
+        eq(refunds.id, refund.id),
+        eq(refunds.paymentRecordId, payment.id),
+        inArray(refunds.status, retryableStatuses),
+      ))
+      .returning({ id: refunds.id });
+    if (!updated) {
+      throw new ConflictException('Refund status changed before failure was recorded');
+    }
+
+    const reason = failureReason?.trim() || null;
+    await tx.insert(paymentEvents).values({
+      id: crypto.randomUUID(),
+      paymentRecordId: payment.id,
+      eventType: 'PAYMENT_REFUND_FAILED',
+      fromStatus: payment.status,
+      toStatus: payment.status,
+      actorId: caller.sub,
+      actorType: 'ADMIN',
+      amountMinor: refund.amountMinor,
+      notes: reason ? `Refund failed: ${reason}` : `Refund failed: ${refund.id}`,
+      metadata: {
+        refundId: refund.id,
+        returnRequestId: refund.returnRequestId ?? null,
+      },
+    });
+
+    await this.outbox.publish(
+      'payment.refund_failed',
+      payment.id,
+      {
+        refundId: refund.id,
+        paymentId: payment.id,
+        orderId: payment.orderId,
+        amountMinor: refund.amountMinor,
+        currency: refund.currency,
+        reason,
+      },
+      {},
+      null,
+      tx,
+    );
+  }
+
+  /**
+   * Re-open a failed return refund as the same logical refund request.
+   * The payment row is already locked by the caller; FAILED refunds do not
+   * reserve balance, so re-check the remaining amount before restoring REQUESTED.
+   */
+  async retryFailedRefundInTransaction(
+    tx: any,
+    payment: any,
+    refund: any,
+    caller: CallerContext,
+    retryNotes?: string,
+    originatingReturnId?: string | null,
+  ): Promise<void> {
+    if (!isTenantPrivileged(caller)) {
+      throw new ForbiddenException('Only platform staff can retry a failed refund');
+    }
+    if (
+      refund.paymentRecordId !== payment.id ||
+      refund.orderId !== payment.orderId ||
+      refund.currency !== payment.currency
+    ) {
+      throw new ConflictException('Refund does not belong to the supplied payment');
+    }
+    if (refund.status !== 'FAILED') {
+      throw new ConflictException(`Cannot retry refund in ${refund.status} status`);
+    }
+    if (!['CONFIRMED', 'CAPTURED', 'PARTIALLY_REFUNDED'].includes(payment.status)) {
+      throw new ConflictException(`Cannot retry refund for payment in ${payment.status} status`);
+    }
+
+    assertPositiveMinorAmount(Number(refund.amountMinor), 'Refund amount');
+    const confirmedAmount = Number(payment.confirmedAmountMinor ?? payment.amountMinor);
+    assertPositiveMinorAmount(confirmedAmount, 'Confirmed payment amount');
+    const reservedRows = await tx
+      .select({ total: sql<string>`COALESCE(SUM(amount_minor), 0)::text` })
+      .from(refunds)
+      .where(and(
+        eq(refunds.paymentRecordId, payment.id),
+        inArray(refunds.status, ['REQUESTED', 'PROCESSING', 'SUCCEEDED', 'APPROVED']),
+      ));
+    const alreadyReserved = toSafeMinorUnitTotal(
+      reservedRows[0]?.total,
+      'Reserved refund amount',
+    );
+    const refundable = confirmedAmount - alreadyReserved;
+    if (Number(refund.amountMinor) > refundable) {
+      throw new BadRequestException(
+        `Refund retry amount ${refund.amountMinor} exceeds refundable balance ${refundable}`,
+      );
+    }
+
+    const [updated] = await tx
+      .update(refunds)
+      .set({
+        status: 'REQUESTED',
+        approvedBy: null,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(refunds.id, refund.id),
+        eq(refunds.paymentRecordId, payment.id),
+        eq(refunds.status, 'FAILED'),
+      ))
+      .returning({ id: refunds.id });
+    if (!updated) {
+      throw new ConflictException('Refund status changed before retry was recorded');
+    }
+
+    const note = retryNotes?.trim();
+    const returnRequestId = originatingReturnId ?? refund.returnRequestId ?? null;
+    await tx.insert(paymentEvents).values({
+      id: crypto.randomUUID(),
+      paymentRecordId: payment.id,
+      eventType: 'PAYMENT_REFUND_REQUESTED',
+      fromStatus: payment.status,
+      toStatus: payment.status,
+      actorId: caller.sub,
+      actorType: 'ADMIN',
+      amountMinor: refund.amountMinor,
+      notes: note ? `Refund retry requested: ${note}` : `Refund retry requested: ${refund.id}`,
+      metadata: {
+        refundId: refund.id,
+        returnRequestId,
+        retry: true,
+      },
+    });
+
+    await this.outbox.publish(
+      'payment.refund_requested',
+      payment.id,
+      {
+        refundId: refund.id,
+        paymentId: payment.id,
+        orderId: payment.orderId,
+        amountMinor: refund.amountMinor,
+        reason: refund.reason,
+        returnRequestId,
+        retry: true,
+      },
+      {},
+      null,
+      tx,
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // SETTLEMENT
   // ═══════════════════════════════════════════════════════════════

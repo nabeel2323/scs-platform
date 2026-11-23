@@ -544,7 +544,7 @@ export class ReturnsService {
       case 'REFUNDED':
         return this.markRefunded(ret);
       case 'REFUND_FAILED':
-        return this.markRefundFailed(ret, input);
+        return this.markRefundFailed(ret, input, caller);
       case 'EXPIRED':
         return this.expireReturn(ret, caller);
       case 'ESCALATED':
@@ -779,7 +779,7 @@ export class ReturnsService {
 
   // ── Create Refund Request (REFUND_PENDING) ────────────────────
 
-  private async createRefundRequest(ret: any, _caller: CallerContext) {
+  private async createRefundRequest(ret: any, caller: CallerContext) {
     const idempotencyKey = `return-refund:${ret.id}`;
 
     // Keep the payment refund, return linkage, return state/history and both
@@ -798,6 +798,7 @@ export class ReturnsService {
         .select()
         .from(refunds)
         .where(eq(refunds.idempotencyKey, idempotencyKey))
+        .for('update')
         .limit(1);
 
       let refund: { refundId: string; amountMinor: number; status: string };
@@ -818,11 +819,32 @@ export class ReturnsService {
           );
         }
 
-        refund = {
-          refundId: existingRefund.id,
-          amountMinor: Number(existingRefund.amountMinor),
-          status: existingRefund.status,
-        };
+        if (existingRefund.status === 'FAILED') {
+          if (ret.status !== 'REFUND_FAILED') {
+            throw new ConflictException(
+              'A failed refund can only be retried from the REFUND_FAILED return state',
+            );
+          }
+          await this.payments.retryFailedRefundInTransaction(
+            tx, payment, existingRefund, caller, `Return ${ret.id}`, ret.id,
+          );
+          refund = {
+            refundId: existingRefund.id,
+            amountMinor: Number(existingRefund.amountMinor),
+            status: 'REQUESTED',
+          };
+        } else {
+          if (existingRefund.status !== 'REQUESTED') {
+            throw new ConflictException(
+              `Cannot resume return refund in ${existingRefund.status} status`,
+            );
+          }
+          refund = {
+            refundId: existingRefund.id,
+            amountMinor: Number(existingRefund.amountMinor),
+            status: existingRefund.status,
+          };
+        }
       } else {
         refund = await this.payments.requestRefund(
           ret.paymentRecordId,
@@ -975,13 +997,104 @@ export class ReturnsService {
 
   // ── Mark Refund Failed ────────────────────────────────────────
 
-  private async markRefundFailed(ret: any, input?: TransitionInput) {
-    // Alert 5 input: the durable signal is the REFUND_FAILED status itself, but
-    // the counter makes repeated failures in one process visible to the monitor
-    // even before they are scanned.
+  private async markRefundFailed(
+    ret: any,
+    input: TransitionInput | undefined,
+    caller: CallerContext,
+  ) {
+    if (!ret.refundId || !ret.paymentRecordId) {
+      throw new ConflictException('Return is missing its linked payment refund');
+    }
+
+    await this.db.db.transaction(async (tx) => {
+      // Keep the same payment → refund → return lock order as refund approval and
+      // successful return finalization so the failure and approval paths serialize.
+      const [payment] = await tx
+        .select()
+        .from(paymentRecords)
+        .where(eq(paymentRecords.id, ret.paymentRecordId))
+        .for('update')
+        .limit(1);
+      if (!payment) throw new NotFoundException('Payment not found for return refund');
+
+      const [refundRow] = await tx
+        .select()
+        .from(refunds)
+        .where(and(
+          eq(refunds.id, ret.refundId),
+          eq(refunds.paymentRecordId, payment.id),
+        ))
+        .for('update')
+        .limit(1);
+      if (!refundRow) {
+        throw new ConflictException('Linked refund does not belong to the return payment');
+      }
+
+      const [lockedReturn] = await tx
+        .select()
+        .from(returnRequests)
+        .where(eq(returnRequests.id, ret.id))
+        .for('update')
+        .limit(1);
+      if (!lockedReturn) throw new NotFoundException('Return request not found');
+      if (lockedReturn.status !== ret.status || lockedReturn.status !== 'REFUND_PENDING') {
+        throw new ConflictException('Return status already changed');
+      }
+      if (
+        lockedReturn.paymentRecordId !== payment.id ||
+        lockedReturn.subOrderId !== payment.orderId ||
+        lockedReturn.refundId !== refundRow.id ||
+        refundRow.orderId !== lockedReturn.subOrderId ||
+        refundRow.requestedBy !== lockedReturn.buyerId ||
+        refundRow.currency !== payment.currency ||
+        refundRow.returnRequestId !== lockedReturn.id ||
+        !Number.isSafeInteger(refundRow.amountMinor) ||
+        refundRow.amountMinor <= 0 ||
+        !Number.isSafeInteger(lockedReturn.requestedRefundMinor) ||
+        refundRow.amountMinor !== lockedReturn.requestedRefundMinor
+      ) {
+        throw new ConflictException('Refund lineage does not match the return and payment');
+      }
+
+      await this.payments.failRefundInTransaction(
+        tx, payment, refundRow, caller, input?.notes,
+      );
+
+      const flip = await tx
+        .update(returnRequests)
+        .set({ status: 'REFUND_FAILED', updatedAt: new Date() })
+        .where(and(
+          eq(returnRequests.id, lockedReturn.id),
+          eq(returnRequests.status, lockedReturn.status),
+          eq(returnRequests.refundId, refundRow.id),
+        ))
+        .returning({ id: returnRequests.id });
+      if (flip.length === 0) {
+        throw new ConflictException('Return status already changed');
+      }
+
+      await tx.insert(returnRequestEvents).values({
+        id: crypto.randomUUID(),
+        returnRequestId: lockedReturn.id,
+        eventType: 'REFUND_FAILED',
+        fromStatus: lockedReturn.status,
+        toStatus: 'REFUND_FAILED',
+        actorId: caller.sub,
+        actorType: isTenantPrivileged(caller) ? 'ADMIN' : 'SYSTEM',
+        notes: input?.notes || null,
+        metadata: { refundId: refundRow.id },
+      });
+
+      await this.outbox.publish('return.refund_failed', lockedReturn.id, {
+        returnRequestId: lockedReturn.id,
+        refundId: refundRow.id,
+        amountMinor: refundRow.amountMinor,
+        reason: input?.notes?.trim() || null,
+      }, {}, null, tx);
+    });
+
+    // Alert 5 input: the durable failure state is committed in both ledgers.
     recordOpsCounter('refund_operation_failures_total', 1, `return:${ret.id}`);
-    await this.flipReturnStatus(ret.id, ret.status, 'REFUND_FAILED',
-      { sub: ret.buyerId, role: 'SYSTEM' } as CallerContext, 'SYSTEM', input?.notes);
     return this.getReturnRequest(ret.id);
   }
 
