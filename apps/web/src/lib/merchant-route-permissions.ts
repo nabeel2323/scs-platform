@@ -15,6 +15,7 @@ export const MERCHANT_NAV_ITEMS: readonly MerchantNavigationItem[] = [
   { href: '/merchant', label: 'Dashboard', exact: true, permission: 'merchant:stores:read' },
   { href: '/merchant/catalog', label: 'Catalog', permission: 'catalog:products:read' },
   { href: '/merchant/orders', label: 'Orders', permission: 'merchant:orders:read' },
+  { href: '/merchant/settlements', label: 'Settlements', permission: 'merchant:orders:read' },
   { href: '/merchant/deliveries', label: 'Deliveries', permission: 'fulfillment:shipments:read' },
   { href: '/merchant/inventory', label: 'Inventory', permission: 'merchant:inventory:read' },
   { href: '/merchant/pricing', label: 'Pricing', permission: 'merchant:pricing:read' },
@@ -33,6 +34,7 @@ export const MERCHANT_NAV_ITEMS: readonly MerchantNavigationItem[] = [
 const MERCHANT_ROUTE_RULES: ReadonlyArray<readonly [string, string]> = [
   ['/merchant/catalog', 'catalog:products:read'],
   ['/merchant/orders', 'merchant:orders:read'],
+  ['/merchant/settlements', 'merchant:orders:read'],
   ['/merchant/deliveries', 'fulfillment:shipments:read'],
   ['/merchant/inventory', 'merchant:inventory:read'],
   ['/merchant/pricing', 'merchant:pricing:read'],

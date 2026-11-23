@@ -18,6 +18,7 @@ const CARDS = [
   { href: '/merchant/warehouses', title: 'Warehouses', desc: 'Manage warehouse locations & contacts', icon: '📦', permission: 'merchant:stores:read' },
   { href: '/merchant/catalog', title: 'Catalog', desc: 'Products, variants, media & categories', icon: '📦', permission: 'catalog:products:read' },
   { href: '/merchant/orders', title: 'Orders', desc: 'Incoming orders — accept & fulfil', icon: '🧾', permission: 'merchant:orders:read' },
+  { href: '/merchant/settlements', title: 'Settlements', desc: 'Payout history and financial adjustments', icon: '💳', permission: 'merchant:orders:read' },
   { href: '/merchant/customers', title: 'Customers', desc: 'Buyers, revenue & order stats', icon: '👥', permission: 'merchant:orders:read' },
   { href: '/merchant/inventory', title: 'Inventory', desc: 'Stock levels per warehouse & adjustments', icon: '📊', permission: 'merchant:inventory:read' },
   { href: '/merchant/pricing', title: 'Pricing', desc: 'Price lists & volume tiers', icon: '🏷️', permission: 'merchant:pricing:read' },

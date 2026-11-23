@@ -10,6 +10,7 @@ const SETTLEMENT_COLORS: Record<string, string> = {
   CALCULATED: '#6366f1',
   DUE: '#f59e0b',
   ADJUSTMENT: '#8b5cf6',
+  'ADJUSTMENT · PAID': '#8b5cf6',
   PAID: '#10b981',
 };
 
@@ -173,7 +174,11 @@ export default function AdminSettlementsPage() {
                     {fmt(s.netMinor, s.currency)}
                   </td>
                   <td style={{ padding: '10px 8px' }}>
-                    <SettlementBadge status={s.status} />
+                    <SettlementBadge status={
+                      s.status === 'PAID' && (s.metadata?.adjustmentId || s.notes?.startsWith('Posted adjustment '))
+                        ? 'ADJUSTMENT · PAID'
+                        : s.status
+                    } />
                   </td>
                   {canWrite && (
                     <td style={{ padding: '10px 8px', textAlign: 'center' }}>

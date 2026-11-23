@@ -83,6 +83,23 @@ describe('admin settlements read recovery', () => {
     expect(markSettlementPaid).toHaveBeenCalledWith('settlement-adjustment-1');
   });
 
+  it('labels paid adjustment rows separately from primary paid settlements', async () => {
+    const paidAdjustment = {
+      ...settlement,
+      id: 'settlement-adjustment-paid',
+      status: 'PAID',
+      metadata: { adjustmentId: 'adjustment-1' },
+      grossMinor: 0,
+      netMinor: 125,
+    };
+    fetchAdminSettlements.mockResolvedValueOnce([paidAdjustment]);
+
+    render(<AdminSettlementsPage />);
+
+    expect(await screen.findByText('ADJUSTMENT · PAID')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Mark Paid' })).toBeNull();
+  });
+
   it('preserves the last successful rows after a failed same-filter refresh', async () => {
     fetchAdminSettlements.mockResolvedValueOnce([settlement]).mockRejectedValueOnce(new Error('Settlement refresh failed'));
 

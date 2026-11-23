@@ -2623,6 +2623,38 @@ export async function markReturnShipped(
   return res.json();
 }
 
+// ── Merchant Settlements ─────────────────────────────────────────
+
+export interface MerchantSettlement {
+  id: string;
+  subOrderId: string;
+  merchantStoreId: string;
+  paymentRecordId: string;
+  grossMinor: number;
+  refundMinor: number;
+  commissionMinor: number;
+  feeMinor: number;
+  netMinor: number;
+  currency: string;
+  status: string;
+  metadata?: Record<string, unknown>;
+  notes?: string | null;
+  paymentReference: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export async function fetchMerchantSettlements(
+  storeId: string,
+  status?: string,
+): Promise<MerchantSettlement[]> {
+  const params = new URLSearchParams({ storeId });
+  if (status) params.set('status', status);
+  const res = await authFetch(`${API_URL}/v1/merchant/settlements?${params}`);
+  if (!res.ok) throw await ApiError.from(res, `Fetch merchant settlements failed (${res.status})`);
+  return res.json();
+}
+
 // ── Merchant Returns ───────────────────────────────────────────
 
 export async function fetchMerchantReturns(

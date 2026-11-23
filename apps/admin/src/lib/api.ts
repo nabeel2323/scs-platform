@@ -1950,6 +1950,8 @@ export interface AdminSettlement extends AdminRecord {
   netMinor: number;
   currency: string;
   status: string;
+  metadata?: Record<string, unknown>;
+  notes?: string | null;
   createdAt: string;
 }
 

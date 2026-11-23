@@ -9,6 +9,7 @@ describe('merchant route permission policy', () => {
   it.each([
     ['/merchant/catalog', 'catalog:products:read'],
     ['/merchant/orders', 'merchant:orders:read'],
+    ['/merchant/settlements', 'merchant:orders:read'],
     ['/merchant/deliveries', 'fulfillment:shipments:read'],
     ['/merchant/inventory', 'merchant:inventory:read'],
     ['/merchant/pricing', 'merchant:pricing:read'],
@@ -49,6 +50,7 @@ describe('merchant route permission policy', () => {
     expect(visible.map((item) => item.href)).toEqual([
       '/merchant',
       '/merchant/orders',
+      '/merchant/settlements',
       '/merchant/offers',
       '/merchant/customers',
       '/merchant/store',
