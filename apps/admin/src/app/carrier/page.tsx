@@ -137,7 +137,7 @@ function ConfigTable({ rows }: { rows: CarrierConfiguration[] }) {
 }
 
 function RecoveryTable({ rows, onRecovered }: { rows: RecoveryQueueRow[]; onRecovered: () => void }) {
-  const action = useAdminMutation(onRecovered);
+  const action = useAdminMutation(onRecovered, () => canRecover);
   const cols: RelatedColumn[] = [
     { key: 'id', label: 'Shipment', render: (v) => <Link href={`/shipments/${v}`} style={{ fontFamily: 'monospace', fontSize: 12, color: '#1e6178' }}>{String(v).slice(0, 10)}…</Link> },
     { key: 'shippingProviderKey', label: 'Provider', render: (v) => v ? String(v) : '—' },
