@@ -184,7 +184,7 @@ export class ReconciliationService {
 
         await txDb.insert(reconciliationRuns).values({
           id: runId, periodStart, periodEnd, currency, version: nextVersion,
-          status: 'RUNNING', summary: {}, discrepancyCount: 0, executedBy, orgId: tenantId,
+          status: 'RUNNING', summary: {}, discrepancyCount: 0, executedBy,\n          ...(tenantId ? { orgId: tenantId } : {}),
         });
 
         // The predecessor points forward to the new run through superseded_by.
@@ -406,7 +406,7 @@ export class ReconciliationService {
       if (breakdown) {
         const originalCommissionMinor = Number(breakdown.commissionMinor);
         const totalReversed = sumSafeMinorUnitAmounts(
-          reversals.map(reversal => Number(reversal.reversalMinor)),
+          reversals.map((reversal: { reversalMinor: number }) => Number(reversal.reversalMinor)),
         );
 
         if (
@@ -529,8 +529,8 @@ export class ReconciliationService {
       const approvals = await db.select().from(settlementAdjustmentApprovals).where(eq(settlementAdjustmentApprovals.adjustmentId, adj.id));
 
       if (adj.requiresDualApproval) {
-        const financeApprovals = approvals.filter(a => a.approverRole === 'FINANCE');
-        const adminApprovals = approvals.filter(a => a.approverRole === 'ADMIN');
+        const financeApprovals = approvals.filter((a: { approverRole: string }) => a.approverRole === 'FINANCE');
+        const adminApprovals = approvals.filter((a: { approverRole: string }) => a.approverRole === 'ADMIN');
         if (financeApprovals.length < 1 || adminApprovals.length < 1) {
           discrepancies.push({
             type: 'UNAPPROVED_ADJUSTMENT' as DiscrepancyType,

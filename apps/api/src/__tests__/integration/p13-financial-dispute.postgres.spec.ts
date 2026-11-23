@@ -1214,6 +1214,11 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
         `SELECT id FROM payment_records WHERE id = $1 FOR UPDATE`,
         [paymentId],
       );
+      const backendResult = await lockClient.query(`SELECT pg_backend_pid() AS pid`);
+      const lockBackendPid = Number(backendResult.rows[0]?.pid);
+      if (!Number.isInteger(lockBackendPid)) {
+        throw new Error('Unable to identify the payment-locking PostgreSQL session');
+      }
 
       const makeRequest = (key: string) => returnsService.createReturnRequest({
         subOrderId: orderId,
@@ -1235,7 +1240,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
            WHERE pid <> $1
              AND wait_event_type = 'Lock'
              AND query ILIKE '%payment_records%'`,
-          [lockClient.processID],
+          [lockBackendPid],
         );
         waiting = activity.rows[0].count;
         if (waiting >= 2) break;
@@ -1975,7 +1980,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const periodStart = '2098-05-01';
     const periodEnd = '2098-05-31';
     const missingRefundSpy = vi.spyOn(reconciliationService as any, 'checkMissingRefunds')
-      .mockImplementationOnce(async (_tx: any, _start: Date, _end: Date, _org: string, discrepancies: any[]) => {
+      .mockImplementationOnce(async (...args: unknown[]) => {
+        const discrepancies = args[4] as any[];
         discrepancies.push({
           type: 'MISSING_REFUND',
           sourceRef: 'return:synthetic-failure-probe',
@@ -2069,7 +2075,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     let failedDisputeId: string | undefined;
     try {
       await expect(openDispute(orderId)).rejects.toThrow('Synthetic outbox insert failure');
-      failedDisputeId = publishSpy.mock.calls[0]?.[1];
+      failedDisputeId = publishSpy.mock.calls[0]?.[1] as string | undefined;
     } finally {
       publishSpy.mockRestore();
     }
@@ -2267,7 +2273,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     }
 
     expect(storage.putObject).toHaveBeenCalledOnce();
-    const uploadedKey = storage.putObject.mock.calls[0][0].key;
+    const uploadedKey = storage.putObject.mock.calls[0]![0].key;
     expect(storage.deleteObject).not.toHaveBeenCalled();
     const intent = await pool.query(
       `SELECT status, storage_key FROM payment_proof_upload_intents WHERE payment_record_id = $1 ORDER BY created_at DESC LIMIT 1`,

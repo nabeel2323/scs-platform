@@ -342,7 +342,7 @@ export class ReturnsService {
     // 7. Create return request + items + event atomically
     const id = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + MERCHANT_SLA_HOURS * 60 * 60 * 1000);
-    let returnRequestId = id;
+    let returnRequestId: string = id;
     let created = false;
 
     await this.db.db.transaction(async (tx) => {
