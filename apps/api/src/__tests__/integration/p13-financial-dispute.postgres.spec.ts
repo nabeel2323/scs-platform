@@ -32,6 +32,7 @@
  *   FIN-DSH-28  Payment expiry/order transition race
  *   FIN-DSH-29  Discount-adjusted commission reversal and currency
  *   FIN-DSH-30  COD payments are excluded from stale-payment expiry
+ *   FIN-DSH-31  Return refund allocation and delivery exception currency
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -1506,6 +1507,42 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       net: 100 - refundAmount,
     }]);
   }, 90_000);
+
+
+  // ── FIN-DSH-31: Return refund allocation and delivery currency ──
+
+  it('FIN-DSH-31: allocates discount/VAT in minor units and keeps delivery adjustment in payment currency', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    await pool.query(
+      `UPDATE payment_records SET currency = 'USD' WHERE order_id = $1`,
+      [orderId],
+    );
+    await pool.query(
+      `UPDATE order_financial_breakdown
+       SET products_minor = 3000, discount_minor = 600, tax_minor = 240, delivery_fee_minor = 450
+       WHERE order_id = $1`,
+      [orderId],
+    );
+    const orderItemId = (await pool.query(
+      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [orderId],
+    )).rows[0].id as string;
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+
+    const returnRequest = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      lines: [{ orderItemId, quantity: 1 }],
+      reason: 'DAMAGED',
+      deliveryFeeException: { reason: 'Carrier damage' },
+    } as any, buyerCaller);
+
+    expect(returnRequest.requestedRefundMinor).toBe(880);
+    const adjustment = await pool.query(
+      `SELECT amount_minor::int AS amount, currency
+       FROM settlement_adjustments WHERE return_request_id = $1`,
+      [returnRequest.id],
+    );
+    expect(adjustment.rows).toEqual([{ amount: 495, currency: 'USD' }]);
+  }, 60_000);
 
   // ── FIN-DSH-10: Rollback under a losing REFUNDED race ────────────
 
