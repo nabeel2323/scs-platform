@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commit:** `14214f0cbc976adda0fcfe8f45909918a46b2ec7` — Payments route now admits verification-only users and loads the queue under `admin:payments:verify`; supporting capability-aware Admin sidebar commits `07ff19c1ce48b14e0d3449cbfdc1d97fe0c30175` (permission helper) and `f30315328c98b65bbc3a372d91e14e608ded8507` (carrier/payments any-of nav). UX-097 handler guards remain in `41fca82355dfe4c4c4b49ceac57720d2cbfd458f`. Latest focused tests: `89624f61bd48a9009aef603333f30205ad14907e` (Payments verification-only) and `d504acecc7205d4046a51f72233d18f5e7687e7e` (navigation all-of/any-of); UX-097 tests `c0aa31229d3e4d1505671730a73486bdefe49e5b` and `856d527aeb65abc9feeb565f1dbc8c07df7d5331`.
-**Latest implementation checkpoint head:** `89624f61bd48a9009aef603333f30205ad14907e` (latest focused test commit; PR #138 head before this documentation synchronization).  
+**Latest source implementation commit:** `91d69e43351a44bb80a9169cef561fecd550b957` — UX-099 shared Admin mutation permission callbacks; supporting source commits include `262f2d1`, `d52acd6`, `93ec686`, `20447d2`, `bed844f`, `9313b85`, `5ea1145`. Latest focused tests: `57d3a251b34b891e49a05e3f9b70756be1b4dbb7` (shared mutation permission loss); earlier UX-099 test `046160d094ee723c895da987fa0ef2c41da4212d`.
+**Latest implementation checkpoint head:** `57d3a251b34b891e49a05e3f9b70756be1b4dbb7` (latest UX-099 focused test commit; PR #138 head before this documentation synchronization).  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -782,3 +782,13 @@ Merchant active-store and product reads now preserve last-successful data throug
 **Additional G-002 evidence:** the user-uploaded supplemental note reports 111 tables and 32 public functions, but lacks timestamp, endpoint, query and role provenance. Preserve it separately; the 111 count is not reconciled with the 114/116 history. See `G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md`.
 
 **Next:** continue remaining Admin custom route/action-to-controller permission mapping. Do not repeat the completed 56-page page-level audit or UX-097/098 fixes. In parallel, keep G-002 read-only evidence work queued for the protected staging audit. Batch the accumulated formatting correction and comprehensive test campaign at the implementation-complete Phase 3 checkpoint.
+
+
+## Exact-head reconciliation — 23 November 2026 (UX-099)
+
+- UX-099 extends handler-time permission checks to shared Admin mutation components and the `useAdminMutation` dispatch helper. It binds user status/membership, dispute, category, brand, offer governance, carrier recovery, shipment exception/RTS, inventory-return and carrier create/cancel/recovery actions to their corresponding permissions. User Detail profile save rechecks `admin:users:write`.
+- Focused test `57d3a251b34b891e49a05e3f9b70756be1b4dbb7` verifies the shared mutation is blocked after permission loss and allowed when the predicate is true. Test not executed. No exact-head Actions run exists for UX-099.
+- CI #1408 remains the latest application run: lint/typecheck and Flutter analyze/tests passed on earlier SHA `a76b0be`, but Prettier failed across 245 changed files and dependent jobs were skipped. No CI pass is claimed for UX-099.
+- Supplemental user-uploaded G-002 audit note is preserved in `docs/remediation/G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md`; 111/111 tables is not reconciled with the existing 114/116 counts. No G-002 status promotion or database action.
+
+**Next:** continue remaining Admin custom route/action-to-controller permission mapping and confirm every shared mutation call site supplies its specific permission predicate. Do not repeat UX-097/098/099. Batch one repository-locked formatter pass and the consolidated test campaign at the Phase 3 validation checkpoint.
