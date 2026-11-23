@@ -68,6 +68,7 @@
  *   FIN-DSH-64  Failure outbox persistence rolls back both payment and return ledgers
  *   FIN-DSH-65  Concurrent duplicate refund approvals resolve idempotently
  *   FIN-DSH-66  Reconciliation detects failed and retried return/refund status divergence
+ *   FIN-DSH-67  Adjustment posting retries are idempotent and currency mismatches fail closed
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -3298,6 +3299,80 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(retryMismatch.rows).toHaveLength(1);
     expect(retryMismatch.rows[0].description).toContain('is REFUND_PENDING');
     expect(retryMismatch.rows[0].description).toContain('expected REQUESTED, PROCESSING, APPROVED or SUCCEEDED');
+  }, 90_000);
+
+
+  it('FIN-DSH-67: posted settlement adjustment replay is idempotent and mismatched currency is rejected', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const primary = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
+
+    const createApprovedAdjustment = async (currency: string, reason: string) => {
+      const adjustment = await settlementAdjService.createAdjustment({
+        subOrderId: orderId,
+        adjustmentType: 'COMMISSION_REVERSAL',
+        amountMinor: 125,
+        currency,
+        reason,
+      }, adminA, orgA);
+      const approvalHash = (await pool.query(
+        `SELECT approval_hash FROM settlement_adjustments WHERE id = $1`,
+        [adjustment.id],
+      )).rows[0].approval_hash as string;
+      await pool.query(
+        `UPDATE settlement_adjustments SET status = 'APPROVED', fx_status = 'RESOLVED' WHERE id = $1`,
+        [adjustment.id],
+      );
+      await pool.query(
+        `INSERT INTO settlement_adjustment_approvals
+         (id, adjustment_id, approver_id, approver_role, approval_hash)
+         VALUES ($1, $2, $3, 'FINANCE', $5), ($4, $2, $6, 'ADMIN', $5)`,
+        [randomUUID(), adjustment.id, buyerA, randomUUID(), approvalHash, merchantA],
+      );
+      return adjustment;
+    };
+
+    const wrongCurrency = await createApprovedAdjustment('USD', 'Reject currency mismatch');
+    await expect(
+      settlementAdjService.postAdjustment(wrongCurrency.id, adminA, orgA),
+    ).rejects.toThrow('does not match primary settlement currency');
+    const mismatchState = await pool.query(
+      `SELECT status, settlement_id FROM settlement_adjustments WHERE id = $1`,
+      [wrongCurrency.id],
+    );
+    expect(mismatchState.rows[0]).toEqual({ status: 'APPROVED', settlement_id: null });
+
+    const valid = await createApprovedAdjustment(primary.currency, 'Idempotent post replay');
+    await settlementAdjService.postAdjustment(valid.id, adminA, orgA);
+    await settlementAdjService.postAdjustment(valid.id, adminA, orgA);
+
+    const adjustmentLedger = await pool.query(
+      `SELECT id, net_minor::int AS net, metadata
+       FROM settlement_records
+       WHERE sub_order_id = $1 AND status = 'ADJUSTMENT'
+         AND metadata->>'adjustmentId' = $2`,
+      [orderId, valid.id],
+    );
+    expect(adjustmentLedger.rows).toHaveLength(1);
+    expect(adjustmentLedger.rows[0].net).toBe(125);
+    expect(adjustmentLedger.rows[0].metadata).toMatchObject({
+      adjustmentId: valid.id,
+      parentSettlementId: primary.id,
+      postedBy: adminA,
+    });
+
+    const postedEvents = await pool.query(
+      `SELECT id FROM outbox_events
+       WHERE event_type = 'settlement_adjustment.posted' AND aggregate_id = $1`,
+      [valid.id],
+    );
+    expect(postedEvents.rows).toHaveLength(1);
+    const persisted = await pool.query(
+      `SELECT status, settlement_id FROM settlement_adjustments WHERE id = $1`,
+      [valid.id],
+    );
+    expect(persisted.rows[0]).toEqual({ status: 'POSTED', settlement_id: primary.id });
   }, 90_000);
 
 });

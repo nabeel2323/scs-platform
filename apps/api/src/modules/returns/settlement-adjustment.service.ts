@@ -427,6 +427,29 @@ export class SettlementAdjustmentService {
     // after commit (see submitForApproval).
     await this.db.db.transaction(async (tx) => {
       const adj = await this.lockAdjustment(tx, adjustmentId, orgId);
+      if (adj.status === 'POSTED') {
+        // A client may retry after the transaction committed but its response
+        // was lost. Treat that replay as success only when the adjustment ledger
+        // row is present; never emit a second ledger row or outbox event.
+        const [postedLedger] = await tx
+          .select({ id: settlementRecords.id })
+          .from(settlementRecords)
+          .where(and(
+            eq(settlementRecords.subOrderId, adj.subOrderId),
+            eq(settlementRecords.status, 'ADJUSTMENT'),
+            sql`(
+              ${settlementRecords.metadata}->>'adjustmentId' = ${adj.id}
+              OR ${settlementRecords.notes} LIKE ${`Posted adjustment ${adj.id}:%`}
+            )`,
+          ))
+          .limit(1);
+        if (!postedLedger) {
+          throw new ConflictException(
+            'Adjustment is POSTED but its settlement ledger entry is missing',
+          );
+        }
+        return;
+      }
       if (adj.status !== 'APPROVED') {
         throw new ConflictException(
           `Cannot post adjustment in status ${adj.status}; must be APPROVED`,
@@ -501,6 +524,21 @@ export class SettlementAdjustmentService {
           'Cannot post settlement adjustment before a primary settlement has been calculated',
         );
       }
+      if (settlement.currency !== adj.currency) {
+        throw new ConflictException(
+          `Adjustment currency ${adj.currency} does not match primary settlement currency ${settlement.currency}`,
+        );
+      }
+      const [order] = await tx
+        .select({ storeId: orders.storeId })
+        .from(orders)
+        .where(eq(orders.id, adj.subOrderId))
+        .limit(1);
+      if (!order || order.storeId !== settlement.merchantStoreId) {
+        throw new ConflictException(
+          'Primary settlement store does not match the adjustment sub-order',
+        );
+      }
 
       // Transition to POSTED only in the same transaction that writes its ledger row.
       await tx.update(settlementAdjustments)
@@ -524,6 +562,11 @@ export class SettlementAdjustmentService {
           currency: adj.currency,
           status: 'ADJUSTMENT',
           calculatedAt: new Date(),
+          metadata: {
+            adjustmentId: adj.id,
+            parentSettlementId: settlement.id,
+            postedBy,
+          },
           notes: `Posted adjustment ${adjustmentId}: ${adj.adjustmentType} ` +
                  `${adj.amountMinor} ${adj.currency} by ${postedBy}`,
         });
