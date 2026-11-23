@@ -1,0 +1,39 @@
+name: Targeted Prettier verification
+
+on:
+  push:
+    branches:
+      - remediation/phase-0-1-tenant-security
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/remediation/phase-0-1-tenant-security' && github.repository == 'nabeel2323/scs-platform'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format and verify the two remaining files
+        run: |
+          pnpm exec prettier --write apps/api/src/__tests__/unit/common/outbox/outbox-dispatcher.spec.ts apps/api/src/modules/merchant/merchant.service.ts
+          pnpm exec prettier --check apps/api/src/__tests__/unit/common/outbox/outbox-dispatcher.spec.ts apps/api/src/modules/merchant/merchant.service.ts
+          git add apps/api/src/__tests__/unit/common/outbox/outbox-dispatcher.spec.ts apps/api/src/modules/merchant/merchant.service.ts
+          if git diff --cached --quiet; then
+            echo "No additional formatting changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "style: finalize two remaining formatted files [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
