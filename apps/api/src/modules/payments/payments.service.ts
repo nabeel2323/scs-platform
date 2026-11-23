@@ -61,8 +61,10 @@ const PROOF_CLEANUP_MAX_ATTEMPTS = 12;
 
 function isStorageObjectNotFound(error: any): boolean {
   const status = error?.$metadata?.httpStatusCode;
-  const code = error?.name || error?.Code || error?.code;
-  return status === 404 || ['NotFound', 'NoSuchKey', 'NoSuchObject'].includes(code);
+  const codes = [error?.name, error?.Code, error?.code];
+  return status === 404 || codes.some((code) =>
+    ['NotFound', 'NoSuchKey', 'NoSuchObject'].includes(code),
+  );
 }
 
 function assertPositiveMinorAmount(amount: number, fieldName: string): void {
