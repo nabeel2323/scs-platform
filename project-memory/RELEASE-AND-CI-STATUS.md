@@ -1294,3 +1294,12 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - CI #45260954714 was QUEUED for exact source/test checkpoint `954200f` at the time of this update. Its results are not yet known. Vercel preview statuses show external build-rate-limit failures, not application tests.
 - Do not change the 193-entry boundary baseline to conceal the 14 new violations. No database grants, RLS, migrations, protected staging audit, shared database changes, deployment, worker activation or merge.
 - Next: inspect exact-head run #45260954714; confirm audit and focused shipping fixes; ensure Admin recovery suites execute independently of the Web suite; then triage remaining domain test failures. FIN-047 remains IMPLEMENTED / TESTING_PENDING until its own tests pass.
+
+## Post-format CI checkpoint — 23 November 2026
+
+CI #45260954714 tested source checkpoint `954200f9bf7866aa2f25d0585847a0c51eb19259` and concluded FAILED at changed-file Prettier. Install, lint and workspace typecheck passed; Flutter analyze/tests passed. API unit/coverage, PostgreSQL integration, migration, boundary, contract, Web/Admin, build, container and k6 jobs were skipped behind the formatting gate. The failure is historical for that pre-format SHA; Prettier corrections were subsequently applied and checked in bot commit `4477ebd42ba46146b14df18094d025ab133c5d75`. No application-test result is claimed from #452609.
+
+The formatter ran Prettier write and check for the full list of affected TypeScript and Markdown files, then pushed commit `4477ebd42ba46146b14df18094d025ab133c5d75`. That commit is formatting-only and was not itself tested by #45260954714. A new exact-head CI run is required before changing any test status.
+
+PR #138 remains OPEN / DRAFT / UNMERGED. External Vercel preview failures still point to provider build-rate limits and are not application-test failures. No merge, deployment, staging release or shared database operation occurred.
+
