@@ -1460,3 +1460,12 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added PostgreSQL FIN-DSH-58: backdates return creation while recording refund completion in the current period, then asserts refund-status and missing-commission-reversal discrepancies are emitted.
 - Source commit: `93a908d4627c804af5d12e20c6a1e7c2811524e9`. Test commit: `5abae2018b9e6d6a43d5e3b90764ef80560b4ea0`. Test added, not executed.
 - No migration, shared database write, staging operation, deployment or merge. Continue consolidated Phase 3 testing only after implementation is complete.
+
+
+## 2026-11-23 — FIN-031 cross-period duplicate refund detection
+
+- Continued reconciliation audit found duplicate-return detection filtered by `return_requests.created_at` and counted only refunds in that window. It missed a duplicate when the return was opened earlier or when one successful refund fell in an earlier accounting period.
+- Updated detection to identify returns with at least one SUCCEEDED refund whose `refunds.updated_at` falls in the current period, then count ALL SUCCEEDED refunds for those returns across periods. Tenant scoping is preserved in both queries.
+- Added PostgreSQL FIN-DSH-59: a return created two days earlier has two successful refunds, one updated in the prior period and one in the current period; reconciliation must emit DUPLICATE_REFUND with count 2.
+- Source commit: `6089a1fd821c35c0dcd9f0cde849e145326905e1`. Test commit: `4bdd2935d48ea2c6ef3d633aa6af2f3fe39369ab`. Test added, not executed.
+- No schema/migration, shared DB, staging, deployment or merge action. Consolidated Phase 3 validation remains pending.
