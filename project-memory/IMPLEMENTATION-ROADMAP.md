@@ -701,3 +701,7 @@ Next audit: adjustment listing/reconciliation and primary settlement recalculati
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** calculateSettlement excludes independent ADJUSTMENT ledger rows from its primary settlement lookup, using explicit adjustmentId metadata and a legacy notes-prefix fallback. FIN-DSH-68 verifies that a posted and paid adjustment does not replace the original primary settlement in a subsequent calculation. Source/test commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0.
 
 Next: audit settlement listing and reconciliation projections for primary versus adjustment ledger semantics.
+
+### FIN-042/043 test assertion follow-up
+
+FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.

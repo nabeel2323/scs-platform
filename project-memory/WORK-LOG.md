@@ -1548,3 +1548,7 @@ Reviewed repeated return-state transitions and tightened FIN-040 to use MAX(crea
 - Extended FIN-DSH-68 to assert the original primary settlement remains the calculation result after adjustment posting and payout.
 - Source/test commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0. Test added, not executed; [skip ci].
 - Next: audit settlement list/reconciliation projection semantics for primary versus adjustment rows.
+
+### FIN-042/043 test assertion follow-up
+
+FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.

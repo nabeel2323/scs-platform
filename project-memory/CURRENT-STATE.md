@@ -1200,3 +1200,7 @@ Next: audit adjustment listing/reconciliation and ensure adjustment rows are exc
 ## FIN-043 — primary settlement lookup isolation — 23 November 2026
 
 calculateSettlement now excludes adjustment ledger rows (new metadata marker and legacy posted-adjustment notes prefix) when finding the primary settlement. This prevents a posted/paid adjustment row from masking the original settlement during a later calculation retry. FIN-DSH-68 asserts primary settlement identity remains stable after adjustment payout. Source/test commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0. Test added, not executed; [skip ci].
+
+### FIN-042/043 test assertion follow-up
+
+FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.

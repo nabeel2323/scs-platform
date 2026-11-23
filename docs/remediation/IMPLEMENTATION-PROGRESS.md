@@ -2357,3 +2357,7 @@ The parity query now aggregates the latest return_request_events.created_at for 
 ## FIN-043 — primary settlement lookup isolation — 23 November 2026
 
 **Status: IMPLEMENTED / TESTING_PENDING.** calculateSettlement now excludes independent adjustment ledger rows from its primary settlement lookup. It uses adjustmentId metadata for new rows and the stable posted-adjustment notes prefix for legacy rows. FIN-DSH-68 verifies that the primary settlement remains discoverable after the adjustment row is posted and paid. Source/test commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0. Test added, not executed; [skip ci].
+
+### FIN-042/043 test assertion follow-up
+
+FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.

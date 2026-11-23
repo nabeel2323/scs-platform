@@ -1288,3 +1288,7 @@ Source/test follow-up commit: b63376cf26240d3dc21b6f26782158a09674c1c7. The reco
 - calculateSettlement now excludes independent adjustment ledger rows using metadata and legacy note-prefix identification.
 - FIN-DSH-68 asserts the original primary settlement is still returned after an adjustment row is posted and paid.
 - [skip ci]; test not executed. No migration, shared DB write, staging mutation, deployment or merge.
+
+### FIN-042/043 test assertion follow-up
+
+FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.

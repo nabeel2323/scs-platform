@@ -1046,3 +1046,7 @@ Source/test commit: a6dc0c50ee83d1f397b982084e338b142d89b62e.
 | FIN-043 | Distinguish primary settlements from adjustment payout rows | calculateSettlement filters out adjustment rows using adjustmentId metadata and a legacy notes-prefix fallback; FIN-DSH-68 asserts primary settlement identity after adjustment payout. | Execute in consolidated Phase 3 and review list/reconciliation projection semantics. | P1 | IMPLEMENTED / TESTING_PENDING |
 
 Source/test commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0.
+
+### FIN-042/043 test assertion follow-up
+
+FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.

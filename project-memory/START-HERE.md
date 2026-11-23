@@ -850,3 +850,7 @@ Next: continue source-first audit of settlement adjustment listing/reconciliatio
 **Status: IMPLEMENTED / TESTING_PENDING.** After FIN-042 made posted adjustment rows payable, a paid adjustment could become the newest settlement row for its sub-order. calculateSettlement previously selected the newest row without distinguishing primary from adjustment ledgers, so a later calculation could return/conflict on the adjustment instead of resolving the primary settlement. The lookup now excludes rows carrying adjustmentId metadata and legacy rows with the stable posted-adjustment note prefix. FIN-DSH-68 now asserts that recalculation after an adjustment payout still resolves the original primary settlement. Source/test commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0.
 
 Next: audit settlement listing and reconciliation projections for primary versus adjustment rows; then finish source audit before consolidated Phase 3 tests.
+
+### FIN-042/043 test assertion follow-up
+
+FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.

@@ -867,3 +867,7 @@ Remaining source audit: inspect adjustment ledger retrieval and reconciliation l
 ## FIN-043 — primary settlement lookup isolation
 
 **Status: IMPLEMENTED / TESTING_PENDING.** Primary settlement lookup now excludes metadata-linked adjustment ledger rows and legacy rows with the stable posted-adjustment note prefix. FIN-DSH-68 verifies the primary settlement remains the result after adjustment payout. Commit: 6e336fbbe6e71a0c21ee8e81150eadfd769cc6f0. Test not executed; include in consolidated Phase 3.
+
+### FIN-042/043 test assertion follow-up
+
+FIN-DSH-68 now selects payment_record_id directly from the posted adjustment ledger row for its PAYMENT_SETTLEMENT_PAID history assertion; this is a test-only clarity correction. Commit: 74eef0fa36611dd7352436e8d2b7fd048ca7efc2. No behavior change. Test remains unexecuted.
