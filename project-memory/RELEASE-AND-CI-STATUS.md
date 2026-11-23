@@ -860,3 +860,14 @@ The next full workflow is required to verify these changes.
 - Corrected API narrowing in `0d4644f634d65bd5fbe4fec818c6f8439023254e` and Mobile nullability/const handling in `5f08755ce69edfcbae5ca84462ffda245bfc1eb4`.
 - Subsequent Admin UX-097 action-handler permission checks and focused tests were committed through `856d527aeb65abc9feeb565f1dbc8c07df7d5331`. No workflow run is currently claimed for those commits; tests/typecheck/analyze remain pending.
 - Vercel Web/Admin statuses are external preview-provider statuses and do not replace application CI. No staging release, merge, deployment, shared database mutation, migration, grant/default-ACL change, RLS enablement or worker activation occurred.
+
+
+## CI #1408 — typecheck/mobile pass, changed-file formatting blocker — 23 November 2026
+
+- Exact source/test SHA: `a76b0bef436af8bde2d9329b1cd6ee5980f593fc`; run [#1408](https://github.com/nabeel2323/scs-platform/actions/runs/45137625996).
+- `Lint & Typecheck`: lint passed and TypeScript typecheck passed. `format:check:changed` failed because Prettier reported 245 files in the PR's cumulative changed-file diff as unformatted. The log includes the newly added UX-097 test files and the related payments test/page/docs, alongside older changed files across Web, Admin, API documentation and project memory.
+- `Mobile (flutter analyze · test)`: passed, including `flutter analyze` and `flutter test`.
+- Dependent Web/Admin tests, API unit/coverage, E6 boundary lint, PostgreSQL integration, migration full apply, contract/codegen, build, container smoke, k6 and staging release were skipped after the format gate failed.
+- The first run #1407 on `4fa97ad` failed typecheck because three new tests used an unsupported `exact` property in `ByRoleOptions`; the assertions were corrected to anchored regular expressions in `53fbebb` and `a76b0be`. Run #1407 was cancelled/superseded by #1408.
+- Subsequent UX-098 commits (`07ff19c`, `d504ace`, `f303153`, `14214f0`, `89624f6`) use `[skip ci]`; they are not covered by #1408. No automated test, typecheck or CI pass is claimed for UX-098.
+- Plan: batch one repository-locked Prettier pass across the accumulated PR diff with the consolidated implementation-complete validation; do not create repeated formatter workflows. Preserve the remaining Actions-minute budget. No protected staging release, merge, deployment or shared database mutation occurred.
