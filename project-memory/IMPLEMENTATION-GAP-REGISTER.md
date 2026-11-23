@@ -783,7 +783,7 @@ Source-confirmed gaps closed in implementation: product pull-to-refresh invalida
 - Extended the shared `useAdminMutation` helper with an action-specific permission callback checked immediately before the API request, in addition to its existing single-flight guard.
 - Bound User status/membership, dispute, category, brand and offer-governance mutations to their matching permission hooks. Carrier recovery is bound to `admin:shipping:recovery`; shipment exception/RTS, inventory return and carrier write/recovery actions use their distinct permission conditions. User Detail profile save rechecks `admin:users:write`.
 - Added a focused hook-backed test for permission loss before mutation dispatch. Test not executed.
-- Source commits: `262f2d1`, `d52acd6`, `93ec686`, `20447d2`, `bed844f`, `9313b85`; test: `046160d`.
+- Source commits: `262f2d1`, `d52acd6`, `93ec686`, `20447d2`, `bed844f`, `9313b85`, `5ea1145`, `91d69e4`; tests: `046160d`, `57d3a25`.
 - Status: IMPLEMENTED / TESTING_PENDING. API permissions remain authoritative; no grants, route contracts or backend logic changed.
 
 **Next:** finish the remaining Admin custom route/action-to-controller mapping and confirm all shared mutation call sites pass the correct permission predicate. Comprehensive validation remains deferred to Phase 3.
