@@ -1156,3 +1156,14 @@ Return refund creation previously committed the payment refund/event/outbox firs
 ## Exact latest branch checkpoint — 23 November 2026
 
 Branch: remediation/phase-0-1-tenant-security. Exact HEAD: 56e583338bfe405009e74cab6630626108d5ec96. PR #138: OPEN / DRAFT / UNMERGED, head matches this SHA, base develop. Exact-head GitHub Actions workflow lookup returned no run. Combined status contains only Vercel Web/Admin build-rate-limit failures; these are external preview-provider statuses, not application tests. FIN-001–FIN-035 source changes are implemented; regression tests remain unexecuted pending consolidated Phase 3. No migration/shared DB/staging operation, grant/RLS change, worker activation, deployment or merge.
+
+
+## Live continuation checkpoint — 23 November 2026
+
+- **Current source/test commit:** d84489f185cfc864074406f0c9029bc28f40dc94 (FIN-036). The project-memory synchronization follows this source/test checkpoint.
+- **PR #138:** OPEN / DRAFT / UNMERGED; branch remediation/phase-0-1-tenant-security; base develop.
+- **Latest Actions run:** CI #1449 on prior head 3b87fc9985fcbb96081a5affccd303a598591cd9 failed API TypeScript typecheck. ESLint completed with 0 errors (304 warnings); Flutter analysis/tests passed. API unit/coverage, PostgreSQL integration, migration, Web/Admin, boundary lint, container/build, contract/codegen and k6 were skipped. Vercel Web/Admin statuses are external build-rate-limit failures, not test evidence.
+- **Typecheck correction:** commit 8f4962a16b4e14ddd5af590377ca2686f9e90fe4 addresses the reported integration-spec typing issues, nullable Drizzle insert shape, explicit callback types and UUID string widening. It was not rerun through CI.
+- **FIN-036:** return finalization now locks and validates payment/refund/return lineage and exact amount before updating return history, settlement/commission ledgers or outbox. PostgreSQL FIN-DSH-62 added; not executed. Source/test commit d84489f185cfc864074406f0c9029bc28f40dc94.
+- **Next:** continue source-first financial lifecycle/retry/cross-ledger audit beyond FIN-036; do not repeat FIN-001–FIN-036. Full Phase 3 test campaign remains NOT STARTED.
+- **Gates:** G-001 PARTIAL (independent review pending); G-002 IN PROGRESS (protected runtime identities/catalog and reviewed least-privilege/RLS design pending); G-036 IN PROGRESS. No shared DB/staging write, migration, grant/default-ACL change, RLS enablement, worker activation, deployment or merge. PR #138 remains draft/unmerged.

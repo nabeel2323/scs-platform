@@ -824,3 +824,10 @@ PaymentsService.requestRefund now accepts an optional caller-owned transaction c
 ## FIN-035 — Atomic return-refund and return-ledger transition — 23 November 2026
 
 Return refund creation previously committed the payment refund/event/outbox first, then linked the refund and advanced the return request in a second transaction. It now locks the payment and performs refund creation (reusing PaymentsService's caller-owned transaction), return linkage, REFUND_PENDING state/history and return outbox in one transaction. The existing idempotency recovery path remains for legacy split-transaction rows. PostgreSQL FIN-DSH-61 injects failure at return outbox persistence and asserts that refund, payment event/outbox and return changes all roll back. Source commit: e462c256be710a81e42b2f2d4093d4700abe1818; test commit: f5d38d5a4af42ec29fa38040d8ba184e5dcbcdff, with scoped outbox assertion correction 4ad18e1eab3495030c6fff719607b5101337edb4 and test index update ac266c2c365d23c3ef3e58032616bb118d037715. Tests not executed.
+
+
+## FIN-036 — Return refund finalization lineage and amount integrity
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Return finalization now locks payment, refund and return rows in one transaction and verifies exact ledger lineage, succeeded payment/refund state, currency, buyer/order association and exact positive safe-integer amount before any downstream settlement, commission, history or outbox write. FIN-DSH-62 covers a succeeded refund whose amount no longer matches the return request; it must fail closed without finalizing the return. Test added, not executed. Source/test commit: d84489f185cfc864074406f0c9029bc28f40dc94.
+
+**Next:** continue the source-first audit of payment/refund/settlement lifecycle retries and cross-ledger consistency beyond FIN-036. Consolidated Phase 3 remains deferred until implementation is complete.

@@ -654,3 +654,10 @@ PaymentsService.requestRefund now accepts an optional caller-owned transaction c
 ## FIN-035 — Atomic return-refund and return-ledger transition — 23 November 2026
 
 Return refund creation previously committed the payment refund/event/outbox first, then linked the refund and advanced the return request in a second transaction. It now locks the payment and performs refund creation (reusing PaymentsService's caller-owned transaction), return linkage, REFUND_PENDING state/history and return outbox in one transaction. The existing idempotency recovery path remains for legacy split-transaction rows. PostgreSQL FIN-DSH-61 injects failure at return outbox persistence and asserts that refund, payment event/outbox and return changes all roll back. Source commit: e462c256be710a81e42b2f2d4093d4700abe1818; test commit: f5d38d5a4af42ec29fa38040d8ba184e5dcbcdff, with scoped outbox assertion correction 4ad18e1eab3495030c6fff719607b5101337edb4 and test index update ac266c2c365d23c3ef3e58032616bb118d037715. Tests not executed.
+
+
+## FIN-036 — Return refund finalization lineage and amount integrity — 23 November 2026
+
+Return finalization previously trusted the refund snapshot and checked only that its status was SUCCEEDED. It now locks payment → refund → return in one transaction, re-reads each ledger row, and requires consistent payment/return/refund IDs, order, buyer, currency, successful payment projection, and exact positive safe-integer refund amount before writing REFUNDED history, settlement/commission ledgers or outbox. This prevents a succeeded but mismatched refund from finalizing the return or creating downstream financial entries. PostgreSQL FIN-DSH-62 tampers with a succeeded refund amount and asserts the return remains REFUND_PENDING with no REFUNDED event/outbox or commission reversal. Source/test commit:  d84489f185cfc864074406f0c9029bc28f40dc94. Test added, not executed.
+
+**Next:** continue the source-first payment/refund/settlement audit for remaining lifecycle retry and cross-ledger consistency gaps. Keep all new regression tests pending the consolidated Phase 3 campaign.

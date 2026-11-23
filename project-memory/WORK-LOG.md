@@ -1489,3 +1489,15 @@ PaymentsService.requestRefund now accepts an optional caller-owned transaction c
 ## FIN-035 — Atomic return-refund and return-ledger transition — 23 November 2026
 
 Return refund creation previously committed the payment refund/event/outbox first, then linked the refund and advanced the return request in a second transaction. It now locks the payment and performs refund creation (reusing PaymentsService's caller-owned transaction), return linkage, REFUND_PENDING state/history and return outbox in one transaction. The existing idempotency recovery path remains for legacy split-transaction rows. PostgreSQL FIN-DSH-61 injects failure at return outbox persistence and asserts that refund, payment event/outbox and return changes all roll back. Source commit: e462c256be710a81e42b2f2d4093d4700abe1818; test commit: f5d38d5a4af42ec29fa38040d8ba184e5dcbcdff, with scoped outbox assertion correction 4ad18e1eab3495030c6fff719607b5101337edb4 and test index update ac266c2c365d23c3ef3e58032616bb118d037715. Tests not executed.
+
+
+## 23 November 2026 — CI #1449 triage and FIN-036 continuation
+
+- Reconciled live repository nabeel2323/scs-platform, branch remediation/phase-0-1-tenant-security, PR #138 OPEN/DRAFT/UNMERGED against develop.
+- CI #1449 on 3b87fc9985fcbb96081a5affccd303a598591cd9 failed API TypeScript typecheck. ESLint (0 errors, 304 warnings) and Flutter passed; dependent API unit/coverage, PostgreSQL integration, migration, Web/Admin, boundary, build/container, contract/codegen and k6 jobs were skipped. Vercel failures were external provider build-rate-limit statuses.
+- Corrected the reported type blockers in a grouped source/test commit: 8f4962a16b4e14ddd5af590377ca2686f9e90fe4. This correction is not CI-verified.
+- FIN-036 source review found that return finalization trusted a succeeded refund snapshot without locking and validating the payment/refund/return lineage and exact amount. Updated markRefunded to lock payment → refund → return, verify payment/order/buyer/currency/refund linkage and exact positive safe-integer amount, then perform settlement/commission/history/outbox changes using the locked return row.
+- Added PostgreSQL FIN-DSH-62 to prove a succeeded refund with a mismatched amount cannot finalize the return or create REFUNDED history/outbox/commission-reversal rows. Test added, not executed.
+- FIN-036 source/test commit: d84489f185cfc864074406f0c9029bc28f40dc94. No exact-head CI run is claimed; commits use [skip ci] under the implementation-first test cadence.
+- No migration, shared database/staging write, grants/default-ACL change, RLS enablement, worker activation, provider call, deployment or merge. PR #138 remains draft/unmerged.
+- **Next:** continue the source-first payment/refund/settlement lifecycle retry and cross-ledger consistency audit beyond FIN-036. Keep the consolidated Phase 3 campaign pending until implementation is complete.

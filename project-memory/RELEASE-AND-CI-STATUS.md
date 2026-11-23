@@ -1233,3 +1233,12 @@ The next full workflow is required to verify these changes.
 ## Exact latest branch checkpoint — 23 November 2026
 
 Branch: remediation/phase-0-1-tenant-security. Exact HEAD: 56e583338bfe405009e74cab6630626108d5ec96. PR #138: OPEN / DRAFT / UNMERGED, head matches this SHA, base develop. Exact-head GitHub Actions workflow lookup returned no run. Combined status contains only Vercel Web/Admin build-rate-limit failures; these are external preview-provider statuses, not application tests. FIN-001–FIN-035 source changes are implemented; regression tests remain unexecuted pending consolidated Phase 3. No migration/shared DB/staging operation, grant/RLS change, worker activation, deployment or merge.
+
+
+## Exact CI and source checkpoint — 23 November 2026
+
+- CI #1449 (https://github.com/nabeel2323/scs-platform/actions/runs/45212515214) tested 3b87fc9985fcbb96081a5affccd303a598591cd9 and **FAILED** in API TypeScript typecheck. ESLint completed with 0 errors (304 warnings); TypeScript failed on integration-spec typing (PoolClient.processID, Vitest mock signature, unknown mock-call value and optional mock-call entries), reconciliation insert/callback typing and the UUID-typed return ID assignment. Flutter analysis/tests passed. API unit/coverage, PostgreSQL integration, migration, Web/Admin, boundary, container/build, contract/codegen and k6 were skipped.
+- The Vercel Web/Admin combined-status failures point to the external provider build-rate-limit page; they are not application test outcomes.
+- Typecheck correction commit: 8f4962a16b4e14ddd5af590377ca2686f9e90fe4. FIN-036 implementation and FIN-DSH-62 test commit: d84489f185cfc864074406f0c9029bc28f40dc94. Both use [skip ci]; neither has exact-head CI verification.
+- FIN-DSH-62 and all prior FIN regression tests remain pending the consolidated Phase 3 campaign. Do not claim tests passed.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No staging release, shared database mutation, migration, grants/default ACL change, RLS enablement, worker activation, deployment or merge occurred.

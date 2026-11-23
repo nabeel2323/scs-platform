@@ -787,3 +787,13 @@ FIN-032 corrects adjustment reconciliation posting-period semantics; FIN-033 mak
 ## Exact latest branch checkpoint — 23 November 2026
 
 Branch: remediation/phase-0-1-tenant-security. Exact HEAD: 56e583338bfe405009e74cab6630626108d5ec96. PR #138: OPEN / DRAFT / UNMERGED, head matches this SHA, base develop. Exact-head GitHub Actions workflow lookup returned no run. Combined status contains only Vercel Web/Admin build-rate-limit failures; these are external preview-provider statuses, not application tests. FIN-001–FIN-035 source changes are implemented; regression tests remain unexecuted pending consolidated Phase 3. No migration/shared DB/staging operation, grant/RLS change, worker activation, deployment or merge.
+
+
+## Live continuation checkpoint — 23 November 2026
+
+- Current source/test commit:  d84489f185cfc864074406f0c9029bc28f40dc94 (FIN-036); PR #138 remains OPEN / DRAFT / UNMERGED against develop.
+- FIN-001–FIN-035 are implemented; FIN-036 adds locked payment/refund/return lineage and exact amount validation before return finalization. FIN-DSH-62 is added but not executed.
+- CI #1449 on prior memory head 3b87fc9985fcbb96081a5affccd303a598591cd9 failed API TypeScript typecheck. Lint and Flutter passed; dependent API unit/coverage, PostgreSQL integration, migration, Web/Admin, boundary, build/container, contract and k6 jobs were skipped. Vercel Web/Admin failures are external preview build-rate-limit statuses.
+- Typecheck blockers were addressed in 8f4962a16b4e14ddd5af590377ca2686f9e90fe4; FIN-036 source and regression test were added in d84489f185cfc864074406f0c9029bc28f40dc94. Both use [skip ci]; no exact-head verification is claimed.
+- **Next:** continue source-first payment/refund/settlement lifecycle and cross-ledger audit beyond FIN-036. Do not repeat FIN-001–FIN-036. Consolidated Phase 3 testing remains deferred until implementation is complete.
+- G-001 remains PARTIAL pending independent security review; G-002 remains IN PROGRESS pending protected runtime identity/catalog evidence and reviewed RLS design. PR #138 must remain draft and unmerged. No shared DB/staging writes, migrations, grants/default-ACL changes, RLS enablement, worker activation, deployment or merge.
