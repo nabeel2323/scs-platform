@@ -529,6 +529,81 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   }, 60_000);
 
 
+  // ── FIN-DSH-24: Return refund recovery payload integrity ────────
+
+  it('FIN-DSH-24: orphan return refund with a different amount is not reused or linked', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const items = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
+    const ret = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      lines: [{ orderItemId: items.rows[0].id, quantity: 1 }],
+    }, buyerCaller);
+    await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
+    await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, { trackingNumber: 'TRK-FIN24' });
+    await returnsService.transitionReturn(ret.id, 'RECEIVED', merchantCaller);
+    await returnsService.transitionReturn(ret.id, 'INSPECTED', merchantCaller, { condition: 'GOOD' });
+
+    const current = await pool.query(
+      `SELECT payment_record_id, requested_refund_minor, buyer_id FROM return_requests WHERE id = $1`,
+      [ret.id],
+    );
+    const paymentId = current.rows[0].payment_record_id;
+    const orphanRefundId = randomUUID();
+    await pool.query(
+      `INSERT INTO refunds (id, payment_record_id, order_id, idempotency_key, amount_minor, currency, status, reason, requested_by)
+       VALUES ($1, $2, $3, $4, $5, 'SYP', 'REQUESTED', 'PRODUCT_NOT_AS_DESCRIBED', $6)`,
+      [orphanRefundId, paymentId, orderId, `return-refund:${ret.id}`, Number(current.rows[0].requested_refund_minor), buyerA],
+    );
+
+    await expect(
+      returnsService.transitionReturn(ret.id, 'REFUND_PENDING', merchantCaller),
+    ).rejects.toThrow(/idempotency key was already used for a different request/i);
+
+    const state = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [ret.id]);
+    const refund = await pool.query(`SELECT return_request_id FROM refunds WHERE id = $1`, [orphanRefundId]);
+    expect(state.rows[0].status).toBe('INSPECTED');
+    expect(refund.rows[0].return_request_id).toBeNull();
+  }, 60_000);
+
+  it('FIN-DSH-25: orphan return refund with a different reason is not reused or linked', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const items = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
+    const ret = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      lines: [{ orderItemId: items.rows[0].id, quantity: 1 }],
+    }, buyerCaller);
+    await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
+    await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, { trackingNumber: 'TRK-FIN25' });
+    await returnsService.transitionReturn(ret.id, 'RECEIVED', merchantCaller);
+    await returnsService.transitionReturn(ret.id, 'INSPECTED', merchantCaller, { condition: 'GOOD' });
+
+    const current = await pool.query(
+      `SELECT payment_record_id, requested_refund_minor FROM return_requests WHERE id = $1`,
+      [ret.id],
+    );
+    const orphanRefundId = randomUUID();
+    await pool.query(
+      `INSERT INTO refunds (id, payment_record_id, order_id, idempotency_key, amount_minor, currency, status, reason, requested_by)
+       VALUES ($1, $2, $3, $4, $5, 'SYP', 'REQUESTED', 'CUSTOMER_REQUEST', $6)`,
+      [orphanRefundId, current.rows[0].payment_record_id, orderId, `return-refund:${ret.id}`, Number(current.rows[0].requested_refund_minor), buyerA],
+    );
+
+    await expect(
+      returnsService.transitionReturn(ret.id, 'REFUND_PENDING', merchantCaller),
+    ).rejects.toThrow(/idempotency key was already used for a different request/i);
+
+    const state = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [ret.id]);
+    const refund = await pool.query(`SELECT return_request_id FROM refunds WHERE id = $1`, [orphanRefundId]);
+    expect(state.rows[0].status).toBe('INSPECTED');
+    expect(refund.rows[0].return_request_id).toBeNull();
+  }, 60_000);
+
   // ── FIN-DSH-23: Concurrent dispute resolution idempotency ───────
 
   it('FIN-DSH-23: concurrent identical dispute resolutions commit one resolution event and outbox message', async () => {

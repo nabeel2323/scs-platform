@@ -666,25 +666,49 @@ export class ReturnsService {
     // Recovery path: if a prior attempt committed the refund but failed before
     // flipping the return to REFUND_PENDING, reuse it instead of hitting the
     // unique idempotency-key constraint (which would strand the return).
+    const payment = await this.db.db.query.paymentRecords.findFirst({
+      where: eq(paymentRecords.id, ret.paymentRecordId),
+    });
+    if (!payment) throw new NotFoundException('No payment found for this return');
+
     const existingRefund = await this.db.db.query.refunds.findFirst({
       where: eq(refunds.idempotencyKey, idempotencyKey),
     });
 
-    const refund = existingRefund
-      ? {
-          refundId: existingRefund.id,
-          amountMinor: Number(existingRefund.amountMinor),
-          status: existingRefund.status,
-        }
-      : await this.payments.requestRefund(
-          // P12 requestRefund creates the refund with FOR UPDATE cumulative locking
-          ret.paymentRecordId,
-          Number(ret.requestedRefundMinor),
-          ret.reason,
-          ret.buyerId,
-          { sub: ret.buyerId, role: 'SYSTEM' },  // system-initiated
-          { idempotencyKey, notes: `Return ${ret.id}` },
+    let refund: { refundId: string; amountMinor: number; status: string };
+    if (existingRefund) {
+      // Recovery must be an exact retry of this return's original refund
+      // request; a reused key with changed terms must not advance the return.
+      if (
+        existingRefund.paymentRecordId !== payment.id ||
+        existingRefund.orderId !== ret.subOrderId ||
+        Number(existingRefund.amountMinor) !== Number(ret.requestedRefundMinor) ||
+        existingRefund.reason !== ret.reason ||
+        existingRefund.requestedBy !== ret.buyerId ||
+        existingRefund.currency !== payment.currency ||
+        (existingRefund.returnRequestId !== null && existingRefund.returnRequestId !== ret.id)
+      ) {
+        throw new ConflictException(
+          'Return refund idempotency key was already used for a different request',
         );
+      }
+
+      refund = {
+        refundId: existingRefund.id,
+        amountMinor: Number(existingRefund.amountMinor),
+        status: existingRefund.status,
+      };
+    } else {
+      refund = await this.payments.requestRefund(
+        // P12 requestRefund creates the refund with FOR UPDATE cumulative locking
+        ret.paymentRecordId,
+        Number(ret.requestedRefundMinor),
+        ret.reason,
+        ret.buyerId,
+        { sub: ret.buyerId, role: 'SYSTEM' },  // system-initiated
+        { idempotencyKey, notes: `Return ${ret.id}` },
+      );
+    }
 
     await this.db.db.transaction(async (tx) => {
       // Link refund to return request
