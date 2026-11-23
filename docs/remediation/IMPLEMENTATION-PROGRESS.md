@@ -2154,3 +2154,14 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - **Regression coverage:** unit tests cover credit/debit signs. PostgreSQL FIN-DSH-34 verifies a commission reversal creates positive net; FIN-DSH-35 verifies posting is rejected without a primary settlement and the adjustment remains APPROVED/unlinked. Tests added, not executed.
 - **Source commits:** `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`; scenario-ID correction `b9f9728659e71d3788cc58aa2b5ad9df29ab9731`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, shared DB or automatic gateway/payout change.
+
+
+## FIN-020 — Reconciliation ledger correctness — 23 November 2026
+
+- **Finding:** reconciliation treated a positive commission-reversal credit in an `ADJUSTMENT` settlement row as a debit; refund-status mismatches attempted to persist text in BIGINT discrepancy columns; commission reversal aggregation used Number; and the delivery-fee refund cap used a floating-point ratio that differed from return posting.
+- **Implementation:** reconcile primary and ADJUSTMENT rows with their respective commission sign conventions; use BigInt aggregation for safe reversal totals; use the same net-goods denominator and half-up minor-unit helper as return creation; include both `DELIVERY_FEE_EXCEPTION` and `DELIVERY_FEE_REFUND`; reject unsafe input amounts; record refund status mismatch in descriptive evidence only.
+- **Regression coverage:** unit tests exercise production helpers for primary/adjustment ledger signs, safe integer limits, BigInt totals, half-up delivery-fee tax and non-monetary status discrepancy drafts. PostgreSQL FIN-DSH-36 creates a commission reversal adjustment and a deliberately inconsistent return/refund pair in the disposable Testcontainers database, then checks persisted reconciliation output.
+- **Source/test commit:** `ad478cc53ce40bec86172e881b4f14cea7e6dfac`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. Tests have **not** been executed; the exact-head GitHub Actions lookup returned no run. Vercel Web/Admin preview contexts were successful but are not application test evidence.
+- **No schema/migration, shared DB/staging write, provider, gateway, payout, worker, grant/RLS, environment or deployment change.**
+- **Next:** FIN-021 source audit of reconciliation version allocation, `superseded_by` semantics, concurrent runs and failure/partial persistence before further history/outbox changes.

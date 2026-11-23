@@ -542,3 +542,12 @@ Settlement-adjustment posting is hardened: commission reversal credits increase 
 Settlement-adjustment posting is hardened: commission reversal credits increase merchant net, refund/delivery-fee/balance-debit adjustments reduce net, amounts are positive safe integers, and posting locks a primary settlement row. An approved adjustment cannot transition to POSTED without a primary settlement ledger entry. FIN-DSH-34/35 and unit coverage are added but not executed.
 
 **Next implementation:** continue source-first review beyond FIN-019, focusing on remaining settlement/reconciliation arithmetic, ledger projection consistency, immutable history and outbox semantics. Keep the comprehensive test campaign grouped in Phase 3 and preserve the manual-payment-only scope.
+
+
+## Financial correctness continuation — FIN-020 — 23 November 2026
+
+FIN-020 implements reconciliation ledger correctness beyond FIN-019. Primary settlement commission remains a debit; positive commission reversals in ADJUSTMENT rows are credits. Commission reversal aggregates use safe BigInt arithmetic. Delivery-fee refund caps now use the return workflow's exact half-up allocation and include both delivery-fee exception/refund adjustment records. Refund-status mismatch evidence no longer attempts to populate BIGINT monetary columns with status strings. Unit tests and PostgreSQL FIN-DSH-36 are added but not run.
+
+Source/test commit: `ad478cc53ce40bec86172e881b4f14cea7e6dfac`. Status: IMPLEMENTED / TESTING_PENDING. No schema, migration, shared database, staging, worker, gateway, payout, or deployment changes.
+
+**Next implementation:** FIN-021 — inspect reconciliation run versioning, `superseded_by` semantics, organization-scoped uniqueness, concurrent version allocation and failed-run partial persistence. Verify the intended history contract and tests before modifying it. Keep the consolidated formatter/API/PostgreSQL/Web/Admin/mobile campaign grouped in Phase 3.

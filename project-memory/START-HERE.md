@@ -656,3 +656,16 @@ Stale-payment discovery excludes CASH_ON_DELIVERY, and expirePayment itself refu
 ## FIN-019 test scenario numbering correction — 23 November 2026
 
 The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent retry. The new settlement-adjustment cases are uniquely numbered FIN-DSH-34 (commission reversal credit sign) and FIN-DSH-35 (no primary settlement blocks posting). Test-only correction commit: `b9f9728659e71d3788cc58aa2b5ad9df29ab9731`. Tests remain unexecuted.
+
+
+## Latest continuation checkpoint — 23 November 2026 (FIN-020)
+
+- Active repository: `nabeel2323/scs-platform`; active branch: `remediation/phase-0-1-tenant-security`; PR #138 targets `develop` and remains OPEN / DRAFT / UNMERGED.
+- Latest source-and-test commit: `ad478cc53ce40bec86172e881b4f14cea7e6dfac` (FIN-020).
+- **FIN-020 — Reconciliation ledger correctness:** reconciliation now treats COMMISSION_REVERSAL adjustments as merchant credits, uses exact minor-unit arithmetic, sums commission reversals with BigInt, checks delivery-fee refund caps with the same half-up allocation as return posting, includes DELIVERY_FEE_REFUND records, and records refund-status mismatches as descriptions rather than values in BIGINT columns.
+- Added unit regressions using production helpers and PostgreSQL FIN-DSH-36 using the disposable Testcontainers database. Tests have **not** been executed; status is IMPLEMENTED / TESTING_PENDING.
+- Exact-head GitHub Actions lookup for the source/test commit returned no workflow runs. Its Vercel Web and Admin contexts were SUCCESS; these are preview-provider checks, not application test evidence. No test/CI verification is claimed.
+- No schema/migration, shared database, staging, Render, environment, grant/default-ACL, RLS, worker, provider, gateway, automatic payout, deployment or merge action occurred.
+- Existing gates remain: G-001 PARTIAL; G-002 IN PROGRESS and protected/read-only; G-036 IN PROGRESS; Phases 0–5 IN PROGRESS; Phase 6 not started. PR #138 stays draft/unmerged.
+- **Next task FIN-021:** audit reconciliation-run versioning and failure semantics before modifying them: verify the intended direction of `superseded_by`, align unique-version scope with organization scope, handle concurrent version allocation, and prevent failed runs from leaving incomplete discrepancy records. Then continue the persisted financial history/outbox audit. Do not assume the semantics; inspect schema, migrations, callers and existing tests first.
+- Follow the recorded implementation-first cadence: group related source/tests/docs, keep focused regressions pending the consolidated Phase 3 campaign, and do not use protected staging or shared DB for tests.

@@ -1119,3 +1119,12 @@ The next full workflow is required to verify these changes.
 - FIN-DSH-33 remains the pre-existing return idempotent-retry scenario.
 - New settlement-adjustment tests are FIN-DSH-34 (commission reversal positive net) and FIN-DSH-35 (no-primary-settlement posting rejection).
 - Test numbering correction commit: `b9f9728659e71d3788cc58aa2b5ad9df29ab9731`. Tests remain unexecuted.
+
+
+## FIN-020 exact-head verification checkpoint — 23 November 2026
+
+- Source-and-test commit: `ad478cc53ce40bec86172e881b4f14cea7e6dfac` (FIN-020).
+- Exact-head GitHub Actions workflow lookup returned **no runs**. The combined commit status reported Vercel Web and Vercel Admin contexts as **SUCCESS**; these are preview-provider checks and do not execute or validate the API unit/PostgreSQL tests.
+- Unit regressions and PostgreSQL FIN-DSH-36 are committed but not executed. FIN-020 remains IMPLEMENTED / TESTING_PENDING, not CI-verified.
+- PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. No staging release, shared DB write, migration, grants/default ACL, RLS, environment change, worker activation, provider, gateway, payout or deployment occurred.
+- Full formatter, API unit/coverage and PostgreSQL integration validation remains grouped for Phase 3. Phase 6 has not started.

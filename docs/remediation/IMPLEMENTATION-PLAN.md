@@ -1314,3 +1314,14 @@ Settlement adjustment posting must preserve the financial sign convention `net =
 ## FIN-019 — Settlement adjustment posting integrity — 23 November 2026
 
 Settlement adjustment posting must preserve the financial sign convention `net = gross - refund - commission - fee`: a commission reversal is a merchant credit and therefore increases net, while refund, delivery-fee and balance-debit adjustments reduce net. Amounts must be positive safe integers in minor units. Posting must lock and attach an existing primary settlement; an approved adjustment must not be marked POSTED without a corresponding ledger row. The implementation adds a type-specific net helper, amount validation, primary-settlement row locking and fail-closed behavior when no primary settlement exists. Unit sign tests and PostgreSQL FIN-DSH-34/35 are added; execution remains pending Phase 3. No schema/migration, gateway or payout scope change.
+
+
+## FIN-020 — Reconciliation arithmetic and discrepancy type safety — 23 November 2026
+
+The reconciliation service now follows the settlement writer's ledger semantics: primary settlements debit commission; ADJUSTMENT rows add a positive commission reversal credit. Safe integer checks and BigInt operations prevent rounded monetary comparisons. Delivery-fee refund caps use the return workflow's net-goods basis and half-up rounding, and reconciliation covers both delivery-fee exception and refund adjustment types. Refund-status mismatch details remain narrative evidence and no longer enter BIGINT monetary columns.
+
+Unit regressions and disposable-PostgreSQL FIN-DSH-36 have been added. Source/test commit: `ad478cc53ce40bec86172e881b4f14cea7e6dfac`. Execution remains pending the consolidated Phase 3 campaign; this increment is not CI-verified. No schema/migration, shared database/staging, environment, worker, grant/RLS, gateway or payout changes.
+
+### Next source-audit task — FIN-021
+
+Inspect reconciliation run lifecycle before changing it. Verify `superseded_by` direction from schema/migration, consumers and tests; check whether the unique version index matches organization-scoped run queries; inspect concurrent version allocation and determine how failures can leave RUNNING runs or partial discrepancies. Add tests before modifying the immutable run-history contract. No live/staging database writes or migrations.

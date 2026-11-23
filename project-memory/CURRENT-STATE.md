@@ -1012,3 +1012,16 @@ Settlement adjustment posting now gives COMMISSION_REVERSAL a positive merchant-
 ## FIN-019 PostgreSQL scenario IDs — 23 November 2026
 
 The existing return-idempotency case already owns FIN-DSH-33. Settlement-adjustment regressions are therefore FIN-DSH-34 (commission reversal credit) and FIN-DSH-35 (posting blocked without a primary settlement). Renumbering commit: `b9f9728659e71d3788cc58aa2b5ad9df29ab9731`. No test execution is claimed.
+
+
+## FIN-020 — Reconciliation ledger correctness — 23 November 2026
+
+- Source-and-test commit: `ad478cc53ce40bec86172e881b4f14cea7e6dfac` on `remediation/phase-0-1-tenant-security`.
+- Fixed the adjustment ledger sign rule: primary settlement rows debit commission; `ADJUSTMENT` rows credit a positive commission reversal. Unsafe source amounts and results are reported as `INCOMPLETE_SOURCE_DATA` rather than compared with rounded Number values.
+- Commission reversal aggregates now use BigInt. Delivery-fee adjustment checks now cover `DELIVERY_FEE_EXCEPTION` and `DELIVERY_FEE_REFUND`, use the same net-goods denominator and half-up minor-unit rounding as return posting, and reject unsafe source amounts.
+- Refund-status mismatches now remain descriptive discrepancies; no status string is passed to BIGINT expected/actual/delta columns.
+- Added unit tests for ledger signs, safe integer boundaries, exact reversal sums, delivery-fee rounding and non-monetary status discrepancies. Added disposable-PostgreSQL FIN-DSH-36 covering the persisted commission-credit and refund-status mismatch paths.
+- **Verification:** tests are added but not executed. Exact-head Actions lookup returned no runs; Vercel Web/Admin contexts on the source/test commit were SUCCESS but do not validate application tests. Do not mark FIN-020 CI-verified.
+- No database schema, migration, shared staging/database, deployment, worker, grant, RLS, gateway or payout changes.
+- PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. G-001 remains PARTIAL; G-002 and G-036 remain IN PROGRESS; Phase 3 consolidated testing and Phase 6 release readiness are outstanding.
+- Next: FIN-021 reconciliation run version/supersession/failure atomicity audit, followed by financial event/history/outbox consistency review.

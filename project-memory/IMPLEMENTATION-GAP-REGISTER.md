@@ -873,3 +873,10 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 | ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
 |---|---|---|---|---|---|---|
 | FIN-019 | Settlement adjustment posting integrity | Posting previously recorded commission reversals as negative merchant net and could mark adjustments POSTED without a primary settlement ledger row. | Apply type-specific credit/debit signs, validate positive safe-integer minor-unit amounts, lock the primary settlement during posting, and keep approved adjustments unposted until a primary settlement exists. FIN-DSH-34/35 and unit coverage added. | P1 | IMPLEMENTED / TESTING_PENDING | Tests not executed; no schema/migration or shared DB changes; manual-payment-only scope remains binding. |
+
+
+## FIN-020 — Reconciliation correctness — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-020 | Settlement/reconciliation arithmetic and discrepancy persistence | Reconciliation now uses adjustment-aware commission signs, BigInt reversal totals, the return workflow's half-up delivery-fee allocation and non-monetary refund-status mismatch evidence. Unit regressions and PostgreSQL FIN-DSH-36 are committed. | Execute the focused and consolidated Phase 3 tests, resolve any failures, and independently review reconciliation run versioning/history semantics. | P1 | IMPLEMENTED / TESTING_PENDING | Source/test commit `ad478cc53ce40bec86172e881b4f14cea7e6dfac`; no migration/shared DB changes. Keep PR #138 draft; preserve manual-payment-only scope. |

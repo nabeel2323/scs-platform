@@ -557,6 +557,8 @@ export class ReconciliationService {
         const netGoodsMinor = productsMinor - discountMinor;
 
         const maxRefundable = (
+          Number.isSafeInteger(productsMinor) &&
+          Number.isSafeInteger(discountMinor) &&
           productsMinor >= 0 &&
           discountMinor >= 0 &&
           discountMinor <= productsMinor

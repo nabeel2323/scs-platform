@@ -711,3 +711,12 @@ Source commits: `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0e
 ## FIN-019 scenario IDs
 
 Settlement-adjustment regression cases are FIN-DSH-34 (commission reversal positive net) and FIN-DSH-35 (posting blocked without a primary settlement); FIN-DSH-33 remains the pre-existing return-idempotency case. Tests are added, not executed. Continue source-first financial correctness review beyond FIN-019; preserve consolidated Phase 3 validation and the G-012 manual-payment-only scope.
+
+
+## FIN-020 — Reconciliation arithmetic and discrepancy persistence
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** The reconciliation path previously recalculated every settlement row with primary-settlement signs, misclassifying positive commission-reversal credits in `ADJUSTMENT` rows. It also attempted to store refund-status text in BIGINT monetary discrepancy columns, used Number aggregation for reversal totals, and used floating-point delivery-fee VAT caps that did not match the return writer.
+
+The implementation is in `ad478cc53ce40bec86172e881b4f14cea7e6dfac`. It applies row-status-aware ledger signs, BigInt-safe reversal aggregation, the shared half-up delivery-fee allocator, covers both delivery-fee refund adjustment types, validates source minor-unit values, and keeps refund status evidence non-monetary. Unit tests and PostgreSQL FIN-DSH-36 are added but **not executed**. No schema/migration or shared DB/staging mutation.
+
+**Next:** FIN-021 audit reconciliation run version allocation, `superseded_by` direction, concurrent execution, and failure/partial-record handling. Verify the intended semantics before changing persisted history.

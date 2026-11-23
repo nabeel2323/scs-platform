@@ -1313,3 +1313,15 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 
 - The integration suite already used FIN-DSH-33 for return idempotent retry. Renumbered the new settlement-adjustment cases to FIN-DSH-34 (commission reversal positive net) and FIN-DSH-35 (no primary settlement blocks posting).
 - Commit: `b9f9728659e71d3788cc58aa2b5ad9df29ab9731`. Tests remain added but not executed.
+
+
+## 2026-11-23 — FIN-020 reconciliation correctness
+
+- Audited `ReconciliationService` against the current settlement adjustment writer and return financial helper.
+- Corrected commission-reversal sign handling for `ADJUSTMENT` settlement rows; primary settlement commission remains a merchant debit.
+- Replaced unsafe Number reversal aggregation with validated BigInt accumulation. Unsafe data now creates an `INCOMPLETE_SOURCE_DATA` discrepancy.
+- Corrected delivery-fee cap calculation to use the persisted net-goods denominator and existing half-up minor-unit allocator; included both delivery-fee exception/refund adjustment types and rejected unsafe source amounts.
+- Fixed refund-status mismatch persistence: status text is held in the discrepancy description/source reference and is not written to BIGINT monetary columns.
+- Added production-helper unit regressions and PostgreSQL FIN-DSH-36 with a disposable database.
+- Source/test commit: `ad478cc53ce40bec86172e881b4f14cea7e6dfac`. Tests not run; IMPLEMENTED / TESTING_PENDING. Actions workflow lookup returned no run for this SHA; Vercel Web/Admin previews were successful but are not application tests.
+- No schema/migration or shared/staging DB write, deployment, worker, grants/RLS, gateway or automatic payout changes.
