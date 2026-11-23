@@ -1330,3 +1330,14 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Added Admin and Merchant pagination UI plus API and UI regression tests. Tests, typechecks, builds and lint have NOT been run; no pass is claimed.
 - Commit used [skip ci] under the consolidated-testing cadence. Exact-head Actions status must be refreshed; prior Vercel Web/Admin statuses were external rate-limit failures.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No migration, shared/staging DB write, environment mutation, deployment, worker activation or RLS/ACL change.
+
+
+## FIN-047 audit closure and consolidated verification checkpoint — 23 November 2026
+
+- Branch head before this CI-enabling synchronization: `f9eaa99c163a66ce4f37b9ad70724865c184e9e0`; source implementation `ee6bf2f84803f2eb1f80ae931d9415923a760ff3`.
+- PR #138 is OPEN / DRAFT / UNMERGED to `develop`.
+- Exact-head GitHub Actions lookup returned no workflow run. Vercel Web and Admin status contexts are FAILURE; they are not API/UI test evidence.
+- FIN-047 consumer audit is complete: no settlement-ledger export or aggregate KPI/report double-counting primary plus adjustment rows was found. Admin revenue is completed-order based and grouped by currency; reconciliation checks settlement rows individually.
+- API pagination/controller/service and Web/Merchant regressions are included in the normal API coverage and Web full-suite jobs. The Admin job previously ran only the hydration/global-style subset; this commit adds `admin-settlements-recovery.test.tsx` and `admin-settlement-adjustments-recovery.test.tsx` to that focused job.
+- The next CI run is the consolidated Phase 3 verification attempt. Tests are still NOT VERIFIED until exact-head jobs finish. k6, protected staging release, staging E2E and provider sandboxes remain out of scope for this PR run.
+- No merge, deployment, migration, shared/staging DB write, environment mutation, worker activation, RLS enablement or grant/default-ACL change.

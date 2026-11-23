@@ -218,6 +218,8 @@ jobs:
           src/__tests__/hydration-admin-clock.test.tsx
           src/__tests__/hydration-admin-session.test.tsx
           src/__tests__/hydration-admin-perms.test.tsx
+          src/__tests__/admin-settlements-recovery.test.tsx
+          src/__tests__/admin-settlement-adjustments-recovery.test.tsx
 
   # â”€â”€ Integration Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test-integration:

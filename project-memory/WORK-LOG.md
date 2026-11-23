@@ -1601,3 +1601,13 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Source commit: ee6bf2f84803f2eb1f80ae931d9415923a760ff3. Tests/typechecks/build/lint not executed. [skip ci]; no exact-head CI pass claimed.
 - No migration, shared/staging database write, deployment, merge, environment mutation, worker activation or RLS/ACL change.
 - Next: complete remaining report/export consumer audit outside reviewed Admin/Analytics paths, then execute consolidated Phase 3 test campaign.
+
+
+## 23 November 2026 — FIN-047 consumer audit closure and CI coverage alignment
+
+- Reconciled live branch `remediation/phase-0-1-tenant-security` at `f9eaa99c163a66ce4f37b9ad70724865c184e9e0`; PR #138 remains OPEN / DRAFT / UNMERGED against `develop`.
+- Completed the remaining source audit across Admin/API/Web settlement consumers, KPI/report routes and the reconciliation consistency path. No settlement-ledger export consumer or aggregate that sums primary plus adjustment rows was found. Reconciliation checks individual settlement rows; Admin revenue is based on completed order totals grouped by currency. The settlement-adjustment approval queue is separate from settlement history.
+- Found a CI coverage gap: the Admin job only selected hydration/global-style tests, so it did not execute the new finance recovery specs. Added both `admin-settlements-recovery.test.tsx` (pagination + payout UI) and `admin-settlement-adjustments-recovery.test.tsx` to that focused job; updated the test-campaign manifest.
+- API coverage already collects the new pagination unit/controller spec; Web CI runs the full suite including merchant settlement pagination. No tests have executed yet.
+- This grouped documentation/CI update intentionally omits `[skip ci]` to start the consolidated Phase 3 PR campaign. Exact-head status must be checked after push; do not treat the current pending state as a pass.
+- No migrations, shared/staging DB writes, environment changes, worker activation, RLS/ACL changes, deployment or merge.

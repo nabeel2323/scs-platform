@@ -721,3 +721,10 @@ FIN-045 now uses durable adjustment identity (metadata or the legacy notes marke
 FIN-046 adds the missing merchant read-only settlement history surface using the existing scoped merchant API. Store/status filters, payout references and explicit ADJUSTMENT · PAID labels are included; navigation and dashboard access use the existing merchant:orders:read permission. Admin rows also distinguish paid adjustment rows.
 
 Next source-first work: inspect settlement listing limits, financial exports and aggregate KPI/report queries for primary/adjustment double counting. Consolidated Phase 3 tests remain deferred until implementation audit completion.
+
+
+## FIN-047 — Settlement history pagination and consumer audit — 23 November 2026
+
+FIN-047 adds strict bounded offset pagination to the Admin and Merchant settlement-history endpoints: default 25, maximum 100, safe non-negative offsets, total counts and stable createdAt/id ordering. Both screens expose Previous/Next navigation and page totals; changing store/status resets the page, and Admin returns to the prior page after paying its final visible row. Merchant row and count queries retain identical organization/store/status scope. Source commit: `ee6bf2f84803f2eb1f80ae931d9415923a760ff3`; focused API and Admin/Merchant UI regressions are added but not executed.
+
+The extended audit covered Admin/API/Web settlement consumers, reconciliation and KPI/report paths. No settlement-ledger export or aggregate summing primary and adjustment rows was found. Reconciliation checks each ledger row independently; Admin revenue is completed-order totals grouped by currency. Do not change KPI semantics without a product decision. Next: consolidated Phase 3 API/PostgreSQL/Web/Admin verification. The Admin CI command is extended to include both settlement and adjustment recovery suites; PR #138 remains draft, and no release/database operation is authorized.

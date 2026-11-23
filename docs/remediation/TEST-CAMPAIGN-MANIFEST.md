@@ -38,7 +38,7 @@ The migration-full-apply job uses isolated CI PostgreSQL. It is not evidence tha
 | Surface | Command | CI behavior / prerequisites |
 |---|---|---|
 | Web | `pnpm --filter @scs/web test` | Full Vitest suite; contract package built first |
-| Admin | `pnpm --filter @scs/admin test -- src/__tests__/hydration-document-root.test.tsx src/__tests__/global-styles.test.tsx src/__tests__/sidebar-styles.test.tsx src/__tests__/hydration-admin-clock.test.tsx src/__tests__/hydration-admin-session.test.tsx src/__tests__/hydration-admin-perms.test.tsx` | CI currently runs this focused set; two unrelated management tests were baseline failures and remain tracked |
+| Admin | `pnpm --filter @scs/admin test -- src/__tests__/hydration-document-root.test.tsx src/__tests__/global-styles.test.tsx src/__tests__/sidebar-styles.test.tsx src/__tests__/hydration-admin-clock.test.tsx src/__tests__/hydration-admin-session.test.tsx src/__tests__/hydration-admin-perms.test.tsx src/__tests__/admin-settlements-recovery.test.tsx src/__tests__/admin-settlement-adjustments-recovery.test.tsx` | CI currently runs this focused set; two unrelated management tests were baseline failures and remain tracked |
 | Flutter | `cd mobile && flutter pub get && flutter analyze && flutter test` | CI runs Flutter analyze and tests; mobile device/provider UAT is separate |
 | Flutter release build | `cd mobile && flutter build appbundle` | Run only for the explicitly selected release flavor/signing configuration; signing secrets are not part of ordinary PR CI |
 
@@ -82,3 +82,8 @@ The migration-full-apply job uses isolated CI PostgreSQL. It is not evidence tha
 - Vercel web/admin preview checks recently reported account build-rate-limit failures; these are not successful frontend builds.
 - The staging audit workflow is manually dispatchable only after it exists on the repository default branch; it checks out `develop` for the audit utility.
 - Provider sandbox credentials and a separate isolated staging database are not confirmed by this manifest.
+
+
+### FIN-047 financial UI coverage
+
+The Admin CI job also runs `admin-settlements-recovery.test.tsx` and `admin-settlement-adjustments-recovery.test.tsx`. The broader Admin management suite remains outside this focused CI command because its two documented baseline failures are unrelated; this does not exclude settlement pagination and adjustment recovery regressions.
