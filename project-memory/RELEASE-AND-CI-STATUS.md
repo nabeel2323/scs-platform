@@ -1047,3 +1047,12 @@ The next full workflow is required to verify these changes.
 - CI #1434 was launched on a later source/test checkpoint; inspect exact run SHA and final job results before relying on it.
 - FIN-DSH-11–28 are added but not executed. No PostgreSQL integration pass is claimed for FIN-004–FIN-013.
 - PR #138 remains OPEN / DRAFT / UNMERGED. Vercel Web/Admin failures are external provider rate-limit statuses.
+
+## CI #1434 — FIN-013 payment expiry race checkpoint — 23 November 2026
+
+- [Workflow run](https://github.com/nabeel2323/scs-platform/actions/runs/45165552569) tested exact SHA `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231`.
+- ESLint passed; TypeScript typecheck passed; Flutter analysis/tests passed.
+- Changed-file Prettier failed with 258 files needing formatting out of 410 PR-changed files (49 unchanged legacy formatting exceptions).
+- Web/Admin app tests, API unit/coverage, PostgreSQL integration, migration, boundary, build/container, contract/codegen, k6 and staging-release jobs were skipped.
+- This run does not execute FIN-DSH-11–28. They remain IMPLEMENTED / TESTING_PENDING.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No deployment or staging action occurred.
