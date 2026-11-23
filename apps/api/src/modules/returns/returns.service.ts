@@ -22,7 +22,7 @@ import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service'
 import {
   returnRequests, returnRequestItems, returnRequestEvents,
 } from './returns.schema';
-import { commissionReversals } from './financial.schema';
+import { commissionReversals, settlementAdjustments } from './financial.schema';
 import { calculateProportionalCommissionReversalMinor, calculateReturnNetGoodsMinor, roundProportionalMinorUnits } from './returns-financials';
 import { orders, orderItems, orderFinancialBreakdown } from '../orders/orders.schema';
 import { paymentRecords, refunds, settlementRecords } from '../payments/payments.schema';
@@ -312,6 +312,21 @@ export class ReturnsService {
       );
     }
 
+    // Idempotent retries must be resolved before the active-return fast-fail.
+    const idempotencyKey = input.idempotencyKey ||
+      `return:${input.subOrderId}:${caller.sub}:${crypto.randomUUID()}`;
+    if (input.idempotencyKey) {
+      const existing = await this.db.db.query.returnRequests.findFirst({
+        where: eq(returnRequests.idempotencyKey, idempotencyKey),
+      });
+      if (existing) {
+        await this.assertReturnIdempotencyMatch(
+          this.db.db.query, existing, input, caller.sub, totalRefundMinor, resolvedLines,
+        );
+        return this.getReturnRequest(existing.id);
+      }
+    }
+
     // 6. Check one active return per sub-order
     // ESCALATED is non-terminal and counts as active — preserves duplicate prevention.
     const activeReturn = await this.db.db.query.returnRequests.findFirst({
@@ -326,9 +341,9 @@ export class ReturnsService {
 
     // 7. Create return request + items + event atomically
     const id = crypto.randomUUID();
-    const idempotencyKey = input.idempotencyKey ||
-      `return:${input.subOrderId}:${caller.sub}:${Date.now()}`;
     const expiresAt = new Date(Date.now() + MERCHANT_SLA_HOURS * 60 * 60 * 1000);
+    let returnRequestId = id;
+    let created = false;
 
     await this.db.db.transaction(async (tx) => {
       // Serialize return creation with refunds and other return requests for
@@ -344,6 +359,21 @@ export class ReturnsService {
       if (!lockedPayment) throw new NotFoundException('Payment not found for return');
       if (!['CONFIRMED', 'CAPTURED', 'PARTIALLY_REFUNDED'].includes(lockedPayment.status)) {
         throw new BadRequestException('Payment is no longer eligible for returns');
+      }
+
+      // Recheck after acquiring the payment lock so a concurrent retry with
+      // the same key returns the committed request instead of a false conflict.
+      if (input.idempotencyKey) {
+        const existing = await tx.query.returnRequests.findFirst({
+          where: eq(returnRequests.idempotencyKey, idempotencyKey),
+        });
+        if (existing) {
+          await this.assertReturnIdempotencyMatch(
+            tx.query, existing, input, caller.sub, totalRefundMinor, resolvedLines,
+          );
+          returnRequestId = existing.id;
+          return;
+        }
       }
 
       const lockedActiveReturn = await tx.query.returnRequests.findFirst({
@@ -389,6 +419,7 @@ export class ReturnsService {
         requestedRefundMinor: totalRefundMinor,
         idempotencyKey,
         expiresAt,
+        metadata: { deliveryFeeException: input.deliveryFeeException ?? null },
       });
 
       for (const line of resolvedLines) {
@@ -418,14 +449,25 @@ export class ReturnsService {
         reason: input.reason,
         requestedRefundMinor: totalRefundMinor,
       }, {}, null, tx);
+      created = true;
     });
 
-    this.logger.log(`Return request ${id} created for order ${input.subOrderId}`);
+    if (!created) return this.getReturnRequest(returnRequestId);
+    this.logger.log(`Return request ${returnRequestId} created for order ${input.subOrderId}`);
 
     // Phase 3 §3.4: Create delivery-fee settlement adjustment for partial-return exceptions.
     // This is done AFTER the return transaction so the return ID is available.
     if (deliveryFeeExceptionAdjustmentId === 'PENDING' && input.deliveryFeeException) {
       try {
+        const existingAdjustment = await this.db.db.query.settlementAdjustments.findFirst({
+          where: and(
+            eq(settlementAdjustments.returnRequestId, returnRequestId),
+            eq(settlementAdjustments.adjustmentType, 'DELIVERY_FEE_EXCEPTION'),
+          ),
+        });
+        if (existingAdjustment) {
+          deliveryFeeExceptionAdjustmentId = existingAdjustment.id;
+        } else {
         const deliveryFeeMinor = breakdown?.deliveryFeeMinor ?? order.deliveryFeeMinor ?? 0;
         const deliveryTaxMinor = netGoodsMinor > 0
           ? roundProportionalMinorUnits(BigInt(deliveryFeeMinor), taxMinor, netGoodsMinor)
@@ -442,7 +484,7 @@ export class ReturnsService {
         }, caller.sub);
         deliveryFeeExceptionAdjustmentId = adj.id;
         this.logger.log(
-          `Delivery-fee exception adjustment ${adj.id} created for return ${id}: ` +
+          `Delivery-fee exception adjustment ${adj.id} created for return ${returnRequestId}: ` +
           `${deliveryRefundMinor} SYP (requires dual approval)`,
         );
       } catch (err: any) {
@@ -450,10 +492,11 @@ export class ReturnsService {
           `Failed to create delivery-fee exception adjustment for return ${id}: ${err?.message}`,
         );
         deliveryFeeExceptionAdjustmentId = null;
+        }
       }
     }
 
-    return this.getReturnRequest(id);
+    return this.getReturnRequest(returnRequestId);
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -1389,6 +1432,41 @@ export class ReturnsService {
         inArray(refunds.status, ['SUCCEEDED', 'PROCESSING', 'REQUESTED']),
       ));
     return Number(result[0]?.total ?? 0);
+  }
+
+  private async assertReturnIdempotencyMatch(
+    query: any,
+    existing: any,
+    input: CreateReturnInput,
+    buyerId: string,
+    requestedRefundMinor: number,
+    expectedLines: Array<{ orderItemId: string; quantity: number }>,
+  ): Promise<void> {
+    const existingLines = await query.returnRequestItems.findMany({
+      where: eq(returnRequestItems.returnRequestId, existing.id),
+    });
+    const normalizeLines = (lines: Array<{ orderItemId: string; quantity: number }>) =>
+      lines.map(line => ({ orderItemId: line.orderItemId, quantity: line.quantity }))
+        .sort((a, b) => a.orderItemId.localeCompare(b.orderItemId));
+    const sameLines = JSON.stringify(normalizeLines(existingLines)) ===
+      JSON.stringify(normalizeLines(expectedLines));
+    const sameDeliveryException = JSON.stringify(existing.metadata?.deliveryFeeException ?? null) ===
+      JSON.stringify(input.deliveryFeeException ?? null);
+
+    if (
+      existing.subOrderId !== input.subOrderId ||
+      existing.buyerId !== buyerId ||
+      existing.reason !== input.reason ||
+      Number(existing.requestedRefundMinor) !== requestedRefundMinor ||
+      (existing.description ?? null) !== (input.description || null) ||
+      JSON.stringify(existing.evidenceUrls ?? []) !== JSON.stringify(input.evidenceUrls ?? []) ||
+      !sameLines ||
+      !sameDeliveryException
+    ) {
+      throw new ConflictException(
+        'Return idempotency key was already used for a different request',
+      );
+    }
   }
 
   async getReturnRequest(id: string, caller?: CallerContext) {

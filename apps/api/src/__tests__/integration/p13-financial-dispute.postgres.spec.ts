@@ -34,6 +34,7 @@
  *   FIN-DSH-30  COD payments are excluded from stale-payment expiry
  *   FIN-DSH-31  Return refund allocation and delivery exception currency
  *   FIN-DSH-32  Concurrent return creation preserves one-active-return invariant
+ *   FIN-DSH-33  Return request idempotent retry and payload integrity
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -1616,6 +1617,47 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [returnRequest.id],
     );
     expect(adjustment.rows).toEqual([{ amount: 495, currency: 'USD' }]);
+  }, 60_000);
+
+
+  // ── FIN-DSH-33: Return request idempotent retry ─────────────────
+
+  it('FIN-DSH-33: same return idempotency key reuses the request and rejects changed terms', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const orderItemId = (await pool.query(
+      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [orderId],
+    )).rows[0].id as string;
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const request = {
+      subOrderId: orderId,
+      lines: [{ orderItemId, quantity: 1 }],
+      reason: 'DAMAGED',
+      description: 'Idempotent return retry',
+      idempotencyKey: `return-idempotency-${randomUUID()}`,
+    };
+
+    const first = await returnsService.createReturnRequest(request as any, buyerCaller);
+    const retry = await returnsService.createReturnRequest(request as any, buyerCaller);
+    expect(retry.id).toBe(first.id);
+
+    await expect(
+      returnsService.createReturnRequest({
+        ...request,
+        lines: [{ orderItemId, quantity: 2 }],
+      } as any, buyerCaller),
+    ).rejects.toThrow(/idempotency key was already used/i);
+
+    const count = await pool.query(
+      `SELECT count(*)::int AS count FROM return_requests WHERE idempotency_key = $1`,
+      [request.idempotencyKey],
+    );
+    expect(count.rows[0].count).toBe(1);
+    const outbox = await pool.query(
+      `SELECT count(*)::int AS count FROM outbox_events
+       WHERE aggregate_id = $1 AND event_type = 'return.requested'`,
+      [first.id],
+    );
+    expect(outbox.rows[0].count).toBe(1);
   }, 60_000);
 
   // ── FIN-DSH-10: Rollback under a losing REFUNDED race ────────────
