@@ -96,6 +96,8 @@ export default function SettlementAdjustmentsPage() {
   const [loadedFilter, setLoadedFilter] = useState<string | null>(null);
   const hasCurrentResults = loadedFilter === statusFilter;
   const [acting, setActing] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const load = useCallback(async () => {
     if (!hasAccess) return;
@@ -124,9 +126,14 @@ export default function SettlementAdjustmentsPage() {
     return () => { requestVersion.current += 1; };
   }, [load, hasAccess]);
 
-  const handleAction = async (id: string, action: string) => {
+  const handleAction = async (id: string, action: 'submit' | 'approve' | 'reject' | 'post', reason?: string) => {
+    if (acting === id) return;
     if (action === 'submit' && !canWrite) return;
     if (['approve', 'reject', 'post'].includes(action) && !canApprove) return;
+    if (action === 'reject' && !reason?.trim()) {
+      setActionError('A rejection reason is required.');
+      return;
+    }
     setActing(id);
     setActionError('');
     try {
@@ -142,6 +149,14 @@ export default function SettlementAdjustmentsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ notes: 'Approved via admin UI' }),
         });
+      } else if (action === 'reject') {
+        await adminRequest(`admin/settlement-adjustments/${id}/reject`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: reason!.trim() }),
+        });
+        setRejectingId(null);
+        setRejectReason('');
       } else if (action === 'post') {
         await adminRequest(`admin/settlement-adjustments/${id}/post`, {
           method: 'POST',
@@ -337,6 +352,7 @@ export default function SettlementAdjustmentsPage() {
                   </button>
                 )}
                 {adj.status === 'PENDING_APPROVAL' && canApprove && (
+                  <>
                   <button
                     onClick={() => handleAction(adj.id, 'approve')}
                     disabled={acting === adj.id}
@@ -353,6 +369,49 @@ export default function SettlementAdjustmentsPage() {
                   >
                     Approve
                   </button>
+                  <button
+                    onClick={() => { if (!canApprove || acting === adj.id) return; setRejectingId(adj.id); setRejectReason(''); setActionError(''); }}
+                    disabled={acting === adj.id}
+                    style={{
+                      background: '#7f1d1d',
+                      color: '#fff',
+                      border: 0,
+                      borderRadius: 6,
+                      padding: '4px 12px',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Reject
+                  </button>
+                  </>
+                )}
+                {rejectingId === adj.id && canApprove && (
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void handleAction(adj.id, 'reject', rejectReason);
+                    }}
+                    style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}
+                  >
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, flex: '1 1 260px' }}>
+                      Rejection reason
+                      <textarea
+                        required
+                        maxLength={2000}
+                        value={rejectReason}
+                        onChange={(event) => setRejectReason(event.target.value)}
+                        rows={2}
+                      />
+                    </label>
+                    <button type="submit" disabled={acting === adj.id || !rejectReason.trim()}>
+                      Confirm rejection
+                    </button>
+                    <button type="button" disabled={acting === adj.id} onClick={() => { setRejectingId(null); setRejectReason(''); }}>
+                      Cancel
+                    </button>
+                  </form>
                 )}
                 {adj.status === 'APPROVED' && canApprove && canPostFx(adj.fxStatus) && (
                   <button
