@@ -7,7 +7,7 @@
 **Repository:** `nabeel2323/scs-platform`
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`
 <!-- prettier-ignore -->
-**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; latest live head before this tracker synchronization is `e6823ee9b1c68f5b71229ffbda17c9f525b66565`. Latest focused source/test checkpoint is `e6823ee9b1c68f5b71229ffbda17c9f525b66565` (FIN-017 exact return refund allocation and delivery-fee currency); tests added but not executed. FIN-004–FIN-017 financial safeguards are IMPLEMENTED / TESTING_PENDING. CI #1434 on earlier SHA `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` passed lint/typecheck and Flutter but failed changed-file Prettier; API/PostgreSQL/Web/Admin and dependent jobs skipped. CI #1436 was cancelled after subsequent pushes. No exact-head Actions verification exists for FIN-014–017. G-002 remains open: runtime identities, protected read-only catalog audit, exact FK/operation predicates and transaction-bound context proof remain outstanding. No staging deployment, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement or worker activation is authorized or claimed.
+**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; latest source/test checkpoint before this tracker synchronization is `b9f9728659e71d3788cc58aa2b5ad9df29ab9731` (FIN-019 settlement-adjustment posting integrity; FIN-DSH-34/35 tests added but not executed). FIN-004–FIN-019 financial safeguards are IMPLEMENTED / TESTING_PENDING. CI #1437 on earlier SHA `9dc7d04469180807e65053fe51819afffb3b78c0` passed lint/typecheck and Flutter but failed changed-file Prettier (259 files); API/PostgreSQL/Web/Admin and dependent jobs skipped. No exact-head Actions verification exists for FIN-019. G-002 remains open: runtime identities, protected read-only catalog audit, exact FK/operation predicates and transaction-bound context proof remain outstanding. No staging deployment, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement or worker activation is authorized or claimed.
 
 ---
 
@@ -2142,6 +2142,15 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 
 - **Finding:** commission reversal settlement adjustments were recorded with a negative net, reversing the intended merchant-credit sign. Approved adjustments could also become POSTED without any settlement ledger row when the order had no primary settlement.
 - **Implementation:** COMMISSION_REVERSAL now produces positive net; refund/delivery-fee/balance-debit types remain negative. Amounts require positive safe integers. Posting locks the latest primary settlement row and rejects when no primary settlement exists, so status and ledger insertion remain atomic.
-- **Regression coverage:** unit sign tests and PostgreSQL FIN-DSH-33/34. Added, not executed.
+- **Regression coverage:** unit sign tests and PostgreSQL FIN-DSH-34/35. Added, not executed.
 - **Source commits:** `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration or automatic payment/payout scope change.
+
+
+## FIN-019 — Settlement adjustment posting integrity — 23 November 2026
+
+- **Finding:** `SettlementAdjustmentService.postAdjustment` recorded commission reversals with a negative settlement net, despite commission reversal being a merchant credit. It could also mark an adjustment POSTED without a primary settlement ledger row.
+- **Implementation:** commission reversals now increase net; refund/delivery-fee/balance-debit adjustments reduce net. Amounts require positive safe integers. Posting locks the latest primary settlement and refuses to mark POSTED when no primary settlement exists.
+- **Regression coverage:** unit tests cover credit/debit signs. PostgreSQL FIN-DSH-34 verifies a commission reversal creates positive net; FIN-DSH-35 verifies posting is rejected without a primary settlement and the adjustment remains APPROVED/unlinked. Tests added, not executed.
+- **Source commits:** `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`; scenario-ID correction `b9f9728659e71d3788cc58aa2b5ad9df29ab9731`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, shared DB or automatic gateway/payout change.

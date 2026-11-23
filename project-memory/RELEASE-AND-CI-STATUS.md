@@ -1112,3 +1112,10 @@ The next full workflow is required to verify these changes.
 - Web/Admin tests, API unit/coverage, PostgreSQL integration, migration apply, boundary lint, contract/codegen, build/container, k6 and staging release were skipped because the formatting gate failed.
 - FIN-019 source/test commits `968fa110fb77efcc98c5a892c5ed69029347fc8e` and `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae` use `[skip ci]`; no exact-head Actions run or test execution is claimed.
 - PR #138 remains OPEN / DRAFT / UNMERGED. Vercel Web/Admin rate-limit statuses are external provider failures. No merge, deployment, staging write, shared DB change, migration, grant/RLS, worker activation, provider, gateway or payout action occurred.
+
+
+## FIN-019 regression ID correction — 23 November 2026
+
+- FIN-DSH-33 remains the pre-existing return idempotent-retry scenario.
+- New settlement-adjustment tests are FIN-DSH-34 (commission reversal positive net) and FIN-DSH-35 (no-primary-settlement posting rejection).
+- Test numbering correction commit: `b9f9728659e71d3788cc58aa2b5ad9df29ab9731`. Tests remain unexecuted.

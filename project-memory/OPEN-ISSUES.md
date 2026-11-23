@@ -706,3 +706,8 @@ Next: continue the source-first returns/payment lifecycle audit. Keep the full f
 Source commits: `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`. No schema/migration or automatic gateway/payout scope change.
 
 **Next:** continue source-first financial and operational correctness review beyond FIN-019. Keep the consolidated formatter/API/PostgreSQL/Web/Admin/mobile campaign grouped in Phase 3; preserve the G-012 manual-payment-only scope.
+
+
+## FIN-019 scenario IDs
+
+Settlement-adjustment regression cases are FIN-DSH-34 (commission reversal positive net) and FIN-DSH-35 (posting blocked without a primary settlement); FIN-DSH-33 remains the pre-existing return-idempotency case. Tests are added, not executed. Continue source-first financial correctness review beyond FIN-019; preserve consolidated Phase 3 validation and the G-012 manual-payment-only scope.
