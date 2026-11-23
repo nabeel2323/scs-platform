@@ -202,6 +202,10 @@ export class PaymentsService {
 
     const previousReceiptUrl = payment.receiptUrl ?? null;
     const uploadsBucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
+    const fromStatus = payment.status;
+    const toStatus = 'AWAITING_VERIFICATION';
+    assertPaymentTransition(fromStatus, toStatus);
+
     let storedReceiptUrl = input.receiptUrl || previousReceiptUrl;
     let newStorageKey: string | null = null;
 
@@ -219,18 +223,27 @@ export class PaymentsService {
       const rawExtension = input.fileName?.includes('.') ? input.fileName.split('.').pop() : 'jpg';
       const extension = (rawExtension || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'jpg';
       newStorageKey = `payment-proofs/${paymentId}/${crypto.randomUUID()}.${extension}`;
-      await this.storage.putObject({
-        bucket: uploadsBucket,
-        key: newStorageKey,
-        body: input.fileBuffer,
-        contentType,
-      });
+      try {
+        await this.storage.putObject({
+          bucket: uploadsBucket,
+          key: newStorageKey,
+          body: input.fileBuffer,
+          contentType,
+        });
+      } catch (uploadError) {
+        // A timeout can occur after the object store accepted the upload. Check
+        // the unique key and compensate when possible; never touch an old proof.
+        try {
+          if (await this.storage.exists(uploadsBucket, newStorageKey)) {
+            await this.storage.deleteObject(uploadsBucket, newStorageKey);
+          }
+        } catch (cleanupError: any) {
+          this.logger.warn(`Could not clean up uncertain proof upload ${newStorageKey}: ${cleanupError?.message || 'verification failed'}`);
+        }
+        throw uploadError;
+      }
       storedReceiptUrl = newStorageKey;
     }
-
-    const fromStatus = payment.status;
-    const toStatus = 'AWAITING_VERIFICATION';
-    assertPaymentTransition(fromStatus, toStatus);
 
     try {
       await this.db.db.transaction(async (tx) => {
