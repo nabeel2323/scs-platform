@@ -503,3 +503,16 @@ The Web merchant route/action slice is now implemented on PR #138:
 - The API realtime gateway now authorizes `org:{storeId}` and `order:{orderId}` room joins against active store membership, buyer ownership, driver assignment or platform-staff read grants (G-036).
 
 Focused Web/API tests are added but not executed. This is not a full Admin route/permission audit or comprehensive client verification. Next: complete the Mobile route-permission and organization-context transition audit, then remaining Admin route/action mapping.
+
+
+## Mobile permission and organization-context continuation — 23 November 2026
+
+The Mobile route/action audit slice is now implemented on PR #138:
+
+- Merchant offer list/detail routes use `merchant:stores:read`; offer creation and lifecycle mutations use `catalog:offers:write`.
+- Catalog shortcuts and dashboard directory cards use read grants. Driver assignment uses `fulfillment:shipments:assign`, independently of order lifecycle write permission.
+- Product save and offer submit handlers fail closed without their write permissions.
+- Merchant shell child tabs are keyed by active organization, role and permission signature; the selected tab resets and the old workspace is hidden while the refreshed profile permission projection loads.
+- Both organization-switch entry points persist/install the new token before updating active-org state, invalidate organization-scoped providers and refresh the router. The existing scope-invalidation test covers cache refresh.
+
+Focused Mobile route and driver-assignment tests are added but not executed. The next implementation slice is the remaining Admin route/action permission mapping; full verification remains deferred to the consolidated testing phase.
