@@ -5,8 +5,7 @@ import { masterOrders, orders } from './orders.schema';
 import { shipments } from './shipment.schema';
 
 export type RealtimeOrderRoomAccess =
-  | { kind: 'order'; buyerId: string; storeId: string }
-  | { kind: 'masterOrder'; buyerId: string };
+  { kind: 'order'; buyerId: string; storeId: string } | { kind: 'masterOrder'; buyerId: string };
 
 /**
  * Narrow read-only contract for Realtime room authorization.

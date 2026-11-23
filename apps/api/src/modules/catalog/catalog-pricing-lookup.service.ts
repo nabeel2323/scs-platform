@@ -21,9 +21,7 @@ export interface VariantPricingDetails {
 export class CatalogPricingLookupService {
   constructor(private readonly db: DatabaseService) {}
 
-  async getVariantPricingDetails(
-    variantIds: readonly string[],
-  ): Promise<VariantPricingDetails[]> {
+  async getVariantPricingDetails(variantIds: readonly string[]): Promise<VariantPricingDetails[]> {
     const uniqueIds = [...new Set(variantIds.filter((id) => id.length > 0))];
     if (uniqueIds.length === 0) return [];
 

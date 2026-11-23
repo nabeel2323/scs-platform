@@ -1807,7 +1807,9 @@ export class OrdersService {
     });
     return items
       .map((item) => item.variantId)
-      .filter((variantId): variantId is string => typeof variantId === 'string' && variantId.length > 0);
+      .filter(
+        (variantId): variantId is string => typeof variantId === 'string' && variantId.length > 0,
+      );
   }
 
   async getOrderWithItems(id: string, caller?: CallerContext) {

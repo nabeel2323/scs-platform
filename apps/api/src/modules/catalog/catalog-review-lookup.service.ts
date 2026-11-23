@@ -12,18 +12,12 @@ import { productVariants } from './catalog.schema';
 export class CatalogReviewLookupService {
   constructor(private readonly db: DatabaseService) {}
 
-  async hasVariantForProduct(
-    variantIds: readonly string[],
-    productId: string,
-  ): Promise<boolean> {
+  async hasVariantForProduct(variantIds: readonly string[], productId: string): Promise<boolean> {
     const uniqueIds = [...new Set(variantIds.filter((id) => id.length > 0))];
     if (uniqueIds.length === 0) return false;
 
     const match = await this.db.db.query.productVariants.findFirst({
-      where: and(
-        inArray(productVariants.id, uniqueIds),
-        eq(productVariants.productId, productId),
-      ),
+      where: and(inArray(productVariants.id, uniqueIds), eq(productVariants.productId, productId)),
       columns: { id: true },
     });
     return Boolean(match);

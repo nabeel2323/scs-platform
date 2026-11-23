@@ -11,7 +11,12 @@ import { AutoCompleteWorker } from './auto-complete.worker';
 import { OrderRealtimeAccessService } from './order-realtime-access.service';
 
 @Module({
-  imports: [PromotionsModule, NotificationsModule, forwardRef(() => ShippingModule), PaymentsModule],
+  imports: [
+    PromotionsModule,
+    NotificationsModule,
+    forwardRef(() => ShippingModule),
+    PaymentsModule,
+  ],
   controllers: [CartController, OrdersController],
   providers: [CartService, OrdersService, AutoCompleteWorker, OrderRealtimeAccessService],
   exports: [CartService, OrdersService, OrderRealtimeAccessService],

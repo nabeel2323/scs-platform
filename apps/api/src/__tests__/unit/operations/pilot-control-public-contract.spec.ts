@@ -48,9 +48,9 @@ describe('PilotControlService public tenant contracts', () => {
   it('rejects a store owned by another organization without writing an entry', async () => {
     merchant.getStore.mockResolvedValue({ id: 'store-2', orgId: 'org-2' });
 
-    await expect(
-      service.addAllowlistEntry({ orgId: 'org-1', storeId: 'store-2' }),
-    ).rejects.toThrow('Store not found in the target organization');
+    await expect(service.addAllowlistEntry({ orgId: 'org-1', storeId: 'store-2' })).rejects.toThrow(
+      'Store not found in the target organization',
+    );
 
     expect(insert).not.toHaveBeenCalled();
   });
