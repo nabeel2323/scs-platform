@@ -557,7 +557,7 @@ export class ReturnsService {
   // ── Merchant Approve ──────────────────────────────────────────
 
   private async merchantApprove(ret: any, caller: CallerContext, input?: TransitionInput) {
-    await this.flipReturnStatus(ret.id, ret.status, 'MERCHANT_APPROVED', caller, 'MERCHANT', input?.notes);
+    await this.flipReturnStatus(ret.id, ret.status, 'MERCHANT_APPROVED', caller, isTenantPrivileged(caller) ? 'ADMIN' : 'MERCHANT', input?.notes);
     this.logger.log(`Return ${ret.id} approved by merchant`);
     return this.getReturnRequest(ret.id);
   }
@@ -579,7 +579,7 @@ export class ReturnsService {
       await tx.insert(returnRequestEvents).values({
         id: crypto.randomUUID(), returnRequestId: ret.id,
         eventType: 'MERCHANT_REJECTED', fromStatus: ret.status, toStatus: 'MERCHANT_REJECTED',
-        actorId: caller.sub, actorType: 'MERCHANT', notes: input.notes,
+        actorId: caller.sub, actorType: isTenantPrivileged(caller) ? 'ADMIN' : 'MERCHANT', notes: input.notes,
       });
       await this.outbox.publish('return.rejected', ret.id, {
         returnRequestId: ret.id, reason: input.notes,
@@ -602,7 +602,7 @@ export class ReturnsService {
       await tx.insert(returnRequestEvents).values({
         id: crypto.randomUUID(), returnRequestId: ret.id,
         eventType: 'CANCELLED', fromStatus: ret.status, toStatus: 'CANCELLED',
-        actorId: caller.sub, actorType: 'BUYER',
+        actorId: caller.sub, actorType: isTenantPrivileged(caller) ? 'ADMIN' : 'BUYER',
       });
       await this.outbox.publish('return.cancelled', ret.id, {
         returnRequestId: ret.id,
@@ -630,7 +630,7 @@ export class ReturnsService {
       await tx.insert(returnRequestEvents).values({
         id: crypto.randomUUID(), returnRequestId: ret.id,
         eventType: 'BUYER_SHIPPED', fromStatus: ret.status, toStatus: 'BUYER_SHIPPED',
-        actorId: caller.sub, actorType: 'BUYER',
+        actorId: caller.sub, actorType: isTenantPrivileged(caller) ? 'ADMIN' : 'BUYER',
         notes: input?.trackingNumber ? `Tracking: ${input.trackingNumber}` : null,
       });
       await this.outbox.publish('return.shipped', ret.id, {
@@ -643,7 +643,7 @@ export class ReturnsService {
   // ── Merchant Received ─────────────────────────────────────────
 
   private async merchantReceived(ret: any, caller: CallerContext) {
-    await this.flipReturnStatus(ret.id, ret.status, 'RECEIVED', caller, 'MERCHANT');
+    await this.flipReturnStatus(ret.id, ret.status, 'RECEIVED', caller, isTenantPrivileged(caller) ? 'ADMIN' : 'MERCHANT');
     return this.getReturnRequest(ret.id);
   }
 
@@ -728,7 +728,7 @@ export class ReturnsService {
       await tx.insert(returnRequestEvents).values({
         id: crypto.randomUUID(), returnRequestId: ret.id,
         eventType: 'INSPECTED', fromStatus: ret.status, toStatus: 'INSPECTED',
-        actorId: caller.sub, actorType: 'MERCHANT',
+        actorId: caller.sub, actorType: isTenantPrivileged(caller) ? 'ADMIN' : 'MERCHANT',
         notes: `Condition: ${input.condition}${input.notes ? `. ${input.notes}` : ''}`,
         metadata: { condition: input.condition },
       });
@@ -768,7 +768,7 @@ export class ReturnsService {
         id: crypto.randomUUID(), returnRequestId: ret.id,
         eventType: 'REJECTED_AFTER_INSPECTION', fromStatus: ret.status,
         toStatus: 'REJECTED_AFTER_INSPECTION',
-        actorId: caller.sub, actorType: 'MERCHANT', notes: input?.notes,
+        actorId: caller.sub, actorType: isTenantPrivileged(caller) ? 'ADMIN' : 'MERCHANT', notes: input?.notes,
       });
       await this.outbox.publish('return.rejected_after_inspection', ret.id, {
         returnRequestId: ret.id,

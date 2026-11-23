@@ -56,6 +56,7 @@
  *   FIN-DSH-52  Concurrent cleanup callers cannot claim the same intent
  *   FIN-DSH-53  Retired previous proofs remain recoverable after replacement commit
  *   FIN-DSH-54  Payment verification events preserve the actual actor class
+ *   FIN-DSH-55  Privileged return transitions preserve ADMIN actor attribution
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -2577,5 +2578,47 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [codPaymentId],
     );
     expect(adminCashConfirmation.rows[0].actor_type).toBe('ADMIN');
+  }, 90_000);
+
+  it('FIN-DSH-55: privileged return overrides record ADMIN for merchant-side and buyer-side transitions', async () => {
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+
+    const approveOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const approveItem = (await pool.query(
+      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [approveOrderId],
+    )).rows[0];
+    const approveReturn = await returnsService.createReturnRequest({
+      subOrderId: approveOrderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      description: 'Admin override actor attribution regression',
+      lines: [{ orderItemId: approveItem.id, quantity: 1 }],
+    }, buyerCaller);
+    await returnsService.transitionReturn(approveReturn.id, 'MERCHANT_APPROVED', adminCaller);
+    const approvedEvent = await pool.query(
+      `SELECT actor_type FROM return_request_events
+       WHERE return_request_id = $1 AND event_type = 'MERCHANT_APPROVED'
+       ORDER BY created_at DESC LIMIT 1`,
+      [approveReturn.id],
+    );
+    expect(approvedEvent.rows[0].actor_type).toBe('ADMIN');
+
+    const cancelOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const cancelItem = (await pool.query(
+      `SELECT id FROM order_items WHERE order_id = $1 LIMIT 1`, [cancelOrderId],
+    )).rows[0];
+    const cancelReturn = await returnsService.createReturnRequest({
+      subOrderId: cancelOrderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      description: 'Admin cancellation actor attribution regression',
+      lines: [{ orderItemId: cancelItem.id, quantity: 1 }],
+    }, buyerCaller);
+    await returnsService.transitionReturn(cancelReturn.id, 'CANCELLED', adminCaller);
+    const cancelledEvent = await pool.query(
+      `SELECT actor_type FROM return_request_events
+       WHERE return_request_id = $1 AND event_type = 'CANCELLED'
+       ORDER BY created_at DESC LIMIT 1`,
+      [cancelReturn.id],
+    );
+    expect(cancelledEvent.rows[0].actor_type).toBe('ADMIN');
   }, 90_000);
 });
