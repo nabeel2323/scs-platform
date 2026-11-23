@@ -1374,3 +1374,8 @@ verifyPayment, confirmCash and privileged return transitions previously hardcode
 ## FIN-027 — Return refund balance aggregation — 23 November 2026
 
 The return-side cumulative refund guard now matches the payment refund guard by counting `APPROVED` as reserved balance. PostgreSQL `SUM(bigint)` is read as exact numeric text and converted through BigInt, avoiding a 32-bit cast overflow and rejecting totals outside JavaScript's safe-integer range. FIN-DSH-56 covers both conditions. Source: `6ae8aba762215f69f42e74e4608a4fa31a02543b`; test: `5b636df49155ea523bc730852ed900720a858a88`. Tests remain pending the consolidated Phase 3 campaign.
+
+
+## FIN-028 — Settlement calculation actor attribution — 23 November 2026
+
+The admin-only settlement calculation path now persists `PAYMENT_SETTLEMENT_CALCULATED.actor_type = ADMIN` instead of the misleading SYSTEM class. FIN-DSH-57 verifies actor ID and class in PostgreSQL. Source: `5a7dfd6ea67de61bb016cc7a7ef31749760955d8`; test: `05799cde897871ab9752af07bf70830ac834edbf`. Test remains pending Phase 3.
