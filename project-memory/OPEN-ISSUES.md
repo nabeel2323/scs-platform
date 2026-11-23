@@ -878,3 +878,14 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** The adjustment posting parent lookup now excludes metadata-linked adjustment ledger rows and legacy rows with the stable `Posted adjustment ` notes prefix, even after those rows transition to PAID. Adjustment payout preserves the legacy marker. Admin Settlements now filters/styles ADJUSTMENT and enables Mark Paid for that status. FIN-DSH-68/69 covers legacy marker preservation and second-adjustment parent linkage; Admin recovery coverage verifies adjustment payout UI. Commits: `233e49a12352a4e157f455040a2bdcc4c16c1828`, `62bf7cf1991ff7974a8762c0e57eea148fcc53b4`. Tests not executed.
 
 Remaining source audit: verify merchant settlement projection, reconciliation reporting and exports include adjustment rows distinctly and do not double-count primary plus adjustment amounts. Then complete the source audit before the consolidated Phase 3 test campaign.
+
+
+## FIN-045 — Paid adjustment reconciliation semantics — 23 November 2026
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Settlement reconciliation now identifies adjustment ledger rows using `metadata.adjustmentId` or the legacy posted-adjustment notes prefix. It no longer treats PAID adjustment rows as primary settlements for commission sign calculation. FIN-DSH-36 now pays a commission-reversal adjustment before running reconciliation; unit coverage includes paid adjustments and paid primary settlements. Source commit: `23fc0f5f6cfd017c281e498a0843b11e82ca0a3e`. Tests not executed.
+
+## FIN-046 — Merchant settlement visibility — 23 November 2026
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Added a read-only merchant Settlements page backed by the existing org/store-scoped merchant endpoint. It provides store/status filters, gross/refund/commission/fee/net amounts, payout references, and explicit ADJUSTMENT · PAID labels using durable adjustment identity. Added merchant navigation/dashboard/route permission coverage and read-recovery tests; Admin Settlements also distinguishes paid adjustment rows. Source commits: `4615e05bb0c0df98ec2015387262a146bc13f6a4`, `3373c36930744c911300699b770d05c4428a313c`. Tests not executed.
+
+Remaining audit: verify settlement listing limits, financial exports and aggregate KPI/report queries do not double-count primary and adjustment ledger rows. Keep PR #138 draft/unmerged and defer the consolidated Phase 3 test campaign until the implementation audit is complete.

@@ -868,3 +868,15 @@ This live checkpoint supersedes any older SHA or FIN-031 starting-point text ret
 - FIN-DSH-68/69 extends PostgreSQL coverage for legacy marker retention and multiple adjustment parent linkage; Admin recovery coverage includes adjustment payout visibility. These tests are added, not executed.
 - No exact-head Actions run is claimed. The previous Vercel contexts pointed to the external build-rate-limit page. All implementation commits in this batch use `[skip ci]` under the recorded consolidated-testing cadence.
 - Next: continue source-first audit of merchant settlement projections, admin reconciliation/report exports and ledger visibility; then complete implementation audit before the consolidated Phase 3 test campaign.
+
+
+## Live correction — 23 November 2026, FIN-045/046
+
+This checkpoint supersedes earlier next-action notes that only called for a generic settlement-list audit. Current source commits after the FIN-044 checkpoint are:
+
+- `23fc0f5f6cfd017c281e498a0843b11e82ca0a3e` — FIN-045: reconciliation determines adjustment accounting semantics from durable metadata/legacy marker, not mutable status. FIN-DSH-36 now pays the commission-reversal adjustment before reconciliation; unit coverage covers PAID adjustment and primary rows.
+- `4615e05bb0c0df98ec2015387262a146bc13f6a4` — FIN-046: adds a read-only merchant Settlements page backed by the existing org/store-scoped merchant settlement endpoint; adds store/status filters, payout references and explicit ADJUSTMENT · PAID labeling. Admin settlement types/UI also label paid adjustments distinctly.
+- `3373c36930744c911300699b770d05c4428a313c` — merchant page dependency and test fixture correction.
+- Tests added/updated but not executed. Implementation commits use `[skip ci]`; no exact-head Actions pass is claimed.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No deployment, migration or shared database operation was performed.
+- Next: continue source-first review of settlement listing limits, accounting exports and any aggregate financial KPIs that may include both primary and adjustment ledger rows. Preserve explicit adjustment identity and avoid double counting.

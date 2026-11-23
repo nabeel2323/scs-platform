@@ -531,3 +531,11 @@ The Admin sidebar previously modeled only all-of permission requirements. Source
 ## 23 November 2026 — Shared Admin mutation guards (UX-099)
 
 The shared Admin mutation helper now accepts an action-specific permission predicate checked immediately before dispatch. User status/membership, dispute, category, brand and offer governance actions, Carrier Recovery, shipment exception/RTS, inventory returns, carrier create/cancel/recovery, and User Detail profile saves are bound to their corresponding permission hooks. Focused permission-loss test added but not executed. This is client-side defense in depth; backend authorization and grants are unchanged.
+
+
+## 23 November 2026 — Merchant settlement visibility (FIN-046)
+
+- The backend already exposed `GET /v1/merchant/settlements` with active-organization/store scoping, but no merchant web route consumed it.
+- Added `/merchant/settlements`, a read-only merchant history view with store/status filters, financial breakdown, payout reference/date and explicit ADJUSTMENT · PAID labeling.
+- Added dashboard/navigation integration and route gating under `merchant:orders:read`; focused merchant recovery and route permission tests were added but not executed.
+- Admin Settlements also distinguishes paid adjustment rows from primary PAID settlements. No automatic payout or additional financial mutation surface was introduced.

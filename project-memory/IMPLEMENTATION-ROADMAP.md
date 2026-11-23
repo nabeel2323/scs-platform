@@ -712,3 +712,12 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 FIN-044 closes a follow-on adjustment-parent integrity gap: when a previous adjustment had been paid, its PAID status made it eligible for the next adjustment's parent lookup. Posting now excludes both metadata-linked adjustment rows and legacy rows identified by the stable notes prefix. Payout preserves that legacy marker. Admin settlement listing now explicitly filters/styles ADJUSTMENT and permits the standard Mark Paid action. FIN-DSH-68/69 and an Admin recovery test are added but not executed.
 
 Next source-first work: inspect merchant settlement projections, admin reconciliation/report views and export/query surfaces for adjustment identity and correct accounting semantics. Continue implementation before the consolidated Phase 3 test campaign. PR #138 remains draft; no merge, deployment, migration or shared database operation is authorized.
+
+
+## Live continuation — 23 November 2026 (FIN-045/046)
+
+FIN-045 now uses durable adjustment identity (metadata or the legacy notes marker) for reconciliation sign semantics, so a paid commission reversal remains a merchant credit after status becomes PAID. FIN-DSH-36 exercises a paid adjustment before reconciliation; unit cases cover paid adjustments and paid primary settlements.
+
+FIN-046 adds the missing merchant read-only settlement history surface using the existing scoped merchant API. Store/status filters, payout references and explicit ADJUSTMENT · PAID labels are included; navigation and dashboard access use the existing merchant:orders:read permission. Admin rows also distinguish paid adjustment rows.
+
+Next source-first work: inspect settlement listing limits, financial exports and aggregate KPI/report queries for primary/adjustment double counting. Consolidated Phase 3 tests remain deferred until implementation audit completion.

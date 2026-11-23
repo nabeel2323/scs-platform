@@ -1419,3 +1419,8 @@ Return refund creation previously committed the payment refund/event/outbox firs
 ## FIN-044 — Adjustment parent isolation and payout visibility — 23 November 2026
 
 Implementation follow-up: adjustment parent selection must exclude all adjustment ledger rows, not merely rows currently in ADJUSTMENT status. Because payout transitions an adjustment row to PAID, the query also excludes rows carrying `metadata.adjustmentId` and legacy rows identified by the stable posted-adjustment notes prefix. Payout preserves that legacy marker. The Admin Settlements screen now exposes ADJUSTMENT filtering and the standard payout action. FIN-DSH-68/69 and Admin recovery coverage are added; execution remains part of the consolidated Phase 3 verification campaign.
+
+
+## FIN-045/046 — Adjustment reconciliation and merchant visibility — 23 November 2026
+
+The implementation now preserves adjustment accounting semantics across the ADJUSTMENT → PAID transition by identifying rows through durable adjustment metadata or the legacy posted-adjustment note marker. The merchant-facing read-only Settlements page consumes the existing organization/store-scoped API, with store/status filtering and distinct paid-adjustment labeling. Admin settlement listings also label paid adjustment rows. Regression coverage is added; execution remains part of the consolidated Phase 3 campaign.

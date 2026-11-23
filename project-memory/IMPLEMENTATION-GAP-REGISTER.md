@@ -1057,3 +1057,16 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 | ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
 |---|---|---|---|---|---|---|
 | FIN-044 | Keep adjustment payout rows separate from primary settlement lineage and expose their payout workflow | Parent selection excludes new metadata-linked adjustment rows and legacy notes-prefixed rows even after PAID; adjustment payout preserves the legacy marker; Admin Settlements includes ADJUSTMENT filter, status treatment and Mark Paid action. FIN-DSH-68/69 and Admin recovery coverage added. | Execute in consolidated Phase 3; inspect merchant projections and reconciliation/report/export surfaces for distinct adjustment identity and no double counting. | P1 | IMPLEMENTED / TESTING_PENDING | No migration or shared/staging DB changes; PR #138 remains draft. |
+
+
+## FIN-045 — Paid adjustment reconciliation semantics — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-045 | Preserve adjustment accounting sign after payout | Reconciliation identifies adjustment rows through adjustmentId metadata or the legacy posted-adjustment notes prefix; commission reversal remains a credit after status transitions to PAID. FIN-DSH-36 and unit cases extended. | Execute paid/unpaid adjustment and primary settlement reconciliation cases in consolidated Phase 3. | P1 | IMPLEMENTED / TESTING_PENDING | No migration or shared/staging DB changes; PR #138 remains draft. |
+
+## FIN-046 — Merchant settlement visibility — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-046 | Read-only merchant view of settlement and adjustment history | Merchant Settlements page consumes the existing organization/store-scoped endpoint; store/status filters, financial amounts, payout reference and ADJUSTMENT · PAID identity are surfaced. Navigation/route permission and Admin/merchant tests added. | Execute merchant store/organization isolation and recovery tests in consolidated Phase 3; verify exports and aggregate KPI queries do not double count. | P1 | IMPLEMENTED / TESTING_PENDING | No new API privilege or payout mutation; no migration/shared DB changes; PR #138 remains draft. |

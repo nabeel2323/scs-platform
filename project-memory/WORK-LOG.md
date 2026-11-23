@@ -1564,3 +1564,20 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Commits: `233e49a12352a4e157f455040a2bdcc4c16c1828` and `62bf7cf1991ff7974a8762c0e57eea148fcc53b4`. Tests added, not executed; `[skip ci]`.
 - No migrations, shared/staging database writes, deployment, merge, environment changes, worker activation or RLS/ACL changes.
 - Next: audit merchant settlement projections and reconciliation/report exports for adjustment visibility and double-counting before the consolidated Phase 3 test campaign.
+
+
+## 23 November 2026 — FIN-045 paid adjustment reconciliation
+
+- Found that commission-reversal sign logic used `status === 'ADJUSTMENT'`. After payout, status becomes PAID, so reconciliation would incorrectly treat a positive commission reversal as a primary commission debit.
+- Added durable row classification from `metadata.adjustmentId` or the stable legacy posted-adjustment notes prefix and passed that classification into the exact minor-unit formula.
+- Extended unit coverage for PAID adjustment rows, mixed refund/commission adjustments and PAID primary settlement semantics. Updated PostgreSQL FIN-DSH-36 to pay the commission-reversal adjustment before reconciliation.
+- Source commit: `23fc0f5f6cfd017c281e498a0843b11e82ca0a3e`. Tests not executed; `[skip ci]`.
+
+## 23 November 2026 — FIN-046 merchant settlement visibility
+
+- Confirmed the backend already exposed a tenant/store-scoped merchant settlements endpoint, but the merchant web app had no settlement history page or navigation entry.
+- Added `fetchMerchantSettlements` and a read-only merchant Settlements page with store/status filters, financial breakdown, paid date/reference and explicit paid-adjustment labeling.
+- Added route permission and dashboard/navigation integration under existing `merchant:orders:read`. Added merchant read/retry/store-selection coverage.
+- Admin settlement type/UI now uses adjustment metadata or the legacy note marker to label paid adjustments as `ADJUSTMENT · PAID`; added an Admin regression assertion.
+- Source commits: `4615e05bb0c0df98ec2015387262a146bc13f6a4` and `3373c36930744c911300699b770d05c4428a313c`. Tests not executed; `[skip ci]`.
+- Next: inspect settlement list caps, exports and financial KPI aggregation for primary/adjustment double counting. No migration, shared/staging write, deployment or merge.

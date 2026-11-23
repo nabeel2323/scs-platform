@@ -1217,3 +1217,14 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Implementation commits use `[skip ci]`; exact-head CI remains NOT VERIFIED. Vercel Web/Admin status contexts on the previous inspected head were external build-rate-limit failures, not application test outcomes.
 - No migrations, shared/staging database writes, environment changes, worker activation, RLS/ACL changes, deployment or release were performed.
 - Next source audit: merchant settlement projections and admin reconciliation/report surfaces, including adjustment row identity and accounting semantics. Keep consolidated Phase 3 tests deferred until the implementation audit is complete.
+
+
+## Live exact-head continuation — 23 November 2026 (FIN-045/046)
+
+- FIN-045 source commit: `23fc0f5f6cfd017c281e498a0843b11e82ca0a3e`. Reconciliation now identifies adjustment ledger rows through durable `metadata.adjustmentId` or the legacy `Posted adjustment ` notes prefix, rather than relying on the mutable settlement status. This preserves positive commission-reversal credit semantics after an adjustment transitions from ADJUSTMENT to PAID. Unit coverage covers paid adjustment rows and primary PAID settlements; PostgreSQL FIN-DSH-36 now pays the commission-reversal adjustment before running reconciliation.
+- FIN-046 source commit: `4615e05bb0c0df98ec2015387262a146bc13f6a4`. Added the merchant read-only Settlements screen, using the existing tenant/store-scoped `GET /v1/merchant/settlements` endpoint. It supports store and status filters, displays payout references and distinguishes paid adjustment rows from primary PAID settlements. The route and dashboard/navigation are permission-gated by the existing `merchant:orders:read` permission.
+- Follow-up commit: `3373c36930744c911300699b770d05c4428a313c` corrects merchant-page dependencies and the adjustment display test fixture.
+- Admin Settlements also labels PAID adjustment rows as `ADJUSTMENT · PAID`, using metadata or the durable legacy note marker.
+- Tests added/updated but not executed. No exact-head Actions run or test pass is claimed; implementation commits use `[skip ci]`.
+- PR #138 remains OPEN / DRAFT / UNMERGED against `develop`. No migration, shared/staging DB write, environment change, worker activation, RLS/ACL change, deployment or merge occurred.
+- Next source audit: settlement listing limits, financial exports and aggregate KPI/report queries for correct primary-plus-adjustment accounting without double counting.

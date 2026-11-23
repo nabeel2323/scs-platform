@@ -1303,3 +1303,11 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Both implementation commits used `[skip ci]` to conserve Actions minutes for the planned consolidated verification. No exact-head Actions run or test pass is claimed.
 - The last inspected status contexts were Vercel Web/Admin external build-rate-limit failures; they are not application test outcomes. Refresh the exact live head and statuses at the next checkpoint.
 - PR #138 remains draft/unmerged. No migration, shared/staging DB write, environment mutation, worker activation, RLS/ACL change, deployment or release occurred.
+
+
+## 23 November 2026 — FIN-045/046 paid adjustment accounting and merchant visibility
+
+- FIN-045 source commit: `23fc0f5f6cfd017c281e498a0843b11e82ca0a3e`. Reconciliation identifies adjustment rows from metadata/legacy notes, preserving commission-reversal credit semantics after payout status becomes PAID. FIN-DSH-36 and unit coverage were extended.
+- FIN-046 source commit: `4615e05bb0c0df98ec2015387262a146bc13f6a4`; follow-up: `3373c36930744c911300699b770d05c4428a313c`. Added merchant read-only settlement history, filters, payout reference display and adjustment identity labels; added route, dashboard, Admin and merchant regression coverage.
+- All tests added/updated but not executed. Commits use `[skip ci]` under the agreed Actions-minute budget. Do not claim exact-head CI or runtime verification.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No migration, shared/staging DB write, environment mutation, deployment, worker activation, RLS/ACL change or merge occurred.
