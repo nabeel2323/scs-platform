@@ -6,7 +6,7 @@ import { priceLists } from '../../../modules/pricing/pricing.schema';
 
 describe('PricingService variant tier store scope', () => {
   it('requires a store scope for every variant-tier query, including a specific list', async () => {
-    const service = new PricingService({ db: {} } as any, {} as any);
+    const service = new PricingService({ db: {} } as any, {} as any, {} as any);
     await expect(service.listTiersByVariant('variant-a')).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -31,7 +31,7 @@ describe('PricingService variant tier store scope', () => {
     const innerJoin = vi.fn().mockReturnValue({ where });
     const from = vi.fn().mockReturnValue({ innerJoin });
     const select = vi.fn().mockReturnValue({ from });
-    const service = new PricingService({ db: { select } } as any, {} as any);
+    const service = new PricingService({ db: { select } } as any, {} as any, {} as any);
 
     await expect(service.listTiersByVariant('variant-a', undefined, 'store-a')).resolves.toEqual(
       rows,
