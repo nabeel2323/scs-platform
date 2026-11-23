@@ -73,6 +73,23 @@ function assertPositiveMinorAmount(amount: number, fieldName: string): void {
   }
 }
 
+/**
+ * PostgreSQL SUM(bigint) returns numeric, which node-postgres exposes as text.
+ * Preserve exactness until the aggregate is proven safe for JS minor-unit math.
+ */
+export function toSafeMinorUnitTotal(value: string | number | bigint | null | undefined, fieldName: string): number {
+  let total: bigint;
+  try {
+    total = BigInt(value ?? 0);
+  } catch {
+    throw new ConflictException(`${fieldName} aggregate is not a valid integer`);
+  }
+  if (total < 0n || total > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new ConflictException(`${fieldName} aggregate exceeds the supported safe integer range`);
+  }
+  return Number(total);
+}
+
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
@@ -1020,7 +1037,7 @@ export class PaymentsService {
 
       // Calculate already-refunded amount
       const existingRefunds = await tx
-        .select({ total: sql<number>`COALESCE(SUM(amount_minor), 0)` })
+        .select({ total: sql<string>`COALESCE(SUM(amount_minor), 0)::text` })
         .from(refunds)
         .where(
           and(
@@ -1029,7 +1046,7 @@ export class PaymentsService {
           ),
         );
 
-      const alreadyRefunded = existingRefunds[0]?.total ?? 0;
+      const alreadyRefunded = toSafeMinorUnitTotal(existingRefunds[0]?.total, 'Refunded amount');
       const refundable = lockedConfirmed - alreadyRefunded;
 
       if (amountMinor > refundable) {
@@ -1173,7 +1190,7 @@ export class PaymentsService {
       // Recompute after acquiring the payment lock so concurrent approvals
       // contribute to one serialized total.
       const allRefunds = await tx
-        .select({ total: sql<number>`COALESCE(SUM(amount_minor), 0)` })
+        .select({ total: sql<string>`COALESCE(SUM(amount_minor), 0)::text` })
         .from(refunds)
         .where(
           and(
@@ -1182,7 +1199,7 @@ export class PaymentsService {
           ),
         );
 
-      const totalRefunded = allRefunds[0]?.total ?? 0;
+      const totalRefunded = toSafeMinorUnitTotal(allRefunds[0]?.total, 'Refunded amount');
 
       let newPaymentStatus = payment.status;
       if (totalRefunded >= confirmedAmount) {
@@ -1312,10 +1329,10 @@ export class PaymentsService {
       const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
       assertPositiveMinorAmount(confirmedAmount, 'Confirmed payment amount');
       const refundResult = await tx
-        .select({ total: sql<number>`COALESCE(SUM(amount_minor), 0)` })
+        .select({ total: sql<string>`COALESCE(SUM(amount_minor), 0)::text` })
         .from(refunds)
         .where(and(eq(refunds.paymentRecordId, payment.id), eq(refunds.status, 'SUCCEEDED')));
-      const totalRefunded = refundResult[0]?.total ?? 0;
+      const totalRefunded = toSafeMinorUnitTotal(refundResult[0]?.total, 'Settlement refund amount');
 
       // Settlement formula: gross - refunds - commission - fees = net
       const grossMinor = confirmedAmount;
