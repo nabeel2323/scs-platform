@@ -1128,3 +1128,12 @@ The next full workflow is required to verify these changes.
 - Unit regressions and PostgreSQL FIN-DSH-36 are committed but not executed. FIN-020 remains IMPLEMENTED / TESTING_PENDING, not CI-verified.
 - PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. No staging release, shared DB write, migration, grants/default ACL, RLS, environment change, worker activation, provider, gateway, payout or deployment occurred.
 - Full formatter, API unit/coverage and PostgreSQL integration validation remains grouped for Phase 3. Phase 6 has not started.
+
+
+## FIN-021 exact-head checkpoint — 23 November 2026
+
+- Source/test/migration commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`.
+- Exact-head GitHub Actions lookup: **no workflow runs**. Combined statuses: Vercel Web FAILURE (external build-rate-limit) and Vercel Admin SUCCESS. Neither status runs the API unit or PostgreSQL integration tests.
+- FIN-DSH-37/38 are added but not executed. FIN-021 remains IMPLEMENTED / TESTING_PENDING.
+- Migration 0074 is committed as source but has not been applied to shared/staging. No shared database writes, migration execution, grants/default ACL, RLS, environment, worker, provider, payout, deployment or merge action occurred.
+- PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. Full formatter, API unit/coverage, PostgreSQL integration, Web/Admin/mobile and migration validation remain grouped in Phase 3; Phase 6 has not started.

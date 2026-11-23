@@ -1025,3 +1025,15 @@ The existing return-idempotency case already owns FIN-DSH-33. Settlement-adjustm
 - No database schema, migration, shared staging/database, deployment, worker, grant, RLS, gateway or payout changes.
 - PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. G-001 remains PARTIAL; G-002 and G-036 remain IN PROGRESS; Phase 3 consolidated testing and Phase 6 release readiness are outstanding.
 - Next: FIN-021 reconciliation run version/supersession/failure atomicity audit, followed by financial event/history/outbox consistency review.
+
+
+## FIN-021 — Reconciliation run lifecycle integrity — 23 November 2026
+
+- Source/test/migration/runbook commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`.
+- Added transaction-scoped PostgreSQL advisory locking by tenant/period/currency. Version selection and run creation are serialized within each tenant scope.
+- Run creation, source checks, discrepancy inserts and COMPLETED update now share one database transaction. An exception rolls back the incomplete run and every discrepancy; a separate best-effort transaction records a FAILED run with zero discrepancy rows and a generic error summary.
+- Corrected supersession direction: predecessor `superseded_by` points to the successor. Added migration 0074 to reverse legacy links and replace the global unique index with an organization-scoped `NULLS NOT DISTINCT` index. Migration is committed but **not executed**.
+- Added disposable PostgreSQL FIN-DSH-37/38 for concurrent tenant version allocation, forward supersession and failed-run atomicity. Removed misleading unit tests that merely compared hard-coded version numbers. Tests not executed.
+- Exact-head Actions: no workflow run. Vercel Web failed on external build-rate-limit; Vercel Admin succeeded. No application test verification is claimed.
+- PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. No shared/staging database write, migration execution, grant/RLS, worker, environment, provider, payout, deployment or merge action.
+- FIN-021 status: IMPLEMENTED / TESTING_PENDING. Next: FIN-022 immutable financial history and transactional outbox consistency audit.

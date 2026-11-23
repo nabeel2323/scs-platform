@@ -1325,3 +1325,16 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added production-helper unit regressions and PostgreSQL FIN-DSH-36 with a disposable database.
 - Source/test commit: `ad478cc53ce40bec86172e881b4f14cea7e6dfac`. Tests not run; IMPLEMENTED / TESTING_PENDING. Actions workflow lookup returned no run for this SHA; Vercel Web/Admin previews were successful but are not application tests.
 - No schema/migration or shared/staging DB write, deployment, worker, grants/RLS, gateway or automatic payout changes.
+
+
+## 2026-11-23 — FIN-021 reconciliation run lifecycle integrity
+
+- Audited reconciliation run schema, migration 0062, service writers, Admin reader and current rerun tests. Confirmed three defects: global uniqueness despite org-scoped version reads; unlocked read-then-insert version allocation; and non-atomic run/discrepancy persistence. Confirmed `superseded_by` was written backward on the new run.
+- Added tenant/period/currency transaction-scoped advisory locking and atomic version allocation.
+- Moved run creation, all six source checks, discrepancy persistence and COMPLETED transition into one transaction. On error, all partial state rolls back; a separate best-effort transaction records a FAILED run with zero discrepancy rows and a generic error summary.
+- Changed supersession to predecessor → successor. Added migration 0074 to repair legacy links and make the unique index tenant-aware with NULLS NOT DISTINCT (including one unique NULL/global scope).
+- Added PostgreSQL FIN-DSH-37/38 for concurrent same-tenant versions, independent tenant version 1, supersession direction, failed run persistence and zero partial discrepancy rows. Removed fake unit rerun tests that only checked hard-coded counters.
+- Updated the production reconciliation operations guide.
+- Commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`. Tests not executed; IMPLEMENTED / TESTING_PENDING. Migration 0074 is source-only and not applied.
+- Exact-head Actions returned no run. Vercel Web failed due build-rate-limit; Vercel Admin succeeded. These are not application test results.
+- No shared/staging DB write, migration execution, grants/RLS, worker activation, environment change, deployment, gateway/provider or payout change.

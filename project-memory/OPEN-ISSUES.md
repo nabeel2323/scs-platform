@@ -720,3 +720,14 @@ Settlement-adjustment regression cases are FIN-DSH-34 (commission reversal posit
 The implementation is in `ad478cc53ce40bec86172e881b4f14cea7e6dfac`. It applies row-status-aware ledger signs, BigInt-safe reversal aggregation, the shared half-up delivery-fee allocator, covers both delivery-fee refund adjustment types, validates source minor-unit values, and keeps refund status evidence non-monetary. Unit tests and PostgreSQL FIN-DSH-36 are added but **not executed**. No schema/migration or shared DB/staging mutation.
 
 **Next:** FIN-021 audit reconciliation run version allocation, `superseded_by` direction, concurrent execution, and failure/partial-record handling. Verify the intended semantics before changing persisted history.
+
+
+## FIN-021 — Reconciliation run lifecycle integrity
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Reconciliation version allocation was an unlocked read-then-insert and its unique index omitted organization scope. The service wrote `superseded_by` on the new run to point backward, and run/discrepancy writes were not atomic.
+
+Implementation commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`. The service now serializes versions using a tenant/period/currency advisory lock; makes run creation, checks, discrepancies and completion transactional; rolls back all partial state on failure; and best-effort persists a clean FAILED run. Supersession links now point predecessor-to-successor. Migration 0074 repairs historical links and adds tenant-aware uniqueness with NULLS NOT DISTINCT. FIN-DSH-37/38 added; tests not executed. Migration is not applied to shared/staging.
+
+**Remaining:** validate migration and integration scenarios in the consolidated Phase 3 campaign; inspect existing historical data assumptions in isolated CI; preserve all live database and staging restrictions.
+
+**Next:** FIN-022 immutable financial event/history and transactional outbox consistency audit across payment, settlement, refund, return, dispute and settlement-adjustment transitions.

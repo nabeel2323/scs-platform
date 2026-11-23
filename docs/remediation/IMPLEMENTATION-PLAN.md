@@ -1322,6 +1322,13 @@ The reconciliation service now follows the settlement writer's ledger semantics:
 
 Unit regressions and disposable-PostgreSQL FIN-DSH-36 have been added. Source/test commit: `ad478cc53ce40bec86172e881b4f14cea7e6dfac`. Execution remains pending the consolidated Phase 3 campaign; this increment is not CI-verified. No schema/migration, shared database/staging, environment, worker, grant/RLS, gateway or payout changes.
 
-### Next source-audit task — FIN-021
 
-Inspect reconciliation run lifecycle before changing it. Verify `superseded_by` direction from schema/migration, consumers and tests; check whether the unique version index matches organization-scoped run queries; inspect concurrent version allocation and determine how failures can leave RUNNING runs or partial discrepancies. Add tests before modifying the immutable run-history contract. No live/staging database writes or migrations.
+## FIN-021 — Reconciliation run lifecycle integrity — 23 November 2026
+
+Reconciliation run versioning is serialized by a PostgreSQL transaction-scoped advisory lock keyed by tenant, period and currency. The unique index is organization-scoped and treats NULL org_id as one global scope. Supersession links now point from the prior run to its successor; migration 0074 repairs the historical backward links. Run creation, source checks, discrepancy inserts and COMPLETED transition share one transaction. On failure the transaction rolls back all partial rows, then a separate best-effort transaction records a FAILED run with zero discrepancies and a generic execution-error summary.
+
+PostgreSQL FIN-DSH-37/38 cover concurrent tenant version allocation, forward supersession and failure rollback. Tests are added but not executed. Commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`. Migration 0074 is source-only and has not been applied to shared/staging.
+
+### Next source-audit task — FIN-022
+
+Audit immutable financial event/history and transactional outbox consistency across payment, settlement, refund, return, dispute and settlement-adjustment transitions. Inspect every state-changing producer, transaction boundary, event type/payload, aggregate identity, deduplication key and consumer ownership. Verify event and outbox writes are atomic with state transitions, retries do not duplicate history, and failed transitions emit no events. Add focused PostgreSQL concurrency/rollback cases before changing code. Do not expand automatic gateway/payout scope or activate workers.

@@ -2165,3 +2165,15 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - **Status:** IMPLEMENTED / TESTING_PENDING. Tests have **not** been executed; the exact-head GitHub Actions lookup returned no run. Vercel Web/Admin preview contexts were successful but are not application test evidence.
 - **No schema/migration, shared DB/staging write, provider, gateway, payout, worker, grant/RLS, environment or deployment change.**
 - **Next:** FIN-021 source audit of reconciliation version allocation, `superseded_by` semantics, concurrent runs and failure/partial persistence before further history/outbox changes.
+
+
+## FIN-021 — Reconciliation run lifecycle integrity — 23 November 2026
+
+- **Findings:** unlocked read-then-insert allowed concurrent same-tenant version collisions; unique index omitted org_id despite tenant-scoped queries; the service wrote superseded_by backward; and run/discrepancy writes were not atomic, allowing partial/RUNNING records.
+- **Implementation:** acquire a PostgreSQL transaction-scoped advisory lock keyed by tenant, period and currency; select/insert the next version while locked; use predecessor → successor supersession links; run source checks, discrepancy inserts and COMPLETED update in one transaction. Any execution failure rolls back the whole attempt; a separate best-effort transaction records a FAILED run with zero discrepancies and a generic execution-error summary.
+- **Migration:** `0074_reconciliation_tenant_version_integrity.sql` converts existing backward supersession pointers and replaces the global unique index with tenant-aware `NULLS NOT DISTINCT` uniqueness, including the NULL/global scope. Migration is committed but **not applied** to shared/staging.
+- **Regression coverage:** PostgreSQL FIN-DSH-37 races two same-tenant runs and runs a second organization concurrently, asserting independent version 1 and correct forward links. FIN-DSH-38 injects a failure after a discrepancy draft is created and asserts FAILED status with no persisted partial discrepancy. Tests added, not executed.
+- **Source/test/migration/runbook commit:** `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. Exact-head Actions returned no run; Vercel Web build-rate-limit failure and Admin success are not application test evidence.
+- **No shared database/staging writes, migration execution, grant/RLS, worker, environment, provider, gateway, payout, deployment or merge action.**
+- **Next:** FIN-022 audit immutable financial event/history and transactional outbox consistency across payment, settlement, refund, return, dispute and settlement-adjustment transitions.

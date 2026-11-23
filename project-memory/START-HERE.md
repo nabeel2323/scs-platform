@@ -669,3 +669,17 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - Existing gates remain: G-001 PARTIAL; G-002 IN PROGRESS and protected/read-only; G-036 IN PROGRESS; Phases 0–5 IN PROGRESS; Phase 6 not started. PR #138 stays draft/unmerged.
 - **Next task FIN-021:** audit reconciliation-run versioning and failure semantics before modifying them: verify the intended direction of `superseded_by`, align unique-version scope with organization scope, handle concurrent version allocation, and prevent failed runs from leaving incomplete discrepancy records. Then continue the persisted financial history/outbox audit. Do not assume the semantics; inspect schema, migrations, callers and existing tests first.
 - Follow the recorded implementation-first cadence: group related source/tests/docs, keep focused regressions pending the consolidated Phase 3 campaign, and do not use protected staging or shared DB for tests.
+
+
+## Latest continuation checkpoint — 23 November 2026 (FIN-021)
+
+- Live repository/branch: `nabeel2323/scs-platform`, `remediation/phase-0-1-tenant-security`; PR #138 remains OPEN / DRAFT / UNMERGED against `develop`.
+- FIN-021 source/test/migration/runbook commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`.
+- Reconciliation version allocation now takes a PostgreSQL transaction-scoped advisory lock keyed by organization (or NULL/global scope), period and currency. The version read and insert occur under that lock.
+- Run creation, all reconciliation checks, discrepancy inserts and COMPLETED transition are one transaction. On an execution error the transaction rolls back; a separate best-effort transaction writes a FAILED run with zero discrepancies and a generic execution-error summary.
+- `superseded_by` now points from the prior run to its successor. Migration `0074_reconciliation_tenant_version_integrity.sql` repairs the old backward links and makes the unique index tenant-aware with NULLS NOT DISTINCT. The migration is source-only and has **not** been applied to any shared/staging database.
+- Added PostgreSQL FIN-DSH-37 (same-tenant concurrent versions, independent tenant version 1, forward links) and FIN-DSH-38 (failed-run rollback and no partial discrepancies). Removed the old unit tests that only asserted hard-coded version arithmetic. Tests are added but not executed.
+- Exact-head GitHub Actions lookup returned no run. Combined statuses: Vercel Web FAILURE due external build-rate-limit; Vercel Admin SUCCESS. Neither is API/PostgreSQL test evidence.
+- No shared DB/staging write, migration execution, grant/default-ACL/RLS change, environment change, worker activation, provider/gateway/payout change, deployment or merge.
+- Existing G-001 PARTIAL, G-002 IN PROGRESS/protected, G-036 IN PROGRESS; Phases 0–5 remain IN PROGRESS; Phase 6 NOT STARTED. PR #138 stays draft.
+- **Next FIN-022:** audit immutable financial event/history and transactional outbox consistency across payment, settlement, refund, return, dispute and settlement-adjustment transitions. Inspect producers, transaction boundaries, event payloads, outbox deduplication/aggregate identity and consumer ownership before modifying; add focused PostgreSQL concurrency/rollback cases. Keep implementation-first cadence and the consolidated Phase 3 test campaign.

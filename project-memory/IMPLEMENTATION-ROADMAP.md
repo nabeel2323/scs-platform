@@ -551,3 +551,12 @@ FIN-020 implements reconciliation ledger correctness beyond FIN-019. Primary set
 Source/test commit: `ad478cc53ce40bec86172e881b4f14cea7e6dfac`. Status: IMPLEMENTED / TESTING_PENDING. No schema, migration, shared database, staging, worker, gateway, payout, or deployment changes.
 
 **Next implementation:** FIN-021 — inspect reconciliation run versioning, `superseded_by` semantics, organization-scoped uniqueness, concurrent version allocation and failed-run partial persistence. Verify the intended history contract and tests before modifying it. Keep the consolidated formatter/API/PostgreSQL/Web/Admin/mobile campaign grouped in Phase 3.
+
+
+## Financial correctness continuation — FIN-021 — 23 November 2026
+
+FIN-021 implements tenant-safe reconciliation version allocation, forward supersession links and failure-atomic result persistence. Advisory locks serialize same-tenant period/currency runs; migration 0074 makes the unique version index organization-scoped (including NULL/global uniqueness) and repairs legacy backward supersession links. Execution and discrepancy persistence are one transaction; failures roll back partial data and are recorded in a separate best-effort FAILED-run transaction. FIN-DSH-37/38 are added but not executed.
+
+Commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`. Status: IMPLEMENTED / TESTING_PENDING. Migration 0074 is committed but not applied to any shared/staging database.
+
+**Next:** FIN-022 — audit immutable financial history and transactional outbox consistency across payment, settlement, refund, return, dispute and settlement-adjustment state transitions.
