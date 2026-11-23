@@ -19,13 +19,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation checkpoint head | `f554617c592ff57db296e0ca88614ac246468194` (FIN-002 source + PostgreSQL regression tests; not executed) |
-| Latest implementation/test | UX-100–105 Admin workflow/action/read-gate improvements, FIN-001 refund approval serialization/idempotency and FIN-002 settlement idempotency/confirmed-funds guard. FIN-DSH-11–16 added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
+| Latest implementation checkpoint head | `f554617c592ff57db296e0ca88614ac246468194` (FIN-003 source + PostgreSQL regression tests; not executed) |
+| Latest implementation/test | UX-100–105 Admin workflow/action/read-gate improvements, FIN-001 refund concurrency/idempotency, FIN-002 settlement idempotency/confirmed-funds guard and FIN-003 minor-unit amount validation. FIN-DSH-11–16 added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
-| Exact-head GitHub Actions | No run for FIN-002 source/test head `f554617c592ff57db296e0ca88614ac246468194`; latest Actions run #1425 tested earlier docs head `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint and Flutter passed, typecheck failed; formatting and dependent Web/Admin/API/PostgreSQL/migration/build jobs skipped |
+| Exact-head GitHub Actions | No run for FIN-003 source/test head `f554617c592ff57db296e0ca88614ac246468194`; latest Actions run #1425 tested earlier docs head `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint and Flutter passed, typecheck failed; formatting and dependent Web/Admin/API/PostgreSQL/migration/build jobs skipped |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest live PR head before this memory refresh | `e5aca0d99a0b0051216b4fd0d77b352c50bece88` — documentation-only FIN-002 source/CI reconciliation; no Actions run expected |
+| Latest live PR head before this memory refresh | `f18f7449ad93a964e37c1a7b971f979677036f8b` — documentation-only FIN-003 source/test synchronization; no Actions run expected |
 | Latest inspected preview status | Admin FAILURE due external deployment rate limit; not an application test result |
 | Focused client tests | Admin UX-030–058 and UX-097–099, Mobile UX-078–096 and Web UX-095 focused tests added/updated; not executed (Flutter suite passed only on earlier SHA `a76b0be`) |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
@@ -884,3 +884,9 @@ Merchant active-store and product reads now preserve last-successful data throug
 - No maximum/equality rule was introduced for actual received amounts; the existing manual-verification contract remains unchanged.
 - PostgreSQL regression FIN-DSH-16 verifies invalid fractional/zero inputs are rejected and payment statuses remain unchanged for verification/COD; it also covers fractional refund rejection. Not executed.
 - Status: IMPLEMENTED / TESTING_PENDING. No schema, migration, provider, gateway, payout, staging, shared DB or deployment change.
+
+## FIN-003 validation checkpoint — 23 November 2026
+
+- Source/test commit: `f554617c592ff57db296e0ca88614ac246468194`; no Actions run is attached because it uses `[skip ci]`.
+- FIN-DSH-16 adds invalid minor-unit amount coverage for payment verification, COD cash confirmation and refund requests. Test not executed.
+- Latest historical CI #1425 failed TypeScript typecheck on earlier SHA `994fee9a332f4c553fa09687101d8f6ecdec3103`; a settlement insert-result guard was added after that run. Neither FIN-002 nor FIN-003 has exact-head CI verification.

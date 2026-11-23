@@ -573,3 +573,7 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Added FIN-DSH-16 to reject fractional/zero inputs and confirm rejected verification/COD attempts leave payment state unchanged. Not executed.
 - Source/test commit: `f554617c592ff57db296e0ca88614ac246468194`.
 - No business rule was added for overpayment/underpayment or exact equality; no gateway/payout scope change.
+
+### Latest financial correctness continuation — FIN-003
+
+Positive safe-integer validation now covers verified payment amount, COD cash collected, refund request amount and settlement confirmed amount. No overpayment/underpayment or equality policy was introduced. FIN-DSH-16 is added but not executed. Source/test commit: `f554617c592ff57db296e0ca88614ac246468194`.
