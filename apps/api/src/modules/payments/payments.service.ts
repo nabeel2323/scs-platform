@@ -951,6 +951,9 @@ export class PaymentsService {
         status: 'CALCULATED',
         calculatedAt: new Date(),
       }).returning();
+      if (!settlement) {
+        throw new Error('Settlement insert completed without returning a persisted record');
+      }
 
       await tx.insert(paymentEvents).values({
         id: crypto.randomUUID(),
