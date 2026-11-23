@@ -936,3 +936,10 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 | ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
 |---|---|---|---|---|---|---|
 | FIN-027 | Return-side refund cap parity and BIGINT-safe aggregation | Return refund aggregation now counts APPROVED alongside REQUESTED/PROCESSING/SUCCEEDED and uses exact PostgreSQL numeric text + BigInt rather than a 32-bit integer cast. FIN-DSH-56 covers approved-balance reservation and a total above the 32-bit boundary. | Execute FIN-DSH-56 in the consolidated Phase 3 PostgreSQL campaign and review the remaining refund/reconciliation aggregate consumers for matching status and precision semantics. | P1 | IMPLEMENTED / TESTING_PENDING | No migration; no shared DB changes; PR #138 remains draft. |
+
+
+## FIN-028 — Settlement calculation actor attribution — 23 November 2026
+
+| ID | Area / deliverable | Evidence-backed current state | Remaining gap / acceptance direction | Priority | Status | Dependencies / guardrails |
+|---|---|---|---|---|---|---|
+| FIN-028 | Accurate actor class on admin settlement calculation events | Admin-only settlement calculation now records ADMIN in immutable payment history rather than SYSTEM. PostgreSQL FIN-DSH-57 verifies actor ID and actor class. | Execute FIN-DSH-57 in consolidated Phase 3 and continue auditing remaining financial event producers for actor/history/outbox parity. | P1 | IMPLEMENTED / TESTING_PENDING | No migration; no shared DB changes; PR #138 remains draft. |
