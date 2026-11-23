@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PaymentsService } from '../../../modules/payments/payments.service';
+import { PaymentsService, toSafeMinorUnitTotal } from '../../../modules/payments/payments.service';
 import {
   isSupportedPaymentMethod,
   PAYMENT_METHODS,
@@ -38,5 +38,24 @@ describe('Supported payment method boundary', () => {
 
     expect(registry.getDefault).not.toHaveBeenCalled();
     expect(tx.insert).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('Payment minor-unit aggregate precision', () => {
+  it('converts PostgreSQL numeric text without 32-bit truncation', () => {
+    expect(toSafeMinorUnitTotal('3000000000', 'Refunded amount')).toBe(3_000_000_000);
+  });
+
+  it('rejects aggregates outside JavaScript safe-integer range', () => {
+    expect(() => toSafeMinorUnitTotal('9007199254740992', 'Refunded amount'))
+      .toThrow('aggregate exceeds the supported safe integer range');
+  });
+
+  it('rejects negative or malformed aggregate values', () => {
+    expect(() => toSafeMinorUnitTotal('-1', 'Refunded amount'))
+      .toThrow('aggregate exceeds the supported safe integer range');
+    expect(() => toSafeMinorUnitTotal('not-a-number', 'Refunded amount'))
+      .toThrow('aggregate is not a valid integer');
   });
 });
