@@ -910,3 +910,12 @@ Merchant active-store and product reads now preserve last-successful data throug
 - Live PR #138 before documentation synchronization: `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`; OPEN / DRAFT / UNMERGED to `develop`.
 - CI #1427 is running on exact SHA `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`; no job result is yet claimed. Latest historical CI #1425 on `994fee9a332f4c553fa09687101d8f6ecdec3103` failed typecheck, while lint and Flutter passed and downstream jobs were skipped.
 - Vercel Admin/Web rate-limit failures are external provider statuses, not application test results.
+
+
+## FIN-006 — Dispute refund idempotency payload integrity — 23 November 2026
+
+- Source/test commit: `9899113a4f574d2733b957d2f1b489e35a71fe0f`.
+- Dispute orphan-refund recovery now verifies payment, order, amount, reason, requester, currency and dispute-link equality before reuse. Mismatches fail closed before dispute resolution or refund linking.
+- Added PostgreSQL FIN-DSH-20 cases for mismatched amount and reason. Not executed; IMPLEMENTED / TESTING_PENDING.
+- No schema/migration, provider, gateway, payout, staging, shared database or deployment change.
+- Re-fetch the live PR head and exact-head CI before the next implementation group. Continue the source-first financial/operational correctness audit; do not expand automatic gateway/payout scope.

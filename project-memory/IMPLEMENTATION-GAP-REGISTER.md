@@ -825,3 +825,6 @@ Settlement calculation now writes `PAYMENT_SETTLEMENT_CALCULATED` rather than th
 COD cash confirmation now synchronizes the denormalized `orders.payment_status` to CONFIRMED in the same transaction as the payment transition, while preserving fulfillment/order status (for example DELIVERED). FIN-DSH-18 verifies order/payment projection and payment event. Not executed.
 
 Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699150cb896a23eb171eab0ae5a00`, `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`. Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, automatic payout, staging, shared DB or deployment changes.
+
+
+| FIN-006 | Dispute refund idempotency payload integrity | `DisputesService.resolveDispute` reused an existing deterministic refund key without verifying that the existing financial request matched the retry. | Only recover an orphan refund when payment/order, amount, reason, requester, currency and dispute link match; otherwise conflict before linking refund or resolving dispute. FIN-DSH-20 adds PostgreSQL amount/reason mismatch cases. | P1 | IMPLEMENTED / TESTING_PENDING | Source/test commit `9899113a4f574d2733b957d2f1b489e35a71fe0f`; PostgreSQL cases await Phase 3. No schema change. |

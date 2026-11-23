@@ -1003,3 +1003,11 @@ The next full workflow is required to verify these changes.
 - Exact SHA: `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`.
 - At last refresh the run was IN_PROGRESS; no job result is claimed.
 - Commits FIN-004/FIN-005 use `[skip ci]` for the earlier FIN-004 source/test commits, while FIN-005 triggered #1427. FIN-DSH-11–18 remain TESTING_PENDING until the relevant PostgreSQL integration job passes on an exact applicable SHA.
+
+
+## FIN-006 validation status — 23 November 2026
+
+- Source/test commit: `9899113a4f574d2733b957d2f1b489e35a71fe0f`.
+- FIN-DSH-20 amount/reason mismatch regression scenarios were added but not executed. Status: IMPLEMENTED / TESTING_PENDING.
+- No exact-head CI result is claimed here; refresh GitHub Actions for the latest branch head.
+- No deployment, staging operation, shared database mutation, schema migration, grant/default-ACL change or RLS enablement occurred.

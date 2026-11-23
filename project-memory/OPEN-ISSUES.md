@@ -638,3 +638,10 @@ Next: continue source-first review of payment and settlement transitions; keep a
 - Status: IMPLEMENTED / TESTING_PENDING. No schema/migration or staging/shared database/deployment action.
 
 **Next:** continue source-first audit of financial state transitions and their event/outbox semantics. Do not expand automatic gateway or payout scope.
+
+
+## FIN-006 — Dispute refund idempotency payload integrity — 23 November 2026
+
+FIN-006 is IMPLEMENTED / TESTING_PENDING. The dispute-resolution recovery path now reuses an orphan refund only when payment/order, amount, reason, requester, currency and dispute link match the retry. FIN-DSH-20 adds PostgreSQL cases for amount and reason mismatch; tests not executed. Source/test commit: `9899113a4f574d2733b957d2f1b489e35a71fe0f`. No schema, migration, provider, payout, staging or shared database changes.
+
+**Next:** continue source-first financial and operational correctness review; keep the full test campaign grouped in Phase 3.

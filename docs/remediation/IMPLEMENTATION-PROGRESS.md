@@ -2060,3 +2060,13 @@ Settlement calculation now writes `PAYMENT_SETTLEMENT_CALCULATED` rather than th
 COD cash confirmation now synchronizes the denormalized `orders.payment_status` to CONFIRMED in the same transaction as the payment transition, while preserving fulfillment/order status (for example DELIVERED). FIN-DSH-18 verifies order/payment projection and payment event. Not executed.
 
 Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699150cb896a23eb171eab0ae5a00`, `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`. Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, automatic payout, staging, shared DB or deployment changes.
+
+
+## FIN-006 — Dispute refund idempotency payload integrity — 23 November 2026
+
+- **Finding:** the orphan-refund recovery branch in `DisputesService.resolveDispute` reused any row matching `dispute-refund:<disputeId>` without verifying that it represented the same financial request as the retry. A changed amount or reason could silently resolve the dispute while retaining the old refund terms.
+- **Implementation:** recovery now requires the existing refund to match payment, order, amount, reason, requester, currency and dispute link. Any mismatch raises `ConflictException` before linking the refund or resolving the dispute.
+- **Regression coverage:** FIN-DSH-20 adds PostgreSQL scenarios for changed amount and changed reason; tests added but **not executed**.
+- **Source/test commit:** `9899113a4f574d2733b957d2f1b489e35a71fe0f`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, payout, staging, shared database or deployment behavior changed.
+- **Next:** continue source-first financial/operational correctness review. Preserve the consolidated Phase 3 test campaign and the existing G-012 manual-payment scope.
