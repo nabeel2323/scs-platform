@@ -66,6 +66,7 @@
  *   FIN-DSH-62  Return refund finalization rejects an amount mismatch
  *   FIN-DSH-63  Failed refund state, payment history and retry stay in sync
  *   FIN-DSH-64  Failure outbox persistence rolls back both payment and return ledgers
+ *   FIN-DSH-65  Concurrent duplicate refund approvals resolve idempotently
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -3142,6 +3143,52 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [pendingReturn.id],
     );
     expect(returnOutboxRows.rows).toHaveLength(0);
+  }, 90_000);
+
+
+  it('FIN-DSH-65: concurrent duplicate approval of one refund returns success without duplicate effects', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const paymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
+    )).rows[0].id as string;
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const requested = await paymentsService.requestRefund(
+      paymentId, 1000, 'CUSTOMER_REQUEST', buyerA, buyerCaller,
+      { idempotencyKey: `fin-approve-retry-${randomUUID()}` },
+    );
+
+    const results = await Promise.all([
+      paymentsService.approveRefund(requested.refundId, adminA, adminCaller),
+      paymentsService.approveRefund(requested.refundId, adminA, adminCaller),
+    ]);
+    expect(results.map((result: any) => result.status)).toEqual(['SUCCEEDED', 'SUCCEEDED']);
+
+    const refundRow = await pool.query(
+      `SELECT status, approved_by FROM refunds WHERE id = $1`, [requested.refundId],
+    );
+    expect(refundRow.rows[0]).toEqual({ status: 'SUCCEEDED', approved_by: adminA });
+
+    const paymentEventsRows = await pool.query(
+      `SELECT id FROM payment_events
+       WHERE payment_record_id = $1 AND event_type = 'PAYMENT_REFUND_SUCCEEDED'`,
+      [paymentId],
+    );
+    expect(paymentEventsRows.rows).toHaveLength(1);
+
+    const outboxRows = await pool.query(
+      `SELECT id FROM outbox_events
+       WHERE event_type = 'payment.refund_succeeded' AND aggregate_id = $1
+         AND payload->>'refundId' = $2`,
+      [paymentId, requested.refundId],
+    );
+    expect(outboxRows.rows).toHaveLength(1);
+
+    const payment = await pool.query(
+      `SELECT status FROM payment_records WHERE id = $1`, [paymentId],
+    );
+    expect(payment.rows[0].status).toBe('PARTIALLY_REFUNDED');
   }, 90_000);
 
 });

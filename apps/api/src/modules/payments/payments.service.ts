@@ -1148,6 +1148,7 @@ export class PaymentsService {
     });
     if (!refundSnapshot) throw new NotFoundException('Refund not found');
 
+    let alreadySucceeded = false;
     await this.db.db.transaction(async (tx) => {
       // Serialize all refund approvals for a payment on the same row lock used
       // by requestRefund. Without this, two partial approvals can both observe
@@ -1166,9 +1167,17 @@ export class PaymentsService {
         .select()
         .from(refunds)
         .where(and(eq(refunds.id, refundId), eq(refunds.paymentRecordId, payment.id)))
+        .for('update')
         .limit(1);
 
       if (!refundRow) throw new NotFoundException('Refund not found');
+      // The first approval and its history/outbox commit atomically. A retried
+      // command after a lost response is therefore a read-only success, not a
+      // second approval event or a duplicate notification.
+      if (refundRow.status === 'SUCCEEDED') {
+        alreadySucceeded = true;
+        return;
+      }
       if (refundRow.status !== 'REQUESTED') {
         throw new ConflictException(`Refund is in ${refundRow.status} status — must be REQUESTED`);
       }
@@ -1255,7 +1264,9 @@ export class PaymentsService {
       );
     });
 
-    this.logger.log(`Refund ${refundId} approved by ${approverId}`);
+    if (!alreadySucceeded) {
+      this.logger.log(`Refund ${refundId} approved by ${approverId}`);
+    }
     return this.getRefund(refundId);
   }
 
