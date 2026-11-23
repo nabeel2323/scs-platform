@@ -55,6 +55,16 @@ describe('PilotControlService public tenant contracts', () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
+  it('rejects a store slug when the allowlist field requires the canonical store id', async () => {
+    merchant.getStore.mockResolvedValue({ id: 'store-canonical', orgId: 'org-1' });
+
+    await expect(
+      service.addAllowlistEntry({ orgId: 'org-1', storeId: 'store-slug' }),
+    ).rejects.toThrow('Store not found in the target organization');
+
+    expect(insert).not.toHaveBeenCalled();
+  });
+
   it('normalizes a missing store to the same non-disclosing not-found response', async () => {
     merchant.getStore.mockRejectedValue(new NotFoundException('Store not found'));
 
