@@ -2927,4 +2927,50 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(outboxRows.rows).toHaveLength(0);
   }, 90_000);
 
+
+  it('FIN-DSH-62: return finalization rejects a succeeded refund with mismatched amount', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const ret = await advanceReturnToRefundPending(
+      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+    );
+    await paymentsService.approveRefund(ret.refundId, adminA, adminCaller);
+
+    await pool.query(
+      `UPDATE refunds SET amount_minor = amount_minor + 1 WHERE id = $1`,
+      [ret.refundId],
+    );
+
+    await expect(returnsService.transitionReturn(ret.id, 'REFUNDED', adminCaller)).rejects.toThrow(
+      'Refund amount does not match the return request',
+    );
+
+    const state = await pool.query(
+      `SELECT status, actual_refund_minor FROM return_requests WHERE id = $1`,
+      [ret.id],
+    );
+    expect(state.rows[0]).toEqual({ status: 'REFUND_PENDING', actual_refund_minor: null });
+
+    const events = await pool.query(
+      `SELECT id FROM return_request_events
+       WHERE return_request_id = $1 AND event_type = 'REFUNDED'`,
+      [ret.id],
+    );
+    expect(events.rows).toHaveLength(0);
+
+    const outbox = await pool.query(
+      `SELECT id FROM outbox_events
+       WHERE event_type = 'return.refunded' AND aggregate_id = $1`,
+      [ret.id],
+    );
+    expect(outbox.rows).toHaveLength(0);
+
+    const reversals = await pool.query(
+      `SELECT id FROM commission_reversals WHERE return_request_id = $1`,
+      [ret.id],
+    );
+    expect(reversals.rows).toHaveLength(0);
+  }, 90_000);
+
 });

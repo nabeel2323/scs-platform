@@ -865,16 +865,72 @@ export class ReturnsService {
   // ── Mark Refunded ─────────────────────────────────────────────
 
   private async markRefunded(ret: any) {
-    // Called after P12 approveRefund succeeds
-    const refundRow = ret.refundId
-      ? await this.db.db.query.refunds.findFirst({ where: eq(refunds.id, ret.refundId) })
-      : null;
-
-    if (!refundRow || refundRow.status !== 'SUCCEEDED') {
-      throw new ConflictException('Refund has not been approved/succeeded yet');
+    // Lock in the same payment → refund order used by requestRefund/approveRefund.
+    // The return snapshot supplied by transitionReturn is not authoritative for
+    // cross-ledger lineage or status after concurrent financial transitions.
+    if (!ret.refundId || !ret.paymentRecordId) {
+      throw new ConflictException('Return is missing its linked payment refund');
     }
 
     await this.db.db.transaction(async (tx) => {
+      const [payment] = await tx
+        .select()
+        .from(paymentRecords)
+        .where(eq(paymentRecords.id, ret.paymentRecordId))
+        .for('update')
+        .limit(1);
+      if (!payment) throw new NotFoundException('Payment not found for return refund');
+
+      const [refundRow] = await tx
+        .select()
+        .from(refunds)
+        .where(and(
+          eq(refunds.id, ret.refundId),
+          eq(refunds.paymentRecordId, payment.id),
+        ))
+        .for('update')
+        .limit(1);
+      if (!refundRow) {
+        throw new ConflictException('Linked refund does not belong to the return payment');
+      }
+
+      const [lockedReturn] = await tx
+        .select()
+        .from(returnRequests)
+        .where(eq(returnRequests.id, ret.id))
+        .for('update')
+        .limit(1);
+      if (!lockedReturn) throw new NotFoundException('Return request not found');
+      if (lockedReturn.status !== ret.status) {
+        throw new ConflictException('Return status already changed');
+      }
+
+      if (
+        lockedReturn.paymentRecordId !== payment.id ||
+        lockedReturn.subOrderId !== payment.orderId ||
+        lockedReturn.refundId !== refundRow.id ||
+        refundRow.orderId !== lockedReturn.subOrderId ||
+        refundRow.requestedBy !== lockedReturn.buyerId ||
+        refundRow.currency !== payment.currency ||
+        refundRow.returnRequestId !== lockedReturn.id
+      ) {
+        throw new ConflictException('Refund lineage does not match the return and payment');
+      }
+      if (refundRow.status !== 'SUCCEEDED') {
+        throw new ConflictException('Refund has not been approved/succeeded yet');
+      }
+      if (!['PARTIALLY_REFUNDED', 'REFUNDED'].includes(payment.status)) {
+        throw new ConflictException('Payment ledger does not confirm the linked refund');
+      }
+      if (
+        !Number.isSafeInteger(refundRow.amountMinor) ||
+        refundRow.amountMinor <= 0 ||
+        !Number.isSafeInteger(lockedReturn.requestedRefundMinor) ||
+        refundRow.amountMinor !== lockedReturn.requestedRefundMinor
+      ) {
+        throw new ConflictException('Refund amount does not match the return request');
+      }
+
       const flip = await tx
         .update(returnRequests)
         .set({
@@ -882,35 +938,34 @@ export class ReturnsService {
           actualRefundMinor: refundRow.amountMinor,
           updatedAt: new Date(),
         })
-        .where(and(eq(returnRequests.id, ret.id), eq(returnRequests.status, ret.status)))
+        .where(and(eq(returnRequests.id, lockedReturn.id), eq(returnRequests.status, lockedReturn.status)))
         .returning({ id: returnRequests.id });
       if (flip.length === 0) throw new ConflictException('Return status already changed');
 
       await tx.insert(returnRequestEvents).values({
-        id: crypto.randomUUID(), returnRequestId: ret.id,
-        eventType: 'REFUNDED', fromStatus: ret.status, toStatus: 'REFUNDED',
+        id: crypto.randomUUID(), returnRequestId: lockedReturn.id,
+        eventType: 'REFUNDED', fromStatus: lockedReturn.status, toStatus: 'REFUNDED',
         actorId: null, actorType: 'SYSTEM',
         notes: `Refund ${refundRow.id} succeeded for ${refundRow.amountMinor}`,
       });
 
-      // Settlement adjustment (Phase 3: includes commission reversal calculation)
-      await this.adjustSettlement(tx, ret, refundRow.amountMinor);
+      // Settlement and commission ledgers use the same locked, validated return snapshot.
+      await this.adjustSettlement(tx, lockedReturn, refundRow.amountMinor);
 
-      // Phase 3: Post commission reversal to the dedicated ledger (same tx)
-      const respCat = ret.responsibilityCategory;
+      const respCat = lockedReturn.responsibilityCategory;
       if (respCat && REVERSAL_CATEGORIES.has(respCat)) {
         await this.commissionReversal.processCommissionReversal(
-          ret.id, respCat, null, tx,
+          lockedReturn.id, respCat, null, tx,
         );
       } else if (!respCat) {
         this.logger.warn(
-          `Return ${ret.id} refunded without responsibility category — ` +
+          `Return ${lockedReturn.id} refunded without responsibility category — ` +
           'commission reversal skipped. Ensure inspection or escalation sets the category.',
         );
       }
 
-      await this.outbox.publish('return.refunded', ret.id, {
-        returnRequestId: ret.id, refundId: refundRow.id,
+      await this.outbox.publish('return.refunded', lockedReturn.id, {
+        returnRequestId: lockedReturn.id, refundId: refundRow.id,
         amountMinor: refundRow.amountMinor,
       }, {}, null, tx);
     });
