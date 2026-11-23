@@ -238,23 +238,43 @@ export class DisputesService {
         where: eq(refunds.idempotencyKey, idempotencyKey),
       });
 
-      refundResult = existingRefund
-        ? {
-            refundId: existingRefund.id,
-            amountMinor: Number(existingRefund.amountMinor),
-            status: existingRefund.status,
-          }
-        : await this.payments.requestRefund(
-            payment.id,
-            refundInput.amountMinor,
-            refundInput.reason || 'PRODUCT_NOT_AS_DESCRIBED',
-            dispute['raisedBy'],
-            { sub: adminUserId, role: caller.role },
-            {
-              idempotencyKey,
-              notes: `Dispute ${disputeId} resolution refund`,
-            },
+      const refundReason = refundInput.reason || 'PRODUCT_NOT_AS_DESCRIBED';
+
+      if (existingRefund) {
+        // Reuse is safe only when the committed refund is the exact financial
+        // request this retry is attempting to finish.
+        if (
+          existingRefund.paymentRecordId !== payment.id ||
+          existingRefund.orderId !== dispute['orderId'] ||
+          Number(existingRefund.amountMinor) !== refundInput.amountMinor ||
+          existingRefund.reason !== refundReason ||
+          existingRefund.requestedBy !== dispute['raisedBy'] ||
+          existingRefund.currency !== payment.currency ||
+          (existingRefund.disputeId !== null && existingRefund.disputeId !== disputeId)
+        ) {
+          throw new ConflictException(
+            'Dispute refund idempotency key was already used for a different request',
           );
+        }
+
+        refundResult = {
+          refundId: existingRefund.id,
+          amountMinor: Number(existingRefund.amountMinor),
+          status: existingRefund.status,
+        };
+      } else {
+        refundResult = await this.payments.requestRefund(
+          payment.id,
+          refundInput.amountMinor,
+          refundReason,
+          dispute['raisedBy'],
+          { sub: adminUserId, role: caller.role },
+          {
+            idempotencyKey,
+            notes: `Dispute ${disputeId} resolution refund`,
+          },
+        );
+      }
     }
 
     await this.db.db.transaction(async (tx) => {

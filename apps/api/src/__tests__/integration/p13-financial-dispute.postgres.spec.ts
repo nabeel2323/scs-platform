@@ -480,6 +480,52 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(refundsRes.rows[0].dispute_id).toBe(dispute.id);
   }, 60_000);
 
+  // ── FIN-DSH-20: Dispute refund recovery payload integrity ────────
+
+  it('FIN-DSH-20: orphan dispute refund with a different amount is not reused or linked', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const dispute = await openDispute(orderId);
+    const paymentId = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0].id;
+    const orphanRefundId = randomUUID();
+    await pool.query(
+      `INSERT INTO refunds (id, payment_record_id, order_id, idempotency_key, amount_minor, currency, status, reason, requested_by)
+       VALUES ($1, $2, $3, $4, 1000, 'SYP', 'REQUESTED', 'PRODUCT_NOT_AS_DESCRIBED', $5)`,
+      [orphanRefundId, paymentId, orderId, `dispute-refund:${dispute.id}`, buyerA],
+    );
+
+    await expect(disputesService.resolveDispute(
+      dispute.id, adminA, 'Mismatched retry must not resolve', adminCaller,
+      { amountMinor: 1200, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
+    )).rejects.toThrow(/idempotency key was already used for a different request/i);
+
+    const state = await pool.query(`SELECT status FROM disputes WHERE id = $1`, [dispute.id]);
+    const refund = await pool.query(`SELECT dispute_id FROM refunds WHERE id = $1`, [orphanRefundId]);
+    expect(state.rows[0].status).toBe('OPEN');
+    expect(refund.rows[0].dispute_id).toBeNull();
+  }, 60_000);
+
+  it('FIN-DSH-20: orphan dispute refund with a different reason is not reused or linked', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const dispute = await openDispute(orderId);
+    const paymentId = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0].id;
+    const orphanRefundId = randomUUID();
+    await pool.query(
+      `INSERT INTO refunds (id, payment_record_id, order_id, idempotency_key, amount_minor, currency, status, reason, requested_by)
+       VALUES ($1, $2, $3, $4, 1000, 'SYP', 'REQUESTED', 'CUSTOMER_REQUEST', $5)`,
+      [orphanRefundId, paymentId, orderId, `dispute-refund:${dispute.id}`, buyerA],
+    );
+
+    await expect(disputesService.resolveDispute(
+      dispute.id, adminA, 'Mismatched retry must not resolve', adminCaller,
+      { amountMinor: 1000, reason: 'PRODUCT_NOT_AS_DESCRIBED' },
+    )).rejects.toThrow(/idempotency key was already used for a different request/i);
+
+    const state = await pool.query(`SELECT status FROM disputes WHERE id = $1`, [dispute.id]);
+    const refund = await pool.query(`SELECT dispute_id FROM refunds WHERE id = $1`, [orphanRefundId]);
+    expect(state.rows[0].status).toBe('OPEN');
+    expect(refund.rows[0].dispute_id).toBeNull();
+  }, 60_000);
+
   // ── FIN-DSH-07: Simultaneous return + dispute refunds ────────────
 
   it('FIN-DSH-07: concurrent return-initiated and dispute-initiated refunds respect the cumulative cap', async () => {
