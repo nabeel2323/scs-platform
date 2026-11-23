@@ -697,3 +697,12 @@ Next: continue the source-first payment and return lifecycle audit; keep Phase 3
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Return creation checked active returns, cumulative quantities and refundable amount outside the transaction; concurrent requests could both pass and create active requests. It now locks the payment row and rechecks eligibility, active return, returned quantity and refundable balance before insert. FIN-DSH-32 holds the payment lock while two return requests race and asserts exactly one active request commits. Source 8a8364899f08180da9213be4d897a65fac9a897d; test 705609fa2928d6e12e393b59bb990cfe0cf2343c. Not executed.
 
 Next: continue the source-first returns/payment lifecycle audit. Keep the full formatter, API unit and PostgreSQL verification grouped in Phase 3; do not expand gateway or automatic payout scope.
+
+
+## FIN-019 — Settlement adjustment posting integrity
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Posting a COMMISSION_REVERSAL previously wrote a negative settlement net despite representing a merchant credit. Posting could also mark an adjustment POSTED without a primary settlement ledger row. The service now applies type-specific sign semantics, validates positive safe-integer minor-unit amounts, locks the primary settlement row, and rejects posting until that ledger exists. FIN-DSH-33 verifies positive commission-reversal net; FIN-DSH-34 verifies an approved adjustment remains unposted/unlinked when no settlement exists. Unit cases cover credit/debit signs. Tests not executed.
+
+Source commits: `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`. No schema/migration or automatic gateway/payout scope change.
+
+**Next:** continue source-first financial and operational correctness review beyond FIN-019. Keep the consolidated formatter/API/PostgreSQL/Web/Admin/mobile campaign grouped in Phase 3; preserve the G-012 manual-payment-only scope.

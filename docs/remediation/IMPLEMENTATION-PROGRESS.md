@@ -2136,3 +2136,12 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - **Regression coverage:** FIN-DSH-31 verifies a partial return with products 3000, discount 600, tax 240 and delivery fee 450 yields refund 880 and a 495 USD delivery-fee adjustment. Unit tests cover half-up allocation and an intermediate product beyond safe Number precision. Tests added, not executed.
 - **Source commit:** `122edb4bf1dc67ba01bfc33b97809cc037781f87`; unit/integration test commit: `e6823ee9b1c68f5b71229ffbda17c9f525b66565`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, provider, staging, shared DB or deployment behavior changed.
+
+
+## FIN-019 — Settlement adjustment posting integrity — 23 November 2026
+
+- **Finding:** commission reversal settlement adjustments were recorded with a negative net, reversing the intended merchant-credit sign. Approved adjustments could also become POSTED without any settlement ledger row when the order had no primary settlement.
+- **Implementation:** COMMISSION_REVERSAL now produces positive net; refund/delivery-fee/balance-debit types remain negative. Amounts require positive safe integers. Posting locks the latest primary settlement row and rejects when no primary settlement exists, so status and ledger insertion remain atomic.
+- **Regression coverage:** unit sign tests and PostgreSQL FIN-DSH-33/34. Added, not executed.
+- **Source commits:** `968fa110fb77efcc98c5a892c5ed69029347fc8e`, `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. No schema/migration or automatic payment/payout scope change.

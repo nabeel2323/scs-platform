@@ -1103,3 +1103,12 @@ The next full workflow is required to verify these changes.
 - FIN-017 source `122edb4bf1dc67ba01bfc33b97809cc037781f87`; test commit `e6823ee9b1c68f5b71229ffbda17c9f525b66565`. FIN-DSH-31 plus unit rounding tests added, not executed.
 - No exact-head Actions run is attached because the commits use `[skip ci]`. CI #1434 predates FIN-014–017; CI #1436 was cancelled.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No merge, deployment, staging write, shared DB change, migration, grants/RLS, worker activation, gateway/provider or payout action occurred.
+
+
+## CI #1437 and FIN-019 checkpoint — 23 November 2026
+
+- [CI #1437](https://github.com/nabeel2323/scs-platform/actions/runs/45166190673) tested earlier SHA `9dc7d04469180807e65053fe51819afffb3b78c0`, not the current source/test head.
+- Lint passed; TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed with 259 files needing formatting.
+- Web/Admin tests, API unit/coverage, PostgreSQL integration, migration apply, boundary lint, contract/codegen, build/container, k6 and staging release were skipped because the formatting gate failed.
+- FIN-019 source/test commits `968fa110fb77efcc98c5a892c5ed69029347fc8e` and `b2f0dc49b85d65dac0eaf631bf6fab7beaba8cae` use `[skip ci]`; no exact-head Actions run or test execution is claimed.
+- PR #138 remains OPEN / DRAFT / UNMERGED. Vercel Web/Admin rate-limit statuses are external provider failures. No merge, deployment, staging write, shared DB change, migration, grant/RLS, worker activation, provider, gateway or payout action occurred.
