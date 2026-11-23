@@ -49,6 +49,7 @@
  *   FIN-DSH-45  Dispute refund and resolution share one transaction
  *   FIN-DSH-46  Failed proof persistence cleans only the new object
  *   FIN-DSH-47  Successful proof replacement retires the old managed object
+ *   FIN-DSH-48  Upload timeout compensates an object accepted before response failure
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -2293,5 +2294,38 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(persisted.rows[0].receipt_url).toBe(uploadedKey);
     expect(storage.deleteObject).toHaveBeenCalledWith(uploadsBucket, oldKey);
     expect(storage.deleteObject).not.toHaveBeenCalledWith(uploadsBucket, uploadedKey);
+  }, 60_000);
+  it('FIN-DSH-48: compensates an upload timeout after the object store accepted the new proof', async () => {
+    const cartId = randomUUID();
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
+    await pool.query(
+      `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
+       VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
+      [randomUUID(), cartId, storeA, variantA, offerA],
+    );
+    const checkout = await ordersService.checkout({
+      buyerId: buyerA, deliveryAddress: {}, paymentMethod: 'BANK_TRANSFER',
+      idempotencyKey: `fin024-upload-timeout-${randomUUID()}`
+    });
+    const orderId = checkout.subOrders[0]!.id;
+    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const storage = {
+      putObject: vi.fn().mockRejectedValue(new Error('Upload response timed out after server accepted object')),
+      exists: vi.fn().mockResolvedValue(true),
+      deleteObject: vi.fn().mockResolvedValue(undefined),
+    };
+    (paymentsService as any).storage = storage;
+    try {
+      await expect(paymentsService.submitProof(payment.id, buyerA, {
+        fileBuffer: Buffer.from('timed out receipt'), fileName: 'timeout.pdf', contentType: 'application/pdf',
+      }, { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA })).rejects.toThrow('Upload response timed out');
+    } finally {
+      (paymentsService as any).storage = undefined;
+    }
+    const uploadedKey = storage.putObject.mock.calls[0][0].key;
+    expect(storage.exists).toHaveBeenCalledWith(process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads', uploadedKey);
+    expect(storage.deleteObject).toHaveBeenCalledWith(process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads', uploadedKey);
+    const persisted = await pool.query(`SELECT status, receipt_url FROM payment_records WHERE id = $1`, [payment.id]);
+    expect(persisted.rows[0]).toEqual({ status: 'AWAITING_PAYMENT', receipt_url: null });
   }, 60_000);
 });
