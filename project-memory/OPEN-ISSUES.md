@@ -587,3 +587,10 @@ Product Type list/create/category-update and Builder save/publish handlers now r
 The shared ProductForm used by Admin product create/edit routes now receives and rechecks `catalog:products:write` at Save dispatch and prevents duplicate create/update submissions with a ref-backed guard. The API continues enforcing the same permission. No ProductForm-specific test was added; UX-102 remains IMPLEMENTED / TESTING_PENDING for Phase 3.
 
 **Next implementation:** continue the remaining Admin operational UX/source audit beyond permission mapping. Do not repeat UX-097–UX-102.
+
+
+## UX-103 — Product Type stale-response suppression — 23 November 2026
+
+Product Type list/filter and selected-schema reads now use request-version guards so stale responses cannot overwrite the current selection. Product Type Builder schema/attribute/readiness loads invalidate stale requests on route-ID or access changes. No focused regression test was added. CI #1419 passed lint/typecheck and Flutter analysis/tests but failed the accumulated Prettier gate (254 files); Web/Admin tests and dependent gates were skipped. UX-103 remains IMPLEMENTED / TESTING_PENDING for Phase 3.
+
+**Next implementation:** continue the remaining Admin operational UX/source audit beyond permission mapping. Do not repeat UX-097–UX-103.

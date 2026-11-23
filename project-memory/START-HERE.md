@@ -522,3 +522,12 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 - Source commit: `383ea13c589d9023aab24d3b2d15c5c0db2cd751`.
 - CI #1417 passed lint/typecheck and Flutter analysis/tests; changed-file formatting failed across 251 files, and dependent Web/Admin test jobs were skipped. It predates UX-102.
 - Next: continue Admin operational UX/source audit beyond permission mapping; Phase 3 remains the consolidated formatter/test campaign.
+
+
+## Latest continuation — 23 November 2026 (Admin UX-103)
+
+- Product Type list/filter and selected-schema reads now ignore stale responses; Product Type Builder schema/readiness reads are invalidated on route/access changes.
+- Source commit: `892bb24f4522988c89dea507cb848d80fb4dbe2e`.
+- CI #1419: lint/typecheck and Flutter analysis/tests passed; Prettier gate failed across 254 files; Web/Admin tests and dependent gates skipped.
+- No focused UX-103 test was added. Comprehensive testing remains Phase 3.
+- Next: continue Admin operational UX/source audit beyond permission mapping.

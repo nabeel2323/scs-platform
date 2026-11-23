@@ -1955,3 +1955,14 @@ This closes a UI-to-controller workflow omission; it does not change G-001–G-0
 - No ProductForm-specific test was added; validation is pending the consolidated Phase 3 campaign.
 - Source commit: `383ea13c589d9023aab24d3b2d15c5c0db2cd751`.
 - Status: **IMPLEMENTED / TESTING_PENDING**, not automated-test or CI verified.
+
+
+## Programme UX-103 — Product Type stale-response suppression — 23 November 2026
+
+- Product Type list/filter loads now use request-version checks and effect cleanup so stale filter responses cannot overwrite newer results.
+- Product Type selected-schema loads use a separate request version, preventing late schema responses from replacing the currently selected item.
+- Product Type Builder schema, attribute and publish-readiness loads now invalidate stale requests when the route ID or access state changes; stale requests cannot update data, errors or loading state.
+- No focused regression test was added; testing remains pending Phase 3.
+- Source commit: `892bb24f4522988c89dea507cb848d80fb4dbe2e`.
+- CI #1419 on this source commit: lint and TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed with 254 files needing formatting. Web/Admin tests and dependent gates skipped.
+- Status: **IMPLEMENTED / TESTING_PENDING**.

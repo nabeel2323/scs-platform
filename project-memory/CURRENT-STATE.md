@@ -824,3 +824,12 @@ Merchant active-store and product reads now preserve last-successful data throug
 - No ProductForm-specific test was added; consolidated Phase 3 validation remains pending.
 - The prior CI run #1417 (on `0b7da6170bdf01f1da441eb9789e566dfec1c76c`) passed lint/typecheck and Flutter analysis/tests, but its changed-file formatting gate failed across 251 files. Web/Admin tests and dependent gates were skipped.
 - Latest PR head is now `383ea13c589d9023aab24d3b2d15c5c0db2cd751`; refresh exact-head CI before the next implementation batch.
+
+
+## Admin Product Type read-race checkpoint — 23 November 2026 (UX-103)
+
+- Source checkpoint: `892bb24f4522988c89dea507cb848d80fb4dbe2e`.
+- Product Type list/filter and selected-schema reads use independent request-version guards; Product Type Builder schema/attribute/readiness reads invalidate stale requests on route/access changes.
+- No focused test was added; Phase 3 validation remains pending.
+- CI #1419 ran on this source commit: lint and TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed across 254 files. Web/Admin tests and dependent jobs skipped.
+- PR #138 was OPEN / DRAFT / UNMERGED to `develop` at the last live check. Refresh exact head after this documentation synchronization.

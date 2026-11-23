@@ -1127,3 +1127,14 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source commit: `383ea13c589d9023aab24d3b2d15c5c0db2cd751`.
 
 **Next:** continue the remaining Admin operational UX/source audit beyond permission mapping; keep the accumulated formatter and test campaign grouped in Phase 3.
+
+
+## 2026-11-23 — Product Type stale-response suppression (UX-103)
+
+- Added independent request-version guards for Product Type list/filter reads and selected-schema reads.
+- Product Type Builder schema/attribute/readiness load now ignores stale responses and invalidates requests on route-ID or permission changes.
+- No focused regression test was added. CI #1419 passed lint/typecheck and Flutter analysis/tests, but failed the accumulated Prettier gate (254 files); Web/Admin tests and dependent gates were skipped.
+- Source commit: `892bb24f4522988c89dea507cb848d80fb4dbe2e`.
+- Status: IMPLEMENTED / TESTING_PENDING; no API, schema, database or staging behavior changed.
+
+**Next:** continue the remaining Admin operational UX/source audit beyond permission mapping. Keep comprehensive formatting and tests grouped in Phase 3.

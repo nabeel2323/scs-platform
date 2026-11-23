@@ -134,3 +134,10 @@ The one missing custom financial action was the settlement-adjustment Reject wor
 The shared ProductForm used by the Admin create and edit routes now receives the route's `catalog:products:write` capability, checks it immediately before Save dispatch, and uses an in-flight ref to prevent duplicate create/update submissions. The Save control is disabled when the capability is absent. The matching API routes are `POST/PATCH /admin/products` and `PUT /admin/products/:id/attribute-values`, all guarded by `catalog:products:write`.
 
 This is a client-side action-boundary hardening; the backend permission checks remain authoritative. No test was added specifically for ProductForm; comprehensive testing is deferred to Phase 3.
+
+
+## Product Type request-race hardening — UX-103 — 23 November 2026
+
+Product Type list/filter reads and selected-schema reads now use independent request-version guards. A slower response for an earlier category/status filter or previously selected Product Type can no longer overwrite the current selection. The Product Type Builder's main schema/attribute/readiness load now also invalidates stale requests on route-ID or permission changes, including stale readiness results and loading-state updates.
+
+This is client-side stale-response suppression only; no API or database behavior changed. No focused test was added. The source was included in CI #1419: lint and typecheck passed, Flutter analysis/tests passed, but changed-file formatting failed across 254 files. Web/Admin tests and dependent gates were skipped.
