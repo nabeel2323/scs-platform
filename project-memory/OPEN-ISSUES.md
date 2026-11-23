@@ -563,5 +563,6 @@ The merchant category directory is now read-only for merchant roles and requires
 
 - UX-094 Mobile merchant category permission/contract alignment is implemented; actual merchant-owned category CRUD remains blocked pending an API/product ownership decision.
 - UX-095 Web merchant route/action permission alignment and active-organization context invalidation is implemented; focused tests are added but not executed.
+- UX-096 Mobile route/action permission and organization-context transition alignment is implemented; focused route and driver-assignment tests are added but not executed.
 - G-036 realtime store/order room authorization is implemented in source with focused gateway tests added but not executed.
-- **Next:** finish the Mobile route-permission and organization-context transition audit, then remaining Admin route/action mapping. Comprehensive testing remains deferred to the consolidated testing phase.
+- **Next:** finish the remaining Admin route/action permission mapping. Comprehensive testing remains deferred to the consolidated testing phase.
