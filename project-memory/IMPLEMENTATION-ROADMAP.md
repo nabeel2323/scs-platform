@@ -489,3 +489,17 @@ Manual payment verification, COD cash confirmation, refund requests and settleme
 - Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, provider, automatic payout, staging, shared DB or deployment changes.
 
 Next: continue source-first audit of payment/settlement transitions and persisted event/outbox semantics; retain the Phase 3 consolidated testing campaign.
+
+## Financial correctness continuation FIN-004–FIN-013 — 23 November 2026
+
+- FIN-004 settlement event consistency: calculation event corrected; PAID transition now atomically persists settlement state, immutable payment history and outbox event. Commits `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699150cb896a23eb171eab0ae5a00`.
+- FIN-005 COD order payment projection: payment_status synchronized without changing fulfillment state. Commit `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`.
+- FIN-006 dispute refund recovery validates full request identity before reusing an orphan refund. Commit `9899113a4f574d2733b957d2f1b489e35a71fe0f`.
+- FIN-007 refund approval synchronizes the order payment projection. Commit `5b68edac4d148f68656b4331a9612cd1752eab3d`.
+- FIN-008 return refund recovery validates full request identity. Commit `72927529e64a719741b94b864f6adba7cafd4f0d`.
+- FIN-009 dispute resolution uses compare-and-set to prevent duplicate terminal events/outbox. Commit `2b8e2fa7cf2aab87d4186153a61748bc82805c52`.
+- FIN-010 return refund adjustment serializes against settlement payment. Commit `a1dc7b2cf31c83f2a59c0a72f0056f4955fe7143`.
+- FIN-011 settlement adjustment preserves original currency. Commit `ba3318724c3080d4c29baee1c81e972262e14ac4`.
+- FIN-012 missing financial breakdown blocks manual/COD payment confirmation and rolls back. Commit `cdb189e95dd7022793af33352a18c31f81117059`.
+- FIN-013 payment expiry records cancellation history only after the conditional order update succeeds. Source/test commits `028e30e9ebeb626b51b6d80bc28467c9c946c419`, `83550c34c7dc11492fc6e5c5fc6fcb418b79243c`.
+- FIN-DSH-11–28 are added but not executed. Status for all is IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, automatic payout, staging, shared DB, grant/RLS, deployment or worker changes.
