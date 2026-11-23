@@ -661,7 +661,12 @@ export class PaymentsService {
       // If CONFIRMED: finalize financial breakdown + transition order
       if (decision === 'CONFIRMED') {
         await this.finalizeFinancialBreakdown(tx, payment.orderId);
-        await this.transitionOrderAfterPaymentConfirmation(tx, payment.orderId, actorId);
+        await this.transitionOrderAfterPaymentConfirmation(
+          tx,
+          payment.orderId,
+          actorId,
+          isTenantPrivileged(caller) ? 'ADMIN' : 'MERCHANT',
+        );
       }
 
       // Outbox event
@@ -895,6 +900,7 @@ export class PaymentsService {
     tx: any,
     orderId: string,
     actorId: string,
+    actorType: 'ADMIN' | 'MERCHANT',
   ): Promise<void> {
     const order = await this.getOrderForPayment(orderId);
     const currentStatus = order.status;
@@ -917,7 +923,7 @@ export class PaymentsService {
           fromStatus: 'PAYMENT_PENDING',
           toStatus: 'PAYMENT_CONFIRMED',
           changedBy: actorId,
-          actorType: 'SYSTEM',
+          actorType,
           reason: 'Payment confirmed',
         });
       }
