@@ -1619,6 +1619,16 @@ export class PaymentsService {
         .limit(1);
 
       if (!settlement) throw new NotFoundException('Settlement not found');
+      if (settlement.status === 'PAID') {
+        const requestedReference = input?.paymentReference?.trim() || null;
+        const recordedReference = settlement.paymentReference ?? null;
+        if (requestedReference !== recordedReference) {
+          throw new ConflictException(
+            'Settlement already paid with a different payment reference',
+          );
+        }
+        return;
+      }
       if (!['CALCULATED', 'DUE'].includes(settlement.status)) {
         throw new ConflictException('Settlement not in payable status');
       }

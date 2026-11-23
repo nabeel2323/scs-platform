@@ -1278,7 +1278,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
     const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
 
-    const results = await Promise.allSettled([
+    const results = await Promise.all([
       paymentsService.markSettlementPaid(settlement.id, adminA, adminCaller, {
         paymentReference: 'BANK-REF-FIN-17',
         notes: 'Manual settlement transfer confirmed',
@@ -1289,8 +1289,13 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       }),
     ]);
 
-    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
-    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+    expect(results.map(result => result.status)).toEqual(['PAID', 'PAID']);
+    await expect(
+      paymentsService.markSettlementPaid(settlement.id, adminA, adminCaller, {
+        paymentReference: 'BANK-REF-FIN-OTHER',
+        notes: 'Incorrect retry reference',
+      }),
+    ).rejects.toThrow('Settlement already paid with a different payment reference');
 
     const paid = await pool.query(
       `SELECT status, payment_reference FROM settlement_records WHERE id = $1`,
