@@ -468,32 +468,31 @@ export class ReturnsService {
         if (existingAdjustment) {
           deliveryFeeExceptionAdjustmentId = existingAdjustment.id;
         } else {
-        const deliveryFeeMinor = breakdown?.deliveryFeeMinor ?? order.deliveryFeeMinor ?? 0;
-        const deliveryTaxMinor = netGoodsMinor > 0
-          ? roundProportionalMinorUnits(BigInt(deliveryFeeMinor), taxMinor, netGoodsMinor)
-          : 0;
-        const deliveryRefundMinor = deliveryFeeMinor + deliveryTaxMinor;
-        const adj = await this.settlementAdj.createAdjustment({
-          subOrderId: input.subOrderId,
-          returnRequestId: id,
-          adjustmentType: 'DELIVERY_FEE_EXCEPTION',
-          amountMinor: deliveryRefundMinor,
-          currency: payment.currency,
-          reason: `Delivery-fee exception for partial return: ${input.deliveryFeeException.reason}`,
-          notes: input.deliveryFeeException.reason,
-        }, caller.sub);
-        deliveryFeeExceptionAdjustmentId = adj.id;
-        this.logger.log(
-          `Delivery-fee exception adjustment ${adj.id} created for return ${returnRequestId}: ` +
-          `${deliveryRefundMinor} SYP (requires dual approval)`,
-        );
+          const deliveryFeeMinor = breakdown?.deliveryFeeMinor ?? order.deliveryFeeMinor ?? 0;
+          const deliveryTaxMinor = netGoodsMinor > 0
+            ? roundProportionalMinorUnits(BigInt(deliveryFeeMinor), taxMinor, netGoodsMinor)
+            : 0;
+          const deliveryRefundMinor = deliveryFeeMinor + deliveryTaxMinor;
+          const adj = await this.settlementAdj.createAdjustment({
+            subOrderId: input.subOrderId,
+            returnRequestId: id,
+            adjustmentType: 'DELIVERY_FEE_EXCEPTION',
+            amountMinor: deliveryRefundMinor,
+            currency: payment.currency,
+            reason: `Delivery-fee exception for partial return: ${input.deliveryFeeException.reason}`,
+            notes: input.deliveryFeeException.reason,
+          }, caller.sub);
+          deliveryFeeExceptionAdjustmentId = adj.id;
+          this.logger.log(
+            `Delivery-fee exception adjustment ${adj.id} created for return ${returnRequestId}: ` +
+            `${deliveryRefundMinor} SYP (requires dual approval)`,
+          );
         }
       } catch (err: any) {
         this.logger.error(
           `Failed to create delivery-fee exception adjustment for return ${id}: ${err?.message}`,
         );
         deliveryFeeExceptionAdjustmentId = null;
-        }
       }
     }
 
