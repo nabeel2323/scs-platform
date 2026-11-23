@@ -629,3 +629,8 @@ Payment verification now records matching authenticated ADMIN/MERCHANT actor ide
 ## Financial correctness continuation — FIN-030 — 23 November 2026
 
 Refund reconciliation period scoping now follows the REFUNDED event timestamp rather than return-request creation time; legacy fallback is retained. FIN-DSH-58 covers the cross-period case. Source/test commits: `93a908d4627c804af5d12e20c6a1e7c2811524e9` / `5abae2018b9e6d6a43d5e3b90764ef80560b4ea0`. Test pending Phase 3.
+
+
+## Financial correctness continuation — FIN-031 — 23 November 2026
+
+Duplicate-refund reconciliation now uses in-period successful refund updates to select return requests, then counts all successful refunds for each return across periods. FIN-DSH-59 covers the cross-period duplicate case. Source/test commits: `6089a1fd821c35c0dcd9f0cde849e145326905e1` / `4bdd2935d48ea2c6ef3d633aa6af2f3fe39369ab`. Test pending Phase 3.
