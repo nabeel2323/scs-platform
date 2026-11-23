@@ -62,6 +62,27 @@ describe('admin settlements read recovery', () => {
     expect(await screen.findByText('No settlements found.')).toBeTruthy();
   });
 
+  it('shows adjustment settlements and allows their payout', async () => {
+    const adjustment = {
+      ...settlement,
+      id: 'settlement-adjustment-1',
+      status: 'ADJUSTMENT',
+      grossMinor: 0,
+      netMinor: 125,
+    };
+    fetchAdminSettlements.mockResolvedValueOnce([adjustment]).mockResolvedValueOnce([]);
+    markSettlementPaid.mockResolvedValueOnce({ ...adjustment, status: 'PAID' });
+
+    render(<AdminSettlementsPage />);
+
+    expect(await screen.findByText('suborder')).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'Adjustment' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Mark Paid' }));
+
+    expect(await screen.findByText('No settlements found.')).toBeTruthy();
+    expect(markSettlementPaid).toHaveBeenCalledWith('settlement-adjustment-1');
+  });
+
   it('preserves the last successful rows after a failed same-filter refresh', async () => {
     fetchAdminSettlements.mockResolvedValueOnce([settlement]).mockRejectedValueOnce(new Error('Settlement refresh failed'));
 

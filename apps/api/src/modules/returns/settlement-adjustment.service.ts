@@ -514,6 +514,11 @@ export class SettlementAdjustmentService {
         .where(and(
           eq(settlementRecords.subOrderId, adj.subOrderId),
           inArray(settlementRecords.status, ['PENDING', 'CALCULATED', 'DUE', 'PAID']),
+          // A paid adjustment also has status PAID. Never let a prior
+          // adjustment become the parent of a later adjustment; preserve
+          // compatibility with legacy rows that predate adjustment metadata.
+          sql`COALESCE(${settlementRecords.metadata}->>'adjustmentId', '') = ''
+            AND COALESCE(${settlementRecords.notes}, '') NOT LIKE 'Posted adjustment %'`,
         ))
         .orderBy(desc(settlementRecords.calculatedAt))
         .limit(1)

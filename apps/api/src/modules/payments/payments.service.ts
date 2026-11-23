@@ -1645,7 +1645,13 @@ export class PaymentsService {
           status: 'PAID',
           paidAt,
           paymentReference: input?.paymentReference || null,
-          notes: input?.notes || null,
+          // Preserve the legacy adjustment marker when paying an adjustment
+          // ledger row. Primary settlement notes retain their existing replace
+          // semantics; adjustment notes remain identifiable for old rows that
+          // do not carry adjustmentId metadata.
+          notes: settlement.status === 'ADJUSTMENT'
+            ? [settlement.notes, input?.notes].filter(Boolean).join('\\n') || null
+            : input?.notes || null,
           updatedAt: paidAt,
         })
         .where(

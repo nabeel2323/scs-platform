@@ -70,6 +70,7 @@
  *   FIN-DSH-66  Reconciliation detects failed and retried return/refund status divergence
  *   FIN-DSH-67  Adjustment posting retries are idempotent and currency mismatches fail closed
  *   FIN-DSH-68  Posted adjustment settlement can be paid with normal history/outbox idempotency
+ *   FIN-DSH-69  Subsequent adjustments continue to reference the primary settlement after prior adjustment payout
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -3377,7 +3378,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   }, 90_000);
 
 
-  it('FIN-DSH-68: a posted adjustment ledger can be paid and payment retries do not duplicate effects', async () => {
+  it('FIN-DSH-68/69: posted adjustment payouts are idempotent and later adjustments retain the primary parent', async () => {
     const orderId = await createDeliveredOrder(
       pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
     );
@@ -3425,6 +3426,46 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const primaryReplay = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
     expect(primaryReplay.id).toBe(primary.id);
     expect(primaryReplay.status).toBe('CALCULATED');
+
+    // The legacy note marker must survive payout for rows that predate
+    // adjustmentId metadata and are therefore identified by their notes.
+    const paidNotes = (await pool.query(
+      `SELECT notes FROM settlement_records WHERE id = $1`, [posted.id],
+    )).rows[0].notes as string;
+    expect(paidNotes).toContain(`Posted adjustment ${adjustment.id}:`);
+
+    // Posting another adjustment after the first one is PAID must still link
+    // it to the primary settlement, never to the latest paid adjustment row.
+    const secondAdjustment = await settlementAdjService.createAdjustment({
+      subOrderId: orderId,
+      adjustmentType: 'COMMISSION_REVERSAL',
+      amountMinor: 75,
+      currency: primary.currency,
+      reason: 'Second adjustment remains linked to primary',
+    }, adminA, orgA);
+    const secondHash = (await pool.query(
+      `SELECT approval_hash FROM settlement_adjustments WHERE id = $1`, [secondAdjustment.id],
+    )).rows[0].approval_hash as string;
+    await pool.query(
+      `UPDATE settlement_adjustments SET status = 'APPROVED', fx_status = 'RESOLVED' WHERE id = $1`,
+      [secondAdjustment.id],
+    );
+    await pool.query(
+      `INSERT INTO settlement_adjustment_approvals
+       (id, adjustment_id, approver_id, approver_role, approval_hash)
+       VALUES ($1, $2, $3, 'FINANCE', $5), ($4, $2, $6, 'ADMIN', $5)`,
+      [randomUUID(), secondAdjustment.id, buyerA, randomUUID(), secondHash, merchantA],
+    );
+    await settlementAdjService.postAdjustment(secondAdjustment.id, adminA, orgA);
+    const secondLedger = (await pool.query(
+      `SELECT metadata FROM settlement_records
+       WHERE sub_order_id = $1 AND metadata->>'adjustmentId' = $2`,
+      [orderId, secondAdjustment.id],
+    )).rows[0];
+    expect(secondLedger.metadata).toMatchObject({
+      adjustmentId: secondAdjustment.id,
+      parentSettlementId: primary.id,
+    });
 
     const eventRows = await pool.query(
       `SELECT id, amount_minor::int AS amount FROM payment_events

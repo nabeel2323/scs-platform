@@ -9,6 +9,7 @@ const SETTLEMENT_COLORS: Record<string, string> = {
   PENDING: '#6b7280',
   CALCULATED: '#6366f1',
   DUE: '#f59e0b',
+  ADJUSTMENT: '#8b5cf6',
   PAID: '#10b981',
 };
 
@@ -112,6 +113,7 @@ export default function AdminSettlementsPage() {
           <option value="PENDING">Pending</option>
           <option value="CALCULATED">Calculated</option>
           <option value="DUE">Due</option>
+          <option value="ADJUSTMENT">Adjustment</option>
           <option value="PAID">Paid</option>
         </select>
         <Button size="sm" variant="secondary" onClick={() => void load()}>Refresh</Button>
@@ -175,7 +177,7 @@ export default function AdminSettlementsPage() {
                   </td>
                   {canWrite && (
                     <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-                      {['CALCULATED', 'DUE'].includes(s.status) && (
+                      {['CALCULATED', 'DUE', 'ADJUSTMENT'].includes(s.status) && (
                         <Button
                           size="sm"
                           variant="primary"
