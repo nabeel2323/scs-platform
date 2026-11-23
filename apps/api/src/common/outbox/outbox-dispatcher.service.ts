@@ -100,7 +100,13 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
           SET locked_at = now(), locked_by = ${this.workerId}
           FROM candidates
           WHERE event.id = candidates.id
-          RETURNING event.*
+          RETURNING
+            event.id,
+            event.event_type AS "eventType",
+            event.aggregate_id AS "aggregateId",
+            event.payload,
+            event.metadata,
+            event.attempts
         `);
         return (result as any).rows as any[];
       });
