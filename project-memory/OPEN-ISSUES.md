@@ -840,7 +840,6 @@ The merchant and Admin settlement screens now expose adjustment rows and disting
 
 **Verification result:** CI #45245048568 passed lint/typecheck and Flutter analyze/tests. The changed-file Prettier check failed on 279 files and blocked API coverage, PostgreSQL integration, Web/Admin tests, migration, boundary, contract and build jobs. The Admin CI command now includes `admin-settlements-recovery.test.tsx` and `admin-settlement-adjustments-recovery.test.tsx`, but they did not execute. Vercel Web passed; Admin preview failed due provider rate limit. Next: resolve the required formatting gate without disabling it, then rerun the consolidated Phase 3 campaign. Keep PR #138 draft/unmerged and preserve all release/database restrictions.
 
-
 ## Live continuation — FIN-047 verification follow-up (23 November 2026)
 
 - Exact branch head: 3ef930973014bdb43e10a62c337a61831835c174; PR #138 remains OPEN / DRAFT / UNMERGED against develop. No merge or deployment.
@@ -863,4 +862,3 @@ The merchant and Admin settlement screens now expose adjustment rows and disting
 - **Broad regression debt:** 9 Web tests, 89 API coverage tests and 41 PostgreSQL integration assertions failed on CI #45257284797. This run included 1,599/1,706 integration tests passed and 4,634 API tests passed (with 176 skipped).
 - **Next:** inspect CI #45260954714 against exact source SHA `954200f`; address directly attributable failures, then resume G-015 and G-002 source mapping. G-001 independent review, G-036 verification and Phase 6 remain open.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No merge, deployment, protected staging audit, shared database mutation, migration, grant/default-ACL change, RLS or worker activation is authorized.
-

@@ -2303,6 +2303,7 @@ The extended consumer audit inspected Admin/API/Web settlement history, Admin KP
 **Status: IMPLEMENTED / TESTING_PENDING.** Pagination implementation and the Admin/Merchant consumer audit remain as described above. CI #45257284797 tested source SHA `3ef930973014bdb43e10a62c337a61831835c174` and concluded FAILED: formatting/lint/typecheck and Flutter passed; Boundary Lint found 14 new module-internal imports against the 193-entry reviewed baseline; Migration Full Apply failed because the least-privilege audit attempted to read `_migration_log` without SELECT; Web tests had 9 failures and 212 passes; API coverage had 89 failures and 4,634 passes (176 skipped); PostgreSQL integration had 41 failed assertions and 1,599/1,706 passes. The Merchant settlements recovery Web suite passed 5/5. Admin settlement suites were not reached because the Web command failed first.
 
 The source/test correction batch at `954200f9bf7866aa2f25d0585847a0c51eb19259`:
+
 - Makes the read-only audit inspect `has_table_privilege` before querying rows in `_migration_log` or `backfill_errors`; a role without SELECT receives a catalog/access summary with null row aggregates. No permission is granted.
 - Adds the owning-store lookup to the two carrier cancellation worker test fixtures, retaining production tenant enforcement, and updates two PostgreSQL tenant assertion messages to the worker's diagnostic.
 - Corrects the outbox unit assertion to inspect the carrier `NOT LIKE` SQL literal.
@@ -2311,4 +2312,3 @@ The source/test correction batch at `954200f9bf7866aa2f25d0585847a0c51eb19259`:
 CI #45260954714 was queued on this exact source/test checkpoint when recorded. No results are claimed until that run finishes. The 14 new boundary findings remain un-baselined for a proper service-contract refactor. Remaining API/Web/PostgreSQL failures need domain-level triage; no change to acceptance criteria is implied. FIN-047 must remain TESTING_PENDING until pagination, merchant tenant-scope, Admin and Merchant recovery tests pass.
 
 No staging/production deployment, migration, shared database write, grant/default-ACL modification, RLS enablement or worker activation was performed. PR #138 remains OPEN / DRAFT / UNMERGED.
-

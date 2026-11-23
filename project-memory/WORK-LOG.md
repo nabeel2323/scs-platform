@@ -1519,7 +1519,6 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Vercel Web PASS; Vercel Admin FAILURE due external build-rate-limit.
 - All pagination/tenant/typecheck corrections are committed. Next: resolve the 279-file formatter gate in a grouped cleanup without disabling required checks, then rerun the consolidated campaign. No merge/deploy/database/environment/RLS/ACL/worker changes.
 
-
 ## Live continuation — FIN-047 verification follow-up (23 November 2026)
 
 - Exact branch head: 3ef930973014bdb43e10a62c337a61831835c174; PR #138 remains OPEN / DRAFT / UNMERGED against develop. No merge or deployment.
@@ -1541,4 +1540,3 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Pushed source/test/CI corrections in commits ending `71a9cf1`, `fc5053f`, `ab782ab`, `86e7d92`, `e318775`, `990e7b7` and `954200f`. CI #45260954714 was queued against `954200f`; no result from that run is claimed yet.
 - Deliberately left the 14 boundary violations un-baselined for a proper service-contract refactor. Broad remaining API/PostgreSQL/Web failures are not represented as FIN-047 regressions without evidence.
 - No migration, grant, RLS, staging/shared database operation, deployment, worker activation or merge was performed. FIN-047 remains IMPLEMENTED / TESTING_PENDING; PR #138 remains draft.
-

@@ -333,12 +333,8 @@ async function main(): Promise<void> {
                false
              ) AS can_select
     `);
-    const migrationLedgerExists = Boolean(
-      migrationLedgerAccess.rows[0]?.['relation_exists'],
-    );
-    const migrationLedgerCanSelect = Boolean(
-      migrationLedgerAccess.rows[0]?.['can_select'],
-    );
+    const migrationLedgerExists = Boolean(migrationLedgerAccess.rows[0]?.['relation_exists']);
+    const migrationLedgerCanSelect = Boolean(migrationLedgerAccess.rows[0]?.['can_select']);
     if (migrationLedgerExists && migrationLedgerCanSelect) {
       const ledger = await client.query<QueryResultRow>(`
         SELECT count(*)::int AS row_count,
@@ -375,12 +371,8 @@ async function main(): Promise<void> {
                false
              ) AS can_select
     `);
-    const backfillErrorsExists = Boolean(
-      backfillErrorsAccess.rows[0]?.['relation_exists'],
-    );
-    const backfillErrorsCanSelect = Boolean(
-      backfillErrorsAccess.rows[0]?.['can_select'],
-    );
+    const backfillErrorsExists = Boolean(backfillErrorsAccess.rows[0]?.['relation_exists']);
+    const backfillErrorsCanSelect = Boolean(backfillErrorsAccess.rows[0]?.['can_select']);
     if (backfillErrorsExists && backfillErrorsCanSelect) {
       const backfillErrors = await client.query<QueryResultRow>(`
         SELECT count(*)::int AS row_count,

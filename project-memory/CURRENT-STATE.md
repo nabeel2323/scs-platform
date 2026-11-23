@@ -1165,7 +1165,6 @@ The first normal consolidated run after FIN-047 audit closure passed lint but fa
 - Vercel Web status PASS; Vercel Admin status FAILURE due external provider build-rate-limit. Neither replaces the skipped application tests.
 - Do not weaken or bypass required checks. The next action is to inspect and resolve the 279-file formatting debt in a grouped cleanup (or establish an approved, evidence-backed baseline policy) before the consolidated test campaign can progress. No merge/deploy/staging/database/RLS/ACL/worker action.
 
-
 ## Live continuation — FIN-047 verification follow-up (23 November 2026)
 
 - Exact branch head: 3ef930973014bdb43e10a62c337a61831835c174; PR #138 remains OPEN / DRAFT / UNMERGED against develop. No merge or deployment.
@@ -1207,4 +1206,3 @@ The correction batch at `954200f` (CI #45260954714) addresses the privilege-awar
 5. Preserve G-001 independent review, G-036 security verification, and the full Phase 6 campaign as open gates.
 
 PR #138 stays draft/unmerged. No deployment, shared/staging database write, migration, grant/default-ACL change, RLS activation, worker activation or release operation is authorized or claimed.
-

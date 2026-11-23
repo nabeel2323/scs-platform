@@ -863,7 +863,6 @@ Newest implementation commit: ee6bf2f84803f2eb1f80ae931d9415923a760ff3. The foll
 - The earlier run #45243520666 on `86dbe607435d08f9e9ad483c1813ca52004df00a` was cancelled by the subsequent push after its lint failure on an invalid escaped template literal in the P13 financial-dispute PostgreSQL spec; that source syntax was corrected in `c036e7a`.
 - No test suite result is claimed from #45243772955 until all jobs complete; exact-head rerun is required for the TypeScript fixes.
 
-
 ## Live continuation — FIN-047 verification follow-up (23 November 2026)
 
 - Exact branch head: 3ef930973014bdb43e10a62c337a61831835c174; PR #138 remains OPEN / DRAFT / UNMERGED against develop. No merge or deployment.
