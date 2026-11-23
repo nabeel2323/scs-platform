@@ -532,6 +532,13 @@ Next: continue financial lifecycle audit, then run the consolidated Phase 3 test
 
 ## Financial correctness continuation — FIN-019 — 23 November 2026
 
-Settlement-adjustment posting is hardened: commission reversal credits increase merchant net, refund/delivery-fee/balance-debit adjustments reduce net, amounts are positive safe integers, and posting locks a primary settlement row. An approved adjustment cannot transition to POSTED without a primary settlement ledger entry. FIN-DSH-33/34 and unit coverage are added but not executed.
+Settlement-adjustment posting is hardened: commission reversal credits increase merchant net, refund/delivery-fee/balance-debit adjustments reduce net, amounts are positive safe integers, and posting locks a primary settlement row. An approved adjustment cannot transition to POSTED without a primary settlement ledger entry. FIN-DSH-34/35 and unit coverage are added but not executed.
+
+**Next implementation:** continue source-first review beyond FIN-019, focusing on remaining settlement/reconciliation arithmetic, ledger projection consistency, immutable history and outbox semantics. Keep the comprehensive test campaign grouped in Phase 3 and preserve the manual-payment-only scope.
+
+
+## Financial correctness continuation — FIN-019 — 23 November 2026
+
+Settlement-adjustment posting is hardened: commission reversal credits increase merchant net, refund/delivery-fee/balance-debit adjustments reduce net, amounts are positive safe integers, and posting locks a primary settlement row. An approved adjustment cannot transition to POSTED without a primary settlement ledger entry. FIN-DSH-34/35 and unit coverage are added but not executed.
 
 **Next implementation:** continue source-first review beyond FIN-019, focusing on remaining settlement/reconciliation arithmetic, ledger projection consistency, immutable history and outbox semantics. Keep the comprehensive test campaign grouped in Phase 3 and preserve the manual-payment-only scope.
