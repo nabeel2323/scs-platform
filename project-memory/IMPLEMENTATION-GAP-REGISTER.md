@@ -1007,3 +1007,8 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - The touched outbox-dispatcher test exposed a case-sensitive SQL assertion against PostgreSQL's uppercase NOT LIKE; corrected to compare lowercased SQL in commit 3ef930973014bdb43e10a62c337a61831835c174. The latest CI run is the exact-head recheck for this correction.
 - FIN-047 remains IMPLEMENTED / TESTING_PENDING. Do not merge/deploy. No migration or shared/staging DB write, environment mutation, worker activation, RLS/ACL change, or production operation was performed.
 - Next: finish collecting CI #45257284797 API coverage and PostgreSQL integration results; run the Admin settlement recovery tests independently because the Web suite currently fails before Admin is reached; then address the 14 modular-boundary violations and _migration_log audit grant through their proper owners/reviewed changes. Do not change test expectations or weaken gates to hide failures.
+
+## Verification status update — 23 November 2026
+
+CI #45260954714 stopped at the changed-file Prettier gate; lint/typecheck and Flutter passed, but API, PostgreSQL, migration, boundary and Web/Admin jobs were skipped. Formatting was subsequently corrected in commit `4477ebd42ba46146b14df18094d025ab133c5d75`. Exact-head verification remains pending. FIN-047 remains IMPLEMENTED / TESTING_PENDING; the 14 G-015 module-boundary findings remain open.
+
