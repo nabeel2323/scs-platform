@@ -189,7 +189,8 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - id: install
+        run: pnpm install --frozen-lockfile
       # Both apps import the generated client from @scs/contracts, whose
       # package.json resolves to ./dist/src/index.js -- the built output, not the
       # source (@scs/ui-kit and @scs/env resolve to src and need no build). These
@@ -197,7 +198,8 @@ jobs:
       # means the dependency build that turbo's `test` task would pull in through
       # `dependsOn: ['^build']` has to happen here instead. Same reasoning the
       # integration job documents at S1.28 D-CI-3.
-      - run: pnpm contracts:build
+      - id: contracts
+        run: pnpm contracts:build
       # apps/web: the whole suite runs. It was green at the Phase 1 baseline, and
       # Phase 1 added the Buyer document-root hydration specs to it.
       - run: pnpm --filter @scs/web test
@@ -210,6 +212,7 @@ jobs:
       # Phase 1's scope. Tracked as a remaining issue; when they are fixed,
       # replace this step with `pnpm --filter @scs/admin test`.
       - name: Admin hydration + global-styles regression tests
+        if: ${{ always() && steps.install.outcome == 'success' && steps.contracts.outcome == 'success' }}
         run: >
           pnpm --filter @scs/admin test --
           src/__tests__/hydration-document-root.test.tsx
