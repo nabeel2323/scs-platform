@@ -1629,7 +1629,7 @@ export class PaymentsService {
         }
         return;
       }
-      if (!['CALCULATED', 'DUE'].includes(settlement.status)) {
+      if (!['CALCULATED', 'DUE', 'ADJUSTMENT'].includes(settlement.status)) {
         throw new ConflictException('Settlement not in payable status');
       }
 
@@ -1646,7 +1646,7 @@ export class PaymentsService {
         .where(
           and(
             eq(settlementRecords.id, settlementId),
-            inArray(settlementRecords.status, ['CALCULATED', 'DUE']),
+            inArray(settlementRecords.status, ['CALCULATED', 'DUE', 'ADJUSTMENT']),
           ),
         )
         .returning({ id: settlementRecords.id });

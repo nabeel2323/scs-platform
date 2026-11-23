@@ -69,6 +69,7 @@
  *   FIN-DSH-65  Concurrent duplicate refund approvals resolve idempotently
  *   FIN-DSH-66  Reconciliation detects failed and retried return/refund status divergence
  *   FIN-DSH-67  Adjustment posting retries are idempotent and currency mismatches fail closed
+ *   FIN-DSH-68  Posted adjustment settlement can be paid with normal history/outbox idempotency
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -3373,6 +3374,70 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [valid.id],
     );
     expect(persisted.rows[0]).toEqual({ status: 'POSTED', settlement_id: primary.id });
+  }, 90_000);
+
+
+  it('FIN-DSH-68: a posted adjustment ledger can be paid and payment retries do not duplicate effects', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const primary = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
+    const adjustment = await settlementAdjService.createAdjustment({
+      subOrderId: orderId,
+      adjustmentType: 'COMMISSION_REVERSAL',
+      amountMinor: 125,
+      currency: primary.currency,
+      reason: 'Pay posted adjustment ledger',
+    }, adminA, orgA);
+    const approvalHash = (await pool.query(
+      `SELECT approval_hash FROM settlement_adjustments WHERE id = $1`, [adjustment.id],
+    )).rows[0].approval_hash as string;
+    await pool.query(
+      `UPDATE settlement_adjustments SET status = 'APPROVED', fx_status = 'RESOLVED' WHERE id = $1`,
+      [adjustment.id],
+    );
+    await pool.query(
+      `INSERT INTO settlement_adjustment_approvals
+       (id, adjustment_id, approver_id, approver_role, approval_hash)
+       VALUES ($1, $2, $3, 'FINANCE', $5), ($4, $2, $6, 'ADMIN', $5)`,
+      [randomUUID(), adjustment.id, buyerA, randomUUID(), approvalHash, merchantA],
+    );
+    await settlementAdjService.postAdjustment(adjustment.id, adminA, orgA);
+    const posted = (await pool.query(
+      `SELECT id, status, net_minor::int AS net FROM settlement_records
+       WHERE sub_order_id = $1 AND status = 'ADJUSTMENT'
+         AND metadata->>'adjustmentId' = $2`,
+      [orderId, adjustment.id],
+    )).rows[0];
+    expect(posted).toMatchObject({ status: 'ADJUSTMENT', net: 125 });
+
+    const first = await paymentsService.markSettlementPaid(
+      posted.id, adminA, adminCaller, { paymentReference: 'ADJ-BANK-REF-68' },
+    );
+    const replay = await paymentsService.markSettlementPaid(
+      posted.id, adminA, adminCaller, { paymentReference: 'ADJ-BANK-REF-68' },
+    );
+    expect(first.status).toBe('PAID');
+    expect(replay.status).toBe('PAID');
+
+    const eventRows = await pool.query(
+      `SELECT id, amount_minor::int AS amount FROM payment_events
+       WHERE payment_record_id = $1 AND event_type = 'PAYMENT_SETTLEMENT_PAID'
+         AND metadata->>'settlementId' = $2`,
+      [posted.id ? (await pool.query(
+        `SELECT payment_record_id FROM settlement_records WHERE id = $1`, [posted.id],
+      )).rows[0].payment_record_id : null, posted.id],
+    );
+    expect(eventRows.rows).toHaveLength(1);
+    expect(eventRows.rows[0].amount).toBe(125);
+
+    const outboxRows = await pool.query(
+      `SELECT id FROM outbox_events
+       WHERE event_type = 'payment.settlement_paid'
+         AND payload->>'settlementId' = $1`,
+      [posted.id],
+    );
+    expect(outboxRows.rows).toHaveLength(1);
   }, 90_000);
 
 });

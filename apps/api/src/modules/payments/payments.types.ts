@@ -123,6 +123,7 @@ export const SETTLEMENT_STATUSES = [
   'PENDING',
   'CALCULATED',
   'DUE',
+  'ADJUSTMENT',
   'PAID',
 ] as const;
 
