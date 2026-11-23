@@ -1235,3 +1235,19 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - FIN-DSH-11–28 added but not executed. All remain IMPLEMENTED / TESTING_PENDING.
 - CI #1427: lint/typecheck and Flutter passed; changed-file Prettier failed (258 files); dependent API/Web/Admin/PostgreSQL/build/release jobs skipped. CI #1429 was cancelled. CI #1434 must be checked at its exact SHA.
 - No schema/migration, gateway/provider/automatic payout, staging/shared DB, grants/RLS, deployment or worker changes.
+
+
+## 2026-11-23 — FIN-014 discount-adjusted commission reversal and currency integrity
+
+- Return commission reversal now prorates the order-level discount over the returned goods using the same persisted order financial basis. The commission reversal and post-refund settlement adjustment retain the original payment currency.
+- Added PostgreSQL FIN-DSH-29 for a partial discounted return, asserting the commission reversal amount and currency in both ledgers. Test not executed.
+- Source commits: 6221c9c10bba4652b19c1aeaca59a8d1c3d9c79d and 00da339e62dbeef87a55434b3ed5ea1a85cb6508.
+- A follow-up passed payment currency explicitly into the reversal writer and corrected its syntax. No schema/migration or gateway/payout behavior changed.
+
+## 2026-11-23 — FIN-015 exact commission reversal arithmetic
+
+- Replaced Number multiplication in proportional commission reversal with shared BigInt arithmetic. This avoids a one-minor-unit over-reversal when safe integer operands have a product outside Number.MAX_SAFE_INTEGER.
+- Both ReturnsService settlement adjustment and CommissionReversalService now use the same helper; input safe-integer checks and remaining-commission cap are preserved.
+- Added a unit regression using operands where floating-point multiplication rounds the quotient up by one minor unit. Test not executed.
+- Source commits: 917397ffd5491d6fe52a18063c0266e831b67c38, e2338cf1e50e825bd1c22becbeab0a6a4757a5e4, a596d49a752973cdc1b7039f3b325f0421252c9c; test commit: 4e67e5ef7541e87ef5d9698e3abad7529cd07219.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, payout, staging, shared DB or deployment change.

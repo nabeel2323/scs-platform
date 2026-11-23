@@ -3,8 +3,8 @@
 **Checkpoint date:** 23 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source/test implementation commit:** `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` — FIN-013 expiry/order race regression and test portability; FIN-DSH-11–28 added but not executed.
-**Latest source/test checkpoint:** `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` (FIN-013 and integration test portability). CI #1434 on this exact SHA passed lint/typecheck and Flutter analysis/tests; changed-file Prettier failed and dependent Web/Admin/API/PostgreSQL/migration/build/release jobs were skipped.  
+**Latest source implementation commit:** `a596d49a752973cdc1b7039f3b325f0421252c9c` — exact BigInt commission reversal used by both return adjustment paths.
+**Latest focused unit-test commit:** `4e67e5ef7541e87ef5d9698e3abad7529cd07219` — regression for unsafe Number multiplication; not executed. No exact-head Actions run is attached.  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft; base `develop`. The project-memory synchronization commits following that source batch are documentation-only.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch ref, PR, commits and CI.
@@ -19,8 +19,8 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 |---|---|
 | Repository | nabeel2323/scs-platform |
 | Branch | `remediation/phase-0-1-tenant-security` |
-| Latest implementation checkpoint head | `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231` (FIN-013 test update; FIN-DSH-11–28 added, not executed) |
-| Latest implementation/test | FIN-004–FIN-013 financial lifecycle, payment projection, refund idempotency, dispute concurrency, settlement-adjustment, missing-breakdown and expiry-race improvements. FIN-DSH-11–28 added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
+| Latest implementation checkpoint head | `4e67e5ef7541e87ef5d9698e3abad7529cd07219` (FIN-015 exact-arithmetic unit regression; not executed) |
+| Latest implementation/test | FIN-004–FIN-015 financial lifecycle, refund recovery, order/payment projection, settlement locking, expiry, discount proration and exact commission reversal improvements. FIN-DSH-11–29 plus unit coverage added but not executed. Supplemental G-002 note preserves the unreconciled 111-table report. |
 | Previous source implementation | `7c9720821cae074415a3d3d8d1f1a178bb8db8c2` — UX-046/047 Admin Users and Merchant Store Detail |
 | PR #138 | Open; draft; not merged; base `develop` |
 | Exact-head GitHub Actions | CI #1434 [run](https://github.com/nabeel2323/scs-platform/actions/runs/45165552569) tested `31a0f17fa3f9ab6b8f9a7d6a435967f31f251231`: lint/typecheck and Flutter analysis/tests passed; changed-file Prettier failed; dependent Web/Admin/API/PostgreSQL/migration/build/release jobs skipped. FIN-DSH-11–28 remain unexecuted. |
@@ -956,3 +956,12 @@ Merchant active-store and product reads now preserve last-successful data throug
 - Web/Admin app tests, API unit/coverage, PostgreSQL integration, migration, boundary, build/container, contract/codegen, k6 and staging-release jobs were skipped.
 - This run does not execute FIN-DSH-11–28. They remain IMPLEMENTED / TESTING_PENDING.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No deployment or staging action occurred.
+
+
+## FIN-014 — Discount-adjusted commission reversal and currency integrity — 23 November 2026
+
+Return commission reversal now prorates order-level discounts across returned goods using BigInt net-goods allocation, and writes the original payment currency into commission reversal and settlement adjustment records. The reversal writer receives currency explicitly. FIN-DSH-29 covers a partial discounted return and both financial ledgers. Source commits: 6221c9c10bba4652b19c1aeaca59a8d1c3d9c79d and 00da339e62dbeef87a55434b3ed5ea1a85cb6508. Tests not executed.
+
+## FIN-015 — Exact commission reversal arithmetic — 23 November 2026
+
+Proportional commission reversal previously multiplied two safe-integer Number values before division; their product can exceed MAX_SAFE_INTEGER and round the result by a minor unit. A shared BigInt helper now validates the inputs, computes the exact floor ratio, caps it at remaining commission and is used by both ReturnsService settlement adjustments and CommissionReversalService. Added a unit regression with safe-integer operands whose Number product rounds the quotient up by one minor unit. Source commits: 917397ffd5491d6fe52a18063c0266e831b67c38, e2338cf1e50e825bd1c22becbeab0a6a4757a5e4, a596d49a752973cdc1b7039f3b325f0421252c9c; unit test commit: 4e67e5ef7541e87ef5d9698e3abad7529cd07219. Not executed; IMPLEMENTED / TESTING_PENDING.
