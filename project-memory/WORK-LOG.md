@@ -1081,3 +1081,15 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Status: IMPLEMENTED / TESTING_PENDING. No API permission grants, backend authorization contracts, database, migration, staging, worker or provider behavior changed.
 
 **Next:** continue remaining Admin custom route/action-to-controller mapping and confirm all `useAdminMutation` call sites use an action-specific permission callback. Do not repeat UX-097/098/099. Keep the consolidated test and formatting campaign deferred to Phase 3.
+
+
+## 2026-11-23 — Admin settlement adjustment rejection action (UX-100)
+
+- Continued the custom Admin route/action-to-controller audit. Compared the reconciliation, settlement-adjustment, settlement, payment, role-permission, return, calendar and shipment action permissions with the API controller decorators; the reviewed page-level predicates match the corresponding endpoint permission keys.
+- Found a functional UI omission: the API's `POST /admin/settlement-adjustments/:id/reject` endpoint requires `admin:adjustments:approve` and a rejection reason, but the Admin page had no Reject action.
+- Added an approver-only Reject action for pending adjustments, an inline required-reason form and the exact `{ reason }` POST body. The action is not exposed to read-only users.
+- Added focused tests for the rejection request and read-only action visibility. Tests have **not been executed**.
+- Source commit: `14c8c5c`; focused test commit: `e471e6b`.
+- Status: IMPLEMENTED / TESTING_PENDING, not automated-test or CI verified. No backend permission grants, financial transition logic, schema, migration, database, staging, worker or deployment behavior changed.
+
+**Next:** continue the remaining Admin custom route/action-to-controller mapping, including any direct custom mutation handlers outside `useAdminMutation`. Do not repeat the completed 56-page route audit or UX-097–UX-099. Comprehensive formatting and test execution remain grouped in Phase 3.
