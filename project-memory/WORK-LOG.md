@@ -1440,3 +1440,13 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Source commit: `5a7dfd6ea67de61bb016cc7a7ef31749760955d8`. Test commit: `05799cde897871ab9752af07bf70830ac834edbf`. Test added, not executed.
 - No schema/migration, shared DB, staging, worker, provider, payout, environment, deployment or merge action. All implementation commits use `[skip ci]`; consolidated Phase 3 validation remains pending.
 - Next: continue auditing refund/reconciliation event producers and retry/idempotency paths for authenticated actor and immutable history/outbox parity.
+
+
+## 2026-11-23 — FIN-029 payment confirmation order-history actor parity
+
+- Source audit found a second attribution defect adjacent to FIN-028: `verifyPayment` correctly wrote the authenticated verifier as ADMIN/MERCHANT in `payment_events`, but `transitionOrderAfterPaymentConfirmation` wrote the corresponding `order_status_history` row as SYSTEM.
+- Updated the order-transition helper to receive a constrained `ADMIN | MERCHANT` actor class derived from the same authenticated caller and persist it with the verifier ID.
+- Extended PostgreSQL FIN-DSH-54 to assert both payment event and order status history actor ID/class for merchant verification.
+- Source commit: `77c2caaa322836cc8e7d651f6577df715c5e3228`. Test commit: `8fc1759a9e374f12513c82d301b2c9b934a98840`. Test added/extended, not executed.
+- No schema/migration, shared DB, staging, worker, provider, payout, environment, deployment or merge action. Consolidated Phase 3 validation remains pending.
+- Next: continue audit of remaining event producers and cross-ledger timing/retry semantics; do not repeat FIN-001–FIN-029.
