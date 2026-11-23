@@ -26,7 +26,7 @@ import { commissionReversals } from './financial.schema';
 import { returnRequests, returnRequestItems } from './returns.schema';
 import { orders, orderFinancialBreakdown, orderItems } from '../orders/orders.schema';
 import { paymentRecords, settlementRecords } from '../payments/payments.schema';
-import { calculateReturnNetGoodsMinor } from './returns-financials';
+import { calculateProportionalCommissionReversalMinor, calculateReturnNetGoodsMinor } from './returns-financials';
 import { stores } from '../merchant/merchant.schema';
 import { eq, and, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
@@ -146,9 +146,12 @@ export class CommissionReversalService {
     // Cumulative-target reversal calculation:
     // reversal = floor(originalCommission × returnNetGoods / orderNetGoods)
     // capped at remainingCommission to prevent over-reversal.
-    let rawReversal = Math.floor((originalCommission * returnNetGoods) / orderNetGoods);
-    rawReversal = Math.min(rawReversal, remainingCommission);
-    const reversalMinor = Math.max(0, rawReversal);
+    const reversalMinor = calculateProportionalCommissionReversalMinor(
+      originalCommission,
+      orderNetGoods,
+      returnNetGoods,
+      alreadyReversed,
+    );
 
     if (reversalMinor === 0) {
       return { totalReversalMinor: 0, reversalIds: [] };
