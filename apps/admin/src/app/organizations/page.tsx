@@ -104,7 +104,7 @@ export default function OrganizationsPage() {
   }, [ready, hasAccess, loadOrganizations, loadUpdateRequests]);
 
   async function confirmToggle() {
-    if (!confirmTarget) return;
+    if (!canManage || !confirmTarget || working) return;
     setWorking(true);
     setError(null);
     setSuccess(null);
@@ -125,7 +125,7 @@ export default function OrganizationsPage() {
   }
 
   async function confirmReview() {
-    if (!reviewTarget) return;
+    if (!canManage || !reviewTarget || working) return;
     setWorking(true);
     setError(null);
     setSuccess(null);
