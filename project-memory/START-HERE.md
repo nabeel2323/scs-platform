@@ -76,7 +76,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest source/test checkpoint is `f554617c592ff57db296e0ca88614ac246468194` (FIN-003); FIN-DSH-11–16 were added but not executed. No Actions run is attached to that `[skip ci]` commit. Latest Actions run #1425 tested earlier SHA `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint and Flutter passed, typecheck failed, and changed-file formatting plus downstream Web/Admin/API/PostgreSQL/migration/build/release gates were skipped. A settlement insert-result type guard was added in `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; FIN-003 adds safe-integer amount validation in `f554617c592ff57db296e0ca88614ac246468194`. No rerun is claimed. Re-fetch live PR head/status before the next action.
+Live GitHub reconciliation on 23 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest source/test checkpoint is `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9` (FIN-005 COD order payment projection); FIN-DSH-11–18 are added but not executed. No Actions run is attached to that `[skip ci]` commit. Latest Actions run #1425 tested earlier SHA `994fee9a332f4c553fa09687101d8f6ecdec3103`: lint and Flutter passed, typecheck failed, and changed-file formatting plus downstream Web/Admin/API/PostgreSQL/migration/build/release gates were skipped. A settlement insert-result type guard was added in `60bf231f950dec8ede3c8945f76b22bc8e4b4451`; FIN-003 adds safe-integer amount validation in `f554617c592ff57db296e0ca88614ac246468194`. No rerun is claimed. Re-fetch live PR head/status before the next action.
 
 ### Exact stopping point
 
@@ -111,7 +111,7 @@ The uploaded `Advanced UX Enhancement Prompt.txt` reports 111/111 tables with RL
 - Phases 0–5 remain IN PROGRESS; Phase 6 consolidated verification is NOT STARTED.
 - PR #138 must remain draft/open/unmerged. No merge, deployment, protected staging operation, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement, environment change or worker activation is authorized.
 
-**Next implementation:** continue the source-first commercial and operational correctness audit beyond the completed Admin permission/action slices. FIN-001 refund approval serialization and request idempotency are implemented with PostgreSQL regression cases pending execution. Do not repeat the completed 56-page route audit or UX-097–UX-105 work. Keep the repository-locked Prettier pass and comprehensive test campaign grouped at the implementation-complete Phase 3 checkpoint; fix any concrete security/correctness defect immediately.
+**Next implementation:** continue source-first financial/operational correctness audit after FIN-005, focusing on other persisted state transitions and immutable history/outbox consistency. FIN-001–FIN-005 are implemented with PostgreSQL regression cases pending execution. Do not repeat the completed 56-page route audit or UX-097–UX-105 work. Keep the repository-locked Prettier pass and comprehensive test campaign grouped at the implementation-complete Phase 3 checkpoint; fix any concrete security/correctness defect immediately.
 
 ## Safety reminder
 
@@ -577,3 +577,19 @@ UX-012 is implemented in source: merchant mobile price-list/tier management and 
 ### Latest financial correctness continuation — FIN-003
 
 Positive safe-integer validation now covers verified payment amount, COD cash collected, refund request amount and settlement confirmed amount. No overpayment/underpayment or equality policy was introduced. FIN-DSH-16 is added but not executed. Source/test commit: `f554617c592ff57db296e0ca88614ac246468194`.
+
+## FIN-004 — Settlement lifecycle event consistency — 23 November 2026
+
+- Settlement calculation previously wrote the unrelated `PAYMENT_REFUND_SUCCEEDED` payment-history event; marking a settlement PAID emitted neither immutable payment history nor an outbox event.
+- Calculation now writes `PAYMENT_SETTLEMENT_CALCULATED`. `markSettlementPaid` locks the settlement row and atomically validates CALCULATED/DUE, updates PAID, appends `PAYMENT_SETTLEMENT_PAID` with actor/amount/reference metadata, and publishes `payment.settlement_paid`.
+- FIN-DSH-13 asserts one calculation history event and one outbox event. FIN-DSH-17 races two pay attempts and asserts exactly one winner, one PAID history event and one outbox event. Tests not executed.
+- Source commit: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`; focused test commit: `def9131ba94699150cb896a23eb171eab0ae5a00`.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway/provider/automatic payout, staging, shared database or deployment change. G-012 remains OPEN.
+
+## FIN-005 — COD order payment projection consistency — 23 November 2026
+
+- COD cash confirmation previously updated `payment_records.status` but left the denormalized `orders.payment_status` stale. COD orders may already be DELIVERED before cash collection, so the fix updates only `payment_status` and does not rewind the fulfillment/order status.
+- The order projection update is in the same transaction as the payment transition, payment event and outbox event.
+- FIN-DSH-18 verifies the payment is CONFIRMED, order status remains DELIVERED, order payment_status becomes CONFIRMED, and one PAYMENT_CONFIRMED event is persisted. Not executed.
+- Source/test commit: `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema/migration or staging/shared database/deployment action.

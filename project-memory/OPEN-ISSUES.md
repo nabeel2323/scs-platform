@@ -620,3 +620,21 @@ Next: continue source-first review of payment and settlement transitions; keep a
 ### FIN-003 — Minor-unit amount validation
 
 **Status: IMPLEMENTED / TESTING_PENDING.** Manual payment verification, COD cash confirmation, refund requests and settlement confirmed amounts now require positive safe integers in minor units. This prevents zero, negative, fractional and unsafe-number values from entering financial records. No new maximum/equality rule was added for received amounts. FIN-DSH-16 covers invalid values and unchanged payment state; not executed.
+
+## FIN-004 — Settlement lifecycle event consistency — 23 November 2026
+
+- Settlement calculation previously wrote the unrelated `PAYMENT_REFUND_SUCCEEDED` payment-history event; marking a settlement PAID emitted neither immutable payment history nor an outbox event.
+- Calculation now writes `PAYMENT_SETTLEMENT_CALCULATED`. `markSettlementPaid` locks the settlement row and atomically validates CALCULATED/DUE, updates PAID, appends `PAYMENT_SETTLEMENT_PAID` with actor/amount/reference metadata, and publishes `payment.settlement_paid`.
+- FIN-DSH-13 asserts one calculation history event and one outbox event. FIN-DSH-17 races two pay attempts and asserts exactly one winner, one PAID history event and one outbox event. Tests not executed.
+- Source commit: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`; focused test commit: `def9131ba94699150cb896a23eb171eab0ae5a00`.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway/provider/automatic payout, staging, shared database or deployment change. G-012 remains OPEN.
+
+## FIN-005 — COD order payment projection consistency — 23 November 2026
+
+- COD cash confirmation previously updated `payment_records.status` but left the denormalized `orders.payment_status` stale. COD orders may already be DELIVERED before cash collection, so the fix updates only `payment_status` and does not rewind the fulfillment/order status.
+- The order projection update is in the same transaction as the payment transition, payment event and outbox event.
+- FIN-DSH-18 verifies the payment is CONFIRMED, order status remains DELIVERED, order payment_status becomes CONFIRMED, and one PAYMENT_CONFIRMED event is persisted. Not executed.
+- Source/test commit: `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema/migration or staging/shared database/deployment action.
+
+**Next:** continue source-first audit of financial state transitions and their event/outbox semantics. Do not expand automatic gateway or payout scope.
