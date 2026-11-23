@@ -2217,3 +2217,15 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - Moved payment transition validation before storage upload so invalid transitions cannot create unused objects.
 - If `putObject` throws after the storage service may have accepted the object, check the generated key with `exists` and delete it when present. Cleanup failures are logged without masking the original upload error.
 - Added PostgreSQL FIN-DSH-48. Latest commit: `847647c424097e5ace69236d0c3b4592f85d30e9`. Test not executed. Process crash after upload but before DB transaction remains a known orphan window for FIN-025.
+
+
+## FIN-025 — Durable payment-proof upload recovery — 23 November 2026
+
+- **Finding:** FIN-024 still allowed process crashes between object upload and payment-row commit to leave orphan objects. A caught error could be compensated, but there was no durable intent record or bounded recovery process.
+- **Implementation:** Added the `payment_proof_upload_intents` Drizzle table and forward-only migration 0075. An intent is persisted before the upload, with unique object key, bucket, MIME/size, lifecycle status, upload lease and retry metadata. Payment status, immutable event, outbox event and intent COMMITTED state now share one DB transaction. The prior managed proof receives a durable cleanup intent in that same transaction.
+- **Recovery:** `PaymentsService.cleanupStaleProofUploads` claims only stale intent rows via `FOR UPDATE SKIP LOCKED`, applies a five-minute fenced cleanup lease, verifies the payment row does not reference the object, checks exact-key existence with HEAD, deletes only that key, and persists CLEANED/COMMITTED or retry/terminal FAILED state. Retries use capped exponential backoff; only confirmed 404/not-found responses count as absent. No bucket listing or broad deletion exists.
+- **Safety boundary:** cleanup is a callable service method only. It is not registered with a scheduler, timer, worker or HTTP route and has not been activated. Migration 0075 has not been applied to any shared/staging database.
+- **Regression coverage:** FIN-DSH-46/48 updated for durable pending intents; FIN-DSH-47 checks COMMITTED intent; FIN-DSH-49–52 cover stale orphan deletion, committed-reference preservation, bounded retry and concurrent claim exclusion. Tests added, not executed.
+- **FIN-021 follow-up:** fixed transaction-incompatible Drizzle relational accessors by using core selects in the transaction. Commit `1997ee604f58328faf580328817ec5b7b326fabf`; FIN-DSH-37/38 remain unexecuted.
+- **Status:** IMPLEMENTED / TESTING_PENDING. The consolidated Phase 3 test and isolated migration campaign remains outstanding.
+- **No shared/staging DB write, migration execution, grants/RLS, worker activation, environment change, provider/gateway/payout, deployment or merge action.**

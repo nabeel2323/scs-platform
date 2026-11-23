@@ -47,9 +47,14 @@
  *   FIN-DSH-43  BANK_TRANSFER checkout commits payment/order state atomically
  *   FIN-DSH-44  Checkout rolls back when payment outbox persistence fails
  *   FIN-DSH-45  Dispute refund and resolution share one transaction
- *   FIN-DSH-46  Failed proof persistence cleans only the new object
+ *   FIN-DSH-46  Failed proof persistence leaves durable cleanup and preserves the old proof
  *   FIN-DSH-47  Successful proof replacement retires the old managed object
- *   FIN-DSH-48  Upload timeout compensates an object accepted before response failure
+ *   FIN-DSH-48  Upload timeout leaves a durable cleanup intent
+ *   FIN-DSH-49  Stale unreferenced proof uploads are safely deleted
+ *   FIN-DSH-50  Cleanup preserves a proof referenced by a committed payment
+ *   FIN-DSH-51  Cleanup failures use bounded retry and backoff
+ *   FIN-DSH-52  Concurrent cleanup callers cannot claim the same intent
+ *   FIN-DSH-53  Retired previous proofs remain recoverable after replacement commit
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -85,7 +90,7 @@ import { carts, cartItems } from '../../modules/orders/cart.schema';
 import { masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory } from '../../modules/orders/orders.schema';
 import { shipments, shipmentEvents } from '../../modules/orders/shipment.schema';
 import { outboxEvents } from '../../modules/audit/audit.schema';
-import { paymentRecords, paymentEvents, refunds, settlementRecords } from '../../modules/payments/payments.schema';
+import { paymentRecords, paymentEvents, refunds, settlementRecords, paymentProofUploadIntents } from '../../modules/payments/payments.schema';
 import { returnRequests, returnRequestItems, returnRequestEvents } from '../../modules/returns/returns.schema';
 import {
   commissionReversals, settlementAdjustments, settlementAdjustmentApprovals,
@@ -227,7 +232,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
         masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory,
         shipments, shipmentEvents,
         outboxEvents,
-        paymentRecords, paymentEvents, refunds, settlementRecords,
+        paymentRecords, paymentEvents, refunds, settlementRecords, paymentProofUploadIntents,
         returnRequests, returnRequestItems, returnRequestEvents,
         commissionReversals,
         settlementAdjustments, settlementAdjustmentApprovals,
@@ -2223,7 +2228,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       `SELECT id FROM dispute_events WHERE dispute_id = $1 AND event_type = 'RESOLVED'`, [dispute.id],
     )).rows).toHaveLength(0);
   }, 60_000);
-  it('FIN-DSH-46: failed proof persistence deletes only the new upload and preserves the committed proof', async () => {
+  it('FIN-DSH-46: failed proof persistence schedules only the new upload for cleanup and preserves the committed proof', async () => {
     const cartId = randomUUID();
     await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
     await pool.query(
@@ -2241,7 +2246,6 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     await pool.query(`UPDATE payment_records SET status = 'REJECTED', receipt_url = $2 WHERE id = $1`, [payment.id, oldKey]);
 
     const storage = { putObject: vi.fn().mockResolvedValue(undefined), deleteObject: vi.fn().mockResolvedValue(undefined) };
-    const uploadsBucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
     (paymentsService as any).storage = storage;
     const outbox = (paymentsService as any).outbox;
     const publishSpy = vi.spyOn(outbox, 'publish').mockRejectedValueOnce(new Error('Synthetic proof outbox failure'));
@@ -2256,8 +2260,13 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     expect(storage.putObject).toHaveBeenCalledOnce();
     const uploadedKey = storage.putObject.mock.calls[0][0].key;
-    expect(storage.deleteObject).toHaveBeenCalledWith(uploadsBucket, uploadedKey);
-    expect(storage.deleteObject).not.toHaveBeenCalledWith(uploadsBucket, oldKey);
+    expect(storage.deleteObject).not.toHaveBeenCalled();
+    const intent = await pool.query(
+      `SELECT status, storage_key FROM payment_proof_upload_intents WHERE payment_record_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [payment.id],
+    );
+    expect(intent.rows[0]).toEqual({ status: 'CLEANUP_PENDING', storage_key: uploadedKey });
+    expect(intent.rows[0].storage_key).not.toBe(oldKey);
     const persisted = await pool.query(`SELECT status, receipt_url FROM payment_records WHERE id = $1`, [payment.id]);
     expect(persisted.rows[0]).toEqual({ status: 'REJECTED', receipt_url: oldKey });
   }, 60_000);
@@ -2292,10 +2301,19 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const persisted = await pool.query(`SELECT status, receipt_url FROM payment_records WHERE id = $1`, [payment.id]);
     expect(persisted.rows[0].status).toBe('AWAITING_VERIFICATION');
     expect(persisted.rows[0].receipt_url).toBe(uploadedKey);
-    expect(storage.deleteObject).toHaveBeenCalledWith(uploadsBucket, oldKey);
-    expect(storage.deleteObject).not.toHaveBeenCalledWith(uploadsBucket, uploadedKey);
+    const intent = await pool.query(
+      `SELECT status, storage_key FROM payment_proof_upload_intents WHERE payment_record_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [payment.id],
+    );
+    expect(intent.rows[0]).toEqual({ status: 'COMMITTED', storage_key: uploadedKey });
+    expect(storage.deleteObject).not.toHaveBeenCalled();
+    const retiredIntent = await pool.query(
+      `SELECT status, storage_key FROM payment_proof_upload_intents WHERE storage_key = $1`,
+      [oldKey],
+    );
+    expect(retiredIntent.rows[0]).toEqual({ status: 'CLEANUP_PENDING', storage_key: oldKey });
   }, 60_000);
-  it('FIN-DSH-48: compensates an upload timeout after the object store accepted the new proof', async () => {
+  it('FIN-DSH-48: records durable cleanup after an upload timeout may have accepted the new proof', async () => {
     const cartId = randomUUID();
     await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
     await pool.query(
@@ -2311,8 +2329,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
     const storage = {
       putObject: vi.fn().mockRejectedValue(new Error('Upload response timed out after server accepted object')),
-      exists: vi.fn().mockResolvedValue(true),
-      deleteObject: vi.fn().mockResolvedValue(undefined),
+      deleteObject: vi.fn(),
     };
     (paymentsService as any).storage = storage;
     try {
@@ -2323,9 +2340,181 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       (paymentsService as any).storage = undefined;
     }
     const uploadedKey = storage.putObject.mock.calls[0][0].key;
-    expect(storage.exists).toHaveBeenCalledWith(process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads', uploadedKey);
-    expect(storage.deleteObject).toHaveBeenCalledWith(process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads', uploadedKey);
+    expect(storage.deleteObject).not.toHaveBeenCalled();
+    const intent = await pool.query(
+      `SELECT status, storage_key FROM payment_proof_upload_intents WHERE payment_record_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [payment.id],
+    );
+    expect(intent.rows[0]).toEqual({ status: 'CLEANUP_PENDING', storage_key: uploadedKey });
     const persisted = await pool.query(`SELECT status, receipt_url FROM payment_records WHERE id = $1`, [payment.id]);
     expect(persisted.rows[0]).toEqual({ status: 'AWAITING_PAYMENT', receipt_url: null });
+  }, 60_000);
+
+  it('FIN-DSH-49: stale unreferenced proof uploads are deleted and recorded as cleaned', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const key = `payment-proofs/${payment.id}/orphan.pdf`;
+    const intentId = randomUUID();
+    await pool.query(
+      `INSERT INTO payment_proof_upload_intents
+       (id, payment_record_id, storage_bucket, storage_key, content_type, size_bytes, status, created_at, updated_at)
+       VALUES ($1, $2, 'scs-uploads', $3, 'application/pdf', 1024, 'UPLOADED',
+               now() - interval '61 minutes', now() - interval '61 minutes')`,
+      [intentId, payment.id, key],
+    );
+    const storage = { headObject: vi.fn().mockResolvedValue({}), deleteObject: vi.fn().mockResolvedValue(undefined) };
+    (paymentsService as any).storage = storage;
+    try {
+      const result = await paymentsService.cleanupStaleProofUploads(10);
+      expect(result).toEqual({ claimed: 1, committed: 0, cleaned: 1, retried: 0, failed: 0 });
+      expect(storage.headObject).toHaveBeenCalledWith('scs-uploads', key);
+      expect(storage.deleteObject).toHaveBeenCalledWith('scs-uploads', key);
+      const persisted = await pool.query(
+        `SELECT status, attempt_count, lease_owner, lease_expires_at FROM payment_proof_upload_intents WHERE id = $1`,
+        [intentId],
+      );
+      expect(persisted.rows[0]).toMatchObject({ status: 'CLEANED', attempt_count: 1, lease_owner: null, lease_expires_at: null });
+    } finally {
+      (paymentsService as any).storage = undefined;
+    }
+  }, 60_000);
+
+  it('FIN-DSH-50: cleanup preserves an object already referenced by a committed payment row', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const key = `payment-proofs/${payment.id}/committed.pdf`;
+    const otherOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const otherPayment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [otherOrderId])).rows[0];
+    // The intent belongs to the first payment, but a second payment row also
+    // references the key. Cleanup must protect the key globally.
+    await pool.query(`UPDATE payment_records SET receipt_url = $2 WHERE id = $1`, [otherPayment.id, key]);
+    const intentId = randomUUID();
+    await pool.query(
+      `INSERT INTO payment_proof_upload_intents
+       (id, payment_record_id, storage_bucket, storage_key, content_type, size_bytes, status, created_at, updated_at)
+       VALUES ($1, $2, 'scs-uploads', $3, 'application/pdf', 1024, 'UPLOADED',
+               now() - interval '61 minutes', now() - interval '61 minutes')`,
+      [intentId, payment.id, key],
+    );
+    const storage = { headObject: vi.fn(), deleteObject: vi.fn() };
+    (paymentsService as any).storage = storage;
+    try {
+      const result = await paymentsService.cleanupStaleProofUploads(10);
+      expect(result).toEqual({ claimed: 1, committed: 1, cleaned: 0, retried: 0, failed: 0 });
+      expect(storage.headObject).not.toHaveBeenCalled();
+      expect(storage.deleteObject).not.toHaveBeenCalled();
+      const persisted = await pool.query(
+        `SELECT status, lease_owner, lease_expires_at FROM payment_proof_upload_intents WHERE id = $1`,
+        [intentId],
+      );
+      expect(persisted.rows[0]).toMatchObject({ status: 'COMMITTED', lease_owner: null, lease_expires_at: null });
+    } finally {
+      (paymentsService as any).storage = undefined;
+    }
+  }, 60_000);
+
+  it('FIN-DSH-51: storage cleanup failures are retried with bounded backoff', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const key = `payment-proofs/${payment.id}/retry.pdf`;
+    const intentId = randomUUID();
+    await pool.query(
+      `INSERT INTO payment_proof_upload_intents
+       (id, payment_record_id, storage_bucket, storage_key, content_type, size_bytes, status, created_at, updated_at)
+       VALUES ($1, $2, 'scs-uploads', $3, 'application/pdf', 1024, 'UPLOADED',
+               now() - interval '61 minutes', now() - interval '61 minutes')`,
+      [intentId, payment.id, key],
+    );
+    const storage = {
+      headObject: vi.fn().mockResolvedValue({}),
+      deleteObject: vi.fn().mockRejectedValue(new Error('temporary object store outage')),
+    };
+    (paymentsService as any).storage = storage;
+    try {
+      const result = await paymentsService.cleanupStaleProofUploads(10);
+      expect(result).toEqual({ claimed: 1, committed: 0, cleaned: 0, retried: 1, failed: 0 });
+      const persisted = await pool.query(
+        `SELECT status, attempt_count, next_attempt_at, lease_owner, last_error_code
+         FROM payment_proof_upload_intents WHERE id = $1`, [intentId],
+      );
+      expect(persisted.rows[0].status).toBe('CLEANUP_PENDING');
+      expect(persisted.rows[0].attempt_count).toBe(1);
+      expect(new Date(persisted.rows[0].next_attempt_at).getTime()).toBeGreaterThan(Date.now());
+      expect(persisted.rows[0].lease_owner).toBeNull();
+      expect(persisted.rows[0].last_error_code).toBe('STORAGE_CLEANUP_FAILED');
+    } finally {
+      (paymentsService as any).storage = undefined;
+    }
+  }, 60_000);
+
+  it('FIN-DSH-52: concurrent cleanup callers cannot claim the same stale intent', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const key = `payment-proofs/${payment.id}/concurrent.pdf`;
+    const intentId = randomUUID();
+    await pool.query(
+      `INSERT INTO payment_proof_upload_intents
+       (id, payment_record_id, storage_bucket, storage_key, content_type, size_bytes, status, created_at, updated_at)
+       VALUES ($1, $2, 'scs-uploads', $3, 'application/pdf', 1024, 'UPLOADED',
+               now() - interval '61 minutes', now() - interval '61 minutes')`,
+      [intentId, payment.id, key],
+    );
+
+    let beginHead!: () => void;
+    let releaseHead!: () => void;
+    const headStarted = new Promise<void>((resolve) => { beginHead = resolve; });
+    const headGate = new Promise<void>((resolve) => { releaseHead = resolve; });
+    const storage = {
+      headObject: vi.fn(async () => { beginHead(); await headGate; return {}; }),
+      deleteObject: vi.fn().mockResolvedValue(undefined),
+    };
+    (paymentsService as any).storage = storage;
+    try {
+      const firstPromise = paymentsService.cleanupStaleProofUploads(1);
+      await headStarted;
+      const second = await paymentsService.cleanupStaleProofUploads(1);
+      expect(second.claimed).toBe(0);
+      releaseHead();
+      const first = await firstPromise;
+      expect(first).toEqual({ claimed: 1, committed: 0, cleaned: 1, retried: 0, failed: 0 });
+      expect(storage.deleteObject).toHaveBeenCalledOnce();
+      const persisted = await pool.query(
+        `SELECT status, attempt_count FROM payment_proof_upload_intents WHERE id = $1`, [intentId],
+      );
+      expect(persisted.rows[0]).toEqual({ status: 'CLEANED', attempt_count: 1 });
+    } finally {
+      releaseHead();
+      (paymentsService as any).storage = undefined;
+    }
+  }, 60_000);
+
+  it('FIN-DSH-53: a retired previous proof is deleted by the durable cleanup path after the grace period', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const payment = (await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])).rows[0];
+    const oldKey = `payment-proofs/${payment.id}/retired.pdf`;
+    const currentKey = `payment-proofs/${payment.id}/current.pdf`;
+    await pool.query(`UPDATE payment_records SET receipt_url = $2 WHERE id = $1`, [payment.id, currentKey]);
+    const intentId = randomUUID();
+    await pool.query(
+      `INSERT INTO payment_proof_upload_intents
+       (id, payment_record_id, storage_bucket, storage_key, content_type, size_bytes, status, created_at, updated_at)
+       VALUES ($1, $2, 'scs-uploads', $3, 'application/octet-stream', 0, 'CLEANUP_PENDING',
+               now() - interval '61 minutes', now() - interval '61 minutes')`,
+      [intentId, payment.id, oldKey],
+    );
+    const storage = { headObject: vi.fn().mockResolvedValue({}), deleteObject: vi.fn().mockResolvedValue(undefined) };
+    (paymentsService as any).storage = storage;
+    try {
+      const result = await paymentsService.cleanupStaleProofUploads(10);
+      expect(result).toEqual({ claimed: 1, committed: 0, cleaned: 1, retried: 0, failed: 0 });
+      expect(storage.deleteObject).toHaveBeenCalledWith('scs-uploads', oldKey);
+      expect(storage.deleteObject).not.toHaveBeenCalledWith('scs-uploads', currentKey);
+      const persisted = await pool.query(
+        `SELECT status FROM payment_proof_upload_intents WHERE id = $1`, [intentId],
+      );
+      expect(persisted.rows[0].status).toBe('CLEANED');
+    } finally {
+      (paymentsService as any).storage = undefined;
+    }
   }, 60_000);
 });

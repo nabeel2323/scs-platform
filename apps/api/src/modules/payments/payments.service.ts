@@ -28,7 +28,7 @@ import {
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { StorageService } from '../../common/storage/storage.service';
-import { paymentRecords, paymentEvents, refunds, settlementRecords } from './payments.schema';
+import { paymentRecords, paymentEvents, refunds, settlementRecords, paymentProofUploadIntents } from './payments.schema';
 import { orders, orderFinancialBreakdown, orderStatusHistory } from '../orders/orders.schema';
 import { stores } from '../merchant/merchant.schema';
 import { eq, and, sql, inArray, desc } from 'drizzle-orm';
@@ -54,6 +54,16 @@ import {
 // ── Allowed upload MIME types for payment proofs ────────────────
 const ALLOWED_PROOF_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const MAX_PROOF_SIZE = 10 * 1024 * 1024; // 10 MB
+const PROOF_UPLOAD_STALE_MINUTES = 60;
+const PROOF_UPLOAD_LEASE_MINUTES = 30;
+const PROOF_CLEANUP_LEASE_MINUTES = 5;
+const PROOF_CLEANUP_MAX_ATTEMPTS = 12;
+
+function isStorageObjectNotFound(error: any): boolean {
+  const status = error?.$metadata?.httpStatusCode;
+  const code = error?.name || error?.Code || error?.code;
+  return status === 404 || ['NotFound', 'NoSuchKey', 'NoSuchObject'].includes(code);
+}
 
 function assertPositiveMinorAmount(amount: number, fieldName: string): void {
   if (!Number.isSafeInteger(amount) || amount <= 0) {
@@ -208,10 +218,15 @@ export class PaymentsService {
 
     let storedReceiptUrl = input.receiptUrl || previousReceiptUrl;
     let newStorageKey: string | null = null;
+    let uploadIntentId: string | null = null;
+    let uploadLeaseOwner: string | null = null;
 
     if (input.fileBuffer) {
       if (!this.storage) {
         throw new BadRequestException('Payment proof storage is not configured');
+      }
+      if (input.fileBuffer.length === 0) {
+        throw new BadRequestException('Payment proof file cannot be empty');
       }
       if (input.fileBuffer.length > MAX_PROOF_SIZE) {
         throw new BadRequestException('Payment proof exceeds the 10 MB upload limit');
@@ -223,6 +238,24 @@ export class PaymentsService {
       const rawExtension = input.fileName?.includes('.') ? input.fileName.split('.').pop() : 'jpg';
       const extension = (rawExtension || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8) || 'jpg';
       newStorageKey = `payment-proofs/${paymentId}/${crypto.randomUUID()}.${extension}`;
+      uploadIntentId = crypto.randomUUID();
+      uploadLeaseOwner = `proof-upload-${crypto.randomUUID()}`;
+
+      // The intent is durable before any object-store side effect. A process
+      // crash at any later point is recoverable without listing the bucket.
+      await this.db.db.insert(paymentProofUploadIntents).values({
+        id: uploadIntentId,
+        paymentRecordId: paymentId,
+        storageBucket: uploadsBucket,
+        storageKey: newStorageKey,
+        contentType,
+        sizeBytes: input.fileBuffer.length,
+        status: 'UPLOADING',
+        attemptCount: 0,
+        leaseOwner: uploadLeaseOwner,
+        leaseExpiresAt: new Date(Date.now() + PROOF_UPLOAD_LEASE_MINUTES * 60_000),
+      });
+
       try {
         await this.storage.putObject({
           bucket: uploadsBucket,
@@ -230,15 +263,55 @@ export class PaymentsService {
           body: input.fileBuffer,
           contentType,
         });
-      } catch (uploadError) {
-        // A timeout can occur after the object store accepted the upload. Check
-        // the unique key and compensate when possible; never touch an old proof.
-        try {
-          if (await this.storage.exists(uploadsBucket, newStorageKey)) {
+        const uploaded = await this.db.db.update(paymentProofUploadIntents)
+          .set({
+            status: 'UPLOADED',
+            uploadedAt: new Date(),
+            leaseExpiresAt: new Date(Date.now() + PROOF_UPLOAD_LEASE_MINUTES * 60_000),
+            updatedAt: new Date(),
+          })
+          .where(and(
+            eq(paymentProofUploadIntents.id, uploadIntentId),
+            eq(paymentProofUploadIntents.status, 'UPLOADING'),
+            eq(paymentProofUploadIntents.leaseOwner, uploadLeaseOwner),
+          ))
+          .returning({ id: paymentProofUploadIntents.id });
+
+        if (uploaded.length !== 1) {
+          // A stale cleanup claimant fenced this upload. Compensate the late
+          // object write; if deletion fails, reopen the durable intent.
+          try {
             await this.storage.deleteObject(uploadsBucket, newStorageKey);
+            await this.db.db.update(paymentProofUploadIntents)
+              .set({ status: 'CLEANED', leaseOwner: null, leaseExpiresAt: null, cleanedAt: new Date(), updatedAt: new Date() })
+              .where(eq(paymentProofUploadIntents.id, uploadIntentId));
+          } catch {
+            await this.db.db.update(paymentProofUploadIntents)
+              .set({ status: 'CLEANUP_PENDING', leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: new Date(), lastErrorCode: 'LATE_UPLOAD_COMPENSATION_FAILED', updatedAt: new Date() })
+              .where(eq(paymentProofUploadIntents.id, uploadIntentId));
           }
-        } catch (cleanupError: any) {
-          this.logger.warn(`Could not clean up uncertain proof upload ${newStorageKey}: ${cleanupError?.message || 'verification failed'}`);
+          throw new ConflictException('Payment proof upload lost its recovery lease; please retry');
+        }
+      } catch (uploadError) {
+        // Do not delete directly here: the request may have been interrupted
+        // after the object store accepted the upload. The durable sweeper will
+        // verify the payment reference and object existence before cleanup.
+        try {
+          await this.db.db.update(paymentProofUploadIntents)
+            .set({
+              status: 'CLEANUP_PENDING',
+              leaseOwner: null,
+              leaseExpiresAt: null,
+              nextAttemptAt: new Date(),
+              lastErrorCode: 'UPLOAD_OR_INTENT_UPDATE_FAILED',
+              updatedAt: new Date(),
+            })
+            .where(and(
+              eq(paymentProofUploadIntents.id, uploadIntentId),
+              eq(paymentProofUploadIntents.status, 'UPLOADING'),
+            ));
+        } catch {
+          // The original UPLOADING lease remains recoverable after its expiry.
         }
         throw uploadError;
       }
@@ -277,47 +350,234 @@ export class PaymentsService {
           receiptUrl: storedReceiptUrl,
           receiptReference: input.receiptReference,
         }, {}, null, tx);
+
+        if (uploadIntentId && uploadLeaseOwner) {
+          const committed = await tx.update(paymentProofUploadIntents)
+            .set({
+              status: 'COMMITTED',
+              leaseOwner: null,
+              leaseExpiresAt: null,
+              nextAttemptAt: null,
+              committedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(and(
+              eq(paymentProofUploadIntents.id, uploadIntentId),
+              eq(paymentProofUploadIntents.status, 'UPLOADED'),
+              eq(paymentProofUploadIntents.leaseOwner, uploadLeaseOwner),
+            ))
+            .returning({ id: paymentProofUploadIntents.id });
+          if (committed.length !== 1) {
+            throw new ConflictException('Payment proof upload lease expired before commit; please retry');
+          }
+        }
+
+        // Retire a prior managed proof durably in the same transaction as
+        // replacing its payment-row reference. A process crash after commit
+        // therefore cannot strand the previous object without a cleanup intent.
+        const managedPrefix = `payment-proofs/${paymentId}/`;
+        if (
+          previousReceiptUrl &&
+          previousReceiptUrl.startsWith(managedPrefix) &&
+          previousReceiptUrl !== storedReceiptUrl
+        ) {
+          const [previousIntent] = await tx.select().from(paymentProofUploadIntents)
+            .where(eq(paymentProofUploadIntents.storageKey, previousReceiptUrl))
+            .limit(1);
+          if (previousIntent) {
+            if (previousIntent.status !== 'CLEANED') {
+              await tx.update(paymentProofUploadIntents)
+                .set({
+                  status: 'CLEANUP_PENDING',
+                  leaseOwner: null,
+                  leaseExpiresAt: null,
+                  nextAttemptAt: new Date(),
+                  updatedAt: new Date(),
+                })
+                .where(eq(paymentProofUploadIntents.id, previousIntent.id));
+            }
+          } else {
+            await tx.insert(paymentProofUploadIntents).values({
+              id: crypto.randomUUID(),
+              paymentRecordId: paymentId,
+              storageBucket: uploadsBucket,
+              storageKey: previousReceiptUrl,
+              contentType: 'application/octet-stream',
+              sizeBytes: 0,
+              status: 'CLEANUP_PENDING',
+              attemptCount: 0,
+              nextAttemptAt: new Date(),
+            });
+          }
+        }
       });
     } catch (error) {
-      // Compensate an upload only after verifying that no committed payment row
-      // references it. If the database cannot be queried, leave the object in
-      // place rather than risk deleting a proof after an uncertain commit.
-      if (newStorageKey && this.storage) {
+      if (uploadIntentId && newStorageKey && uploadLeaseOwner) {
         try {
-          const persisted = await this.db.db.query.paymentRecords.findFirst({
-            where: eq(paymentRecords.id, paymentId),
-            columns: { receiptUrl: true },
-          });
-          if (persisted?.receiptUrl !== newStorageKey) {
-            await this.storage.deleteObject(uploadsBucket, newStorageKey);
+          const [persisted] = await this.db.db.select({
+            receiptUrl: paymentRecords.receiptUrl,
+          }).from(paymentRecords).where(eq(paymentRecords.id, paymentId)).limit(1);
+
+          // A commit can succeed while its acknowledgement is lost. Never
+          // schedule deletion when the durable payment row references the key.
+          if (persisted?.receiptUrl === newStorageKey) {
+            return this.getPaymentOrThrow(paymentId);
           }
+
+          await this.db.db.update(paymentProofUploadIntents)
+            .set({
+              status: 'CLEANUP_PENDING',
+              leaseOwner: null,
+              leaseExpiresAt: null,
+              nextAttemptAt: new Date(),
+              lastErrorCode: 'PAYMENT_COMMIT_FAILED',
+              updatedAt: new Date(),
+            })
+            .where(and(
+              eq(paymentProofUploadIntents.id, uploadIntentId),
+              eq(paymentProofUploadIntents.status, 'UPLOADED'),
+              eq(paymentProofUploadIntents.leaseOwner, uploadLeaseOwner),
+            ));
         } catch (cleanupError: any) {
-          this.logger.warn(`Could not safely clean up uncommitted payment proof ${newStorageKey}: ${cleanupError?.message || 'verification failed'}`);
+          this.logger.warn(`Payment proof cleanup scheduling deferred for intent ${uploadIntentId}: ${cleanupError?.message || 'database verification failed'}`);
         }
       }
       throw error;
     }
 
-    // Retire the previous managed object only after the replacement is committed.
-    // External receipt URLs and keys outside this payment's prefix are never deleted.
-    const managedPrefix = `payment-proofs/${paymentId}/`;
-    if (
-      storedReceiptUrl &&
-      previousReceiptUrl &&
-      previousReceiptUrl.startsWith(managedPrefix) &&
-      previousReceiptUrl !== storedReceiptUrl &&
-      this.storage
-    ) {
-      try {
-        await this.storage.deleteObject(uploadsBucket, previousReceiptUrl);
-      } catch (cleanupError: any) {
-        this.logger.warn(`Could not retire previous payment proof ${previousReceiptUrl}: ${cleanupError?.message || 'delete failed'}`);
-      }
-    }
-
     this.logger.log(`Payment ${paymentId}: proof submitted by buyer ${buyerId}`);
     return this.getPaymentOrThrow(paymentId);
   }
+
+  /**
+   * Recover stale proof uploads without bucket listing. Only durable intent
+   * rows older than the grace period are eligible; each batch is claimed with
+   * SKIP LOCKED and a fencing owner. No scheduler/worker is activated here.
+   */
+  async cleanupStaleProofUploads(batchSize = 25): Promise<{
+    claimed: number;
+    committed: number;
+    cleaned: number;
+    retried: number;
+    failed: number;
+  }> {
+    if (!this.storage) {
+      throw new BadRequestException('Payment proof storage is not configured');
+    }
+    const limit = Math.max(1, Math.min(100, Math.floor(batchSize) || 25));
+    const workerId = `proof-cleanup-${crypto.randomUUID()}`;
+    const claimed = await this.db.db.transaction(async (tx) => {
+      const result = await tx.execute(sql`
+        WITH candidates AS (
+          SELECT id
+          FROM payment_proof_upload_intents
+          WHERE status IN ('UPLOADING', 'UPLOADED', 'CLEANUP_PENDING', 'CLEANING')
+            AND created_at <= now() - make_interval(mins => ${PROOF_UPLOAD_STALE_MINUTES})
+            AND (lease_expires_at IS NULL OR lease_expires_at <= now())
+            AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+          ORDER BY created_at, id
+          LIMIT ${limit}
+          FOR UPDATE SKIP LOCKED
+        )
+        UPDATE payment_proof_upload_intents AS intent
+        SET status = 'CLEANING',
+            lease_owner = ${workerId},
+            lease_expires_at = now() + make_interval(mins => ${PROOF_CLEANUP_LEASE_MINUTES}),
+            attempt_count = attempt_count + 1,
+            updated_at = now()
+        FROM candidates
+        WHERE intent.id = candidates.id
+        RETURNING
+          intent.id,
+          intent.storage_bucket AS "storageBucket",
+          intent.storage_key AS "storageKey",
+          intent.attempt_count AS "attemptCount"
+      `);
+      return ((result as any).rows ?? []) as Array<{
+        id: string;
+        storageBucket: string;
+        storageKey: string;
+        attemptCount: number;
+      }>;
+    });
+
+    const summary = { claimed: claimed.length, committed: 0, cleaned: 0, retried: 0, failed: 0 };
+    for (const intent of claimed) {
+      try {
+        // Check every payment row, not only the intent's original payment:
+        // a shared/misreferenced key must never be deleted while any payment uses it.
+        const [paymentReference] = await this.db.db.select({
+          id: paymentRecords.id,
+        }).from(paymentRecords).where(eq(paymentRecords.receiptUrl, intent.storageKey)).limit(1);
+
+        if (paymentReference) {
+          await this.db.db.update(paymentProofUploadIntents)
+            .set({
+              status: 'COMMITTED', leaseOwner: null, leaseExpiresAt: null,
+              nextAttemptAt: null, committedAt: new Date(), updatedAt: new Date(),
+            })
+            .where(and(
+              eq(paymentProofUploadIntents.id, intent.id),
+              eq(paymentProofUploadIntents.status, 'CLEANING'),
+              eq(paymentProofUploadIntents.leaseOwner, workerId),
+            ));
+          summary.committed += 1;
+          continue;
+        }
+
+        let objectExists = true;
+        try {
+          await this.storage.headObject(intent.storageBucket, intent.storageKey);
+        } catch (storageError) {
+          if (isStorageObjectNotFound(storageError)) {
+            objectExists = false;
+          } else {
+            throw storageError;
+          }
+        }
+        if (objectExists) {
+          try {
+            await this.storage.deleteObject(intent.storageBucket, intent.storageKey);
+          } catch (storageError) {
+            if (!isStorageObjectNotFound(storageError)) throw storageError;
+          }
+        }
+
+        await this.db.db.update(paymentProofUploadIntents)
+          .set({
+            status: 'CLEANED', leaseOwner: null, leaseExpiresAt: null,
+            nextAttemptAt: null, cleanedAt: new Date(), lastErrorCode: null, updatedAt: new Date(),
+          })
+          .where(and(
+            eq(paymentProofUploadIntents.id, intent.id),
+            eq(paymentProofUploadIntents.status, 'CLEANING'),
+            eq(paymentProofUploadIntents.leaseOwner, workerId),
+          ));
+        summary.cleaned += 1;
+      } catch {
+        const terminal = intent.attemptCount >= PROOF_CLEANUP_MAX_ATTEMPTS;
+        const backoffSeconds = Math.min(3600, 30 * (2 ** Math.min(intent.attemptCount - 1, 7)));
+        await this.db.db.update(paymentProofUploadIntents)
+          .set({
+            status: terminal ? 'FAILED' : 'CLEANUP_PENDING',
+            leaseOwner: null,
+            leaseExpiresAt: null,
+            nextAttemptAt: terminal ? null : new Date(Date.now() + backoffSeconds * 1000),
+            lastErrorCode: 'STORAGE_CLEANUP_FAILED',
+            updatedAt: new Date(),
+          })
+          .where(and(
+            eq(paymentProofUploadIntents.id, intent.id),
+            eq(paymentProofUploadIntents.status, 'CLEANING'),
+            eq(paymentProofUploadIntents.leaseOwner, workerId),
+          ));
+        if (terminal) summary.failed += 1;
+        else summary.retried += 1;
+      }
+    }
+    return summary;
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // MANUAL VERIFICATION (admin confirms/rejects proof)
   // ═══════════════════════════════════════════════════════════════

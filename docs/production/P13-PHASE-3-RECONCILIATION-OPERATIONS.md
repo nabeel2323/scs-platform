@@ -166,3 +166,8 @@ Discrepancies are tracked in `reconciliation_discrepancies`:
 - The run row, all checks, discrepancy inserts and COMPLETED transition share one transaction. Any exception rolls back the run and all discrepancy rows; a separate best-effort transaction records a FAILED run with zero discrepancies and a generic execution-error summary.
 - `superseded_by` now points from the prior run to its successor. Migration 0074 repairs the historical backward links and replaces the global unique index. It is committed as source only and has not been applied to a shared/staging database.
 - FIN-DSH-37 and FIN-DSH-38 cover concurrent same-tenant versions, independent tenant version 1, forward links, and failure rollback/FAILED persistence. Tests are added but not executed.
+
+
+## FIN-021 implementation correction — 23 November 2026
+
+A follow-up runtime-source audit found that Drizzle relational `db.query.*` accessors were called on the transaction client. The implementation now uses transaction-compatible core selects for latest-run and source-record reads. The transaction still owns the full run/check/discrepancy/completion lifecycle. Correction commit: `1997ee604f58328faf580328817ec5b7b326fabf`. FIN-DSH-37/38 remain added but unexecuted; migration 0074 remains source-only.

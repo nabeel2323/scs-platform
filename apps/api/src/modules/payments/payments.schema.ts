@@ -1,5 +1,5 @@
 import {
-  pgTable, uuid, varchar, char, text, bigint, jsonb, timestamp,
+  pgTable, uuid, varchar, char, text, bigint, jsonb, timestamp, integer,
 } from 'drizzle-orm/pg-core';
 import { users } from '../identity/identity.schema';
 import { orders } from '../orders/orders.schema';
@@ -44,6 +44,29 @@ export const paymentRecords = pgTable('payment_records', {
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
   lastReconciledAt: timestamp('last_reconciled_at', { withTimezone: true }),
   metadata: jsonb('metadata').notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── Payment Proof Upload Intents ─────────────────────────────────
+// Durable ownership record for each generated object key. Stale intents
+// are recoverable after lease expiry; cleanup checks the payment row first.
+export const paymentProofUploadIntents = pgTable('payment_proof_upload_intents', {
+  id: uuid('id').primaryKey(),
+  paymentRecordId: uuid('payment_record_id').notNull().references(() => paymentRecords.id),
+  storageBucket: varchar('storage_bucket', { length: 120 }).notNull(),
+  storageKey: varchar('storage_key', { length: 512 }).notNull().unique(),
+  contentType: varchar('content_type', { length: 100 }).notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  status: varchar('status', { length: 24 }).notNull().default('UPLOADING'),
+  attemptCount: integer('attempt_count').notNull().default(0),
+  leaseOwner: varchar('lease_owner', { length: 160 }),
+  leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+  nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+  lastErrorCode: varchar('last_error_code', { length: 60 }),
+  uploadedAt: timestamp('uploaded_at', { withTimezone: true }),
+  committedAt: timestamp('committed_at', { withTimezone: true }),
+  cleanedAt: timestamp('cleaned_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

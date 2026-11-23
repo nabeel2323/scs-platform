@@ -130,3 +130,12 @@ If the migration is rolled back, the following code changes must also be reverte
 ## 7. No Production Deployment
 
 **This migration has NOT been deployed to production.** It was applied only to the local development PostgreSQL instance. No production data is affected.
+
+
+## Additive follow-up migrations — FIN-021 / FIN-025
+
+Migrations `0074_reconciliation_tenant_version_integrity.sql` and `0075_payment_proof_upload_intents.sql` are later forward-only changes and are not covered by the historical rollback snippets above.
+
+- 0074 repairs legacy reconciliation supersession links and scopes unique run versions by organization.
+- 0075 creates durable payment-proof upload intent and recovery state, with a payment-record foreign key and bounded cleanup indexes.
+- Both migrations remain source-only pending isolated full-migration CI. Neither has been applied to staging or production. Do not run either against a shared database under this remediation session; existing G-002 access review and deployment gates remain in force.

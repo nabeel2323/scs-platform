@@ -1379,3 +1379,20 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - Added compensation for upload timeouts: when putObject throws, check the generated key and delete it if the object exists; cleanup errors are logged and do not mask the original upload failure.
 - Added FIN-DSH-48 to verify an accepted object is deleted after the upload response times out and the payment row remains unchanged. Test not executed.
 - Commit: `847647c424097e5ace69236d0c3b4592f85d30e9`. Process-crash orphan window remains for FIN-025.
+
+
+## 2026-11-23 — FIN-021 transaction-client compatibility correction
+
+- Re-audited FIN-021 after the parallel branch advanced. Drizzle relational `db.query.*` accessors were being used on a transaction client, which does not expose the relational query API.
+- Replaced transactional latest-run, refund, commission-reversal, order-breakdown and approval reads with core `select().from().where()` queries. Run creation, check reads, discrepancy inserts and completion remain in the transaction.
+- Commit: `1997ee604f58328faf580328817ec5b7b326fabf`. FIN-DSH-37/38 remain unexecuted; migration 0074 remains source-only.
+- No database, staging, migration, deployment or worker action.
+
+## 2026-11-23 — FIN-025 durable payment-proof upload recovery
+
+- Added `payment_proof_upload_intents` with generated object key, bucket, MIME/size, lifecycle state, lease owner/expiry, retry schedule, attempt count and terminal timestamps. Migration 0075 is forward-only and not applied.
+- `submitProof` now creates the durable intent before S3 upload, marks successful upload as UPLOADED, and commits payment row, immutable payment event, outbox event and COMMITTED intent in one database transaction. Failed/uncertain upload or payment persistence leaves a recoverable cleanup intent. Replaced managed proofs also receive a cleanup intent in the same payment transaction, closing the post-commit crash window.
+- Added bounded `cleanupStaleProofUploads`: claims only old intent rows with `FOR UPDATE SKIP LOCKED`, fences claims with a lease owner, checks the payment row before object deletion, uses HEAD/DELETE on the exact recorded key, treats only confirmed not-found as absent, and schedules capped exponential retries with a terminal FAILED state.
+- The cleanup method is not wired to a timer or worker and has not been activated. No bucket listing or broad deletion is used.
+- PostgreSQL FIN-DSH-49–52 cover stale orphan cleanup, preserving committed references, retry backoff and concurrent claim exclusion; FIN-DSH-46/48 were updated for durable intent behavior and FIN-DSH-47 verifies committed intent. Tests added, not executed.
+- No shared database migration/write, staging operation, worker activation, grants/RLS, environment change, provider/gateway/payout, deployment or merge action.
