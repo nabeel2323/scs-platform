@@ -4,8 +4,9 @@ import { PricingService } from '../../../modules/pricing/pricing.service';
 
 function makeHarness(variantStoreId: string | null) {
   const priceListFindFirst = vi.fn().mockResolvedValue({ id: 'list-a', storeId: 'store-a' });
-  const variantFindFirst = vi.fn().mockResolvedValue({ productId: 'product-a' });
-  const productFindFirst = vi.fn().mockResolvedValue({ storeId: variantStoreId });
+  const catalogLookup = {
+    variantBelongsToStore: vi.fn().mockResolvedValue(variantStoreId === 'store-a'),
+  };
   const tierFindMany = vi.fn().mockResolvedValue([]);
   const tierInsertValues = vi.fn().mockResolvedValue(undefined);
   const insert = vi.fn(() => ({ values: tierInsertValues }));
@@ -16,18 +17,15 @@ function makeHarness(variantStoreId: string | null) {
       query: {
         priceLists: { findFirst: priceListFindFirst },
         priceTiers: { findMany: tierFindMany },
-        productVariants: { findFirst: variantFindFirst },
-        products: { findFirst: productFindFirst },
       },
     },
   };
 
-  const service = new PricingService(db as any, { publish: vi.fn() } as any);
+  const service = new PricingService(db as any, { publish: vi.fn() } as any, catalogLookup as any);
   return {
     service,
     priceListFindFirst,
-    variantFindFirst,
-    productFindFirst,
+    catalogLookup,
     tierFindMany,
     insert,
   };
@@ -44,8 +42,7 @@ describe('PricingService — price-list variant ownership', () => {
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
-    expect(h.variantFindFirst).toHaveBeenCalled();
-    expect(h.productFindFirst).toHaveBeenCalled();
+    expect(h.catalogLookup.variantBelongsToStore).toHaveBeenCalledWith('variant-a', 'store-a');
     expect(h.insert).not.toHaveBeenCalled();
   });
 
