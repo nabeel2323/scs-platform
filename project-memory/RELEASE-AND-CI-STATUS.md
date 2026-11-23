@@ -3,9 +3,9 @@
 **Checkpoint:** 23 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest live branch head:** `89561501099a75f02d344eef97a373d861413c5a` — PR #138 head; source slice UX-095 / G-036. Relevant source commits include `a9df486`, `7010a0e`, `eaf65eaf`; focused test commits include `df1964a1` and `7fce2ef`. All commits use `[skip ci]`.
-**Exact-head checks:** no GitHub Actions workflow run is attached to exact head `89561501099a75f02d344eef97a373d861413c5a`. The live combined status reports Vercel Web FAILURE and Vercel Admin FAILURE at the external build-rate-limit page; these are not application test results.  
-Documentation-only handoff commits also use `[skip ci]`; fetch the live branch ref for the current documentation HEAD. The latest inspected exact-head preview statuses both reported external build-rate-limit FAILURE. These are preview-provider statuses, not application test results. Focused Web/API tests have not been executed.
+**Latest live branch head before this documentation refresh:** `0b8c452797c067139495a8820c95c62a0cafc37b` — documentation-only FIN-001 checkpoint. Latest source/test checkpoint: `117614884ff1e0d50ca116f0b28f249fd83761c0` (refund approval serialization/idempotency; tests added, not executed).
+**Exact-head checks:** no GitHub Actions workflow run is attached to the documentation-only head `0b8c452797c067139495a8820c95c62a0cafc37b`. The last refreshed combined status reports Vercel Admin FAILURE at the external deployment build-rate-limit page; this is not an application test result.  
+Documentation-only handoff commits also use `[skip ci]`; re-fetch the live branch ref for the current documentation HEAD. FIN-DSH-11/12 PostgreSQL tests are added but have not been executed. The comprehensive Phase 3 campaign remains pending.
 
 ## Previous CI run at the 21 November checkpoint (historical)
 
@@ -938,3 +938,11 @@ The next full workflow is required to verify these changes.
 - Latest Actions run #1421: [workflow](https://github.com/nabeel2323/scs-platform/actions/runs/45143101050), tested `8474b7acd264872a01d305bef515009eded104ed`. Lint and TypeScript typecheck passed; Flutter analysis/tests passed; changed-file Prettier failed with 255 files needing formatting. Web/Admin tests, API unit/coverage, PostgreSQL integration, boundary, build, migration, codegen, container, k6 and staging release jobs were skipped.
 - FIN-DSH-11/12 PostgreSQL integration tests are added but not executed. Do not claim CI or automated-test verification for FIN-001.
 - No merge, deployment, protected staging operation, shared database mutation, migration, grants/default-ACL change, RLS enablement or worker activation occurred.
+
+
+## FIN-001 — refund concurrency/idempotency source checkpoint — 23 November 2026
+
+- Source/test commit: `117614884ff1e0d50ca116f0b28f249fd83761c0`. It serializes refund approvals on the payment row and implements same-key idempotent refund request retries.
+- PostgreSQL cases FIN-DSH-11/12 added, not executed. No Actions run is attached to the source commit.
+- Latest Actions run #1421 is on earlier SHA `8474b7acd264872a01d305bef515009eded104ed`: lint/typecheck and Flutter passed; Prettier failed with 255 files; Web/Admin and dependent jobs skipped.
+- No schema/migration/provider/gateway/payout, staging, shared database or deployment changes.

@@ -111,7 +111,7 @@ The uploaded `Advanced UX Enhancement Prompt.txt` reports 111/111 tables with RL
 - Phases 0–5 remain IN PROGRESS; Phase 6 consolidated verification is NOT STARTED.
 - PR #138 must remain draft/open/unmerged. No merge, deployment, protected staging operation, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement, environment change or worker activation is authorized.
 
-**Next implementation:** continue remaining Admin custom route/action-to-controller permission mapping and confirm every shared mutation call site supplies its specific permission predicate. Do not repeat the completed 56-page route audit or UX-097/098/099 fixes. Plan one repository-locked Prettier pass for the accumulated PR diff and the comprehensive test campaign at the implementation-complete Phase 3 checkpoint; fix any concrete security/correctness defect immediately.
+**Next implementation:** continue the source-first commercial and operational correctness audit beyond the completed Admin permission/action slices. FIN-001 refund approval serialization and request idempotency are implemented with PostgreSQL regression cases pending execution. Do not repeat the completed 56-page route audit or UX-097–UX-105 work. Keep the repository-locked Prettier pass and comprehensive test campaign grouped at the implementation-complete Phase 3 checkpoint; fix any concrete security/correctness defect immediately.
 
 ## Safety reminder
 

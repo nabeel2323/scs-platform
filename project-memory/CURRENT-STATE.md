@@ -25,7 +25,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | PR #138 | Open; draft; not merged; base `develop` |
 | Exact-head GitHub Actions | No run for FIN-001 source/test head `117614884ff1e0d50ca116f0b28f249fd83761c0`; latest Actions run #1421 tested earlier `8474b7acd264872a01d305bef515009eded104ed`, passed lint/typecheck and Flutter, but failed changed-file Prettier (255 files); Web/Admin and dependent jobs skipped |
 | Documentation commits | Use `[skip ci]`; no Actions run and no test verification implied |
-| Latest inspected Vercel contexts | On FIN-001 source commit `117614884ff1e0d50ca116f0b28f249fd83761c0`, Web/Admin both report SUCCESS / Skipped — Not affected; no Actions run is attached |
+| Latest live PR head before this memory refresh | `0b8c452797c067139495a8820c95c62a0cafc37b` — documentation-only FIN-001 release checkpoint; no Actions run attached |\n| Latest inspected preview status | Admin FAILURE due external deployment rate limit; not an application test result |
 | Focused client tests | Admin UX-030–058 and UX-097–099, Mobile UX-078–096 and Web UX-095 focused tests added/updated; not executed (Flutter suite passed only on earlier SHA `a76b0be`) |
 | Historical CI evidence | PR #138 #44954371615 and PR #142 #44953735602 are older exact-SHA evidence only |
 
@@ -843,3 +843,12 @@ Merchant active-store and product reads now preserve last-successful data throug
 - No GitHub Actions run is attached to this commit. The Vercel Web/Admin statuses on this SHA are both SUCCESS / Skipped — Not affected.
 - Latest Actions run #1421 remains historical evidence on `8474b7acd264872a01d305bef515009eded104ed`: lint/typecheck and Flutter succeeded; changed-file Prettier failed (255 files); Web/Admin tests and dependent gates skipped.
 - G-012 remains OPEN. No automatic gateway/payout, schema/migration, staging, shared DB or deployment change.
+
+
+## Live PR/documentation checkpoint — 23 November 2026
+
+- Last live PR head refreshed before this checkpoint update: `0b8c452797c067139495a8820c95c62a0cafc37b`; PR #138 OPEN / DRAFT / UNMERGED against `develop`.
+- Latest source/test commit remains `117614884ff1e0d50ca116f0b28f249fd83761c0` (FIN-001). FIN-DSH-11/12 were added but not executed.
+- No Actions run is attached to the documentation head. The latest Actions run is #1421 on earlier UX-105 SHA `8474b7acd264872a01d305bef515009eded104ed`; it passed lint/typecheck and Flutter, failed changed-file Prettier (255 files), and skipped Web/Admin and dependent jobs.
+- The Admin Vercel status at the last live PR check is an external build-rate-limit failure, not an application test result.
+- Re-fetch the live PR head and statuses before the next source change.
