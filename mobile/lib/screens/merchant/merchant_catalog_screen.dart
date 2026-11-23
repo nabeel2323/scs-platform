@@ -49,13 +49,13 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
       appBar: AppBar(
         title: const Text('Catalog'),
         actions: [
-          if (canManageOffers)
+          if (canReadOffers)
             IconButton(
               icon: const Icon(Icons.local_offer_outlined),
               tooltip: 'Offers',
               onPressed: () => context.push('/merchant/offers'),
             ),
-          if (canManageCategories)
+          if (canReadCategories)
             IconButton(
               icon: const Icon(Icons.category),
               tooltip: 'Categories',
