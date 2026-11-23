@@ -8,12 +8,12 @@ import { ErrorNotice, RecordFields, textValue } from './RecordFields';
 import { getUser } from '../lib/auth';
 import styles from './management.module.css';
 
-export function useAdminMutation(onDone: () => void) {
+export function useAdminMutation(onDone: () => void, canRun: () => boolean = () => true) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const pending = useRef(false);
-  async function run(path: string, method: string, body?: unknown) {
-    if (pending.current) return;
+  async function run(path: string, method: string, body?: unknown, canRunOverride?: () => boolean) {
+    if (!(canRunOverride ?? canRun)() || pending.current) return;
     pending.current = true; setBusy(true); setError('');
     try {
       await adminRequest(path, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -26,7 +26,7 @@ export function useAdminMutation(onDone: () => void) {
 
 export function UserStatusActions({ record, onDone }: { record: AdminRecord; onDone: () => void }) {
   const { hasAccess } = useRequirePerms(['admin:users:write']);
-  const action = useAdminMutation(onDone);
+  const action = useAdminMutation(onDone, () => hasAccess);
   if (!hasAccess) return null;
   return <div><div className={styles['actions']}>
     {['ACTIVE', 'SUSPENDED', 'INACTIVE'].filter(status => status !== record['status']).map(status => <button key={status} type="button" disabled={action.busy}
@@ -45,18 +45,19 @@ export function UserMemberships({ record, onDone }: { record: AdminRecord; onDon
   const [roleId, setRoleId] = useState('');
   const roles = useAdminResource<RoleInfo[]>(editing ? 'admin/roles' : null, hasAccess);
   const orgs = useAdminResource<AdminOrg[]>(editing ? 'admin/organizations' : null, hasAccess);
-  const action = useAdminMutation(() => { setEditing(false); onDone(); });
+  const action = useAdminMutation(() => { setEditing(false); onDone(); }, () => hasAccess);
   const memberships = Array.isArray(record['organizations']) ? record['organizations'] as AdminRecord[] : [];
   return <section><h3>Organization memberships ({memberships.length})</h3>
     {memberships.map(membership => <div key={String(membership['orgId'])} className={styles['card']}>
       <RecordFields record={membership} />
       {hasAccess && <button type="button" disabled={action.busy} onClick={() => {
+        if (!hasAccess || action.busy) return;
         if (window.confirm('Remove this membership?')) action.run(`admin/users/${record.id}/roles/${membership['orgId']}`, 'DELETE');
       }}>Remove membership</button>}
     </div>)}
     <ErrorNotice message={action.error} />
     {hasAccess && !editing && <button type="button" onClick={() => setEditing(true)}>Assign role</button>}
-    {editing && <form className={styles['card']} onSubmit={event => { event.preventDefault(); if (orgId && roleId) action.run(`admin/users/${record.id}/assign-role`, 'POST', { orgId, roleId }); }}>
+    {editing && hasAccess && <form className={styles['card']} onSubmit={event => { event.preventDefault(); if (hasAccess && !action.busy && orgId && roleId) action.run(`admin/users/${record.id}/assign-role`, 'POST', { orgId, roleId }); }}>
       <ErrorNotice message={roles.error} retry={roles.reload} /><ErrorNotice message={orgs.error} retry={orgs.reload} />
       <div className={styles['toolbar']}>
         <label>Organization<select value={orgId} required disabled={orgs.loading || Boolean(orgs.error)} onChange={e => { setOrgId(e.target.value); setRoleId(''); }}>
@@ -83,7 +84,7 @@ export function DisputeActions({ record, onDone }: { record: AdminRecord; onDone
   const [resolution, setResolution] = useState('');
   const action = useAdminMutation(onDone);
   if (!hasAccess || ['RESOLVED', 'CLOSED'].includes(String(record['status']))) return null;
-  return <form className={styles['card']} onSubmit={event => { event.preventDefault(); if (resolution.trim()) action.run(`disputes/${record.id}/resolve`, 'PATCH', { resolution: resolution.trim() }); }}>
+  return <form className={styles['card']} onSubmit={event => { event.preventDefault(); if (hasAccess && !action.busy && resolution.trim()) action.run(`disputes/${record.id}/resolve`, 'PATCH', { resolution: resolution.trim() }); }}>
     <h3>Resolve dispute</h3><div className={styles['toolbar']}><label>Decision template<select onChange={e => setResolution(e.target.value)} value={resolutions.some(([, code]) => code === resolution) ? resolution : ''}>
       <option value="">Custom decision</option>{resolutions.map(([label, value]) => <option key={value} value={value}>{label}</option>)}
     </select></label></div>
@@ -109,7 +110,7 @@ export function CategoryEditor({ record, onDone, onCancel }: { record?: AdminRec
   if (!hasAccess) return null;
   const parentOptions = parents.data?.data || [];
   return <form onSubmit={event => {
-    event.preventDefault(); if (!name.trim()) return;
+    event.preventDefault(); if (!hasAccess || action.busy || !name.trim()) return;
     action.run(record ? `categories/${record.id}` : 'categories', record ? 'PATCH' : 'POST', {
       name: name.trim(), nameAr: nameAr.trim(), parentId: parentId || (record ? null : undefined), ...(record ? { isActive } : {}),
     });
@@ -145,7 +146,7 @@ export function BrandEditor({ record, onDone, onCancel }: { record?: AdminRecord
   const { hasAccess } = useRequirePerms(['catalog:brands:manage']);
   if (!hasAccess) return null;
   return <form onSubmit={event => {
-    event.preventDefault(); if (!name.trim()) return;
+    event.preventDefault(); if (!hasAccess || action.busy || !name.trim()) return;
     const body: Record<string, unknown> = { name: name.trim(), nameAr: nameAr.trim() || undefined, logoUrl: logoUrl.trim() || undefined, description: description.trim() || undefined };
     if (record) body['isActive'] = isActive;
     action.run(record ? `brands/${record.id}` : 'brands', record ? 'PATCH' : 'POST', body);
@@ -182,23 +183,26 @@ export function OfferGovernanceActions({ record, onDone }: { record: AdminRecord
   const reviewerId = getUser()?.id || '';
 
   const approve = () => {
+    if (!hasAccess || action.busy) return;
     if (!window.confirm('Approve this offer? It will become ACTIVE and visible to buyers.')) return;
     action.run(`admin/offers/${record.id}/approve`, 'POST', { reviewerId });
   };
 
   const submitReject = () => {
-    if (!reason.trim()) return;
+    if (!hasAccess || action.busy || !reason.trim()) return;
     action.run(`admin/offers/${record.id}/reject`, 'POST', { reviewerId, reason: reason.trim() });
     setRejecting(false);
     setReason('');
   };
 
   const suspend = () => {
+    if (!hasAccess || action.busy) return;
     if (!window.confirm('Suspend this offer? It will no longer be visible to buyers.')) return;
     action.run(`admin/offers/${record.id}/suspend`, 'POST');
   };
 
   const activate = () => {
+    if (!hasAccess || action.busy) return;
     if (!window.confirm('Reactivate this offer? It will become visible to buyers again.')) return;
     action.run(`admin/offers/${record.id}/activate`, 'POST');
   };
