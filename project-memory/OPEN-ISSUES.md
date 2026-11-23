@@ -889,3 +889,8 @@ Remaining source audit: verify merchant settlement projection, reconciliation re
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Added a read-only merchant Settlements page backed by the existing org/store-scoped merchant endpoint. It provides store/status filters, gross/refund/commission/fee/net amounts, payout references, and explicit ADJUSTMENT · PAID labels using durable adjustment identity. Added merchant navigation/dashboard/route permission coverage and read-recovery tests; Admin Settlements also distinguishes paid adjustment rows. Source commits: `4615e05bb0c0df98ec2015387262a146bc13f6a4`, `3373c36930744c911300699b770d05c4428a313c`. Tests not executed.
 
 Remaining audit: verify settlement listing limits, financial exports and aggregate KPI/report queries do not double-count primary and adjustment ledger rows. Keep PR #138 draft/unmerged and defer the consolidated Phase 3 test campaign until the implementation audit is complete.
+
+
+## Remaining settlement projection audit — 23 November 2026
+
+The merchant and Admin settlement screens now expose adjustment rows and distinguish paid adjustments. The underlying list services still return at most 100 rows per request and do not yet expose offset/cursor pagination. Before deciding whether pagination or export work is required, inspect real product requirements and all settlement consumers; do not silently change report definitions or add an automatic payout scope. Admin revenue KPI aggregation is based on orders.total_minor, not settlement_records. Next audit: confirm whether any export or finance report aggregates the settlement ledger, and ensure primary plus adjustment rows are not double-counted.

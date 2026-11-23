@@ -1311,3 +1311,13 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - FIN-046 source commit: `4615e05bb0c0df98ec2015387262a146bc13f6a4`; follow-up: `3373c36930744c911300699b770d05c4428a313c`. Added merchant read-only settlement history, filters, payout reference display and adjustment identity labels; added route, dashboard, Admin and merchant regression coverage.
 - All tests added/updated but not executed. Commits use `[skip ci]` under the agreed Actions-minute budget. Do not claim exact-head CI or runtime verification.
 - PR #138 remains OPEN / DRAFT / UNMERGED. No migration, shared/staging DB write, environment mutation, deployment, worker activation, RLS/ACL change or merge occurred.
+
+
+## Exact-head status before final memory sync — 23 November 2026
+
+- Branch head inspected: `615becfe8b1b9f14407e8872bb26a2e51ec790af`.
+- PR #138: OPEN / DRAFT / UNMERGED; base `develop`.
+- GitHub Actions workflow-run lookup for this exact SHA: no associated run returned.
+- Combined status: Vercel Web FAILURE and Vercel Admin FAILURE; both target the external build-rate-limit page. These are provider failures, not application tests.
+- No tests were executed for FIN-044–046. The consolidated Phase 3 campaign remains pending.
+- No merge, deployment, migration, shared/staging DB write, environment mutation, worker activation or RLS/ACL change.

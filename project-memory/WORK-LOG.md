@@ -1581,3 +1581,12 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Admin settlement type/UI now uses adjustment metadata or the legacy note marker to label paid adjustments as `ADJUSTMENT · PAID`; added an Admin regression assertion.
 - Source commits: `4615e05bb0c0df98ec2015387262a146bc13f6a4` and `3373c36930744c911300699b770d05c4428a313c`. Tests not executed; `[skip ci]`.
 - Next: inspect settlement list caps, exports and financial KPI aggregation for primary/adjustment double counting. No migration, shared/staging write, deployment or merge.
+
+
+## 23 November 2026 — settlement projection and reporting audit checkpoint
+
+- Confirmed the merchant Settlements screen is now wired to the existing organization/store-scoped API and paid adjustment rows are labeled from durable metadata or legacy notes.
+- Reviewed the Admin revenue KPI path: it aggregates `orders.total_minor` grouped by currency, not `settlement_records`; it therefore does not double-count primary and adjustment ledger rows.
+- Merchant and Admin settlement list methods each cap results at 100 rows and currently do not expose pagination. No export/report service was found in the reviewed Admin/Analytics module paths that aggregates settlement records.
+- Next: verify whether additional finance export/report consumers exist outside these modules, then decide whether pagination is required. Do not change order revenue KPI definitions to settlement net amounts without an explicit product decision.
+- Exact branch/PR/CI status before this docs sync: head `615becfe8b1b9f14407e8872bb26a2e51ec790af`; PR #138 open/draft/unmerged; no exact-head Actions run; Vercel Web/Admin statuses are external build-rate-limit failures.

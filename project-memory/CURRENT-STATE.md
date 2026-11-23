@@ -1228,3 +1228,13 @@ FIN-DSH-68 now selects payment_record_id directly from the posted adjustment led
 - Tests added/updated but not executed. No exact-head Actions run or test pass is claimed; implementation commits use `[skip ci]`.
 - PR #138 remains OPEN / DRAFT / UNMERGED against `develop`. No migration, shared/staging DB write, environment change, worker activation, RLS/ACL change, deployment or merge occurred.
 - Next source audit: settlement listing limits, financial exports and aggregate KPI/report queries for correct primary-plus-adjustment accounting without double counting.
+
+
+## Exact live reconciliation before final memory sync — 23 November 2026
+
+- Last verified branch head before this documentation-only sync: `615becfe8b1b9f14407e8872bb26a2e51ec790af`.
+- Latest source implementation commit: `3373c36930744c911300699b770d05c4428a313c` (merchant settlement page dependency/test correction). FIN-045 reconciliation source commit: `23fc0f5f6cfd017c281e498a0843b11e82ca0a3e`.
+- PR #138 is OPEN / DRAFT / UNMERGED against `develop`.
+- Exact-head Actions workflow lookup returned no run. Combined statuses contain only Vercel Web/Admin FAILURE, both targeting the external build-rate-limit page. Tests are not verified.
+- No source tests were run. FIN-DSH-36/68/69 and new merchant/Admin tests remain pending consolidated Phase 3 verification.
+- Current implementation audit next step: inspect settlement list limits, exports and financial aggregate queries. Admin revenue KPI uses orders.total_minor, not settlement_records, so it does not add adjustment ledger rows to order revenue.
