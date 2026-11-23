@@ -1179,7 +1179,7 @@ The next full workflow is required to verify these changes.
 - Lint failed on two parse errors: missing brace before `catch` in `apps/api/src/modules/returns/returns.service.ts` and stray brace in `apps/api/src/modules/returns/settlement-adjustment.service.ts`.
 - Flutter analysis/tests: **PASS**.
 - Integration, boundary lint, Web/Admin, migration full apply, unit/coverage, build, container smoke, contract/codegen, k6 and staging release: **SKIPPED** due to lint dependency failure.
-- Both syntax defects were corrected in `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`.
+- Both syntax defects were corrected in `a06086769028ad55a371376abfca2a211ef317c4` and `0798ae48c4c0e1bd58a45ddbbaed2cfeaf8d0cda`; a follow-up brace-balance and indentation correction in `returns.service.ts` is committed as `4a7ebc784a1b3e469d82b0dec899dbb2838e682b`.
 - FIN-027 source/test commits followed: `6ae8aba762215f69f42e74e4608a4fa31a02543b` and `5b636df49155ea523bc730852ed900720a858a88`. Exact-head Actions lookup for the latter returned no run; tests remain unexecuted.
 - Vercel Web/Admin FAILURE statuses point to external build-rate limits and are not application test results. No staging release, deployment or database operation occurred.
 - PR #138 remains OPEN / DRAFT / UNMERGED. Comprehensive Phase 3 validation remains deferred until implementation is complete.
