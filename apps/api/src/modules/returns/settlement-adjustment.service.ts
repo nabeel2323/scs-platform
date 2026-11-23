@@ -527,7 +527,6 @@ export class SettlementAdjustmentService {
           notes: `Posted adjustment ${adjustmentId}: ${adj.adjustmentType} ` +
                  `${adj.amountMinor} ${adj.currency} by ${postedBy}`,
         });
-      }
 
       await this.outbox.publish('settlement_adjustment.posted', adjustmentId, {
         adjustmentId, postedBy, settlementId: settlement?.id ?? null,
