@@ -24,13 +24,13 @@ This is a source-level UI permission inventory, not a replacement for API author
 | `/categories`, `/categories/[id]` | `catalog:categories:write` | Category management surface |
 | `/commission` | `admin:commission:read` | Reversal list request and page content are blocked when permission is missing; read-only commission view |
 | `/data-quality` | `catalog:product-types:manage` | Product-type data-quality surface |
-| `/disputes`, `/disputes/[id]` | `support:disputes:resolve` | Generic list and detail share the dispute-resolution permission |
+| `/disputes`, `/disputes/[id]` | `support:disputes:resolve` | Generic list and detail share the dispute-resolution permission; detail submit handler rechecks permission |
 | `/kpis`, `/offers-kpis`, `/offers-trend` | `admin:kpis:read` | Read-only KPI/trend surfaces |
 | `/merchants`, `/merchants/[id]` | `admin:merchants:read` | Merchant inspection |
 | `/offers`, `/offers/[id]` | `catalog:offers:govern` | Offer governance |
 | `/orders` | `admin:orders:read` | Generic order monitor |
 | `/orders/[id]` | `admin:orders:read` | Cancellation additionally requires `orders:cancel` |
-| `/organizations`, `/organizations/[id]` | `admin:users:read` | Organization deactivation/reactivation and update-request review require `admin:users:write` |
+| `/organizations`, `/organizations/[id]` | `admin:users:read` | Organization deactivation/reactivation and update-request review require `admin:users:write`; async confirmation handlers recheck permission before mutation |
 | `/` | AuthGuard; KPI data requires `admin:kpis:read`; organization-update data requires `admin:users:read` | Catalog import widget: `catalog:imports:manage`; catalog request widget: `catalog:requests:manage`; each data request and widget is independently gated |
 | `/payments` | `admin:payments:read` | Verification queue: `admin:payments:verify`; refund queue/approval: `admin:refunds:approve` |
 | `/product-types`, `/product-types/[id]` | `catalog:product-types:manage` | Product-type management |
@@ -47,7 +47,7 @@ This is a source-level UI permission inventory, not a replacement for API author
 | `/shipments`, `/shipments/[id]` | `fulfillment:shipments:read` | Exception/RTS actions: `fulfillment:shipments:write`; carrier recovery: `admin:shipping:recovery` |
 | `/users`, `/users/[id]` | `admin:users:read` | User creation and privileged user actions require `admin:users:write` |
 | `/variants/[id]`, `/variants/[id]/edit` | `catalog:products:write` | Variant inspection/edit route remains in the product-write surface |
-| `/verification`, `/verification/[id]` | `merchant:verification:review` | Organization deactivation/reactivation additionally requires `admin:users:write` |
+| `/verification`, `/verification/[id]` | `merchant:verification:review` | Organization deactivation/reactivation additionally requires `admin:users:write`; async handlers recheck permission before mutation |
 
 ## Findings corrected in this implementation batch
 
@@ -70,3 +70,10 @@ The dashboard now calls `GET /admin/kpis` only for users with `admin:kpis:read` 
 The commission reversal page now renders the shared access-denied state and does not request `GET /admin/commission-reversals` unless `admin:commission:read` is present. These client checks mirror existing API guards; no backend permission or role grant changed.
 
 Focused regression coverage is added in `apps/admin/src/__tests__/dashboard-permissions.test.tsx`. Execution remains deferred to the consolidated Phase 3 campaign.
+
+
+## Admin action-handler permission rechecks — UX-097 — 23 November 2026
+
+A follow-up source audit checked mutation handlers, not only visible controls. Verification organization deactivate/reactivate, Organizations status toggle and update-request review, and dispute resolution now recheck their required permission inside the async handler immediately before the mutation. Organization actions also reject duplicate in-flight execution. This prevents a stale confirmation dialog from retaining the ability to submit after the active permission projection changes.
+
+Focused tests were added in `apps/admin/src/__tests__/verification-org-status-permissions.test.tsx` and `apps/admin/src/__tests__/admin-organization-action-permissions.test.tsx`. They have not been executed and remain in the consolidated Phase 3 campaign. Existing API permission guards are unchanged and authoritative.
