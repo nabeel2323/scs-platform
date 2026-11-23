@@ -1396,3 +1396,10 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - The cleanup method is not wired to a timer or worker and has not been activated. No bucket listing or broad deletion is used.
 - PostgreSQL FIN-DSH-49–53 cover stale orphan cleanup, cross-payment committed-reference preservation, retry backoff, concurrent claim exclusion and retired-proof cleanup; FIN-DSH-46/48 were updated for durable intent behavior and FIN-DSH-47 verifies committed intent. Tests added, not executed.
 - No shared database migration/write, staging operation, worker activation, grants/RLS, environment change, provider/gateway/payout, deployment or merge action.
+
+
+### FIN-025 follow-up — storage provider error classification — 23 November 2026
+
+- Hardened object-not-found detection for S3-compatible providers: accept HTTP 404 or a recognized code/name in any of the SDK's `name`, `Code`, or `code` fields. A generic `name='Error'` no longer masks a `Code='NotFound'` value.
+- Generic storage errors continue through retry/backoff; they are never interpreted as object absence.
+- Commit: `ff67348b950b51a482fa4cf624549a146551c383`. No tests executed.

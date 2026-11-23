@@ -2229,3 +2229,9 @@ Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699
 - **FIN-021 follow-up:** fixed transaction-incompatible Drizzle relational accessors by using core selects in the transaction. Commit `1997ee604f58328faf580328817ec5b7b326fabf`; FIN-DSH-37/38 remain unexecuted.
 - **Status:** IMPLEMENTED / TESTING_PENDING. The consolidated Phase 3 test and isolated migration campaign remains outstanding.
 - **No shared/staging DB write, migration execution, grants/RLS, worker activation, environment change, provider/gateway/payout, deployment or merge action.**
+
+
+### FIN-025 follow-up — S3-compatible not-found classification — 23 November 2026
+
+- Updated object-not-found classification to recognize HTTP 404 and all SDK/provider error code/name fields. Generic storage failures remain retryable and cannot be mistaken for a missing object.
+- Commit: `ff67348b950b51a482fa4cf624549a146551c383`. No tests executed; no exact-head GitHub Actions run was returned.

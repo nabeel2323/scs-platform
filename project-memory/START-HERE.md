@@ -738,3 +738,10 @@ The P13 PostgreSQL suite already used FIN-DSH-33 for return-request idempotent r
 - No bucket listing or broad delete is used. Cleanup touches only exact generated keys from durable intent rows.
 - No shared/staging database write, migration execution, grants/RLS, worker activation, environment change, provider/gateway/payout, deployment or merge action. PR remains draft.
 - **Next:** continue the FIN-025 source audit for lease fencing and crash windows, then review remaining payment/refund recovery gaps. Keep implementation and focused tests pending the single consolidated Phase 3 test campaign.
+
+
+## FIN-025 follow-up — storage error classification — 23 November 2026
+
+- Latest source correction commit: `ff67348b950b51a482fa4cf624549a146551c383`.
+- S3-compatible not-found detection now checks HTTP 404 plus all provider error-name/code fields instead of letting a generic error name mask a provider `NotFound` code. Generic storage failures remain retryable and are never treated as proof that an object is absent.
+- No tests were executed. Exact-head GitHub Actions lookup returned no run; Vercel Web/Admin statuses are external build-rate-limit failures.
