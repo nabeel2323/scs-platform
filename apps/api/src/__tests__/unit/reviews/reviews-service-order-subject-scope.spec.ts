@@ -2,36 +2,24 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { ReviewsService } from '../../../modules/reviews/reviews.service';
 
-function createService(overrides: Record<string, unknown> = {}) {
-  const orderFindFirst = vi.fn().mockResolvedValue({
+function createService() {
+  const getOrder = vi.fn().mockResolvedValue({
     id: 'order-a',
     buyerId: 'buyer-a',
     storeId: 'store-a',
     status: 'DELIVERED',
   });
-  const orderItemsFindMany = vi.fn().mockResolvedValue([{ variantId: 'variant-a' }]);
-  const productVariantFindFirst = vi.fn().mockResolvedValue(null);
+  const listPurchasedVariantIds = vi.fn().mockResolvedValue(['variant-a']);
+  const hasVariantForProduct = vi.fn().mockResolvedValue(false);
+  const reviewFindFirst = vi.fn();
   const insert = vi.fn();
-  const db = {
-    db: {
-      query: {
-        orders: { findFirst: orderFindFirst },
-        orderItems: { findMany: orderItemsFindMany },
-        productVariants: { findFirst: productVariantFindFirst },
-        reviews: { findFirst: vi.fn() },
-      },
-      insert,
-    },
-  };
-  const service = new ReviewsService(db as any, { publish: vi.fn() } as any);
-  return {
-    service,
-    orderFindFirst,
-    orderItemsFindMany,
-    productVariantFindFirst,
-    insert,
-    ...overrides,
-  };
+  const service = new ReviewsService(
+    { db: { query: { reviews: { findFirst: reviewFindFirst } }, insert } } as any,
+    { publish: vi.fn() } as any,
+    { getOrder, listPurchasedVariantIds } as any,
+    { hasVariantForProduct } as any,
+  );
+  return { service, getOrder, listPurchasedVariantIds, hasVariantForProduct, insert };
 }
 
 describe('ReviewsService order subject ownership', () => {
@@ -47,6 +35,7 @@ describe('ReviewsService order subject ownership', () => {
         rating: 5,
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(h.getOrder).toHaveBeenCalledWith('order-a');
     expect(h.insert).not.toHaveBeenCalled();
   });
 
@@ -62,7 +51,7 @@ describe('ReviewsService order subject ownership', () => {
         rating: 5,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(h.orderItemsFindMany).not.toHaveBeenCalled();
+    expect(h.listPurchasedVariantIds).not.toHaveBeenCalled();
     expect(h.insert).not.toHaveBeenCalled();
   });
 
@@ -78,8 +67,8 @@ describe('ReviewsService order subject ownership', () => {
         rating: 5,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(h.orderItemsFindMany).toHaveBeenCalledOnce();
-    expect(h.productVariantFindFirst).toHaveBeenCalledOnce();
+    expect(h.listPurchasedVariantIds).toHaveBeenCalledWith('order-a');
+    expect(h.hasVariantForProduct).toHaveBeenCalledWith(['variant-a'], 'product-b');
     expect(h.insert).not.toHaveBeenCalled();
   });
 
