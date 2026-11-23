@@ -23,7 +23,7 @@ import {
   returnRequests, returnRequestItems, returnRequestEvents,
 } from './returns.schema';
 import { commissionReversals } from './financial.schema';
-import { calculateReturnNetGoodsMinor } from './returns-financials';
+import { calculateProportionalCommissionReversalMinor, calculateReturnNetGoodsMinor } from './returns-financials';
 import { orders, orderItems, orderFinancialBreakdown } from '../orders/orders.schema';
 import { paymentRecords, refunds, settlementRecords } from '../payments/payments.schema';
 import { shipments } from '../orders/shipment.schema';
@@ -1159,11 +1159,12 @@ export class ReturnsService {
                 .innerJoin(returnRequests, eq(commissionReversals.returnRequestId, returnRequests.id))
                 .where(eq(returnRequests.subOrderId, ret.subOrderId));
               const alreadyReversed = existingReversals[0]?.total ?? 0;
-              const remaining = originalCommission - alreadyReversed;
-
-              let raw = Math.floor((originalCommission * returnNetGoods) / orderNetGoods);
-              raw = Math.min(raw, remaining);
-              commissionReversalMinor = Math.max(0, raw);
+              commissionReversalMinor = calculateProportionalCommissionReversalMinor(
+                originalCommission,
+                orderNetGoods,
+                returnNetGoods,
+                alreadyReversed,
+              );
             }
           }
         }
