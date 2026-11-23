@@ -7,7 +7,7 @@ import {
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { priceLists, priceTiers } from './pricing.schema';
-import { productVariants, products } from '../catalog/catalog.schema';
+import { CatalogPricingLookupService } from '../catalog/catalog-pricing-lookup.service';
 import { eq, and, desc, lte, asc } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
@@ -22,6 +22,7 @@ export class PricingService {
   constructor(
     private readonly db: DatabaseService,
     private readonly outbox: OutboxDispatcher,
+    private readonly catalogLookup: CatalogPricingLookupService,
   ) {}
 
   /**
@@ -31,19 +32,7 @@ export class PricingService {
    * internal service callers cannot create or resolve a cross-store tier.
    */
   private async assertVariantBelongsToStore(variantId: string, storeId: string): Promise<void> {
-    const variant = await this.db.db.query.productVariants.findFirst({
-      where: eq(productVariants.id, variantId),
-      columns: { productId: true },
-    });
-    if (!variant) {
-      throw new ForbiddenException('The variant does not belong to this price list store');
-    }
-
-    const product = await this.db.db.query.products.findFirst({
-      where: eq(products.id, variant.productId),
-      columns: { storeId: true },
-    });
-    if (!product || product.storeId !== storeId) {
+    if (!(await this.catalogLookup.variantBelongsToStore(variantId, storeId))) {
       throw new ForbiddenException('The variant does not belong to this price list store');
     }
   }
@@ -132,23 +121,33 @@ export class PricingService {
   }
 
   async listTiersByPriceList(priceListId: string) {
-    return this.db.db
-      .select({
-        id: priceTiers.id,
-        priceListId: priceTiers.priceListId,
-        variantId: priceTiers.variantId,
-        minQty: priceTiers.minQty,
-        maxQty: priceTiers.maxQty,
-        unitPriceMinor: priceTiers.unitPriceMinor,
-        variantSku: productVariants.sku,
-        variantTitle: productVariants.title,
-        productTitle: products.title,
-      })
-      .from(priceTiers)
-      .innerJoin(productVariants, eq(priceTiers.variantId, productVariants.id))
-      .innerJoin(products, eq(productVariants.productId, products.id))
-      .where(eq(priceTiers.priceListId, priceListId))
-      .orderBy(asc(products.title), asc(productVariants.sku), asc(priceTiers.minQty));
+    const tiers = await this.db.db.query.priceTiers.findMany({
+      where: eq(priceTiers.priceListId, priceListId),
+      orderBy: [asc(priceTiers.minQty)],
+    });
+    const variantDetails = await this.catalogLookup.getVariantPricingDetails(
+      tiers.map((tier) => tier.variantId),
+    );
+    const tiersByVariant = new Map<string, typeof tiers>();
+    for (const tier of tiers) {
+      const variantTiers = tiersByVariant.get(tier.variantId) ?? [];
+      variantTiers.push(tier);
+      tiersByVariant.set(tier.variantId, variantTiers);
+    }
+
+    return variantDetails.flatMap((variant) =>
+      (tiersByVariant.get(variant.variantId) ?? []).map((tier) => ({
+        id: tier.id,
+        priceListId: tier.priceListId,
+        variantId: tier.variantId,
+        minQty: tier.minQty,
+        maxQty: tier.maxQty,
+        unitPriceMinor: tier.unitPriceMinor,
+        variantSku: variant.variantSku,
+        variantTitle: variant.variantTitle,
+        productTitle: variant.productTitle,
+      })),
+    );
   }
 
   async listTiersByVariant(variantId: string, priceListId?: string, storeId?: string) {
