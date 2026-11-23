@@ -521,3 +521,8 @@ Focused Mobile route and driver-assignment tests are added but not executed. The
 ## 23 November 2026 — Admin action-handler permission recheck (UX-097)
 
 A follow-up audit inspected the action handlers behind the existing Admin route permission matrix. Verification organization deactivate/reactivate, Organizations status toggle and update-request review, and dispute resolution previously relied on rendered-control visibility without rechecking the permission inside the async handler. The handlers now fail closed when the corresponding `admin:users:write` or `support:disputes:resolve` grant is absent at execution time; organization handlers also prevent duplicate in-flight actions. Focused tests simulate permission loss while confirmation dialogs remain open. Tests are added but not executed. This is client action-safety hardening only; API authorization remains authoritative and no permission grant changed.
+
+
+## 23 November 2026 — Admin navigation capability alignment (UX-098)
+
+The Admin sidebar previously modeled only all-of permission requirements. Source comparison showed two pages with legitimate OR access: Carrier & Recovery (`admin:carrier:read` OR `admin:shipping:recovery`) and Payments (`admin:payments:read` OR `admin:payments:verify` OR `admin:refunds:approve`). Navigation now supports `anyPerms`; the Payments page-level gate and loader also admit verification-only users while keeping each tab's endpoint under its specific permission. Focused tests were added but not executed. No API role grants or RBAC seed changes occurred.
