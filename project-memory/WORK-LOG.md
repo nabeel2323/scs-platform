@@ -1025,3 +1025,16 @@ Added focused specs merchant-service-tenant-scope.spec.ts and pricing-service-te
 - No API business behavior, schema, database, migration, staging, grants, RLS, workers or deployment changed.
 
 **Status:** UX-096 IMPLEMENTED / TESTING_PENDING. Mobile route/action/org-context implementation slice is complete at source level. **Next:** finish remaining Admin route/action permission mapping, then the consolidated testing phase.
+
+
+## 2026-11-23 — CI typecheck/analyzer corrections and Admin UX-097 action guards
+
+- Reviewed CI #1395 on the prior PR head `ff304ce6c0bcf63a654ff8fbd04130254cdb669e`. The API job failed at typecheck because regex match capture groups were typed `string | undefined`; the Mobile job failed analysis because `UserProfile.role` is nullable and a dynamic EmptyState description was incorrectly marked const.
+- Fixed the API gateway by explicitly narrowing the validated `scope` and `id` captures before passing the identifier to room authorization. Fixed the Mobile category page with a null-safe role fallback and a non-const EmptyState for the runtime-dependent description.
+- Continued the Admin action-permission audit. Found that verification organization deactivate/reactivate, organization status changes, organization update-request review and dispute resolution had UI permission gates but did not recheck the same permission inside their async action handlers. Added fail-closed handler checks and duplicate-action guards.
+- Added focused tests: `apps/admin/src/__tests__/verification-org-status-permissions.test.tsx` and `apps/admin/src/__tests__/admin-organization-action-permissions.test.tsx` for losing `admin:users:write` while a confirmation modal is open. Existing dispute route/action permission coverage remains in the Phase 3 verification matrix.
+- Source commits: `0d4644f`, `5f08755`, `112cee3`, `94f86da`, `41fca82`; focused test commits: `c0aa312`, `856d527`.
+- Tests, API typecheck and Flutter analysis have not been rerun after these fixes. This batch is IMPLEMENTED / TESTING_PENDING, not automated-test or CI verified. The previous CI #1395 failure remains historical evidence and is not a pass.
+- No API permission grants, backend business contracts, schema, migration, database, staging, worker, provider or deployment behavior changed. PR #138 remains draft/unmerged.
+
+**Next:** continue the remaining Admin route/action audit against API controller decorators and role contracts; do not repeat the already-completed 56-route page-level audit or UX-097 handler fixes. Keep the comprehensive campaign deferred to Phase 3.
