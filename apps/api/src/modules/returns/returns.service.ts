@@ -331,6 +331,52 @@ export class ReturnsService {
     const expiresAt = new Date(Date.now() + MERCHANT_SLA_HOURS * 60 * 60 * 1000);
 
     await this.db.db.transaction(async (tx) => {
+      // Serialize return creation with refunds and other return requests for
+      // this payment. The earlier checks are useful fast-fails, but are not
+      // sufficient: two buyers retries can both observe no active return and
+      // the same returned/refunded totals before either insert commits.
+      const [lockedPayment] = await tx
+        .select()
+        .from(paymentRecords)
+        .where(eq(paymentRecords.id, payment.id))
+        .for('update')
+        .limit(1);
+      if (!lockedPayment) throw new NotFoundException('Payment not found for return');
+      if (!['CONFIRMED', 'CAPTURED', 'PARTIALLY_REFUNDED'].includes(lockedPayment.status)) {
+        throw new BadRequestException('Payment is no longer eligible for returns');
+      }
+
+      const lockedActiveReturn = await tx.query.returnRequests.findFirst({
+        where: and(
+          eq(returnRequests.subOrderId, input.subOrderId),
+          sql`${returnRequests.status} NOT IN ('REFUNDED','MERCHANT_REJECTED','CANCELLED','EXPIRED','REJECTED_AFTER_INSPECTION')`,
+        ),
+      });
+      if (lockedActiveReturn) {
+        throw new ConflictException('An active return request already exists for this order');
+      }
+
+      const lockedPriorReturns = await this.getCumulativeReturnedQuantities(input.subOrderId);
+      for (const line of resolvedLines) {
+        const orderItem = orderItemById.get(line.orderItemId);
+        const priorReturned = lockedPriorReturns.get(line.orderItemId) ?? 0;
+        if (!orderItem || priorReturned + line.quantity > orderItem.quantity) {
+          throw new ConflictException(
+            `Cumulative return quantity would exceed ordered quantity for item ${line.orderItemId}`,
+          );
+        }
+      }
+
+      const lockedConfirmedAmount = Number(
+        lockedPayment.confirmedAmountMinor ?? lockedPayment.amountMinor,
+      );
+      const lockedAlreadyRefunded = await this.getCumulativeRefundedAmount(lockedPayment.id);
+      if (totalRefundMinor > lockedConfirmedAmount - lockedAlreadyRefunded) {
+        throw new BadRequestException(
+          'Return refund exceeds the remaining refundable payment amount',
+        );
+      }
+
       await tx.insert(returnRequests).values({
         id,
         subOrderId: input.subOrderId,
