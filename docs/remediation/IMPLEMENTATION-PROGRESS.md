@@ -2267,3 +2267,12 @@ CI #1446 failed at lint on two parse errors in `returns.service.ts` and `settlem
 - **Regression coverage:** PostgreSQL FIN-DSH-57 verifies the persisted settlement-calculated event actor ID and class.
 - **Source commit:** `5a7dfd6ea67de61bb016cc7a7ef31749760955d8`. **Test commit:** `05799cde897871ab9752af07bf70830ac834edbf`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. Test not executed; include in consolidated Phase 3 campaign. No migration or shared DB action.
+
+
+## FIN-029 — Payment confirmation order-history actor parity — 23 November 2026
+
+- **Finding:** The payment confirmation event recorded the authenticated verifier as ADMIN/MERCHANT, but the linked order transition history recorded the same user action as SYSTEM.
+- **Implementation:** Pass a constrained ADMIN/MERCHANT actor type from `verifyPayment` into `transitionOrderAfterPaymentConfirmation`; persist the authenticated actor ID and class in `order_status_history`.
+- **Regression coverage:** FIN-DSH-54 now checks matching actor ID/class in both `payment_events` and `order_status_history`.
+- **Source commit:** `77c2caaa322836cc8e7d651f6577df715c5e3228`. **Test commit:** `8fc1759a9e374f12513c82d301b2c9b934a98840`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. Test not executed; include in consolidated Phase 3 campaign. No migration or shared DB action.
