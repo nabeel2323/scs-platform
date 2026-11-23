@@ -2334,7 +2334,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     } finally {
       (paymentsService as any).storage = undefined;
     }
-    const uploadedKey = storage.putObject.mock.calls[0][0].key;
+    const uploadedKey = storage.putObject.mock.calls[0]![0].key;
     const persisted = await pool.query(`SELECT status, receipt_url FROM payment_records WHERE id = $1`, [payment.id]);
     expect(persisted.rows[0].status).toBe('AWAITING_VERIFICATION');
     expect(persisted.rows[0].receipt_url).toBe(uploadedKey);
@@ -2376,7 +2376,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     } finally {
       (paymentsService as any).storage = undefined;
     }
-    const uploadedKey = storage.putObject.mock.calls[0][0].key;
+    const uploadedKey = storage.putObject.mock.calls[0]![0].key;
     expect(storage.deleteObject).not.toHaveBeenCalled();
     const intent = await pool.query(
       `SELECT status, storage_key FROM payment_proof_upload_intents WHERE payment_record_id = $1 ORDER BY created_at DESC LIMIT 1`,
@@ -3013,6 +3013,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       pendingReturn.id, 'REFUND_FAILED', adminCaller,
       { notes: 'External refund transfer was rejected' },
     );
+    if (!failed) throw new Error('REFUND_FAILED transition returned no updated return');
     expect(failed.status).toBe('REFUND_FAILED');
 
     const failedRefund = await pool.query(
@@ -3048,6 +3049,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const retried = await returnsService.transitionReturn(
       pendingReturn.id, 'REFUND_PENDING', adminCaller,
     );
+    if (!retried) throw new Error('REFUND_PENDING retry returned no updated return');
     expect(retried.status).toBe('REFUND_PENDING');
     expect(retried.refundId).toBe(refundId);
 

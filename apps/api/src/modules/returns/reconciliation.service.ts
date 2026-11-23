@@ -239,6 +239,7 @@ export class ReconciliationService {
       // The execution transaction has rolled back, so no partial discrepancy rows remain.
       // Persist a separate FAILED run for audit history when the database is available.
       if (failedRunId) {
+        const failedRunIdToPersist = failedRunId;
         try {
           await this.db.db.transaction(async (tx) => {
             const txDb = tx;
@@ -251,13 +252,13 @@ export class ReconciliationService {
           )).orderBy(sql`${reconciliationRuns.version} DESC`).limit(1);
             const failedVersion = (latestRun?.version ?? 0) + 1;
             await txDb.insert(reconciliationRuns).values({
-              id: failedRunId, periodStart, periodEnd, currency, version: failedVersion,
+              id: failedRunIdToPersist, periodStart, periodEnd, currency, version: failedVersion,
               status: 'FAILED', summary: { executionError: 1 }, discrepancyCount: 0,
               executedBy, ...(tenantId ? { orgId: tenantId } : {}), completedAt: new Date(),
             });
             if (latestRun) {
               const linked = await txDb.update(reconciliationRuns)
-                .set({ supersededBy: failedRunId })
+                .set({ supersededBy: failedRunIdToPersist })
                 .where(and(eq(reconciliationRuns.id, latestRun.id), isNull(reconciliationRuns.supersededBy)))
                 .returning({ id: reconciliationRuns.id });
               if (linked.length !== 1) {
@@ -266,7 +267,7 @@ export class ReconciliationService {
             }
           });
         } catch (recordError) {
-          this.logger.error(`Unable to persist failed reconciliation run ${failedRunId}: ${recordError instanceof Error ? recordError.message : 'unknown error'}`);
+          this.logger.error(`Unable to persist failed reconciliation run ${failedRunIdToPersist}: ${recordError instanceof Error ? recordError.message : 'unknown error'}`);
         }
       }
       throw error;

@@ -439,10 +439,10 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
       activeOrg: orgB,
     });
 
-    expect(listA).toHaveLength(1);
-    expect(listA[0]!.merchantStoreId).toBe(storeA);
-    expect(listB).toHaveLength(1);
-    expect(listB[0]!.merchantStoreId).toBe(storeB);
+    expect(listA.data).toHaveLength(1);
+    expect(listA.data[0]!.merchantStoreId).toBe(storeA);
+    expect(listB.data).toHaveLength(1);
+    expect(listB.data[0]!.merchantStoreId).toBe(storeB);
   });
 
   it('G-030: same-org settlement reads stay scoped and missing org context is denied', async () => {
@@ -451,8 +451,8 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
       role: 'MERCHANT_STAFF',
       activeOrg: orgA,
     });
-    expect(sameOrg).toHaveLength(1);
-    expect(sameOrg[0]!.merchantStoreId).toBe(storeA);
+    expect(sameOrg.data).toHaveLength(1);
+    expect(sameOrg.data[0]!.merchantStoreId).toBe(storeA);
 
     await expect(
       paymentsService.listMerchantSettlements(
