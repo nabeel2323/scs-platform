@@ -520,3 +520,11 @@ Next: continue financial/commercial source audit; then one consolidated formatte
 COD is collected at delivery and must not be expired by the bank-transfer timeout. Both stale-payment candidate discovery and the expirePayment service boundary now exclude CASH_ON_DELIVERY. FIN-DSH-30 covers a stale COD payment attached to a DELIVERED order. Test added, not executed. Source commit 68b5251200f9f3765a0568b796db056a18cd878e; test commit 6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac.
 
 Next: continue financial lifecycle audit, then run the consolidated Phase 3 test campaign. G-012 manual-payment-only scope remains binding.
+
+
+## FIN-017–FIN-018 — Return workflow correctness — 23 November 2026
+
+- FIN-017: BigInt-backed minor-unit arithmetic now allocates order discount, VAT and full-return delivery fees without floating-point drift; delivery-fee exception adjustments preserve the original payment currency. FIN-DSH-31 added, not executed.
+- FIN-018: payment-row locking and in-transaction rechecks serialize return creation, preserving one active return per sub-order and preventing stale quantity/refundable checks. FIN-DSH-32 added, not executed.
+- Source/test commits: FIN-017 122edb4bf1dc67ba01bfc33b97809cc037781f87 / e6823ee9b1c68f5b71229ffbda17c9f525b66565; FIN-018 8a8364899f08180da9213be4d897a65fac9a897d / 705609fa2928d6e12e393b59bb990cfe0cf2343c.
+- Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, gateway, payout, staging, shared DB or deployment changes. G-012 remains OPEN.

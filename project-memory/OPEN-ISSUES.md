@@ -686,3 +686,14 @@ Next: continue the source-first financial and commercial correctness audit, espe
 **Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Stale-payment reconciliation previously selected every AWAITING_PAYMENT/AWAITING_VERIFICATION record, including CASH_ON_DELIVERY. Because COD is collected at delivery, it must not expire after the bank-transfer payment window. The candidate query now excludes COD and expirePayment independently rejects direct COD expiry. FIN-DSH-30 covers a stale COD payment on a DELIVERED order, unchanged payment/order state and absence of PAYMENT_EXPIRED events. Source commit 68b5251200f9f3765a0568b796db056a18cd878e; test commit 6ff2a4788c5f2a98c5866cfd0d321cea9948c4ac. Test not executed.
 
 Next: continue the source-first payment and return lifecycle audit; keep Phase 3 formatter and full API/PostgreSQL verification grouped. Do not introduce gateways or automated payouts.
+
+
+## FIN-017 — Exact return refund allocation and delivery-fee currency
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Return refund amounts previously used floating-point ratios for discounts and VAT, and delivery-fee exception adjustments hardcoded SYP. The return financial helper now uses BigInt-backed proportional minor-unit rounding, validates safe integer inputs, and preserves the payment currency in delivery-fee adjustments. FIN-DSH-31 covers a partial return and currency consistency. Source 122edb4bf1dc67ba01bfc33b97809cc037781f87; test e6823ee9b1c68f5b71229ffbda17c9f525b66565. Not executed.
+
+## FIN-018 — Concurrent return creation serialization
+
+**Status: IMPLEMENTED / TESTING_PENDING. Priority: P1.** Return creation checked active returns, cumulative quantities and refundable amount outside the transaction; concurrent requests could both pass and create active requests. It now locks the payment row and rechecks eligibility, active return, returned quantity and refundable balance before insert. FIN-DSH-32 holds the payment lock while two return requests race and asserts exactly one active request commits. Source 8a8364899f08180da9213be4d897a65fac9a897d; test 705609fa2928d6e12e393b59bb990cfe0cf2343c. Not executed.
+
+Next: continue the source-first returns/payment lifecycle audit. Keep the full formatter, API unit and PostgreSQL verification grouped in Phase 3; do not expand gateway or automatic payout scope.
