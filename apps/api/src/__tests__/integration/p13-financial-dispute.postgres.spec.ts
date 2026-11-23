@@ -29,6 +29,8 @@
  *   FIN-DSH-25  Return refund recovery reason integrity
  *   FIN-DSH-26  Post-refund adjustment preserves settlement currency
  *   FIN-DSH-27  Refund adjustment serializes with settlement payment
+ *   FIN-DSH-28  Payment expiry/order transition race
+ *   FIN-DSH-29  Discount-adjusted commission reversal and currency
  *
  * All assertions are against persisted database state, not code inspection.
  */
