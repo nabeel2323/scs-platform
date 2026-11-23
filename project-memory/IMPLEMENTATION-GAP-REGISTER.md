@@ -741,3 +741,16 @@ Source-confirmed gaps closed in implementation: product pull-to-refresh invalida
 - Client permission gating does not replace backend authorization. Existing API guards remain authoritative. No merge, deployment, staging write, shared DB change, migration, grants/default-ACL change, RLS enablement or worker activation was performed.
 
 **Status:** IMPLEMENTED / TESTING_PENDING. Continue the Mobile route-permission and organization-context transition audit next, then finish remaining Admin route/action mapping.
+
+
+## UX-096 — Mobile route/action permissions and organization-context transition — 23 November 2026
+
+- Corrected Mobile offer routing: the offers list/detail use `merchant:stores:read`; only `/merchant/offers/new` requires `catalog:offers:write`. The Offers directory remains visible to read-only merchants; the create FAB/empty-state action, offer lifecycle actions and submit handler require the write grant.
+- Catalog shortcuts to Offers and Categories now use their respective read permissions; the Mobile dashboard Offers card uses `merchant:stores:read`.
+- Driver assignment from the Merchant Orders screen now requires `fulfillment:shipments:assign`, matching the API controller, rather than the unrelated `merchant:orders:write`. Order lifecycle changes remain guarded by `merchant:orders:write`. Product save and offer creation handlers also fail closed without their write grants.
+- Merchant shell listens to active organization changes, resets the selected tab and keys the tab subtree by active organization, role and permission signature. It shows a loading state while the refreshed profile/permission projection is loading, preventing stale tabs and local page state from surviving an organization/permission transition.
+- Existing organization switch flows were verified in source: the new token is saved and installed before active-org state changes; organization-scoped providers are invalidated and the router refreshes. Existing provider-invalidation coverage remains in place.
+- Focused tests added/updated: route-permission matrix for offer read/create separation; positive/negative driver-assignment permission widget tests; existing organization-scope invalidation test. Tests have **not been executed**.
+- No API business behavior, schema, migration, database grants, staging data, worker configuration or deployment changed.
+
+**Status:** IMPLEMENTED / TESTING_PENDING. Next: complete remaining Admin route/action permission mapping; comprehensive testing remains deferred to Phase 3.
