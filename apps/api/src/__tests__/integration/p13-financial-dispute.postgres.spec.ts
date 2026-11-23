@@ -565,6 +565,73 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect([0, 1000]).toContain(s.refund);
   }, 60_000);
 
+
+  // ── FIN-DSH-11: Concurrent partial refund approvals serialize ────
+
+  it('FIN-DSH-11: concurrent partial refund approvals leave a fully refunded payment in REFUNDED state', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const paymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
+    )).rows[0].id;
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+
+    const [first, second] = await Promise.all([
+      paymentsService.requestRefund(paymentId, 1725, 'CUSTOMER_REQUEST', buyerA, buyerCaller, {
+        idempotencyKey: `fin-approve-a-${randomUUID()}`,
+      }),
+      paymentsService.requestRefund(paymentId, 1725, 'CUSTOMER_REQUEST', buyerA, buyerCaller, {
+        idempotencyKey: `fin-approve-b-${randomUUID()}`,
+      }),
+    ]);
+
+    const approved = await Promise.all([
+      paymentsService.approveRefund(first.refundId, adminA, adminCaller),
+      paymentsService.approveRefund(second.refundId, adminA, adminCaller),
+    ]);
+    expect(approved.map(refund => refund.status)).toEqual(['SUCCEEDED', 'SUCCEEDED']);
+
+    const payment = await pool.query(
+      `SELECT status FROM payment_records WHERE id = $1`, [paymentId],
+    );
+    expect(payment.rows[0].status).toBe('REFUNDED');
+
+    const total = await pool.query(
+      `SELECT count(*)::int AS count, COALESCE(SUM(amount_minor), 0)::int AS total
+       FROM refunds WHERE payment_record_id = $1 AND status = 'SUCCEEDED'`,
+      [paymentId],
+    );
+    expect(total.rows[0]).toEqual({ count: 2, total: 3450 });
+  }, 60_000);
+
+  // ── FIN-DSH-12: Refund request idempotency ────────────────────────
+
+  it('FIN-DSH-12: concurrent retries with the same refund idempotency key reuse one request', async () => {
+    const orderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const paymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [orderId],
+    )).rows[0].id;
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const idempotencyKey = `fin-refund-idem-${randomUUID()}`;
+
+    const [first, retry] = await Promise.all([
+      paymentsService.requestRefund(paymentId, 3450, 'CUSTOMER_REQUEST', buyerA, buyerCaller, { idempotencyKey }),
+      paymentsService.requestRefund(paymentId, 3450, 'CUSTOMER_REQUEST', buyerA, buyerCaller, { idempotencyKey }),
+    ]);
+
+    expect(retry.refundId).toBe(first.refundId);
+    expect(retry.status).toBe('REQUESTED');
+
+    const rows = await pool.query(
+      `SELECT count(*)::int AS count FROM refunds WHERE idempotency_key = $1`,
+      [idempotencyKey],
+    );
+    expect(rows.rows[0].count).toBe(1);
+
+    await expect(
+      paymentsService.requestRefund(paymentId, 1000, 'CUSTOMER_REQUEST', buyerA, buyerCaller, { idempotencyKey }),
+    ).rejects.toThrow(/idempotency key was already used/i);
+  }, 60_000);
+
   // ── FIN-DSH-09: Refund after settlement PAID ─────────────────────
 
   it('FIN-DSH-09: refund succeeding after settlement is PAID creates an ADJUSTMENT and preserves the paid record', async () => {

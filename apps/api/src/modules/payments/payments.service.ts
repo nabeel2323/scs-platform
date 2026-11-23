@@ -588,13 +588,8 @@ export class PaymentsService {
       throw new ForbiddenException('You do not have access to this payment');
     }
 
-    // Payment must be in a refundable state
-    const refundableStatuses = ['CONFIRMED', 'CAPTURED', 'PARTIALLY_REFUNDED'];
-    if (!refundableStatuses.includes(payment.status)) {
-      throw new ConflictException(`Cannot refund payment in ${payment.status} status`);
-    }
-
-    const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
+    // Use the caller key when supplied; a generated key preserves a unique
+    // record for legacy callers that do not yet send an idempotency key.
     const idempotencyKey = input?.idempotencyKey || crypto.randomUUID();
 
     // Row-level lock + refundable calculation in a transaction
@@ -609,6 +604,36 @@ export class PaymentsService {
 
       if (!lockedPayment) {
         throw new NotFoundException('Payment not found');
+      }
+
+      // Idempotency is checked under the payment lock before refundable-state
+      // validation, so a retry remains safe even after the first request was
+      // approved and the payment status changed.
+      const [existingRefund] = await tx
+        .select()
+        .from(refunds)
+        .where(eq(refunds.idempotencyKey, idempotencyKey))
+        .limit(1);
+
+      if (existingRefund) {
+        if (
+          existingRefund.paymentRecordId !== paymentId ||
+          Number(existingRefund.amountMinor) !== amountMinor ||
+          existingRefund.reason !== reason ||
+          existingRefund.requestedBy !== requestedBy
+        ) {
+          throw new ConflictException('Refund idempotency key was already used for a different request');
+        }
+        return {
+          refundId: existingRefund.id,
+          amountMinor: existingRefund.amountMinor,
+          status: existingRefund.status,
+        };
+      }
+
+      const refundableStatuses = ['CONFIRMED', 'CAPTURED', 'PARTIALLY_REFUNDED'];
+      if (!refundableStatuses.includes(lockedPayment.status)) {
+        throw new ConflictException(`Cannot refund payment in ${lockedPayment.status} status`);
       }
 
       const lockedConfirmed = lockedPayment.confirmedAmountMinor ?? lockedPayment.amountMinor;
@@ -634,18 +659,46 @@ export class PaymentsService {
       }
 
       const refundId = crypto.randomUUID();
-      await tx.insert(refunds).values({
-        id: refundId,
-        paymentRecordId: paymentId,
-        orderId: lockedPayment.orderId,
-        idempotencyKey,
-        amountMinor,
-        currency: lockedPayment.currency,
-        status: 'REQUESTED',
-        reason,
-        notes: input?.notes || null,
-        requestedBy,
-      });
+      const [insertedRefund] = await tx
+        .insert(refunds)
+        .values({
+          id: refundId,
+          paymentRecordId: paymentId,
+          orderId: lockedPayment.orderId,
+          idempotencyKey,
+          amountMinor,
+          currency: lockedPayment.currency,
+          status: 'REQUESTED',
+          reason,
+          notes: input?.notes || null,
+          requestedBy,
+        })
+        .onConflictDoNothing()
+        .returning({ id: refunds.id });
+
+      // The payment lock serializes same-payment requests. This conflict path
+      // additionally handles a key reused concurrently against another payment.
+      if (!insertedRefund) {
+        const [conflictingRefund] = await tx
+          .select()
+          .from(refunds)
+          .where(eq(refunds.idempotencyKey, idempotencyKey))
+          .limit(1);
+        if (
+          !conflictingRefund ||
+          conflictingRefund.paymentRecordId !== paymentId ||
+          Number(conflictingRefund.amountMinor) !== amountMinor ||
+          conflictingRefund.reason !== reason ||
+          conflictingRefund.requestedBy !== requestedBy
+        ) {
+          throw new ConflictException('Refund idempotency key was already used for a different request');
+        }
+        return {
+          refundId: conflictingRefund.id,
+          amountMinor: conflictingRefund.amountMinor,
+          status: conflictingRefund.status,
+        };
+      }
 
       await tx.insert(paymentEvents).values({
         id: crypto.randomUUID(),
@@ -687,18 +740,42 @@ export class PaymentsService {
       throw new ForbiddenException('Only admins can approve refunds');
     }
 
-    const refundRow = await this.db.db.query.refunds.findFirst({
+    const refundSnapshot = await this.db.db.query.refunds.findFirst({
       where: eq(refunds.id, refundId),
     });
-    if (!refundRow) throw new NotFoundException('Refund not found');
-    if (refundRow.status !== 'REQUESTED') {
-      throw new ConflictException(`Refund is in ${refundRow.status} status — must be REQUESTED`);
-    }
-
-    const payment = await this.getPaymentOrThrow(refundRow.paymentRecordId);
-    const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
+    if (!refundSnapshot) throw new NotFoundException('Refund not found');
 
     await this.db.db.transaction(async (tx) => {
+      // Serialize all refund approvals for a payment on the same row lock used
+      // by requestRefund. Without this, two partial approvals can both observe
+      // only their own committed amount and leave a fully refunded payment
+      // incorrectly marked PARTIALLY_REFUNDED.
+      const [payment] = await tx
+        .select()
+        .from(paymentRecords)
+        .where(eq(paymentRecords.id, refundSnapshot.paymentRecordId))
+        .for('update')
+        .limit(1);
+
+      if (!payment) throw new NotFoundException('Payment not found');
+
+      const [refundRow] = await tx
+        .select()
+        .from(refunds)
+        .where(and(eq(refunds.id, refundId), eq(refunds.paymentRecordId, payment.id)))
+        .limit(1);
+
+      if (!refundRow) throw new NotFoundException('Refund not found');
+      if (refundRow.status !== 'REQUESTED') {
+        throw new ConflictException(`Refund is in ${refundRow.status} status — must be REQUESTED`);
+      }
+
+      const refundableStatuses = ['CONFIRMED', 'CAPTURED', 'PARTIALLY_REFUNDED'];
+      if (!refundableStatuses.includes(payment.status)) {
+        throw new ConflictException(`Cannot approve refund for payment in ${payment.status} status`);
+      }
+
+      const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
       const flip = await tx
         .update(refunds)
         .set({
@@ -713,7 +790,8 @@ export class PaymentsService {
         throw new ConflictException('Refund already processed');
       }
 
-      // Check if fully refunded → update payment status
+      // Recompute after acquiring the payment lock so concurrent approvals
+      // contribute to one serialized total.
       const allRefunds = await tx
         .select({ total: sql<number>`COALESCE(SUM(amount_minor), 0)` })
         .from(refunds)
