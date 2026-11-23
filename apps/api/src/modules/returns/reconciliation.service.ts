@@ -126,11 +126,13 @@ export function buildRefundStatusMismatchDiscrepancy(
   returnId: string,
   refundId: string,
   refundStatus: string,
+  expectedRefundStatus = 'SUCCEEDED',
+  returnStatus = 'REFUNDED',
 ): ReconciliationDiscrepancyDraft {
   return {
     type: 'REFUND_STATUS_MISMATCH',
     sourceRef: `return:${returnId}:refund:${refundId}`,
-    description: `Return ${returnId} is REFUNDED but linked refund ${refundId} has status ${refundStatus}; expected SUCCEEDED`,
+    description: `Return ${returnId} is ${returnStatus} but linked refund ${refundId} has status ${refundStatus}; expected ${expectedRefundStatus}`,
   };
 }
 
@@ -201,6 +203,7 @@ export class ReconciliationService {
 
         const discrepancies: ReconciliationDiscrepancyDraft[] = [];
         await this.checkMissingRefunds(txDb, startDate, endDate, tenantId, discrepancies);
+        await this.checkRefundFailureStatusParity(txDb, startDate, endDate, tenantId, discrepancies);
         await this.checkCommissionReversals(txDb, startDate, endDate, currency, tenantId, discrepancies);
         await this.checkSettlementConsistency(txDb, startDate, endDate, currency, tenantId, discrepancies);
         await this.checkAdjustmentApprovals(txDb, startDate, endDate, tenantId, discrepancies);
@@ -334,6 +337,93 @@ export class ReconciliationService {
       } else if (refund.status !== 'SUCCEEDED') {
         discrepancies.push(
           buildRefundStatusMismatchDiscrepancy(ret.id, refund.id, refund.status),
+        );
+      }
+    }
+  }
+
+  /**
+   * Verify that failed/pending return states agree with the linked payment refund.
+   * Refund approval may legitimately succeed before the return is finalized, so
+   * REFUND_PENDING accepts active or SUCCEEDED refund states; REFUND_FAILED must
+   * map to FAILED, and a pending retry must never remain linked to FAILED.
+   */
+  private async checkRefundFailureStatusParity(
+    db: any,
+    startDate: Date,
+    endDate: Date,
+    orgId: string | null | undefined,
+    discrepancies: ReconciliationDiscrepancyDraft[],
+  ) {
+    const inFlightReturns = await db
+      .selectDistinct({
+        id: returnRequests.id,
+        status: returnRequests.status,
+        requestedRefundMinor: returnRequests.requestedRefundMinor,
+        refundId: returnRequests.refundId,
+      })
+      .from(returnRequests)
+      .innerJoin(orders, eq(returnRequests.subOrderId, orders.id))
+      .innerJoin(stores, eq(orders.storeId, stores.id))
+      .leftJoin(returnRequestEvents, and(
+        eq(returnRequestEvents.returnRequestId, returnRequests.id),
+        eq(returnRequestEvents.toStatus, returnRequests.status),
+      ))
+      .where(and(
+        inArray(returnRequests.status, ['REFUND_FAILED', 'REFUND_PENDING']),
+        // Attribute the finding to the current return-state transition. Legacy
+        // rows without a matching event retain the created_at compatibility path.
+        sql`(
+          (${returnRequestEvents.id} IS NOT NULL
+            AND ${returnRequestEvents.createdAt} >= ${startDate}
+            AND ${returnRequestEvents.createdAt} <= ${endDate})
+          OR
+          (${returnRequestEvents.id} IS NULL
+            AND ${returnRequests.createdAt} >= ${startDate}
+            AND ${returnRequests.createdAt} <= ${endDate})
+        )`,
+        orgId ? eq(stores.orgId, orgId) : undefined,
+      ));
+
+    for (const ret of inFlightReturns) {
+      if (!ret.refundId) {
+        const expected = Number(ret.requestedRefundMinor);
+        discrepancies.push({
+          type: 'MISSING_REFUND',
+          sourceRef: `return:${ret.id}`,
+          expected,
+          actual: 0,
+          delta: expected,
+          description: `Return ${ret.id} is ${ret.status} but has no linked refund record`,
+        });
+        continue;
+      }
+
+      const [refund] = await db
+        .select()
+        .from(refunds)
+        .where(eq(refunds.id, ret.refundId))
+        .limit(1);
+      if (!refund) {
+        discrepancies.push({
+          type: 'INCOMPLETE_SOURCE_DATA',
+          sourceRef: `return:${ret.id}:refund:${ret.refundId}`,
+          description: `Return ${ret.id} references refund ${ret.refundId} which does not exist`,
+        });
+        continue;
+      }
+
+      const validRefundStatuses = ret.status === 'REFUND_FAILED'
+        ? ['FAILED']
+        : ['REQUESTED', 'PROCESSING', 'APPROVED', 'SUCCEEDED'];
+      if (!validRefundStatuses.includes(refund.status)) {
+        const expectedStatus = ret.status === 'REFUND_FAILED'
+          ? 'FAILED'
+          : 'REQUESTED, PROCESSING, APPROVED or SUCCEEDED';
+        discrepancies.push(
+          buildRefundStatusMismatchDiscrepancy(
+            ret.id, refund.id, refund.status, expectedStatus, ret.status,
+          ),
         );
       }
     }

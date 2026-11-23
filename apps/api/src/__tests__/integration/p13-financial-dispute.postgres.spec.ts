@@ -67,6 +67,7 @@
  *   FIN-DSH-63  Failed refund state, payment history and retry stay in sync
  *   FIN-DSH-64  Failure outbox persistence rolls back both payment and return ledgers
  *   FIN-DSH-65  Concurrent duplicate refund approvals resolve idempotently
+ *   FIN-DSH-66  Reconciliation detects failed and retried return/refund status divergence
  *
  * All assertions are against persisted database state, not code inspection.
  */
@@ -3194,6 +3195,82 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       `SELECT status FROM payment_records WHERE id = $1`, [paymentId],
     );
     expect(payment.rows[0].status).toBe('PARTIALLY_REFUNDED');
+  }, 90_000);
+
+
+  it('FIN-DSH-66: reconciliation detects both failed-return and failed-refund retry state divergence', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const pendingReturn = await advanceReturnToRefundPending(
+      returnsService, pool, orderId, 1, buyerA, merchantA, orgA,
+    );
+    const payment = (await pool.query(
+      `SELECT currency FROM payment_records WHERE order_id = $1`, [orderId],
+    )).rows[0];
+    const period = new Date().toISOString().slice(0, 10);
+
+    // Legacy divergence: the return was marked failed but its payment refund
+    // remained REQUESTED and therefore still appeared as an active obligation.
+    await pool.query(
+      `UPDATE return_requests SET status = 'REFUND_FAILED', updated_at = now() WHERE id = $1`,
+      [pendingReturn.id],
+    );
+    await pool.query(
+      `INSERT INTO return_request_events
+       (id, return_request_id, event_type, from_status, to_status, actor_id, actor_type, notes, metadata)
+       VALUES ($1, $2, 'REFUND_FAILED', 'REFUND_PENDING', 'REFUND_FAILED',
+               $3, 'ADMIN', 'Legacy failed refund state', '{}'::jsonb)`,
+      [randomUUID(), pendingReturn.id, adminA],
+    );
+
+    const failedRun = await reconciliationService.executeReconciliation(
+      period, period, payment.currency, adminA, orgA,
+    );
+    const failedMismatch = await pool.query(
+      `SELECT discrepancy_type, expected_minor, actual_minor, description
+       FROM reconciliation_discrepancies
+       WHERE run_id = $1 AND source_ref = $2
+         AND discrepancy_type = 'REFUND_STATUS_MISMATCH'`,
+      [failedRun.runId, `return:${pendingReturn.id}:refund:${pendingReturn.refundId}`],
+    );
+    expect(failedMismatch.rows).toHaveLength(1);
+    expect(failedMismatch.rows[0].expected_minor).toBeNull();
+    expect(failedMismatch.rows[0].actual_minor).toBeNull();
+    expect(failedMismatch.rows[0].description).toContain('is REFUND_FAILED');
+    expect(failedMismatch.rows[0].description).toContain('expected FAILED');
+
+    // A second legacy divergence: a failed refund was retried in the return
+    // workflow, but the linked refund row was not reopened to an active state.
+    await pool.query(
+      `UPDATE refunds SET status = 'FAILED', updated_at = now() WHERE id = $1`,
+      [pendingReturn.refundId],
+    );
+    await pool.query(
+      `UPDATE return_requests SET status = 'REFUND_PENDING', updated_at = now() WHERE id = $1`,
+      [pendingReturn.id],
+    );
+    await pool.query(
+      `INSERT INTO return_request_events
+       (id, return_request_id, event_type, from_status, to_status, actor_id, actor_type, notes, metadata)
+       VALUES ($1, $2, 'REFUND_PENDING', 'REFUND_FAILED', 'REFUND_PENDING',
+               $3, 'ADMIN', 'Legacy failed refund retry', '{}'::jsonb)`,
+      [randomUUID(), pendingReturn.id, adminA],
+    );
+
+    const retryRun = await reconciliationService.executeReconciliation(
+      period, period, payment.currency, adminA, orgA,
+    );
+    const retryMismatch = await pool.query(
+      `SELECT discrepancy_type, expected_minor, actual_minor, description
+       FROM reconciliation_discrepancies
+       WHERE run_id = $1 AND source_ref = $2
+         AND discrepancy_type = 'REFUND_STATUS_MISMATCH'`,
+      [retryRun.runId, `return:${pendingReturn.id}:refund:${pendingReturn.refundId}`],
+    );
+    expect(retryMismatch.rows).toHaveLength(1);
+    expect(retryMismatch.rows[0].description).toContain('is REFUND_PENDING');
+    expect(retryMismatch.rows[0].description).toContain('expected REQUESTED, PROCESSING, APPROVED or SUCCEEDED');
   }, 90_000);
 
 });
