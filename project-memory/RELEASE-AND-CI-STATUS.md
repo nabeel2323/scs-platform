@@ -3,7 +3,7 @@
 **Checkpoint:** 23 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest live branch head before this documentation refresh:** `a6057735ea13d75579119994e0f8e2d1f286a8db` — documentation-only FIN-002 checkpoint. Latest source/test checkpoint: `60bf231f950dec8ede3c8945f76b22bc8e4b4451` (settlement idempotency and confirmed-funds gate; FIN-DSH-13–15 added, not executed).
+**Latest live branch head before this documentation refresh:** `e5aca0d99a0b0051216b4fd0d77b352c50bece88` — documentation-only FIN-002 source/CI reconciliation checkpoint. Latest source/test checkpoint: `60bf231f950dec8ede3c8945f76b22bc8e4b4451` (settlement idempotency and confirmed-funds gate; FIN-DSH-13–15 added, not executed).
 **Exact-head checks:** no GitHub Actions workflow run is attached to the documentation-only head `0b8c452797c067139495a8820c95c62a0cafc37b`. The last refreshed combined status reports Vercel Admin FAILURE at the external deployment build-rate-limit page; this is not an application test result.  
 Documentation-only handoff commits also use `[skip ci]`; re-fetch the live branch ref for the current documentation HEAD. FIN-DSH-11–15 PostgreSQL tests are added but have not been executed. The comprehensive Phase 3 campaign remains pending.
 
