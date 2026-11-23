@@ -2276,3 +2276,12 @@ CI #1446 failed at lint on two parse errors in `returns.service.ts` and `settlem
 - **Regression coverage:** FIN-DSH-54 now checks matching actor ID/class in both `payment_events` and `order_status_history`.
 - **Source commit:** `77c2caaa322836cc8e7d651f6577df715c5e3228`. **Test commit:** `8fc1759a9e374f12513c82d301b2c9b934a98840`.
 - **Status:** IMPLEMENTED / TESTING_PENDING. Test not executed; include in consolidated Phase 3 campaign. No migration or shared DB action.
+
+
+## FIN-030 — Refund-completion period attribution — 23 November 2026
+
+- **Finding:** Missing-refund and commission-reversal reconciliation checks filtered REFUNDED returns by the return request's `created_at`, misclassifying the accounting period when a return was opened in one period and refunded in another.
+- **Implementation:** Both checks now join the append-only return event log and use the `REFUNDED` transition's `created_at`. Legacy rows without a matching REFUNDED event use the prior return-created timestamp as a compatibility fallback.
+- **Regression coverage:** FIN-DSH-58 backdates return creation but leaves refund completion in the current period, verifying that refund-status and missing-commission-reversal discrepancies are detected.
+- **Source commit:** `93a908d4627c804af5d12e20c6a1e7c2811524e9`. **Test commit:** `5abae2018b9e6d6a43d5e3b90764ef80560b4ea0`.
+- **Status:** IMPLEMENTED / TESTING_PENDING. Test not executed; include in consolidated Phase 3 PostgreSQL campaign. No migration or shared DB action.
