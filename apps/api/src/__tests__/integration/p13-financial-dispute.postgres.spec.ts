@@ -863,6 +863,72 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     }]);
   }, 60_000);
 
+
+  // ── FIN-DSH-19: Missing breakdown blocks payment confirmation ───
+
+  it('FIN-DSH-19: missing financial breakdown rolls back manual and COD payment confirmation', async () => {
+    const verifyOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const verifyPaymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [verifyOrderId],
+    )).rows[0].id as string;
+    await pool.query(
+      `UPDATE payment_records SET status = 'AWAITING_VERIFICATION' WHERE id = $1`,
+      [verifyPaymentId],
+    );
+    await pool.query(
+      `DELETE FROM order_financial_breakdown WHERE order_id = $1`,
+      [verifyOrderId],
+    );
+
+    await expect(
+      paymentsService.verifyPayment(verifyPaymentId, 'CONFIRMED', adminA, adminCaller),
+    ).rejects.toThrow(/financial breakdown is missing/i);
+
+    const verifyState = await pool.query(
+      `SELECT status FROM payment_records WHERE id = $1`, [verifyPaymentId],
+    );
+    expect(verifyState.rows[0].status).toBe('AWAITING_VERIFICATION');
+
+    const codOrderId = await createDeliveredOrder(pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA);
+    const codPaymentId = (await pool.query(
+      `SELECT id FROM payment_records WHERE order_id = $1`, [codOrderId],
+    )).rows[0].id as string;
+    await pool.query(
+      `UPDATE payment_records
+       SET payment_method = 'CASH_ON_DELIVERY', status = 'AWAITING_PAYMENT'
+       WHERE id = $1`,
+      [codPaymentId],
+    );
+    await pool.query(
+      `DELETE FROM order_financial_breakdown WHERE order_id = $1`,
+      [codOrderId],
+    );
+
+    const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
+    await expect(
+      paymentsService.confirmCash(codPaymentId, merchantA, merchantCaller, { amountCollectedMinor: 3450 }),
+    ).rejects.toThrow(/financial breakdown is missing/i);
+
+    const codState = await pool.query(
+      `SELECT status FROM payment_records WHERE id = $1`, [codPaymentId],
+    );
+    expect(codState.rows[0].status).toBe('AWAITING_PAYMENT');
+
+    const confirmedEvents = await pool.query(
+      `SELECT count(*)::int AS count FROM payment_events
+       WHERE payment_record_id IN ($1, $2) AND event_type = 'PAYMENT_CONFIRMED'`,
+      [verifyPaymentId, codPaymentId],
+    );
+    expect(confirmedEvents.rows[0].count).toBe(0);
+
+    const confirmationOutbox = await pool.query(
+      `SELECT count(*)::int AS count FROM outbox_events
+       WHERE aggregate_id IN ($1, $2) AND event_type = 'payment.confirmed'`,
+      [verifyPaymentId, codPaymentId],
+    );
+    expect(confirmationOutbox.rows[0].count).toBe(0);
+  }, 90_000);
+
   // ── FIN-DSH-09: Refund after settlement PAID ─────────────────────
 
   it('FIN-DSH-09: refund succeeding after settlement is PAID creates an ADJUSTMENT and preserves the paid record', async () => {

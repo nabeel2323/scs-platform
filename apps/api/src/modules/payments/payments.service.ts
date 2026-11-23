@@ -454,21 +454,43 @@ export class PaymentsService {
    * After this, no UPDATE to the breakdown is permitted.
    */
   private async finalizeFinancialBreakdown(tx: any, orderId: string): Promise<void> {
+    // Lock and distinguish an already-finalized row from a missing financial
+    // record. A missing breakdown must abort payment confirmation; otherwise
+    // the payment could become CONFIRMED while settlement can never be built.
+    const [breakdown] = await tx
+      .select({
+        id: orderFinancialBreakdown.id,
+        finalizedAt: orderFinancialBreakdown.finalizedAt,
+      })
+      .from(orderFinancialBreakdown)
+      .where(eq(orderFinancialBreakdown.orderId, orderId))
+      .for('update')
+      .limit(1);
+
+    if (!breakdown) {
+      throw new ConflictException(
+        'Financial breakdown is missing; payment confirmation cannot proceed',
+      );
+    }
+
+    // Finalization is intentionally idempotent for an existing immutable row.
+    if (breakdown.finalizedAt) return;
+
     const result = await tx
       .update(orderFinancialBreakdown)
       .set({ finalizedAt: new Date(), updatedAt: new Date() })
       .where(
         and(
-          eq(orderFinancialBreakdown.orderId, orderId),
+          eq(orderFinancialBreakdown.id, breakdown.id),
           sql`${orderFinancialBreakdown.finalizedAt} IS NULL`,
         ),
       )
       .returning({ id: orderFinancialBreakdown.id });
 
-    // If no rows updated, either already finalized or no breakdown exists.
-    // Already finalized is fine (idempotent). No breakdown is a data issue.
     if (result.length === 0) {
-      this.logger.warn(`Financial breakdown for order ${orderId} already finalized or missing`);
+      throw new ConflictException(
+        'Financial breakdown changed during payment confirmation; retry the operation',
+      );
     }
   }
 
