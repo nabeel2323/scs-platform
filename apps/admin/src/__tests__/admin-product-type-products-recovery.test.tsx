@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-const { fetchProductTypeSchema, fetchAttributes, adminRequest } = vi.hoisted(() => ({
+const { fetchProductTypeSchema, fetchAttributes, adminRequest, setProductTypeAttributes, setVariantDimensions, publishProductType } = vi.hoisted(() => ({
   fetchProductTypeSchema: vi.fn(),
   fetchAttributes: vi.fn(),
   adminRequest: vi.fn(),
+  setProductTypeAttributes: vi.fn(),
+  setVariantDimensions: vi.fn(),
+  publishProductType: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({ useParams: () => ({ id: 'type-1' }) }));
@@ -15,13 +18,18 @@ vi.mock('../lib/api', () => ({
   fetchProductTypeSchema: (...args: unknown[]) => fetchProductTypeSchema(...args),
   fetchAttributes: (...args: unknown[]) => fetchAttributes(...args),
   adminRequest: (...args: unknown[]) => adminRequest(...args),
+  setProductTypeAttributes: (...args: unknown[]) => setProductTypeAttributes(...args),
+  setVariantDimensions: (...args: unknown[]) => setVariantDimensions(...args),
+  publishProductType: (...args: unknown[]) => publishProductType(...args),
 }));
 vi.mock('../hooks/useRequirePerms', () => ({
   useRequirePerms: () => ({ hasAccess: true, missingPerms: [] }),
   AccessDenied: () => <div>Access denied</div>,
 }));
 vi.mock('../components/product-type-builder', () => ({
-  AttributeTree: () => null,
+  AttributeTree: ({ allAttributes, onAdd }: { allAttributes: { id: string }[]; onAdd: (id: string) => void }) => (
+    <button type="button" onClick={() => onAdd(allAttributes[0]?.id)}>Add test attribute</button>
+  ),
   AttributeConfigPanel: () => null,
   VariantDimensionSelector: () => null,
 }));
@@ -51,15 +59,40 @@ describe('admin product type product read recovery', () => {
     fetchProductTypeSchema.mockReset();
     fetchAttributes.mockReset();
     adminRequest.mockReset();
+    setProductTypeAttributes.mockReset().mockResolvedValue(undefined);
+    setVariantDimensions.mockReset().mockResolvedValue(undefined);
+    publishProductType.mockReset().mockResolvedValue({ id: 'type-1', status: 'PUBLISHED' });
     fetchProductTypeSchema.mockResolvedValue({
       id: 'type-1', name: 'Laptop', code: 'laptop', status: 'PUBLISHED', version: 1,
       attributes: [], variantDimensions: [], createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     });
     fetchAttributes.mockResolvedValue([]);
-    adminRequest.mockResolvedValue({ products: [], totalCount: 0, totalVariantCount: 0 });
+    adminRequest.mockResolvedValue({ canPublish: true, errors: [], warnings: [], products: [], totalCount: 0, totalVariantCount: 0 });
   });
   afterEach(() => cleanup());
+
+
+  it('does not publish a dirty product type when saving its configuration fails', async () => {
+    fetchProductTypeSchema.mockResolvedValueOnce({
+      id: 'type-1', name: 'Laptop', code: 'laptop', status: 'DRAFT', version: 1,
+      attributes: [], groups: [], variantDimensions: [], createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+    fetchAttributes.mockResolvedValueOnce([{ id: 'attribute-1', name: 'RAM' }]);
+    setProductTypeAttributes.mockRejectedValueOnce(new Error('Configuration save failed'));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<ProductTypeBuilderPage />);
+    expect(await screen.findByRole('heading', { name: 'Laptop' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Builder' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add test attribute' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+    expect(await screen.findByText('Configuration save failed')).toBeTruthy();
+    expect(publishProductType).not.toHaveBeenCalled();
+    expect(setVariantDimensions).not.toHaveBeenCalled();
+  });
 
   it('does not show an empty product state after a failed product-type read and retries', async () => {
     adminRequest
