@@ -79,7 +79,7 @@ function collectDescendantIds(
   return result;
 }
 
-type CatalogUserActor = {
+export type CatalogUserActor = {
   sub: string;
   role: string;
   activeOrg?: string | null;
