@@ -476,3 +476,7 @@ The dormant CatalogService.recoverStaleJobs entry point now scopes the stale-job
 ## 25 November 2026 — Catalog product detail/media read closure
 
 GET /products/:id and GET /products/:productId/media are now mixed-read paths with explicit actor boundaries. Authorization checks use a verified-user context. Product detail DB reads (product/store/media rows/variants/pricing/stock/attributes) run in one short actor context; Redis cache I/O and storage URL signing are outside. Media-list DB rows are scoped, with URL resolution after the DB scope closes. These routes intentionally remain without TenantDatabaseContextInterceptor. Regression tests added but not executed.
+
+## 25 November 2026 — Search Facets cache boundary
+
+GET /search/facets now runs Redis cache get/set outside the DB actor transaction. The verified JWT caller is passed to SearchService.getFacetsCached, which scopes the taxonomy/facet query in a short user actor context. Added tests and controller metadata coverage; tests remain unexecuted.
