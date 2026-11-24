@@ -11,6 +11,7 @@ import { DatabaseService } from '../../common/database/database.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   CatalogService,
+  type CatalogUserActor,
   CreateProductInput,
   UpdateProductInput,
   CreateVariantInput,
@@ -635,19 +636,32 @@ export class AdminService {
     };
   }
 
-  async productMediaPreviews(id: string) {
-    const product = await this.db.db.query.products.findFirst({
-      where: and(eq(products.id, id), isNull(products.deletedAt)),
-    });
-    if (!product) throw new NotFoundException('Product not found');
-    const [media, variants] = await Promise.all([
-      this.db.db.select().from(productMedia).where(eq(productMedia.productId, id)),
-      this.db.db.select().from(productVariants).where(eq(productVariants.productId, id)),
-    ]);
+  async productMediaPreviews(id: string, actor: CatalogUserActor) {
+    const snapshot = await this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: actor.sub,
+        actorRole: actor.role,
+        activeOrgId: actor.activeOrg ?? null,
+      },
+      async () => {
+        const product = await this.db.db.query.products.findFirst({
+          where: and(eq(products.id, id), isNull(products.deletedAt)),
+        });
+        if (!product) throw new NotFoundException('Product not found');
+        const [media, variants] = await Promise.all([
+          this.db.db.select().from(productMedia).where(eq(productMedia.productId, id)),
+          this.db.db.select().from(productVariants).where(eq(productVariants.productId, id)),
+        ]);
+        return { product, media, variants };
+      },
+    );
+
+    // Presigned URL generation is external storage I/O and occurs after commit.
     const references = [
       ...new Set([
-        ...imageReferences(product.images, media),
-        ...variants.flatMap((v) => imageReferences(v.images)),
+        ...imageReferences(snapshot.product.images, snapshot.media),
+        ...snapshot.variants.flatMap((variant) => imageReferences(variant.images)),
       ]),
     ].filter(isProductMediaKey);
     const previews: Record<string, string> = {};
@@ -1694,8 +1708,13 @@ export class AdminService {
    * Admin product update. Uses P1 optimistic locking when clientUpdatedAt
    * is supplied. No assertProductInOrg — admins are cross-org by design.
    */
-  async adminUpdateProduct(id: string, input: UpdateProductInput, clientUpdatedAt?: string) {
-    return this.catalogService.updateProduct(id, input, clientUpdatedAt);
+  async adminUpdateProduct(
+    id: string,
+    input: UpdateProductInput,
+    clientUpdatedAt: string | undefined,
+    actor: CatalogUserActor,
+  ) {
+    return this.catalogService.updateProduct(id, input, clientUpdatedAt, actor);
   }
 
   /**
