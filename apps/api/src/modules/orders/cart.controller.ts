@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, UseInterceptors } from '@nestjs/common';
 import { CartService, AddCartItemInput } from './cart.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import {
   CurrentUser,
@@ -10,6 +11,7 @@ import {
 
 @Controller('cart')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class CartController {
   constructor(private readonly cartService: CartService) {}
 

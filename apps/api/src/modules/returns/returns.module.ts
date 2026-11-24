@@ -7,6 +7,7 @@ import { BusinessCalendarService } from './business-calendar.service';
 import { CommissionReversalService } from './commission-reversal.service';
 import { SettlementAdjustmentService } from './settlement-adjustment.service';
 import { ReconciliationService } from './reconciliation.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 
 @Module({
   // OperationsModule provides the lease, pause control, alerting and pilot gate
@@ -15,6 +16,7 @@ import { ReconciliationService } from './reconciliation.service';
   imports: [OperationsModule],
   controllers: [ReturnsController],
   providers: [
+    TenantDatabaseContextInterceptor,
     ReturnsService,
     ReturnExpirationWorker,
     BusinessCalendarService,

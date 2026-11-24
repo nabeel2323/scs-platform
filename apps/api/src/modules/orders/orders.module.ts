@@ -18,7 +18,7 @@ import { OrderRealtimeAccessService } from './order-realtime-access.service';
     PaymentsModule,
   ],
   controllers: [CartController, OrdersController],
-  providers: [CartService, OrdersService, AutoCompleteWorker, OrderRealtimeAccessService],
+  providers: [TenantDatabaseContextInterceptor, CartService, OrdersService, AutoCompleteWorker, OrderRealtimeAccessService],
   exports: [CartService, OrdersService, OrderRealtimeAccessService],
 })
 export class OrdersModule {}

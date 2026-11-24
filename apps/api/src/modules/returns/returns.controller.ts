@@ -16,10 +16,12 @@ import {
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
   Req,
   BadRequestException,
 } from '@nestjs/common';
 import { ReturnsService, CreateReturnInput, TransitionInput } from './returns.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { BusinessCalendarService } from './business-calendar.service';
 import {
   SettlementAdjustmentService,
@@ -38,6 +40,7 @@ import { CallerContext, financialOrgScope } from '../../common/tenant-scope';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class ReturnsController {
   constructor(
     private readonly returns: ReturnsService,
