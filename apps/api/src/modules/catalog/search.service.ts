@@ -65,7 +65,7 @@ export class SearchService {
     );
   }
 
-  async search(query: string, options: SearchOptions | undefined, actor: SearchUserActor) {
+  async search(query: string, options?: SearchOptions) {
     // Handle missing or empty query — return paginated active products
     if (!query || !query.trim()) {
       const limit = options?.limit || 20;
