@@ -42,7 +42,7 @@ It is not an exhaustive FK catalog. The final authority for deployed constraints
 | 0059_return_requests.sql                | return_request_events.return_request_id                 | return_requests.id ON DELETE CASCADE        | Parent return boundary                                                                     |
 | 0059_return_requests.sql                | return_request_events.actor_id                          | users.id                                    | Actor attribution                                                                          |
 | 0059_return_requests.sql                | refunds.return_request_id                               | return_requests.id ON DELETE SET NULL       | Deferred refund-to-return relationship                                                     |
-| refunds.dispute_id                                      | disputes.id ON DELETE SET NULL              | Deferred refund-to-dispute relationship; keep migration-owned to avoid a payments/support/returns module cycle |
+| 0059_return_requests.sql                | refunds.dispute_id                                      | disputes.id ON DELETE SET NULL              | Deferred refund-to-dispute relationship; keep migration-owned to avoid a payments/support/returns module cycle |
 | 0059_return_requests.sql                | disputes.return_request_id                              | return_requests.id ON DELETE SET NULL       | Deferred dispute-to-return relationship                                                    |
 | 0059_return_requests.sql                | return_request_items.inventory_item_id                  | inventory_items.id ON DELETE SET NULL       | Inventory item linkage added after inspection                                              |
 | 0059_return_requests.sql                | return_requests.refund_id                               | refunds.id ON DELETE SET NULL               | Deferred reverse link; avoid assuming one-way lineage                                      |
@@ -370,32 +370,35 @@ A broader Orders callsite review located the existing `POST /orders/:id/assign-d
 No driver-store assignment CRUD endpoint, schema change, composite FK or migration was introduced. Regression tests were authored for the helper, pre-write fail-closed behavior and disposable PostgreSQL unrestricted/restricted cases. They remain unexecuted under the implementation-first restriction. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 
 
-## Drizzle declaration parity — targeted static comparison, 24 November 2026
+## Drizzle declaration parity — complete source-level comparison (24 November 2026)
 
-A targeted comparison of the current Drizzle declarations in `payments.schema.ts`, `returns.schema.ts` and `financial.schema.ts` against the migration-defined relationships already recorded above identified five SQL-enforced foreign keys that are not expressed with Drizzle `.references()` on the corresponding columns:
+This pass inspected all **25 module schema files** containing the **100 `pgTable` declarations** (98 re-exported by `apps/api/src/drizzle/schema.ts`; the two catalog-import tables remain defined outside that barrel). The source contains **178 Drizzle `.references()` declarations** across those files.
 
-| Drizzle table/column | Migration-defined target | Drizzle declaration | Interpretation / follow-up |
-| --- | --- | --- | --- |
-| `refunds.return_request_id` | `return_requests.id ON DELETE SET NULL` (0059) | Plain nullable UUID | Migration-only deferred relationship; add explicit schema parity without creating a payments/returns module initialization cycle. |
-| `return_requests.refund_id` | `refunds.id ON DELETE SET NULL` (0059) | Plain nullable UUID; source comment says FK is added by migration | Reverse link is deliberately deferred until refund creation; preserve the migration's nullable/set-null behavior. |
-| `return_request_items.inventory_item_id` | `inventory_items.id ON DELETE SET NULL` (0059) | Plain nullable UUID; source comment says resolved during inspection | Optional inventory linkage; preserve nullability and set-null semantics. |
-| `disputes.return_request_id` | `return_requests.id ON DELETE SET NULL` (0059) | Plain nullable UUID | Migration-owned cross-module link; preserve nullability and set-null semantics. |
-| `reconciliation_runs.superseded_by` | `reconciliation_runs.id` (0062) | Typed lazy `AnyPgColumn` self-reference added in `financial.schema.ts` | Reconciled in Drizzle in this continuation; preserves nullable version lineage. |
+The prior 75-migration static scan reported **183 textual `REFERENCES` matches across 40 numbered SQL files**. Reconciling the source and SQL evidence accounts for the five-match difference:
 
-This is a **targeted source comparison**, not a complete 100-table parity reconciliation. The reconciliation self-reference and three safe return/inventory/support links are now represented in Drizzle. Two payment-to-return/support links (`refunds.return_request_id` and `refunds.dispute_id`) remain migration-owned because adding reverse imports would create a payments → returns/support → payments module cycle. These are source metadata findings, not evidence that the deployed database is missing constraints. Continue the relationship-by-relationship comparison across all schema modules and migrations; retain an explicit reason for every intentional migration-only FK.
+| Difference | Count | Reconciliation |
+| --- | ---: | --- |
+| Genuine migration-owned FKs intentionally not modeled with Drizzle `.references()` | 3 | Listed below; keep migration-owned to preserve module dependency direction |
+| Conditional duplicate reference in migration 0061 | 1 | `ALTER TABLE refunds ADD COLUMN IF NOT EXISTS return_request_id UUID REFERENCES return_requests(id)` is a no-op on the ordered migration path because migration 0059 already created that column and its named FK |
+| Comment-only match in migration 0070 | 1 | The word `REFERENCES` appears in the migration's privilege-hardening comment, not in an executable FK declaration |
+| **Total textual difference** | **5** | **183 − 1 comment − 1 conditional no-op = 181 effective source FK declarations; 178 Drizzle + 3 intentional migration-owned** |
 
-The nullable `org_id` fields on `commission_reversals`, `settlement_adjustments`, `reconciliation_runs` and `reconciliation_discrepancies` are different: migration 0062 intentionally adds application-maintained tenant metadata without an organizations FK. Do not add a synthetic FK or treat those columns as migration drift. Their values must continue to be derived and checked against canonical financial/order/store parents by service logic.
+### The three intentional migration-owned relationships
 
-No schema or migration was changed in this audit. No database was queried. Tests and CI remain deferred under the implementation-first instruction; G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+| Table/column | Migration-defined target | Why it remains migration-owned |
+| --- | --- | --- |
+| `products.product_type_id` | `product_types.id ON DELETE SET NULL` (0025) | `catalog.taxonomy.schema.ts` imports catalog products; importing `productTypes` back into `catalog.schema.ts` would reverse the established taxonomy → catalog dependency and create a module initialization cycle. The column comment in `catalog.schema.ts` already records this design. |
+| `refunds.return_request_id` | `return_requests.id ON DELETE SET NULL` (0059) | `returns.schema.ts` imports payments. A reverse payments → returns import would create a cycle. |
+| `refunds.dispute_id` | `disputes.id ON DELETE SET NULL` (0059) | Support imports returns, and returns imports payments. A payments → support import would close a cycle. |
 
+### Previously corrected parity gaps
 
-### Additional deferred dispute relationship — 24 November 2026
+The following links are now expressed in Drizzle with the migration's nullable / `ON DELETE SET NULL` semantics: `return_requests.refund_id → refunds.id`, `return_request_items.inventory_item_id → inventory_items.id`, and `disputes.return_request_id → return_requests.id`. Migration 0062's `reconciliation_runs.superseded_by` self-reference is also represented using a typed lazy Drizzle reference. The two payment-owned links above remain plain UUID columns with an explicit cycle rationale in `payments.schema.ts`.
 
-The whole-product schema pass also confirmed that `disputes.return_request_id` is a plain nullable UUID in `reviews/support.schema.ts`, while migration 0059 defines the nullable FK to `return_requests.id ON DELETE SET NULL`. The source declaration now documents this as migration-owned to avoid introducing a support/returns module dependency. This raised the initially identified omission count from four to five. The reconciliation self-reference was subsequently mirrored in Drizzle, leaving four deferred cross-module links; no deployed constraint or application behavior was changed.
+The nullable financial `org_id` columns on `commission_reversals`, `settlement_adjustments`, `reconciliation_runs` and `reconciliation_discrepancies` are application-maintained tenant metadata, not missing organization FKs. Do not synthesize an organizations FK; derive and validate them against canonical financial/order/store parents.
 
+### Evidence boundary and remaining work
 
-## Drizzle parity follow-up — safe deferred-link modeling (24 November 2026)
+This is a **source-level reconciliation** of the current 25 schema modules against the numbered migration source inventory and targeted migration SQL inspection. It does not prove that constraints are present in any deployed database, validate existing rows, or authorize schema/RLS/grant changes. The protected read-only PostgreSQL catalog remains authoritative for deployed state. Cross-column relationships (store/org, offer/product/variant, payment/order/store, return/payment/order, carrier credential/org/store, and others) still require operation-level ownership checks; individual FKs do not enforce those equalities.
 
-The migration 0059 deferred-link review found that three of the cross-module relationships can be represented in Drizzle without introducing an initialization cycle: `return_requests.refund_id` references the already imported `refunds` table; `return_request_items.inventory_item_id` references `inventory_items` (which has no dependency on returns); and `disputes.return_request_id` references `return_requests` (support depends on returns, not vice versa). These nullable references now use `onDelete: 'set null'` to mirror migration 0059.
-
-The same review found an additional omission that the earlier targeted table did not list: `refunds.dispute_id → disputes.id ON DELETE SET NULL`. Together with `refunds.return_request_id → return_requests.id ON DELETE SET NULL`, these two payment-owned links remain migration-only. Importing returns/support schemas into `payments.schema.ts` would create a dependency cycle because returns already imports payments and support imports returns. Their plain UUID declarations are now explicitly documented with this reviewed reason. No SQL migration or deployed database constraint was changed.
+No database was queried, no migration or schema DDL was changed, and no tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

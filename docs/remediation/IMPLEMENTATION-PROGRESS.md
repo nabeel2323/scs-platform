@@ -2898,3 +2898,10 @@ The detailed parity inventory and the deliberate distinction between migration-o
 ## Post-push reconciliation — 24 November 2026
 
 Source/documentation checkpoint `92895859abe20f0132a3ae021c695898e0b9f051` was pushed to PR #138 with expected-head protection. PR remained OPEN / DRAFT / UNMERGED to `develop`; exact-head Actions had zero runs and Vercel Web/Admin were PENDING external preview checks. The latest source slice adds three safe migration 0059 references to Drizzle and corrects the missing `refunds.dispute_id` crosswalk entry. No tests or CI were run. G-002 remains IN PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — complete source FK parity reconciliation
+
+The G-002 static source comparison now covers all 25 module schema files / 100 `pgTable` declarations and 178 Drizzle `.references()` declarations. Reconciliation of the prior 183 SQL text matches identifies exactly three intentional migration-owned FKs: `products.product_type_id → product_types.id` (taxonomy → catalog dependency), `refunds.return_request_id → return_requests.id`, and `refunds.dispute_id → disputes.id` (payments → returns/support cycles). The other two text matches are not additional effective constraints: migration 0061's `ADD COLUMN IF NOT EXISTS ... REFERENCES` is a no-op after migration 0059 creates the column/FK, and migration 0070 contains the word REFERENCES only in a comment. Thus 183 text matches reconcile to 181 effective SQL FK declarations = 178 Drizzle references + 3 documented migration-owned links.
+
+The three previously corrected links (`return_requests.refund_id`, `return_request_items.inventory_item_id`, `disputes.return_request_id`) and reconciliation self-FK are represented in Drizzle. No SQL migration, schema DDL, database or RLS/grant policy was changed. This is source evidence only; protected live catalog validation remains pending. G-002 remains IN_PROGRESS / NOT VERIFIED. Next: finish operation-level ownership predicates and direct DB/actor-context audit, then add regression coverage and run the consolidated verification after implementation/integration is complete.
