@@ -65,7 +65,7 @@ export class TemplateGeneratorService {
 
   private withUserActor<T>(
     caller: CatalogImportCaller,
-    operation: () => Promise<T>,
+    operation: () => PromiseLike<T>,
   ): Promise<T> {
     return this.db.withActorContext(
       {
@@ -74,7 +74,7 @@ export class TemplateGeneratorService {
         actorRole: caller.role,
         activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
       },
-      operation,
+      async () => await operation(),
     );
   }
 
