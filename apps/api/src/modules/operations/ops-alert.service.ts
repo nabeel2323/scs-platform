@@ -102,22 +102,22 @@ export class OpsAlertService {
     this.config = resolveP13OpsConfig();
   }
 
-  private withUserActor<T>(caller: OpsAlertCaller, operation: () => Promise<T>): Promise<T> {
+  private withUserActor<T>(caller: OpsAlertCaller, operation: () => PromiseLike<T>): Promise<T> {
     return this.db.withActorContext({
       actorKind: 'user',
       actorId: caller.sub,
       actorRole: caller.role,
       activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
-    }, operation);
+    }, async () => await operation());
   }
 
-  private withSystemActor<T>(operation: () => Promise<T>): Promise<T> {
+  private withSystemActor<T>(operation: () => PromiseLike<T>): Promise<T> {
     // Alert rows are platform-owned. Reuse an existing verified operation
     // context when nested; otherwise use the dedicated alert-service principal.
-    if (this.db.currentActorContext) return operation();
+    if (this.db.currentActorContext) return Promise.resolve(operation());
     return this.db.withActorContext(
       { actorKind: 'system', actorId: 'p13-ops-alert-service' },
-      operation,
+      async () => await operation(),
     );
   }
 
