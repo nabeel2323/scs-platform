@@ -1062,3 +1062,7 @@ Search Facets cache I/O now sits outside its DB actor scope. Continue the remain
 The latest Catalog pass adds exact category/store ownership, public taxonomy visibility, search facet publication filters, offer/request compare-and-set/locking, and product/media mutation predicates. Mixed routes retain short actor DB phases with Redis/storage work outside transactions; DB-only routes remain under verified controller interceptors. Tests remain unexecuted.
 
 Next: complete remaining Catalog service/root-pool and cross-module caller audit, then continue the broader G-002 ownership/FK and migration/operator evidence. Do not run quality gates until implementation/integration is complete. Do not change RLS, grants, migrations, shared/staging DBs, deployment or worker activation.
+
+## 25 November 2026 — Admin Catalog caller phase update
+
+AdminService mixed product update and media-preview paths now forward a verified admin actor and use short actor-scoped DB phases with cache/storage side effects after commit. Other reviewed admin Catalog CRUD/variant/attribute routes remain DB-only under request actor interceptors. Continue cross-module Catalog caller/root-pool inventory; do not assume the Admin integration closes all module callers. Quality gates remain deferred; no shared DB/RLS/grant/migration/deployment/worker activation.
