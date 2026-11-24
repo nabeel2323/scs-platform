@@ -1402,7 +1402,7 @@ export class AdminService {
 
         if (decision === 'APPROVED') {
           const payload = (request.payload ?? {}) as Record<string, unknown>;
-          const updates: Record<string, string | Date> = {};
+          const updates: Partial<typeof organizations.$inferInsert> = {};
           for (const field of ['name', 'legalName', 'taxId'] as const) {
             const value = payload[field];
             if (typeof value === 'string') updates[field] = value;
