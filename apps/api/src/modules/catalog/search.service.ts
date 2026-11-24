@@ -610,6 +610,14 @@ export class SearchService {
           ${productAttributeValues.valueNumber}::text,
           ${productAttributeValues.valueBoolean}::text
         )`;
+        const valueConditions = [
+          eq(productAttributeValues.attributeDefinitionId, attr.id),
+          inArray(products.productTypeId, typeIds),
+          eq(products.status, 'ACTIVE'),
+          isNull(products.deletedAt),
+        ];
+        if (categoryId) valueConditions.push(eq(products.categoryId, categoryId));
+
         const rows = await this.db.db
           .select({
             val: valueExpression,
@@ -617,14 +625,7 @@ export class SearchService {
           })
           .from(productAttributeValues)
           .innerJoin(products, eq(productAttributeValues.productId, products.id))
-          .where(
-            and(
-              eq(productAttributeValues.attributeDefinitionId, attr.id),
-              inArray(products.productTypeId, typeIds),
-              eq(products.status, 'ACTIVE'),
-              isNull(products.deletedAt),
-            ),
-          )
+          .where(and(...valueConditions))
           .groupBy(valueExpression)
           .orderBy(desc(sql`count(*)`))
           .limit(20);
