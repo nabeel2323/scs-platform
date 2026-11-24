@@ -151,3 +151,11 @@ Remaining import paths: upload/storage+insert+auto-validate, validation storage 
 ## Catalog Import actor-context boundary — 24 November 2026
 
 Implemented: list/detail/errors read endpoints use the verified-user context interceptor; report error rows are read in a short user actor transaction and workbook generation follows outside the transaction. Deliberately not wrapped: preview is in-memory only; upload, validate, execute and retry mix DB with object storage, parsing, cache state and/or nested entity transactions; export uses TemplateGeneratorService DB reads plus workbook generation. These require service-level DB phase separation rather than a request-wide interceptor.
+
+## 24 November 2026 — source schema declaration and runtime barrel reconciliation
+
+- The current source contains 100 `pgTable` declarations across 25 module `*.schema.ts` files. `drizzle.config.ts` discovers the module schema glob, while `DatabaseService` constructs its runtime Drizzle instance from `apps/api/src/drizzle/schema.ts`.
+- Before this correction, the runtime barrel re-exported only 98 declarations because `catalog-import.schema.ts` (the platform-level `catalog_imports` and `catalog_import_errors` tables) was omitted. Source commit `474ef450d98a62fe3b2f6b480a5dc4ea300d824d` adds the missing barrel export. The runtime schema barrel now includes all 100 source declarations.
+- This fixes source/runtime schema discovery alignment only. It does not apply a migration or prove the physical existence of every declared table in any deployed database.
+- Keep the 19-November protected catalog snapshot distinct: its 114 public ordinary/partitioned relations were reconciled at that time as 99 Drizzle declarations plus 15 non-Drizzle relations (the migration ledger, backfill audit table and 13 analytics partitions). The current 100-declaration source count is not a replacement live catalog count. Migration 0075's `payment_proof_upload_intents` source declaration must not be assumed present in shared/staging until an authorized live catalog audit confirms it.
+- The historical 116 count remains unexplained. A fresh protected read-only catalog audit must compare current relkinds, partitions, extension/system objects and API/migration role visibility. No such query was run here.
