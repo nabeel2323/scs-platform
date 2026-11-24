@@ -2830,3 +2830,12 @@ Regression cases are documented in the G-002 migration FK crosswalk; they have n
 The shipment schema has independent order/store FKs. The source now rejects a mismatched order/store at shipment creation, verifies order/store consistency before any shipment detail authorization bypass, and checks the same relationship in the carrier worker before provider/storage side effects and webhook retry processing. This closes a potential cross-store order disclosure through a shipment whose store belongs to one merchant while its order belongs to another.
 
 Regression scenarios are documented in the G-002 migration FK crosswalk; no tests, formatter, lint, typecheck, E6 or CI were run. All source commits use `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## G-002 — shipment read-path completeness — 24 November 2026
+
+**Source commit:** `56d605a7377c49766b990abfc023e6ae4a5cea1d`.
+
+The shipment/order/store invariant is now enforced beyond the initial detail/worker checks: OrdersService exception/RTS authorization validates lineage before driver or privileged bypass; order-based shipment lookup verifies the shipment store against the order; driver shipment listing joins the order on both ID and store; ShipmentOperationsController list and count queries exclude malformed pairs. This closes the remaining inspected shipment read paths that could expose mismatched order data.
+
+Regression cases are listed in the G-002 crosswalk; no tests, formatter, lint, typecheck, E6 or CI were run. The source commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
