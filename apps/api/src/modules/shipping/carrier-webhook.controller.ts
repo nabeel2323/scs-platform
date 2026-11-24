@@ -158,45 +158,44 @@ export class CarrierWebhookController {
     // 3. Find the active credential for this provider
     //    If webhookToken is provided (B1.7), use it for exact tenant routing.
     //    Otherwise fall back to provider-key-only lookup (legacy single-org).
-    const credential: any = await this.db.withActorContext(
+    const credentialLookup = await this.db.withActorContext(
       { actorKind: 'worker', workerId: 'carrier-webhook:credential-resolution' },
       async () => {
-        let credential: any = null;
         if (webhookToken) {
-        credential = await this.db.db.query.carrierCredentials.findFirst({
-        where: and(
-        eq(carrierCredentials.providerKey, providerKey),
-        eq(carrierCredentials.webhookToken, webhookToken),
-        eq(carrierCredentials.isActive, true),
-        ),
-        });
-        } else {
+          const credential = await this.db.db.query.carrierCredentials.findFirst({
+            where: and(
+              eq(carrierCredentials.providerKey, providerKey),
+              eq(carrierCredentials.webhookToken, webhookToken),
+              eq(carrierCredentials.isActive, true),
+            ),
+          });
+          return { credential, ambiguous: false };
+        }
+
         // The legacy provider-key-only route is safe only when exactly one
-        // active credential exists. Never let findFirst silently choose a
-        // tenant when multiple organizations configure the same provider.
+        // active credential exists. Never let findFirst silently choose a tenant.
         const candidates = await this.db.db.query.carrierCredentials.findMany({
-        where: and(
-        eq(carrierCredentials.providerKey, providerKey),
-        eq(carrierCredentials.isActive, true),
-        ),
-        limit: 2,
+          where: and(
+            eq(carrierCredentials.providerKey, providerKey),
+            eq(carrierCredentials.isActive, true),
+          ),
+          limit: 2,
         });
-        if (candidates.length > 1) {
-        this.logger.warn(
-        `Legacy webhook route rejected for ${providerKey}: multiple active credentials require a tenant-specific webhook token`,
-        );
-        return res.status(HttpStatus.UNAUTHORIZED).json({
-        error: 'A tenant-specific webhook token is required for this provider',
-        });
-        }
-        credential = candidates[0] ?? null;
-        }
-        
-        
-        return credential;
+        if (candidates.length > 1) return { credential: null, ambiguous: true };
+        return { credential: candidates[0] ?? null, ambiguous: false };
       },
     );
 
+    if (credentialLookup.ambiguous) {
+      this.logger.warn(
+        `Legacy webhook route rejected for ${providerKey}: multiple active credentials require a tenant-specific webhook token`,
+      );
+      return res.status(HttpStatus.UNAUTHORIZED).json({
+        error: 'A tenant-specific webhook token is required for this provider',
+      });
+    }
+
+    const credential = credentialLookup.credential;
     if (!credential) {
       this.logger.warn(`Webhook received for unknown provider: ${providerKey}`);
       return res.status(HttpStatus.UNAUTHORIZED).json({

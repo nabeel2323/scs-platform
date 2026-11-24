@@ -73,6 +73,39 @@ describe('Shipping and carrier tenant context', () => {
     expect(credentialFindMany).not.toHaveBeenCalled();
   });
 
+  it('binds carrier credential CRUD to the verified caller actor', async () => {
+    const organizationFindFirst = vi.fn().mockResolvedValue({
+      userId: caller.sub,
+      orgId: caller.activeOrg,
+      status: 'ACTIVE',
+    });
+    const credentialFindMany = vi.fn().mockResolvedValue([]);
+    const scoped = vi.fn(async (_context: any, operation: () => Promise<unknown>) => operation());
+    const service = Object.create(CarrierCredentialsService.prototype) as any;
+    service.db = {
+      currentActorContext: null,
+      withActorContext: scoped,
+      db: {
+        query: {
+          organizationMembers: { findFirst: organizationFindFirst },
+          carrierCredentials: { findMany: credentialFindMany },
+        },
+      },
+    };
+
+    await expect(service.listForOrg('org-a', caller)).resolves.toEqual([]);
+    expect(scoped).toHaveBeenCalledWith(
+      {
+        actorKind: 'user',
+        actorId: 'merchant-a',
+        actorRole: 'MERCHANT_OWNER',
+        activeOrgId: 'org-a',
+      },
+      expect.any(Function),
+    );
+    expect(credentialFindMany).toHaveBeenCalledOnce();
+  });
+
   it('does not resolve carrier configuration for a store outside the supplied organization', async () => {
     const storeFindFirst = vi.fn().mockResolvedValue(null);
     const configFindFirst = vi.fn();
@@ -218,6 +251,8 @@ describe('Shipping and carrier tenant context', () => {
     const credentialFindFirst = vi.fn().mockResolvedValue(null);
     const provider = Object.create(AramexProvider.prototype) as any;
     provider.db = {
+      currentActorContext: null,
+      withActorContext: runActorContext,
       db: {
         query: {
           stores: { findFirst: storeFindFirst },
