@@ -68,6 +68,50 @@ describe('CatalogService product/media read actor boundaries (G-002)', () => {
     expect(result[0]).toMatchObject({ id: 'media-1', displayUrl: 'https://cdn.example.test/image.jpg' });
   });
 
+  it('authorizes the product inside a short actor scope before returning a Redis cache hit', async () => {
+    let activeActor: Record<string, unknown> | null = null;
+    const withActorContext = vi.fn(async (context: Record<string, unknown>, operation: () => Promise<unknown>) => {
+      activeActor = context;
+      try {
+        return await operation();
+      } finally {
+        activeActor = null;
+      }
+    });
+    const findProduct = vi.fn(async () => {
+      expect(activeActor).toMatchObject({ actorKind: 'user', actorId: actor.sub });
+      return { ...product };
+    });
+    const cached = { id: 'product-1', title: 'Cached product' };
+    const redisGet = vi.fn(async () => {
+      expect(activeActor).toBeNull();
+      return JSON.stringify(cached);
+    });
+    const redisSet = vi.fn();
+    const service = new CatalogService(
+      {
+        withActorContext,
+        db: { query: { products: { findFirst: findProduct } } },
+      } as any,
+      { client: { get: redisGet, set: redisSet } } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(service.getProductDetail('product-1', actor, false)).resolves.toEqual(cached);
+
+    expect(withActorContext).toHaveBeenCalledOnce();
+    expect(findProduct).toHaveBeenCalledOnce();
+    expect(redisGet).toHaveBeenCalledOnce();
+    expect(redisSet).not.toHaveBeenCalled();
+  });
+
   it('keeps product detail DB reads in one actor scope and Redis/storage I/O outside it', async () => {
     let activeActor: Record<string, unknown> | null = null;
     const withActorContext = vi.fn(async (context: Record<string, unknown>, operation: () => Promise<unknown>) => {
