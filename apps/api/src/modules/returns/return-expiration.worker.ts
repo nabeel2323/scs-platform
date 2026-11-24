@@ -118,6 +118,13 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  private withWorkerContext<T>(operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext(
+      { actorKind: 'worker', workerId: this.leases.holderId },
+      operation,
+    );
+  }
+
   async onModuleDestroy(): Promise<void> {
     this.stopTicking();
     if (this.state === 'HELD' || this.state === 'HELD_PAUSED') {
@@ -256,6 +263,10 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
 
   /** The protected work itself. Only ever called while holding a live fence. */
   async runBatch(): Promise<WorkerCycleReport> {
+    return this.withWorkerContext(() => this.runBatchInActorContext());
+  }
+
+  private async runBatchInActorContext(): Promise<WorkerCycleReport> {
     const epoch = this.epoch;
 
     // Fence BEFORE anything is read or written. `runBatch()` is public (an
@@ -456,6 +467,7 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
     reason?: string;
     error?: string;
   }): Promise<void> {
+    return this.withWorkerContext(async () => {
     if (acquired.reason === 'HELD_BY_OTHER') {
       // Expected steady state for a standby replica. Not a failure: the job IS
       // being run, just not here.
@@ -475,6 +487,7 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
       failures,
       acquired.error ?? acquired.reason ?? 'unknown',
     );
+    });
   }
 
   /** Alert 1: three consecutive worker polling failures. */
@@ -483,6 +496,7 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
     failures: number | null,
     detail: string,
   ): Promise<void> {
+    return this.withWorkerContext(async () => {
     const threshold = this.config.thresholds.pollFailureAlertCount;
     if (failures === null || failures < threshold) return;
     await this.withWorkerContext(() => this.alerts.raise({
