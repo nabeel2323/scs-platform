@@ -21,6 +21,10 @@ describe('PaymentsController bounded read actor context (G-002)', () => {
       'listSettlements',
       'merchantListPayments',
       'merchantSettlements',
+      'confirmCash',
+      'verifyPayment',
+      'calculateSettlement',
+      'markSettlementPaid',
     ] as const;
 
     for (const method of methods) {

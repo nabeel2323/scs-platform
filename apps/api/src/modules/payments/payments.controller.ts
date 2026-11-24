@@ -101,6 +101,7 @@ export class PaymentsController {
 
   /** POST /v1/payments/:id/confirm-cash — merchant confirms COD cash collection. */
   @Post('payments/:id/confirm-cash')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:write')
   async confirmCash(
@@ -132,6 +133,7 @@ export class PaymentsController {
 
   /** POST /v1/admin/payments/:id/verify — admin confirms or rejects proof. */
   @Post('admin/payments/:id/verify')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:payments:verify')
   async verifyPayment(
@@ -197,6 +199,7 @@ export class PaymentsController {
 
   /** POST /v1/admin/settlements/:id/calculate — calculate settlement. */
   @Post('admin/settlements/:id/calculate')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:settlements:write')
   async calculateSettlement(@CurrentUser() user: JwtPayload, @Param('id') orderId: string) {
@@ -206,6 +209,7 @@ export class PaymentsController {
 
   /** POST /v1/admin/settlements/:id/pay — mark settlement as paid. */
   @Post('admin/settlements/:id/pay')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:settlements:write')
   async markSettlementPaid(
