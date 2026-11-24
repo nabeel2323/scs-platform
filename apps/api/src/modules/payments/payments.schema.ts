@@ -123,7 +123,9 @@ export const refunds = pgTable('refunds', {
   requestedBy: uuid('requested_by').references(() => users.id),
   approvedBy: uuid('approved_by').references(() => users.id),
   providerRefundStatus: varchar('provider_refund_status', { length: 40 }),
-  // P13: link to originating return request / dispute (nullable)
+  // P13: link to originating return request / dispute (nullable). Migration
+  // 0059 installs the return_requests FK; keep it migration-only here to avoid
+  // a payments <-> returns schema-module initialization cycle.
   returnRequestId: uuid('return_request_id'),
   disputeId: uuid('dispute_id'),
   metadata: jsonb('metadata').notNull().default({}),
