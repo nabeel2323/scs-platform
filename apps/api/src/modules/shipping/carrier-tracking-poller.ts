@@ -140,6 +140,7 @@ export function trackingEventFingerprint(
 @Injectable()
 export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CarrierTrackingPoller.name);
+  private readonly workerId = `carrier-tracking-${randomUUID()}`;
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
 
@@ -151,6 +152,13 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
 
   /** Minimum interval between tracking polls for the same shipment (ms). */
   private static readonly MIN_POLL_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+
+  private withWorkerContext<T>(operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext(
+      { actorKind: 'worker', workerId: this.workerId },
+      operation,
+    );
+  }
 
   constructor(
     private readonly db: DatabaseService,
@@ -215,7 +223,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
       // from normal tracking progression. Only SUCCEEDED and NOT_REQUIRED are
       // excluded — UNKNOWN/RECONCILIATION_REQUIRED shipments continue to be
       // polled (full cancel-aware tracking deferred to B.3.3.4).
-      const claimed = await this.db.db.execute(sql`
+      const claimed = await this.withWorkerContext(() => this.db.db.execute(sql`
         UPDATE shipments
         SET last_carrier_sync_at = NOW(), updated_at = NOW()
         WHERE id IN (
@@ -232,7 +240,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
           FOR UPDATE SKIP LOCKED
         )
         RETURNING *
-      `);
+      `));
 
       const candidates = claimed.rows ?? [];
       this.logger.log(`Tracking poll: ${candidates.length} shipments claimed.`);
@@ -290,10 +298,10 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
 
       if (!trackingInfo || !trackingInfo.events.length) {
         // No new events
-        await this.db.db
+        await this.withWorkerContext(() => this.db.db
           .update(shipments)
           .set({ lastCarrierSyncAt: new Date(), updatedAt: new Date() })
-          .where(eq(shipments.id, shipment.id));
+          .where(eq(shipments.id, shipment.id)));
         return;
       }
 
@@ -310,7 +318,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
         latestStatus &&
         canTransition(shipment.carrierStatusMapped, latestStatus)
       ) {
-        await this.db.db
+        await this.withWorkerContext(() => this.db.db
           .update(shipments)
           .set({
             carrierStatusRaw: latestStatus,
@@ -318,16 +326,16 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
             lastCarrierSyncAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(eq(shipments.id, shipment.id));
+          .where(eq(shipments.id, shipment.id)));
 
         // M7.3-A: Bridge carrier DELIVERED → order DELIVERED
         if (latestStatus === 'DELIVERED' && shipment.order_id) {
           try {
-            await this.ordersService.processCarrierDelivery(
+            await this.withWorkerContext(() => this.ordersService.processCarrierDelivery(
               shipment.order_id,
               shipment.carrier_shipment_id,
               'tracking_poll',
-            );
+            ));
           } catch (bridgeErr: any) {
             this.logger.warn(
               `Carrier delivery bridge failed for order ${shipment.order_id}: ${bridgeErr?.message}`,
@@ -366,6 +374,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
     providerKey: string,
     cancelStatus: string,
   ): Promise<void> {
+    return this.withWorkerContext(async () => {
     const shipmentId = shipment.id as string;
     // Deterministic per shipment + anomaly: stable across polls => idempotent dedup.
     const exceptionId = `dac-${shipmentId}`;
@@ -422,6 +431,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
     //      - carrier_status_mapped / carrier_status_raw advance
     //      - shipment.status mutation
     //      - order status mutation / inventory SALE settlement
+    });
   }
 
   /**
@@ -462,7 +472,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
     // M7.2.4-A: Attempt INSERT; treat PG 23505 as idempotent dedup.
     // The UNIQUE index uq_shipment_events_external_id is the final authority.
     try {
-      await this.db.db.insert(shipmentEvents).values({
+      await this.withWorkerContext(() => this.db.db.insert(shipmentEvents).values({
         id: randomUUID(),
         shipmentId: shipment.id,
         eventType: 'CARRIER_TRACKING',
@@ -477,7 +487,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
         },
         externalEventId: fingerprint,
         carrierEventCode: externalId?.slice(0, 40) || null,
-      });
+      }));
     } catch (err: any) {
       if (err?.code === '23505') {
         // Duplicate — idempotent dedup. Another worker or a previous cycle
