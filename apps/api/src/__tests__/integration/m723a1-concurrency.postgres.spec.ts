@@ -180,6 +180,8 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
       retryPolicy,
       circuitBreaker,
       { putObject: async () => ({}) } as any,
+      { getStoreTenantContextForSystem: async () => ({ orgId: orgA }) } as any,
+      {} as any,
     );
   }, 120_000);
 

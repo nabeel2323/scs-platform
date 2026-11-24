@@ -55,14 +55,18 @@ export class TenantDatabaseContextInterceptor implements NestInterceptor {
       throw new UnauthorizedException('Authenticated database context is missing');
     }
 
+    const actorId = user.sub;
+    const actorRole = user.role;
+    const activeOrgId = typeof user.activeOrg === 'string' ? user.activeOrg : null;
+
     return defer(() =>
       from(
         this.database.withActorContext(
           {
             actorKind: 'user',
-            actorId: user.sub,
-            actorRole: user.role,
-            activeOrgId: typeof user.activeOrg === 'string' ? user.activeOrg : null,
+            actorId,
+            actorRole,
+            activeOrgId,
           },
           () => lastValueFrom(next.handle()),
         ),

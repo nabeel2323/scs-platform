@@ -2,9 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { DatabaseService } from '../../../common/database/database.service';
 
 function createService() {
-  const tx = { execute: vi.fn().mockResolvedValue(undefined) };
+  const tx: { execute: ReturnType<typeof vi.fn> } = {
+    execute: vi.fn().mockResolvedValue(undefined),
+  };
   const rootDb = {
-    transaction: vi.fn(async (operation: (tx: typeof tx) => Promise<unknown>) => operation(tx)),
+    transaction: vi.fn(async (operation: (transaction: typeof tx) => Promise<unknown>) =>
+      operation(tx),
+    ),
   };
   const service = new DatabaseService();
   service.db = rootDb as any;

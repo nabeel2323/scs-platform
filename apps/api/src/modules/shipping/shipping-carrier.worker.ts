@@ -316,6 +316,8 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         { providerKey, operation: 'validateTenant' },
       );
     }
+
+    return store.orgId;
   }
 
   /**

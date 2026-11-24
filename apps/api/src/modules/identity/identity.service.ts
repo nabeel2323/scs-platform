@@ -2260,6 +2260,7 @@ export class IdentityService {
     if (!user.passwordHash) {
       throw new ConflictException('No password set. Please set up credentials first.');
     }
+    const priorPasswordHash = user.passwordHash;
 
     const currentValid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!currentValid) {
@@ -2286,7 +2287,7 @@ export class IdentityService {
           passwordSetAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(and(eq(users.id, userId), eq(users.passwordHash, user.passwordHash)))
+        .where(and(eq(users.id, userId), eq(users.passwordHash, priorPasswordHash)))
         .returning({ id: users.id });
       if (changed.length === 0) {
         throw new ConflictException('Credentials changed during this request. Please retry.');

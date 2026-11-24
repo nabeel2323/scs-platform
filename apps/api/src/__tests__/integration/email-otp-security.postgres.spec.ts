@@ -84,6 +84,8 @@ function injectKnownEmailOtp(email: string, otp: string) {
   });
 }
 
+const TEST_IDENTITY_ACTOR = { role: 'BUYER', activeOrg: null };
+
 describe('Email OTP Security Integration (S1.35 Phase 1)', () => {
   let container: StartedPostgreSqlContainer;
   let pool: Pool;
@@ -318,7 +320,7 @@ describe('Email OTP Security Integration (S1.35 Phase 1)', () => {
 
       // userB tries to link email already owned by userA
       injectKnownEmailOtp('conflict@test.com', '456789');
-      await expect(service.linkEmailToAccount(userB, 'conflict@test.com', '456789'))
+      await expect(service.linkEmailToAccount(userB, 'conflict@test.com', '456789', TEST_IDENTITY_ACTOR))
         .rejects.toThrow(/EMAIL_ALREADY_IN_USE|conflict/i);
 
       // userA's email unchanged
@@ -336,7 +338,7 @@ describe('Email OTP Security Integration (S1.35 Phase 1)', () => {
         [userId],
       );
 
-      await expect(service.unlinkEmailFromAccount(userId))
+      await expect(service.unlinkEmailFromAccount(userId, TEST_IDENTITY_ACTOR))
         .rejects.toThrow(/cannot remove|at least one/i);
 
       await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
@@ -349,7 +351,7 @@ describe('Email OTP Security Integration (S1.35 Phase 1)', () => {
         [userId],
       );
 
-      await expect(service.unlinkPhoneFromAccount(userId))
+      await expect(service.unlinkPhoneFromAccount(userId, TEST_IDENTITY_ACTOR))
         .rejects.toThrow(/cannot remove|at least one/i);
 
       await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
@@ -364,13 +366,13 @@ describe('Email OTP Security Integration (S1.35 Phase 1)', () => {
 
       // (a) no challenge exists at all
       await expect(
-        service.linkEmailToAccount(userId, 'unowned@victim.com', '111111'),
+        service.linkEmailToAccount(userId, 'unowned@victim.com', '111111', TEST_IDENTITY_ACTOR),
       ).rejects.toThrow(/OTP|expired|not found/i);
 
       // (b) a challenge exists but the submitted code does not match it
       injectKnownEmailOtp('unowned@victim.com', '222222');
       await expect(
-        service.linkEmailToAccount(userId, 'unowned@victim.com', '999999'),
+        service.linkEmailToAccount(userId, 'unowned@victim.com', '999999', TEST_IDENTITY_ACTOR),
       ).rejects.toThrow(/OTP/i);
 
       const row = await pool.query(`SELECT email, email_verified_at FROM users WHERE id = $1`, [userId]);
@@ -379,11 +381,11 @@ describe('Email OTP Security Integration (S1.35 Phase 1)', () => {
 
       // (c) a consumed challenge cannot be replayed against the same address
       await expect(
-        service.linkEmailToAccount(userId, 'unowned@victim.com', '222222'),
+        service.linkEmailToAccount(userId, 'unowned@victim.com', '222222', TEST_IDENTITY_ACTOR),
       ).resolves.toEqual({ success: true });
       expect(mockRedis._store.get('otp:email:unowned@victim.com')).toBeUndefined();
       await expect(
-        service.linkEmailToAccount(userId, 'unowned@victim.com', '222222'),
+        service.linkEmailToAccount(userId, 'unowned@victim.com', '222222', TEST_IDENTITY_ACTOR),
       ).rejects.toThrow(/OTP|expired|not found/i);
 
       await pool.query(`DELETE FROM account_link_log WHERE user_id = $1`, [userId]);
@@ -421,7 +423,7 @@ describe('Email OTP Security Integration (S1.35 Phase 1)', () => {
       );
 
       injectKnownEmailOtp('audit-sec@test.com', '333444');
-      await service.linkEmailToAccount(userId, 'audit-sec@test.com', '333444');
+      await service.linkEmailToAccount(userId, 'audit-sec@test.com', '333444', TEST_IDENTITY_ACTOR);
 
       const logs = await pool.query(`SELECT * FROM account_link_log WHERE user_id = $1`, [userId]);
       expect(logs.rows).toHaveLength(1);
