@@ -330,3 +330,13 @@ Commits `0581776`, `83a4073`, `2b2810e`, `5bbd35d` and `9c9d7f4` extend shipment
 ## 24 November 2026 — webhook retry credential source update
 
 Source commit `926c475fb9c59ffa1688dccee3d4f9dfbeea59e2` adds bound-credential validation and credential-org/shipment-store-org equality to already-linked webhook retries. The commit uses `[skip ci]`; no tests or workflows were run. The prior CI #1503 failure is historical and does not verify this update. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — driver assignment eligibility source checkpoint
+
+- Source implementation commits: `9d461e1c25381d4528fc733059ee58afb320fa6b` (ShippingService driver eligibility), `fca4c3569976fd6e5a8b9db767e876f8f449c367` (OrdersService pre-write enforcement), and `efa6349651b7f2b5083475e4bdaa9104ee3402cc` (source formatting follow-up).
+- Regression-source commits: `0868647b6ad22f98732b4a4fe8fb370f3e94ce62`, `3d3e3b440cc839340ed2adbe0a15b2fad9edfd63`, `783c2246c21895900a4d9f5719425820facf3599`, plus test formatting/structure follow-ups through `5ab4c9358191f184d2e5917741e08263777ac72d`.
+- The existing `POST /orders/:id/assign-driver` route now validates active driver profile/user, active DRIVER membership, profile/store organization equality and migration 0041's zero-row unrestricted / explicit-row allowlist semantics before fulfillment writes. Unit and disposable PostgreSQL regression cases were authored but **not executed**.
+- Exact branch/PR head at this checkpoint: `acd9af3f552b9ba9c534fa2d22d5e14ceb969144`. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`.
+- Exact-head GitHub Actions lookup: **zero workflow runs**. Combined status lookup: **zero status contexts**. No test, formatter, lint, typecheck, E6 or CI command/workflow was run. Earlier automatic CI #1503 failed on an earlier source SHA and is not verification for this work. Vercel Web/Admin failures were observed on the earlier `5ab4c935` source/test head and were external build-rate-limit statuses, not application test outcomes.
+- No shared/staging DB action, migration, RLS/grant/default-ACL change, deployment, worker activation, merge or release occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Full verification remains deferred until implementation/integration is complete.
