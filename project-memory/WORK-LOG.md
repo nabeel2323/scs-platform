@@ -2030,3 +2030,12 @@ The 75-file numbered migration scan found 183 explicit REFERENCES clauses across
 - Updated the migration FK crosswalk and authoritative progress tracker with the new invariants and exact regression cases still required.
 - No tests, formatter, lint, typecheck, E6 or manual CI dispatch was intentionally run. GitHub automatically queued PR CI #1503 (run ID 45434170778) after the source pushes; it was IN_PROGRESS at the live check. This is not claimed as a pass. No staging/shared DB, migration, grant/RLS, deployment, worker activation, merge or release action occurred.
 - Next: review driver/store assignment and reconciliation run/discrepancy organization inheritance, then complete the remaining cross-column ownership matrix. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — reconciliation parent-scope hardening
+
+- Reviewed `ReconciliationService` against the G-002 run/discrepancy schema relationship. The writer already stamps run and child with the same scope, but reads/resolution did not validate the parent-child organization invariant.
+- Commit [98843bf](https://github.com/nabeel2323/scs-platform/commit/98843bfe455667f7a96d7cbdd6dfb2253ce2af0f) now verifies a requested non-null organization exists before run creation, rejects a run read if any discrepancy child has a different org, and checks parent-run org before resolving a discrepancy.
+- Driver assignment review: the schema has independent profile-org and assignment-store FKs, while shipment assignedDriverId references users. The inspected ShippingModule/ShipmentOperationsController does not expose an assignment mutation path; no speculative API was added. Locate the actual consumer before implementation.
+- Updated the migration FK crosswalk and implementation progress tracker. Regression cases are documented, not executed. No tests or manual CI were run. Automatic CI #1503 failed on the prior source SHA and does not verify this commit. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+- Next: locate the real driver/store assignment consumer, finish the cross-column shipping/financial matrix and Drizzle/migration reconciliation, then add the regression suite before consolidated verification.
