@@ -2061,3 +2061,12 @@ The 75-file numbered migration scan found 183 explicit REFERENCES clauses across
 - Follow-up callsite review found that the initial shipment/order/store guard did not cover every read path. Commit [56d605a](https://github.com/nabeel2323/scs-platform/commit/56d605a7377c49766b990abfc023e6ae4a5cea1d) adds the same-store invariant before driver/platform exception-operation bypasses, validates order-based shipment lookup, and joins driver shipment lists to same-store orders.
 - ShipmentOperationsController list and count queries also filter malformed shipment/order pairs (commit [c916acd](https://github.com/nabeel2323/scs-platform/commit/c916acd0a8b156affeda50e98dbc88acab2f39bc)).
 - Updated G-002 crosswalk and progress tracker with the complete inspected read-path regression matrix. Tests remain unexecuted; commits use `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — carrier recovery/webhook/tracking ownership follow-up
+
+- Continued the G-002 shipping audit after the shipment read-path corrections. Found the direct admin recovery route, scheduled create/cancel reconciliation, webhook shipment resolver and tracking poller were additional entry points.
+- Source commits: [0581776](https://github.com/nabeel2323/scs-platform/commit/0581776dc42e87e4206377b45c971612368ab0ef), [83a4073](https://github.com/nabeel2323/scs-platform/commit/83a4073c20d14519f9c9f02757bd2386bbe9de58), [2b2810e](https://github.com/nabeel2323/scs-platform/commit/2b2810e14e41f40023e610dcda9e9064fb846e9c), [5bbd35d](https://github.com/nabeel2323/scs-platform/commit/5bbd35da8f3f04c132d12f773192de0a4a27fad8), and [9c9d7f4](https://github.com/nabeel2323/scs-platform/commit/9c9d7f479ae332e6760238c7a9789f9e56febbea).
+- Admin recovery validates order/store before privileged bypass; recovery queue joins the matching order; both reconciliation cycles filter and direct methods revalidate; webhook resolution only links same-store shipment/order pairs; tracking poll filters and revalidates before provider/events/delivery bridge.
+- Driver assignment disposition: schema only, no writer/controller found in inspected shipping module; shipment assignedDriverId references users, not driver profiles. Do not invent an endpoint. Confirm whether driver_store_assignments is dead/legacy or consumed outside the module.
+- Crosswalk and progress tracker updated. Regression cases are documented but unexecuted; commits use `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
