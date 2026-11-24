@@ -1033,3 +1033,8 @@ The G-002 ownership matrix now records schema-backed direct columns and declared
 ## 24 November 2026 — G-002 Catalog table ownership detail
 
 The table ownership matrix now includes schema-backed direct columns and declared parent paths for 24 Catalog/Search/Import tables. Shared/global taxonomy, nullable shared products, merchant offer ownership, child inheritance, user-owned bookmarks, merchant imports, platform catalog imports and mixed search query scope are explicitly distinguished. Multi-parent consistency checks remain required where composite FKs are absent. This remains source evidence, not policy approval.
+
+
+## 24 November 2026 — G-002 Inventory/Pricing/Promotions/Orders/Shipment table detail
+
+The ownership matrix now includes schema-backed direct columns and declared parent paths for 15 additional Inventory, Pricing, Promotions, Cart, Orders and Shipment tables. It records buyer/store participant visibility, warehouse inheritance, polymorphic references and multi-parent consistency requirements without promoting those to composite FKs.

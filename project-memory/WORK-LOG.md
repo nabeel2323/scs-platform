@@ -1815,3 +1815,11 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 - Separated store-scoped merchant import_jobs from platform-level catalog_imports; uploader IDs are actor attribution for the latter. Search query rows are mixed because both user_id and store_id are nullable.
 - Recorded multi-parent consistency requirements for offers, offer-review state and product media where simple FKs do not prove the full relationship. This is source-schema evidence, not a live catalog or RLS policy approval.
 - No tests/CI, database, migration, grant, RLS, staging, deployment or worker action occurred.
+
+
+## G-002 physical table matrix — Inventory/Pricing/Promotions/Orders/Shipments direct-column pass — 24 November 2026
+
+- Reopened the current Drizzle schemas for inventory, pricing, promotions, carts, orders and shipments; mapped 15 physical table rows with direct owner/reference columns.
+- Preserved the distinction between warehouse-owned stock and product variant references; store-owned price lists and their variant tiers; store-owned promotions and buyer-specific redemptions; buyer-owned carts/master orders; buyer/store participant visibility for sub-orders; and shipment child inheritance.
+- Recorded non-FK and multi-parent edge cases: stock movement reference_id is polymorphic; promotion scope_id is polymorphic; promotion_redemptions.order_id is not a declared FK; cart items and orders require cross-parent consistency; shipments must agree with their order/store; actor IDs are attribution only.
+- This is schema-source evidence only. No tests/CI or database/RLS/migration/grant/staging/deployment action occurred.

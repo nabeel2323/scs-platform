@@ -199,3 +199,10 @@ This is schema-source evidence only. The 99 Drizzle / 114 detailed public relati
 Updated 24 Catalog/Search/Import table rows with schema-backed direct columns and declared parent paths. The pass distinguishes shared/global taxonomy from store-owned category extensions, nullable shared products from merchant offers, inherited child rows, user-owned favorites/saved suppliers, merchant store imports from platform catalog imports, and mixed user/store search history. Multi-parent consistency for merchant offers, offer-review state and product media remains a service-level requirement where no composite FK is declared.
 
 This is Drizzle source evidence only; no live catalog constraints or policy readiness are claimed. The 99/114/116 discrepancy, runtime identity and protected catalog audit remain open.
+
+
+## G-002 physical table matrix — Inventory/Pricing/Promotions/Orders/Shipments direct-column pass — 24 November 2026
+
+Updated 15 table rows with direct Drizzle columns and parent references across Inventory, Pricing, Promotions, Cart, Orders and Shipments. The matrix now distinguishes warehouse-inherited stock ownership, store-owned price books/promotions, buyer-owned carts/master orders, buyer/store participant access for sub-orders, and shipment inheritance. Polymorphic references and missing composite constraints are explicitly recorded as service-level invariants, not treated as FKs.
+
+This is source-schema evidence only. Live catalog constraints, runtime identities, operation-by-operation policy mapping and the 99/114/116 reconciliation remain open.

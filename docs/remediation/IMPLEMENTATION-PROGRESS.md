@@ -2541,3 +2541,12 @@ Important scope boundary: requestRefund creates a REQUESTED refund row, payment 
 - Mapped category optional store ownership plus self-parent; platform-global brands and taxonomy; nullable/shared products; product/variant/media/source/value inheritance; user-owned favorites/saved suppliers; store-owned merchant import jobs/chunks; platform-owned catalog imports/errors; store-owned catalog requests; and mixed search queries.
 - Recorded multi-parent invariants for merchant_offers (store/product/variant/price-list/warehouse), product_offer_review_state (product/offer), and product_media (product/variant). These cross-parent constraints are not fully encoded as composite FKs and remain service-level predicates.
 - This is schema-source evidence only. The matrix remains non-policy-ready pending migration/catalog constraint review, operation mapping and protected live catalog evidence. No tests, formatter, lint, typecheck, E6 or CI were run; no database/RLS/migration/grant/staging/deployment action occurred.
+
+
+## G-002 table matrix — Inventory, Pricing, Promotions, Orders and Shipments direct-column pass — 24 November 2026
+
+- Updated 15 Inventory/Pricing/Promotions/Cart/Orders/Shipment table rows with direct columns and declared parent references.
+- Mapped inventory_items via warehouse→store plus variant compatibility; stock_movements via inventory item with performed_by attribution and polymorphic reference_id; price lists/tiers via store and variant; promotions via store with polymorphic scope_id; redemptions via promotion and buyer with order_id lacking a declared FK.
+- Mapped buyer-owned carts and master orders, multi-parent cart items, buyer/store participant orders, order child financial/history ledgers, and shipment/order/store/driver references plus shipment event inheritance.
+- Explicitly retained service-level cross-parent consistency predicates where no composite FK exists. Source-schema evidence only; live catalog constraints, operation-specific policies and the 99/114/116 discrepancy remain open.
+- No tests, formatter, lint, typecheck, E6 or CI were run; no database/RLS/migration/grant/staging/deployment/worker/merge/release action occurred.
