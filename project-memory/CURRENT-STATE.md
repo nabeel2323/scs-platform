@@ -3,10 +3,9 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source implementation checkpoint:** `efa6349651b7f2b5083475e4bdaa9104ee3402cc` (driver eligibility source formatting follow-up; implementation commits `9d461e1` and `fca4c35`). **Latest regression-source checkpoint:** `5ab4c9358191f184d2e5917741e08263777ac72d`. **Current branch/PR head at this reconciliation:** `4aad317c0e8e8f8ff7b6b469bbbde6d622a15de2` (release-status documentation sync; re-query after this current-state sync).  
+**Latest PR head:** `19738fbe16399db7f8975d647b062773a3eb2583` (latest docs-only source after the current handoff update; re-query before acting).  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop`.  
-**Latest source scope:** carrier credential/webhook actor-context and retry lineage; migration/operator access hardening; financial/refund/reconciliation/shipment/carrier ownership checks; and driver eligibility at the existing Orders shipment-assignment endpoint.  
-**Exact-head Actions/status at `d6070e4`:** zero workflow runs and zero combined status contexts. The prior code/test head `5ab4c9358191f184d2e5917741e08263777ac72d` had no Actions runs and only external Vercel Web/Admin build-rate-limit failures. Automatic CI #1503 failed on an earlier source checkpoint and does not verify any of the later source/test changes.  
+**Exact-head Actions/status:** zero Actions runs; Vercel Web/Admin contexts fail on the external build-rate-limit page. No current-head application CI result.  
 **Standing instruction:** implementation/integration first; do not intentionally run tests, formatter, lint, typecheck or CI during implementation. Keep PR #138 draft/open/unmerged.
 
 ## Latest implementation checkpoint
@@ -473,3 +472,12 @@ Source commits: `b37f3386220b7148f2b326f9fd43b532b201a152`, `ef178d7af0d10b1ef80
 Immediately before this checkpoint update, GitHub reported PR #138 head `07eb6b7c60152ca72dd937bc0dd1251003fd583b`, OPEN / DRAFT / UNMERGED to `develop`. The compare API reports the branch 2,485 commits ahead and 0 behind `develop`. Exact-head Actions lookup returned zero workflow runs. Combined status contains only Vercel Web/Admin FAILURE contexts pointing to the provider build-rate-limit page; these are external preview-provider failures, not application test results.
 
 The current source/docs work remains unverified. No tests, formatter, lint, typecheck, E6 or CI were run during implementation. The next task remains full table-by-table Drizzle/migration FK parity and source callsite/actor-context audit; protected runtime identity/catalog and pg_partman scheduler evidence remain gated.
+
+
+## 24 November 2026 — migration 0059 Drizzle parity correction
+
+The latest source slice represents three migration 0059 relationships directly in Drizzle without introducing a module cycle: `return_requests.refund_id → refunds.id`, `return_request_items.inventory_item_id → inventory_items.id`, and `disputes.return_request_id → return_requests.id`. All preserve nullable columns and `ON DELETE SET NULL`.
+
+The review also found that `refunds.dispute_id → disputes.id ON DELETE SET NULL` was omitted from the earlier targeted parity table. Together with `refunds.return_request_id → return_requests.id ON DELETE SET NULL`, these remain migration-owned because payments cannot import returns/support without a payments → returns/support → payments module cycle. Source comments and the G-002 crosswalk now record this reason.
+
+This is a targeted correction, not completion of the full table-by-table FK reconciliation. No migration, database, RLS, grant, staging, worker, deployment or merge action occurred. No tests, formatter, lint, typecheck, E6 or CI were run. Next: complete the 100-table / 183-migration-reference parity review, then finish remaining operation/actor-context ownership review. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

@@ -1,6 +1,7 @@
 import { pgTable, uuid, varchar, text, boolean, jsonb, timestamp } from 'drizzle-orm/pg-core';
 import { users } from '../identity/identity.schema';
 import { orders } from '../orders/orders.schema';
+import { returnRequests } from '../returns/returns.schema';
 
 /**
  * Support/disputes schema (migration 0011_trust)
@@ -24,7 +25,7 @@ export const disputes = pgTable('disputes', {
   // P13: link to return request (nullable FK, added by migration 0059)
   // Migration 0059 adds the nullable return_requests FK (ON DELETE SET NULL).
   // Keep this cross-module link migration-owned to avoid coupling support to returns.
-  returnRequestId: uuid('return_request_id'),
+  returnRequestId: uuid('return_request_id').references(() => returnRequests.id, { onDelete: 'set null' }),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -2105,3 +2105,21 @@ The 75-file numbered migration scan found 183 explicit REFERENCES clauses across
 ### Follow-up — dispute return FK parity, 24 November 2026
 
 The 25-module Drizzle schema pass identified one additional migration-only relationship: `disputes.return_request_id → return_requests.id ON DELETE SET NULL` from migration 0059. The field is now explicitly documented in `reviews/support.schema.ts` as a deferred cross-module link, and the G-002 FK crosswalk/progress tracker now records five targeted Drizzle declaration omissions in total. The self-referential reconciliation FK is represented in Drizzle; the four cross-module/deferred FKs remain migration-owned and documented. This is still a targeted reconciliation, not proof of complete 100-table parity. No tests or CI were run.
+
+
+## 24 November 2026 — Drizzle FK parity: migration 0059 safe-link modeling
+
+**Repository/branch:** `nabeel2323/scs-platform` / `remediation/phase-0-1-tenant-security`  
+**PR:** #138 (OPEN / DRAFT / UNMERGED to `develop`)  
+**Parent head:** `19738fbe16399db7f8975d647b062773a3eb2583`
+
+### Changes
+
+- Added Drizzle `ON DELETE SET NULL` references for `return_requests.refund_id → refunds.id`, `return_request_items.inventory_item_id → inventory_items.id`, and `disputes.return_request_id → return_requests.id`. Reviewed import direction: returns already imports payments; inventory has no dependency on returns; support depends on returns, so these three references do not introduce a reverse dependency cycle.
+- Corrected the G-002 migration FK crosswalk to include `refunds.dispute_id → disputes.id ON DELETE SET NULL`, which was missing from the earlier targeted omission table.
+- Kept `refunds.return_request_id` and `refunds.dispute_id` as migration-owned plain UUID references in `payments.schema.ts`, with an explicit reason: importing returns/support into payments would create a payments → returns/support → payments module initialization cycle.
+- Synchronized START-HERE, CURRENT-STATE, OPEN-ISSUES, IMPLEMENTATION-ROADMAP, RELEASE-AND-CI-STATUS and the G-002 crosswalk.
+
+### Verification and boundaries
+
+No tests, formatter, lint, typecheck, E6 or CI were run. No shared/staging database access, migration, grant/default-ACL change, RLS enablement, deployment, worker activation, merge or release occurred. The full 100-table / 183-migration-reference comparison remains incomplete; this slice does not mark G-002 verified.

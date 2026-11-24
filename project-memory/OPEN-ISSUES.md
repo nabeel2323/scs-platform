@@ -1273,3 +1273,10 @@ Still open: whether any external operator/provisioning process manages `driver_s
 ## G-002 — targeted Drizzle FK parity follow-up (24 November 2026)
 
 A targeted comparison initially found five SQL-enforced FK relationships absent from Drizzle metadata: refunds.return_request_id, return_requests.refund_id, return_request_items.inventory_item_id, disputes.return_request_id, and reconciliation_runs.superseded_by. The self-referential reconciliation FK is now mirrored in financial.schema.ts; four deferred cross-module/migration-owned links remain documented in the source schemas and G-002 crosswalk; no new migration or database change was made. Remaining work is a complete table-by-table Drizzle/migration reconciliation, followed by source ownership/callsite review and protected read-only catalog evidence. Tests and CI remain deferred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## G-002 — migration 0059 Drizzle parity correction (24 November 2026)
+
+Three safe migration-owned nullable links are now represented in Drizzle with `ON DELETE SET NULL`: `return_requests.refund_id → refunds.id`, `return_request_items.inventory_item_id → inventory_items.id`, and `disputes.return_request_id → return_requests.id`. The earlier targeted comparison also omitted `refunds.dispute_id → disputes.id`; this is now documented alongside `refunds.return_request_id → return_requests.id` as intentionally migration-only because payments importing returns/support would create a module initialization cycle. No SQL migration or database change was made.
+
+Still open: full table-by-table reconciliation of all 100 Drizzle declarations against 183 migration REFERENCES clauses; remaining per-operation ownership and actor-context nesting/direct DB callsite audit; protected read-only runtime identities/catalog evidence, pg_partman scheduler ownership and 114/116 relation reconciliation; G-001 independent review and G-036 verification. No tests or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

@@ -991,3 +991,10 @@ Next implementation sequence:
 4. Add/adjust regression source after implementation/integration is complete, then run the consolidated verification campaign once.
 
 No tests or CI during implementation. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED; G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.
+
+
+## 24 November 2026 — migration 0059 FK parity slice
+
+The source-level FK parity continuation modeled three safe deferred links in Drizzle: return request → refund, return item → inventory item, and dispute → return request. The reverse payment-owned links to return requests and disputes remain migration-only with an explicit module-cycle rationale. The G-002 crosswalk also corrects the previously omitted `refunds.dispute_id` relationship. No migration or database changes were made.
+
+Next: finish the complete 100-table / 183-migration-reference parity comparison, then continue remaining operation ownership and actor-context callsite review. Tests/CI remain deferred until implementation and cross-component integration are complete. G-002 remains NOT VERIFIED.

@@ -123,9 +123,10 @@ export const refunds = pgTable('refunds', {
   requestedBy: uuid('requested_by').references(() => users.id),
   approvedBy: uuid('approved_by').references(() => users.id),
   providerRefundStatus: varchar('provider_refund_status', { length: 40 }),
-  // P13: link to originating return request / dispute (nullable). Migration
-  // 0059 installs the return_requests FK; keep it migration-only here to avoid
-  // a payments <-> returns schema-module initialization cycle.
+  // P13: nullable links to originating return request / dispute. Migration
+  // 0059 owns both FKs. Keep them migration-only: payments imports no returns
+  // or support schema, while returns already imports payments (and support
+  // imports returns); adding reverse imports here would create a module cycle.
   returnRequestId: uuid('return_request_id'),
   disputeId: uuid('dispute_id'),
   metadata: jsonb('metadata').notNull().default({}),

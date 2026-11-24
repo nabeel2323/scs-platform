@@ -4,6 +4,7 @@ import {
 import { users } from '../identity/identity.schema';
 import { orders, orderItems } from '../orders/orders.schema';
 import { paymentRecords, refunds } from '../payments/payments.schema';
+import { inventoryItems } from '../inventory/inventory.schema';
 
 /**
  * Returns schema (migration 0059_return_requests)
@@ -26,7 +27,7 @@ export const returnRequests = pgTable('return_requests', {
   buyerId: uuid('buyer_id').notNull().references(() => users.id),
   // Reverse link is added by migration 0059 after refunds exists. Keep the
   // column migration-only here to avoid a returns <-> payments schema cycle.
-  refundId: uuid('refund_id'),
+  refundId: uuid('refund_id').references(() => refunds.id, { onDelete: 'set null' }),
   status: varchar('status', { length: 30 }).notNull().default('REQUESTED'),
   reason: varchar('reason', { length: 40 }).notNull(),
   description: text('description'),
@@ -63,7 +64,7 @@ export const returnRequestItems = pgTable('return_request_items', {
   condition: varchar('condition', { length: 20 }),  // set during inspection
   // Migration 0059 adds the nullable inventory_items FK (ON DELETE SET NULL).
   // The inventory module is intentionally not imported into this schema file.
-  inventoryItemId: uuid('inventory_item_id'),
+  inventoryItemId: uuid('inventory_item_id').references(() => inventoryItems.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

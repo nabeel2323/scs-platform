@@ -352,3 +352,10 @@ On branch `remediation/phase-0-1-tenant-security`, PR #138 head `afc7e3858d7ce82
 Live check after the targeted source/documentation commits: PR #138 head `ba8b900ed03f9985f00f052e94724eb861c413f8`, OPEN / DRAFT / UNMERGED to `develop`. Exact-head GitHub Actions lookup returned zero workflow runs and combined status returned zero status contexts. The earlier `2c28057` head had Vercel Web/Admin FAILURE contexts pointing to the external build-rate-limit page; those are not application-test results and are not present as status contexts on the checked head.
 
 No tests, formatter, lint, typecheck, E6 or CI were run in this implementation continuation. The commits use `[skip ci]` in accordance with the user's implementation-first instruction. All consolidated verification remains pending until implementation and integration are complete.
+
+
+## 24 November 2026 — migration 0059 Drizzle FK parity correction
+
+Source/documentation update prepared against PR #138 head `19738fbe16399db7f8975d647b062773a3eb2583`. Three safe deferred migration relationships are now represented in Drizzle with nullable `ON DELETE SET NULL` semantics: `return_requests.refund_id`, `return_request_items.inventory_item_id`, and `disputes.return_request_id`. The source crosswalk also records the previously omitted `refunds.dispute_id → disputes.id` FK. The two payment-owned links (`refunds.return_request_id` and `refunds.dispute_id`) remain migration-only to avoid a payments/returns/support module cycle.
+
+No tests, formatter, lint, typecheck, E6 or CI were run. No database, migration, staging, RLS/grant/default-ACL, worker, deployment or merge action occurred. This source slice is not verified. Exact pre-change PR head had zero Actions runs and Vercel Web/Admin provider-rate-limit failures; re-query after push for the new head.
