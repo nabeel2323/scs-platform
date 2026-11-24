@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { DisputesService } from './disputes.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import {
   CurrentUser,
@@ -10,6 +11,7 @@ import {
 
 @Controller()
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class DisputesController {
   constructor(private readonly disputesService: DisputesService) {}
 
