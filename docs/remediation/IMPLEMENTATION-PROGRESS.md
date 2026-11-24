@@ -2667,3 +2667,16 @@ The Catalog Import source slice and P13 operational principal slice are now impl
 - P13 platform-control tables (`ops_alerts`, `ops_controls`, `ops_control_audit`, `p13_pilot_allowlist`, and `worker_leases`) are platform operational/control data. The pilot allowlist's `org_id`/`store_id` identify the configured target scope; they do not turn the control table into a merchant-owned tenant table.
 - Source commit `474ef450d98a62fe3b2f6b480a5dc4ea300d824d` adds `catalog-import.schema.ts` to the runtime Drizzle schema barrel. The barrel now exports all 100 current `pgTable` declarations. This does not prove deployed table presence or apply migration 0075.
 - Remaining source work is callsite/nesting audit across the full 53-file candidate set, carrier/bootstrap/CLI/audit middleware and raw SQL DB objects; exact operation predicates and FK evidence; and protected live API/migration identity plus relation-kind inventory. No RLS/grant/migration or shared/staging action is authorized by this source map.
+
+
+## 24 November 2026 — actor-context nesting correction and final source checkpoint
+
+**Latest source checkpoint:** `0f3c180f5af389cb363e8919982af371dc178f16`.
+
+- Source callsite review found that ReturnExpirationWorker already holds its lease-fenced worker actor when it calls `OpsControlService.isPaused()`. OpsControl now reuses the active actor context instead of attempting to switch to a second worker ID. This avoids the explicit actor-switch rejection in DatabaseService while preserving the worker's existing lease fence.
+- P13Monitor's read helper likewise reuses an already-active verified actor context when nested and creates its dedicated `p13-monitor` worker context only when no actor context exists. Pilot policy and OpsAlert system helpers already follow the same reuse-before-create rule.
+- Catalog Import resolver reads and CatalogTaxonomyService publishability checks are executed inside the caller's actor scope. The publishability validator's legacy natural-code-to-UUID correction is a DB write and therefore remains inside that same caller scope.
+- Runtime schema barrel completeness correction `474ef450d98a62fe3b2f6b480a5dc4ea300d824d` includes the catalog-import schema; current source and runtime barrel both enumerate 100 declarations. The 114 public r/p count is a historical 19-November catalog snapshot (99 declarations + 15 non-Drizzle objects), not a current live count; 116 remains a separate unexplained historical count. No protected live catalog audit was run.
+- No tests, formatter, lint, typecheck or E6 were intentionally run. No merge/deploy, worker activation, migration, RLS/grant/default-ACL change or shared/staging DB access occurred. Automatic CI run #1499 was queued on the prior source checkpoint and must not be treated as exact-head verification.
+
+**Next task:** continue the source callsite and ownership-predicate audit across carrier credential lifecycle/retry/recovery, audit middleware, migration/bootstrap/CLI paths and raw database functions/triggers/partitions. Add targeted regression specs for actor reuse, worker nesting, caller-scope boundaries and the schema-barrel completeness correction after implementation/integration is complete. Then finish FK evidence and protected read-only API/migration identity/catalog verification.
