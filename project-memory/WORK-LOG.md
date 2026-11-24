@@ -2020,3 +2020,13 @@ The 75-file numbered migration scan found 183 explicit REFERENCES clauses across
 - Updated the migration FK crosswalk and authoritative progress tracker with the new invariants and exact regression cases still required.
 - No tests, formatter, lint, typecheck, E6 or manual CI dispatch was intentionally run. GitHub automatically queued PR CI #1503 (run ID 45434170778) after the source pushes; it was IN_PROGRESS at the live check. This is not claimed as a pass. No staging/shared DB, migration, grant/RLS, deployment, worker activation, merge or release action occurred.
 - Next: review driver/store assignment and reconciliation run/discrepancy organization inheritance, then complete the remaining cross-column ownership matrix. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — financial cross-column ownership remediation
+
+- Reviewed `CarrierConfigurationsService`, return/payment/order schemas and services, payment/settlement schemas, `SettlementAdjustmentService`, and `CommissionReversalService` against the G-002 migration FK crosswalk.
+- Found that independent FKs do not enforce the same-sub-order/payment/store relationships. Hardened settlement-adjustment creation and posting, plus commission-reversal payment/order-item/settlement/org resolution.
+- Source commits: [01b6e6c](https://github.com/nabeel2323/scs-platform/commit/01b6e6c729c1a458f20aaeaed043df4c569119e4) and [fa25479](https://github.com/nabeel2323/scs-platform/commit/fa2547997c4b4dad490b582f92c9a69b8c01ed8f).
+- Updated the migration FK crosswalk and authoritative progress tracker with the new invariants and exact regression cases still required.
+- No tests, formatter, lint, typecheck, E6 or manual CI dispatch was intentionally run. GitHub automatically queued PR CI #1503 (run ID 45434170778) after the source pushes; it was IN_PROGRESS at the live check. This is not claimed as a pass. No staging/shared DB, migration, grant/RLS, deployment, worker activation, merge or release action occurred.
+- Next: review driver/store assignment and reconciliation run/discrepancy organization inheritance, then complete the remaining cross-column ownership matrix. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
