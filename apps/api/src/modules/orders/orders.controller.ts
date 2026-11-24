@@ -43,6 +43,7 @@ export class OrdersController {
   }
 
   @Post('orders/master/:id/reorder')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('orders:write')
   async reorder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
