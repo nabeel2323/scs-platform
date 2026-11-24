@@ -937,3 +937,10 @@ G-002 remains NOT VERIFIED. Next source review: driver/store assignment org cons
 Source commits `01b6e6c729c1a458f20aaeaed043df4c569119e4` and `fa2547997c4b4dad490b582f92c9a69b8c01ed8f` close source-level relationship gaps across settlement adjustments, returns, payments, order items, commission reversals and merchant stores. Independent FKs are now supplemented by explicit service checks for organization derivation, same-sub-order return references, return-payment/order identity, return-item/order identity, and settlement payment/store identity. Exact cases and evidence are in the G-002 migration FK crosswalk.
 
 G-002 remains NOT VERIFIED. Next source review: driver/store assignment org consistency and reconciliation run/discrepancy org inheritance, followed by remaining financial/shipping cross-column relationships and Drizzle/migration FK reconciliation. Runtime identity, protected catalog, external scheduler, independent review and full verification gates remain unchanged. Tests remain deferred; an automatic PR CI run #1503 was queued by source pushes and is not yet a verification result.
+
+
+## 24 November 2026 — reconciliation scope integrity and driver assignment review
+
+Commit `98843bfe455667f7a96d7cbdd6dfb2253ce2af0f` hardens the reconciliation run/discrepancy parent-scope invariant: non-null org must exist, child discrepancies must match the parent run org on reads, and resolution validates the parent scope. The driver assignment schema still has separate profile-org and store FKs without a same-org constraint; the inspected ShippingModule/ShipmentOperationsController has no assignment mutation path, and shipment assignedDriverId references users. No speculative service or endpoint was introduced.
+
+G-002 remains NOT VERIFIED. Next: locate the actual driver assignment consumer/write path; finish shipping/financial cross-column ownership and Drizzle/migration FK reconciliation; then add regression specs before the deferred consolidated verification. Runtime identity, protected catalog, external scheduler and independent-review gates remain unchanged.
