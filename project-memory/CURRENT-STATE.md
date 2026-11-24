@@ -3,7 +3,7 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source implementation checkpoint before the documentation-only sync:** `48b22ded255f514f4ccec55d58a604a1c41e7b8f`. **Current branch/PR head:** `a286cd6b2c8d239e94a3a4d024c872e08fbbc3d4` (documentation-only commit).  
+**Latest source implementation checkpoint:** `f21dbe4aca75ba04e9173b1fc28a9591829af554`. **Current branch/PR head:** `bb193c7b52ed83bc6c0a6f72ce1a24ba4dcdd926` (documentation-only commit).  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop`.  
 **Latest source commits:** carrier actor-context commits `9906430`, `9a010db`, role correction `4d3488d`, webhook test fixture `47c2789`, and database/operator access continuation through `48b22ded255f514f4ccec55d58a604a1c41e7b8f`.  
 **Exact-head Actions:** no run. Latest automatic run #1501 on prior SHA `9a010db69c668432f2811c68094a367ad5c7684c` FAILED: API lint PASS, API typecheck FAIL on nullable caller role; Mobile Flutter analysis/tests PASS; dependent integration/unit/coverage/migration/Web/Admin/build/release jobs SKIPPED. The type error is corrected in `4d3488d`, not re-run.  
@@ -39,7 +39,7 @@ CatalogImportController list/detail/errors database-only routes use the verified
 
 ## Verification and safety
 
-G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Exact branch Actions are intentionally not triggered during implementation; source and documentation commits use `[skip ci]`. The current documentation head `a286cd6b2c8d239e94a3a4d024c872e08fbbc3d4` has zero Actions runs and Vercel Web/Admin rate-limit failures. The prior automatic run #1501 on source SHA `9a010db69c668432f2811c68094a367ad5c7684c` failed API typecheck on optional caller.role; commit `4d3488d` corrected it but was not re-run. Vercel Web/Admin checks on the prior docs head reported external deployment rate limiting. No application test pass is claimed.
+G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Exact branch Actions are intentionally not triggered during implementation; source and documentation commits use `[skip ci]`. The current documentation head `bb193c7b52ed83bc6c0a6f72ce1a24ba4dcdd926` has zero Actions runs and Vercel Web/Admin rate-limit failures. The prior automatic run #1501 on source SHA `9a010db69c668432f2811c68094a367ad5c7684c` failed API typecheck on optional caller.role; commit `4d3488d` corrected it but was not re-run. Vercel Web/Admin checks on the prior docs head reported external deployment rate limiting. No application test pass is claimed.
 
 No shared DB mutation, migration, seed, reset, bootstrap, audit query, grant/default-ACL change, RLS enablement, protected staging action, deployment, worker activation, merge or release occurred.
 

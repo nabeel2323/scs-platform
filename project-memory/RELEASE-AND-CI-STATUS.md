@@ -3,8 +3,8 @@
 **Live reconciliation:** 24 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — OPEN / DRAFT / UNMERGED.  
 **Branch:** `remediation/phase-0-1-tenant-security`.  
-**Latest source implementation checkpoint:** `48b22ded255f514f4ccec55d58a604a1c41e7b8f`.  
-**Current branch/PR head:** `a286cd6b2c8d239e94a3a4d024c872e08fbbc3d4` (documentation-only checkpoint).  
+**Latest source implementation checkpoint:** `f21dbe4aca75ba04e9173b1fc28a9591829af554`.  
+**Current branch/PR head:** `bb193c7b52ed83bc6c0a6f72ce1a24ba4dcdd926` (documentation-only checkpoint).  
 **Exact-head GitHub Actions:** zero workflow runs; source/documentation commits use `[skip ci]`.  
 **Exact-head Vercel:** Web and Admin FAILURE — “Deployment rate limited — retry in 24 hours.” These are preview-provider statuses, not application-test evidence.
 
@@ -283,3 +283,10 @@ Source follow-up through `6f3327a2039c65fb0f9578202d4bd76c75e7b426` adds a secon
 - Disposable shell verification target guard now also checks `inet_server_addr()` is a Unix socket or loopback address, in addition to explicit test environment, exact DB/user, local PGHOST/PGHOSTADDR and no PGSERVICE redirection.
 
 No database was inspected or repaired, and no tests/CI were run. These are source-level fail-closed checks only.
+
+
+## 24 November 2026 — final continuation status
+
+**Current branch/PR head:** `bb193c7b52ed83bc6c0a6f72ce1a24ba4dcdd926` (documentation-only checkpoint). **Latest source implementation checkpoint:** `f21dbe4aca75ba04e9173b1fc28a9591829af554`. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. Exact-head GitHub Actions lookup returned zero workflow runs. Vercel Web and Admin both report FAILURE: “Deployment rate limited — retry in 24 hours.” No tests, formatter, lint, typecheck, E6 or CI were intentionally run.
+
+The complete source checkpoint includes fail-closed detection of stale 0013/0018 ledger entries in local and DATABASE_URL migration paths, validation of the analytics retention config before trusting an existing ledger, per-process temporary migration files and fail-fast disposable migration application. Tests and database operations remain deferred. The previous automatic Actions #1501 failure on nullable caller.role was corrected in commit `4d3488d` but has not been re-run.

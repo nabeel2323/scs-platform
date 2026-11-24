@@ -1996,3 +1996,12 @@ Source follow-up through `6f3327a2039c65fb0f9578202d4bd76c75e7b426` adds a secon
 - Disposable shell verification target guard now also checks `inet_server_addr()` is a Unix socket or loopback address, in addition to explicit test environment, exact DB/user, local PGHOST/PGHOSTADDR and no PGSERVICE redirection.
 
 No database was inspected or repaired, and no tests/CI were run. These are source-level fail-closed checks only.
+
+
+## 24 November 2026 — G-002 migration-ledger safety follow-up and final status
+
+Latest source implementation checkpoint: `f21dbe4aca75ba04e9173b1fc28a9591829af554`; documentation head: `bb193c7b52ed83bc6c0a6f72ce1a24ba4dcdd926`. Branch and PR #138 are synchronized; PR remains OPEN / DRAFT / UNMERGED to `develop`.
+
+Added fail-closed stale-ledger detection for excluded pg_partman migrations in local and complete migration paths; complete migration runner verifies the extension/config/retention state before trusting legacy analytics ledger entries. Local migration temp files are unique per process/file and cleaned up. Legacy disposable migration runner now stops after the first failed migration. Disposable target guard also verifies PostgreSQL server address is loopback/unix-socket.
+
+Exact-head Actions: zero runs. Vercel Web/Admin: deployment rate limited, retry in 24 hours. No tests, CI, database, migration, seed, reset, bootstrap or audit command was executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

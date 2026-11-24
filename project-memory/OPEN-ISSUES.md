@@ -1181,3 +1181,10 @@ Source follow-up through `6f3327a2039c65fb0f9578202d4bd76c75e7b426` adds a secon
 - Disposable shell verification target guard now also checks `inet_server_addr()` is a Unix socket or loopback address, in addition to explicit test environment, exact DB/user, local PGHOST/PGHOSTADDR and no PGSERVICE redirection.
 
 No database was inspected or repaired, and no tests/CI were run. These are source-level fail-closed checks only.
+
+
+## 24 November 2026 — latest live source and CI checkpoint
+
+**Current branch/PR head:** `bb193c7b52ed83bc6c0a6f72ce1a24ba4dcdd926` (documentation-only checkpoint). **Latest source implementation checkpoint:** `f21dbe4aca75ba04e9173b1fc28a9591829af554`. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. Exact-head GitHub Actions lookup returned zero workflow runs. Vercel Web and Admin both report FAILURE: “Deployment rate limited — retry in 24 hours.” No tests, formatter, lint, typecheck, E6 or CI were intentionally run.
+
+The latest source correction additionally rejects stale pg_partman migration ledger entries, validates analytics retention state in the complete migration runner, isolates local migration temp files per process/file, and makes the disposable M7.3 runner stop on the first failed migration. No DB action was run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

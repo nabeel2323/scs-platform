@@ -76,3 +76,15 @@ Source follow-up through `6f3327a2039c65fb0f9578202d4bd76c75e7b426` adds a secon
 - Disposable shell verification target guard now also checks `inet_server_addr()` is a Unix socket or loopback address, in addition to explicit test environment, exact DB/user, local PGHOST/PGHOSTADDR and no PGSERVICE redirection.
 
 No database was inspected or repaired, and no tests/CI were run. These are source-level fail-closed checks only.
+
+
+## 24 November 2026 — final migration-ledger safety source update
+
+Source implementation checkpoint `f21dbe4aca75ba04e9173b1fc28a9591829af554`. The local migration paths reject stale 0013/0018 ledger rows rather than silently trusting them; the complete migration path validates pg_partman extension/configuration and retention state; temporary migration scripts are unique and cleaned up; the legacy M7.3 disposable runner stops after the first migration failure. Disposable target guard verifies actual PostgreSQL server address is loopback/unix-socket.
+
+No tests or DB operations were run. Exact-head Actions is empty and Vercel Web/Admin are rate-limited. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## Latest source follow-up — 24 November 2026
+
+The fail-closed stale-ledger correction and local temp-file isolation were completed through source checkpoint `f21dbe4aca75ba04e9173b1fc28a9591829af554`. The M7.3 runner now stops at the first failed migration. The disposable DB guard verifies the PostgreSQL server's actual address is a Unix socket or loopback. No tests or database commands were run. Current branch/PR head after documentation-only synchronization is `bb193c7b52ed83bc6c0a6f72ce1a24ba4dcdd926`; PR #138 remains OPEN / DRAFT / UNMERGED. Exact-head Actions is empty; Vercel Web/Admin rate-limit failures are external preview statuses.

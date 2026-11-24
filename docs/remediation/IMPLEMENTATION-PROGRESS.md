@@ -7,7 +7,7 @@
 **Repository:** `nabeel2323/scs-platform`
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`
 <!-- prettier-ignore -->
-**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; current branch/PR head is `a286cd6b2c8d239e94a3a4d024c872e08fbbc3d4` (latest source implementation checkpoint `48b22ded255f514f4ccec55d58a604a1c41e7b8f`; documentation-only commits follow). G-002 remains IN PROGRESS / NOT VERIFIED: external pg_partman maintenance schedule, actual API/migration identities, protected read-only catalog audit, exact FK/operation predicates and transaction-context evidence remain outstanding. Exact-head Actions has zero runs; Vercel Web/Admin are rate-limited preview failures. No staging deployment, shared database mutation, migration, grant/default-ACL change, RLS enablement or worker activation is authorized or claimed.
+**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; current branch/PR head is `bb193c7b52ed83bc6c0a6f72ce1a24ba4dcdd926` (latest source implementation checkpoint `f21dbe4aca75ba04e9173b1fc28a9591829af554`; documentation-only commits follow). G-002 remains IN PROGRESS / NOT VERIFIED: external pg_partman maintenance schedule, actual API/migration identities, protected read-only catalog audit, exact FK/operation predicates and transaction-context evidence remain outstanding. Exact-head Actions has zero runs; Vercel Web/Admin are rate-limited preview failures. No staging deployment, shared database mutation, migration, grant/default-ACL change, RLS enablement or worker activation is authorized or claimed.
 
 ---
 
@@ -2747,3 +2747,12 @@ Source follow-up through `6f3327a2039c65fb0f9578202d4bd76c75e7b426` adds a secon
 - Disposable shell verification target guard now also checks `inet_server_addr()` is a Unix socket or loopback address, in addition to explicit test environment, exact DB/user, local PGHOST/PGHOSTADDR and no PGSERVICE redirection.
 
 No database was inspected or repaired, and no tests/CI were run. These are source-level fail-closed checks only.
+
+
+## 24 November 2026 — G-002 stale migration-ledger fail-closed continuation
+
+Source implementation checkpoint `f21dbe4aca75ba04e9173b1fc28a9591829af554`; current documentation head `bb193c7b52ed83bc6c0a6f72ce1a24ba4dcdd926`.
+
+The local manual/API development migration runners now reject 0013/0018 ledger rows when those files are intentionally excluded; the complete DATABASE_URL runner validates pg_partman installation/configuration and 12-month retention before trusting prior analytics ledger rows. Local temp migration files are unique per process/file. The disposable verification migration runner fails fast after a migration error, and its safety guard verifies database/user and loopback/unix-socket server address.
+
+No tests, CI, database, migration, seed, reset, bootstrap or audit command was run. Exact-head Actions is empty; Vercel Web/Admin are externally rate-limited. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
