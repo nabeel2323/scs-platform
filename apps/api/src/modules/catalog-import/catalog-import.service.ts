@@ -317,8 +317,8 @@ export class CatalogImportService {
       } as Omit<typeof result, 'entityOutcomes'> & { publishability: PublishabilityReport };
     } catch (err) {
       await this.updateStatus(importId, 'FAILED', caller);
-      // Persist plan for retry even on failure
-      await this.persistPlanSnapshot(importId, plan, refs);
+      // Persist plan for retry even on failure in its own short actor scope.
+      await this.withUserActor(caller, () => this.persistPlanSnapshot(importId, plan, refs));
       this.logger.error(`Import ${importId} failed: ${err}`);
       throw err;
     }
