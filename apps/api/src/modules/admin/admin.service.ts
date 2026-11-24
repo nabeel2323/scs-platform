@@ -1367,59 +1367,92 @@ export class AdminService {
     requestId: string,
     reviewerId: string,
     decision: 'APPROVED' | 'REJECTED',
-    notes?: string,
+    notes: string | undefined,
+    reviewerRole: string,
+    activeOrgId: string | null,
   ) {
-    const request = await this.db.db.query.organizationUpdateRequests.findFirst({
-      where: eq(organizationUpdateRequests.id, requestId),
-    });
-    if (!request) throw new NotFoundException('Update request not found');
-    if (request.status !== 'PENDING') {
-      throw new BadRequestException(`Update request is already ${request.status.toLowerCase()}`);
+    if (typeof reviewerRole !== 'string' || reviewerRole.trim().length === 0) {
+      throw new ForbiddenException('Authenticated reviewer role is required');
     }
 
-    // Fetch org name for notification
-    const org = await this.db.db.query.organizations.findFirst({
-      where: eq(organizations.id, request.orgId),
-      columns: { id: true, name: true },
-    });
+    // Keep database reads/writes inside the caller actor transaction, but deliver
+    // notifications only after the transaction has committed.
+    const result = await this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: reviewerId,
+        actorRole: reviewerRole,
+        activeOrgId,
+      },
+      async () => {
+        const request = await this.db.db.query.organizationUpdateRequests.findFirst({
+          where: eq(organizationUpdateRequests.id, requestId),
+        });
+        if (!request) throw new NotFoundException('Update request not found');
+        if (request.status !== 'PENDING') {
+          throw new BadRequestException(
+            `Update request is already ${request.status.toLowerCase()}`,
+          );
+        }
 
-    if (decision === 'APPROVED') {
-      const payload = (request.payload ?? {}) as Record<string, unknown>;
-      const updates: Record<string, string | Date> = {};
-      for (const field of ['name', 'legalName', 'taxId'] as const) {
-        const value = payload[field];
-        if (typeof value === 'string') updates[field] = value;
-      }
-      if (Object.keys(updates).length === 0) {
-        throw new BadRequestException('Update request payload contains no applicable fields');
-      }
-      updates['updatedAt'] = new Date();
-      await this.db.db
-        .update(organizations)
-        .set(updates)
-        .where(eq(organizations.id, request.orgId));
-    }
+        const org = await this.db.db.query.organizations.findFirst({
+          where: eq(organizations.id, request.orgId),
+          columns: { id: true, name: true },
+        });
 
-    const [updated] = await this.db.db
-      .update(organizationUpdateRequests)
-      .set({
-        status: decision,
-        decisionNotes: notes ?? null,
-        decidedBy: reviewerId,
-        decidedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(organizationUpdateRequests.id, requestId))
-      .returning();
+        if (decision === 'APPROVED') {
+          const payload = (request.payload ?? {}) as Record<string, unknown>;
+          const updates: Record<string, string | Date> = {};
+          for (const field of ['name', 'legalName', 'taxId'] as const) {
+            const value = payload[field];
+            if (typeof value === 'string') updates[field] = value;
+          }
+          if (Object.keys(updates).length === 0) {
+            throw new BadRequestException('Organization update request payload contains no applicable fields');
+          }
+          updates['updatedAt'] = new Date();
+          await this.db.db
+            .update(organizations)
+            .set(updates)
+            .where(eq(organizations.id, request.orgId));
+        }
 
-    // Notify the requesting user of the decision
+        const [updated] = await this.db.db
+          .update(organizationUpdateRequests)
+          .set({
+            status: decision,
+            decisionNotes: notes ?? null,
+            decidedBy: reviewerId,
+            decidedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(organizationUpdateRequests.id, requestId),
+              eq(organizationUpdateRequests.status, 'PENDING'),
+            ),
+          )
+          .returning();
+
+        if (!updated) {
+          throw new BadRequestException('Organization update request was already reviewed');
+        }
+
+        return {
+          updated,
+          requestedBy: request.requestedBy,
+          orgName: org?.name ?? 'your organization',
+        };
+      },
+    );
+
     const templateName = decision === 'APPROVED' ? 'org_update.approved' : 'org_update.rejected';
-    await this.notifications.send(request.requestedBy, templateName, {
-      orgName: org?.name ?? 'your organization',
+    await this.notifications.send(result.requestedBy, templateName, {
+      orgName: result.orgName,
       notes: notes ?? '',
     });
 
-    return updated;
+    return result.updated;
   }
 
   /**
