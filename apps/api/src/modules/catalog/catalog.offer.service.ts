@@ -100,6 +100,34 @@ export class CatalogOfferService {
     return offer;
   }
 
+  /**
+   * Compare-and-set an offer mutation against the exact state and owner read
+   * during authorization. This prevents stale concurrent requests from
+   * overwriting a newer lifecycle transition or changing another store's row.
+   */
+  private async updateOfferIfCurrent(
+    id: string,
+    expectedStatus: OfferStatus,
+    updates: Record<string, unknown>,
+    expectedStoreId?: string,
+  ): Promise<void> {
+    const predicates = [
+      eq(merchantOffers.id, id),
+      eq(merchantOffers.status, expectedStatus),
+    ];
+    if (expectedStoreId) predicates.push(eq(merchantOffers.storeId, expectedStoreId));
+
+    const [updated] = await this.db.db
+      .update(merchantOffers)
+      .set(updates as any)
+      .where(and(...predicates))
+      .returning({ id: merchantOffers.id });
+
+    if (!updated) {
+      throw new ConflictException('Offer changed while this operation was in progress; reload and retry');
+    }
+  }
+
   private assertTransition(from: string, to: OfferStatus) {
     if (
       !OFFER_STATUSES.has(from as OfferStatus) ||
@@ -642,17 +670,19 @@ export class CatalogOfferService {
   async proposeOffer(id: string, caller: CallerContext) {
     const offer = await this.getOfferForMerchant(id, caller);
     this.assertTransition(offer.status, 'PROPOSED');
-    await this.db.db
-      .update(merchantOffers)
-      .set({
+    await this.updateOfferIfCurrent(
+      id,
+      offer.status,
+      {
         status: 'PROPOSED',
         proposedBy: caller.sub,
         reviewedBy: null,
         reviewedAt: null,
         rejectionReason: null,
         updatedAt: new Date(),
-      })
-      .where(eq(merchantOffers.id, id));
+      },
+      offer.storeId,
+    );
 
     await this.audit.record({
       actorType: 'MERCHANT',
@@ -670,17 +700,14 @@ export class CatalogOfferService {
     const offer = await this.getOrThrow(id);
     this.assertTransition(offer.status, 'ACTIVE');
     const now = new Date();
-    await this.db.db
-      .update(merchantOffers)
-      .set({
-        status: 'ACTIVE',
-        reviewedBy: reviewerId,
-        reviewedAt: now,
-        activatedAt: now,
-        rejectionReason: null,
-        updatedAt: now,
-      })
-      .where(eq(merchantOffers.id, id));
+    await this.updateOfferIfCurrent(id, offer.status, {
+      status: 'ACTIVE',
+      reviewedBy: reviewerId,
+      reviewedAt: now,
+      activatedAt: now,
+      rejectionReason: null,
+      updatedAt: now,
+    });
 
     await this.audit.record({
       actorType: 'ADMIN',
@@ -699,16 +726,13 @@ export class CatalogOfferService {
     this.assertTransition(offer.status, 'REJECTED');
     if (!reason?.trim()) throw new BadRequestException('A rejection requires a reason');
     const now = new Date();
-    await this.db.db
-      .update(merchantOffers)
-      .set({
-        status: 'REJECTED',
-        reviewedBy: reviewerId,
-        reviewedAt: now,
-        rejectionReason: reason,
-        updatedAt: now,
-      })
-      .where(eq(merchantOffers.id, id));
+    await this.updateOfferIfCurrent(id, offer.status, {
+      status: 'REJECTED',
+      reviewedBy: reviewerId,
+      reviewedAt: now,
+      rejectionReason: reason,
+      updatedAt: now,
+    });
 
     await this.audit.record({
       actorType: 'ADMIN',
@@ -728,10 +752,10 @@ export class CatalogOfferService {
     // Suspension is a lifecycle state, separate from the merchant's
     // availability preference. Preserve is_available so reactivation does
     // not accidentally leave a previously available offer unsellable.
-    await this.db.db
-      .update(merchantOffers)
-      .set({ status: 'SUSPENDED', updatedAt: new Date() })
-      .where(eq(merchantOffers.id, id));
+    await this.updateOfferIfCurrent(id, offer.status, {
+      status: 'SUSPENDED',
+      updatedAt: new Date(),
+    });
 
     await this.audit.record({
       actorType: 'ADMIN',
@@ -748,10 +772,11 @@ export class CatalogOfferService {
   async reactivateOffer(id: string, reviewerId: string) {
     const offer = await this.getOrThrow(id);
     this.assertTransition(offer.status, 'ACTIVE');
-    await this.db.db
-      .update(merchantOffers)
-      .set({ status: 'ACTIVE', activatedAt: new Date(), updatedAt: new Date() })
-      .where(eq(merchantOffers.id, id));
+    await this.updateOfferIfCurrent(id, offer.status, {
+      status: 'ACTIVE',
+      activatedAt: new Date(),
+      updatedAt: new Date(),
+    });
 
     await this.audit.record({
       actorType: 'ADMIN',
@@ -768,10 +793,12 @@ export class CatalogOfferService {
   async withdrawOffer(id: string, caller: CallerContext) {
     const offer = await this.getOfferForMerchant(id, caller);
     this.assertTransition(offer.status, 'WITHDRAWN');
-    await this.db.db
-      .update(merchantOffers)
-      .set({ status: 'WITHDRAWN', isAvailable: false, updatedAt: new Date() })
-      .where(eq(merchantOffers.id, id));
+    await this.updateOfferIfCurrent(
+      id,
+      offer.status,
+      { status: 'WITHDRAWN', isAvailable: false, updatedAt: new Date() },
+      offer.storeId,
+    );
 
     await this.audit.record({
       actorType: 'MERCHANT',
@@ -806,7 +833,7 @@ export class CatalogOfferService {
       input.warehouseId,
     );
 
-    await this.db.db
+    const [updated] = await this.db.db
       .update(merchantOffers)
       .set({
         currency: input.currency ?? offer.currency,
@@ -820,7 +847,11 @@ export class CatalogOfferService {
         warehouseId: input.warehouseId ?? offer.warehouseId,
         updatedAt: new Date(),
       })
-      .where(eq(merchantOffers.id, id));
+      .where(and(eq(merchantOffers.id, id), eq(merchantOffers.storeId, offer.storeId)))
+      .returning({ id: merchantOffers.id });
+    if (!updated) {
+      throw new ConflictException('Offer ownership changed while this operation was in progress');
+    }
 
     await this.audit.record({
       actorType: 'MERCHANT',
