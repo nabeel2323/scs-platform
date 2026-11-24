@@ -2886,3 +2886,10 @@ No writer for the optional `driver_store_assignments` allowlist itself was found
 G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No tests, formatter, lint, typecheck, E6 or CI were run. No live/shared database, migration, RLS/grant, protected staging, deployment, worker activation, merge or release action occurred.
 
 **Next:** continue the remaining Drizzle-to-migration FK reconciliation and source-level cross-column ownership matrix; review whether any external process provisions `driver_store_assignments` without inventing an API. Then finish actor-context nesting/reuse review and obtain protected read-only API/migration runtime identity/catalog evidence only through the authorized staging process. Consolidated verification remains deferred until implementation/integration is complete.
+
+
+## G-002 — targeted Drizzle/migration FK parity correction — 24 November 2026
+
+A targeted static comparison of the payment, return and financial Drizzle schemas against the migration FK crosswalk identified four migration-enforced relationships omitted from Drizzle metadata. The self-referential `reconciliation_runs.superseded_by → reconciliation_runs.id` relationship from migration 0062 is now represented with a typed lazy `AnyPgColumn` reference in `financial.schema.ts`. The remaining three deferred links are explicitly documented in their schema declarations: `refunds.return_request_id` and `return_requests.refund_id` form a payments/returns module cycle, while `return_request_items.inventory_item_id` is migration-owned and nullable with ON DELETE SET NULL semantics. Their SQL constraints remain authoritative; no schema migration was changed.
+
+The detailed parity inventory and the deliberate distinction between migration-only links and application-maintained nullable `org_id` metadata are recorded in the G-002 migration FK crosswalk. This is a targeted slice, not full 100-table parity completion. No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
