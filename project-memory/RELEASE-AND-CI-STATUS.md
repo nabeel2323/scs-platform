@@ -305,3 +305,8 @@ Source commits `01b6e6c729c1a458f20aaeaed043df4c569119e4` and `fa2547997c4b4dad4
 ## 24 November 2026 — reconciliation scope source update and automatic CI outcome
 
 Source commit `98843bfe455667f7a96d7cbdd6dfb2253ce2af0f` adds reconciliation organization existence and parent/child scope checks. It uses `[skip ci]`; no tests or CI were intentionally run for this source update. The earlier automatically queued PR CI run [#1503](https://github.com/nabeel2323/scs-platform/actions/runs/45434170778), triggered by the preceding source commits, has since completed with **FAILURE**. It ran against the earlier source checkpoint, not `98843bf`, and is not verification evidence for the latest code. The failure has not been triaged during this implementation phase; defer detailed CI/test triage until implementation/integration is complete. Vercel Web/Admin remain external deployment-rate-limit failures. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — refund lineage source update
+
+Source commit `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d` adds refund order/currency checks to approval and idempotent recovery. The commit uses `[skip ci]`; no tests or CI were run for it. The only recent automatic CI run (#1503) failed on the earlier source checkpoint and does not cover this change. No new workflow runs exist for the latest skip-CI source/documentation commits. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED; full verification remains deferred.
