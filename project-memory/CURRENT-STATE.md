@@ -438,3 +438,10 @@ Latest source follow-up commits:
 Driver/store assignment review found only schema declarations in the inspected module; no assignment writer/controller was found, and shipment assignedDriverId points to users rather than driver profiles. Do not invent an API. The crosswalk and implementation progress tracker record this disposition and the remaining regression cases.
 
 No tests or CI were run; commits use `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Next: continue full Drizzle-to-migration FK reconciliation and source callsite scan, then add regression coverage before the deferred verification campaign. Protected staging/database/RLS/grant/migration/deployment/worker/merge gates remain unchanged.
+
+
+## 24 November 2026 — webhook retry credential lineage checkpoint
+
+Source commit `926c475fb9c59ffa1688dccee3d4f9dfbeea59e2` closes a remaining webhook retry relationship gap: every unprocessed credential-bound event now revalidates credential existence/active state and provider key, including already-linked events; the linked shipment's store organization must equal the credential organization before the event is marked processed. Unlinked legacy events without a credential fail closed; already-linked legacy rows with null credential remain compatible but still require shipment/order/store consistency.
+
+Crosswalk and progress tracker record the new invariants and regression cases. No tests or CI were run; commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Next: finish Drizzle-to-migration FK reconciliation and locate any external driver assignment consumer before adding any API or database constraint.
