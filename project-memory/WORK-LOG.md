@@ -2046,3 +2046,11 @@ The 75-file numbered migration scan found 183 explicit REFERENCES clauses across
 - Reviewed refund creation, approval, failure/retry and return-refund transitions against the independent `refunds.payment_record_id` and `refunds.order_id` FKs.
 - Commit [e9bf293](https://github.com/nabeel2323/scs-platform/commit/e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d) adds payment/order/currency equality checks to approval and both idempotent request-recovery paths. The return-refund workflow already validates its full return/payment/order/refund lineage under locks.
 - Updated the G-002 migration FK crosswalk and implementation progress tracker. Regression scenarios are documented but not executed. The source commit uses `[skip ci]`; no tests or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — shipment order/store ownership remediation
+
+- Reviewed shipment schema, OrdersService shipment creation, ShipmentOperationsController detail access and ShippingCarrierWorker tenant validation.
+- Found that `shipments.order_id` and `shipments.store_id` are independent FKs. A mismatched pair could let a store-scoped shipment detail path disclose a different store's order, or pass mismatched data to a carrier.
+- Source commits: [b1e5490](https://github.com/nabeel2323/scs-platform/commit/b1e5490401d9602205d46351ee4eaf1ab2db7d30), [02edaa8](https://github.com/nabeel2323/scs-platform/commit/02edaa89d75b06e6c8a4170cc306662965d8fd30), [15d328c](https://github.com/nabeel2323/scs-platform/commit/15d328c952dfd0805a9eee00374c6ad74ed1d6a1). Creation, authorized reads and carrier worker paths now validate same-store order ownership.
+- Updated G-002 crosswalk and progress tracker. Regression cases are documented but unexecuted. Commits use `[skip ci]`; no tests or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
