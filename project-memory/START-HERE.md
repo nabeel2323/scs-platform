@@ -1173,3 +1173,10 @@ The next task is to inspect driver-profile/store-assignment organization consist
 After the financial ownership commits `01b6e6c` and `fa25479`, commit `98843bf` hardens reconciliation organization scope: validates the requested organization exists, checks discrepancy child org against the parent run on reads, and verifies parent scope before resolving a discrepancy. See the G-002 migration FK crosswalk and latest work-log/progress entries.
 
 The next task is to locate the actual consumer/write path for `driver_store_assignments` and `shipments.assigned_driver_id`; the inspected ShippingModule/ShipmentOperationsController does not expose assignment mutations. Do not invent a new endpoint before the full callsite inventory. Then complete remaining shipping/financial cross-column relationships and Drizzle/migration FK reconciliation. CI #1503 failed on the preceding source SHA; no tests/CI were intentionally run for `98843bf`, and follow-up docs/source commits use `[skip ci]`. G-002 remains NOT VERIFIED; all protected staging, shared DB, RLS/grant, migration, deployment, worker, merge and release gates remain binding.
+
+
+## Latest source continuation — refund lineage — 24 November 2026
+
+Source commit `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d` adds refund order/currency equality checks to approval and idempotent request recovery. Return-refund transitions already validate the full return/payment/order/refund/buyer/currency chain. See the latest G-002 migration FK crosswalk and progress tracker entries.
+
+Next: locate the actual driver/store assignment consumer/write path, complete shipment/order and carrier/shipment cross-column checks, and reconcile Drizzle schema FKs with migrations. Regression cases remain pending; do not run tests or intentionally trigger CI before implementation/integration is complete. G-002 remains NOT VERIFIED and all existing staging/database/RLS/grant/migration/deployment/worker/merge restrictions remain binding.
