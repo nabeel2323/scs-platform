@@ -14,6 +14,7 @@ function buildController(options?: {
     listCategoryProductTypes: vi.fn().mockResolvedValue([]),
     getCategoryProducts: vi.fn().mockResolvedValue({ direct: [], descendant: [] }),
     listCategories: vi.fn().mockResolvedValue([]),
+    getTopCategories: vi.fn().mockResolvedValue([]),
   };
   const storeFindFirst = vi.fn().mockResolvedValue(
     options?.storeOrgId ? { orgId: options.storeOrgId } : null,
@@ -72,6 +73,16 @@ describe('CatalogController category tenant visibility (G-002)', () => {
 
     expect(h.service.listCategories).not.toHaveBeenCalled();
     expect(h.membershipWhere).not.toHaveBeenCalled();
+  });
+
+  it('requires store membership before returning store-scoped search categories', async () => {
+    const h = buildController({ storeOrgId: 'org-b' });
+
+    await expect(h.controller.getTopCategories('store-b', buyer)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+
+    expect(h.service.getTopCategories).not.toHaveBeenCalled();
   });
 
   it('does not disclose a foreign store category through the detail route', async () => {
