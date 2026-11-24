@@ -220,6 +220,7 @@ export class AdminController {
   }
 
   @Patch('users/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('admin:users:write')
   async updateUser(
     @Param('id') id: string,
@@ -230,6 +231,7 @@ export class AdminController {
   }
 
   @Post('users/:id/assign-role')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('admin:users:write')
   async assignRole(
     @Param('id') id: string,
@@ -240,6 +242,7 @@ export class AdminController {
   }
 
   @Delete('users/:id/roles/:orgId')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('admin:users:write')
   async removeRole(
     @Param('id') id: string,
@@ -250,12 +253,14 @@ export class AdminController {
   }
 
   @Post('users')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('admin:users:write')
   async createUser(@Body() body: CreateUserDto, @CurrentUser() user: JwtPayload) {
     return this.adminService.createUser(body, user.sub);
   }
 
   @Patch('users/:id/profile')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('admin:users:write')
   async updateUserProfile(
     @Param('id') id: string,
@@ -280,6 +285,7 @@ export class AdminController {
   }
 
   @Patch('roles/:id/permissions')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('admin:roles:write')
   async updateRolePermissions(
     @Param('id', ParseUUIDPipe) id: string,
@@ -311,6 +317,7 @@ export class AdminController {
   }
 
   @Patch('organizations/:id/deactivate')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('admin:users:write')
   async deactivateOrganization(
     @Param('id', ParseUUIDPipe) id: string,
@@ -330,12 +337,20 @@ export class AdminController {
 
   @Patch('org-update-requests/:id/review')
   @RequirePermission('admin:users:write')
+  // Notification delivery is outside the service's short user-scoped DB transaction.
   async reviewOrgUpdateRequest(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: ReviewOrgUpdateDto,
   ) {
-    return this.adminService.reviewOrgUpdateRequest(id, user.sub, body.decision, body.notes);
+    return this.adminService.reviewOrgUpdateRequest(
+      id,
+      user.sub,
+      body.decision,
+      body.notes,
+      user.role,
+      user.activeOrg ?? null,
+    );
   }
 
   // ── Product moderation (plan §13.4) ────────────────────────
@@ -356,12 +371,14 @@ export class AdminController {
   // ── Admin Product CRUD (PHASE 4 P3) ─────────────────────────
 
   @Post('products')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('catalog:products:write')
   async adminCreateProduct(@CurrentUser() user: JwtPayload, @Body() input: CreateProductInput) {
     return this.adminService.adminCreateProduct(input, user.sub);
   }
 
   @Patch('products/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('catalog:products:write')
   async adminUpdateProduct(
     @Param('id', ParseUUIDPipe) id: string,
@@ -379,6 +396,7 @@ export class AdminController {
   }
 
   @Put('products/:id/attribute-values')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('catalog:products:write')
   async adminSetProductAttributeValues(
     @Param('id', ParseUUIDPipe) id: string,
@@ -388,6 +406,7 @@ export class AdminController {
   }
 
   @Post('products/:id/moderate')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @HttpCode(200)
   @RequirePermission('admin:products:moderate')
   async moderateProductPost(
@@ -398,6 +417,7 @@ export class AdminController {
   }
 
   @Patch('products/:id/moderate')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('admin:products:moderate')
   async moderateProduct(@Param('id', ParseUUIDPipe) id: string, @Body() body: ModerateProductDto) {
     return this.adminService.moderateProduct(id, body.decision, body.reason, body.updatedAt);
@@ -434,6 +454,7 @@ export class AdminController {
    * SUBMITTED → UNDER_REVIEW
    */
   @Post('products/:id/start-review')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @HttpCode(200)
   @RequirePermission('admin:merchants:read')
   async startProductReview(
@@ -450,6 +471,7 @@ export class AdminController {
    * Uses the new governance service with moderation ledger.
    */
   @Post('products/:id/p11-moderate')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @HttpCode(200)
   @RequirePermission('admin:merchants:read')
   async moderateProductP11(
@@ -497,6 +519,7 @@ export class AdminController {
    * Preserves P2 FOR SHARE locking and Phase 3 typed attribute authority.
    */
   @Post('products/:productId/variants')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('catalog:products:write')
   async adminCreateVariant(
     @Param('productId', ParseUUIDPipe) productId: string,
@@ -511,6 +534,7 @@ export class AdminController {
    * No assertProductInOrg — admins are cross-org by design.
    */
   @Patch('products/:productId/variants/:variantId')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('catalog:products:write')
   async adminUpdateVariant(
     @Param('productId', ParseUUIDPipe) productId: string,
@@ -537,6 +561,7 @@ export class AdminController {
   }
 
   @Put('products/:productId/variants/:variantId/attribute-values')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('catalog:products:write')
   async adminSetVariantAttributeValues(
     @Param('productId', ParseUUIDPipe) productId: string,
@@ -552,6 +577,7 @@ export class AdminController {
    * Backend only — frontend bulk UI is deferred.
    */
   @Post('products/:productId/variants/bulk')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('catalog:products:write')
   async adminBulkVariantOperations(
     @Param('productId', ParseUUIDPipe) productId: string,
