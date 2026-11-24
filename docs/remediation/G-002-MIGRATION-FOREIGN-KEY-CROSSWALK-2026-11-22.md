@@ -292,3 +292,17 @@ The `shipments` table has independent FKs to `orders.id` and `stores.id`; those 
 - `ShippingCarrierWorker.assertOutboxTenantMatchesShipment` verifies the shipment's order/store relationship in the shipment's owning organization context before carrier provider operations and webhook retry processing.
 
 Regression cases: shipment creation with a mismatched store creates no shipment; merchant and privileged shipment detail both fail closed on an order/store mismatch; carrier create/cancel/label/track and webhook retry perform no provider/storage side effect for a mismatched order/store pair. Tests remain unexecuted. No migration or schema change was made.
+
+
+## Shipment read-path completeness follow-up — 24 November 2026
+
+**Source commit:** `56d605a7377c49766b990abfc023e6ae4a5cea1d`.
+
+The first shipment/order/store fix covered shipment detail authorization and the carrier worker. A second callsite pass found additional order-owned and driver-facing reads. The source now:
+
+- Validates the order/store relationship before driver or privileged bypass in `OrdersService.assertShipmentAccessibleForException`.
+- Makes `getShipmentByOrderId` resolve the authoritative order store and fail closed if the shipment store differs.
+- Makes `listDriverShipments` inner-join orders on both order ID and same store before returning shipment records.
+- The prior `ShipmentOperationsController.listShipments` change adds the same-store join predicate for merchant and platform lists and applies the join to the count query.
+
+The regression matrix must also cover shipment exception/RTS operations for driver and platform roles, buyer/order shipment lookup, and driver shipment listing when order/store are inconsistent. No tests were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
