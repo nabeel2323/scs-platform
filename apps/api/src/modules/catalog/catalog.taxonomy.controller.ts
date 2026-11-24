@@ -9,6 +9,7 @@ import {
   Body,
   Query,
   UseGuards,
+  UseInterceptors,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import {
@@ -24,6 +25,7 @@ import { ConditionalRulesService, ConditionalRule, AttributeValueMap } from './c
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermission } from '../../common/guards/current-user.decorator';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 
 /**
  * Catalog taxonomy API — attributes, options, groups, product types (§32–§34).
@@ -35,6 +37,7 @@ import { RequirePermission } from '../../common/guards/current-user.decorator';
  */
 @Controller()
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class CatalogTaxonomyController {
   constructor(
     private readonly taxonomy: CatalogTaxonomyService,
