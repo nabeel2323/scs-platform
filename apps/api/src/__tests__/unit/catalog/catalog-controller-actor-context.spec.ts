@@ -39,6 +39,28 @@ describe('CatalogController database actor boundaries (G-002)', () => {
   });
 });
 
+const DATABASE_SCOPED_READS = [
+  'listCategories',
+  'getCategory',
+  'listCategoryProductTypes',
+  'listCategoryProducts',
+  'getTopCategories',
+  'getPopularBrands',
+  'search',
+  'listVariants',
+  'listStoreVariants',
+] as const;
+
+describe('CatalogController database-scoped read boundaries (G-002)', () => {
+  it.each(DATABASE_SCOPED_READS)('%s runs in the verified user actor context', (methodName) => {
+    const descriptor = Object.getOwnPropertyDescriptor(CatalogController.prototype, methodName);
+    expect(descriptor?.value).toBeDefined();
+    expect(Reflect.getMetadata(INTERCEPTORS_METADATA, descriptor!.value)).toContain(
+      TenantDatabaseContextInterceptor,
+    );
+  });
+});
+
 const MIXED_DB_PHASE_MUTATIONS = [
   'getProduct',
   'updateProduct',
