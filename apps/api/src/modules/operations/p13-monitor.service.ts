@@ -48,6 +48,9 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
   private readonly config: P13OpsConfig;
 
   private withMonitorActor<T>(operation: () => PromiseLike<T>): Promise<T> {
+    // Reuse an already-established request/worker actor if this read-only
+    // collector is invoked from a scoped operation; otherwise use its worker ID.
+    if (this.db.currentActorContext) return Promise.resolve(operation());
     return this.db.withActorContext(
       { actorKind: 'worker', workerId: 'p13-monitor' },
       async () => await operation(),
