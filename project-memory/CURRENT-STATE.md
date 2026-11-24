@@ -390,3 +390,10 @@ Source commit `98843bfe455667f7a96d7cbdd6dfb2253ce2af0f` now verifies a non-null
 Driver assignment schema review remains open: profile org and assignment store are separate FKs without a same-org constraint; the inspected ShippingModule and ShipmentOperationsController have no assignment write route, and shipment assignedDriverId references users. No speculative endpoint was introduced. The next task is to locate the actual consumer/write path.
 
 CI #1503, automatically triggered by earlier source commits, completed FAILURE on the prior source SHA; it does not cover the reconciliation update and has not been triaged during implementation. Follow-up commits use `[skip ci]`. No tests, staging/shared DB, migration, RLS/grant, deployment, worker activation, merge or release action occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — refund/payment/order lineage follow-up
+
+Source commit `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d` closes missing cross-column checks in refund approval and idempotent request recovery: refund order and currency must match the locked payment before a replay is accepted or an approval transitions state. Return-refund processing already validates its return/payment/order/refund/buyer/currency lineage under locks. The G-002 crosswalk and progress tracker now include the source evidence and regression cases.
+
+No tests or CI were run for this `[skip ci]` source commit. The previous automatic CI #1503 failure was on the earlier financial source checkpoint, not this update. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Next: locate actual driver/store assignment consumers, complete remaining shipment/order and carrier/shipment cross-column review, reconcile Drizzle declarations against migrations, then add regression coverage and proceed to consolidated verification only after implementation/integration is complete.
