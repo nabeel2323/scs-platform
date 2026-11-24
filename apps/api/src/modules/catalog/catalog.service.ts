@@ -1541,12 +1541,16 @@ export class CatalogService {
     }
   }
 
-  async updateProduct(id: string, input: UpdateProductInput, clientUpdatedAt?: string) {
-    const product = await this.getProduct(id);
+  async updateProduct(
+    id: string,
+    input: UpdateProductInput,
+    clientUpdatedAt: string | undefined,
+    actor: CatalogUserActor,
+  ) {
+    const product = await this.withUserActorContext(actor, () => this.getProduct(id));
     const currentStatus = product['status'] as string;
 
     // ── P11 Edit Governance ──
-    // Block edits on products under review or submitted
     if (currentStatus === 'SUBMITTED' || currentStatus === 'UNDER_REVIEW') {
       throw new ConflictException({
         statusCode: 409,
@@ -1555,7 +1559,6 @@ export class CatalogService {
       });
     }
 
-    // Detect high-risk field changes for re-review trigger
     const changedFields = new Set<string>();
     if (input.title !== undefined) changedFields.add('title');
     if (input.titleAr !== undefined) changedFields.add('titleAr');
@@ -1574,7 +1577,6 @@ export class CatalogService {
       hasHighRiskChanges && (currentStatus === 'APPROVED' || currentStatus === 'PUBLISHED');
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
-
     if (input.title !== undefined) updates['title'] = input.title;
     if (input.titleAr !== undefined) updates['titleAr'] = input.titleAr;
     if (input.description !== undefined) updates['description'] = input.description;
@@ -1590,106 +1592,105 @@ export class CatalogService {
     if (input.slug !== undefined) updates['slug'] = input.slug;
     if (input.metadata !== undefined) updates['metadata'] = input.metadata;
 
-    // ── PHASE 4 P2: Identifier normalization + uniqueness ──
     if (input.gtin !== undefined) {
       const normalized = this.normalizeIdentifier(input.gtin);
       updates['gtin'] = normalized;
       if (normalized !== null) {
-        await this.checkIdentifierUniqueness(products.gtin, normalized, id, 'GTIN');
+        await this.withUserActorContext(actor, () =>
+          this.checkIdentifierUniqueness(products.gtin, normalized, id, 'GTIN'),
+        );
       }
     }
     if (input.ean !== undefined) {
       const normalized = this.normalizeIdentifier(input.ean);
       updates['ean'] = normalized;
       if (normalized !== null) {
-        await this.checkIdentifierUniqueness(products.ean, normalized, id, 'EAN');
+        await this.withUserActorContext(actor, () =>
+          this.checkIdentifierUniqueness(products.ean, normalized, id, 'EAN'),
+        );
       }
     }
-    if (input.mpn !== undefined) {
-      updates['mpn'] = this.normalizeIdentifier(input.mpn);
-    }
+    if (input.mpn !== undefined) updates['mpn'] = this.normalizeIdentifier(input.mpn);
 
-    // ── PHASE 4 P2: Product type change detection ──
     const currentProductTypeId = (product['productTypeId'] as string | null) ?? null;
     const isProductTypeChanging =
       input.productTypeId !== undefined && (input.productTypeId ?? null) !== currentProductTypeId;
 
     if (isProductTypeChanging) {
       const newPtId = input.productTypeId ?? null;
-      // Validate target product type exists (if non-null)
       if (newPtId !== null) {
-        const pt = await this.db.db.query.productTypes.findFirst({
-          where: eq(productTypes.id, newPtId),
-          columns: { id: true },
-        });
+        const pt = await this.withUserActorContext(actor, async () =>
+          await this.db.db.query.productTypes.findFirst({
+            where: eq(productTypes.id, newPtId),
+            columns: { id: true },
+          }),
+        );
         if (!pt) throw new NotFoundException('Product type not found');
       }
       updates['productTypeId'] = newPtId;
     }
 
-    // Validate attribute completeness before publishing
     if (input.status === 'ACTIVE') {
-      await this.validatePublish(id);
+      await this.withUserActorContext(actor, () => this.validatePublish(id));
     }
 
-    // ── PHASE 4 P2: Transaction path for product type change (BD-06) ──
     if (isProductTypeChanging) {
-      return this.updateProductWithTypeChange(id, updates, input, clientUpdatedAt, product);
+      return this.updateProductWithTypeChange(id, updates, input, clientUpdatedAt, product, actor);
     }
 
-    // ── Standard path (no product type change) ──
-    // PHASE 4 P1 — Optimistic locking via updatedAt comparison (BD-08).
     if (clientUpdatedAt !== undefined) {
       const clientDate = new Date(clientUpdatedAt);
       if (isNaN(clientDate.getTime())) {
         throw new BadRequestException('Invalid updatedAt timestamp');
       }
 
-      // P11: If re-review is needed, wrap in transaction with governance trigger
       if (needsReReview) {
-        return this.db.db.transaction(async (tx) => {
-          const [updated] = await tx
-            .update(products)
-            .set(updates)
-            .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
-            .returning();
+        await this.withUserActorContext(actor, async () => {
+          await this.db.db.transaction(async (tx) => {
+            const [updated] = await tx
+              .update(products)
+              .set(updates)
+              .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
+              .returning();
 
-          if (!updated) {
-            const current = await tx.query.products.findFirst({
-              where: eq(products.id, id),
-              columns: { id: true, updatedAt: true },
-            });
-            throw new ConflictException({
-              statusCode: 409,
-              message: 'CONFLICT',
-              currentUpdatedAt: current?.updatedAt ?? new Date(),
-            });
-          }
+            if (!updated) {
+              const current = await tx.query.products.findFirst({
+                where: eq(products.id, id),
+                columns: { id: true, updatedAt: true },
+              });
+              throw new ConflictException({
+                statusCode: 409,
+                message: 'CONFLICT',
+                currentUpdatedAt: current?.updatedAt ?? new Date(),
+              });
+            }
 
-          // Trigger re-review (APPROVED/PUBLISHED → UNDER_REVIEW)
-          await this.governance.triggerReReviewIfNeeded(
-            tx,
-            id,
-            changedFields,
-            false,
-            false,
-            product['storeId'] || 'system',
-            'MERCHANT',
-          );
-
-          await this.invalidateProductCache(id);
-          return this.getProduct(id);
+            await this.governance.triggerReReviewIfNeeded(
+              tx,
+              id,
+              changedFields,
+              false,
+              false,
+              product['storeId'] || 'system',
+              'MERCHANT',
+            );
+          });
         });
+        // Cache invalidation is external I/O and must happen after the DB scope closes.
+        await this.invalidateProductCache(id);
+        return this.withUserActorContext(actor, () => this.getProduct(id));
       }
 
-      const [updated] = await this.db.db
-        .update(products)
-        .set(updates)
-        .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
-        .returning();
+      const [updated] = await this.withUserActorContext(actor, async () =>
+        await this.db.db
+          .update(products)
+          .set(updates)
+          .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
+          .returning(),
+      );
 
       if (!updated) {
-        const current = await this.getProduct(id);
+        const current = await this.withUserActorContext(actor, () => this.getProduct(id));
         throw new ConflictException({
           statusCode: 409,
           message: 'CONFLICT',
@@ -1698,7 +1699,6 @@ export class CatalogService {
       }
 
       await this.invalidateProductCache(id);
-      // PHASE 4 P6: Audit — product updated by merchant
       await this.audit.record({
         actorType: 'MERCHANT',
         action: 'product.updated',
@@ -1707,9 +1707,11 @@ export class CatalogService {
         metadata: { storeId: product['storeId'], fields: Object.keys(updates) },
       });
       if (input.status === 'ACTIVE' || input.status === 'PUBLISHED') {
-        await this.outbox.publish('catalog.product.published', id, {
-          productId: id,
-          storeId: product['storeId'],
+        await this.withUserActorContext(actor, async () => {
+          await this.outbox.publish('catalog.product.published', id, {
+            productId: id,
+            storeId: product['storeId'],
+          });
         });
         await this.audit.record({
           actorType: 'MERCHANT',
@@ -1720,30 +1722,33 @@ export class CatalogService {
         });
       }
 
-      return this.getProduct(id);
+      return this.withUserActorContext(actor, () => this.getProduct(id));
     }
 
-    // Legacy path: no optimistic locking
+    // Legacy path: no optimistic locking.
     if (needsReReview) {
-      return this.db.db.transaction(async (tx) => {
-        await tx.update(products).set(updates).where(eq(products.id, id));
-        await this.governance.triggerReReviewIfNeeded(
-          tx,
-          id,
-          changedFields,
-          false,
-          false,
-          product['storeId'] || 'system',
-          'MERCHANT',
-        );
-        await this.invalidateProductCache(id);
-        return this.getProduct(id);
+      await this.withUserActorContext(actor, async () => {
+        await this.db.db.transaction(async (tx) => {
+          await tx.update(products).set(updates).where(eq(products.id, id));
+          await this.governance.triggerReReviewIfNeeded(
+            tx,
+            id,
+            changedFields,
+            false,
+            false,
+            product['storeId'] || 'system',
+            'MERCHANT',
+          );
+        });
       });
+      await this.invalidateProductCache(id);
+      return this.withUserActorContext(actor, () => this.getProduct(id));
     }
 
-    await this.db.db.update(products).set(updates).where(eq(products.id, id));
+    await this.withUserActorContext(actor, async () => {
+      await this.db.db.update(products).set(updates).where(eq(products.id, id));
+    });
     await this.invalidateProductCache(id);
-    // PHASE 4 P6: Audit — product updated by merchant
     await this.audit.record({
       actorType: 'MERCHANT',
       action: 'product.updated',
@@ -1753,9 +1758,11 @@ export class CatalogService {
     });
 
     if (input.status === 'ACTIVE' || input.status === 'PUBLISHED') {
-      await this.outbox.publish('catalog.product.published', id, {
-        productId: id,
-        storeId: product['storeId'],
+      await this.withUserActorContext(actor, async () => {
+        await this.outbox.publish('catalog.product.published', id, {
+          productId: id,
+          storeId: product['storeId'],
+        });
       });
       await this.audit.record({
         actorType: 'MERCHANT',
@@ -1766,7 +1773,7 @@ export class CatalogService {
       });
     }
 
-    return this.getProduct(id);
+    return this.withUserActorContext(actor, () => this.getProduct(id));
   }
 
   /**
@@ -1780,60 +1787,62 @@ export class CatalogService {
     input: UpdateProductInput,
     clientUpdatedAt: string | undefined,
     product: Record<string, unknown>,
+    actor: CatalogUserActor,
   ) {
     try {
-      await this.db.db.transaction(async (tx) => {
-        // 1. Lock product row exclusively
-        const [locked] = await tx
-          .select({ id: products.id })
-          .from(products)
-          .where(eq(products.id, id))
-          .for('update')
-          .limit(1);
-        if (!locked) throw new NotFoundException('Product not found');
+      await this.withUserActorContext(actor, async () => {
+        await this.db.db.transaction(async (tx) => {
+          const [locked] = await tx
+            .select({ id: products.id })
+            .from(products)
+            .where(eq(products.id, id))
+            .for('update')
+            .limit(1);
+          if (!locked) throw new NotFoundException('Product not found');
 
-        // 2. Guard: variant count must be 0
-        const [vc] = await tx
-          .select({ count: sql<number>`count(*)::int` })
-          .from(productVariants)
-          .where(eq(productVariants.productId, id));
-        if (vc && vc.count > 0) {
-          throw new BadRequestException('Cannot change product type: product has variants');
-        }
-
-        // 3. Guard: ALL merchant offers count must be 0 (not just ACTIVE)
-        const [oc] = await tx
-          .select({ count: sql<number>`count(*)::int` })
-          .from(merchantOffers)
-          .where(eq(merchantOffers.productId, id));
-        if (oc && oc.count > 0) {
-          throw new BadRequestException('Cannot change product type: product has merchant offers');
-        }
-
-        // 4. Perform the update (with or without optimistic locking)
-        if (clientUpdatedAt !== undefined) {
-          const clientDate = new Date(clientUpdatedAt);
-          if (isNaN(clientDate.getTime())) {
-            throw new BadRequestException('Invalid updatedAt timestamp');
+          const [vc] = await tx
+            .select({ count: sql<number>`count(*)::int` })
+            .from(productVariants)
+            .where(eq(productVariants.productId, id));
+          if (vc && vc.count > 0) {
+            throw new BadRequestException('Cannot change product type: product has variants');
           }
-          const [updated] = await tx
-            .update(products)
-            .set(updates)
-            .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
-            .returning();
-          if (!updated) {
-            throw new ConflictException({
-              statusCode: 409,
-              message: 'CONFLICT',
-              currentUpdatedAt: (await this.getProduct(id))['updatedAt'],
-            });
+
+          const [oc] = await tx
+            .select({ count: sql<number>`count(*)::int` })
+            .from(merchantOffers)
+            .where(eq(merchantOffers.productId, id));
+          if (oc && oc.count > 0) {
+            throw new BadRequestException('Cannot change product type: product has merchant offers');
           }
-        } else {
-          await tx.update(products).set(updates).where(eq(products.id, id));
-        }
+
+          if (clientUpdatedAt !== undefined) {
+            const clientDate = new Date(clientUpdatedAt);
+            if (isNaN(clientDate.getTime())) {
+              throw new BadRequestException('Invalid updatedAt timestamp');
+            }
+            const [updated] = await tx
+              .update(products)
+              .set(updates)
+              .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
+              .returning();
+            if (!updated) {
+              const current = await tx.query.products.findFirst({
+                where: eq(products.id, id),
+                columns: { id: true, updatedAt: true },
+              });
+              throw new ConflictException({
+                statusCode: 409,
+                message: 'CONFLICT',
+                currentUpdatedAt: current?.updatedAt ?? new Date(),
+              });
+            }
+          } else {
+            await tx.update(products).set(updates).where(eq(products.id, id));
+          }
+        });
       });
     } catch (err) {
-      // Translate DB unique constraint violations to clean HTTP 400
       if (
         err instanceof BadRequestException ||
         err instanceof ConflictException ||
@@ -1855,9 +1864,11 @@ export class CatalogService {
     await this.invalidateProductCache(id);
 
     if (input.status === 'ACTIVE') {
-      await this.outbox.publish('catalog.product.published', id, {
-        productId: id,
-        storeId: product['storeId'],
+      await this.withUserActorContext(actor, async () => {
+        await this.outbox.publish('catalog.product.published', id, {
+          productId: id,
+          storeId: product['storeId'],
+        });
       });
       await this.audit.record({
         actorType: 'MERCHANT',
@@ -1868,22 +1879,25 @@ export class CatalogService {
       });
     }
 
-    return this.getProduct(id);
+    return this.withUserActorContext(actor, () => this.getProduct(id));
   }
 
-  async deleteProduct(id: string) {
-    const product = await this.getProduct(id);
-    await this.db.db
-      .update(products)
-      .set({
-        deletedAt: new Date(),
-        isAvailable: false,
-        updatedAt: new Date(),
-      })
-      .where(eq(products.id, id));
-    await this.invalidateProductCache(id); // PHASE 8
+  async deleteProduct(id: string, actor: CatalogUserActor) {
+    const product = await this.withUserActorContext(actor, async () => {
+      const current = await this.getProduct(id);
+      await this.db.db
+        .update(products)
+        .set({
+          deletedAt: new Date(),
+          isAvailable: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(products.id, id));
+      return current;
+    });
 
-    // PHASE 9: Audit — product soft-deleted
+    // Cache and audit work are deliberately outside the short DB actor scope.
+    await this.invalidateProductCache(id);
     await this.audit.record({
       actorType: 'MERCHANT',
       action: 'product.deleted',
