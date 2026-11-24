@@ -2,6 +2,8 @@
 # P12 Migration verification runner — applies 0001..0058 to scs_p12_verify
 # Skips 0013_analytics.sql and 0018_analytics_retention.sql (require pg_partman)
 set -e
+. "$(dirname "$0")/assert-verification-target.sh"
+assert_verification_target scs_p12_verify scs
 DB=scs_p12_verify
 USR=scs
 DIR=/tmp/p12verify-migrations

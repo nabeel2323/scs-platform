@@ -1,9 +1,5 @@
 #!/bin/bash
 set -e
-cd /migrations
-for f in $(ls *.sql | grep -v analytics | sort); do
-  echo "=== Applying $f ==="
-  psql -U postgres -d m73a_verify -f "$f" 2>&1 | tail -3
-  echo ""
-done
-echo "=== ALL MIGRATIONS COMPLETE ==="
+# Retain the historical entry point, but delegate to the atomic, guarded runner.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "$SCRIPT_DIR/a2_apply_migrations.sh"
