@@ -143,11 +143,18 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
       set: vi.fn().mockReturnThis(),
       where: vi.fn().mockResolvedValue(undefined),
     };
+    const actorContexts: Array<{ actorKind: string; workerId?: string }> = [];
+    const withActorContext = vi.fn(async (context: any, operation: () => Promise<unknown>) => {
+      actorContexts.push(context);
+      return operation();
+    });
     return {
       db: {
         update: vi.fn().mockReturnValue(updateChain),
         execute: vi.fn().mockResolvedValue({ rows: [] }),
       },
+      withActorContext,
+      actorContexts,
       updateChain,
     };
   }
@@ -209,6 +216,13 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
     expect(result.outcome).toBe('cancel_succeeded');
     // Verify DB was updated to SUCCEEDED
     expect(mockDb.db.update).toHaveBeenCalled();
+    expect(mockDb.withActorContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorKind: 'worker',
+        workerId: expect.stringContaining('carrier-reconciliation-'),
+      }),
+      expect.any(Function),
+    );
   });
 
   it('B333-U-11b: PICKUP_CANCELLED is NOT definitive evidence → deferred (M7.3-B.3.4 BD-3.4-09/C7)', async () => {
