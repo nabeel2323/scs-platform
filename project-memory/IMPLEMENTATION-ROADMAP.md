@@ -963,3 +963,18 @@ Driver_store_assignments remains an unresolved schema-consumer question: separat
 ## 24 November 2026 — webhook retry tenant binding
 
 Commit `926c475fb9c59ffa1688dccee3d4f9dfbeea59e2` adds credential-to-shipment organization validation for already-linked webhook retries, revalidates credential active/provider identity for every unprocessed credential-bound event, and fails closed for unlinked legacy events without credential binding. Crosswalk and progress tracker contain the invariant and pending regression cases. Next: finish Drizzle/migration FK reconciliation and confirm any external driver assignment consumer. G-002 remains NOT VERIFIED; tests and protected runtime evidence remain gated.
+
+
+## G-002 continuation — driver/store assignment eligibility — 24 November 2026
+
+The existing Orders shipment-assignment path is now covered by the G-002 ownership review. `OrdersService.assignDriver` delegates to `ShippingService.assertDriverEligibleForStore` before any fulfillment write. The check binds the active driver profile and ACTIVE DRIVER membership to the store organization, and preserves migration 0041's compatibility rule: zero explicit store rows means unrestricted eligibility within that organization; otherwise only listed stores are allowed.
+
+Unit and disposable PostgreSQL regression source was added but not executed. The mapping table itself still has no repository writer; no new endpoint, migration or composite constraint was introduced. G-002 remains IN PROGRESS / NOT VERIFIED.
+
+**Next sequence:**
+1. Reconcile all 183 migration REFERENCES clauses against the 100 Drizzle declarations and the runtime schema barrel; distinguish source evidence from the protected live catalog.
+2. Finish the remaining operation-to-table ownership and cross-column predicate matrix, including any remaining payment/shipping/reconciliation relationships.
+3. Complete actor-context nesting/reuse and direct Pool/PoolClient migration/bootstrap/CLI review.
+4. Confirm any external process that provisions `driver_store_assignments` without inventing an API.
+5. Obtain actual API/migration runtime identities, pg_partman scheduler owner/target and the 114/116 relation reconciliation only through the authorized read-only staging process.
+6. Keep G-001 independent review and G-036 verification open. Defer the consolidated test/CI campaign until implementation and cross-component integration are complete.
