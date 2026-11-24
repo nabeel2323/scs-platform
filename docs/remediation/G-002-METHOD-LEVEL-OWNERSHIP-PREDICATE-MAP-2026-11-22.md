@@ -349,3 +349,18 @@ AdminService.getOrderDetail now enriches order items with productTitle, variantS
 - `AuthController` remains outside due OTP/provider/rate-limit/session workflows.
 
 This supplemental source map is not runtime/RLS verification. The user requires all test execution to remain deferred until implementation and cross-component integration are complete.
+
+
+## Supplemental principal/entry-point map — 24 November 2026
+
+| Entry point | Actor kind | Scope and transaction boundary | Explicit exclusions |
+|---|---|---|---|
+| AutoCompleteWorker | worker | One claim transaction and one per-order completion/release transaction | No provider I/O; no full-batch transaction |
+| OutboxDispatcher | worker | Claim statement and per-event success/retry acknowledgement | Event dispatch is outside the transaction |
+| CarrierTrackingPoller | worker | Claim, event persistence, delivered-after-cancel writes, shipment status and Orders delivery bridge | Provider tracking request and circuit-breaker calls are outside |
+| CarrierWebhookController | worker | Only after valid HMAC; each DB phase uses credential ID and credential organization | Credential lookup/decryption and signature verification occur before tenant context |
+| AuditLogMiddleware | audit | Separate short transaction from response-finish callback | Does not reuse request transaction |
+| BootstrapService | anonymous/bootstrap | Public status read; post-OTP authorization insert; initial Super Admin provisioning | OTP Redis/rate-limit/delivery operations remain outside DB transaction |
+| bootstrap-issue-token CLI | bootstrap | Transaction-local principal after BEGIN, before lock/read/write | No token plaintext persistence |
+
+ReturnExpirationWorker and ShippingCarrierWorker remain uncovered; do not mark worker/system coverage complete. Realtime socket context remains open.

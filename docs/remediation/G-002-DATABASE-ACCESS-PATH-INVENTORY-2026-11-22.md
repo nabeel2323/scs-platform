@@ -122,3 +122,13 @@ The transaction-bound actor context is now used beyond HTTP:
 ReturnExpirationWorker remains unwrapped after an attempted wrapper was reverted because a full-batch transaction would interfere with lease/fencing behavior. ShippingCarrierWorker remains unwrapped because it interleaves DB access and external carrier/storage operations. Both require explicit per-operation/per-phase design before RLS.
 
 No RLS policy is enabled and no database, grants, migrations or staging actions were performed. Tests are deferred until implementation/integration are complete.
+
+
+## 24 November 2026 — carrier webhook, bootstrap and audit entry points
+
+- Carrier webhook pre-auth credential lookup/decryption and HMAC verification intentionally remain outside tenant actor context. After HMAC verification, each bounded DB operation uses a `worker` actor with `workerId=carrier-webhook:<credentialId>` and `activeOrgId=credential.orgId`. This context is derived only from the authoritative credential row; payload tenant IDs are not trusted. Shipment routing remains constrained through the credential organization, Merchant store ownership and Orders shipment lookup contracts.
+- AutoCompleteWorker and OutboxDispatcher use worker contexts for DB claim/ack phases. CarrierTrackingPoller uses worker context for DB claim/persist/bridge phases while keeping carrier network calls outside transactions.
+- AuditLogMiddleware opens its own `audit` actor transaction in the response-finish callback. BootstrapService uses `anonymous` for public status and `bootstrap` for OTP authorization insertion and initial Super Admin provisioning; the bootstrap operator CLI sets transaction-local bootstrap GUCs after BEGIN.
+- ReturnExpirationWorker remains outside after a wrapper attempt was reverted to preserve lease/fencing semantics. ShippingCarrierWorker remains outside due to mixed provider/storage calls; it requires a phase-by-phase split. Realtime socket operations remain outside and need a distinct handshake/operation principal contract.
+
+These source changes do not enable RLS and do not prove runtime identities or table policies. Tests remain deferred until implementation/integration are complete.

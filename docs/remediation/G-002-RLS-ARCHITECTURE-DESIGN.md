@@ -228,3 +228,10 @@ The actor-context foundation now has explicit entry points for:
 ReturnExpirationWorker remains outside because lease/fencing semantics must not be enclosed by a full-batch transaction; ShippingCarrierWorker remains outside because of external carrier/storage I/O. The context must not be applied across provider calls. A carrier webhook actor must be created only after the credential guard has verified the credential and authoritative organization.
 
 This remains partial implementation. No RLS policy, migration, grants/default ACL, shared database write, staging write, deployment or worker activation was performed. Testing and CI remain deferred by user instruction.
+
+
+## 24 November 2026 — post-authentication carrier webhook and system contexts
+
+CarrierWebhookController performs credential lookup, secret decryption and HMAC verification before creating a tenant actor context. Once the signature is valid, each database phase is wrapped with a worker principal whose worker ID includes the credential ID and whose active organization comes from the verified credential row. The payload is never used to choose the organization. The context is scoped around deduplication, routing, event state and retry outbox operations; responses are sent after the DB phase commits.
+
+The system now also has explicit actor-context entry points for AutoCompleteWorker, OutboxDispatcher, CarrierTrackingPoller, AuditLogMiddleware and BootstrapService/CLI. External carrier calls remain outside transactions. ReturnExpirationWorker and ShippingCarrierWorker are not yet adopted; their lease/fencing and provider/storage lifetimes require separate designs. Realtime sockets remain a separate channel.
