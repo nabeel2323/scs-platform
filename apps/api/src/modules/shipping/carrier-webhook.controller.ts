@@ -72,6 +72,20 @@ export class CarrierWebhookController {
     private readonly webhookRouting: CarrierWebhookRoutingService,
   ) {}
 
+  private withCredentialContext<T>(
+    credential: { id: string; orgId: string },
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    return this.db.withActorContext(
+      {
+        actorKind: 'worker',
+        workerId: `carrier-webhook:${credential.id}`,
+        activeOrgId: credential.orgId,
+      },
+      operation,
+    );
+  }
+
   @Post(':providerKey')
   @HttpCode(200)
   @UseGuards(ThrottlerGuard)
@@ -228,35 +242,39 @@ export class CarrierWebhookController {
     // 8. Deduplication — atomic insert
     const webhookEventId = crypto.randomUUID();
     try {
-      await this.db.db.insert(carrierWebhookEvents).values({
-        id: webhookEventId,
-        providerKey,
-        credentialId: credential.id,
-        eventType: (payload['event_type'] as string) || (payload['event'] as string) || 'unknown',
-        externalDeliveryId,
-        shipmentId: null, // resolved below
-        payload,
-        processed: false,
-        signatureValid: true,
-        rawBody,
-      });
+      await this.withCredentialContext(credential, () =>
+        this.db.db.insert(carrierWebhookEvents).values({
+          id: webhookEventId,
+          providerKey,
+          credentialId: credential.id,
+          eventType: (payload['event_type'] as string) || (payload['event'] as string) || 'unknown',
+          externalDeliveryId,
+          shipmentId: null, // resolved below
+          payload,
+          processed: false,
+          signatureValid: true,
+          rawBody,
+        }),
+      );
     } catch (err: any) {
       if (err?.code === '23505') {
         // Idempotent duplicate. If the first delivery is still pending, make
         // sure a retry is queued rather than silently losing the event.
-        const existing = await this.db.db.query.carrierWebhookEvents.findFirst({
-          where: and(
-            eq(carrierWebhookEvents.credentialId, credential.id),
-            eq(carrierWebhookEvents.externalDeliveryId, externalDeliveryId),
-          ),
-        });
+        const existing = await this.withCredentialContext(credential, () =>
+          this.db.db.query.carrierWebhookEvents.findFirst({
+            where: and(
+              eq(carrierWebhookEvents.credentialId, credential.id),
+              eq(carrierWebhookEvents.externalDeliveryId, externalDeliveryId),
+            ),
+          }),
+        );
         this.logger.log(`Duplicate webhook from ${providerKey}: ${externalDeliveryId}`);
         if (existing && !existing.processed) {
           await this.markWebhookPendingAndEnqueue(
             existing.id,
             providerKey,
             externalDeliveryId,
-            credential.orgId,
+            credential,
             existing.processingError || 'Duplicate delivery requested retry',
           );
           return res.status(HttpStatus.OK).json({
@@ -274,10 +292,12 @@ export class CarrierWebhookController {
     // credential that verified this webhook. Never trust tenant IDs in payloads.
     let resolution;
     try {
-      resolution = await this.webhookRouting.resolveShipmentForCredential(
-        credential,
-        providerKey,
-        externalDeliveryId,
+      resolution = await this.withCredentialContext(credential, () =>
+        this.webhookRouting.resolveShipmentForCredential(
+          credential,
+          providerKey,
+          externalDeliveryId,
+        ),
       );
     } catch (resolutionError: any) {
       const message = (resolutionError?.message || 'Shipment resolution failed').slice(0, 2000);
@@ -285,7 +305,7 @@ export class CarrierWebhookController {
         webhookEventId,
         providerKey,
         externalDeliveryId,
-        credential.orgId,
+        credential,
         message,
       );
       return res.status(HttpStatus.OK).json({ received: true, duplicate: false, pending: true });
@@ -293,10 +313,12 @@ export class CarrierWebhookController {
 
     if (resolution.status === 'AMBIGUOUS') {
       const message = 'Ambiguous carrier shipment reference within credential organization';
-      await this.db.db
-        .update(carrierWebhookEvents)
-        .set({ processed: true, processedAt: new Date(), processingError: message })
-        .where(eq(carrierWebhookEvents.id, webhookEventId));
+      await this.withCredentialContext(credential, async () => {
+        await this.db.db
+          .update(carrierWebhookEvents)
+          .set({ processed: true, processedAt: new Date(), processingError: message })
+          .where(eq(carrierWebhookEvents.id, webhookEventId));
+      });
       this.logger.error(`Webhook ${webhookEventId} not linked: ${message}`);
       return res.status(HttpStatus.OK).json({ received: true, duplicate: false, ambiguous: true });
     }
@@ -307,17 +329,19 @@ export class CarrierWebhookController {
         webhookEventId,
         providerKey,
         externalDeliveryId,
-        credential.orgId,
+        credential,
         message,
       );
       return res.status(HttpStatus.OK).json({ received: true, duplicate: false, pending: true });
     }
 
     const shipment = resolution.shipment;
-    await this.db.db
-      .update(carrierWebhookEvents)
-      .set({ shipmentId: shipment.id })
-      .where(eq(carrierWebhookEvents.id, webhookEventId));
+    await this.withCredentialContext(credential, async () => {
+      await this.db.db
+        .update(carrierWebhookEvents)
+        .set({ shipmentId: shipment.id })
+        .where(eq(carrierWebhookEvents.id, webhookEventId));
+    });
 
     this.logger.log(
       `Webhook from ${providerKey} linked to shipment ${shipment.id} ` +
@@ -329,10 +353,12 @@ export class CarrierWebhookController {
     //     M7.2.4-A: Removed duplicate shipment lookup (step 9 already did it).
     try {
       // Mark as processed
-      await this.db.db
-        .update(carrierWebhookEvents)
-        .set({ processed: true, processedAt: new Date(), processingError: null })
-        .where(eq(carrierWebhookEvents.id, webhookEventId));
+      await this.withCredentialContext(credential, async () => {
+        await this.db.db
+          .update(carrierWebhookEvents)
+          .set({ processed: true, processedAt: new Date(), processingError: null })
+          .where(eq(carrierWebhookEvents.id, webhookEventId));
+      });
 
       this.observability.incrementCounter('carrier_webhook_total', providerKey);
     } catch (processingErr: any) {
@@ -347,7 +373,7 @@ export class CarrierWebhookController {
         webhookEventId,
         providerKey,
         externalDeliveryId,
-        credential.orgId,
+        credential,
         processingErr?.message || 'Unknown processing error',
       );
     }
@@ -362,44 +388,50 @@ export class CarrierWebhookController {
     webhookEventId: string,
     providerKey: string,
     externalDeliveryId: string,
-    organizationId: string,
+    credential: { id: string; orgId: string },
     error: string,
   ): Promise<void> {
     const safeError = error.slice(0, 2000);
     this.logger.warn(`Webhook ${webhookEventId} pending retry: ${safeError}`);
     try {
-      await this.db.db
-        .update(carrierWebhookEvents)
-        .set({ processed: false, processingError: safeError })
-        .where(eq(carrierWebhookEvents.id, webhookEventId));
+      await this.withCredentialContext(credential, async () => {
+        await this.db.db
+          .update(carrierWebhookEvents)
+          .set({ processed: false, processingError: safeError })
+          .where(eq(carrierWebhookEvents.id, webhookEventId));
+      });
     } catch (updateError: any) {
       this.logger.error(`Failed to persist pending webhook state: ${updateError?.message}`);
     }
 
     try {
-      const pendingRetry = await this.db.db.query.outboxEvents.findFirst({
-        where: and(
-          eq(outboxEvents.aggregateId, webhookEventId),
-          eq(outboxEvents.eventType, 'shipping.carrier.webhook.retry'),
-          eq(outboxEvents.status, 'PENDING'),
-        ),
-        columns: { id: true },
-      });
+      const pendingRetry = await this.withCredentialContext(credential, () =>
+        this.db.db.query.outboxEvents.findFirst({
+          where: and(
+            eq(outboxEvents.aggregateId, webhookEventId),
+            eq(outboxEvents.eventType, 'shipping.carrier.webhook.retry'),
+            eq(outboxEvents.status, 'PENDING'),
+          ),
+          columns: { id: true },
+        }),
+      );
       if (!pendingRetry) {
-        await this.db.db.insert(outboxEvents).values({
-          id: randomUUID(),
-          eventType: 'shipping.carrier.webhook.retry',
-          aggregateId: webhookEventId,
-          payload: {
-            providerKey,
-            externalDeliveryId,
-            webhookEventId,
-            error: safeError.slice(0, 500),
-            source: 'webhook_async_retry',
-          },
-          status: 'PENDING',
-          organizationId,
-        });
+        await this.withCredentialContext(credential, () =>
+          this.db.db.insert(outboxEvents).values({
+            id: randomUUID(),
+            eventType: 'shipping.carrier.webhook.retry',
+            aggregateId: webhookEventId,
+            payload: {
+              providerKey,
+              externalDeliveryId,
+              webhookEventId,
+              error: safeError.slice(0, 500),
+              source: 'webhook_async_retry',
+            },
+            status: 'PENDING',
+            organizationId: credential.orgId,
+          }),
+        );
       }
     } catch (outboxError: any) {
       this.logger.error(`Failed to insert webhook retry outbox event: ${outboxError?.message}`);
