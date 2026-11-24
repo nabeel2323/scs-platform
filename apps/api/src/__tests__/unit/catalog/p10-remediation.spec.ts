@@ -161,7 +161,7 @@ describe('P10 Remediation — uploadImportFile (R1)', () => {
       job: { fileType: 'XLSX', fileName: 'valid.xlsx', columnMapping: {} },
     });
 
-    const res = await svc.uploadImportFile(job.id, buffer, 'application/octet-stream');
+    const res = await svc.uploadImportFile(job.id, buffer, { sub: 'test-user', role: 'MERCHANT', activeOrg: 'org-1' }, 'application/octet-stream');
 
     // putObject must target the persisted job.storageKey — never a client key.
     expect(storage.putObject).toHaveBeenCalledWith(
@@ -178,31 +178,31 @@ describe('P10 Remediation — uploadImportFile (R1)', () => {
     const buffer = await buildXlsx(['name', 'sku', 'priceMinor'], [['A', 'S1', 100]]);
     const explicit = { name: 'name', sku: 'sku', priceMinor: 'priceMinor' };
     const { svc, job } = makeService({ job: { fileType: 'XLSX', columnMapping: explicit } });
-    const res = await svc.uploadImportFile(job.id, buffer);
+    const res = await svc.uploadImportFile(job.id, buffer, { sub: 'test-user', role: 'MERCHANT', activeOrg: 'org-1' });
     expect(res.columnMapping).toEqual(explicit);
   });
 
   it('rejects an empty file with a structured error (never 500)', async () => {
     const { svc, storage, job } = makeService({ job: { fileType: 'XLSX' } });
-    await expect(svc.uploadImportFile(job.id, Buffer.alloc(0))).rejects.toThrow('EMPTY_FILE');
+    await expect(svc.uploadImportFile(job.id, Buffer.alloc(0), { sub: 'test-user', role: 'MERCHANT', activeOrg: 'org-1' })).rejects.toThrow('EMPTY_FILE');
     expect(storage.putObject).not.toHaveBeenCalled();
   });
 
   it('rejects files larger than 25 MB', async () => {
     const { svc, storage, job } = makeService({ job: { fileType: 'XLSX' } });
     const big = Buffer.alloc(26 * 1024 * 1024, 1);
-    await expect(svc.uploadImportFile(job.id, big)).rejects.toThrow('FILE_TOO_LARGE');
+    await expect(svc.uploadImportFile(job.id, big, { sub: 'test-user', role: 'MERCHANT', activeOrg: 'org-1' })).rejects.toThrow('FILE_TOO_LARGE');
     expect(storage.putObject).not.toHaveBeenCalled();
   });
 
   it('rejects unsupported file types', async () => {
     const { svc, job } = makeService({ job: { fileName: 'payload.exe' } });
-    await expect(svc.uploadImportFile(job.id, Buffer.from('x'))).rejects.toThrow('UNSUPPORTED_FILE_TYPE');
+    await expect(svc.uploadImportFile(job.id, Buffer.from('x'), { sub: 'test-user', role: 'MERCHANT', activeOrg: 'org-1' })).rejects.toThrow('UNSUPPORTED_FILE_TYPE');
   });
 
   it('stores a CSV upload without server-side header detection', async () => {
     const { svc, storage, job } = makeService({ job: { fileType: 'CSV', fileName: 'valid.csv' } });
-    const res = await svc.uploadImportFile(job.id, Buffer.from('name,sku,priceMinor\nA,S1,100\n'));
+    const res = await svc.uploadImportFile(job.id, Buffer.from('name,sku,priceMinor\nA,S1,100\n'), { sub: 'test-user', role: 'MERCHANT', activeOrg: 'org-1' });
     expect(storage.putObject).toHaveBeenCalled();
     expect(res.detectedHeaders).toEqual([]);
     expect(res.fileType).toBe('CSV');

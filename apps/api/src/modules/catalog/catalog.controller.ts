@@ -799,11 +799,16 @@ export class CatalogController {
     @Body() body: { rows: Record<string, string>[]; append?: boolean },
   ) {
     // P7 Phase 1 — F-SEC-01: resolve storeId from persisted import job.
-    const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, job.storeId);
-    await assertStoreMember(this.db, caller, job.storeId);
-    return this.catalogService.stageImportRows(id, body.rows || [], body.append !== false);
+    await this.db.withActorContext(
+      { actorKind: 'user', actorId: caller.sub, actorRole: caller.role, activeOrgId: caller.activeOrg ?? null },
+      async () => {
+        const job = await this.catalogService.getImportJob(id);
+        await assertStoreInOrg(this.db, caller, job.storeId);
+        await assertStoreMember(this.db, caller, job.storeId);
+      },
+    );
+    return this.catalogService.stageImportRows(id, body.rows || [], body.append !== false, caller);
   }
 
   @Post('imports/:id/upload')
@@ -817,13 +822,18 @@ export class CatalogController {
     // P10 Remediation (R1/R11): store scope is resolved from the persisted job,
     // never from the client. Bytes arrive as a raw octet-stream body (no multer
     // dependency, no client-supplied storage key) and are capped at 25 MB.
-    const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, job.storeId);
-    await assertStoreMember(this.db, caller, job.storeId);
+    await this.db.withActorContext(
+      { actorKind: 'user', actorId: caller.sub, actorRole: caller.role, activeOrgId: caller.activeOrg ?? null },
+      async () => {
+        const job = await this.catalogService.getImportJob(id);
+        await assertStoreInOrg(this.db, caller, job.storeId);
+        await assertStoreMember(this.db, caller, job.storeId);
+      },
+    );
     const buffer = await readRawBody(req, 25 * 1024 * 1024);
     const contentType = req.headers['content-type'] as string | undefined;
-    return this.catalogService.uploadImportFile(id, buffer, contentType);
+    return this.catalogService.uploadImportFile(id, buffer, caller, contentType);
   }
 
   @Post('imports/:id/mapping')

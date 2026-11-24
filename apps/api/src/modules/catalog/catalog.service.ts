@@ -2893,8 +2893,8 @@ export class CatalogService {
    * validate type + 25 MB size, and for XLSX parse the workbook to surface
    * detected headers + a suggested mapping. Read-only for catalog data.
    */
-  async uploadImportFile(id: string, buffer: Buffer, contentType?: string) {
-    const job = await this.getImportJob(id);
+  async uploadImportFile(id: string, buffer: Buffer, actor: CatalogUserActor, contentType?: string) {
+    const job = await this.withUserActorContext(actor, () => this.getImportJob(id));
 
     if (buffer.length === 0) {
       throw new BadRequestException('EMPTY_FILE: The uploaded file is empty.');
@@ -2932,10 +2932,12 @@ export class CatalogService {
       }
     }
 
-    await this.db.db
-      .update(importJobs)
-      .set({ fileSize: buffer.length, columnMapping, updatedAt: new Date() })
-      .where(eq(importJobs.id, id));
+    await this.withUserActorContext(actor, async () => {
+      await this.db.db
+        .update(importJobs)
+        .set({ fileSize: buffer.length, columnMapping, updatedAt: new Date() })
+        .where(eq(importJobs.id, id));
+    });
 
     return {
       id,
@@ -3021,8 +3023,13 @@ export class CatalogService {
    * (keeps request bodies under the JSON parser limit).
    * Batches accumulate in Redis with a 1h TTL.
    */
-  async stageImportRows(id: string, rows: Record<string, string>[], append: boolean) {
-    const job = await this.getImportJob(id);
+  async stageImportRows(
+    id: string,
+    rows: Record<string, string>[],
+    append: boolean,
+    actor: CatalogUserActor,
+  ) {
+    const job = await this.withUserActorContext(actor, () => this.getImportJob(id));
     if (job.status !== 'UPLOADED' && job.status !== 'MAPPING' && job.status !== 'READY') {
       throw new ConflictException(`Cannot stage rows for job in status: ${job.status}`);
     }
@@ -3040,10 +3047,12 @@ export class CatalogService {
 
     // Transition to READY if still in pre-processing state.
     if (job.status === 'UPLOADED' || job.status === 'MAPPING') {
-      await this.db.db
-        .update(importJobs)
-        .set({ status: 'READY', updatedAt: new Date() })
-        .where(and(eq(importJobs.id, id), inArray(importJobs.status, ['UPLOADED', 'MAPPING'])));
+      await this.withUserActorContext(actor, async () => {
+        await this.db.db
+          .update(importJobs)
+          .set({ status: 'READY', updatedAt: new Date() })
+          .where(and(eq(importJobs.id, id), inArray(importJobs.status, ['UPLOADED', 'MAPPING'])));
+      });
     }
 
     return { staged: rows.length, batches: await this.redis.client.llen(key) };
