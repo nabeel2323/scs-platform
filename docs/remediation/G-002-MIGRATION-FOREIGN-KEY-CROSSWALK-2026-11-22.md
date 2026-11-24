@@ -306,3 +306,35 @@ The first shipment/order/store fix covered shipment detail authorization and the
 - The prior `ShipmentOperationsController.listShipments` change adds the same-store join predicate for merchant and platform lists and applies the join to the count query.
 
 The regression matrix must also cover shipment exception/RTS operations for driver and platform roles, buyer/order shipment lookup, and driver shipment listing when order/store are inconsistent. No tests were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## Carrier administration, webhook and tracking read/write paths — 24 November 2026
+
+**Source commits:**
+- `0581776dc42e87e4206377b45c971612368ab0ef` — direct create/cancel reconciliation guards.
+- `83a4073c20d14519f9c9f02757bd2386bbe9de58` — admin recovery and recovery queue.
+- `2b2810e14e41f40023e610dcda9e9064fb846e9c` — carrier webhook shipment resolution.
+- `5bbd35da8f3f04c132d12f773192de0a4a27fad8` — scheduled reconciliation claim predicates.
+- `9c9d7f479ae332e6760238c7a9789f9e56febbea` — carrier tracking poller.
+
+The independent `shipments.order_id` and `shipments.store_id` FKs are now checked at the remaining inspected carrier paths:
+
+- Admin recovery resolves both the store and order and rejects a mismatched pair before tenant checks or privileged-role bypass. The recovery queue joins orders on both order ID and store ID, so malformed rows are not presented as actionable recovery candidates.
+- Both create and cancel reconciliation claim queries require an existing order whose `store_id` equals the shipment store. The public/direct `reconcileShipment` and `reconcileCancelShipment` entry points independently re-check the relationship before provider calls, so callers cannot bypass the SQL claim predicate.
+- Carrier webhook resolution now joins shipments to orders on both IDs and same-store ownership before a credential-scoped shipment can be linked to the authenticated webhook event.
+- The tracking poller's claim query excludes inconsistent pairs, and its per-shipment method repeats the order/store check before provider tracking, event persistence, or the delivery bridge.
+
+### Driver/store assignment disposition
+
+The Drizzle schema defines `driver_profiles.user_id → users.id`, `driver_profiles.org_id → organizations.id`, and `driver_store_assignments.driver_profile_id → driver_profiles.id` plus `store_id → stores.id`. It does not define a same-organization composite constraint. The inspected ShippingModule registers no driver-assignment service/controller, the ShippingController exposes shipping-method/zone operations rather than driver assignment, and the shipment model's `assigned_driver_id` is a user FK rather than a driver-profile FK. The source callsite review has not found an assignment write path or runtime consumer for `driver_store_assignments`. Do not create a speculative endpoint or silently redefine `assigned_driver_id`; first establish whether this table is legacy/dead schema or whether a consumer exists outside the inspected module. If a real assignment writer is found, enforce `driver_profiles.org_id = stores.org_id` there and add a composite DB constraint only after the approved migration review.
+
+### Regression cases still required (not executed)
+
+- Admin recovery rejects a shipment with mismatched order/store for both privileged and org-scoped callers, before state mutation or provider calls.
+- Admin recovery queue omits malformed order/store pairs for all roles.
+- Scheduled create and cancel reconciliation claim SQL excludes malformed pairs; direct create/cancel reconciliation calls make no provider request for a mismatch.
+- Webhook shipment resolution cannot link a shipment whose order belongs to another store, even if the shipment store is inside the credential organization.
+- Tracking poll claim excludes malformed pairs and direct poll processing makes no provider call, writes no tracking event, and does not invoke the order-delivery bridge for a mismatch.
+- If/when a driver assignment write path is located, cross-organization profile/store assignment must be rejected.
+
+These are source-level guards only. No tests or live database queries were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
