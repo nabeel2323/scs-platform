@@ -1044,3 +1044,7 @@ The mixed Catalog product update/delete actor-context slice is implemented. Keep
 ## 25 November 2026 — Catalog import mixed-path phase update
 
 Catalog import processing and CSV error-report DB access now use short verified-user actor scopes. Do not add a request-wide interceptor: workbook parsing, object storage and Redis must remain outside DB transactions. Each chunk retains its own transaction and actor scope. No worker is registered or activated. Continue by reviewing the dormant stale-import recovery method and remaining Catalog root-pool DB paths, then complete the broader G-002 operation/ownership and FK evidence. Quality gates remain deferred until implementation/integration is complete.
+
+## 25 November 2026 — stale import recovery boundary
+
+The dormant stale-import recovery entry point now has a dedicated worker principal. Keep it dormant: no worker or scheduler registration/activation is authorized in this phase. Continue with source callsite/root-pool review and operation ownership/FK evidence; defer all quality gates until implementation/integration is complete.
