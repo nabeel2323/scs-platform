@@ -57,26 +57,29 @@ export class OpsControlService {
     private readonly alerts: OpsAlertService,
   ) {}
 
-  private withUserActor<T>(caller: OpsControlCaller, operation: () => Promise<T>): Promise<T> {
+  private withUserActor<T>(caller: OpsControlCaller, operation: () => PromiseLike<T>): Promise<T> {
     return this.db.withActorContext({
       actorKind: 'user',
       actorId: caller.sub,
       actorRole: caller.role,
       activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
-    }, operation);
+    }, async () => await operation());
   }
 
-  private withWorkerActor<T>(operation: () => Promise<T>): Promise<T> {
-    return this.db.withActorContext({ actorKind: 'worker', workerId: 'p13-ops-control' }, operation);
+  private withWorkerActor<T>(operation: () => PromiseLike<T>): Promise<T> {
+    return this.db.withActorContext(
+      { actorKind: 'worker', workerId: 'p13-ops-control' },
+      async () => await operation(),
+    );
   }
 
-  private withAuditActor<T>(caller: OpsControlCaller, operation: () => Promise<T>): Promise<T> {
+  private withAuditActor<T>(caller: OpsControlCaller, operation: () => PromiseLike<T>): Promise<T> {
     return this.db.withActorContext({
       actorKind: 'audit',
       actorId: caller.sub,
       actorRole: caller.role,
       activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
-    }, operation);
+    }, async () => await operation());
   }
 
   /**
