@@ -385,3 +385,12 @@ A route-to-service call-graph review found a set of database-only catalog mutati
 The request-wide interceptor was deliberately not added to mixed/long-running routes: product update/delete (cache invalidation, outbox/audit work), media add (storage-backed URL resolution), staged-row upload/processing/preview (Redis/object storage and chunk processing), and CSV error export. These require short service-level actor scopes around each DB phase; wrapping the entire request would hold a DB transaction open across external I/O or long-running processing. These mixed paths remain open follow-up work and must not be treated as actor-context complete.
 
 No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IN_PROGRESS / NOT VERIFIED.
+
+## 25 November 2026 — continuation implementation checkpoint
+
+- Branch: remediation/phase-0-1-tenant-security. Exact inspected head before this status-note commit: ef01d19cd05de67a858d03ca5913f306f1f5128c.
+- PR #138 remains open/draft/unmerged, targeting develop. Branch comparison: 2,552 commits ahead, 0 behind develop. The PR search result still contains an older handover body; use the live branch ref for current SHA.
+- Exact-head combined status at ef01d19: Vercel – scs-platform-admin and Vercel – scs-platform-web are FAILURE states pointing to the external Vercel build-rate-limit page. These are provider/build-quota failures, not application test results. GitHub Actions workflow-run lookup returned no run for this head because commits use [skip ci].
+- This continuation authored actor-context implementation and regression specs for Catalog product update/delete, import processing/chunk transactions/error report, product detail/media reads, AuditService fallback and dormant stale-import recovery. Documentation was synchronized. No tests, formatter, lint, typecheck, E6 or CI were executed; tests remain pending the consolidated verification campaign.
+- No staging deployment, shared database mutation, RLS/grant/migration change, worker registration/activation, environment/secret change, merge or release occurred. The dormant catalog-import-recovery method remains unregistered and unscheduled.
+- G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. The uploaded staging audit findings (RLS disabled on 111/111 tables, OTP values previously logged in plaintext, worker/startup configuration requiring source/runtime confirmation) remain read-only evidence and are not remediated by this source-only continuation.
