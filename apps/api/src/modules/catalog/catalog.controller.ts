@@ -11,6 +11,7 @@ import {
   Req,
   Res,
   UseGuards,
+  UseInterceptors,
   ParseUUIDPipe,
   ForbiddenException,
   BadRequestException,
@@ -42,6 +43,7 @@ import {
 } from '../../common/guards/current-user.decorator';
 import { StorageService } from '../../common/storage/storage.service';
 import { DatabaseService } from '../../common/database/database.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import {
   assertProductEditableByMerchant,
   assertStoreMember,
@@ -79,6 +81,7 @@ export class CatalogController {
   }
 
   @Get('categories')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listCategories(
     @Query('storeId') storeId?: string,
     @Query('parentId') parentId?: string,
@@ -100,11 +103,13 @@ export class CatalogController {
    * NestJS matches literal path segments ahead of parameterized siblings.
    */
   @Get('categories/tree')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getCategoryTree() {
     return this.catalogService.getCategoryTree();
   }
 
   @Get('categories/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getCategory(@Param('id') id: string) {
     return this.catalogService.getCategoryContents(id);
   }
@@ -114,6 +119,7 @@ export class CatalogController {
    * manager can show which templates reference a given node.
    */
   @Get('categories/:id/product-types')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listCategoryProductTypes(@Param('id') id: string) {
     return this.catalogService.listCategoryProductTypes(id);
   }
@@ -124,6 +130,7 @@ export class CatalogController {
    * or omits for BOTH (default).
    */
   @Get('categories/:id/products')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listCategoryProducts(
     @Param('id') id: string,
     @Query('scope') scope?: 'DIRECT' | 'DESCENDANT' | 'BOTH',
@@ -137,6 +144,7 @@ export class CatalogController {
    * `GET /categories/:id/product-types` used by merchant/buyer surfaces.
    */
   @Get('admin/categories/:id/product-types')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermission('catalog:categories:write')
   @RequireRole('ADMIN', 'MODERATOR')
@@ -174,6 +182,7 @@ export class CatalogController {
    * Gated by catalog:brands:manage so only admins see the analytics.
    */
   @Get('admin/brands')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:brands:manage')
   async listBrandsEnriched(@Query('includeInactive') includeInactive?: string) {
@@ -181,11 +190,13 @@ export class CatalogController {
   }
 
   @Get('brands')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listBrands(@Query('includeInactive') includeInactive?: string) {
     return this.catalogService.listBrands(includeInactive === 'true');
   }
 
   @Get('brands/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getBrand(@Param('id') id: string) {
     return this.catalogService.getBrand(id);
   }
@@ -223,6 +234,7 @@ export class CatalogController {
   }
 
   @Get('stores/:storeId/products')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listProducts(
     @Param('storeId') storeId: string,
     @CurrentUser() user: JwtPayload,
@@ -245,6 +257,7 @@ export class CatalogController {
   }
 
   @Get('products/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getProduct(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: JwtPayload) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertProductReadable(this.db, caller, id);
@@ -385,6 +398,7 @@ export class CatalogController {
    * Only the owning store's members can access it.
    */
   @Get('merchant/products/:id/moderation-history')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:products:read')
   async getMerchantModerationHistory(
@@ -406,6 +420,7 @@ export class CatalogController {
    * Used by Product Studio edit mode to load existing attribute values.
    */
   @Get('products/:id/attribute-values')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async getProductAttributeValues(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
@@ -451,6 +466,7 @@ export class CatalogController {
 
   // PHASE 7: literal path declared before parameterized :variantId siblings
   @Get('products/:productId/variant-matrix')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getVariantMatrix(@Param('productId') productId: string, @CurrentUser() user: JwtPayload) {
     await assertProductReadable(
       this.db,
@@ -477,6 +493,7 @@ export class CatalogController {
   }
 
   @Get('products/:productId/variants')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listVariants(@Param('productId') productId: string, @CurrentUser() user: JwtPayload) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertProductReadable(this.db, caller, productId);
@@ -508,6 +525,7 @@ export class CatalogController {
    * Used by Product Studio edit mode to load existing variant attribute values.
    */
   @Get('products/:productId/variants/:variantId/attribute-values')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async getVariantAttributeValues(
@@ -608,6 +626,7 @@ export class CatalogController {
   }
 
   @Get('stores/:storeId/products/export')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async exportProducts(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
@@ -619,6 +638,7 @@ export class CatalogController {
   }
 
   @Get('stores/:storeId/variants')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listStoreVariants(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     const canManage = await canManageStoreCatalog(this.db, caller, storeId);
@@ -660,6 +680,7 @@ export class CatalogController {
   }
 
   @Get('products/:productId/media')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listMedia(@Param('productId') productId: string, @CurrentUser() user: JwtPayload) {
     await assertProductReadable(
       this.db,
@@ -722,6 +743,7 @@ export class CatalogController {
   }
 
   @Get('stores/:storeId/imports')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:products:read')
   async listImportJobs(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
@@ -732,6 +754,7 @@ export class CatalogController {
   }
 
   @Get('imports/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:products:read')
   async getImportJob(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
@@ -808,6 +831,7 @@ export class CatalogController {
   // ── P8: Chunk management, cancellation, retry ────────────────
 
   @Get('imports/:id/chunks')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:products:read')
   async getImportChunks(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
@@ -872,6 +896,7 @@ export class CatalogController {
   // ── Search ───────────────────────────────────────────────────
 
   @Get('search')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async search(
     @Query('q') q: string,
     @Query('storeId') storeId?: string,
@@ -957,16 +982,19 @@ export class CatalogController {
   }
 
   @Get('search/categories')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getTopCategories(@Query('storeId') storeId?: string) {
     return this.searchService.getTopCategories(storeId);
   }
 
   @Get('search/brands')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getPopularBrands() {
     return this.searchService.getPopularBrands();
   }
 
   @Get('search/facets')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getSearchFacets(@Query('categoryId') categoryId?: string) {
     return this.searchService.getFacetsCached(categoryId);
   }
@@ -978,6 +1006,7 @@ export class CatalogController {
    * Used by merchants during product creation to avoid duplicates.
    */
   @Get('canonical/match')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async findByIdentifiers(
     @Query('gtin') gtin?: string,
     @Query('ean') ean?: string,
@@ -992,6 +1021,7 @@ export class CatalogController {
    * Used by the merchant "Existing Product Selector" on web and mobile.
    */
   @Get('canonical/search')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async searchCanonical(
     @Query('search') search?: string,
     @Query('brandId') brandId?: string,
@@ -1012,6 +1042,7 @@ export class CatalogController {
    * Admin: scan for potential duplicate products (same title + category).
    */
   @Get('canonical/duplicates')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission('catalog:product-types:manage')
   async findDuplicates(@Query('categoryId') categoryId?: string) {
@@ -1022,6 +1053,7 @@ export class CatalogController {
    * PHASE COS-14: Admin data-quality dashboard metrics.
    */
   @Get('admin/data-quality')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission('catalog:product-types:manage')
   getDataQuality() {
@@ -1032,6 +1064,7 @@ export class CatalogController {
    * Catalog Governance §26: identify variants with corrupted SKU-[...] patterns.
    */
   @Get('admin/corrupted-variants')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission('catalog:product-types:manage')
   findCorruptedVariants() {
