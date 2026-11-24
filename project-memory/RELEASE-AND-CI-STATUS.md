@@ -320,3 +320,8 @@ The latest source work adds refund/payment/order/currency consistency and shipme
 ## 24 November 2026 — shipment read-path source update
 
 Commits `c916acd0a8b156affeda50e98dbc88acab2f39bc` and `56d605a7377c49766b990abfc023e6ae4a5cea1d` extend shipment/order/store checks to list/count, exception/RTS, order lookup and driver-list paths. Both use `[skip ci]`; no tests or workflows were run for them. The only automatic CI #1503 failure remains tied to an earlier source commit. No Actions runs exist for the later skip-CI source/docs checkpoints; Vercel Web/Admin remain external rate-limit failures. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — carrier recovery ownership source update
+
+Commits `0581776`, `83a4073`, `2b2810e`, `5bbd35d` and `9c9d7f4` extend shipment/order/store validation to direct admin recovery, recovery queue, scheduled reconciliation, webhook shipment resolution and tracking polling. They use `[skip ci]`; no tests or workflows were run. The earlier automatic CI #1503 failure is from an earlier source checkpoint and does not verify these commits. Vercel Web/Admin remain external rate-limit failures. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
