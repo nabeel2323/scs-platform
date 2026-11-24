@@ -6,7 +6,9 @@ import {
   Body,
   Query,
   UseGuards,
+  UseInterceptors,
   HttpCode,
+  UnauthorizedException,
   NotFoundException,
   BadRequestException,
   Optional,
@@ -20,6 +22,7 @@ import {
   RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import { DatabaseService } from '../../common/database/database.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { StorageService } from '../../common/storage/storage.service';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { shipments, shipmentEvents } from '../orders/shipment.schema';
@@ -79,6 +82,7 @@ export class ShipmentOperationsController {
   // ── POST /v1/shipments/:id/create ──────────────────────────────────────
 
   @Post(':id/create')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:write')
   @HttpCode(202)
@@ -162,12 +166,14 @@ export class ShipmentOperationsController {
   ) {
     const caller = this.toCallerContext(user);
 
-    const shipment = await this.db.db.query.shipments.findFirst({
-      where: eq(shipments.id, id),
+    const shipment = await this.withCallerDatabaseContext(user, async () => {
+      const current = await this.db.db.query.shipments.findFirst({
+        where: eq(shipments.id, id),
+      });
+      if (!current) throw new NotFoundException('Shipment not found');
+      await this.assertShipmentAccessible(current, caller);
+      return current;
     });
-    if (!shipment) throw new NotFoundException('Shipment not found');
-
-    await this.assertShipmentAccessible(shipment, caller);
 
     // Already cancelled?
     if (shipment.cancelledAt) {
@@ -191,25 +197,27 @@ export class ShipmentOperationsController {
       carrierResult = await provider.cancelShipment(shipment.carrierShipmentId);
     }
 
-    // Update shipment
-    await this.db.db
-      .update(shipments)
-      .set({
-        cancelledAt: new Date(),
-        cancellationReason: reason,
-        status: 'CANCELLED',
-        updatedAt: new Date(),
-      })
-      .where(and(eq(shipments.id, id), eq(shipments.storeId, shipment.storeId)));
+    // Persist the local state and audit event in one user-scoped transaction.
+    // The carrier HTTP call above is deliberately outside the database actor scope.
+    await this.withCallerDatabaseContext(user, async () => {
+      await this.db.db
+        .update(shipments)
+        .set({
+          cancelledAt: new Date(),
+          cancellationReason: reason,
+          status: 'CANCELLED',
+          updatedAt: new Date(),
+        })
+        .where(and(eq(shipments.id, id), eq(shipments.storeId, shipment.storeId)));
 
-    // Append audit event
-    await this.db.db.insert(shipmentEvents).values({
-      id: crypto.randomUUID(),
-      shipmentId: id,
-      eventType: 'CANCELLED',
-      actorUserId: caller.sub,
-      actorType: 'MERCHANT',
-      notes: reason,
+      await this.db.db.insert(shipmentEvents).values({
+        id: crypto.randomUUID(),
+        shipmentId: id,
+        eventType: 'CANCELLED',
+        actorUserId: caller.sub,
+        actorType: 'MERCHANT',
+        notes: reason,
+      });
     });
 
     return {
@@ -228,12 +236,14 @@ export class ShipmentOperationsController {
   async getTracking(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const caller = this.toCallerContext(user);
 
-    const shipment = await this.db.db.query.shipments.findFirst({
-      where: eq(shipments.id, id),
+    const shipment = await this.withCallerDatabaseContext(user, async () => {
+      const current = await this.db.db.query.shipments.findFirst({
+        where: eq(shipments.id, id),
+      });
+      if (!current) throw new NotFoundException('Shipment not found');
+      await this.assertShipmentAccessible(current, caller);
+      return current;
     });
-    if (!shipment) throw new NotFoundException('Shipment not found');
-
-    await this.assertShipmentAccessible(shipment, caller);
 
     // Get tracking from provider if available
     const providerKey = shipment.shippingProviderKey || 'manual-driver';
@@ -245,9 +255,11 @@ export class ShipmentOperationsController {
     }
 
     // Get local shipment events as tracking timeline
-    const events = await this.db.db.query.shipmentEvents.findMany({
-      where: eq(shipmentEvents.shipmentId, id),
-    });
+    const events = await this.withCallerDatabaseContext(user, () =>
+      this.db.db.query.shipmentEvents.findMany({
+        where: eq(shipmentEvents.shipmentId, id),
+      }),
+    );
 
     return {
       shipmentId: id,
@@ -274,6 +286,7 @@ export class ShipmentOperationsController {
   // ── POST /v1/shipments/:id/labels ──────────────────────────────────────
 
   @Post(':id/labels')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:labels:write')
   @HttpCode(202)
@@ -373,15 +386,15 @@ export class ShipmentOperationsController {
   async getLabels(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const caller = this.toCallerContext(user);
 
-    const shipment = await this.db.db.query.shipments.findFirst({
-      where: eq(shipments.id, id),
-    });
-    if (!shipment) throw new NotFoundException('Shipment not found');
-
-    await this.assertShipmentAccessible(shipment, caller);
-
-    const labels = await this.db.db.query.shipmentLabels.findMany({
-      where: eq(shipmentLabels.shipmentId, id),
+    const labels = await this.withCallerDatabaseContext(user, async () => {
+      const shipment = await this.db.db.query.shipments.findFirst({
+        where: eq(shipments.id, id),
+      });
+      if (!shipment) throw new NotFoundException('Shipment not found');
+      await this.assertShipmentAccessible(shipment, caller);
+      return this.db.db.query.shipmentLabels.findMany({
+        where: eq(shipmentLabels.shipmentId, id),
+      });
     });
 
     return {
@@ -416,6 +429,7 @@ export class ShipmentOperationsController {
   // see all; merchant callers are scoped to their active org's stores.
 
   @Get()
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:read')
   async listShipments(@CurrentUser() user: JwtPayload, @Query() q: ShipmentListQuery) {
@@ -557,45 +571,60 @@ export class ShipmentOperationsController {
   async getShipmentDetail(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const caller = this.toCallerContext(user);
 
-    const shipment = await this.db.db.query.shipments.findFirst({
-      where: eq(shipments.id, id),
+    const detail = await this.withCallerDatabaseContext(user, async () => {
+      const shipment = await this.db.db.query.shipments.findFirst({
+        where: eq(shipments.id, id),
+      });
+      if (!shipment) throw new NotFoundException('Shipment not found');
+
+      await this.assertShipmentAccessible(shipment, caller);
+
+      const [store, order, events, labels] = await Promise.all([
+        this.db.db.query.stores.findFirst({ where: eq(stores.id, shipment.storeId) }),
+        this.db.db.query.orders.findFirst({ where: eq(orders.id, shipment.orderId) }),
+        this.db.db.query.shipmentEvents.findMany({
+          where: eq(shipmentEvents.shipmentId, id),
+          orderBy: [asc(shipmentEvents.sequence)],
+        }),
+        this.db.db.query.shipmentLabels.findMany({
+          where: eq(shipmentLabels.shipmentId, id),
+        }),
+      ]);
+
+      return { shipment, store, order, events, labels };
     });
-    if (!shipment) throw new NotFoundException('Shipment not found');
-
-    await this.assertShipmentAccessible(shipment, caller);
-
-    const [store, order, events, labels] = await Promise.all([
-      this.db.db.query.stores.findFirst({ where: eq(stores.id, shipment.storeId) }),
-      this.db.db.query.orders.findFirst({ where: eq(orders.id, shipment.orderId) }),
-      this.db.db.query.shipmentEvents.findMany({
-        where: eq(shipmentEvents.shipmentId, id),
-        orderBy: [asc(shipmentEvents.sequence)],
-      }),
-      this.db.db.query.shipmentLabels.findMany({
-        where: eq(shipmentLabels.shipmentId, id),
-      }),
-    ]);
 
     return {
-      shipment,
-      store: store
-        ? { id: store.id, displayName: store.displayName, slug: store.slug, orgId: store.orgId }
+      shipment: detail.shipment,
+      store: detail.store
+        ? {
+            id: detail.store.id,
+            displayName: detail.store.displayName,
+            slug: detail.store.slug,
+            orgId: detail.store.orgId,
+          }
         : null,
-      order: order
-        ? { id: order.id, status: order.status, storeId: order.storeId, buyerId: order['buyerId'] }
+      order: detail.order
+        ? {
+            id: detail.order.id,
+            status: detail.order.status,
+            storeId: detail.order.storeId,
+            buyerId: detail.order['buyerId'],
+          }
         : null,
-      events: events.map((e) => ({
-        id: e.id,
-        eventType: e.eventType,
-        actorType: e.actorType,
-        actorUserId: e.actorUserId,
-        locationText: e.locationText,
-        notes: e.notes,
-        carrierEventCode: e.carrierEventCode,
-        sequence: e.sequence,
-        createdAt: e.createdAt,
+      events: detail.events.map((event) => ({
+        id: event.id,
+        eventType: event.eventType,
+        actorType: event.actorType,
+        actorUserId: event.actorUserId,
+        locationText: event.locationText,
+        notes: event.notes,
+        carrierEventCode: event.carrierEventCode,
+        sequence: event.sequence,
+        createdAt: event.createdAt,
       })),
-      labels: await Promise.all(labels.map((label) => this.toLabelView(label))),
+      // Presigned object-storage URLs are generated after the DB transaction closes.
+      labels: await Promise.all(detail.labels.map((label) => this.toLabelView(label))),
     };
   }
 
@@ -629,6 +658,30 @@ export class ShipmentOperationsController {
 
   private isPrivilegedRole(role: string | null | undefined): boolean {
     return ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'].includes(role || '');
+  }
+
+  private withCallerDatabaseContext<T>(
+    user: JwtPayload,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    if (
+      typeof user.sub !== 'string' ||
+      user.sub.trim().length === 0 ||
+      typeof user.role !== 'string' ||
+      user.role.trim().length === 0
+    ) {
+      throw new UnauthorizedException('Authenticated shipment database context is missing');
+    }
+
+    return this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: user.sub,
+        actorRole: user.role,
+        activeOrgId: user.activeOrg ?? null,
+      },
+      operation,
+    );
   }
 
   private toCallerContext(user: JwtPayload): CallerContext {
