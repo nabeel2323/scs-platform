@@ -76,7 +76,7 @@ describe('OrdersService.rejectOrder actor-context boundaries (G-002)', () => {
       .spyOn(service as any, 'settleStockForStatus')
       .mockResolvedValue(undefined);
     vi.spyOn(service, 'recalculateMasterOrderStatus').mockResolvedValue('REJECTED');
-    const caller = { sub: 'merchant-a', role: 'MERCHANT', activeOrg: 'org-a' };
+    const caller = { sub: 'merchant-a', role: 'MERCHANT_OWNER', activeOrg: 'org-a' };
 
     await service.rejectOrder('order-a', 'merchant-a', 'OUT_OF_STOCK', caller);
 
@@ -84,7 +84,7 @@ describe('OrdersService.rejectOrder actor-context boundaries (G-002)', () => {
     expect(actorContexts[0]).toEqual({
       actorKind: 'user',
       actorId: 'merchant-a',
-      actorRole: 'MERCHANT',
+      actorRole: 'MERCHANT_OWNER',
       activeOrgId: 'org-a',
     });
     expect(settleStock).toHaveBeenCalledWith('order-a', 'REJECTED', 'merchant-a', tx);
@@ -102,7 +102,7 @@ describe('OrdersService.rejectOrder actor-context boundaries (G-002)', () => {
       12500,
       'MERCHANT_REJECTION',
       'merchant-a',
-      { sub: 'merchant-a', role: 'MERCHANT', activeOrg: 'org-a' },
+      { sub: 'merchant-a', role: 'MERCHANT_OWNER', activeOrg: 'org-a' },
       { idempotencyKey: 'reject-refund:order-a' },
     );
     expect(service.recalculateMasterOrderStatus).toHaveBeenCalledWith('master-a');
