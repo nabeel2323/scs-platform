@@ -256,3 +256,61 @@ describe('SearchService — active offer filter', () => {
     expect(executedSql).toHaveLength(2);
   });
 });
+
+describe('SearchService — cached facet actor boundary (G-002)', () => {
+  it('keeps Redis cache I/O outside the DB actor scope and scopes the facet query', async () => {
+    const actor = { sub: 'buyer-user', role: 'BUYER', activeOrg: 'org-1' };
+    let activeActor: Record<string, unknown> | null = null;
+    const withActorContext = vi.fn(async (context: Record<string, unknown>, operation: () => Promise<unknown>) => {
+      activeActor = context;
+      try {
+        return await operation();
+      } finally {
+        activeActor = null;
+      }
+    });
+    const findMany = vi.fn(async () => {
+      expect(activeActor).toMatchObject({ actorKind: 'user', actorId: actor.sub });
+      return [];
+    });
+    const redisGet = vi.fn(async () => {
+      expect(activeActor).toBeNull();
+      return null;
+    });
+    const redisSet = vi.fn(async () => {
+      expect(activeActor).toBeNull();
+    });
+    const db = {
+      get currentActorContext() {
+        return activeActor;
+      },
+      withActorContext,
+      db: { query: { productTypes: { findMany } } },
+    };
+    const svc = new SearchService(
+      db as any,
+      { createPresignedGetUrl: async () => null } as any,
+      { client: { get: redisGet, set: redisSet } } as any,
+    );
+
+    const result = await svc.getFacetsCached(undefined, actor);
+
+    expect(result).toEqual([]);
+    expect(withActorContext).toHaveBeenCalledOnce();
+    expect(findMany).toHaveBeenCalledOnce();
+    expect(redisGet).toHaveBeenCalledOnce();
+    expect(redisSet).toHaveBeenCalledOnce();
+  });
+
+  it('rejects cached facet reads without a verified user actor', async () => {
+    const svc = new SearchService(
+      {} as any,
+      {} as any,
+      { client: {} } as any,
+    );
+
+    await expect(svc.getFacetsCached(undefined, undefined as any)).rejects.toThrow(
+      'Authenticated user actor context is required',
+    );
+  });
+});
