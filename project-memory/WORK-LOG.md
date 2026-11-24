@@ -2156,3 +2156,10 @@ No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IN_PROGRE
 ## 24 November 2026 — catalog media actor-context continuation
 
 The catalog media-add endpoint now scopes product edit authorization in a user actor transaction, then requires a verified caller subject/role for a separate short service transaction covering product lookup, optional variant ownership validation and media-row insertion. Media URL resolution remains after commit because it may use external storage. Updated the focused media variant-scope unit fixture to supply the authenticated actor and transaction mock. No tests, lint, typecheck, E6 or CI were run. Other mixed catalog/import paths remain open; G-002 is not verified.
+
+
+## Catalog import upload and CSV staging actor-context boundary — 24 November 2026
+
+The mixed catalog import upload and CSV staging routes now establish the authenticated user actor for their authorization reads and for each database-only service phase. `uploadImportFile` requires a caller actor, scopes the persisted-job lookup and final import-job metadata update, and leaves raw request-body reading, object-storage upload and XLSX parsing outside DB transactions. `stageImportRows` requires a caller actor, scopes its persisted-job lookup and READY-state update, and leaves Redis batch deletion/write/expiry/count operations outside DB transactions. The controller resolves the persisted job and verifies store organization/membership inside a short actor context before reading upload bytes or invoking Redis/storage work. The focused P10 upload test fixture now mocks the actor-context wrapper and passes a caller to each upload test.
+
+Source commits: `b6dd8a7d731604be811301dd7168fc3faffde1b6` and `6e3b5a9716eeac514fd214dbc2561266f797993c`. No tests, formatter, lint, typecheck, E6 or CI were run. Preview, processing/worker, error-report export and other mixed catalog import paths remain open; this change does not mark the catalog actor-context audit or G-002 verified.
