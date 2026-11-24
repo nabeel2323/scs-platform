@@ -958,3 +958,8 @@ G-002 remains NOT VERIFIED. Next: locate the actual driver/store assignment cons
 The G-002 shipping ownership pass now covers admin recovery, recovery queue, scheduled create/cancel reconciliation, webhook shipment resolution and tracking polling, in addition to shipment creation/detail/list/driver/order lookup and carrier worker paths. The invariant `orders.store_id = shipments.store_id` is enforced before provider or delivery-bridge side effects. Source commits and regression cases are recorded in the G-002 migration FK crosswalk.
 
 Driver_store_assignments remains an unresolved schema-consumer question: separate profile/store FKs exist, but no assignment writer was found in the inspected ShippingModule, and shipment assignedDriverId references users. Do not invent an API; locate any external consumer or classify as legacy/dead through evidence. Next: complete Drizzle-to-migration FK reconciliation, then add the regression suite and conduct the deferred verification. G-002 remains NOT VERIFIED.
+
+
+## 24 November 2026 — webhook retry tenant binding
+
+Commit `926c475fb9c59ffa1688dccee3d4f9dfbeea59e2` adds credential-to-shipment organization validation for already-linked webhook retries, revalidates credential active/provider identity for every unprocessed credential-bound event, and fails closed for unlinked legacy events without credential binding. Crosswalk and progress tracker contain the invariant and pending regression cases. Next: finish Drizzle/migration FK reconciliation and confirm any external driver assignment consumer. G-002 remains NOT VERIFIED; tests and protected runtime evidence remain gated.
