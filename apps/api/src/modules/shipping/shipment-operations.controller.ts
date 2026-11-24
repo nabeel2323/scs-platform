@@ -434,7 +434,11 @@ export class ShipmentOperationsController {
   @RequirePermission('fulfillment:shipments:read')
   async listShipments(@CurrentUser() user: JwtPayload, @Query() q: ShipmentListQuery) {
     const caller = this.toCallerContext(user);
-    const conditions: any[] = [];
+    const conditions: any[] = [
+      // A shipment's order and store are independent FKs. Exclude malformed
+      // cross-store pairs from every list, including platform-wide views.
+      eq(orders.storeId, shipments.storeId),
+    ];
 
     // Tenant scope: privileged roles bypass; everyone else is store-scoped.
     if (!this.isPrivilegedRole(caller.role)) {
@@ -555,6 +559,7 @@ export class ShipmentOperationsController {
       .select({ total: sql<number>`count(*)::integer` })
       .from(shipments)
       .leftJoin(stores, eq(shipments.storeId, stores.id))
+      .leftJoin(orders, eq(shipments.orderId, orders.id))
       .where(where);
 
     const total = Number(countRows[0]?.total ?? 0);
