@@ -8,6 +8,7 @@ import {
   Body,
   Query,
   UseGuards,
+  UseInterceptors,
   ForbiddenException,
 } from '@nestjs/common';
 import {
@@ -25,11 +26,13 @@ import {
   RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import { DatabaseService } from '../../common/database/database.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 import { CatalogService } from '../catalog/index';
 
 @Controller()
 @UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class PricingController {
   constructor(
     private readonly pricingService: PricingService,
