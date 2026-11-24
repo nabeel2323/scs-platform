@@ -36,6 +36,12 @@ import { IdentityService } from '../identity/index';
 import { MerchantService } from '../merchant/index';
 import { P13_PILOT_FLAG_KEY, resolveP13OpsConfig, type P13PilotMode } from './p13-ops.config';
 
+type PilotControlCaller = {
+  sub: string;
+  role: string;
+  activeOrg?: string | null;
+};
+
 export interface PilotEligibility {
   enforced: boolean;
   eligible: boolean;
@@ -75,14 +81,36 @@ export class PilotControlService {
     this.mode = resolveP13OpsConfig().pilotMode;
   }
 
+  private withUserActor<T>(caller: PilotControlCaller, operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext({
+      actorKind: 'user', actorId: caller.sub, actorRole: caller.role,
+      activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
+    }, operation);
+  }
+
+  private withAuditActor<T>(caller: PilotControlCaller, operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext({
+      actorKind: 'audit', actorId: caller.sub, actorRole: caller.role,
+      activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
+    }, operation);
+  }
+
+  private withPolicyActor<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.db.currentActorContext) return operation();
+    return this.db.withActorContext({ actorKind: 'system', actorId: 'p13-pilot-policy' }, operation);
+  }
+
+
   /** Runtime flag only — reads false when the row is absent (disabled default). */
   async isFlagEnabled(): Promise<boolean> {
-    const row = firstRow<{ enabled: boolean }>(
-      await this.db.db.execute(sql`
-      SELECT enabled FROM feature_flags WHERE key = ${P13_PILOT_FLAG_KEY}
-    `),
-    );
-    return row?.enabled === true;
+    return this.withPolicyActor(async () => {
+      const row = firstRow<{ enabled: boolean }>(
+        await this.db.db.execute(sql`
+        SELECT enabled FROM feature_flags WHERE key = ${P13_PILOT_FLAG_KEY}
+      `),
+      );
+      return row?.enabled === true;
+    });
   }
 
   /**
@@ -148,14 +176,14 @@ export class PilotControlService {
     orgId: string,
     storeId: string | null,
   ): Promise<{ enabled: boolean; scope: 'eligible_org_wide' | 'eligible_store' } | null> {
-    const rows = readRows<{ enabled: boolean; store_id: string | null }>(
+    const rows = await this.withPolicyActor(async () => readRows<{ enabled: boolean; store_id: string | null }>(
       await this.db.db.execute(sql`
       SELECT enabled, store_id
       FROM p13_pilot_allowlist
       WHERE org_id = ${orgId}
         AND (store_id IS NULL OR store_id = ${storeId})
     `),
-    );
+    ));
 
     const storeEntry = storeId ? rows.find((r) => r.store_id === storeId) : undefined;
     if (storeEntry) return { enabled: storeEntry.enabled, scope: 'eligible_store' };
@@ -185,34 +213,29 @@ export class PilotControlService {
 
   // ── Configuration mutations (permission-gated at the controller, audited here) ──
 
-  async setFlag(enabled: boolean, actorId: string | null, description?: string): Promise<void> {
-    await this.db.db
-      .insert(featureFlags)
-      .values({
-        key: P13_PILOT_FLAG_KEY,
-        enabled,
+  async setFlag(enabled: boolean, caller: PilotControlCaller, description?: string): Promise<void> {
+    await this.withUserActor(caller, async () => {
+      await this.db.db.insert(featureFlags).values({
+        key: P13_PILOT_FLAG_KEY, enabled,
         description: (description ?? 'P13 pilot allowlist enforcement').slice(0, 300),
-        updatedBy: actorId,
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
+        updatedBy: caller.sub, updatedAt: new Date(),
+      }).onConflictDoUpdate({
         target: featureFlags.key,
-        set: { enabled, updatedBy: actorId, updatedAt: new Date() },
+        set: { enabled, updatedBy: caller.sub, updatedAt: new Date() },
       });
-
-    await this.audit.record({
-      actorType: 'ADMIN',
-      actorId,
+    });
+    await this.withAuditActor(caller, () => this.audit.record({
+      actorType: 'ADMIN', actorId: caller.sub,
       action: enabled ? 'p13.pilot.enable' : 'p13.pilot.disable',
       resource: 'feature_flag',
       metadata: { key: P13_PILOT_FLAG_KEY, enabled, mode: this.mode },
-    });
+    }));
 
     await this.alerts.raise({
       conditionKey: 'p13.pilot.flag_changed',
       severity: enabled ? 'WARN' : 'INFO',
       title: enabled ? 'P13 pilot enforcement enabled' : 'P13 pilot enforcement disabled',
-      detail: { key: P13_PILOT_FLAG_KEY, enabled, mode: this.mode, actorId },
+      detail: { key: P13_PILOT_FLAG_KEY, enabled, mode: this.mode, actorId: caller.sub },
     });
 
     this.logger.warn(`Pilot flag ${P13_PILOT_FLAG_KEY} -> ${enabled} by ${actorId ?? 'system'}`);
@@ -222,7 +245,7 @@ export class PilotControlService {
     orgId: string;
     storeId?: string | null;
     note?: string | null;
-    actorId?: string | null;
+    caller: PilotControlCaller;
   }): Promise<void> {
     if (!input.orgId) throw new ForbiddenException('orgId is required for an allowlist entry');
 
@@ -243,26 +266,21 @@ export class PilotControlService {
       }
     }
 
-    await this.db.db
-      .insert(p13PilotAllowlist)
-      .values({
-        orgId: input.orgId,
-        storeId: input.storeId ?? null,
-        enabled: true,
+    await this.withUserActor(input.caller, async () => {
+      await this.db.db.insert(p13PilotAllowlist).values({
+        orgId: input.orgId, storeId: input.storeId ?? null, enabled: true,
         note: (input.note ?? '').slice(0, 300) || null,
-        createdBy: input.actorId ?? null,
-        updatedAt: new Date(),
-      })
-      .onConflictDoNothing();
-
-    await this.audit.record({
+        createdBy: input.caller.sub, updatedAt: new Date(),
+      }).onConflictDoNothing();
+    });
+    await this.withAuditActor(input.caller, () => this.audit.record({
       actorType: 'ADMIN',
-      actorId: input.actorId ?? null,
+      actorId: input.caller.sub,
       action: 'p13.pilot.allowlist.add',
       resource: 'p13_pilot_allowlist',
       orgId: input.orgId,
       metadata: { orgId: input.orgId, storeId: input.storeId ?? null, note: input.note ?? null },
-    });
+    }));
   }
 
   /** Revoke = flip enabled=false, never delete. Durable records are preserved. */
@@ -270,21 +288,19 @@ export class PilotControlService {
     orgId: string;
     storeId?: string | null;
     note?: string | null;
-    actorId?: string | null;
+    caller: PilotControlCaller;
   }): Promise<number> {
-    const result = await this.db.db.execute(sql`
+    const result = await this.withUserActor(input.caller, () => this.db.db.execute(sql`
       UPDATE p13_pilot_allowlist
-      SET enabled = FALSE,
-          note = ${(input.note ?? 'revoked').slice(0, 300)},
-          updated_at = now()
+      SET enabled = FALSE, note = ${(input.note ?? 'revoked').slice(0, 300)}, updated_at = now()
       WHERE org_id = ${input.orgId}
         AND store_id IS NOT DISTINCT FROM ${input.storeId ?? null}
-    `);
+    `));
     const affected = Number((result as unknown as { rowCount?: number }).rowCount ?? 0);
 
-    await this.audit.record({
+    await this.withAuditActor(input.caller, () => this.audit.record({
       actorType: 'ADMIN',
-      actorId: input.actorId ?? null,
+      actorId: input.caller.sub,
       action: 'p13.pilot.allowlist.revoke',
       resource: 'p13_pilot_allowlist',
       orgId: input.orgId,
@@ -293,30 +309,26 @@ export class PilotControlService {
         storeId: input.storeId ?? null,
         rowsAffected: affected,
       },
-    });
+    }));
 
     return affected;
   }
 
-  async snapshot(): Promise<PilotSnapshot> {
-    const flagEnabledRow = firstRow<{ enabled: boolean }>(
-      await this.db.db.execute(sql`
-      SELECT enabled FROM feature_flags WHERE key = ${P13_PILOT_FLAG_KEY}
-    `),
-    );
-    const counts = firstRow<{ total: number; enabled: number }>(
-      await this.db.db.execute(sql`
-      SELECT COUNT(*)::int AS total,
-             COUNT(*) FILTER (WHERE enabled)::int AS enabled
-      FROM p13_pilot_allowlist
-    `),
-    );
-
+  async snapshot(caller: PilotControlCaller): Promise<PilotSnapshot> {
+    const enforced = await this.isEnforced();
+    const { flagEnabledRow, counts } = await this.withUserActor(caller, async () => {
+      const flagEnabledRow = firstRow<{ enabled: boolean }>(await this.db.db.execute(sql`
+        SELECT enabled FROM feature_flags WHERE key = ${P13_PILOT_FLAG_KEY}
+      `));
+      const counts = firstRow<{ total: number; enabled: number }>(await this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE enabled)::int AS enabled
+        FROM p13_pilot_allowlist
+      `));
+      return { flagEnabledRow, counts };
+    });
     return {
-      mode: this.mode,
-      flagEnabled: flagEnabledRow ? flagEnabledRow.enabled : null,
-      enforced: await this.isEnforced(),
-      allowlistCount: Number(counts?.total ?? 0),
+      mode: this.mode, flagEnabled: flagEnabledRow ? flagEnabledRow.enabled : null,
+      enforced, allowlistCount: Number(counts?.total ?? 0),
       enabledCount: Number(counts?.enabled ?? 0),
       denials: getOpsCounter('pilot_eligibility_denials_total'),
     };
