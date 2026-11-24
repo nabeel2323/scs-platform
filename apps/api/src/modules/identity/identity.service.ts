@@ -154,6 +154,11 @@ function getUnknownUserPasswordHash(): Promise<string> {
   return unknownUserPasswordHash;
 }
 
+type AuthenticatedIdentityActor = {
+  role: string;
+  activeOrg: string | null;
+};
+
 @Injectable()
 export class IdentityService {
   private readonly logger = new Logger(IdentityService.name);
@@ -175,6 +180,27 @@ export class IdentityService {
       nodeEnv: process.env['NODE_ENV'],
       secret: process.env['OTP_HMAC_SECRET'],
     });
+  }
+
+  /**
+   * Establish a short database actor scope for an authenticated identity action.
+   * Claims are forwarded only by JWT-guarded controllers. OTP, bcrypt, Redis
+   * and provider work must remain outside these database transactions.
+   */
+  private withUserDatabaseContext<T>(
+    userId: string,
+    actor: AuthenticatedIdentityActor,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    return this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: userId,
+        actorRole: actor.role,
+        activeOrgId: actor.activeOrg,
+      },
+      operation,
+    );
   }
 
   /**
@@ -992,22 +1018,27 @@ export class IdentityService {
   async switchOrg(
     userId: string,
     orgId: string,
+    actor: AuthenticatedIdentityActor,
     currentSessionId?: string,
     priorToken?: { jti?: string; exp?: number },
   ): Promise<{ accessToken: string }> {
-    const membership = await this.db.db.query.organizationMembers.findFirst({
-      where: and(eq(organizationMembers.userId, userId), eq(organizationMembers.orgId, orgId)),
-    });
+    // The requested target organization is not trusted until membership is
+    // confirmed. Resolve membership and role/permissions in a user-private scope.
+    const claims = await this.withUserDatabaseContext(
+      userId,
+      { role: actor.role, activeOrg: null },
+      async () => {
+        const membership = await this.db.db.query.organizationMembers.findFirst({
+          where: and(eq(organizationMembers.userId, userId), eq(organizationMembers.orgId, orgId)),
+        });
+        if (!membership) {
+          throw new ForbiddenException('Not a member of this organization');
+        }
+        return this.buildClaims(userId, orgId);
+      },
+    );
 
-    if (!membership) {
-      throw new ForbiddenException('Not a member of this organization');
-    }
-
-    const claims = await this.buildClaims(userId, orgId);
-
-    // API-B9: revoke the access token used to make this switch so its stale
-    // org/permission claims can't be replayed for the remainder of its 15-min
-    // life. Denylist its jti for exactly the token's remaining lifetime.
+    // Redis denylist work remains outside the database transaction.
     if (priorToken?.jti) {
       const ttl = secondsUntilExp(priorToken.exp);
       if (ttl > 0) {
@@ -1015,9 +1046,6 @@ export class IdentityService {
       }
     }
 
-    // switchOrg re-mints an access token for the SAME session, so carry the
-    // existing `sid` claim forward (WEB-B3) to keep isCurrent detection stable.
-    // A fresh `jti` (API-B9) makes the new token independently revocable.
     const accessToken = this.jwt.sign({
       sub: userId,
       activeOrg: orgId,
@@ -1026,7 +1054,6 @@ export class IdentityService {
       sid: currentSessionId,
       jti: crypto.randomUUID(),
     });
-
     return { accessToken };
   }
 
@@ -2126,67 +2153,57 @@ export class IdentityService {
     userId: string,
     rawEmail: string,
     password: string,
+    actor: AuthenticatedIdentityActor,
     deviceId?: string,
   ): Promise<{ success: boolean; message: string }> {
-    // Normalize email so the identity is stored in canonical form (trim + lowercase).
-    // Without this, a user who sets up "Alice@Example.com" could fail to log in later
-    // because loginWithPassword normalizes to "alice@example.com" before lookup.
     const email = normalizeEmail(rawEmail);
 
-    // Get user to check current state
-    const user = await this.db.db.query.users.findFirst({
-      where: eq(users.id, userId),
-    });
+    // Read the user under the authenticated actor. Password hashing is CPU work
+    // and stays outside the transaction rather than holding a database connection.
+    const user = await this.withUserDatabaseContext(userId, actor, () =>
+      this.db.db.query.users.findFirst({ where: eq(users.id, userId) }),
+    );
+    if (!user) throw new NotFoundException('User not found');
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    // Check if email already exists (and belongs to different user)
-    const existingEmail = await this.db.db.query.users.findFirst({
-      where: eq(users.email, email),
-    });
-
-    if (existingEmail && existingEmail.id !== userId) {
-      throw new ConflictException('Email already in use');
-    }
-
-    // Validate password strength
     const passwordCheck = validatePasswordStrength(password, email, user.phone ?? undefined);
     if (!passwordCheck.valid) {
       throw new BadRequestException(passwordCheck.errors.join('; '));
     }
-
-    // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Update user
-    await this.db.db
-      .update(users)
-      .set({
-        email,
-        passwordHash,
-        passwordSetAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId));
+    try {
+      await this.withUserDatabaseContext(userId, actor, async () => {
+        const currentUser = await this.db.db.query.users.findFirst({
+          where: eq(users.id, userId),
+        });
+        if (!currentUser) throw new NotFoundException('User not found');
 
-    // Log audit entry
-    await this.logCredentialAudit(userId, 'CREDENTIAL_SETUP', deviceId);
+        const existingEmail = await this.db.db.query.users.findFirst({
+          where: eq(users.email, email),
+        });
+        if (existingEmail && existingEmail.id !== userId) {
+          throw new ConflictException('Email already in use');
+        }
 
-    // NOTE: Do NOT revoke existing sessions here.
-    //
-    // Corrected for the S-1 model: the comment used to justify this by saying the
-    // OTP session "established device trust (with deviceId)", which is the
-    // pre-remediation claim the audit rejected. Trust comes from the credential
-    // minted by that OTP verification (device_credentials.created_by_session), not
-    // from the session row or the client-supplied deviceId. What is still true, and
-    // is the reason the behaviour stays, is that the caller is authenticated by
-    // this very session — revoking it would kill the access and refresh tokens in
-    // use mid-request. Setting a password for the first time is not a compromise
-    // event, so neither sessions nor credentials are revoked here; contrast
-    // changePassword, which revokes both (finding B5).
+        const updated = await this.db.db
+          .update(users)
+          .set({
+            email,
+            passwordHash,
+            passwordSetAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, userId))
+          .returning({ id: users.id });
+        if (updated.length === 0) throw new NotFoundException('User not found');
 
+        await this.logCredentialAudit(userId, 'CREDENTIAL_SETUP', deviceId);
+      });
+    } catch (err) {
+      throw this.translateIdentifierConstraintError(err, 'Email already in use');
+    }
+
+    // Initial credential setup preserves the OTP-authenticated current session.
     return { success: true, message: 'Credentials set up successfully' };
   }
 
@@ -2197,97 +2214,80 @@ export class IdentityService {
     userId: string,
     currentPassword: string,
     newPassword: string,
+    actor: AuthenticatedIdentityActor,
     deviceId?: string,
   ): Promise<{ success: boolean; message: string }> {
-    // Get user
-    const user = await this.db.db.query.users.findFirst({
-      where: eq(users.id, userId),
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
+    // Read under actor context, then run bcrypt outside the transaction.
+    const user = await this.withUserDatabaseContext(userId, actor, () =>
+      this.db.db.query.users.findFirst({ where: eq(users.id, userId) }),
+    );
+    if (!user) throw new NotFoundException('User not found');
     if (!user.passwordHash) {
       throw new ConflictException('No password set. Please set up credentials first.');
     }
 
-    // Verify current password
     const currentValid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!currentValid) {
       throw new UnauthorizedException('Current password is incorrect');
     }
 
-    // Get user email for password validation
-    const userEmail = user.email || undefined;
-
-    // Validate new password strength
-    const passwordCheck = validatePasswordStrength(newPassword, userEmail, user.phone ?? undefined);
+    const passwordCheck = validatePasswordStrength(
+      newPassword,
+      user.email || undefined,
+      user.phone ?? undefined,
+    );
     if (!passwordCheck.valid) {
       throw new BadRequestException(passwordCheck.errors.join('; '));
     }
-
-    // Hash new password
     const newPasswordHash = await bcrypt.hash(newPassword, 12);
 
-    // Update user
-    await this.db.db
-      .update(users)
-      .set({
-        passwordHash: newPasswordHash,
-        passwordSetAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId));
+    // Password, domain audit, trusted-device revocation and session revocation
+    // commit as one DB-only unit. The prior-hash predicate fences concurrent changes.
+    const deTrustedCount = await this.withUserDatabaseContext(userId, actor, async () => {
+      const changed = await this.db.db
+        .update(users)
+        .set({
+          passwordHash: newPasswordHash,
+          passwordSetAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(users.id, userId), eq(users.passwordHash, user.passwordHash)))
+        .returning({ id: users.id });
+      if (changed.length === 0) {
+        throw new ConflictException('Credentials changed during this request. Please retry.');
+      }
 
-    // Log audit entry
-    await this.logCredentialAudit(userId, 'PASSWORD_CHANGE', deviceId);
+      await this.logCredentialAudit(userId, 'PASSWORD_CHANGE', deviceId);
+      const revokedCount = await this.revokeAllDeviceCredentials(userId, 'PASSWORD_CHANGE');
+      if (deviceId) {
+        await this.db.db
+          .update(sessions)
+          .set({ revokedAt: new Date() })
+          .where(and(eq(sessions.userId, userId), eq(sessions.deviceId, deviceId)));
+      } else {
+        await this.revokeChain(userId);
+      }
+      return revokedCount;
+    });
 
-    // Every device-trust credential this account holds is revoked (finding B5).
-    // The exemption means "this browser already completed the second factor",
-    // and that conclusion was reached using the secret that has just been
-    // replaced — including in the case that motivated the finding: an account
-    // whose owner changed the password because the device or the old password
-    // may have been compromised. Keeping the exemption alive there would let the
-    // next password-only login skip OTP exactly as before. A previously trusted
-    // browser therefore gets one OTP challenge on its next login.
-    //
-    // This runs only on the success path: an incorrect current password, a
-    // rejected strength check or an unknown user all throw above, so a failed
-    // password change revokes nothing.
-    const deTrustedCount = await this.revokeAllDeviceCredentials(
-      userId,
-      'PASSWORD_CHANGE',
-    );
     if (deTrustedCount > 0) {
-      await this.audit.record({
-        actorType: 'SYSTEM',
-        actorId: userId,
-        action: 'auth.device_trust_revoked',
-        resource: 'auth',
-        metadata: { revokedCount: deTrustedCount, reason: 'PASSWORD_CHANGE' },
-      });
-    }
-
-    // Sessions (behaviour unchanged from the baseline; only the comment is
-    // corrected). Naming a device revokes the sessions recorded under that
-    // client-supplied `deviceId` — the caller's own device — and leaves other
-    // devices signed in; naming none revokes every session for the account. The
-    // previous comment ("keep current device if specified") described the
-    // opposite of the code below, which is why it is gone rather than the code.
-    //
-    // Known asymmetry, recorded rather than silently fixed: session revocation is
-    // `deviceId`-scoped while credential revocation above is account-wide, so a
-    // password change signs other browsers out of trust but not out of their
-    // access/refresh sessions. Changing that is a session-semantics change
-    // outside this finding's scope.
-    if (deviceId) {
-      await this.db.db
-        .update(sessions)
-        .set({ revokedAt: new Date() })
-        .where(and(eq(sessions.userId, userId), eq(sessions.deviceId, deviceId)));
-    } else {
-      await this.revokeChain(userId);
+      // Keep the general audit write non-throwing and separate from the credential transaction.
+      await this.db.withActorContext(
+        {
+          actorKind: 'audit',
+          actorId: userId,
+          actorRole: actor.role,
+          activeOrgId: actor.activeOrg,
+        },
+        () =>
+          this.audit.record({
+            actorType: 'SYSTEM',
+            actorId: userId,
+            action: 'auth.device_trust_revoked',
+            resource: 'auth',
+            metadata: { revokedCount: deTrustedCount, reason: 'PASSWORD_CHANGE' },
+          }),
+      );
     }
 
     return { success: true, message: 'Password changed successfully' };
@@ -2449,53 +2449,56 @@ export class IdentityService {
     userId: string,
     rawEmail: string,
     otp: string,
+    actor: AuthenticatedIdentityActor,
   ): Promise<{ success: boolean }> {
     // 1. Proof of control — consumes the challenge, so a code cannot be replayed
     //    afterwards to log in.
     const { email } = await this.consumeEmailChallenge(rawEmail, otp);
 
-    // 2. Resolve and lock in the decision we are about to base the write on.
-    const target = await this.db.db.query.users.findFirst({
-      where: eq(users.id, userId),
-    });
-    if (!target) throw new NotFoundException('User not found');
+    return this.withUserDatabaseContext(userId, actor, async () => {
+      // 2. Resolve and lock in the decision we are about to base the write on.
+      const target = await this.db.db.query.users.findFirst({
+        where: eq(users.id, userId),
+      });
+      if (!target) throw new NotFoundException('User not found');
 
-    // Attaching the address the account already holds is a no-op.
-    if (target.email === email) return { success: true };
+      // Attaching the address the account already holds is a no-op.
+      if (target.email === email) return { success: true };
 
-    // 3. Check if email already belongs to another user
-    const existingByEmail = await this.db.db.query.users.findFirst({
-      where: eq(users.email, email),
-    });
-    if (existingByEmail && existingByEmail.id !== userId) {
-      throw new ConflictException('EMAIL_ALREADY_IN_USE');
-    }
-
-    // 4. Update user's email, guarded by optimistic locking on the value this
-    //    decision read. A concurrent link that beat step 3 surfaces either as
-    //    rowCount 0 or as a unique violation, never as a silent overwrite.
-    try {
-      const updated = await this.db.db
-        .update(users)
-        .set({ email, emailVerifiedAt: new Date(), updatedAt: new Date() })
-        .where(and(eq(users.id, userId), sql`${users.email} IS NOT DISTINCT FROM ${target.email}`));
-      if (((updated as any)['rowCount'] ?? 0) === 0) {
-        throw new ConflictException('LINK_CONFLICT_RETRY');
+      // 3. Check if email already belongs to another user
+      const existingByEmail = await this.db.db.query.users.findFirst({
+        where: eq(users.email, email),
+      });
+      if (existingByEmail && existingByEmail.id !== userId) {
+        throw new ConflictException('EMAIL_ALREADY_IN_USE');
       }
-    } catch (err) {
-      throw this.translateIdentifierConstraintError(err, 'EMAIL_ALREADY_IN_USE');
-    }
 
-    // 5. Audit log
-    await this.db.db.insert(accountLinkLog).values({
-      userId,
-      action: 'LINK',
-      identifierType: 'EMAIL',
-      identifierHash: hashIdentifier(email, this.hmacSecret, 'email'),
-      performedBy: userId,
+      // 4. Update user's email, guarded by optimistic locking on the value this
+      //    decision read. A concurrent link that beat step 3 surfaces either as
+      //    rowCount 0 or as a unique violation, never as a silent overwrite.
+      try {
+        const updated = await this.db.db
+          .update(users)
+          .set({ email, emailVerifiedAt: new Date(), updatedAt: new Date() })
+          .where(and(eq(users.id, userId), sql`${users.email} IS NOT DISTINCT FROM ${target.email}`));
+        if (((updated as any)['rowCount'] ?? 0) === 0) {
+          throw new ConflictException('LINK_CONFLICT_RETRY');
+        }
+      } catch (err) {
+        throw this.translateIdentifierConstraintError(err, 'EMAIL_ALREADY_IN_USE');
+      }
+
+      // 5. Audit log
+      await this.db.db.insert(accountLinkLog).values({
+        userId,
+        action: 'LINK',
+        identifierType: 'EMAIL',
+        identifierHash: hashIdentifier(email, this.hmacSecret, 'email'),
+        performedBy: userId,
+      });
+
+      return { success: true };
     });
-
-    return { success: true };
   }
 
   /**
@@ -2514,53 +2517,56 @@ export class IdentityService {
     userId: string,
     rawPhone: string,
     otp: string,
+    actor: AuthenticatedIdentityActor,
   ): Promise<{ success: boolean }> {
     // 1. Proof of control — consumes the challenge, so the same code cannot be
     //    replayed afterwards to log in.
     const { phone } = await this.consumePhoneChallenge(rawPhone, otp);
 
-    // 2. Resolve and lock in the decision we are about to base the write on.
-    const target = await this.db.db.query.users.findFirst({
-      where: eq(users.id, userId),
-    });
-    if (!target) throw new NotFoundException('User not found');
+    return this.withUserDatabaseContext(userId, actor, async () => {
+      // 2. Resolve and lock in the decision we are about to base the write on.
+      const target = await this.db.db.query.users.findFirst({
+        where: eq(users.id, userId),
+      });
+      if (!target) throw new NotFoundException('User not found');
 
-    // Attaching the number the account already holds is a no-op.
-    if (target.phone === phone) return { success: true };
+      // Attaching the number the account already holds is a no-op.
+      if (target.phone === phone) return { success: true };
 
-    // 3. Check if phone already belongs to another user
-    const existingByPhone = await this.db.db.query.users.findFirst({
-      where: eq(users.phone, phone),
-    });
-    if (existingByPhone && existingByPhone.id !== userId) {
-      throw new ConflictException('PHONE_ALREADY_IN_USE');
-    }
-
-    // 4. Update user's phone, guarded by optimistic locking on the value this
-    //    decision read. A concurrent link that beat step 3 surfaces either as
-    //    rowCount 0 or as a unique violation, never as a silent overwrite.
-    try {
-      const updated = await this.db.db
-        .update(users)
-        .set({ phone, updatedAt: new Date() })
-        .where(and(eq(users.id, userId), sql`${users.phone} IS NOT DISTINCT FROM ${target.phone}`));
-      if (((updated as any)['rowCount'] ?? 0) === 0) {
-        throw new ConflictException('LINK_CONFLICT_RETRY');
+      // 3. Check if phone already belongs to another user
+      const existingByPhone = await this.db.db.query.users.findFirst({
+        where: eq(users.phone, phone),
+      });
+      if (existingByPhone && existingByPhone.id !== userId) {
+        throw new ConflictException('PHONE_ALREADY_IN_USE');
       }
-    } catch (err) {
-      throw this.translateIdentifierConstraintError(err, 'PHONE_ALREADY_IN_USE');
-    }
 
-    // 5. Audit log
-    await this.db.db.insert(accountLinkLog).values({
-      userId,
-      action: 'LINK',
-      identifierType: 'PHONE',
-      identifierHash: hashIdentifier(phone, this.hmacSecret, 'phone'),
-      performedBy: userId,
+      // 4. Update user's phone, guarded by optimistic locking on the value this
+      //    decision read. A concurrent link that beat step 3 surfaces either as
+      //    rowCount 0 or as a unique violation, never as a silent overwrite.
+      try {
+        const updated = await this.db.db
+          .update(users)
+          .set({ phone, updatedAt: new Date() })
+          .where(and(eq(users.id, userId), sql`${users.phone} IS NOT DISTINCT FROM ${target.phone}`));
+        if (((updated as any)['rowCount'] ?? 0) === 0) {
+          throw new ConflictException('LINK_CONFLICT_RETRY');
+        }
+      } catch (err) {
+        throw this.translateIdentifierConstraintError(err, 'PHONE_ALREADY_IN_USE');
+      }
+
+      // 5. Audit log
+      await this.db.db.insert(accountLinkLog).values({
+        userId,
+        action: 'LINK',
+        identifierType: 'PHONE',
+        identifierHash: hashIdentifier(phone, this.hmacSecret, 'phone'),
+        performedBy: userId,
+      });
+
+      return { success: true };
     });
-
-    return { success: true };
   }
 
   /**
@@ -2588,48 +2594,52 @@ export class IdentityService {
    */
   async unlinkEmailFromAccount(
     userId: string,
+    actor: AuthenticatedIdentityActor,
   ): Promise<{ success: boolean }> {
-    const user = await this.db.db.query.users.findFirst({
-      where: eq(users.id, userId),
-    });
-    if (!user) throw new NotFoundException('User not found');
-
-    // Cannot remove last auth method
-    if (!user.phone) {
-      throw new BadRequestException(
-        'Cannot remove email: no phone number linked. At least one authentication method is required.',
-      );
-    }
-
-    const oldEmail = user.email;
-    // Optimistic guard: only clear the email this decision was based on, and
-    // translate a concurrent last-identifier race (CHECK 23514) into a 400
-    // rather than an HTTP 500.
-    try {
-      const updated = await this.db.db
-        .update(users)
-        .set({ email: null, emailVerifiedAt: null, updatedAt: new Date() })
-        .where(and(eq(users.id, userId), sql`${users.email} IS NOT DISTINCT FROM ${user.email}`));
-      if (((updated as any)['rowCount'] ?? 0) === 0) {
-        throw new ConflictException('LINK_CONFLICT_RETRY');
-      }
-    } catch (err) {
-      throw this.translateIdentifierConstraintError(err, 'EMAIL_ALREADY_IN_USE');
-    }
-
-    // Audit log
-    if (oldEmail) {
-      await this.db.db.insert(accountLinkLog).values({
-        userId,
-        action: 'UNLINK',
-        identifierType: 'EMAIL',
-        identifierHash: hashIdentifier(oldEmail, this.hmacSecret, 'email'),
-        performedBy: userId,
+    return this.withUserDatabaseContext(userId, actor, async () => {
+      const user = await this.db.db.query.users.findFirst({
+        where: eq(users.id, userId),
       });
-    }
+      if (!user) throw new NotFoundException('User not found');
 
-    return { success: true };
+      // Cannot remove last auth method
+      if (!user.phone) {
+        throw new BadRequestException(
+          'Cannot remove email: no phone number linked. At least one authentication method is required.',
+        );
+      }
+
+      const oldEmail = user.email;
+      // Optimistic guard: only clear the email this decision was based on, and
+      // translate a concurrent last-identifier race (CHECK 23514) into a 400
+      // rather than an HTTP 500.
+      try {
+        const updated = await this.db.db
+          .update(users)
+          .set({ email: null, emailVerifiedAt: null, updatedAt: new Date() })
+          .where(and(eq(users.id, userId), sql`${users.email} IS NOT DISTINCT FROM ${user.email}`));
+        if (((updated as any)['rowCount'] ?? 0) === 0) {
+          throw new ConflictException('LINK_CONFLICT_RETRY');
+        }
+      } catch (err) {
+        throw this.translateIdentifierConstraintError(err, 'EMAIL_ALREADY_IN_USE');
+      }
+
+      // Audit log
+      if (oldEmail) {
+        await this.db.db.insert(accountLinkLog).values({
+          userId,
+          action: 'UNLINK',
+          identifierType: 'EMAIL',
+          identifierHash: hashIdentifier(oldEmail, this.hmacSecret, 'email'),
+          performedBy: userId,
+        });
+      }
+
+      return { success: true };
+    });
   }
+
 
   /**
    * Unlink phone from an account.
@@ -2639,45 +2649,49 @@ export class IdentityService {
    */
   async unlinkPhoneFromAccount(
     userId: string,
+    actor: AuthenticatedIdentityActor,
   ): Promise<{ success: boolean }> {
-    const user = await this.db.db.query.users.findFirst({
-      where: eq(users.id, userId),
-    });
-    if (!user) throw new NotFoundException('User not found');
-
-    // Cannot remove last auth method
-    if (!user.email) {
-      throw new BadRequestException(
-        'Cannot remove phone: no email linked. At least one authentication method is required.',
-      );
-    }
-
-    const oldPhone = user.phone;
-    try {
-      const updated = await this.db.db
-        .update(users)
-        .set({ phone: null, updatedAt: new Date() })
-        .where(and(eq(users.id, userId), sql`${users.phone} IS NOT DISTINCT FROM ${user.phone}`));
-      if (((updated as any)['rowCount'] ?? 0) === 0) {
-        throw new ConflictException('LINK_CONFLICT_RETRY');
-      }
-    } catch (err) {
-      throw this.translateIdentifierConstraintError(err, 'PHONE_ALREADY_IN_USE');
-    }
-
-    // Audit log
-    if (oldPhone) {
-      await this.db.db.insert(accountLinkLog).values({
-        userId,
-        action: 'UNLINK',
-        identifierType: 'PHONE',
-        identifierHash: hashIdentifier(oldPhone, this.hmacSecret, 'phone'),
-        performedBy: userId,
+    return this.withUserDatabaseContext(userId, actor, async () => {
+      const user = await this.db.db.query.users.findFirst({
+        where: eq(users.id, userId),
       });
-    }
+      if (!user) throw new NotFoundException('User not found');
 
-    return { success: true };
+      // Cannot remove last auth method
+      if (!user.email) {
+        throw new BadRequestException(
+          'Cannot remove phone: no email linked. At least one authentication method is required.',
+        );
+      }
+
+      const oldPhone = user.phone;
+      try {
+        const updated = await this.db.db
+          .update(users)
+          .set({ phone: null, updatedAt: new Date() })
+          .where(and(eq(users.id, userId), sql`${users.phone} IS NOT DISTINCT FROM ${user.phone}`));
+        if (((updated as any)['rowCount'] ?? 0) === 0) {
+          throw new ConflictException('LINK_CONFLICT_RETRY');
+        }
+      } catch (err) {
+        throw this.translateIdentifierConstraintError(err, 'PHONE_ALREADY_IN_USE');
+      }
+
+      // Audit log
+      if (oldPhone) {
+        await this.db.db.insert(accountLinkLog).values({
+          userId,
+          action: 'UNLINK',
+          identifierType: 'PHONE',
+          identifierHash: hashIdentifier(oldPhone, this.hmacSecret, 'phone'),
+          performedBy: userId,
+        });
+      }
+
+      return { success: true };
+    });
   }
+
 
   // ── Helpers ────────────────────────────────────────────────
 

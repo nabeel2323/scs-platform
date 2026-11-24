@@ -26,6 +26,7 @@ import crypto from 'node:crypto';
 process.env['OTP_HMAC_SECRET'] = 'test-hmac-secret-for-unit-tests-only-32chars-min!!';
 
 const FIXED_OTP = '123456';
+const ACTOR = { role: 'BUYER', activeOrg: null };
 
 /**
  * Pin the generated OTP so `requestEmailOtp` writes a challenge this test can
@@ -64,6 +65,7 @@ function mockDbWithUsers(userStore: Map<string, any>, insertLog: any[] = [], opt
     return undefined;
   };
   const db = {
+    withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()),
     db: {
       query: {
         users: {
@@ -107,6 +109,31 @@ function writtenValues(db: any): any {
   const chain = db.db.update.mock.results[0]?.value;
   return chain?.set?.mock?.calls?.[0]?.[0];
 }
+
+
+describe('G-002 authenticated identity actor context', () => {
+  it('runs account identity reads and writes inside the verified user scope', async () => {
+    const account = makeUser({ phone: '+966500000000', email: 'user@example.com' });
+    const db = mockDbWithUsers(new Map([['user-1', account]]));
+    const service = new IdentityService(
+      db as any, {} as any, mockJwt() as any, mockRateLimitService() as any,
+      mockAuditService() as any, mockOtpDeliveryService() as any, mockProviderRegistry() as any,
+    );
+
+    await service.unlinkEmailFromAccount('user-1', ACTOR);
+
+    expect(db.withActorContext).toHaveBeenCalledWith(
+      {
+        actorKind: 'user',
+        actorId: 'user-1',
+        actorRole: 'BUYER',
+        activeOrgId: null,
+      },
+      expect.any(Function),
+    );
+  });
+});
+
 
 function mockJwt() {
   return { sign: vi.fn().mockReturnValue('mock-jwt-token') };
@@ -194,7 +221,7 @@ describe('Account Linking', () => {
       pinOtp();
       await service.requestEmailOtp('NewEmail@Example.COM');
 
-      const result = await service.linkEmailToAccount('user-1', 'NewEmail@Example.COM', FIXED_OTP);
+      const result = await service.linkEmailToAccount('user-1', 'NewEmail@Example.COM', FIXED_OTP, ACTOR);
       expect(result.success).toBe(true);
       expect(db.db.update).toHaveBeenCalled();
     });
@@ -214,7 +241,7 @@ describe('Account Linking', () => {
       await service.requestEmailOtp('taken@example.com');
 
       await expect(
-        service.linkEmailToAccount('user-1', 'taken@example.com', FIXED_OTP),
+        service.linkEmailToAccount('user-1', 'taken@example.com', FIXED_OTP, ACTOR),
       ).rejects.toThrow(ConflictException);
       // The conflict must not be written off as an audit LINK entry.
       expect(insertLog).toHaveLength(0);
@@ -233,7 +260,7 @@ describe('Account Linking', () => {
       pinOtp();
       await service.requestEmailOtp('user@example.com');
 
-      await service.linkEmailToAccount('user-1', '  USER@EXAMPLE.COM  ', FIXED_OTP);
+      await service.linkEmailToAccount('user-1', '  USER@EXAMPLE.COM  ', FIXED_OTP, ACTOR);
 
       expect(writtenValues(db).email).toBe('user@example.com');
     });
@@ -249,7 +276,7 @@ describe('Account Linking', () => {
       );
 
       await expect(
-        service.linkEmailToAccount('user-1', 'victim@example.com', '123456'),
+        service.linkEmailToAccount('user-1', 'victim@example.com', '123456', ACTOR),
       ).rejects.toThrow(UnauthorizedException);
       // Proof of control is checked before any read or write of the account.
       expect(db.db.query.users.findFirst).not.toHaveBeenCalled();
@@ -270,7 +297,7 @@ describe('Account Linking', () => {
       await service.requestEmailOtp('attacker@example.com');
 
       await expect(
-        service.linkEmailToAccount('user-1', 'attacker@example.com', '654321'),
+        service.linkEmailToAccount('user-1', 'attacker@example.com', '654321', ACTOR),
       ).rejects.toThrow(UnauthorizedException);
       expect(db.db.update).not.toHaveBeenCalled();
     });
@@ -290,10 +317,10 @@ describe('Account Linking', () => {
       await service.requestEmailOtp('once@example.com');
 
       await expect(
-        service.linkEmailToAccount('user-1', 'once@example.com', FIXED_OTP),
+        service.linkEmailToAccount('user-1', 'once@example.com', FIXED_OTP, ACTOR),
       ).resolves.toEqual({ success: true });
       await expect(
-        service.linkEmailToAccount('user-1', 'once@example.com', FIXED_OTP),
+        service.linkEmailToAccount('user-1', 'once@example.com', FIXED_OTP, ACTOR),
       ).rejects.toThrow(UnauthorizedException);
       // Only the first attempt wrote an identifier.
       expect(db.db.update).toHaveBeenCalledTimes(1);
@@ -310,7 +337,7 @@ describe('Account Linking', () => {
       await service.requestEmailOtp('ghost@example.com');
 
       await expect(
-        service.linkEmailToAccount('missing-user', 'ghost@example.com', FIXED_OTP),
+        service.linkEmailToAccount('missing-user', 'ghost@example.com', FIXED_OTP, ACTOR),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -329,7 +356,7 @@ describe('Account Linking', () => {
       await service.requestEmailOtp('raced@example.com');
 
       await expect(
-        service.linkEmailToAccount('user-1', 'raced@example.com', FIXED_OTP),
+        service.linkEmailToAccount('user-1', 'raced@example.com', FIXED_OTP, ACTOR),
       ).rejects.toThrow(ConflictException);
       expect(insertLog).toHaveLength(0);
     });
@@ -349,7 +376,7 @@ describe('Account Linking', () => {
       await service.requestEmailOtp('taken@example.com');
 
       await expect(
-        service.linkEmailToAccount('user-1', 'taken@example.com', FIXED_OTP),
+        service.linkEmailToAccount('user-1', 'taken@example.com', FIXED_OTP, ACTOR),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -367,7 +394,7 @@ describe('Account Linking', () => {
       await service.requestEmailOtp('same@example.com');
 
       await expect(
-        service.linkEmailToAccount('user-1', 'same@example.com', FIXED_OTP),
+        service.linkEmailToAccount('user-1', 'same@example.com', FIXED_OTP, ACTOR),
       ).resolves.toEqual({ success: true });
       expect(db.db.update).not.toHaveBeenCalled();
     });
@@ -389,7 +416,7 @@ describe('Account Linking', () => {
       pinOtp();
       await service.requestOtp('+966500000000');
 
-      const result = await service.linkPhoneToAccount('user-1', '+966500000000', FIXED_OTP);
+      const result = await service.linkPhoneToAccount('user-1', '+966500000000', FIXED_OTP, ACTOR);
       expect(result.success).toBe(true);
     });
 
@@ -404,7 +431,7 @@ describe('Account Linking', () => {
       );
 
       await expect(
-        service.linkPhoneToAccount('user-1', '+966500000000', '123456'),
+        service.linkPhoneToAccount('user-1', '+966500000000', '123456', ACTOR),
       ).rejects.toThrow(UnauthorizedException);
       // Proof of control is checked before any read or write of the account, so a
       // caller cannot even learn whether the number is already taken.
@@ -426,7 +453,7 @@ describe('Account Linking', () => {
       await service.requestOtp('+966500000000');
 
       await expect(
-        service.linkPhoneToAccount('user-1', '+966500000000', '654321'),
+        service.linkPhoneToAccount('user-1', '+966500000000', '654321', ACTOR),
       ).rejects.toThrow(UnauthorizedException);
       expect(db.db.update).not.toHaveBeenCalled();
     });
@@ -445,10 +472,10 @@ describe('Account Linking', () => {
       await service.requestOtp('+966500000000');
 
       await expect(
-        service.linkPhoneToAccount('user-1', '+966500000000', FIXED_OTP),
+        service.linkPhoneToAccount('user-1', '+966500000000', FIXED_OTP, ACTOR),
       ).resolves.toEqual({ success: true });
       await expect(
-        service.linkPhoneToAccount('user-1', '+966500000000', FIXED_OTP),
+        service.linkPhoneToAccount('user-1', '+966500000000', FIXED_OTP, ACTOR),
       ).rejects.toThrow(UnauthorizedException);
       expect(db.db.update).toHaveBeenCalledTimes(1);
     });
@@ -469,7 +496,7 @@ describe('Account Linking', () => {
       // otherwise the proof of control would not match the identifier written.
       await service.requestOtp('+966 51 234 5678');
 
-      await service.linkPhoneToAccount('user-1', '+966512345678', FIXED_OTP);
+      await service.linkPhoneToAccount('user-1', '+966512345678', FIXED_OTP, ACTOR);
       expect(writtenValues(db).phone).toBe('+966512345678');
     });
 
@@ -487,7 +514,7 @@ describe('Account Linking', () => {
       await service.requestOtp('+966500000000');
 
       await expect(
-        service.linkPhoneToAccount('user-1', '+966500000000', FIXED_OTP),
+        service.linkPhoneToAccount('user-1', '+966500000000', FIXED_OTP, ACTOR),
       ).resolves.toEqual({ success: true });
       expect(db.db.update).not.toHaveBeenCalled();
       expect(insertLog).toHaveLength(0);
@@ -508,7 +535,7 @@ describe('Account Linking', () => {
       await service.requestOtp('+966599999999');
 
       await expect(
-        service.linkPhoneToAccount('user-1', '+966599999999', FIXED_OTP),
+        service.linkPhoneToAccount('user-1', '+966599999999', FIXED_OTP, ACTOR),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -527,7 +554,7 @@ describe('Account Linking', () => {
       await service.requestOtp('+966500000000');
 
       await expect(
-        service.linkPhoneToAccount('user-1', '+966500000000', FIXED_OTP),
+        service.linkPhoneToAccount('user-1', '+966500000000', FIXED_OTP, ACTOR),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -546,7 +573,7 @@ describe('Account Linking', () => {
       await service.requestOtp('+966500000000');
 
       await expect(
-        service.linkPhoneToAccount('user-1', '+966500000000', FIXED_OTP),
+        service.linkPhoneToAccount('user-1', '+966500000000', FIXED_OTP, ACTOR),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -562,7 +589,7 @@ describe('Account Linking', () => {
 
       pinOtp();
       await service.requestOtp('+966512349999');
-      await service.linkPhoneToAccount('user-1', '+966512349999', FIXED_OTP);
+      await service.linkPhoneToAccount('user-1', '+966512349999', FIXED_OTP, ACTOR);
 
       const linkEntry = insertLog.find((e) => e.action === 'LINK');
       expect(linkEntry).toBeDefined();
@@ -588,7 +615,7 @@ describe('Account Linking', () => {
         mockAuditService() as any, mockOtpDeliveryService() as any, mockProviderRegistry() as any,
       );
 
-      const result = await service.unlinkEmailFromAccount('user-1');
+      const result = await service.unlinkEmailFromAccount('user-1', ACTOR);
       expect(result.success).toBe(true);
     });
 
@@ -605,7 +632,7 @@ describe('Account Linking', () => {
       );
 
       await expect(
-        service.unlinkEmailFromAccount('user-1'),
+        service.unlinkEmailFromAccount('user-1', ACTOR),
       ).rejects.toThrow(BadRequestException);
       expect(db.db.update).not.toHaveBeenCalled();
     });
@@ -620,7 +647,7 @@ describe('Account Linking', () => {
       );
 
       await expect(
-        service.unlinkEmailFromAccount('nonexistent-user'),
+        service.unlinkEmailFromAccount('nonexistent-user', ACTOR),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -637,7 +664,7 @@ describe('Account Linking', () => {
       );
 
       await expect(
-        service.unlinkEmailFromAccount('user-1'),
+        service.unlinkEmailFromAccount('user-1', ACTOR),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -657,7 +684,7 @@ describe('Account Linking', () => {
         mockAuditService() as any, mockOtpDeliveryService() as any, mockProviderRegistry() as any,
       );
 
-      const result = await service.unlinkPhoneFromAccount('user-1');
+      const result = await service.unlinkPhoneFromAccount('user-1', ACTOR);
       expect(result.success).toBe(true);
     });
 
@@ -674,7 +701,7 @@ describe('Account Linking', () => {
       );
 
       await expect(
-        service.unlinkPhoneFromAccount('user-1'),
+        service.unlinkPhoneFromAccount('user-1', ACTOR),
       ).rejects.toThrow(BadRequestException);
       expect(db.db.update).not.toHaveBeenCalled();
     });
@@ -692,7 +719,7 @@ describe('Account Linking', () => {
       );
 
       await expect(
-        service.unlinkPhoneFromAccount('user-1'),
+        service.unlinkPhoneFromAccount('user-1', ACTOR),
       ).rejects.toThrow(ConflictException);
     });
   });
@@ -712,7 +739,7 @@ describe('Account Linking', () => {
 
       pinOtp();
       await service.requestEmailOtp('new@example.com');
-      await service.linkEmailToAccount('user-1', 'new@example.com', FIXED_OTP);
+      await service.linkEmailToAccount('user-1', 'new@example.com', FIXED_OTP, ACTOR);
 
       const linkEntry = insertLog.find((e) => e.action === 'LINK');
       expect(linkEntry).toBeDefined();
@@ -731,8 +758,8 @@ describe('Account Linking', () => {
         mockAuditService() as any, mockOtpDeliveryService() as any, mockProviderRegistry() as any,
       );
 
-      await service.unlinkEmailFromAccount('user-1');
-      await service.unlinkPhoneFromAccount('user-1');
+      await service.unlinkEmailFromAccount('user-1', ACTOR);
+      await service.unlinkPhoneFromAccount('user-1', ACTOR);
 
       expect(insertLog2.map((e) => e.identifierType)).toEqual(['EMAIL', 'PHONE']);
       expect(insertLog2.every((e) => /^v\d+:[a-f0-9]{64}$/.test(e.identifierHash))).toBe(true);

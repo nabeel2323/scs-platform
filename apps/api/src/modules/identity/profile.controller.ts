@@ -138,7 +138,13 @@ export class ProfileController {
     @Body() dto: SetupCredentialsDto,
     @Headers('x-device-id') deviceId?: string,
   ) {
-    return this.identityService.setupCredentials(user.sub, dto.email, dto.password, deviceId);
+    return this.identityService.setupCredentials(
+      user.sub,
+      dto.email,
+      dto.password,
+      { role: user.role, activeOrg: user.activeOrg },
+      deviceId,
+    );
   }
 
   /**
@@ -154,6 +160,7 @@ export class ProfileController {
       user.sub,
       dto.currentPassword,
       dto.newPassword,
+      { role: user.role, activeOrg: user.activeOrg },
       deviceId,
     );
   }
