@@ -364,8 +364,15 @@ export class AdminController {
 
   @Get('products/:id/media-previews')
   @RequirePermission('admin:merchants:read')
-  async productMediaPreviews(@Param('id', ParseUUIDPipe) id: string) {
-    return this.adminService.productMediaPreviews(id);
+  async productMediaPreviews(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.productMediaPreviews(id, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   // ── Admin Product CRUD (PHASE 4 P3) ─────────────────────────
@@ -378,14 +385,18 @@ export class AdminController {
   }
 
   @Patch('products/:id')
-  @UseInterceptors(TenantDatabaseContextInterceptor)
   @RequirePermission('catalog:products:write')
   async adminUpdateProduct(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() input: UpdateProductInput & { updatedAt?: string },
+    @CurrentUser() user: JwtPayload,
   ) {
     const { updatedAt: clientUpdatedAt, ...rest } = input;
-    return this.adminService.adminUpdateProduct(id, rest, clientUpdatedAt);
+    return this.adminService.adminUpdateProduct(id, rest, clientUpdatedAt, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Get('products/:id/attribute-values')
