@@ -79,13 +79,13 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 24 November 2026: repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, PR #138 OPEN / DRAFT / UNMERGED to `develop`. Latest source implementation checkpoint: `48b22ded255f514f4ccec55d58a604a1c41e7b8f`; this is followed by documentation commits. Always re-query branch HEAD before the next session.
+Live GitHub reconciliation on 24 November 2026: repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, branch/PR head `a286cd6b2c8d239e94a3a4d024c872e08fbbc3d4`. PR #138 is OPEN / DRAFT / UNMERGED to `develop`. Latest source implementation checkpoint before the documentation-only sync is `48b22ded255f514f4ccec55d58a604a1c41e7b8f`. Always re-query branch HEAD before the next session.
 
 The carrier credential/configuration actor-context and webhook changes are committed. The current continuation adds consistent local migration exclusions, advisory-lock/ledger rechecks, transaction-local system/bootstrap/audit principals for operator paths, staging verification target guards, atomic legacy verification runners, broader function/trigger/pg_partman audit output, and a seed mapping-count correction.
 
 The 75-file numbered migration source review found one application function (`public.normalize_arabic`, search_path pinned by migration 0070), no migration-defined triggers/policies/RLS/view/sequence/SECURITY DEFINER declarations, and the pg_partman analytics partition/retention setup. Migration 0013's pg_cron schedule remains commented out; no repository scheduler manifest was found. The read-only audit tool now reports partman retention config and pg_cron maintenance jobs if visible.
 
-**CI policy:** do not intentionally run tests or dispatch CI until implementation/integration is complete. Current exact-head CI/status must be re-queried after this documentation sync. Latest automatic run #1501 on the prior carrier source SHA failed API typecheck on optional caller.role; commit `4d3488d` corrected the type boundary but remains unverified. Vercel Web/Admin failures were external deployment rate limits, not application test results.
+**Exact-head CI/status:** Actions lookup on `a286cd6b2c8d239e94a3a4d024c872e08fbbc3d4` returned zero workflow runs. Vercel Web and Admin contexts both report FAILURE: “Deployment rate limited — retry in 24 hours.” These are preview-provider rate limits, not application test results. Do not intentionally run tests or dispatch CI until implementation/integration is complete. Latest automatic run #1501 on the prior carrier source SHA failed API typecheck on optional caller.role; commit `4d3488d` corrected the type boundary but remains unverified. Vercel Web/Admin failures were external deployment rate limits, not application test results.
 
 G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No database command, migration, seed, reset, bootstrap, audit query, RLS/grant/default-ACL change, worker activation, deployment or merge was performed.
 

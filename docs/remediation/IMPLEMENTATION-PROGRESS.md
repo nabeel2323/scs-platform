@@ -7,7 +7,7 @@
 **Repository:** `nabeel2323/scs-platform`
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`
 <!-- prettier-ignore -->
-**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; latest source checkpoint is `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f` (G-002 authenticated Identity/Profile DB-only actor-context adoption; focused regression tests added but not executed). FIN-004–FIN-047 safeguards/features remain IMPLEMENTED / TESTING_PENDING where their individual entries say so. G-002 remains IN PROGRESS / NOT VERIFIED: pre-authentication identity resolution, runtime identities, protected read-only catalog audit, exact FK/operation predicates and transaction-context evidence remain outstanding. No staging deployment, shared database mutation, migration, grant/default-ACL change, RLS enablement or worker activation is authorized or claimed.
+**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; current branch/PR head is `a286cd6b2c8d239e94a3a4d024c872e08fbbc3d4` (latest source implementation checkpoint `48b22ded255f514f4ccec55d58a604a1c41e7b8f`; documentation-only commits follow). G-002 remains IN PROGRESS / NOT VERIFIED: external pg_partman maintenance schedule, actual API/migration identities, protected read-only catalog audit, exact FK/operation predicates and transaction-context evidence remain outstanding. Exact-head Actions has zero runs; Vercel Web/Admin are rate-limited preview failures. No staging deployment, shared database mutation, migration, grant/default-ACL change, RLS enablement or worker activation is authorized or claimed.
 
 ---
 

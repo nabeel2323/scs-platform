@@ -1974,3 +1974,12 @@ The 75-file migration source audit found the normalize_arabic function in migrat
 Implemented source corrections: local migration exclusions shared between migrate.ts and DatabaseService; advisory-lock/ledger rechecks; system/bootstrap/audit transaction-local principals for seed/bootstrap/audit tools; staging target confirmation and scoped read-only diagnostic; guarded/atomic legacy verification scripts; seed mapping-count double-count correction.
 
 No test, CI, database, migration, seed, reset, bootstrap or audit command was run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Next: prove external partman maintenance schedule and actual API/migration roles via authorized read-only staging, finish FK/ownership evidence, then consolidated verification after implementation completes.
+
+
+## 24 November 2026 — G-002 migration/operator continuation and exact-head status
+
+Source implementation checkpoint: `48b22ded255f514f4ccec55d58a604a1c41e7b8f`. Current branch/PR head after documentation sync: `a286cd6b2c8d239e94a3a4d024c872e08fbbc3d4`. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`.
+
+Completed source work: shared pg_partman development migration exclusions; advisory-lock and ledger rechecks; transaction-local system/bootstrap/audit actor contexts; staging bootstrap target guards; guarded atomic legacy verification runners; extended read-only function/trigger/partman/cron audit; RBAC seed mapping count correction. Detailed handoff: `docs/remediation/G-002-MIGRATION-OBJECT-AND-OPERATOR-ACCESS-AUDIT-2026-11-24.md`.
+
+Exact-head Actions lookup: zero runs. Vercel Web/Admin: FAILURE due to deployment rate limit (“retry in 24 hours”), not application tests. No tests, formatter, lint, typecheck, E6 or CI were intentionally run. No database/migration/seed/reset/bootstrap/audit operation was executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Next: confirm external pg_partman maintenance scheduling and actual runtime roles through authorized read-only staging, finish ownership/FK evidence and actor-context nesting review, then consolidated verification after implementation completion.

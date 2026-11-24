@@ -3,9 +3,10 @@
 **Live reconciliation:** 24 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — OPEN / DRAFT / UNMERGED.  
 **Branch:** `remediation/phase-0-1-tenant-security`.  
-**Latest implementation checkpoint:** `ff8e4aebee01631023fad76eec9a8d98c254108b` (Orders cancellation actor-context formatting follow-up); latest documentation checkpoint before this status sync `2cff7c0f6604d6918b00efb190abd96d301149e1`.  
-**Exact-head GitHub Actions:** zero workflow runs; source commits use `[skip ci]`.  
-**Last exact-head check before this documentation sync:** on `a18c705616c5b698219377e5f7119a4fcc50a8c0`, GitHub Actions returned zero workflow runs; Vercel Web was PENDING and Vercel Admin was FAILURE. These are preview statuses, not application-test evidence.
+**Latest source implementation checkpoint:** `48b22ded255f514f4ccec55d58a604a1c41e7b8f`.  
+**Current branch/PR head:** `a286cd6b2c8d239e94a3a4d024c872e08fbbc3d4` (documentation-only checkpoint).  
+**Exact-head GitHub Actions:** zero workflow runs; source/documentation commits use `[skip ci]`.  
+**Exact-head Vercel:** Web and Admin FAILURE — “Deployment rate limited — retry in 24 hours.” These are preview-provider statuses, not application-test evidence.
 
 ## Standing implementation-first instruction
 
@@ -264,3 +265,8 @@ Source checkpoint before documentation sync: `48b22ded255f514f4ccec55d58a604a1c4
 Changes include shared local migration exclusions for 0013/0018, advisory-lock/ledger rechecks, transaction-local system/bootstrap/audit principals, staging bootstrap guards, guarded atomic legacy verification runners, full non-system function/trigger inventory and partman/cron maintenance reporting, and correction of the RBAC seed mapping total.
 
 No tests or CI were intentionally run. Exact-head Actions must be checked after the docs commit. The prior automatic #1501 typecheck failure on nullable caller.role was corrected by 4d3488d but not re-run. Vercel preview-provider rate-limit failures are not application test results. PR #138 remains OPEN / DRAFT / UNMERGED. No database operation, migration, staging/shared access, RLS/grant change, deployment, worker activation or merge occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — exact current branch/PR checkpoint
+
+Branch `remediation/phase-0-1-tenant-security` and PR #138 both point to `a286cd6b2c8d239e94a3a4d024c872e08fbbc3d4`; PR remains OPEN / DRAFT / UNMERGED to `develop`. Exact-head Actions lookup returned zero workflow runs. Vercel Web/Admin both report “Deployment rate limited — retry in 24 hours.” No tests, formatter, lint, typecheck, E6 or CI workflow were intentionally executed. Earlier automatic run #1501 failed API typecheck on nullable caller.role; commit `4d3488d` corrected that source issue but has not been re-run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
