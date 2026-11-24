@@ -2780,3 +2780,22 @@ Source review found that independent foreign keys did not enforce several financ
 The schema/migration relationship evidence and remaining unverified cross-column paths are recorded in [G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md](./G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md). Regression cases are specified there; no tests, formatter, lint, typecheck, E6 or manual CI dispatch was intentionally run. A GitHub Actions run was automatically queued by the source commits (run #1503, ID 45434170778) and was IN_PROGRESS at the time of reconciliation; this was not an intentional verification dispatch and no pass is claimed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No migration, RLS, grant, shared database, staging, deployment, worker activation, merge or release action occurred.
 
 **Next:** continue the exact source callsite/ownership matrix for driver/store assignments and reconciliation run/discrepancy organization inheritance; then reconcile all remaining cross-column financial and shipping relationships with the Drizzle declarations and migration FK evidence. Protected live catalog and runtime identity evidence remain gated on the authorized read-only staging process.
+
+
+## G-002 — financial cross-column ownership hardening — 24 November 2026
+
+**Source commits:** `01b6e6c729c1a458f20aaeaed043df4c569119e4` (settlement adjustments) and `fa2547997c4b4dad490b582f92c9a69b8c01ed8f` (commission reversals).
+
+Source review found that independent foreign keys did not enforce several financial owner relationships. The implementation now:
+
+- Derives settlement-adjustment `org_id` from the sub-order → store → organization path even when a caller supplies an organization; a mismatching supplied organization is rejected.
+- Rejects an optional settlement-adjustment return reference unless that return belongs to the same sub-order.
+- Before posting an adjustment, verifies that the primary settlement's payment record belongs to the adjustment sub-order, in addition to the existing settlement-store/sub-order store equality check.
+- Requires a return's payment record to belong to its sub-order before commission reversal.
+- Constrains return-item order lines to the same sub-order and fails closed if a referenced item is not found within that order.
+- Derives commission-reversal organization from the return sub-order's store and rejects a mismatching caller-supplied organization.
+- Selects a commission-reversal settlement only when sub-order, payment record and merchant store all match, excluding ADJUSTMENT ledger rows.
+
+The schema/migration relationship evidence and remaining unverified cross-column paths are recorded in [G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md](./G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md). Regression cases are specified there; no tests, formatter, lint, typecheck, E6 or manual CI dispatch was intentionally run. A GitHub Actions run was automatically queued by the source commits (run #1503, ID 45434170778) and was IN_PROGRESS at the time of reconciliation; this was not an intentional verification dispatch and no pass is claimed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No migration, RLS, grant, shared database, staging, deployment, worker activation, merge or release action occurred.
+
+**Next:** continue the exact source callsite/ownership matrix for driver/store assignments and reconciliation run/discrepancy organization inheritance; then reconcile all remaining cross-column financial and shipping relationships with the Drizzle declarations and migration FK evidence. Protected live catalog and runtime identity evidence remain gated on the authorized read-only staging process.
