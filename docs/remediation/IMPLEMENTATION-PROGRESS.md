@@ -2375,3 +2375,14 @@ No migration, database grant/default-ACL change, RLS enablement, shared/staging 
 - No shared database, Supabase grants/RLS, migration, Render configuration, staging, external carrier, SMS/OTP, deployment, or worker activation action occurred.
 
 **Next:** run formatting and focused API typecheck/unit suites plus E6 boundary lint for this commit, then continue the remaining implementation-first gaps. Keep the full regression/migration campaign grouped at the planned Phase 3 checkpoint; do not merge or deploy PR #138.
+
+
+## G-002 transaction-bound actor context — scoped implementation checkpoint — 24 November 2026
+
+Implemented the opt-in DatabaseService actor-context foundation with typed user/anonymous/worker/system/bootstrap/audit principals, parameterized transaction-local PostgreSQL GUCs, AsyncLocalStorage-backed Drizzle routing, same-actor nested reuse and an expired-scope fence that rejects detached work after transaction completion.
+
+Added explicit controller/method-scoped adoption to bounded JWT-protected paths: Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Admin/Catalog reads, Cart, Returns and Organizations/Roles. The interceptor is not global. Promotion merchant operations additionally carry the authenticated caller and enforce store/org membership; foreign promotion detail denial is normalized to not-found.
+
+**Status:** IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Auth/Profile, file/import/upload, main Orders/Payments, carrier/shipping, bootstrap, deferred audit writes, workers/schedulers, realtime sockets, CLI and migration paths remain outside the adoption pending explicit context design. Live runtime identity evidence, protected read-only catalog inventory, complete operation predicates and independent review remain outstanding.
+
+No tests, formatting, lint, typecheck, E6 or CI were run, per the implementation-first instruction. No RLS, shared database changes, migration, staging action, deployment or worker activation occurred.
