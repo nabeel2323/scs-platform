@@ -241,7 +241,7 @@ export class PilotControlService {
       detail: { key: P13_PILOT_FLAG_KEY, enabled, mode: this.mode, actorId: caller.sub },
     });
 
-    this.logger.warn(`Pilot flag ${P13_PILOT_FLAG_KEY} -> ${enabled} by ${actorId ?? 'system'}`);
+    this.logger.warn(`Pilot flag ${P13_PILOT_FLAG_KEY} -> ${enabled} by ${caller.sub}`);
   }
 
   async addAllowlistEntry(input: {
