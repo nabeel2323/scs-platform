@@ -542,3 +542,7 @@ Catalog Import processing and error-report reads now use explicit caller-bound d
 Regression coverage added for process orchestration phases, chunk transaction actor scope, error-report reads and controller interceptor exclusions. Tests are authored but unexecuted; no formatter/lint/typecheck/E6/CI. No background worker was added or activated. G-002 remains IN_PROGRESS / NOT VERIFIED; no shared/staging DB, RLS, grants, migration, deployment, merge or release action occurred.
 
 P13 correction: inspection of the complete P13MonitorService confirms every direct diagnostic SQL read already uses withMonitorActor; no P13 source change was needed. The earlier observation that the helper was unused was incorrect.
+
+## 25 November 2026 — dormant import recovery actor scope
+
+CatalogService.recoverStaleJobs now runs its stale-job query and job/chunk state updates under workerId catalog-import-recovery. The method remains dormant: no worker registration, scheduler or activation was added. A regression spec covers its dedicated worker principal. No tests or quality gates were run; G-002 remains IN_PROGRESS / NOT VERIFIED.
