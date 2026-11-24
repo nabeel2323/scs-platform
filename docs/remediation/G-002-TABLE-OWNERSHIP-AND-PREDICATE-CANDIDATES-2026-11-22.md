@@ -175,3 +175,7 @@ The Catalog source now has additional operation-specific predicates, without cha
 - Public facet values are derived only from published product types in active platform categories and ACTIVE/non-deleted products.
 
 These are source-level changes and regression specs only. They do not prove deployed constraints, existing row consistency, or the protected live catalog. The required live 114-versus-116 table discrepancy, FK reconciliation, full operation/caller inventory, role identity and migration/operator evidence remain open. No database/RLS/grant/migration/deployment action occurred.
+
+## 25 November 2026 — Profile user-owned records follow-up
+
+Favorites and saved-supplier service operations now enforce user ownership on every read/write (userId must equal the verified actor subject, and mutations include the userId plus product/store key). Favorite product reads/adds use product-read authorization; saved supplier references resolve only ACTIVE/VERIFIED public stores and return a restricted projection. This is source/test evidence only; deployed row consistency and live RLS/ownership proof remain open.
