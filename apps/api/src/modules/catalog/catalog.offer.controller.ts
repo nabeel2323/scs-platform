@@ -7,6 +7,7 @@ import {
   Body,
   Query,
   UseGuards,
+  UseInterceptors,
   ParseUUIDPipe,
   ForbiddenException,
 } from '@nestjs/common';
@@ -23,6 +24,7 @@ import {
   RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import { DatabaseService } from '../../common/database/database.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import {
   assertStoreInOrg,
   assertStoreMember,
@@ -46,6 +48,7 @@ import {
  */
 @Controller()
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class CatalogOfferController {
   constructor(
     private readonly offerService: CatalogOfferService,

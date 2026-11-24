@@ -14,6 +14,7 @@ import { ImportValidationService } from './import-validation.service';
 import { ProductGovernanceService } from './product-governance.service';
 import { CatalogPricingLookupService } from './catalog-pricing-lookup.service';
 import { CatalogReviewLookupService } from './catalog-review-lookup.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { AuditModule } from '../audit/index';
 
 @Module({
@@ -36,6 +37,7 @@ import { AuditModule } from '../audit/index';
     ProductGovernanceService,
     CatalogPricingLookupService,
     CatalogReviewLookupService,
+    TenantDatabaseContextInterceptor,
   ],
   exports: [
     CatalogService,
