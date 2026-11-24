@@ -3,7 +3,7 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source checkpoint:** `b939a335a5bc126241131ab48bb03c9ed3cfaea6` — pre-auth principal and post-proof OTP/password/session DB actor-context adoption plus focused test authoring. Previous authenticated Identity/Profile adoption: `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`.  
+**Latest source checkpoint:** `7f56e5185cf1a7c7b6954845ca9151aac83c5ac6` — operation-scoped authentication and post-proof session phases plus eight bounded Payments GET actor contexts. Previous Identity checkpoint: `b939a335a5bc126241131ab48bb03c9ed3cfaea6`.  
 **Latest test-only follow-up:** `c8405a33388731095ef08b64d744a36d7b079cd3` — corrected the Drizzle update-query mock used by the credential actor-context spec.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop` (`f74eb588cc58fc99b105e749d39dbfbacb4f9775`).  
 **Exact-head GitHub Actions:** zero workflow runs; source commits intentionally include `[skip ci]`.  
@@ -41,7 +41,7 @@ Orders reject/cancel and actual checkout remain excluded where payment/refund/pr
 
 ## Remaining implementation priorities
 
-1. Finish remaining authenticated device/session endpoints: device credential list/revoke, session list and revoke-by-device under verified user actor contexts. Audit remaining Profile/Auth controller call sites. OTP/password login, refresh and logout DB phases are now bounded.
+1. Continue Payments/Orders method-level review: identify DB-only payment mutations that can be separated from provider/refund side effects; keep proof uploads, payment-provider, refund and settlement external operations outside transactions. Eight bounded Payments GET routes now use the user actor. Then separate Merchant document metadata from object-storage I/O.
 2. Complete remaining safe Orders/Payments read and mutation coverage while excluding external payment/refund phases from DB transactions.
 3. Complete Merchant document metadata paths only after separating storage I/O from DB-only registration.
 4. Finish the G-002 physical table/operation/ownership matrix and reconcile the 114/116 relation inventory.
@@ -76,3 +76,11 @@ Source commits: `5a6eba900eabe021352a0f7f3307bddaeb2d6333` and `b939a335a5bc1262
 - OTP Redis, rate limits, bcrypt, provider delivery, external audit side effects and JWT signing remain outside database actor transactions.
 
 New DatabaseService auth-context coverage and existing OTP/password/refresh regression fixtures were added/updated but not executed. No RLS/grant/migration/database/deployment action occurred.
+
+## Payments bounded read-route actor context — 24 November 2026
+
+Source commit: `7f56e5185cf1a7c7b6954845ca9151aac83c5ac6`.
+
+Added `TenantDatabaseContextInterceptor` to eight JWT-protected, database-only GET handlers in PaymentsController: buyer payment detail (including order ownership, payment events and refunds), admin requested-refund queue, payment list, verification queue, stale payments, settlement list, merchant payment list and merchant settlement list. The existing service-layer object/tenant authorization and permission guards remain in place. No payment/refund/provider mutation route, file upload route or storage operation was wrapped. Added a controller metadata regression test for the interceptor allowlist; it has not been run.
+
+This is method-scoped transaction context only. It does not enable RLS or change grants.

@@ -2451,3 +2451,11 @@ Post-proof DB operations remain open: OTP account creation, claims reads, sessio
 ## G-002 identity/session post-proof DB actor contexts — 24 November 2026
 
 Source commits `5a6eba900eabe021352a0f7f3307bddaeb2d6333` and `b939a335a5bc126241131ab48bb03c9ed3cfaea6` add bounded actor contexts for OTP/password login and refresh/logout. Tests were added/updated but not run. No formatter, lint, typecheck, E6 or CI run. G-002 remains IN PROGRESS / NOT VERIFIED; no RLS/grant/migration/database/deployment action.
+
+## Payments bounded read-route actor context — 24 November 2026
+
+Source commit: `7f56e5185cf1a7c7b6954845ca9151aac83c5ac6`.
+
+Added `TenantDatabaseContextInterceptor` to eight JWT-protected, database-only GET handlers in PaymentsController: buyer payment detail (including order ownership, payment events and refunds), admin requested-refund queue, payment list, verification queue, stale payments, settlement list, merchant payment list and merchant settlement list. The existing service-layer object/tenant authorization and permission guards remain in place. No payment/refund/provider mutation route, file upload route or storage operation was wrapped. Added a controller metadata regression test for the interceptor allowlist; it has not been run.
+
+This is method-scoped transaction context only. It does not enable RLS or change grants.

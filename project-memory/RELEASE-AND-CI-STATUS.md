@@ -38,3 +38,7 @@ Test-only commit `c8405a33388731095ef08b64d744a36d7b079cd3` corrected the creden
 ## 24 November 2026 — pre-authentication actor source update
 
 Source commit `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f` adds an operation-scoped authentication actor and applies it to initial OTP/password account lookups and refresh/logout session lookups. This commit includes `[skip ci]`; no tests or Actions workflows were run. The authentication actor is not a grant or RLS policy. Post-proof session/device-credential DB phases remain unfinished.
+
+## 24 November 2026 — Payments read-route context source update
+
+Commit `7f56e5185cf1a7c7b6954845ca9151aac83c5ac6` adds the user actor interceptor to eight bounded Payments GET handlers. A controller metadata test was added but not executed. No payment/refund/provider/upload mutation, RLS, grant, migration, database, staging, deployment, worker, merge or release action occurred.

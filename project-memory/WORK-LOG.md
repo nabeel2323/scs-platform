@@ -1712,3 +1712,11 @@ Source commits `5a6eba900eabe021352a0f7f3307bddaeb2d6333` and `b939a335a5bc12624
 - OTP Redis, rate limits, bcrypt, provider delivery, external audit side effects and JWT signing remain outside database actor transactions.
 
 Added `database-authentication-context.spec.ts`; updated OTP lifecycle, OTP concurrency/security, email enumeration and identity N+1 test fixtures. No tests, formatter, lint, typecheck, E6 or CI were run. No RLS/grant/migration/staging/deployment/worker/merge/release action occurred.
+
+## Payments bounded read-route actor context — 24 November 2026
+
+Source commit: `7f56e5185cf1a7c7b6954845ca9151aac83c5ac6`.
+
+Added `TenantDatabaseContextInterceptor` to eight JWT-protected, database-only GET handlers in PaymentsController: buyer payment detail (including order ownership, payment events and refunds), admin requested-refund queue, payment list, verification queue, stale payments, settlement list, merchant payment list and merchant settlement list. The existing service-layer object/tenant authorization and permission guards remain in place. No payment/refund/provider mutation route, file upload route or storage operation was wrapped. Added a controller metadata regression test for the interceptor allowlist; it has not been run.
+
+This is method-scoped transaction context only. It does not enable RLS or change grants.

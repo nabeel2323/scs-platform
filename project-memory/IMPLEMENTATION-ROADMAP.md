@@ -754,3 +754,9 @@ Source commit `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f` adds a narrowly typed a
 OTP/password login and refresh/logout now have bounded pre-auth and post-proof DB phases. User actor contexts cover session/device credential persistence, trusted-device validation, refresh rotation/reuse and logout revocation. Refresh rotation uses an owner-bound conditional revoke and replacement insert in one transaction.
 
 **Next implementation:** authenticated device/session endpoints (credential list/revoke, session list, revoke-by-device), then remaining safe Orders/Payments and Merchant metadata slices. No test execution until implementation/integration is complete.
+
+## G-002 Payments read routes — 24 November 2026
+
+Eight bounded Payments GET handlers now execute under the verified JWT user actor: payment detail, requested refunds, payments list, verification queue, stale payments, settlements list, merchant payments and merchant settlements. The change is method-scoped and retains existing service authorization. No payment/refund/provider/upload mutation was wrapped.
+
+**Next:** inspect payment write methods for separable DB-only portions, then Merchant document metadata/storage boundaries and remaining Orders lifecycle operations. Tests remain deferred.
