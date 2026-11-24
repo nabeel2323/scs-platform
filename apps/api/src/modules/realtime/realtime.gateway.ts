@@ -175,9 +175,13 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
         if (scope === 'user') {
           allowed = id === caller.sub;
         } else if (scope === 'org') {
-          allowed = await this.canJoinStoreRoom(client, caller, id);
+          allowed = await this.withSocketActor(caller, () =>
+            this.canJoinStoreRoom(client, caller, id),
+          );
         } else if (scope === 'order') {
-          allowed = await this.canJoinOrderRoom(client, caller, id);
+          allowed = await this.withSocketActor(caller, () =>
+            this.canJoinOrderRoom(client, caller, id),
+          );
         }
       } catch {
         // Fail closed without disclosing whether a foreign room exists.
@@ -194,6 +198,18 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       this.logger.debug(`Client ${client.id} joined room ${room}`);
     }
     return { event: 'joined', data: { rooms: joined } };
+  }
+
+  private withSocketActor<T>(caller: CallerContext, operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: caller.sub,
+        actorRole: caller.role ?? 'UNKNOWN',
+        activeOrgId: caller.activeOrg,
+      },
+      operation,
+    );
   }
 
   private callerFromSocket(client: Socket): CallerContext | null {
