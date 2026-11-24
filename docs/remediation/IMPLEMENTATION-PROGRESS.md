@@ -2958,3 +2958,7 @@ CatalogService.recoverStaleJobs now uses the dedicated worker principal catalog-
 ## 25 November 2026 — Catalog product detail/media read boundaries
 
 The product detail and media list routes are now split into short actor-scoped DB phases and external I/O phases. Controller authorization checks use verified-user actor contexts. getProductDetail requires the caller and scopes all product/store/media-row/variant/pricing/stock/attribute reads; Redis cache reads/writes and storage URL signing happen outside. listMediaByProduct scopes its media-row query and resolves storage URLs after the scope closes. Both handlers intentionally remain outside TenantDatabaseContextInterceptor. Added service and controller regression specs; tests remain unexecuted. No quality gates/CI; G-002 remains IN_PROGRESS / NOT VERIFIED.
+
+## 25 November 2026 — Search Facets cache/DB boundary
+
+The Redis-backed Search Facets route now avoids a request-wide database actor transaction. Controller forwards the verified caller; SearchService.getFacetsCached scopes only the facet DB query while Redis get/set stays outside. Regression tests cover missing actor and Redis-vs-DB scope boundaries; controller metadata test covers interceptor exclusion. Tests remain unexecuted. No quality gates/CI; G-002 remains IN_PROGRESS / NOT VERIFIED.
