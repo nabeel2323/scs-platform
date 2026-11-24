@@ -1340,3 +1340,9 @@ Product detail and media-list reads now scope authorization and database access 
 ## 25 November 2026 — Search Facets mixed cache path
 
 The Redis-backed Search Facets route now has a short actor scope for DB reads and external Redis cache I/O outside. Tests are authored but unexecuted. Continue review of remaining Search/Catalog mixed routes and root-pool DB paths.
+
+## 25 November 2026 — Catalog ownership pass status
+
+The latest source pass closes several specific ownership gaps: store category discovery now checks membership; product/category and product-type/category references are scoped to active global or same-store taxonomy; public type/facet reads exclude unpublished and legacy tenant-bound data; product writes repeat store/deleted predicates; media deletes bind parent product; offer lifecycle/pricing writes use CAS predicates; request review locks and transitions only pending rows. Tests are authored but unexecuted.
+
+Do not mark Catalog or G-002 complete. Remaining: exhaustive Catalog service/root-pool and cross-module callsite inventory; verify every route/service/worker/bootstrap/CLI caller's actor class; complete all table/operation ownership predicates and FK cross-column reconciliation; protected live catalog and actual API/migration role evidence; pg_partman/operator scheduling evidence. No live DB/RLS/grant/migration/deployment action is authorized.
