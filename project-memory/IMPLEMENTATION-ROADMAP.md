@@ -944,3 +944,10 @@ G-002 remains NOT VERIFIED. Next source review: driver/store assignment org cons
 Commit `98843bfe455667f7a96d7cbdd6dfb2253ce2af0f` hardens the reconciliation run/discrepancy parent-scope invariant: non-null org must exist, child discrepancies must match the parent run org on reads, and resolution validates the parent scope. The driver assignment schema still has separate profile-org and store FKs without a same-org constraint; the inspected ShippingModule/ShipmentOperationsController has no assignment mutation path, and shipment assignedDriverId references users. No speculative service or endpoint was introduced.
 
 G-002 remains NOT VERIFIED. Next: locate the actual driver assignment consumer/write path; finish shipping/financial cross-column ownership and Drizzle/migration FK reconciliation; then add regression specs before the deferred consolidated verification. Runtime identity, protected catalog, external scheduler and independent-review gates remain unchanged.
+
+
+## 24 November 2026 — refund and shipment ownership continuation
+
+Source commit `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d` closes refund/payment/order/currency checks for approval and idempotent replay. Commits `b1e5490401d9602205d46351ee4eaf1ab2db7d30`, `02edaa89d75b06e6c8a4170cc306662965d8fd30`, and `15d328c952dfd0805a9eee00374c6ad74ed1d6a1` enforce shipment/order/store consistency at creation, shipment detail authorization and carrier processing. The migration FK crosswalk and progress tracker record the invariants and regression cases.
+
+G-002 remains NOT VERIFIED. Next: locate the actual driver/store assignment consumer/write path; continue remaining carrier/webhook/shipment cross-column review; reconcile Drizzle declarations against migration-defined FKs; then add regression specs and run the consolidated verification only after implementation/integration completion. Preserve all staging, DB, RLS/grant, migration, deployment, worker, merge and release gates.
