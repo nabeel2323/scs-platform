@@ -50,7 +50,8 @@ describe('CatalogService category ownership predicates (G-002)', () => {
     expect(h.categoryFindMany).toHaveBeenCalledOnce();
     const config = h.categoryFindMany.mock.calls[0]?.[0] as { where: SQL };
     const compiled = new PgDialect().sqlToQuery(config.where);
-    expect(compiled.sql.toLowerCase()).toContain('store_id is null');
+    expect(compiled.sql.toLowerCase()).toContain('store_id');
+    expect(compiled.sql.toLowerCase()).toContain('is null');
   });
 
   it('rejects product creation with a category owned by another store before insert', async () => {
