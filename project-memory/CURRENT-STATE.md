@@ -113,3 +113,8 @@ At PR HEAD `2cff7c0f6604d6918b00efb190abd96d301149e1`, PR #138 remained OPEN / D
 ## Orders cancellation actor-context continuation — 24 November 2026
 
 The dedicated cancelOrder database phases use a verified-user actor context. Payment cancellation is a DB-only status/event/outbox operation. The actor transaction commits before realtime emission; master-order recalculation and final read use a second context. Source commits: `55910f043360b5e89103fd1ccbe5be6085a14e78` and formatting follow-up `ff8e4aebee01631023fad76eec9a8d98c254108b`. Merchant rejection remains excluded because it invokes refund orchestration; checkout remains excluded pending full side-effect separation. Regression spec added, not executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## Latest source implementation continuation — 24 November 2026
+
+Latest implementation commit: 7e2b2509292cfbcfe6f1f12ebae8d2fad25f8cf1. Rejection inventory/status/history/outbox now share one actor-bound transaction; refund-request persistence is a separate stable-idempotency DB phase; master-order recalculation/read use a separate phase. Merchant document presign performs actor-scoped metadata/membership reads, external storage signing outside any DB transaction, and actor-scoped URL metadata persistence. Regression specs are added but not run. Tests/formatter/lint/typecheck/E6/CI remain deferred. PR #138 stays OPEN / DRAFT / UNMERGED; no protected DB, staging, RLS, migration, grants, deployment or worker actions.

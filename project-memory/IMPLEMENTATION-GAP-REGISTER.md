@@ -1087,3 +1087,18 @@ Regression metadata assertions were added but not executed. G-002 remains IMPLEM
 | Checkout | DEFERRED_BY_DECISION | Complete side-effect boundary review required |
 
 Regression coverage was added but not executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## G-002 — Orders rejection + Merchant document download-presign — 24 November 2026
+
+| Operation | Implementation state | Transaction boundary |
+| --- | --- | --- |
+| Merchant reject authorization/read + optional SUBMITTED auto-advance | IMPLEMENTED — verified merchant actor | DB-only; no request interceptor |
+| Inventory release + REJECTED status/history/outbox | IMPLEMENTED — one transaction | Stock settlement receives the same tx client; optimistic status predicate rejects concurrent transition |
+| Refund request row/event/outbox | IMPLEMENTED — separate DB-only actor phase | Stable reject-refund:<orderId> key; provider remains downstream of outbox worker |
+| Master-order recalculation/final read | IMPLEMENTED — separate short actor phase | Runs after rejection/refund phases commit |
+| Merchant/admin download presign metadata read + membership check | IMPLEMENTED — short actor phase | Ends before storage signing |
+| Object-storage URL signing | OUTSIDE actor transaction | No DB transaction remains open during storage I/O |
+| Signed URL metadata persistence | IMPLEMENTED — separate short actor phase | Starts after storage signing returns |
+
+Regression specs added but not executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

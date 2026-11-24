@@ -988,3 +988,8 @@ The live PR #138 HEAD at this checkpoint is `2cff7c0f6604d6918b00efb190abd96d301
 ## Latest implementation continuation — 24 November 2026
 
 Latest source implementation checkpoint: `ff8e4aebee01631023fad76eec9a8d98c254108b` (formatting follow-up to `55910f043360b5e89103fd1ccbe5be6085a14e78`). The Orders cancellation DB-only phases now use service-level user actor contexts; realtime is emitted only after commit, and master-order recalculation/final read use a second context. Merchant document metadata source commit: `bccb8c569d122c7b1479881aa162fb428f264c4e`. Merchant rejection/refund and checkout remain excluded. Exact-head Actions lookup at this checkpoint returned zero workflow runs; Vercel Web/Admin both reported external build-rate-limit failures. No tests or quality gates were executed. Next: safely separate rejection/refund orchestration and Merchant download-presign metadata/storage phases; complete G-002 ownership/runtime evidence.
+
+
+## Latest continuation — G-002 Orders rejection and Merchant document presign
+
+The latest source group extends bounded actor-context rollout to merchant order rejection and document download presigning (commit 7e2b2509292cfbcfe6f1f12ebae8d2fad25f8cf1). The rejection transaction includes stock settlement, optimistic status flip, history and outbox; refund request persistence is a separate idempotent DB phase, with provider execution left to the worker. Document presigning uses short actor contexts before and after storage signing. Regression specs are authored but unexecuted. G-002 remains IN PROGRESS / NOT VERIFIED.

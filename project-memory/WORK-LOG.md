@@ -1748,3 +1748,13 @@ Explicitly excluded: bank-transfer proof upload (object storage), refund request
 - Wrapped the cancellation authorization/read and order/shipment/inventory/payment DB transaction in a service-level user actor context derived from the verified caller. Kept realtime emission after the actor transaction commits, then ran master-order recalculation and final order read in a second short actor context.
 - Did not add the controller interceptor: it would hold the outer transaction open across realtime emission. Merchant rejectOrder remains excluded because it calls requestRefund; checkout remains excluded pending full side-effect separation.
 - Added an unexecuted regression spec for actor identity and commit-before-realtime ordering. No tests, formatter, lint, typecheck, E6 or CI were run. No RLS, migration, grants/default ACLs, shared/staging DB writes, deployment, worker activation, merge or release occurred.
+
+
+## G-002 Orders rejection and Merchant document download-presign phases — 24 November 2026
+
+- Merchant rejection uses the verified merchant actor for order authorization, optional SUBMITTED auto-advance, inventory settlement, optimistic REJECTED status transition, history and rejection outbox insertion. Inventory settlement receives the caller transaction, so stock movement and order status/history/outbox commit or roll back together.
+- Refund-request creation runs only after rejection commits. It is a DB-only refund-record/event/outbox operation; actual payment-provider execution remains downstream of the outbox worker. The rejection refund key is stable (reject-refund:<orderId>) rather than time-based, so retries reuse the same request. Failure remains non-fatal and logged.
+- Master-order recalculation and final order read run in a separate short verified-user actor context. No request-wide interceptor was added to the rejection route.
+- Merchant document download presigning uses one short actor context for document/membership reads, calls object storage with no DB transaction open, then uses a second short actor context to persist the signed URL. Both admin-reviewer and merchant-member routes pass verified JWT identity. Upload presigning remains storage-only; registration/listing retain their existing scoped handlers.
+- Added Orders rejection and Merchant presign actor-context regression specs. They are authored but not executed under the implementation-first restriction.
+- No tests, formatter, lint, typecheck, E6 or CI were run. No RLS, migration, grants/default ACLs, shared/staging DB writes, deployment, worker activation, merge or release occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

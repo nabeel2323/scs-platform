@@ -779,3 +779,10 @@ Explicitly excluded: bank-transfer proof upload (object storage), refund request
 ## G-002 continuation — Merchant documents and Orders payment boundaries (24 November 2026)
 
 Merchant metadata registration and organization/store document listing are implemented under verified-user actor context in commit `bccb8c569d122c7b1479881aa162fb428f264c4e`. Presign upload/download remains excluded until database metadata phases are split from object-storage calls. Next, continue Orders reject/cancel/payment-provider source review; preserve external refund/provider boundaries and scope only independently bounded DB-only phases. The implementation-first testing deferral remains in force.
+
+
+## G-002 — Orders rejection and Merchant document presign — 24 November 2026
+
+Merchant rejection now scopes its database lifecycle under the verified merchant actor, including stock settlement in the same transaction as the optimistic status flip, history and outbox. Refund request creation is a separate DB-only actor phase with a stable per-order idempotency key; actual provider execution remains downstream. Master-order recalculation/read use a separate short actor phase. Merchant download presign separates actor-scoped document/membership reads and metadata URL persistence around an unscoped object-storage signing call. Regression specs are added but not executed.
+
+Next: continue the remaining G-002 Orders/Payments method map and Merchant document upload metadata/storage contract review; complete ownership predicates and the 114/116 inventory reconciliation. Tests and CI remain deferred.

@@ -174,3 +174,11 @@ This is a standing instruction for future sessions unless the user changes it. T
 - OTP Redis, rate limits, bcrypt, provider delivery, external audit side effects and JWT signing remain outside database actor transactions.
 
 The authentication actor remains purpose-scoped and is not a general-purpose identity CRUD grant. After identity proof/owner resolution, writes use the verified user actor. No Redis, provider, bcrypt, rate-limit or JWT work inside actor transactions.
+
+
+## Orders rejection and document presign actor-context decision — 24 November 2026
+
+- Merchant rejection DB work may run under the verified merchant actor. Stock settlement, order status/history and rejection outbox insertion share one transaction; use the optional transaction client supported by settleStockForStatus and an optimistic status predicate.
+- Refund request creation is a separate DB-only phase after rejection commits. It persists a refund request, payment event and outbox event; the payment provider remains downstream of the outbox worker. Use a stable per-order idempotency key. Never call the provider inside the actor transaction.
+- Master-order recalculation/final read use a separate short actor scope after refund-request handling.
+- Document download presigning uses separate short actor scopes for metadata/membership reads and URL metadata persistence, with object-storage signing between them. Do not attach the transaction interceptor to either presign endpoint.
