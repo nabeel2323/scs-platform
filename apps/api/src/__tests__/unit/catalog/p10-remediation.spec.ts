@@ -76,6 +76,7 @@ function makeService(opts: {
 
   const updated: any[] = [];
   const db = {
+    withActorContext: async (_context: any, operation: () => Promise<any>) => operation(),
     db: {
       query: { importJobs: { findFirst: async () => job } },
       update: () => ({
