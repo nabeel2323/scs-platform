@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { SearchService } from '../../../modules/catalog/search.service';
 import { PgDialect } from 'drizzle-orm/pg-core';
 
