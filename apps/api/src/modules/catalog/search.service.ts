@@ -523,6 +523,9 @@ export class SearchService {
   private static readonly FACETS_TTL_S = 120;
 
   async getFacetsCached(categoryId: string | undefined, actor: SearchUserActor): Promise<FacetEntry[]> {
+    if (!actor?.sub?.trim() || !actor?.role?.trim()) {
+      throw new ForbiddenException('Authenticated user actor context is required');
+    }
     const key = SearchService.FACETS_CACHE_PREFIX + (categoryId ?? 'all');
     try {
       const hit = await this.redis.client.get(key);
