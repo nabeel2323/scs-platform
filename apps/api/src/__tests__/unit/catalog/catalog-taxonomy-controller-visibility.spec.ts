@@ -7,6 +7,7 @@ function buildController(status = 'DRAFT') {
     listProductTypes: vi.fn().mockResolvedValue([]),
     getProductType: vi.fn().mockResolvedValue({ id: 'type-1', status }),
     getProductTypeSchema: vi.fn().mockResolvedValue({ id: 'type-1' }),
+    hasPublicCategoryBinding: vi.fn().mockResolvedValue(true),
   };
   const catalogService = {
     getProductsByProductType: vi.fn().mockResolvedValue([]),
@@ -58,6 +59,22 @@ describe('CatalogTaxonomyController product-type visibility (G-002)', () => {
 
     expect(h.taxonomy.getProductTypeSchema).not.toHaveBeenCalled();
     expect(h.catalogService.getProductsByProductType).not.toHaveBeenCalled();
+  });
+
+  it('hides even published product types bound to legacy tenant categories', async () => {
+    const h = buildController('PUBLISHED');
+    h.taxonomy.hasPublicCategoryBinding.mockResolvedValue(false);
+
+    await expect(h.controller.getProductType('type-1', buyer)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(h.controller.getProductTypeSchema('type-1', buyer)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(h.controller.getProductsByProductType('type-1', buyer)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(h.taxonomy.hasPublicCategoryBinding).toHaveBeenCalledTimes(3);
   });
 
   it('allows product-type managers to inspect draft product type details and schemas', async () => {
