@@ -1262,7 +1262,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       // test asserts on before producing it.
       await pool.query(`DELETE FROM audit_logs WHERE resource = 'ops_control'`);
       const w = makeWorker(database, returnsService, 'evidence');
-      await w.controls.setPaused({ paused: true, reason: 'incident 4711', actorId: actorAdmin });
+      await w.controls.setPaused({ paused: true, reason: 'incident 4711', caller: adminCaller });
       await w.controls.setPaused({
         paused: false,
         reason: 'incident resolved',
