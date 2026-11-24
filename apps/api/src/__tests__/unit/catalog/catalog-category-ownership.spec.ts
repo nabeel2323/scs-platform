@@ -57,6 +57,44 @@ describe('CatalogService category ownership predicates (G-002)', () => {
     expect(compiled.sql.toLowerCase()).toContain('is null');
   });
 
+  it('builds the public category tree from active platform categories only', async () => {
+    const whereConditions: unknown[] = [];
+    let selectCount = 0;
+    const select = vi.fn(() => {
+      const index = selectCount++;
+      const builder: any = {
+        from: vi.fn(() => builder),
+        where: vi.fn((condition: unknown) => {
+          whereConditions.push(condition);
+          return builder;
+        }),
+        orderBy: vi.fn(async () => []),
+        groupBy: vi.fn(async () => []),
+      };
+      return builder;
+    });
+    const service = new CatalogService(
+      { db: { select } } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(service.getCategoryTree()).resolves.toEqual([]);
+
+    expect(selectCount).toBe(2);
+    const compiled = new PgDialect().sqlToQuery(whereConditions[0] as SQL);
+    expect(compiled.sql.toLowerCase()).toContain('store_id');
+    expect(compiled.sql.toLowerCase()).toContain('is_active');
+    expect(compiled.params).toContain(true);
+  });
+
   it('rejects product creation with a category owned by another store before insert', async () => {
     const h = buildService({ category: null });
 
