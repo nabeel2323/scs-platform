@@ -1048,3 +1048,7 @@ Catalog import processing and CSV error-report DB access now use short verified-
 ## 25 November 2026 — stale import recovery boundary
 
 The dormant stale-import recovery entry point now has a dedicated worker principal. Keep it dormant: no worker or scheduler registration/activation is authorized in this phase. Continue with source callsite/root-pool review and operation ownership/FK evidence; defer all quality gates until implementation/integration is complete.
+
+## 25 November 2026 — Catalog detail/media read phase update
+
+Product detail and media-list routes now use short caller actor scopes for DB work; Redis cache and storage URL signing remain outside. Continue auditing remaining Catalog mixed reads/writes and root-pool DB calls. Do not apply request-wide interceptors to mixed external-I/O routes. Keep tests/quality gates deferred until implementation/integration is complete.
