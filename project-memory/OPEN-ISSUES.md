@@ -1223,3 +1223,12 @@ No live database evidence or policy approval is implied by the source review. G-
 - Regression specs and the consolidated verification campaign (deferred until implementation/integration completion).
 
 No live database evidence or policy approval is implied by the source review. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## G-002 — reconciliation and driver assignment follow-up (24 November 2026)
+
+**Implemented:** reconciliation now verifies a supplied non-null organization exists, checks every discrepancy child has the same `org_id` as its parent run before returning the run, and verifies the parent-run scope before discrepancy resolution. Source commit: `98843bfe455667f7a96d7cbdd6dfb2253ce2af0f`.
+
+**Driver assignment remains unresolved:** `driver_profiles.org_id` and `driver_store_assignments.store_id` have separate FKs without a same-organization constraint. The inspected ShippingModule/ShipmentOperationsController does not expose an assignment mutation path; shipment `assigned_driver_id` references users rather than driver profiles. Locate all consumers and any write path before adding guards or changing the model.
+
+Regression coverage for the financial and reconciliation checks remains pending and unexecuted. Live `pg_constraint`, runtime identities and database state remain unverified. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
