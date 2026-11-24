@@ -2,10 +2,23 @@ import { describe, expect, it, vi } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { WorkerLeaseService } from '../../../modules/operations/worker-lease.service';
 
+function createService(execute: ReturnType<typeof vi.fn>) {
+  const actorContexts: any[] = [];
+  const withActorContext = vi.fn(async (context: any, operation: () => Promise<unknown>) => {
+    actorContexts.push(context);
+    return operation();
+  });
+  const service = new WorkerLeaseService({
+    db: { execute },
+    withActorContext,
+  } as any);
+  return { service, withActorContext, actorContexts };
+}
+
 describe('WorkerLeaseService expiry fencing', () => {
   it('cannot renew an already expired lease even when holder and epoch still match', async () => {
     const execute = vi.fn().mockResolvedValue({ rows: [] });
-    const service = new WorkerLeaseService({ db: { execute } } as any);
+    const { service, withActorContext } = createService(execute);
 
     await expect(service.renewAndFence(12, 'p13-return-expiration')).resolves.toBe(false);
 
@@ -14,10 +27,14 @@ describe('WorkerLeaseService expiry fencing', () => {
     expect(query.params).toContain('p13-return-expiration');
     expect(query.params).toContain(service.holderId);
     expect(query.params).toContain(12);
+    expect(withActorContext).toHaveBeenCalledWith(
+      expect.objectContaining({ actorKind: 'worker', workerId: service.holderId }),
+      expect.any(Function),
+    );
   });
 
   it('does not report an expired holder as live', async () => {
-    const service = new WorkerLeaseService({ db: { execute: vi.fn() } } as any);
+    const { service } = createService(vi.fn());
     vi.spyOn(service, 'read').mockResolvedValue({
       leaseKey: 'p13-return-expiration',
       holderId: service.holderId,
@@ -54,5 +71,7 @@ describe('WorkerLeaseService expiry fencing', () => {
       expect(query.params).toContain(service.holderId);
       expect(query.params).toContain(12);
     }
+    expect(withActorContext).toHaveBeenCalledTimes(3);
+    expect(withActorContext.mock.calls.every(([context]) => context.actorKind === 'worker')).toBe(true);
   });
 });
