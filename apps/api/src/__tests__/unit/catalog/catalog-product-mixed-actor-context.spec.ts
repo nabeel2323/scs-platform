@@ -41,7 +41,14 @@ function buildService() {
     withActorContext,
     db: {
       update,
-      query: { products: { findMany: vi.fn().mockResolvedValue([{ ...product }]) } },
+      query: {
+        products: {
+          findFirst: vi.fn().mockResolvedValue({ storeId: product.storeId }),
+          findMany: vi.fn().mockResolvedValue([{ ...product }]),
+        },
+        stores: { findFirst: vi.fn().mockResolvedValue({ orgId: actor.activeOrg }) },
+        storeMembers: { findFirst: vi.fn().mockResolvedValue({ id: 'membership-1' }) },
+      },
     },
   };
   const audit = {
