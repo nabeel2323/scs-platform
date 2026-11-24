@@ -61,7 +61,7 @@ export class OperationsController {
     const [lease, control, alertSnapshot, pilotSnapshot, holderCounts] = await Promise.all([
       this.leases.read(P13_LEASE_KEY),
       this.controls.state(P13_PAUSE_CONTROL_KEY, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }),
-      this.alerts.snapshot(),
+      this.alerts.snapshot({ sub: user.sub, role: user.role, activeOrg: user.activeOrg }),
       this.pilot.snapshot({ sub: user.sub, role: user.role, activeOrg: user.activeOrg }),
       this.leases.liveHolderCounts(),
     ]);
@@ -92,8 +92,11 @@ export class OperationsController {
   @Get('alerts')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:returns:read')
-  async openAlerts(@Query('limit') limit?: string) {
-    return { alerts: await this.alerts.listOpen(clampLimit(limit)) };
+  async openAlerts(@CurrentUser() user: JwtPayload, @Query('limit') limit?: string) {
+    return { alerts: await this.alerts.listOpen(
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      clampLimit(limit),
+    ) };
   }
 
   /**
