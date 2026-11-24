@@ -47,10 +47,10 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
   private scanning = false;
   private readonly config: P13OpsConfig;
 
-  private withMonitorActor<T>(operation: () => Promise<T>): Promise<T> {
+  private withMonitorActor<T>(operation: () => PromiseLike<T>): Promise<T> {
     return this.db.withActorContext(
       { actorKind: 'worker', workerId: 'p13-monitor' },
-      operation,
+      async () => await operation(),
     );
   }
 
