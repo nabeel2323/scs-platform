@@ -142,4 +142,68 @@ describe('CatalogService import processing actor boundaries (G-002)', () => {
     expect(csv).toContain('2,sku,INVALID,ERROR,Bad SKU,');
     expect(csv).toContain('3,price,PROCESSING_ERROR,ERROR,Invalid price,');
   });
+  it('keeps the chunk claim and product/variant/price transaction inside one caller actor scope', async () => {
+    let activeActor: Record<string, unknown> | null = null;
+    const withActorContext = vi.fn(async (context: Record<string, unknown>, operation: () => Promise<unknown>) => {
+      activeActor = context;
+      try {
+        return await operation();
+      } finally {
+        activeActor = null;
+      }
+    });
+    const returning = vi.fn().mockResolvedValue([{ id: 'chunk-1' }]);
+    const where = vi.fn(() => {
+      const query = Promise.resolve(undefined) as Promise<unknown> & { returning: typeof returning };
+      query.returning = returning;
+      return query;
+    });
+    const set = vi.fn(() => ({ where }));
+    const update = vi.fn(() => ({ set }));
+    const txWhere = vi.fn().mockResolvedValue(undefined);
+    const txSet = vi.fn(() => ({ where: txWhere }));
+    const tx = { update: vi.fn(() => ({ set: txSet })) };
+    const transaction = vi.fn(async (operation: (client: typeof tx) => Promise<unknown>) => operation(tx));
+    const db = {
+      get currentActorContext() {
+        return activeActor;
+      },
+      withActorContext,
+      db: { update, transaction },
+    };
+    const service = new CatalogService(
+      db as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    const importRow = vi.spyOn(service as any, 'importRow').mockImplementation(async () => {
+      expect(activeActor).toMatchObject({ actorKind: 'user', actorId: actor.sub });
+      return 'created';
+    });
+
+    await (service as any).processChunk(
+      'import-1',
+      { id: 'chunk-1', attemptCount: 0, startRow: 0 },
+      [{ name: 'Example product', sku: 'SKU-1', price: '100' }],
+      { name: 'name', sku: 'sku', priceMinor: 'price' },
+      'price-list-1',
+      'store-1',
+      actor,
+    );
+
+    expect(withActorContext).toHaveBeenCalledOnce();
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(importRow).toHaveBeenCalledOnce();
+    expect(update).toHaveBeenCalledOnce();
+    expect(tx.update).toHaveBeenCalledOnce();
+    expect(activeActor).toBeNull();
+  });
+
 });
