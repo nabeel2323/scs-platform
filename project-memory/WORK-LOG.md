@@ -1862,3 +1862,12 @@ Unit Tests + Coverage Gates, Integration Tests, Boundary Lint (E6), Container Bu
 - Updated direct IdentityService test calls to supply the required authenticated actor for account linking/unlinking, password change and organization switching. Updated the carrier-worker concurrency fixture for the expanded constructor and corrected the authentication-context mock transaction callback type.
 - Source commit: [`c587ed4`](https://github.com/nabeel2323/scs-platform/commit/c587ed46db9a4893f2fa0167a74e671bc9d3ae10). No tests, formatter, lint, typecheck or E6 were run.
 - Actions #1476 (`45385046873`) was automatically triggered by the PR push; it was not intentionally dispatched. No cancel action is available through the connected GitHub capability, and no further run is intentionally requested.
+
+
+## G-002 carrier recovery and worker lease actor-context adoption — 24 November 2026
+
+- Added short worker actor contexts around CarrierReconciliationService create/cancel claims and durable recovery-state writes. External carrier tracking calls stay outside transactions; retry outbox intent and shipment retry state commit together.
+- Added verified-user actor scope around CarrierAdminController recovery read/authorization/state-update/re-read and recovery-queue reads. Provider reconciliation is invoked after the user scope closes; audit persistence uses a separate audit principal.
+- Added worker actor contexts to WorkerLeaseService DB operations and a system actor for runbook-only force-expire.
+- Updated/added regression specs; no tests, formatter, lint, typecheck or E6 were run.
+- Source commits: a78503a01f28de440b2ae8d9c3cafd1e754dfd93 and 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f.

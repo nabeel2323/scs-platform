@@ -3,38 +3,34 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation:** actor-context type-safety corrections for the tenant interceptor, IdentityService password-change optimistic predicate and ShippingCarrierWorker tenant resolution; source commit `c587ed46db9a4893f2fa0167a74e671bc9d3ae10`.  
-**Related test-source corrections:** direct IdentityService integration fixtures now pass explicit authenticated actor claims; the carrier-worker concurrency fixture supplies the new MerchantService and webhook-routing collaborators; the authentication-context mock transaction type and switchOrg/password-change signatures are aligned. Tests remain unexecuted.  
+**Latest source implementation commits:** c587ed46db9a4893f2fa0167a74e671bc9d3ae10 (actor-context type-safety corrections), a78503a01f28de440b2ae8d9c3cafd1e754dfd93 (carrier recovery actor-context phases), and 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f (worker lease actor-context phases).  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base develop.  
-**Exact-head Actions:** run #1476 (`45385046873`) was automatically triggered on this source commit and is in progress at this checkpoint. It was not intentionally dispatched.  
-**Exact-head status contexts:** Vercel Web and Admin preview rate-limit failures; these are external preview-provider statuses, not application-test results.  
-**Standing user instruction:** implementation and integration first; do not intentionally execute tests or trigger CI during implementation. Keep PR #138 draft/open/unmerged.
+**Latest exact branch/PR head before this documentation sync:** 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f. Actions run #1478 (45386103613) was IN_PROGRESS on this exact SHA; run #1477 on the preceding carrier-recovery commit was automatically CANCELLED by the newer push. Run #1476 on c587ed46db9a4893f2fa0167a74e671bc9d3ae10 completed FAILURE because the changed-file formatting gate failed; its 9 lint/typecheck tasks succeeded and Mobile Flutter Tests succeeded.  
+**Standing user instruction:** implementation and cross-component integration first; do not intentionally run tests or trigger CI during implementation. Keep PR #138 draft/open/unmerged.
 
 ## Latest implementation checkpoint
 
-The actor-context adoption now includes the preceding Payments proof-upload/cleanup phase separation and the completed 100-table module-schema ownership candidate matrix. The latest source correction commit fixes concrete type-safety defects exposed by the accidental Actions run #1475:
-
-- The HTTP actor-context interceptor snapshots narrowed `sub`, `role` and `activeOrg` claims before entering the deferred RxJS callback, preserving the JWT guard's fail-closed validation and satisfying the required user actor type.
-- IdentityService captures the non-null prior password hash after its guard and uses that stable value in the optimistic password update predicate.
-- ShippingCarrierWorker returns the validated owning organization ID from its shipment tenant assertion; the previous path declared `Promise<string>` but fell through after validation.
-- Direct IdentityService tests now supply the explicit actor argument required by the authenticated account-linking/unlinking, password-change and organization-switch methods. The worker concurrency fixture supplies the expanded constructor collaborators. The authentication-context test mock uses a non-recursive transaction callback type.
-
-These are source/test-fixture changes only. No tests, formatter, lint, typecheck or E6 command was run for the correction. Actions #1476 was unintentionally triggered by the PR push; its result must be recorded but is not a reason to launch further CI during implementation.
+- The actor-context typecheck corrections capture narrowed JWT claims before the deferred interceptor callback, retain the non-null prior password hash in IdentityService's optimistic update predicate, and return the validated organization ID from the carrier tenant assertion. Direct-service test fixtures now pass authenticated actor claims and current method/constructor arguments.
+- Carrier reconciliation claims and durable DB transitions now use a short global worker actor (carrier-reconciliation:<pid>). Carrier tracking/provider calls remain outside actor transactions. Outbox retry intent and shipment retry-state update commit together under the worker actor.
+- Carrier admin recovery now performs shipment read, tenant/membership checks, recovery-state update and authoritative re-read under the verified admin actor. The carrier reconciliation call happens after that scope closes; the audit write uses a separate audit principal. The recovery queue read uses the verified user actor.
+- WorkerLeaseService wraps lease ensure/acquire/renew/heartbeat/failure/release/read operations in the process holder's worker actor. The runbook-only force-expire operation uses a separate system actor.
+- Regression specs were added/updated for carrier recovery worker/admin actor scopes and worker lease actor scopes. They remain unexecuted.
 
 ## G-002 physical table inventory
 
-The current source ownership matrix covers all 100 `pgTable` declarations found across the 25 module schema files; 98 are re-exported by `apps/api/src/drizzle/schema.ts`, while `catalog_imports` and `catalog_import_errors` are defined in `catalog-import.schema.ts` but are not exported by that barrel. The previously omitted exported `payment_proof_upload_intents` table is included. This invalidates the historical 99+15=114 source split. The detailed 114 public relation snapshot and separate 116 count remain unresolved pending protected read-only catalog evidence. No subtraction-based delta or live relation total is claimed.
+The source ownership matrix covers all 100 pgTable declarations across 25 module schema files; 98 are re-exported by apps/api/src/drizzle/schema.ts, while catalog_imports and catalog_import_errors are declared in catalog-import.schema.ts but not exported by that barrel. The previously omitted exported payment_proof_upload_intents table is included. The historical 99+15=114 source split is invalidated. The detailed 114 public relation snapshot and separate 116 count remain unresolved pending protected read-only catalog evidence; no subtraction-based delta or live relation total is claimed.
 
 ## Remaining implementation priorities
 
-1. Continue the source-backed service/controller/worker operation map, including import executors, carrier recovery, bootstrap, migration and CLI paths; identify direct Drizzle, raw SQL and helper-mediated R/I/U/D operations and their exact principals.
-2. Complete per-operation ownership predicates and verify declared relationships against migration definitions; keep candidate ownership columns distinct from approved policy.
-3. Obtain actual API and migration runtime identities plus the protected read-only staging catalog snapshot only through the authorized staging process.
-4. Keep G-001 independent security review and G-036 verification open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
+1. Complete actor-context phase separation for CatalogImportService/ExcelExecutor: distinguish admin DB reads/writes from object-storage upload/download, workbook parsing, export/report generation and per-entity nested transactions; pass verified caller identity through all import routes.
+2. Complete P13 operational principal separation across P13MonitorService, OpsAlertService, OpsControlService and PilotControlService (worker/system monitoring versus authenticated operator read/write).
+3. Finish remaining source-backed raw SQL/function/trigger/partition, migration, bootstrap, CLI and helper-mediated R/I/U/D paths and per-operation ownership predicates.
+4. Obtain actual API/migration runtime identities and protected read-only staging catalog evidence only through the authorized process.
+5. Keep G-001 independent review and G-036 verification open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
 
 ## Verification and safety
 
-G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Run #1475 on `fc2993290d4522d397ab56934e41103f8dd9d060` failed API Typecheck; Mobile Flutter Tests and API Lint succeeded; unit/coverage, PostgreSQL integration, E6, container, Web/Admin, migration, build, contracts, k6 and staging jobs were skipped. Run #1476 is the accidental in-progress follow-up on `c587ed46db9a4893f2fa0167a74e671bc9d3ae10`; no conclusion is claimed until its result is known. Do not rerun CI intentionally.
+G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Run #1476: 9 lint/typecheck tasks succeeded, Mobile Flutter Tests succeeded, but the changed-file format check failed; the overall job and workflow failed. Run #1477 was automatically cancelled after a newer push. Run #1478 was IN_PROGRESS on the exact head 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f at the latest lookup; its final outcome must be checked before claiming anything. Unit/integration/E6/build/release gates remain unverified/skipped unless a later run proves otherwise. No local tests, formatter, lint or typecheck were run by this session.
 
 No shared database mutation, migration, grant/default-ACL change, RLS enablement, protected staging action, deployment, worker activation, merge or release occurred.
 

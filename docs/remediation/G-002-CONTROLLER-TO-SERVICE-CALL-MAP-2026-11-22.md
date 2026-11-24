@@ -92,3 +92,11 @@ The method-level map now includes CatalogService, CatalogOfferService, ProductGo
 The opt-in `TenantDatabaseContextInterceptor` now wraps only source-reviewed, bounded JWT-protected paths. Controller-level adoption: Notifications, Pricing, Store Membership, Promotions, Reviews, Disputes, Inventory, Analytics, Catalog Offers, Catalog Requests, Catalog Taxonomy, Cart, Returns, Organizations and Roles. Method-level adoption: 31 bounded CatalogController GET routes (excluding the direct-response import-errors handler), 29 bounded AdminController GET routes (excluding media-preview signing), and 16 ProfileController handlers (excluding credential setup/password change).
 
 The main OrdersController, PaymentsController, AuthController, carrier/shipping operations, file/import/upload mutations, bootstrap, deferred audit middleware, workers/schedulers, realtime, CLI and migrations remain outside. This is a selective allowlist, not a global request transaction. Each next route must be reviewed for nested transaction/savepoint behavior, detached async work, streaming and external I/O.
+
+
+
+## 24 November 2026 — carrier recovery admin and worker callsite update
+
+CarrierAdminController POST recover scopes shipment read, tenant/membership authorization, ADMIN_TRIGGERED update and authoritative re-read under verified JWT claims. The call to CarrierReconciliationService happens after that transaction ends because reconciliation can call external carrier tracking. Audit persistence uses a separate audit principal. GET recovery queue store-membership/store-list/shipment reads use the verified admin actor. CarrierReconciliationService scopes durable claim/write phases under a worker actor, and WorkerLeaseService uses worker/system principals for lease lifecycle and manual force-expire.
+
+Credential/configuration service routes still require their own service-level principal/transaction review; this update does not assert blanket carrier-admin coverage.

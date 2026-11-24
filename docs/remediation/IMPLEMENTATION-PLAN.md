@@ -1432,3 +1432,8 @@ Important scope boundary: requestRefund creates a REQUESTED refund row, payment 
 ## 24 November 2026 — actor-context typecheck correction
 
 The source and fixture corrections in commit `c587ed46db9a4893f2fa0167a74e671bc9d3ae10` address the concrete TypeScript diagnostics recorded by automatic CI #1475. This is implementation/type-safety remediation, not test verification. No local test, formatter, lint, typecheck or E6 command was run. Actions #1476 was unintentionally triggered by the PR push; no additional CI run is intentionally requested. G-002 remains IN PROGRESS pending complete operation/predicate mapping and protected runtime/catalog evidence.
+
+
+## 24 November 2026 — carrier recovery and worker lease principal adoption
+
+Carrier reconciliation and worker lease services now use explicit worker/system principals for database-only operations. The admin carrier recovery controller separates the authenticated user's authorization/state transition from the subsequent provider reconciliation call, and writes audit under a separate principal. No provider call, database write, migration, RLS policy, grant/default-ACL change, staging action, deployment, worker activation, merge or release was performed by this documentation update. Regression specs remain unexecuted.

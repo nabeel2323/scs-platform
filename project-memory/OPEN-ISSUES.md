@@ -1037,3 +1037,12 @@ Unit Tests + Coverage Gates, Integration Tests, Boundary Lint (E6), Container Bu
 The source corrections and test-fixture signature alignment are committed in `c587ed46db9a4893f2fa0167a74e671bc9d3ae10`. They address the concrete API typecheck diagnostics from automatic run #1475: narrowed JWT claims in the deferred interceptor, nullable passwordHash captured across the transaction closure, missing validated organization return in ShippingCarrierWorker, outdated IdentityService actor arguments in account-link/device-trust/registration fixtures, changed switchOrg argument order, expanded carrier-worker constructor dependencies, and a self-referential mock transaction annotation. These specs remain unexecuted.
 
 Automatic run #1476 (`45385046873`) was unintentionally triggered by the PR push. It was not intentionally dispatched; no additional CI/test run is requested during implementation. Remaining G-002 work is the operation/principal map, migration-backed FK verification, and authorized runtime/catalog evidence.
+
+
+## G-002 carrier recovery and worker lease actor-context adoption — 24 November 2026
+
+- CarrierReconciliationService now scopes create/cancel claim UPDATE...RETURNING operations and durable shipment/outbox transitions under a unique process worker principal. Retry outbox intent and shipment retry state commit together in one worker transaction. Carrier tracking/provider calls remain outside actor contexts.
+- CarrierAdminController recoverShipment performs shipment lookup, store-to-organization membership authorization, ADMIN_TRIGGERED state update and authoritative re-read in one verified user actor transaction. It then invokes the reconciliation engine outside that transaction and records audit under a separate audit principal. The recovery queue read also uses a verified user actor.
+- WorkerLeaseService uses a worker actor for lease-row creation, acquisition, renewal, heartbeat/failure updates, release and reads. Runbook-only forceExpire uses a distinct system actor.
+- Regression specs were added/updated in m73b333-indeterminate-reconciliation, carrier-admin-recovery-queue-scope and worker-lease-expiry-fencing. They remain unexecuted.
+- Remaining: CatalogImportService/ExcelExecutor phase separation; P13Monitor/OpsAlert/OpsControl/PilotControl principal separation; migration/runtime catalog evidence.

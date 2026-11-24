@@ -132,3 +132,11 @@ No RLS policy is enabled and no database, grants, migrations or staging actions 
 - ReturnExpirationWorker remains outside after a wrapper attempt was reverted to preserve lease/fencing semantics. ShippingCarrierWorker remains outside due to mixed provider/storage calls; it requires a phase-by-phase split. Realtime socket operations remain outside and need a distinct handshake/operation principal contract.
 
 These source changes do not enable RLS and do not prove runtime identities or table policies. Tests remain deferred until implementation/integration are complete.
+
+
+
+## 24 November 2026 — carrier recovery and lease operation contexts
+
+The carrier recovery service is no longer wholly unwrapped: its DB-only claim and persistence phases now use a worker actor; provider HTTP remains outside. CarrierAdminController's admin-triggered recovery and queue reads use verified-user actor contexts, with reconciliation after the user transaction and audit in a separate scope. WorkerLeaseService uses worker context for lease lifecycle DB operations and system context for runbook force-expire.
+
+Still outstanding in this operational area: P13MonitorService's global cross-tenant read-only scan, OpsAlertService durable alert/delivery state machine, OpsControlService pause/control operations, PilotControlService feature-flag/allowlist operations, and the runtime principal contract for manual recovery CLI. Catalog import also remains a mixed storage/database path requiring phase separation.

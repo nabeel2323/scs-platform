@@ -297,3 +297,13 @@ PricingController.getProductPricing resolves the variant's owning store and pass
 The 24-November source pass enumerated 100 `pgTable` declarations across all 25 module `*.schema.ts` files. The `apps/api/src/drizzle/schema.ts` barrel re-exports 98; `catalog-import.schema.ts` defines `catalog_imports` and `catalog_import_errors` but is not re-exported. The prior 99-row ownership matrix included those two non-barrel declarations and omitted the exported `payment_proof_upload_intents` table; the matrix now covers all 100 module declarations with direct-column/FK candidates.
 
 This corrects the source inventory only. It does not verify live database presence or reconcile the historical 114/116 public relation counts. The old 99+15 arithmetic is historical and must not be used as a current source-backed total. The protected read-only catalog audit, API/migration identity evidence and exact per-operation predicate map remain open.
+
+
+
+## Carrier reconciliation and worker lease actor-context adoption — 24 November 2026
+
+- CarrierReconciliationService: create and cancel claim UPDATE...RETURNING statements use a unique process worker principal. Durable recovery transitions (recovered, retry scheduled, deferred, cancel escalated/succeeded/deferred) use short worker transactions. The retry outbox insert and shipment retry-state update are atomic in one worker context. Carrier tracking/provider calls remain outside actor transactions.
+- CarrierAdminController: recoverShipment scopes shipment lookup, store-to-organization/membership authorization, recoverable-state checks, ADMIN_TRIGGERED update and authoritative re-read under verified JWT user claims. It calls reconciliation only after the user transaction commits, then writes audit under a separate audit actor. Recovery-queue store/shipment reads use the verified user actor.
+- WorkerLeaseService: lease-row ensure/acquire, renew, heartbeat/failure, release, read and readAll/liveHolderCounts use a worker actor keyed by the process holder. The runbook-only forceExpire method uses a system actor. Fencing predicates and lease semantics are unchanged.
+- Specs updated: m73b333-indeterminate-reconciliation, carrier-admin-recovery-queue-scope and worker-lease-expiry-fencing. Not executed.
+- This is source adoption only, not RLS verification or runtime-role evidence.

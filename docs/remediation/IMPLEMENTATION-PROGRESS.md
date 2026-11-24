@@ -2586,3 +2586,17 @@ Unit Tests + Coverage Gates, Integration Tests, Boundary Lint (E6), Container Bu
 ## G-002 actor-context typecheck correction — 24 November 2026
 
 Source commit `c587ed46db9a4893f2fa0167a74e671bc9d3ae10` fixes the concrete API typecheck diagnostics from run #1475 in the interceptor, IdentityService password-change optimistic predicate and ShippingCarrierWorker tenant assertion. Direct IdentityService integration/unit fixtures now pass the required actor context and current argument order; the carrier concurrency fixture supplies the expanded worker dependencies; and the authentication-context unit mock no longer uses a recursive parameter annotation. Tests and local typecheck remain unexecuted. Automatic Actions run #1476 was unintentionally triggered by the PR push and is not evidence of verification until its terminal result is inspected.
+
+
+## G-002 — carrier recovery and worker lease actor-context slices — 24 November 2026
+
+| Surface | Implementation state | Boundary / next gate |
+| --- | --- | --- |
+| Carrier reconciliation create/cancel claims | IMPLEMENTED — global worker actor | Atomic UPDATE...RETURNING claims remain short transactions |
+| Carrier reconciliation durable shipment/outbox writes | IMPLEMENTED — global worker actor | Retry outbox insert + shipment state update share a transaction; provider tracking stays outside |
+| Admin shipment recovery | IMPLEMENTED — verified user actor for read, tenant authorization, ADMIN_TRIGGERED update and re-read | External reconciliation occurs after the user transaction closes |
+| Admin recovery queue | IMPLEMENTED — verified user actor | Tenant store filtering and shipment query execute in the scoped transaction |
+| Recovery audit | IMPLEMENTED — separate audit principal | Audit write is not coupled to provider network I/O |
+| WorkerLeaseService | IMPLEMENTED — worker actor for lease operations; system actor for forceExpire | Lease fencing semantics remain unchanged |
+
+Regression specs added/updated but not executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

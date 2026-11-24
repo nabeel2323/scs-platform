@@ -78,7 +78,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live reconciliation on 24 November 2026 confirms repository nabeel2323/scs-platform, branch remediation/phase-0-1-tenant-security, and PR #138 OPEN / DRAFT / UNMERGED against develop. Latest source implementation and PR HEAD: c587ed46db9a4893f2fa0167a74e671bc9d3ae10. It corrects JWT actor claim narrowing, the IdentityService optimistic password-hash predicate and ShippingCarrierWorker tenant resolution, and aligns direct-service test fixtures with authenticated actor-context signatures. Actions run #1476 (45385046873) was automatically triggered by the PR push and is in progress; it was not intentionally dispatched. Exact-head status contexts are external Vercel Web/Admin preview rate-limit failures, not application-test outcomes. Re-query GitHub before the next action.
+Live reconciliation on 24 November 2026 confirms repository nabeel2323/scs-platform, branch remediation/phase-0-1-tenant-security, and PR #138 OPEN / DRAFT / UNMERGED against develop. Latest source commits: c587ed46db9a4893f2fa0167a74e671bc9d3ae10 (type-safety), a78503a01f28de440b2ae8d9c3cafd1e754dfd93 (carrier recovery), and 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f (worker leases). Run #1476 completed FAILURE on formatting only after all 9 lint/typecheck tasks and Mobile Flutter Tests succeeded. Run #1477 was automatically cancelled after a newer push; run #1478 was IN_PROGRESS on the exact head at the last lookup. Re-query GitHub before the next action.
 
 ### Latest G-002 source implementation
 
@@ -1065,3 +1065,9 @@ Unit Tests + Coverage Gates, Integration Tests, Boundary Lint (E6), Container Bu
 ## 24 November 2026 — actor-context typecheck remediation
 
 Source commit `c587ed46db9a4893f2fa0167a74e671bc9d3ae10` corrects the interceptor, IdentityService and ShippingCarrierWorker type errors recorded by automatic CI #1475, and updates the affected unit/integration fixtures to pass explicit actor claims and current constructor dependencies. The authentication-context mock transaction callback no longer self-references its own type. Tests and formatting were not run. Actions #1476 was unintentionally triggered by the PR push; no further CI run is intentionally requested. PR #138 remains OPEN / DRAFT / UNMERGED.
+
+## 24 November 2026 — carrier recovery and worker lease actor-context checkpoint
+
+CarrierReconciliationService now uses short worker actor transactions for its claim and persistence phases; carrier tracking/provider calls remain outside transactions. CarrierAdminController scopes recovery shipment reads, tenant/membership checks and recovery-state update under the verified admin actor, then performs external reconciliation after that scope closes. Its audit write uses a separate audit principal. The recovery queue read uses the verified user actor. WorkerLeaseService scopes lease operations under a worker principal and the runbook-only force-expire operation under a system principal. Regression coverage has been added but not executed.
+
+Next: CatalogImportService/ExcelExecutor DB-phase separation from object-storage and workbook processing, followed by P13 monitor/alert/control/pilot principal separation.

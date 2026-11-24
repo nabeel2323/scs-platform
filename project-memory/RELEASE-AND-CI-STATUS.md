@@ -144,3 +144,11 @@ The source type issues identified in #1474 were corrected in `fc2993290d4522d397
 - Source correction commit: [`c587ed46db9a4893f2fa0167a74e671bc9d3ae10`](https://github.com/nabeel2323/scs-platform/commit/c587ed46db9a4893f2fa0167a74e671bc9d3ae10). It updates source and affected test fixtures. No tests or local typecheck were run.
 - Run #1476 / `45385046873` was automatically triggered by the PR push and was IN_PROGRESS at the latest lookup. It was not intentionally dispatched. No cancel action is available in the connected GitHub capability; no further CI is intentionally requested.
 - Exact PR head at this checkpoint: `c587ed46db9a4893f2fa0167a74e671bc9d3ae10`. Vercel Web/Admin preview contexts report external build-rate-limit failures; they are not application test outcomes. PR #138 remains OPEN / DRAFT / UNMERGED.
+
+
+## Automatic CI outcomes after actor-context source updates — 24 November 2026
+
+- Run #1476 (45385046873) on source commit c587ed46db9a4893f2fa0167a74e671bc9d3ae10 completed FAILURE. The 9 lint/typecheck tasks (including API, Web and Admin typechecks) succeeded and Mobile Flutter Tests succeeded. The changed-file Prettier gate failed on 488 PR-changed files, including the modified integration/unit fixtures and multiple older PR-changed files. Unit/coverage, integration, E6, build, k6, container, contract/codegen and staging jobs were skipped. No test success beyond the named Mobile job is claimed.
+- Run #1477 (45385925400) on a78503a01f28de440b2ae8d9c3cafd1e754dfd93 was automatically CANCELLED when a newer branch push arrived.
+- Run #1478 (45386103613) on 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f was IN_PROGRESS at the last status lookup. Inspect its final state before claiming outcomes.
+- These were automatic PR events caused by source pushes, not intentional test/CI dispatches. No further workflow should be triggered during implementation. The connected GitHub capability has no workflow-cancel action.

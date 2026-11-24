@@ -796,3 +796,9 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 ## 24 November 2026 — actor-context typecheck correction
 
 The latest source commit `c587ed46db9a4893f2fa0167a74e671bc9d3ae10` fixes the concrete typecheck diagnostics from automatic run #1475 and updates direct IdentityService fixtures to pass the new actor arguments. The 100-table source ownership matrix is complete as a schema inventory, but G-002 remains in progress: exact per-operation predicates, migration-backed relationship verification, remaining import/carrier/bootstrap/CLI access paths and protected runtime/catalog evidence are open. Run #1476 was unintentionally triggered by the PR push; do not intentionally run CI before implementation/integration completion.
+
+## 24 November 2026 — carrier recovery and worker lease principal adoption
+
+Carrier recovery claims and durable transitions now use worker actor contexts; carrier provider calls remain outside transactions. Admin recovery database phases and recovery-queue reads use the verified admin actor, while audit writes use a separate audit principal. Worker lease operations use a worker principal and manual force-expire uses a system principal. Regression specs were updated but not executed.
+
+Next implementation priorities: CatalogImportService/ExcelExecutor database phases versus storage/workbook I/O; then P13Monitor, OpsAlert, OpsControl and PilotControl operator/system principal separation.
