@@ -526,3 +526,11 @@ Source commits: `b6dd8a7d731604be811301dd7168fc3faffde1b6` and `6e3b5a9716eeac51
 ## Import preview validation DB scope refinement — 24 November 2026
 
 Follow-up review confirmed `ImportValidationService.validateRows` performs database reads (catalog lookup/validation), not just in-memory validation. Its invocation is now inside the same short authenticated actor-context boundary; workbook parsing and Redis reads remain outside. Source commit: `9b6387597e8c02de076613b4f4a540a379362491`. Tests and CI remain deferred and G-002 remains NOT VERIFIED.
+
+## 25 November 2026 — Catalog product update/delete actor-context implementation
+
+Completed the mixed PATCH /products/:id and DELETE /products/:id actor-context slice. Authorization reads now run in a verified-user actor scope in CatalogController; the verified caller is passed into CatalogService. CatalogService uses short user actor scopes for preflight DB reads, identifier uniqueness, product-type lookup, publish validation, standard updates, product-type-change transactions, re-review transactions, soft-delete reads/writes, outbox insertion and final reads. Redis cache invalidation is outside DB scopes. AuditService uses the dedicated audit principal for standalone writes and reuses an already-active verified context when nested.
+
+The routes intentionally remain without TenantDatabaseContextInterceptor because they include cache invalidation, audit and outbox side effects; request-wide actor transactions would hold a connection across non-DB work. Regression tests were added for controller interceptor exclusions, mixed update/delete scopes, publication outbox scope, missing actor rejection and AuditService actor behavior. Tests remain unexecuted. No formatter, lint, typecheck, E6 or CI was run. G-002 remains IN_PROGRESS / NOT VERIFIED; no shared/staging DB, RLS, grants, migration, deployment, worker activation, merge or release action occurred.
+
+Source commits: 0cd4606db719fdeaab61da5f0bc30767c381c5e9, e9b65ce7ceb2c8b73362c1ffe5db67f96883095b, 8959b67691585f4beaa43d12775a221d5a02927e. Test commits: ce66bf52df655f7e995e1cc91f1dd494e8b50660, d5d81e92b8a69bd243786d8846b7b4d5c7b68737, 0a94b92295b7525e95dffcc6682f61f0842a5656.
