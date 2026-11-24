@@ -42,7 +42,8 @@ import {
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { settlementAdjustments, settlementAdjustmentApprovals } from './financial.schema';
-import { settlementRecords } from '../payments/payments.schema';
+import { returnRequests } from './returns.schema';
+import { paymentRecords, settlementRecords } from '../payments/payments.schema';
 import { orders } from '../orders/orders.schema';
 import { stores } from '../merchant/merchant.schema';
 import { eq, and, sql, desc, isNull, inArray } from 'drizzle-orm';
@@ -124,19 +125,27 @@ export class SettlementAdjustmentService {
       throw new BadRequestException('Adjustment reason is required');
     }
 
-    // Derive orgId from sub-order if not provided
-    let resolvedOrgId = orgId ?? null;
+    // Tenant ownership is authoritative from sub-order → store → organization.
+    // A caller-supplied orgId is only a scope assertion; it must never override
+    // the relationship derived from the persisted order.
+    const resolvedOrgId = await this.resolveSubOrderOrganization(input.subOrderId);
     if (!resolvedOrgId) {
-      const orderRow = await this.db.db.query.orders.findFirst({
-        where: eq(orders.id, input.subOrderId),
-        columns: { storeId: true },
+      throw new NotFoundException('Sub-order not found');
+    }
+    if (orgId && orgId !== resolvedOrgId) {
+      throw new ForbiddenException('Settlement adjustment organization does not match its sub-order');
+    }
+
+    // A nullable FK only proves that the return exists. It does not prove that
+    // the return belongs to the adjustment's sub-order.
+    if (input.returnRequestId) {
+      const returnRequest = await this.db.db.query.returnRequests.findFirst({
+        where: eq(returnRequests.id, input.returnRequestId),
+        columns: { id: true, subOrderId: true },
       });
-      if (orderRow?.storeId) {
-        const storeRow = await this.db.db.query.stores.findFirst({
-          where: eq(stores.id, orderRow.storeId),
-          columns: { orgId: true },
-        });
-        resolvedOrgId = storeRow?.orgId ?? null;
+      if (!returnRequest) throw new NotFoundException('Return request not found');
+      if (returnRequest.subOrderId !== input.subOrderId) {
+        throw new BadRequestException('Return request does not belong to the adjustment sub-order');
       }
     }
 
@@ -607,6 +616,19 @@ export class SettlementAdjustmentService {
         throw new ConflictException(
           'Primary settlement store does not match the adjustment sub-order',
         );
+      }
+      // The schema has independent FKs for settlement.sub_order_id and
+      // settlement.payment_record_id. Enforce their cross-column relationship
+      // before using this settlement as the adjustment's financial parent.
+      const payment = await tx.query.paymentRecords.findFirst({
+        where: and(
+          eq(paymentRecords.id, settlement.paymentRecordId),
+          eq(paymentRecords.orderId, adj.subOrderId),
+        ),
+        columns: { id: true },
+      });
+      if (!payment) {
+        throw new ConflictException('Primary settlement payment does not match the adjustment sub-order');
       }
 
       // Transition to POSTED only in the same transaction that writes its ledger row.
