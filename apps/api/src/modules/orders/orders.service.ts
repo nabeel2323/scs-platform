@@ -3771,6 +3771,22 @@ export class OrdersService {
     shipment: any,
     caller: CallerContext,
   ): Promise<void> {
+    // Independent shipment order/store FKs do not prove the order belongs to
+    // the same merchant. Validate lineage before driver or platform bypasses.
+    const [store, order] = await Promise.all([
+      this.db.db.query.stores.findFirst({
+        where: eq(stores.id, shipment.storeId),
+        columns: { orgId: true },
+      }),
+      this.db.db.query.orders.findFirst({
+        where: eq(orders.id, shipment.orderId),
+        columns: { storeId: true },
+      }),
+    ]);
+    if (!store?.orgId || !order || order.storeId !== shipment.storeId) {
+      throw new NotFoundException('Shipment not found');
+    }
+
     const privileged = ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'].includes(caller.role || '');
     if (privileged) return;
 
@@ -3783,11 +3799,6 @@ export class OrdersService {
     }
 
     // Merchant check: store must belong to caller's org
-    const store = await this.db.db.query.stores.findFirst({
-      where: eq(stores.id, shipment.storeId),
-      columns: { orgId: true },
-    });
-    if (!store) throw new NotFoundException('Store not found for shipment');
     if (store.orgId !== caller.activeOrg) {
       throw new ForbiddenException('Shipment does not belong to your organization');
     }
@@ -3886,23 +3897,40 @@ export class OrdersService {
    * Get shipment by order ID.
    */
   async getShipmentByOrderId(orderId: string) {
-    return this.db.db.query.shipments.findFirst({
+    const order = await this.db.db.query.orders.findFirst({
+      where: eq(orders.id, orderId),
+      columns: { storeId: true },
+    });
+    if (!order) return null;
+    const shipment = await this.db.db.query.shipments.findFirst({
       where: eq(shipments.orderId, orderId),
     });
+    if (!shipment) return null;
+    if (shipment.storeId !== order.storeId) {
+      throw new NotFoundException('Shipment not found for order');
+    }
+    return shipment;
   }
 
   /**
    * List shipments for a driver (assigned to them).
+   * Exclude malformed shipment/order pairs before returning order-linked data.
    */
   async listDriverShipments(driverId: string, status?: string) {
-    const conditions = [eq(shipments.assignedDriverId, driverId)];
+    const conditions: any[] = [eq(shipments.assignedDriverId, driverId)];
     if (status) {
       conditions.push(eq(shipments.status, status));
     }
-    return this.db.db.query.shipments.findMany({
-      where: and(...conditions),
-      orderBy: [shipments.updatedAt],
-    });
+    const rows = await this.db.db
+      .select({ shipment: shipments })
+      .from(shipments)
+      .innerJoin(
+        orders,
+        and(eq(orders.id, shipments.orderId), eq(orders.storeId, shipments.storeId)),
+      )
+      .where(and(...conditions))
+      .orderBy(shipments.updatedAt);
+    return rows.map((row) => row.shipment);
   }
 
   /**
