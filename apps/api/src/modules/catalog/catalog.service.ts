@@ -161,10 +161,6 @@ export class CatalogService {
   }
 
   async createCategory(input: CreateCategoryInput) {
-    if (input.categoryId) {
-      await this.assertCategoryAvailableForStore(input.categoryId, input.storeId);
-    }
-
     const id = crypto.randomUUID();
     const slug =
       input.slug ||
@@ -888,6 +884,10 @@ export class CatalogService {
         // Return the match so the caller can attach an offer to it
         return { ...existing, _dedup: true } as any;
       }
+    }
+
+    if (input.categoryId) {
+      await this.assertCategoryAvailableForStore(input.categoryId, input.storeId);
     }
 
     const id = crypto.randomUUID();
