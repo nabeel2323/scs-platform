@@ -460,7 +460,7 @@ Unit and disposable PostgreSQL regression source was added; no tests, formatter,
 
 The current session advanced the migration/Drizzle FK reconciliation:
 - `financial.schema.ts` now declares the migration 0062 self-reference `reconciliation_runs.superseded_by → reconciliation_runs.id` using a typed lazy reference.
-- The migration-only deferred links `refunds.return_request_id`, `return_requests.refund_id` and `return_request_items.inventory_item_id` are explicitly documented in their schema declarations, including the payments/returns module-cycle and ON DELETE SET NULL semantics.
+- The migration-only deferred links `refunds.return_request_id`, `return_requests.refund_id`, `return_request_items.inventory_item_id` and `disputes.return_request_id` are explicitly documented in their schema declarations, including the payments/returns module-cycle and ON DELETE SET NULL semantics.
 - The G-002 migration FK crosswalk now records the four targeted parity findings and distinguishes them from nullable application-maintained `org_id` columns that intentionally have no organizations FK.
 
 This is not full Drizzle/migration parity completion: only the payment, return and financial schema slice was inspected. The remaining 100-table schema/migration comparison, exact ownership predicates, source operation and actor-context nesting audit, protected read-only catalog/runtime identity, external pg_partman scheduler evidence, 114/116 historical relation reconciliation, G-001 independent review and G-036 verification remain open.
