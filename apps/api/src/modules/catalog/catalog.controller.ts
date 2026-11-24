@@ -72,11 +72,26 @@ export class CatalogController {
 
   private async assertCategoryReadable(user: JwtPayload, categoryId: string): Promise<void> {
     const category = await this.catalogService.getCategory(categoryId);
-    if (!category.storeId) return;
-
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, category.storeId);
-    await assertStoreMember(this.db, caller, category.storeId);
+
+    if (category.storeId) {
+      try {
+        await assertStoreInOrg(this.db, caller, category.storeId);
+        await assertStoreMember(this.db, caller, category.storeId);
+      } catch (error) {
+        if (error instanceof ForbiddenException) throw new NotFoundException('Category not found');
+        throw error;
+      }
+    }
+
+    // Inactive categories are a governance surface, not public catalog data.
+    if (
+      !category.isActive &&
+      user.role !== 'SUPER_ADMIN' &&
+      !user.perms?.includes('catalog:categories:write')
+    ) {
+      throw new NotFoundException('Category not found');
+    }
   }
 
   // ── Categories ───────────────────────────────────────────────
@@ -99,16 +114,18 @@ export class CatalogController {
     @Query('all') all?: string,
     @Query('includeInactive') includeInactive?: string,
   ) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     if (storeId) {
-      const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
       await assertStoreInOrg(this.db, caller, storeId);
       await assertStoreMember(this.db, caller, storeId);
     }
+    const canViewInactive =
+      user.role === 'SUPER_ADMIN' || user.perms?.includes('catalog:categories:write') === true;
     return this.catalogService.listCategories({
       storeId,
       parentId,
       all: all === 'true',
-      isActive: includeInactive === 'true' ? undefined : true,
+      isActive: includeInactive === 'true' && canViewInactive ? undefined : true,
     });
   }
 
