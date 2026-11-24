@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { AnalyticsService, TrackInput } from './analytics.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser, RequirePermission } from '../../common/guards/current-user.decorator';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 
 /**
  * Analytics controller — 4 endpoints
@@ -14,6 +15,7 @@ import { CurrentUser, RequirePermission } from '../../common/guards/current-user
  */
 @Controller('analytics')
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
