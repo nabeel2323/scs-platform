@@ -3,13 +3,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { PilotControlService } from '../../../modules/operations/pilot-control.service';
 
 describe('PilotControlService allowlist tenant consistency', () => {
+  const adminCaller = { sub: 'admin-a', role: 'SUPER_ADMIN', activeOrg: null };
   function buildService(
     identity: { getOrg: ReturnType<typeof vi.fn> },
     merchant: { getStore: ReturnType<typeof vi.fn> },
   ) {
     const insert = vi.fn();
     const service = new PilotControlService(
-      { db: { insert } } as any,
+      {
+        db: { insert },
+        currentActorContext: null,
+        withActorContext: async (_actor: unknown, operation: () => Promise<unknown>) => operation(),
+      } as any,
       { record: vi.fn() } as any,
       { raise: vi.fn() } as any,
       identity as any,
@@ -29,7 +34,7 @@ describe('PilotControlService allowlist tenant consistency', () => {
       service.addAllowlistEntry({
         orgId: 'org-a',
         storeId: 'store-b',
-        actorId: 'admin-a',
+        caller: adminCaller,
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
 
@@ -49,7 +54,7 @@ describe('PilotControlService allowlist tenant consistency', () => {
       service.addAllowlistEntry({
         orgId: 'org-missing',
         storeId: 'store-a',
-        actorId: 'admin-a',
+        caller: adminCaller,
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
 
