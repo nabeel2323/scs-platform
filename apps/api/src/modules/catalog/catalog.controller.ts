@@ -1100,7 +1100,15 @@ export class CatalogController {
 
   @Get('search/categories')
   @UseInterceptors(TenantDatabaseContextInterceptor)
-  async getTopCategories(@Query('storeId') storeId?: string) {
+  async getTopCategories(
+    @Query('storeId') storeId: string | undefined,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    if (storeId) {
+      const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+      await assertStoreInOrg(this.db, caller, storeId);
+      await assertStoreMember(this.db, caller, storeId);
+    }
     return this.searchService.getTopCategories(storeId);
   }
 
