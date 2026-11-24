@@ -1352,3 +1352,7 @@ Do not mark Catalog or G-002 complete. Remaining: exhaustive Catalog service/roo
 The two mixed AdminService Catalog call paths are now actor-scoped: admin product update forwards the verified actor to CatalogService and avoids a request-wide transaction; admin media previews scope DB reads and sign URLs after commit. Other inspected AdminService Catalog CRUD/variant/attribute delegations remain request-interceptor scoped. Tests are authored but unexecuted.
 
 Remaining: continue cross-module Catalog caller/root-pool inventory beyond Admin/Pricing/Reviews and reviewed Inventory/Merchant/Orders/Promotions/Shipping/Catalog Import candidates; complete actor context for any additional mixed callers; finish FK/migration/operator evidence and protected live catalog proof. G-002 remains NOT VERIFIED.
+
+## 25 November 2026 — Profile Catalog callsites
+
+The six ProfileController favorites/saved-supplier operations now forward the authenticated actor and are service-scoped. Favorites enforce product readability; saved suppliers filter ACTIVE/VERIFIED stores and return only public-safe fields. Tests remain unexecuted. Continue the cross-module caller inventory; do not assume all non-Catalog module callers have been exhausted.
