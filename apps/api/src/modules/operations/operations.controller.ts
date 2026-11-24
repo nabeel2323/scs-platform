@@ -62,7 +62,7 @@ export class OperationsController {
       this.leases.read(P13_LEASE_KEY),
       this.controls.state(P13_PAUSE_CONTROL_KEY, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }),
       this.alerts.snapshot(),
-      this.pilot.snapshot(),
+      this.pilot.snapshot({ sub: user.sub, role: user.role, activeOrg: user.activeOrg }),
       this.leases.liveHolderCounts(),
     ]);
 
@@ -148,8 +148,8 @@ export class OperationsController {
   @Get('pilot')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:returns:read')
-  async pilotState() {
-    return this.pilot.snapshot();
+  async pilotState(@CurrentUser() user: JwtPayload) {
+    return this.pilot.snapshot({ sub: user.sub, role: user.role, activeOrg: user.activeOrg });
   }
 
   @Post('pilot/flag')
@@ -159,8 +159,9 @@ export class OperationsController {
     if (typeof body?.enabled !== 'boolean') {
       throw new BadRequestException('enabled must be a boolean');
     }
-    await this.pilot.setFlag(body.enabled, user.sub ?? null, body.description);
-    return this.pilot.snapshot();
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await this.pilot.setFlag(body.enabled, caller, body.description);
+    return this.pilot.snapshot(caller);
   }
 
   @Post('pilot/allowlist')
@@ -172,9 +173,9 @@ export class OperationsController {
       orgId: body.orgId as string,
       storeId: body.storeId ?? null,
       note: body.note ?? null,
-      actorId: user.sub ?? null,
+      caller: { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
     });
-    return this.pilot.snapshot();
+    return this.pilot.snapshot({ sub: user.sub, role: user.role, activeOrg: user.activeOrg });
   }
 
   @Post('pilot/allowlist/revoke')
@@ -186,9 +187,9 @@ export class OperationsController {
       orgId: body.orgId as string,
       storeId: body.storeId ?? null,
       note: body.note ?? 'revoked',
-      actorId: user.sub ?? null,
+      caller: { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
     });
-    return { rowsAffected, pilot: await this.pilot.snapshot() };
+    return { rowsAffected, pilot: await this.pilot.snapshot({ sub: user.sub, role: user.role, activeOrg: user.activeOrg }) };
   }
 }
 
