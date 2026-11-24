@@ -4288,16 +4288,19 @@ export class CatalogService {
       });
       const result = [];
       for (const fav of favs) {
+        const product = await this.db.db.query.products.findFirst({
+          where: and(eq(products.id, fav['productId']), isNull(products.deletedAt)),
+        });
+        if (!product) continue;
         try {
-          await assertProductReadable(this.db, actor, fav['productId']);
+          // Revalidate against the row actually being returned, not only the
+          // earlier favorite reference, so a newly-private product is skipped.
+          await assertProductReadable(this.db, actor, product.id);
         } catch (error) {
           if (error instanceof ForbiddenException || error instanceof NotFoundException) continue;
           throw error;
         }
-        const product = await this.db.db.query.products.findFirst({
-          where: and(eq(products.id, fav['productId']), isNull(products.deletedAt)),
-        });
-        if (product) result.push({ ...fav, product });
+        result.push({ ...fav, product });
       }
       return result;
     });
