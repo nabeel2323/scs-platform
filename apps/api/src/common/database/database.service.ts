@@ -1,4 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { sql } from 'drizzle-orm';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool, PoolClient } from 'pg';
 import * as fs from 'node:fs';
@@ -7,6 +9,43 @@ import { randomUUID } from 'node:crypto';
 import * as schema from '../../drizzle/schema';
 import { resolveDatabaseUrl } from '../../config/env-gate';
 import { PERMISSIONS, ROLES } from './rbac-seed.data';
+
+export type DatabaseActorKind = 'anonymous' | 'user' | 'worker' | 'system' | 'bootstrap' | 'audit';
+
+export type DatabaseActorContext =
+  | {
+      actorKind: 'anonymous';
+      actorId?: null;
+      actorRole?: null;
+      activeOrgId?: null;
+      workerId?: null;
+    }
+  | {
+      actorKind: 'user';
+      actorId: string;
+      actorRole: string;
+      activeOrgId?: string | null;
+    }
+  | {
+      actorKind: 'worker';
+      workerId: string;
+      activeOrgId?: string | null;
+    }
+  | {
+      actorKind: 'system' | 'bootstrap' | 'audit';
+      actorId: string;
+      actorRole?: string | null;
+      activeOrgId?: string | null;
+    };
+
+type NormalizedDatabaseActorContext = {
+  actorKind: DatabaseActorKind;
+  actorId: string | null;
+  actorRole: string | null;
+  activeOrgId: string | null;
+  workerId: string | null;
+};
+
 
 /**
  * Resolve the migrations directory. Works for both:
@@ -24,7 +63,139 @@ function resolveMigrationsDir(): string {
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private static readonly logger = new Logger('DatabaseService');
   private pool!: Pool;
-  public db!: NodePgDatabase<typeof schema>;
+  private rootDb!: NodePgDatabase<typeof schema>;
+  private readonly actorContextStorage = new AsyncLocalStorage<{
+    db: NodePgDatabase<typeof schema>;
+    actor: NormalizedDatabaseActorContext;
+  }>();
+
+  /**
+   * All existing services continue to use DatabaseService.db. During an explicitly
+   * scoped operation this getter resolves to the transaction-bound Drizzle handle;
+   * outside that operation it resolves to the process-wide pool handle.
+   *
+   * The setter preserves the existing bootstrap/test injection contract.
+   */
+  get db(): NodePgDatabase<typeof schema> {
+    const scoped = this.actorContextStorage.getStore()?.db;
+    const handle = scoped ?? this.rootDb;
+    if (!handle) throw new Error('DatabaseService has not initialized its database handle');
+    return handle;
+  }
+
+  set db(handle: NodePgDatabase<typeof schema>) {
+    this.rootDb = handle;
+  }
+
+  get currentActorContext(): Readonly<NormalizedDatabaseActorContext> | null {
+    return this.actorContextStorage.getStore()?.actor ?? null;
+  }
+
+  /**
+   * Run an explicitly selected operation on one transaction-bound connection and
+   * establish transaction-local PostgreSQL context before application queries.
+   *
+   * This is an opt-in primitive only: it does not install a global HTTP interceptor,
+   * does not automatically wrap controllers/workers, and does not enable RLS.
+   * Callers must pass context derived from authenticated server-side identity or a
+   * reviewed worker/system principal; never pass client-supplied tenant headers.
+   *
+   * Existing service calls to DatabaseService.db resolve to this transaction handle
+   * for the lifetime of the async operation, including raw Drizzle execute() calls.
+   * A nested call with the identical actor reuses the current transaction. Attempting
+   * to switch actors inside an active transaction fails closed.
+   */
+  async withActorContext<T>(
+    context: DatabaseActorContext,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const actor = this.normalizeActorContext(context);
+    const active = this.actorContextStorage.getStore();
+
+    if (active) {
+      if (!this.sameActor(active.actor, actor)) {
+        throw new Error('Cannot change database actor context inside an active transaction');
+      }
+      return operation();
+    }
+
+    if (!this.rootDb) throw new Error('DatabaseService has not initialized its database handle');
+
+    return this.rootDb.transaction(async (tx) => {
+      // The third argument MUST be true: every setting is transaction-local and is
+      // cleared by commit/rollback before this pool connection can serve another task.
+      await tx.execute(sql`
+        SELECT
+          set_config('app.actor_id', ${actor.actorId ?? ''}, true),
+          set_config('app.actor_role', ${actor.actorRole ?? ''}, true),
+          set_config('app.active_org_id', ${actor.activeOrgId ?? ''}, true),
+          set_config('app.actor_kind', ${actor.actorKind}, true),
+          set_config('app.worker_id', ${actor.workerId ?? ''}, true)
+      `);
+
+      return this.actorContextStorage.run(
+        { db: tx as unknown as NodePgDatabase<typeof schema>, actor },
+        operation,
+      );
+    });
+  }
+
+  private normalizeActorContext(context: DatabaseActorContext): NormalizedDatabaseActorContext {
+    if (!context || typeof context !== 'object') {
+      throw new TypeError('A database actor context is required');
+    }
+
+    const actorId = typeof context.actorId === 'string' ? context.actorId.trim() : null;
+    const actorRole = typeof context.actorRole === 'string' ? context.actorRole.trim() : null;
+    const activeOrgId =
+      typeof context.activeOrgId === 'string' ? context.activeOrgId.trim() : null;
+    const workerId = typeof context.workerId === 'string' ? context.workerId.trim() : null;
+
+    if (context.actorKind === 'anonymous') {
+      if (actorId || actorRole || activeOrgId || workerId) {
+        throw new TypeError('Anonymous database context cannot carry actor or tenant identity');
+      }
+    } else if (context.actorKind === 'user') {
+      if (!actorId || !actorRole || workerId) {
+        throw new TypeError('User database context requires actorId and actorRole only');
+      }
+    } else if (context.actorKind === 'worker') {
+      if (!workerId || actorId || actorRole) {
+        throw new TypeError('Worker database context requires workerId and no user identity');
+      }
+    } else if (
+      context.actorKind === 'system' ||
+      context.actorKind === 'bootstrap' ||
+      context.actorKind === 'audit'
+    ) {
+      if (!actorId || workerId) {
+        throw new TypeError(`${context.actorKind} database context requires actorId`);
+      }
+    } else {
+      throw new TypeError('Unsupported database actor kind');
+    }
+
+    return {
+      actorKind: context.actorKind,
+      actorId,
+      actorRole,
+      activeOrgId,
+      workerId,
+    };
+  }
+
+  private sameActor(
+    left: NormalizedDatabaseActorContext,
+    right: NormalizedDatabaseActorContext,
+  ): boolean {
+    return (
+      left.actorKind === right.actorKind &&
+      left.actorId === right.actorId &&
+      left.actorRole === right.actorRole &&
+      left.activeOrgId === right.activeOrgId &&
+      left.workerId === right.workerId
+    );
+  }
 
   async onModuleInit() {
     // Resolved through the production config gate (P13 Phase 4.1, finding F-4): the
