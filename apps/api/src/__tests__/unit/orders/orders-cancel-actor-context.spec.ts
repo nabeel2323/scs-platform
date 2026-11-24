@@ -30,7 +30,11 @@ describe('OrdersService.cancelOrder actor-context boundary (G-002)', () => {
       insert: vi.fn(() => ({ values: vi.fn().mockResolvedValue([]) })),
     };
     const db = {
-      db: { transaction: vi.fn(async (operation: (client: typeof tx) => Promise<unknown>) => operation(tx)) },
+      db: {
+        transaction: vi.fn(
+          async (operation: (client: typeof tx) => Promise<unknown>) => operation(tx),
+        ),
+      },
       withActorContext: vi.fn(async (actor: unknown, operation: () => Promise<unknown>) => {
         actorCalls.push(actor);
         events.push('actor-start');
