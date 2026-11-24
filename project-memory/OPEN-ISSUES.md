@@ -1237,3 +1237,8 @@ Regression coverage for the financial and reconciliation checks remains pending 
 ## G-002 — refund/payment/order consistency follow-up (24 November 2026)
 
 Commit `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d` adds missing refund order/currency equality checks to approval and both idempotent request recovery paths. The return-refund path already checks return/payment/order/refund/buyer/currency lineage under locks. Remaining cross-column checks and regression cases are documented in the G-002 migration FK crosswalk; tests remain pending and unexecuted.
+
+
+## G-002 — shipment order/store consistency follow-up (24 November 2026)
+
+Commits `b1e5490`, `02edaa8` and `15d328c` now enforce `orders.store_id = shipments.store_id` at shipment creation, shipment detail authorization (including platform-privileged reads), and carrier worker processing before provider/storage effects. Regression cases are documented in the G-002 crosswalk but remain unexecuted. Other carrier/shipment relationships and the driver assignment consumer remain open.
