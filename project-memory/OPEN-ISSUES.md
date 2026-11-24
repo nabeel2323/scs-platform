@@ -1253,7 +1253,7 @@ Commit `56d605a7377c49766b990abfc023e6ae4a5cea1d` adds same-store order validati
 
 Carrier admin recovery, recovery queue, scheduled create/cancel reconciliation, webhook shipment resolution and tracking polling now enforce the shipment/order/store same-merchant relationship. See source commits `0581776`, `83a4073`, `2b2810e`, `5bbd35d` and `9c9d7f4` and the updated migration FK crosswalk.
 
-Driver assignment remains unresolved at the model/consumer level: driver_store_assignments has separate driver-profile and store FKs without a same-org constraint, but no writer/controller/runtime consumer was found in the inspected ShippingModule; shipments.assigned_driver_id points to users. Do not add a speculative endpoint or change the FK model. Establish whether the assignment table is legacy/dead or used outside the inspected module.
+The earlier ShippingModule-only review missed the existing `POST /orders/:id/assign-driver` path in OrdersController/OrdersService. The route writes `shipments.assigned_driver_id` and now calls `ShippingService.assertDriverEligibleForStore` before any fulfillment mutation. The guard requires an active profile and user, an ACTIVE DRIVER membership, and profile organization = store organization. It preserves migration 0041's rule that zero explicit `driver_store_assignments` rows means unrestricted eligibility within the profile organization; if rows exist, only listed stores are eligible. No writer for the optional mapping table itself was found, so no speculative CRUD endpoint or schema change was added.
 
 Regression tests remain pending/unexecuted. Drizzle-to-migration reconciliation, protected live catalog evidence, runtime identities, scheduler ownership and independent review remain open. G-002 is NOT VERIFIED.
 
@@ -1261,3 +1261,10 @@ Regression tests remain pending/unexecuted. Drizzle-to-migration reconciliation,
 ## G-002 — webhook retry credential lineage follow-up (24 November 2026)
 
 Commit `926c475fb9c59ffa1688dccee3d4f9dfbeea59e2` requires every unprocessed credential-bound webhook retry, including already-linked events, to revalidate credential active/provider identity and match the shipment store organization to the credential organization. Unlinked legacy events without a credential fail closed; already-linked legacy rows without credential binding retain compatibility with shipment/order/store checks. Regression cases are documented but unexecuted.
+
+
+## G-002 — driver assignment eligibility source correction (24 November 2026)
+
+The existing shipment assignment route has now been located and hardened. Source commits `9d461e1c25381d4528fc733059ee58afb320fa6b` and `fca4c3569976fd6e5a8b9db767e876f8f449c367` validate the driver profile/user/role/store organization and migration 0041's unrestricted-or-explicit-store allowlist semantics before writing the shipment assignment. Unit and disposable-PostgreSQL regression cases were added but not executed.
+
+Still open: whether any external operator/provisioning process manages `driver_store_assignments`; remaining Drizzle-to-migration FK reconciliation; exact per-operation ownership and actor-context nesting review; actual API/migration runtime identities; protected read-only catalog evidence and the historical 114/116 relation reconciliation; external pg_partman scheduler ownership; G-001 independent review; G-036 verification. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No tests/CI, staging, shared database, migration, RLS/grant, deployment, worker activation, merge or release action occurred.
