@@ -341,9 +341,20 @@ export class CatalogTaxonomyService {
 
   // ── Product types ────────────────────────────────────────────
 
+  private async assertPlatformCategory(categoryId: string): Promise<void> {
+    const category = await this.db.db.query.categories.findFirst({
+      where: and(eq(categories.id, categoryId), isNull(categories.storeId)),
+      columns: { id: true },
+    });
+    if (!category) {
+      throw new BadRequestException('Product types may only reference platform-level categories');
+    }
+  }
+
   async createProductType(input: CreateProductTypeInput) {
     if (!input.code?.trim()) throw new BadRequestException('Product type code is required');
     if (!input.name?.trim()) throw new BadRequestException('Product type name is required');
+    if (input.categoryId) await this.assertPlatformCategory(input.categoryId);
     await this.validateVariantDimensions(input.categoryId ?? null, input.variantDimensions ?? []);
 
     const existingV1 = await this.db.db.query.productTypes.findFirst({
@@ -636,13 +647,8 @@ export class CatalogTaxonomyService {
     const pt = await this.db.db.query.productTypes.findFirst({ where: eq(productTypes.id, id) });
     if (!pt) throw new NotFoundException('Product type not found');
 
-    // Validate the category exists when a non-null value is provided
-    if (categoryId) {
-      const cat = await this.db.db.query.categories.findFirst({
-        where: eq(categories.id, categoryId),
-      });
-      if (!cat) throw new BadRequestException(`Category not found: ${categoryId}`);
-    }
+    // Product types are global taxonomy; tenant-owned categories are invalid references.
+    if (categoryId) await this.assertPlatformCategory(categoryId);
 
     await this.db.db
       .update(productTypes)
