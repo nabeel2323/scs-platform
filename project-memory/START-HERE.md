@@ -928,20 +928,20 @@ External Vercel preview statuses continue to report the provider build-rate limi
 
 ### Next actions and restrictions
 
-1. Format the entire changed source/test/memory set once, run Prettier check, and trigger one exact-head consolidated CI verification.
-2. Inspect the exact E6 boundary results and address any remaining direct schema coupling through module-owned service contracts. Do not edit the 193-entry reviewed baseline or create schema re-export barrels.
-3. Keep FIN-047 at IMPLEMENTED / TESTING_PENDING until the API pagination/tenant tests, Admin recovery and Merchant recovery tests pass.
-4. Continue G-002 source evidence and actual FK/method-predicate mapping. Protected staging/runtime identity inspection remains unavailable without authorization. G-001 independent review and G-036 focused security verification remain open; Phase 6 remains NOT STARTED.
+1. Continue implementation and cross-component integration; do not run tests, formatter, lint, typecheck, E6 or CI during this phase.
+2. Continue G-002 route/worker/system context coverage only after source review of guard ordering, nested transactions, detached async work, streaming, external I/O and module provider wiring. Keep the interceptor opt-in and controller/method scoped.
+3. Close remaining implementation gaps and update the 193-entry baseline only if new source evidence justifies it; do not create schema re-export barrels.
+4. Keep FIN-047 at IMPLEMENTED / TESTING_PENDING and other findings at their evidence-backed statuses. Begin the consolidated test/CI campaign only after implementation and cross-component integration are complete. G-001 independent review and G-036 focused security verification remain open; Phase 6 remains NOT STARTED.
 
 No migration, database grant/default-ACL change, RLS enablement, shared/staging database write, deployment, worker activation, merge or release was performed. PR #138 remains draft and unmerged.
 
 
 ## Latest G-002 actor-context rollout — 24 November 2026
 
-The live branch checkpoint is `5c14ad71ad24b8812b7cd1607052a5d79fbc2bf4`. The opt-in DatabaseService actor-context primitive uses typed user/anonymous/worker/system/bootstrap/audit identities, transaction-local PostgreSQL GUCs, AsyncLocalStorage-backed Drizzle routing, same-actor nested reuse and an expired-scope fence. The interceptor is explicitly controller/method scoped, never global.
+The live branch checkpoint at this update is `78d0475a7fcdbea6aca848a46236e5f536a4a796`. The opt-in DatabaseService actor-context primitive uses typed user/anonymous/worker/system/bootstrap/audit identities, transaction-local PostgreSQL GUCs, AsyncLocalStorage-backed Drizzle routing, same-actor nested reuse and an expired-scope fence. The interceptor is explicitly controller/method scoped, never global.
 
-The reviewed route allowlist currently covers bounded JWT-protected Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Catalog and Admin read handlers, Cart, Returns and Organizations/Roles operations. Each additional route must be added only after reviewing the service call graph, transaction behavior, detached async work and external-I/O lifetime.
+The reviewed route allowlist currently covers bounded JWT-protected Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Catalog and Admin read handlers, bounded Profile/device handlers, Cart, Returns and Organizations/Roles operations. Each additional route must be added only after reviewing the service call graph, transaction behavior, detached async work and external-I/O lifetime.
 
-Auth/Profile, file/import/upload, main Orders/Payments, carrier/shipping, bootstrap, deferred audit writes, workers/schedulers, realtime sockets, CLI and migrations remain outside the first rollout pending explicit principal/transaction contracts. G-002 remains IN PROGRESS; no tests/CI, RLS, shared database changes, migrations, staging actions, deployment or worker activation occurred.
+AuthController, credential setup/password-change Profile handlers, file/import/upload, main Orders/Payments, carrier/shipping, bootstrap, deferred audit writes, workers/schedulers, realtime sockets, CLI and migrations remain outside the first rollout pending explicit principal/transaction contracts. G-002 remains IN PROGRESS; no tests/CI, RLS, shared database changes, migrations, staging actions, deployment or worker activation occurred.
 
 **Standing user instruction:** finish implementation and integration first; do not run tests or CI until that work is complete. Continue autonomously without asking for approval for routine steps.

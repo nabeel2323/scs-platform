@@ -3,56 +3,54 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Exact branch head:** `836e06467228a8f7d6b34fff1c58bb33104f03a0` — `feat(identity): scope organization REST queries to actor transaction [skip ci]`.  
+**Exact branch head at this checkpoint:** `78d0475a7fcdbea6aca848a46236e5f536a4a796` — actor-context route allowlist documentation.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop`.  
-**Exact-head GitHub Actions:** zero workflow runs; source commits intentionally include `[skip ci]`.  
-**Exact-head preview status:** Vercel Web FAILURE and Vercel Admin FAILURE, both due to the external provider build-rate-limit page. These are not application-test results.
+**Actions:** no exact-head workflow run; source commits use `[skip ci]`. External Vercel preview statuses are separate from application test evidence.
 
 > **Standing user instruction:** complete implementation and cross-component integration first, then run tests. Do not execute test commands or trigger CI during implementation. Proceed autonomously without asking for approval for routine steps; group related changes and synchronize project memory.
 
-## Current G-002 implementation checkpoint
+## G-002 transaction-context implementation
 
-The opt-in DatabaseService actor-context foundation is implemented in source:
-
+DatabaseService now exposes an opt-in `withActorContext` transaction primitive with:
 - Typed principals: `anonymous`, `user`, `worker`, `system`, `bootstrap`, `audit`.
-- Parameterized transaction-local PostgreSQL settings use `set_config(..., true)` for actor ID, actor role, active organization, actor kind and worker ID.
-- AsyncLocalStorage routes existing `DatabaseService.db` calls through the transaction-bound Drizzle handle during an opted-in operation.
-- Nested calls reuse the active transaction only for the same actor. Actor switching fails closed.
-- The context scope is marked inactive after completion; detached async work that inherits the ALS store cannot query through a committed/rolled-back transaction.
-- The interceptor is explicitly scoped, never global.
+- Parameterized transaction-local PostgreSQL settings via `set_config(..., true)` for actor ID, role, active organization, actor kind and worker ID.
+- AsyncLocalStorage-backed Drizzle transaction routing for existing `DatabaseService.db` reads.
+- Same-actor nested context reuse; actor switching is rejected.
+- An inactive-scope fence so detached asynchronous work inheriting the ALS store cannot query after commit/rollback.
+- An explicit controller/method-scoped interceptor; it is not global.
 
-### Bounded controller adoption
+## Current bounded HTTP adoption
 
-The controller-level interceptor is now wired into:
-- Notifications REST controller.
-- Pricing controller.
-- Store Membership controller.
-- Promotions controller (also includes source-level store/org ownership enforcement for merchant operations).
-- Reviews and Disputes controllers.
-- Inventory controller.
-- Analytics controller.
-- Catalog Offer, Catalog Requests and Catalog Taxonomy controllers.
-- Selected Admin read handlers (method-scoped).
-- Cart controller.
-- Returns controller.
-- Organizations and Roles controllers.
+- Notifications.
+- Pricing.
+- Store Membership.
+- Promotions (merchant create/list/detail/update/code-validation now carry caller context and enforce active organization/store membership; foreign detail denial is normalized to not-found).
+- Reviews and Disputes.
+- Inventory.
+- Analytics.
+- Catalog Offers, Catalog Requests and Catalog Taxonomy.
+- Selected Catalog read handlers (31 bounded GET routes; direct response/import error handler excluded).
+- Selected Admin read handlers (29 bounded GET routes; media-preview signing excluded).
+- Cart and Returns.
+- Organizations and Roles.
+- Bounded Profile/device routes (16 handlers); credential setup and password change remain outside because they perform credential/session security work.
 
-Each adoption is restricted to JWT-authenticated request paths reviewed for bounded DB work. This is not universal coverage and does not make the project RLS-ready.
+Every adopted route is JWT-protected and reviewed for bounded request lifetime. No global transaction wrapper is installed. This is partial source coverage, not proof of RLS readiness.
 
-### Remaining uncovered paths
+## Remaining uncovered paths
 
-Other complex or separately authenticated paths remain outside this first rollout, including Auth/Profile, general Catalog import/upload and Merchant document/upload operations, main Orders/Payments, Shipping/carrier webhooks, bootstrap, deferred audit middleware writes, workers/schedulers, realtime sockets, CLI and migration execution. Each requires its own principal and transaction contract; do not apply the interceptor indiscriminately.
+AuthController; Profile credential setup/password change; general Catalog import/upload and Merchant document/upload operations; main Orders and Payments controllers; Shipping/carrier webhooks; bootstrap; asynchronous audit middleware writes after response completion; workers/schedulers; realtime sockets; CLI; and migration execution. Each needs a separately reviewed principal and transaction contract. Carrier actor context may only be established after credential authentication.
 
 ## Next implementation priorities
 
-1. Complete bounded adoption for remaining authenticated HTTP controllers only after reviewing detached async work, streaming, external I/O, nested transactions and module provider wiring.
-2. Define explicit service contexts for worker/scheduler, carrier webhook (only after credential authentication), bootstrap and deferred audit writes.
-3. Finish the G-002 method-level physical table/operation/ownership matrix and reconcile the 114/116 relation inventory.
+1. Complete remaining bounded HTTP integration only where service call graph, nested transaction, detached work, streaming, external I/O and provider wiring are reviewed.
+2. Define explicit worker/scheduler, carrier-webhook, bootstrap and deferred-audit context contracts; never establish webhook context before credential authentication.
+3. Finish G-002 method-level physical table/operation/ownership predicates and reconcile the 114/116 relation inventory.
 4. Obtain actual API/migration runtime identity and protected read-only catalog evidence through the authorized staging process.
-5. Keep RLS, grants, ACLs, migrations, staging and deployment blocked until their independent design/review/authorization gates are satisfied.
+5. Preserve all no-RLS, no-migration, no-grants/default-ACL, no-shared-DB-write, no-staging-write, no-deploy, no-worker-activation and no-merge restrictions.
 
 ## Verification state
 
-No tests, formatter, lint, typecheck, E6 boundary check or GitHub Actions workflow was run for this implementation batch. The consolidated testing campaign is deferred until implementation and integration are complete. Do not mark G-002 VERIFIED from source implementation alone.
+No tests, formatter, lint, typecheck, E6 boundary check or CI workflow has been run for this implementation rollout. The consolidated test/verification campaign begins only after implementation and cross-component integration are complete. Do not mark G-002 VERIFIED from source implementation alone.
 
 No shared database mutation, migration, grant/default-ACL change, RLS enablement, staging action, deployment, worker activation, merge or release occurred. PR #138 remains draft and unmerged.

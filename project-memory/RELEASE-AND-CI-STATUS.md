@@ -3,7 +3,7 @@
 **Live reconciliation:** 24 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — OPEN / DRAFT / UNMERGED.  
 **Branch:** `remediation/phase-0-1-tenant-security`.  
-**Current head:** `836e06467228a8f7d6b34fff1c58bb33104f03a0`.  
+**Current head at this checkpoint:** `78d0475a7fcdbea6aca848a46236e5f536a4a796`.  
 **Exact-head GitHub Actions:** zero workflow runs; source commits use `[skip ci]`.  
 **Combined status:** Vercel Web FAILURE and Vercel Admin FAILURE due to the external provider build-rate-limit page. These are preview statuses, not application-test evidence.
 
@@ -20,7 +20,7 @@ The active source now includes:
 - Explicit controller/method-scoped adoption for Notifications, Pricing, Store Membership, Promotions, Reviews, Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Admin reads, Cart, Returns, Organizations and Roles.
 - Merchant promotion mutations now carry caller context and enforce store organization plus active membership; foreign promotion detail access is normalized to not-found.
 
-This remains partial coverage. No global interceptor is present. Auth/Profile, file/import/upload, main Orders/Payments, shipping/carrier webhooks, bootstrap, audit middleware, workers/schedulers, realtime, CLI and migration paths remain outside the current adoption pending explicit principal/transaction review.
+This remains partial coverage. No global interceptor is present. AuthController, credential setup/password-change Profile handlers, file/import/upload, main Orders/Payments, shipping/carrier webhooks, bootstrap, audit middleware, workers/schedulers, realtime, CLI and migration paths remain outside the current adoption pending explicit principal/transaction review.
 
 ## Verification phase policy
 

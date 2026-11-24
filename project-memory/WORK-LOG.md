@@ -1627,3 +1627,13 @@ The user explicitly directed: finish implementation first, then do the tests; pr
 - Tests, formatter, lint, typecheck, E6 and CI were not run, per the user's implementation-first instruction.
 - No RLS, migration, grants/default ACL changes, shared/staging DB writes, deployment, worker activation, merge or release.
 - **Next:** continue safe bounded controller integrations only after source review; then define explicit worker/webhook/bootstrap/audit context scopes and finish G-002 operation/ownership evidence.
+
+
+## 24 November 2026 — bounded Profile/device actor-context integration
+
+- Applied the existing opt-in `TenantDatabaseContextInterceptor` to 16 bounded Profile/device handlers: profile read/update, organization list, device-token register/list/remove, favorites, saved suppliers, sessions read/revoke, trusted-device list/revoke.
+- Credential setup and password-change handlers intentionally remain outside the interceptor because they perform credential/session security work and may have longer CPU/Redis lifetimes. AuthController remains outside.
+- The IdentityModule already provides the interceptor for Organizations and Roles; ProfileController now uses the same provider.
+- The interceptor remains method-scoped for ProfileController, not class/global scoped. The actor is taken from verified JWT claims by the shared interceptor.
+- No tests, formatter, lint, typecheck, E6 or CI were run. No RLS, migration, grants, shared DB, staging, deployment or worker activation occurred.
+- Source commit: `0eccaf90847bce0ca8039b6874a2053ce1412445`; allowlist documentation commit: `78d0475a7fcdbea6aca848a46236e5f536a4a796`.
