@@ -1031,3 +1031,8 @@ The catalog media-add endpoint now scopes its product edit authorization read se
 The mixed catalog import upload and CSV staging routes now establish the authenticated user actor for their authorization reads and for each database-only service phase. `uploadImportFile` requires a caller actor, scopes the persisted-job lookup and final import-job metadata update, and leaves raw request-body reading, object-storage upload and XLSX parsing outside DB transactions. `stageImportRows` requires a caller actor, scopes its persisted-job lookup and READY-state update, and leaves Redis batch deletion/write/expiry/count operations outside DB transactions. The controller resolves the persisted job and verifies store organization/membership inside a short actor context before reading upload bytes or invoking Redis/storage work. The focused P10 upload test fixture now mocks the actor-context wrapper and passes a caller to each upload test.
 
 Source commits: `b6dd8a7d731604be811301dd7168fc3faffde1b6` and `6e3b5a9716eeac514fd214dbc2561266f797993c`. No tests, formatter, lint, typecheck, E6 or CI were run. Preview, processing/worker, error-report export and other mixed catalog import paths remain open; this change does not mark the catalog actor-context audit or G-002 verified.
+
+
+## Import preview validation DB scope refinement — 24 November 2026
+
+Follow-up review confirmed `ImportValidationService.validateRows` performs database reads (catalog lookup/validation), not just in-memory validation. Its invocation is now inside the same short authenticated actor-context boundary; workbook parsing and Redis reads remain outside. Source commit: `9b6387597e8c02de076613b4f4a540a379362491`. Tests and CI remain deferred and G-002 remains NOT VERIFIED.
