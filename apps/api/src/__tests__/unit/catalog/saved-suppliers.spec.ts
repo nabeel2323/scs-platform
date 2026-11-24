@@ -120,6 +120,18 @@ describe('CatalogService — Saved Suppliers (§21.3)', () => {
       expect(mocks.db.insert).not.toHaveBeenCalled();
     });
 
+    it('requires an active verified public store before saving it', async () => {
+      mocks.db.query.stores.findFirst.mockResolvedValue({ id: 'store-A' });
+      mocks.db.query.savedSuppliers.findFirst.mockResolvedValue(undefined);
+
+      await service.saveSupplier('user-1', 'store-A', actor);
+
+      const where = mocks.db.query.stores.findFirst.mock.calls[0]![0].where as SQL;
+      const compiled = new PgDialect().sqlToQuery(where);
+      expect(compiled.params).toContain('ACTIVE');
+      expect(compiled.params).toContain('VERIFIED');
+    });
+
     it('is idempotent: re-saving returns the existing row without inserting', async () => {
       mocks.db.query.stores.findFirst.mockResolvedValue({ id: 'store-A', name: 'Supplier A' });
       const existing = { id: 'ss-1', userId: 'user-1', storeId: 'store-A', createdAt: new Date() };
@@ -185,6 +197,20 @@ describe('CatalogService — Saved Suppliers (§21.3)', () => {
         service.addFavorite('user-1', 'product-private', actor),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(mocks.db.insert).not.toHaveBeenCalled();
+    });
+
+    it('allows favoriting a product only after the caller-readable check succeeds', async () => {
+      mocks.db.query.products.findFirst.mockResolvedValue({
+        id: 'product-active',
+        storeId: 'store-A',
+        status: 'ACTIVE',
+      });
+      mocks.db.query.favorites.findFirst.mockResolvedValue(undefined);
+
+      const result = await service.addFavorite('user-1', 'product-active', actor);
+
+      expect(mocks.db.insert).toHaveBeenCalledOnce();
+      expect(result).toMatchObject({ userId: 'user-1', productId: 'product-active' });
     });
 
     it('does not return unreadable private products in the favorites list', async () => {
