@@ -1230,3 +1230,10 @@ The latest continuation added a typed Drizzle self-reference for migration 0062'
 Source commits: `b37f3386220b7148f2b326f9fd43b532b201a152`, `ef178d7af0d10b1ef80642aa5f6fe77b37cc55d4`, `e1d73e5270f8a815c537edf97f1ff8cc1d45fac4`. Crosswalk/progress/memory commits are recorded in the work log.
 
 Live GitHub check immediately before this handoff sync: PR #138 is OPEN / DRAFT / UNMERGED to `develop`; branch `remediation/phase-0-1-tenant-security`; head `ba8b900ed03f9985f00f052e94724eb861c413f8`; zero exact-head Actions runs and zero status contexts. This head is a documentation checkpoint and remains unverified. The next task is full table-by-table Drizzle/migration FK reconciliation followed by the remaining ownership and actor-context source audit. Do not run tests/CI during implementation.
+
+
+## Final live checkpoint — 24 November 2026
+
+The latest verified PR #138 state immediately before this handoff note: OPEN / DRAFT / UNMERGED, base `develop`, branch `remediation/phase-0-1-tenant-security`, head `07eb6b7c60152ca72dd937bc0dd1251003fd583b`. Compare: 2,485 commits ahead / 0 behind. Exact-head Actions runs: none. Combined status: Vercel Web and Admin FAILURE due to provider build-rate limiting only; no application CI result. The next session must re-query live state because this handoff note itself is a documentation commit.
+
+Targeted source changes in this session: reconciliation_runs.superseded_by now mirrors the migration self-FK in Drizzle; the four deferred cross-module/migration-owned FKs (refunds.return_request_id, return_requests.refund_id, return_request_items.inventory_item_id, disputes.return_request_id) are documented in their schema files. Five total omissions were recorded including the self-FK; only the self-FK was brought into Drizzle. This is not full schema parity completion. All tests and CI remain deferred.
