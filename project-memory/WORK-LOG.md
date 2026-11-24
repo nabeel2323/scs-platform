@@ -1685,3 +1685,10 @@ The user explicitly directed: finish implementation first, then do the tests; pr
 - **Verification:** test files were added/updated but not executed per the implementation-first instruction. No formatter, lint, typecheck, E6 or GitHub Actions workflow was run. Exact source SHA `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f` has zero Actions workflow runs; Vercel Admin/Web contexts are SUCCESS preview statuses only, not application-test evidence.
 - No migration, RLS enablement, grants/default ACL changes, shared/staging DB writes, deployment, worker activation, merge or release occurred.
 - **Next:** design and implement safe pre-authentication principal resolution for phone/email OTP login, password login, refresh-token rotation and logout; preserve OTP/Redis/provider/bcrypt/JWT boundaries. Then continue safe Orders/Payments and Merchant metadata slices, complete ownership predicates/runtime evidence and defer consolidated verification until implementation/integration is complete.
+
+## 24 November 2026 — credential actor-context test-fixture correction
+
+- Test-only commit: `c8405a33388731095ef08b64d744a36d7b079cd3`, immediately after source commit `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`.
+- Corrected the new credential-context service spec's update mock so `where()` returns a chainable query object with `returning()`, matching the Drizzle call shape used by the service. Awaiting the non-returning update path still resolves the mock terminal result.
+- The spec remains unexecuted, as required during implementation. The PR head has zero GitHub Actions workflow runs; Vercel Admin/Web statuses are SUCCESS preview contexts only.
+- No production source, schema, migration, database, RLS, grants, staging, deployment, worker or release behavior changed.

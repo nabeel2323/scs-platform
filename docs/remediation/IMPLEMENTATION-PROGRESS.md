@@ -2437,3 +2437,7 @@ Source commit: `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`.
 - No schema, migration, grant/default ACL, RLS, database, staging, deployment or worker change occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 
 **Next:** safely design pre-authentication principal resolution for phone/email OTP login, password login, refresh-token rotation and logout; preserve Redis/provider/bcrypt/JWT boundaries. Then finish safe Orders/Payments and Merchant document-metadata slices and complete ownership/runtime evidence.
+
+### Test fixture follow-up — 24 November 2026
+
+Test-only commit `c8405a33388731095ef08b64d744a36d7b079cd3` corrected the credential actor-context spec's mock query chain. The service and controller implementation remains at source commit `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`. This is a test-fixture correction only; the spec has not been executed and G-002 remains NOT VERIFIED.

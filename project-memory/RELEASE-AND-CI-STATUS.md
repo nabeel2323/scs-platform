@@ -30,3 +30,7 @@ No RLS, migration, shared database grant/default-ACL change, staging action, dep
 Source commit `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f` updates authenticated Identity/Profile DB-only operations and their controller/service regression coverage. Tests have not been executed. Exact-head GitHub Actions lookup returned zero workflow runs; Vercel Admin and Web status contexts are SUCCESS but are preview statuses, not application tests. The commit includes `[skip ci]` as required by the implementation-first phase.
 
 Next identity work is pre-authentication principal resolution for OTP/email-OTP login, password login, refresh-token rotation and logout. Preserve the existing external-I/O boundaries. No formatter, lint, typecheck, E6, database, migration, grant, RLS, staging, deployment, worker, merge or release action was performed.
+
+## 24 November 2026 — credential actor-context test-fixture follow-up
+
+Test-only commit `c8405a33388731095ef08b64d744a36d7b079cd3` corrected the credential actor-context spec's Drizzle update-query mock to preserve `where().returning()` chaining. No production source changed in that commit. The test remains unexecuted; exact-head GitHub Actions remains at zero runs and Vercel Admin/Web SUCCESS are preview-only statuses.

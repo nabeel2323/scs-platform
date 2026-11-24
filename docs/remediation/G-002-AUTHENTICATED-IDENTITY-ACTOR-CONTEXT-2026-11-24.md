@@ -61,7 +61,7 @@ No request-body actor, organization or user identifier is used to manufacture th
 - Updated account-linking tests, including an assertion on the verified user actor context.
 - Updated email-OTP error-coverage test fixtures and calls.
 - Updated IdentityService organization N+1 tests to provide actor context to switchOrg.
-- Added `identity.credentials-context.spec.ts` for actor context values, bcrypt-outside-transaction boundaries, and password/device/session DB operations.
+- Added `identity.credentials-context.spec.ts` for actor context values, bcrypt-outside-transaction boundaries, and password/device/session DB operations. Test-only commit `c8405a33388731095ef08b64d744a36d7b079cd3` corrected its update mock so `where().returning()` remains chainable; this was not a production source change.
 
 **Tests were not run**, per the standing implementation-first instruction. No formatter, lint, typecheck, E6 or CI workflow was executed for this source commit. Source implementation is not RLS or runtime verification.
 
