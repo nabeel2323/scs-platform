@@ -37,11 +37,11 @@ for f in $(ls "$DIR"/*.sql | sort); do
       continue
       ;;
   esac
-  if apply_transactionally "$f" >/dev/null 2>&1; then
+  if output=$(apply_transactionally "$f" 2>&1); then
     APPLIED=$((APPLIED + 1))
   else
     echo "FAIL: $name"
-    apply_transactionally "$f" 2>&1 | tail -10 || true
+    printf '%s\\n' "$output" | tail -10
     FAILED=$((FAILED + 1))
   fi
 done
@@ -49,11 +49,11 @@ echo "APPLIED=$APPLIED FAILED=$FAILED"
 
 echo ""
 echo "=== IDEMPOTENT RERUN: applying 0058 again ==="
-if apply_transactionally "$DIR/0058_payment_financial_architecture.sql" >/dev/null 2>&1; then
+if output=$(apply_transactionally "$DIR/0058_payment_financial_architecture.sql" 2>&1); then
   echo "RERUN_0058=OK"
 else
   echo "RERUN_0058=FAIL"
-  apply_transactionally "$DIR/0058_payment_financial_architecture.sql" 2>&1 | tail -10 || true
+  printf '%s\\n' "$output" | tail -10
 fi
 
 echo ""
