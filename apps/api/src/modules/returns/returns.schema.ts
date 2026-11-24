@@ -24,7 +24,9 @@ export const returnRequests = pgTable('return_requests', {
   subOrderId: uuid('sub_order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
   paymentRecordId: uuid('payment_record_id').notNull().references(() => paymentRecords.id, { onDelete: 'cascade' }),
   buyerId: uuid('buyer_id').notNull().references(() => users.id),
-  refundId: uuid('refund_id'),  // FK added via migration; set after refund created
+  // Reverse link is added by migration 0059 after refunds exists. Keep the
+  // column migration-only here to avoid a returns <-> payments schema cycle.
+  refundId: uuid('refund_id'),
   status: varchar('status', { length: 30 }).notNull().default('REQUESTED'),
   reason: varchar('reason', { length: 40 }).notNull(),
   description: text('description'),
@@ -59,7 +61,9 @@ export const returnRequestItems = pgTable('return_request_items', {
   orderItemId: uuid('order_item_id').notNull().references(() => orderItems.id, { onDelete: 'cascade' }),
   quantity: integer('quantity').notNull(),
   condition: varchar('condition', { length: 20 }),  // set during inspection
-  inventoryItemId: uuid('inventory_item_id'),  // resolved during inspection
+  // Migration 0059 adds the nullable inventory_items FK (ON DELETE SET NULL).
+  // The inventory module is intentionally not imported into this schema file.
+  inventoryItemId: uuid('inventory_item_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
