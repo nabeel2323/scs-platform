@@ -190,12 +190,20 @@ export class CatalogImportController {
   @Get('template/:type')
   @RequirePermission('catalog:imports:manage')
   @RequireRole('ADMIN', 'SUPER_ADMIN')
-  async template(@Param('type') type: string, @Res() res: Response) {
+  async template(
+    @Param('type') type: string,
+    @Res() res: Response,
+    @CurrentUser() user: JwtPayload,
+  ) {
     const validTypes = ['full', 'products', 'categories', 'brands', 'attributes', 'product-types'];
     if (!validTypes.includes(type)) {
       throw new BadRequestException(`Invalid template type "${type}". Allowed: ${validTypes.join(', ')}`);
     }
-    const buffer = await this.importService.downloadTemplate(type);
+    const buffer = await this.importService.downloadTemplate(type, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="catalog-template-${type}.xlsx"`,
@@ -211,8 +219,12 @@ export class CatalogImportController {
   @Post('export')
   @RequirePermission('catalog:imports:manage')
   @RequireRole('ADMIN', 'SUPER_ADMIN')
-  async export(@Res() res: Response) {
-    const buffer = await this.importService.exportCatalog();
+  async export(@Res() res: Response, @CurrentUser() user: JwtPayload) {
+    const buffer = await this.importService.exportCatalog({
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="catalog-export-${new Date().toISOString().slice(0, 10)}.xlsx"`,
