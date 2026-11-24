@@ -2850,3 +2850,12 @@ The remaining inspected carrier paths now enforce `orders.store_id = shipments.s
 Driver/store assignment disposition: `driver_store_assignments` has separate driver-profile and store FKs, with no same-org constraint. The inspected ShippingModule/controllers do not register an assignment writer, and `shipments.assigned_driver_id` points to users, not driver profiles. No speculative endpoint or schema change was introduced. Confirm whether the assignment table is legacy/dead schema or consumed elsewhere before adding enforcement.
 
 Exact regression cases are recorded in the G-002 migration FK crosswalk; no tests, formatter, lint, typecheck, E6 or CI were run. All commits use `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## G-002 — persisted webhook credential-to-shipment lineage — 24 November 2026
+
+**Source commit:** `926c475fb9c59ffa1688dccee3d4f9dfbeea59e2`.
+
+Webhook retry now revalidates the bound credential for already-linked as well as unlinked events. It rejects missing/inactive bound credentials and provider-key mismatch, and requires the linked shipment store's organization to equal the credential organization before marking the event processed. Unlinked legacy events without a credential are rejected; already-linked legacy rows with null credential remain compatible but still pass shipment/order/store consistency validation. This closes a path where an existing event link could otherwise be retried under a different organization's shipment.
+
+Regression cases are in the G-002 crosswalk and remain unexecuted. No tests, formatter, lint, typecheck, E6 or CI were run; commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
