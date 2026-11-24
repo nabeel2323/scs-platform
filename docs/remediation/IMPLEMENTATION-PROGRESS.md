@@ -2441,3 +2441,9 @@ Source commit: `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`.
 ### Test fixture follow-up — 24 November 2026
 
 Test-only commit `c8405a33388731095ef08b64d744a36d7b079cd3` corrected the credential actor-context spec's mock query chain. The service and controller implementation remains at source commit `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`. This is a test-fixture correction only; the spec has not been executed and G-002 remains NOT VERIFIED.
+
+## G-002 pre-authentication identity lookup principal — 24 November 2026
+
+Source commit `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f` adds an operation-scoped `authentication` actor to DatabaseService and applies it to initial account/session resolution in phone OTP login, email OTP login, password login, refresh and logout. The actor carries no user/role/org/worker identity and stores a closed operation label in transaction-local `app.auth_operation`. It is a context primitive, not an RLS policy or grant.
+
+Post-proof DB operations remain open: OTP account creation, claims reads, session persistence/rotation, device-credential validation/persistence/revocation and owner-bound logout writes must be moved into verified user actor contexts. External Redis, rate-limit, bcrypt, provider and JWT work must stay outside transactions. No tests/CI run; G-002 remains IN PROGRESS / NOT VERIFIED.

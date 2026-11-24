@@ -82,6 +82,7 @@ Live reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-plat
 
 ### Exact stopping point
 
+- Latest source commit `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f` adds an operation-scoped `authentication` actor for initial pre-auth account/session lookups. It carries no user, role or tenant identity and requires a fixed operation label.
 - G-002 now has scoped DB-only actor context for credential setup/change, OTP-proven email/phone linking, account identifier unlinking, and authenticated organization switching.
 - JWT-protected AuthController/ProfileController handlers forward only verified user ID, role and active-organization claims. The service uses those values for explicit user actor contexts.
 - Password hashing and comparison, OTP challenge consumption, Redis denylisting, provider traffic and JWT signing remain outside the database transactions. Password change atomically updates the password, writes the credential audit row, revokes trusted-device credentials and revokes sessions; the general audit entry is a separate audit actor write.
@@ -97,7 +98,7 @@ Live reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-plat
 
 ### Remaining project gates
 
-- Next G-002 source task: review pre-authentication OTP/email-OTP login, password login, refresh-token rotation and logout. Define how a principal is safely resolved before user identity is known; do not use unverified request claims or wrap Redis/provider/bcrypt/JWT work in DB transactions.
+- Next G-002 source task: finish post-proof Identity DB phases: scope account creation, claims reads, session creation/rotation/revocation and device-credential persistence under a verified user actor after OTP/password proof or refresh owner resolution. Keep Redis/provider/bcrypt/rate-limit/JWT work outside transactions. The initial lookup boundary now uses an operation-scoped authentication actor.
 - Then complete remaining safe Orders/Payments DB-only reads and mutations, keeping payment/refund/provider phases excluded.
 - Separate Merchant document metadata operations from object-storage I/O before adding actor context.
 - Complete the physical table/operation/ownership-predicate matrix and reconcile the 114/116 relation-count discrepancy; obtain runtime API/migration identity and protected read-only catalog evidence only through the authorized process.

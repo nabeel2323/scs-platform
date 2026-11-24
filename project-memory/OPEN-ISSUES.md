@@ -957,3 +957,9 @@ Merchant actor-context coverage includes bounded store/customer/warehouse/verifi
 Focused tests were added/updated in the controller, account-linking, email-OTP error coverage and organization N+1 suites, plus a new credential-context service spec. Commit `c8405a33388731095ef08b64d744a36d7b079cd3` then corrected the spec's chainable Drizzle query mock. They were **not run** under the implementation-first instruction.
 
 **Next:** safely resolve the database principal for pre-authentication OTP/email-OTP login, password login, refresh-token rotation and logout before adding any actor context. Do not trust unverified request claims or wrap Redis/provider/bcrypt/JWT operations. Keep G-002 IN PROGRESS / NOT VERIFIED; runtime identity, protected read-only catalog evidence, complete ownership predicates and the 114/116 reconciliation remain open.
+
+## G-002 pre-authentication identity principal — initial source slice, 24 November 2026
+
+Source commit `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f` introduces an operation-scoped authentication actor with no user/role/org/worker identity and five fixed purpose labels. Initial phone OTP/email OTP/password account lookups and refresh/logout session lookups now run in this context.
+
+**Remaining:** scope post-proof account creation and session/device-credential DB work under a verified user actor; split Redis/bcrypt/provider/rate-limit/JWT work outside. Review refresh-token rotation/reuse race conditions and make session rotation atomic. Logout should perform owner-bound session and enrolled-device revocation in one user transaction after the initial token lookup. Future RLS policies must allow only minimum operation-specific reads. No tests/CI run; G-002 remains NOT VERIFIED.

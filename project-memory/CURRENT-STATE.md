@@ -3,7 +3,7 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source checkpoint:** `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f` — authenticated Identity/Profile actor-context adoption.  
+**Latest source checkpoint:** `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f` — operation-scoped pre-authentication lookup actor added for OTP/password login and refresh/logout. Previous authenticated Identity/Profile adoption: `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`.  
 **Latest test-only follow-up:** `c8405a33388731095ef08b64d744a36d7b079cd3` — corrected the Drizzle update-query mock used by the credential actor-context spec.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop` (`f74eb588cc58fc99b105e749d39dbfbacb4f9775`).  
 **Exact-head GitHub Actions:** zero workflow runs; source commits intentionally include `[skip ci]`.  
@@ -41,7 +41,7 @@ Orders reject/cancel and actual checkout remain excluded where payment/refund/pr
 
 ## Remaining implementation priorities
 
-1. Review pre-authentication OTP/email-OTP login, password login, refresh-token rotation and logout. Define safe principal resolution before user identity is known; keep Redis/provider/bcrypt/JWT work outside DB transactions. Authenticated credential setup/change, account linking/unlinking and organization switching now have scoped DB phases.
+1. Complete post-proof Identity DB phases: after OTP/password proof or refresh owner resolution, scope account creation, claims reads, session insert/rotation/revocation and device-credential persistence under a verified user actor. Keep Redis/provider/bcrypt/rate-limit/JWT work outside transactions. Initial lookup boundaries now use the operation-scoped authentication actor. Authenticated credential setup/change, account linking/unlinking and organization switching are already scoped.
 2. Complete remaining safe Orders/Payments read and mutation coverage while excluding external payment/refund phases from DB transactions.
 3. Complete Merchant document metadata paths only after separating storage I/O from DB-only registration.
 4. Finish the G-002 physical table/operation/ownership matrix and reconcile the 114/116 relation inventory.
@@ -60,3 +60,7 @@ Source commit: `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`.
 The authenticated Profile/Auth handlers now forward verified JWT user ID, role and active organization to IdentityService. Explicit user actor contexts cover credential setup/change, OTP-proven email/phone linking, account identifier unlinking and organization switching. Bcrypt, OTP Redis consumption, Redis token denylisting, provider I/O and JWT signing remain outside DB transactions. Password mutation, credential audit, device-trust revocation and session revocation share one DB-only transaction; the non-throwing general audit log uses a separate audit actor context.
 
 Tests were added/updated but not executed. G-002 remains NOT VERIFIED; the next Identity task is pre-authentication principal resolution for OTP/password login and refresh/logout.
+
+## 24 November 2026 — pre-authentication lookup principal
+
+Source commit `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f` adds an `authentication` actor kind with no user/role/org/worker identity and five fixed operation labels in transaction-local `app.auth_operation`. IdentityService uses it for initial phone OTP, email OTP and password account lookups, plus refresh/logout session lookups. Post-proof persistence and device-credential phases remain next. No RLS/grant/migration change; no tests/CI run.

@@ -251,3 +251,11 @@ Execution-context adoption includes:
 Orders reject/cancel/refund and actual checkout remain excluded where payment/provider lifecycles are involved. Merchant document presign/list/upload operations remain excluded where storage I/O may be involved. Auth/OTP and credential/password setup/change remain pending a DB-only boundary design.
 
 The user instruction remains: finish implementation and integration before running tests. No tests/CI, RLS, shared DB mutation, migration, grant/default-ACL change, staging action, deployment or worker activation was performed. G-002 remains IN PROGRESS, not VERIFIED.
+
+## 4.4 Pre-authentication identity resolution principal — 24 November 2026
+
+DatabaseService now has a narrow `authentication` actor kind for account/session resolution before a verified user principal exists. It carries no actor ID, role, active organization or worker identity. It requires one fixed operation label: `phone_otp_login`, `email_otp_login`, `password_login`, `refresh_token` or `logout`. The label is set transaction-locally as `app.auth_operation` and participates in context validation and nested-scope equality.
+
+Initial adoption is deliberately narrow: the first account lookup in phone OTP, email OTP and password login, and the first session lookup in refresh/logout. OTP Redis challenge consumption, rate limiting, bcrypt, provider delivery and JWT signing stay outside these transactions.
+
+This context is a future RLS policy input, not a privilege grant. Future table-specific policies must allow only the minimum operation-specific reads; they must not allow general identity CRUD. Post-proof writes must switch to a verified user principal. OTP-based account creation needs a separately reviewed, narrowly scoped contract. No RLS policy, grant, migration or shared database change is introduced.

@@ -157,3 +157,10 @@ This is a standing instruction for future sessions unless the user changes it. T
 - Apply user actor context to bounded Orders read/preview/reorder and DB-only lifecycle routes. Do not wrap actual checkout, reject/refund or cancel/payment paths until external payment/provider boundaries are separated.
 - Apply user actor context to bounded Merchant store/customer/warehouse/verification reads and DB-only store/warehouse/verification writes.
 - Do not wrap Merchant document presign/upload/storage operations in a DB transaction. If metadata registration is adopted, keep storage I/O outside and scope only the DB write.
+
+## Pre-authentication database principal — 24 November 2026
+
+- Use the explicit `authentication` actor kind only for `phone_otp_login`, `email_otp_login`, `password_login`, `refresh_token`, `logout`.
+- This actor carries no user ID, role, active organization or worker ID. Its operation label is server-selected, validated and transaction-local as `app.auth_operation`.
+- The context is not a policy or privilege grant. Future RLS policies must allow only minimum operation-specific reads, not general identity CRUD.
+- After proof/owner resolution, post-proof mutations must use a verified user actor and ownership predicates. OTP/Redis, rate-limit, bcrypt, provider and JWT work remains outside DB transactions.

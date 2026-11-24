@@ -1692,3 +1692,11 @@ The user explicitly directed: finish implementation first, then do the tests; pr
 - Corrected the new credential-context service spec's update mock so `where()` returns a chainable query object with `returning()`, matching the Drizzle call shape used by the service. Awaiting the non-returning update path still resolves the mock terminal result.
 - The spec remains unexecuted, as required during implementation. The PR head has zero GitHub Actions workflow runs; Vercel Admin/Web statuses are SUCCESS preview contexts only.
 - No production source, schema, migration, database, RLS, grants, staging, deployment, worker or release behavior changed.
+
+## 24 November 2026 — operation-scoped pre-authentication lookup
+
+- Source commit: `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f`.
+- Added DatabaseActorKind `authentication` and five fixed purpose labels: phone OTP login, email OTP login, password login, refresh token and logout.
+- Authentication contexts reject user ID, role, active organization and worker identity; operation label is stored in transaction-local `app.auth_operation` and included in same-actor nested-scope equality.
+- IdentityService scopes initial account lookup for phone OTP, email OTP and password login, plus initial refresh/logout session lookup. OTP challenge consumption, rate limiting, bcrypt, provider delivery and JWT signing remain outside.
+- This is only the first pre-auth lookup boundary. Post-proof account/session/device-credential writes and claims reads remain open for verified user actor contexts. No tests, formatter, lint, typecheck, E6 or CI were run. No RLS/grant/migration/database/deployment/worker/merge/release action occurred.

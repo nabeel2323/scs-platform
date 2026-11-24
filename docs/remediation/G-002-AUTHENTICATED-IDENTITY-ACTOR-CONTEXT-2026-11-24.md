@@ -82,3 +82,11 @@ Remaining G-002 gates also include actual API/migration runtime identity evidenc
 ## Safety
 
 No tests, formatter, lint, typecheck, E6 or CI were run. No migration, RLS enablement, grant/default-ACL change, shared/staging database write, deployment, worker activation, PR merge or release occurred. PR #138 remains draft and unmerged.
+
+## Pre-authentication principal — 24 November 2026 follow-up
+
+Source commit: `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f`.
+
+DatabaseService supports an operation-scoped `authentication` actor with no user ID, role, organization or worker identity. It requires one of five fixed operation labels and sets `app.auth_operation` transaction-locally. IdentityService uses it only for initial account lookup in phone OTP, email OTP and password login, and initial session lookup in refresh/logout.
+
+This is only the first lookup boundary. Post-proof account creation, claims reads, session rotation/revocation and device-credential DB work remain open. Next, scope those DB-only phases under a verified user actor after OTP/password proof or refresh-token owner resolution. Keep Redis, bcrypt, provider, rate-limit and JWT work outside transactions. Future RLS policies must restrict authentication-context reads by operation and must not grant general identity-table access. No RLS, grants, migrations or database changes were made. No tests/CI were run.
