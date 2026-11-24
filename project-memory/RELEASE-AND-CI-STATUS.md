@@ -117,3 +117,20 @@ Implementation-first instruction remains active: no tests, formatter, lint, type
 - Run #1474 / `45376045168` (triggered by `fa9e554418f6b268bbab35208a8f35db48a41161`) completed: Mobile Flutter Tests SUCCESS, API Lint SUCCESS, API Typecheck FAILURE. New PaymentsService type errors were identified and corrected in `fc2993290d4522d397ab56934e41103f8dd9d060`; other failures occurred in interceptor, identity, shipping worker and integration-test files, baseline attribution unknown.
 - Run #1475 / `45376830054` was automatically triggered by the type-fix commit and was IN_PROGRESS at the time of this update. No local tests or typecheck were manually run. The connected GitHub actions do not expose a workflow cancellation action.
 - Implementation-first restriction remains: do not intentionally dispatch or rerun CI until implementation/integration completion. Vercel Web/Admin contexts remain build-rate-limited. PR #138 must remain OPEN / DRAFT / UNMERGED.
+
+
+## Final automatic CI result — 24 November 2026
+
+Actions run #1475 (`45376830054`), on source commit `fc2993290d4522d397ab56934e41103f8dd9d060`, completed with Mobile Flutter Tests SUCCESS, API Lint SUCCESS and API Typecheck FAILURE. The typecheck no longer reported errors in `payments.service.ts`; the PaymentsService actor-role and async nullable-value issues from run #1474 were absent after the fix. Remaining reported failures were in `tenant-database-context.interceptor.ts`, `identity.service.ts`, `shipping-carrier.worker.ts`, integration specs (account-linking, device-trust, email-OTP, m723a1 concurrency, registration flows) and unit specs (token revocation and database authentication context). No baseline run was available to classify those as pre-existing.
+
+Unit Tests + Coverage Gates, Integration Tests, Boundary Lint (E6), Container Build & Smoke Test, Web/Admin App Tests, Migration Full Apply, Build, Contract Spec & Codegen, k6 Smoke Test and Trigger Staging Release were SKIPPED. No backend unit/integration or release-gate success is claimed. The two automatic runs were not intentionally dispatched; no further CI rerun is requested. The available GitHub connector has no workflow-cancel action.
+
+
+## Final run record — 24 November 2026
+
+| Run | Source SHA | Mobile Flutter Tests | API Lint | API Typecheck | Later gates |
+|---|---|---|---|---|---|
+| #1474 / `45376045168` | `fa9e554418f6b268bbab35208a8f35db48a41161` | SUCCESS | SUCCESS | FAILURE (included new PaymentsService type errors) | SKIPPED |
+| #1475 / `45376830054` | `fc2993290d4522d397ab56934e41103f8dd9d060` | SUCCESS | SUCCESS | FAILURE (PaymentsService errors no longer present; remaining identity/context, shipping worker and test fixture errors) | SKIPPED |
+
+The source type issues identified in #1474 were corrected in `fc2993290d4522d397ab56934e41103f8dd9d060`, and the follow-up typecheck no longer reported `payments.service.ts`. Remaining failures are not attributed to baseline because no clean baseline run exists. No local test/typecheck command was run. No further CI dispatch or rerun is authorized before implementation/integration completion.

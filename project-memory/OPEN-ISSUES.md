@@ -1023,3 +1023,10 @@ The G-002 ownership matrix is now schema-column complete across the 100 source d
 ## G-002 automatic CI exception — 24 November 2026
 
 The proof actor-context source commit unintentionally triggered Actions run #1474 (`45376045168`): Mobile Flutter Tests and API Lint succeeded; API Typecheck failed. It reported new PaymentsService type errors and additional errors in interceptor, identity, shipping worker and integration tests. The PaymentsService-specific errors were corrected in commit `fc2993290d4522d397ab56934e41103f8dd9d060`; no local test/typecheck was run. Run #1475 (`45376830054`) was automatically triggered by the fix and remained in progress at this checkpoint. No cancel action was available. Do not intentionally rerun CI before the implementation/integration gate is reached.
+
+
+## Final automatic CI result — 24 November 2026
+
+Actions run #1475 (`45376830054`), on source commit `fc2993290d4522d397ab56934e41103f8dd9d060`, completed with Mobile Flutter Tests SUCCESS, API Lint SUCCESS and API Typecheck FAILURE. The typecheck no longer reported errors in `payments.service.ts`; the PaymentsService actor-role and async nullable-value issues from run #1474 were absent after the fix. Remaining reported failures were in `tenant-database-context.interceptor.ts`, `identity.service.ts`, `shipping-carrier.worker.ts`, integration specs (account-linking, device-trust, email-OTP, m723a1 concurrency, registration flows) and unit specs (token revocation and database authentication context). No baseline run was available to classify those as pre-existing.
+
+Unit Tests + Coverage Gates, Integration Tests, Boundary Lint (E6), Container Build & Smoke Test, Web/Admin App Tests, Migration Full Apply, Build, Contract Spec & Codegen, k6 Smoke Test and Trigger Staging Release were SKIPPED. No backend unit/integration or release-gate success is claimed. The two automatic runs were not intentionally dispatched; no further CI rerun is requested. The available GitHub connector has no workflow-cancel action.
