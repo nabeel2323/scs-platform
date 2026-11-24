@@ -206,4 +206,56 @@ describe('CatalogService import processing actor boundaries (G-002)', () => {
     expect(activeActor).toBeNull();
   });
 
+  it('uses a dedicated worker principal for the dormant stale-job recovery entry point', async () => {
+    let activeActor: Record<string, unknown> | null = null;
+    const withActorContext = vi.fn(async (context: Record<string, unknown>, operation: () => Promise<unknown>) => {
+      activeActor = context;
+      try {
+        return await operation();
+      } finally {
+        activeActor = null;
+      }
+    });
+    const whereSelect = vi.fn(async () => {
+      expect(activeActor).toMatchObject({ actorKind: 'worker', workerId: 'catalog-import-recovery' });
+      return [{ id: 'stale-job' }];
+    });
+    const from = vi.fn(() => ({ where: whereSelect }));
+    const select = vi.fn(() => ({ from }));
+    const whereUpdate = vi.fn(async () => {
+      expect(activeActor).toMatchObject({ actorKind: 'worker', workerId: 'catalog-import-recovery' });
+    });
+    const set = vi.fn(() => ({ where: whereUpdate }));
+    const update = vi.fn(() => ({ set }));
+    const db = {
+      get currentActorContext() {
+        return activeActor;
+      },
+      withActorContext,
+      db: { select, update },
+    };
+    const service = new CatalogService(
+      db as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(service.recoverStaleJobs()).resolves.toEqual(['stale-job']);
+
+    expect(withActorContext).toHaveBeenCalledWith(
+      { actorKind: 'worker', workerId: 'catalog-import-recovery' },
+      expect.any(Function),
+    );
+    expect(select).toHaveBeenCalledOnce();
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(activeActor).toBeNull();
+  });
+
 });
