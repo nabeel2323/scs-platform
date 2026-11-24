@@ -3090,20 +3090,16 @@ export class CatalogService {
    * Atomically claims the job (READY → PROCESSING), creates 100-row chunks,
    * processes each chunk in its own transaction, and supports resumability.
    */
-  async processImportJob(id: string) {
-    const job = await this.getImportJob(id);
+  async processImportJob(id: string, actor: CatalogUserActor) {
+    const job = await this.withUserActorContext(actor, () => this.getImportJob(id));
 
-    // P8: Atomic claim — READY → PROCESSING (concurrent import protection).
-    // Also accept FAILED for direct retry without separate reset step.
     const claimable = ['READY', 'FAILED'];
     if (!claimable.includes(job['status'])) {
       throw new ConflictException(`Import job cannot be processed from status: ${job['status']}`);
     }
 
-    // P10 Remediation (R3): unified row source so processing reads exactly the
-    // rows preview validated — XLSX from object storage, CSV from Redis staging.
+    // File/object storage and Redis reads stay outside database actor transactions.
     const rows = (await this.resolveJobRows(job)) as Record<string, string>[];
-
     if (rows.length === 0) {
       throw new BadRequestException(
         job['fileType'] === 'XLSX'
@@ -3112,127 +3108,118 @@ export class CatalogService {
       );
     }
     const key = this.stagedRowsKey(id);
-
     const mapping = (job['columnMapping'] || {}) as Record<string, string>;
     if (!mapping['name'] || !mapping['sku'] || !mapping['priceMinor']) {
       throw new BadRequestException('Column mapping must include at least: name, sku, priceMinor');
     }
 
-    // P8: Atomic claim — exactly one worker succeeds.
-    const claimed = await this.db.db
-      .update(importJobs)
-      .set({
-        status: 'PROCESSING',
-        lockedAt: new Date(),
-        startedAt: job['startedAt'] || new Date(),
-        totalRows: rows.length,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(importJobs.id, id), inArray(importJobs.status, ['READY', 'FAILED'])))
-      .returning({ id: importJobs.id });
+    const claimed = await this.withUserActorContext(actor, async () =>
+      await this.db.db
+        .update(importJobs)
+        .set({
+          status: 'PROCESSING',
+          lockedAt: new Date(),
+          startedAt: job['startedAt'] || new Date(),
+          totalRows: rows.length,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(importJobs.id, id), inArray(importJobs.status, ['READY', 'FAILED'])))
+        .returning({ id: importJobs.id }),
+    );
 
     if (claimed.length === 0) {
       throw new ConflictException('Import job is already being processed by another worker');
     }
 
-    const priceListId = await this.getOrCreateDefaultPriceList(job['storeId']);
+    const priceListId = await this.withUserActorContext(actor, () =>
+      this.getOrCreateDefaultPriceList(job['storeId']),
+    );
 
     try {
-      // P8: Create chunks (idempotent — skip if chunks already exist for resume).
-      await this.createChunks(id, rows.length);
-
-      // P8: Process chunks sequentially
-      const chunks = await this.getChunks(id);
+      await this.withUserActorContext(actor, () => this.createChunks(id, rows.length));
+      const chunks = await this.withUserActorContext(actor, () => this.getChunks(id));
 
       for (const chunk of chunks) {
-        // Skip completed chunks (resumability)
         if (chunk['status'] === 'COMPLETED') continue;
-
-        // Check max attempts
         if (
           chunk['status'] === 'FAILED' &&
           chunk['attemptCount'] >= CatalogService.MAX_CHUNK_ATTEMPTS
         ) {
-          continue; // Skip exhausted chunks
+          continue;
         }
 
-        // Check for cancellation between chunks (cooperative)
-        const currentJob = await this.getImportJob(id);
+        const currentJob = await this.withUserActorContext(actor, () => this.getImportJob(id));
         if (currentJob['status'] === 'CANCELLED') break;
 
-        // Extract this chunk's rows
         const chunkRows = rows.slice(chunk['startRow'], chunk['endRow'] + 1);
-
-        // Process the chunk in a transaction
-        await this.processChunk(id, chunk, chunkRows, mapping, priceListId, job['storeId']);
+        await this.processChunk(id, chunk, chunkRows, mapping, priceListId, job['storeId'], actor);
       }
 
-      // P8: Aggregate chunk results into job stats
-      const finalChunks = await this.getChunks(id);
+      const finalChunks = await this.withUserActorContext(actor, () => this.getChunks(id));
       let totalCreated = 0,
         totalUpdated = 0,
         totalSkipped = 0,
         totalErrors = 0;
       const allErrors: Array<{ row: number; field: string; message: string }> = [];
 
-      for (const c of finalChunks) {
-        totalCreated += c['createdCount'];
-        totalUpdated += c['updatedCount'];
-        totalSkipped += c['skippedCount'];
-        totalErrors += c['errorCount'];
-        const chunkErrors = (c['errorLog'] || []) as Array<{
+      for (const chunk of finalChunks) {
+        totalCreated += chunk['createdCount'];
+        totalUpdated += chunk['updatedCount'];
+        totalSkipped += chunk['skippedCount'];
+        totalErrors += chunk['errorCount'];
+        const chunkErrors = (chunk['errorLog'] || []) as Array<{
           row: number;
           field: string;
           message: string;
         }>;
-        for (const err of chunkErrors) {
-          if (allErrors.length < 500) allErrors.push(err);
+        for (const error of chunkErrors) {
+          if (allErrors.length < 500) allErrors.push(error);
         }
       }
 
-      const processedRows = finalChunks.reduce((sum, c) => sum + c['processedRows'], 0);
-      const hasFailedChunks = finalChunks.some((c) => c['status'] === 'FAILED');
-
+      const processedRows = finalChunks.reduce((sum, chunk) => sum + chunk['processedRows'], 0);
+      const hasFailedChunks = finalChunks.some((chunk) => chunk['status'] === 'FAILED');
       const finalStatus = hasFailedChunks ? 'FAILED' : 'COMPLETED';
 
-      await this.db.db
-        .update(importJobs)
-        .set({
-          status: finalStatus,
-          processedRows,
-          errorRows: totalErrors,
-          errorLog: allErrors,
-          stats: {
-            total: rows.length,
-            processed: processedRows,
-            created: totalCreated,
-            updated: totalUpdated,
-            skipped: totalSkipped,
-            errors: totalErrors,
-          },
-          completedAt: finalStatus === 'COMPLETED' ? new Date() : null,
-          updatedAt: new Date(),
-        })
-        .where(eq(importJobs.id, id));
+      await this.withUserActorContext(actor, async () => {
+        await this.db.db
+          .update(importJobs)
+          .set({
+            status: finalStatus,
+            processedRows,
+            errorRows: totalErrors,
+            errorLog: allErrors,
+            stats: {
+              total: rows.length,
+              processed: processedRows,
+              created: totalCreated,
+              updated: totalUpdated,
+              skipped: totalSkipped,
+              errors: totalErrors,
+            },
+            completedAt: finalStatus === 'COMPLETED' ? new Date() : null,
+            updatedAt: new Date(),
+          })
+          .where(eq(importJobs.id, id));
+      });
 
-      // Clean up staged rows only on full completion
-      if (finalStatus === 'COMPLETED') {
-        await this.redis.client.del(key);
-      }
-    } catch (e) {
-      // Catastrophic failure — mark FAILED, preserve chunks for resume
-      await this.db.db
-        .update(importJobs)
-        .set({
-          status: 'FAILED',
-          errorLog: [{ row: 0, field: 'job', message: (e as Error).message }],
-          updatedAt: new Date(),
-        })
-        .where(eq(importJobs.id, id));
-      throw e;
+      // Redis cleanup is deliberately outside the completed DB actor scope.
+      if (finalStatus === 'COMPLETED') await this.redis.client.del(key);
+    } catch (error) {
+      await this.withUserActorContext(actor, async () => {
+        await this.db.db
+          .update(importJobs)
+          .set({
+            status: 'FAILED',
+            errorLog: [{ row: 0, field: 'job', message: (error as Error).message }],
+            updatedAt: new Date(),
+          })
+          .where(eq(importJobs.id, id));
+      });
+      throw error;
     }
 
-    return this.getImportJob(id);
+    return this.withUserActorContext(actor, () => this.getImportJob(id));
   }
 
   /**
@@ -3304,88 +3291,87 @@ export class CatalogService {
     mapping: Record<string, string>,
     priceListId: string,
     storeId: string,
+    actor: CatalogUserActor,
   ): Promise<void> {
-    const chunkId = chunk['id'] as string;
+    await this.withUserActorContext(actor, async () => {
+      const chunkId = chunk['id'] as string;
 
-    // P8: Claim chunk — PENDING/FAILED → PROCESSING (conditional UPDATE)
-    const claimed = await this.db.db
-      .update(importJobChunks)
-      .set({
-        status: 'PROCESSING',
-        startedAt: new Date(),
-        attemptCount: chunk['attemptCount'] + 1,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(importJobChunks.id, chunkId),
-          inArray(importJobChunks.status, ['PENDING', 'FAILED']),
-        ),
-      )
-      .returning({ id: importJobChunks.id });
+      const claimed = await this.db.db
+        .update(importJobChunks)
+        .set({
+          status: 'PROCESSING',
+          startedAt: new Date(),
+          attemptCount: chunk['attemptCount'] + 1,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(importJobChunks.id, chunkId),
+            inArray(importJobChunks.status, ['PENDING', 'FAILED']),
+          ),
+        )
+        .returning({ id: importJobChunks.id });
 
-    if (claimed.length === 0) return; // Another worker claimed it first
+      if (claimed.length === 0) return;
 
-    try {
-      // P8: One transaction per chunk
-      await this.db.db.transaction(async (tx) => {
-        let created = 0,
-          updated = 0,
-          skipped = 0;
-        const errorLog: Array<{ row: number; field: string; message: string }> = [];
+      try {
+        await this.db.db.transaction(async (tx) => {
+          let created = 0,
+            updated = 0,
+            skipped = 0;
+          const errorLog: Array<{ row: number; field: string; message: string }> = [];
 
-        for (let i = 0; i < rows.length; i++) {
-          const rowNum = chunk['startRow'] + i + 2; // +2: 0-based + header row
-          try {
-            const outcome = await this.importRow(
-              storeId,
-              priceListId,
-              mapping,
-              rows[i]!,
-              rowNum,
-              tx,
-            );
-            if (outcome === 'created') created++;
-            else if (outcome === 'updated') updated++;
-            else skipped++;
-          } catch (e) {
-            if (errorLog.length < 100) {
-              errorLog.push({
-                row: rowNum,
-                field: (e as ImportRowError).field || 'row',
-                message: (e as Error).message,
-              });
+          for (let i = 0; i < rows.length; i++) {
+            const rowNum = chunk['startRow'] + i + 2;
+            try {
+              const outcome = await this.importRow(
+                storeId,
+                priceListId,
+                mapping,
+                rows[i]!,
+                rowNum,
+                tx,
+              );
+              if (outcome === 'created') created++;
+              else if (outcome === 'updated') updated++;
+              else skipped++;
+            } catch (error) {
+              if (errorLog.length < 100) {
+                errorLog.push({
+                  row: rowNum,
+                  field: (error as ImportRowError).field || 'row',
+                  message: (error as Error).message,
+                });
+              }
             }
           }
-        }
 
-        // Update chunk with results (within the same transaction)
-        await tx
+          await tx
+            .update(importJobChunks)
+            .set({
+              status: 'COMPLETED',
+              processedRows: rows.length,
+              createdCount: created,
+              updatedCount: updated,
+              skippedCount: skipped,
+              errorCount: errorLog.length,
+              errorLog,
+              completedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(importJobChunks.id, chunkId));
+        });
+      } catch (error) {
+        await this.db.db
           .update(importJobChunks)
           .set({
-            status: 'COMPLETED',
-            processedRows: rows.length,
-            createdCount: created,
-            updatedCount: updated,
-            skippedCount: skipped,
-            errorCount: errorLog.length,
-            errorLog,
-            completedAt: new Date(),
+            status: 'FAILED',
+            lastError: (error as Error).message,
             updatedAt: new Date(),
           })
           .where(eq(importJobChunks.id, chunkId));
-      });
-    } catch (e) {
-      // Catastrophic chunk failure — mark FAILED, preserve attempt count
-      await this.db.db
-        .update(importJobChunks)
-        .set({
-          status: 'FAILED',
-          lastError: (e as Error).message,
-          updatedAt: new Date(),
-        })
-        .where(eq(importJobChunks.id, chunkId));
-    }
+      }
+    });
   }
 
   /**
@@ -4090,65 +4076,60 @@ export class CatalogService {
    * Combines preview errors (import_jobs.errorLog) and processing errors
    * (import_job_chunks.errorLog) into a single deterministic CSV.
    */
-  async getErrorReport(id: string): Promise<string> {
-    const job = await this.getImportJob(id);
+  async getErrorReport(id: string, actor: CatalogUserActor): Promise<string> {
+    const { job, chunks } = await this.withUserActorContext(actor, async () => ({
+      job: await this.getImportJob(id),
+      chunks: await this.getChunks(id),
+    }));
 
-    const BOM = '\uFEFF';
-    const headerLine = 'row_number,field,error_code,severity,message,suggested_fix\n';
+    // CSV serialization is CPU-only and occurs after the short DB actor scope closes.
+    const BOM = '\\uFEFF';
+    const headerLine = 'row_number,field,error_code,severity,message,suggested_fix\\n';
     const allErrors: ImportError[] = [];
 
-    // Collect preview errors from import_jobs.errorLog
     const previewErrors = (job.errorLog || []) as ImportError[];
-    for (const e of previewErrors) {
-      if (e.rowNumber !== undefined && e.field) {
-        allErrors.push(e);
-      }
+    for (const error of previewErrors) {
+      if (error.rowNumber !== undefined && error.field) allErrors.push(error);
     }
 
-    // Collect processing errors from chunks
-    const chunks = await this.getChunks(id);
     for (const chunk of chunks) {
       const chunkErrors = (chunk['errorLog'] || []) as Array<{
         row: number;
         field: string;
         message: string;
       }>;
-      for (const ce of chunkErrors) {
+      for (const chunkError of chunkErrors) {
         allErrors.push({
-          rowNumber: ce.row,
-          field: ce.field || 'row',
+          rowNumber: chunkError.row,
+          field: chunkError.field || 'row',
           errorCode: 'PROCESSING_ERROR',
           severity: 'ERROR',
-          message: ce.message,
+          message: chunkError.message,
           suggestedFix: null,
         });
       }
     }
 
-    // Sort deterministically: row_number ASC, field ASC
     allErrors.sort((a, b) => {
       if (a.rowNumber !== b.rowNumber) return a.rowNumber - b.rowNumber;
       return a.field.localeCompare(b.field);
     });
 
-    // Cap at 50,000 rows
     const capped = allErrors.slice(0, 50000);
-
-    // Build CSV
     const lines: string[] = [BOM + headerLine];
-    for (const e of capped) {
+    for (const error of capped) {
       const row = [
-        String(e.rowNumber),
-        this.csvEscape(e.field),
-        this.csvEscape(e.errorCode),
-        this.csvEscape(e.severity),
-        this.csvEscape(e.message),
-        this.csvEscape(e.suggestedFix || ''),
+        String(error.rowNumber),
+        this.csvEscape(error.field),
+        this.csvEscape(error.errorCode),
+        this.csvEscape(error.severity),
+        this.csvEscape(error.message),
+        this.csvEscape(error.suggestedFix || ''),
       ].join(',');
       lines.push(row);
     }
 
-    return lines.join('\n');
+    return lines.join('\\n');
   }
 
   /** Escape a value for CSV output. */
