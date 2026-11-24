@@ -39,9 +39,20 @@ assert_verification_target() {
     echo "Refusing verification DB access: database identity could not be verified." >&2
     exit 1
   }
+  actual_server_addr=$(psql -X -U "$expected_user" -d "$expected_database" -v ON_ERROR_STOP=1 -tA -c "SELECT COALESCE(inet_server_addr()::text, 'unix-socket')" 2>/dev/null) || {
+    echo "Refusing verification DB access: server address could not be verified." >&2
+    exit 1
+  }
+  case "$actual_server_addr" in
+    unix-socket|127.0.0.1|::1) ;;
+    *)
+      echo "Refusing verification DB access: PostgreSQL server address is not local ($actual_server_addr)." >&2
+      exit 1
+      ;;
+  esac
   if [ "$actual_database" != "$expected_database" ] || [ "$actual_user" != "$expected_user" ]; then
     echo "Refusing verification DB access: connected to $actual_database as $actual_user." >&2
     exit 1
   fi
-  echo "[verification DB safety] confirmed local $actual_database as $actual_user."
+  echo "[verification DB safety] confirmed local $actual_database as $actual_user ($actual_server_addr)."
 }
