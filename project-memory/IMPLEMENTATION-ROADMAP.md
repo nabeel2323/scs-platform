@@ -1066,3 +1066,7 @@ Next: complete remaining Catalog service/root-pool and cross-module caller audit
 ## 25 November 2026 — Admin Catalog caller phase update
 
 AdminService mixed product update and media-preview paths now forward a verified admin actor and use short actor-scoped DB phases with cache/storage side effects after commit. Other reviewed admin Catalog CRUD/variant/attribute routes remain DB-only under request actor interceptors. Continue cross-module Catalog caller/root-pool inventory; do not assume the Admin integration closes all module callers. Quality gates remain deferred; no shared DB/RLS/grant/migration/deployment/worker activation.
+
+## 25 November 2026 — Identity Profile Catalog caller update
+
+ProfileController favorites and saved-supplier routes now pass the verified actor into CatalogService; service methods scope DB work, enforce userId ownership, validate product readability, and expose only active verified public stores. Continue remaining cross-module Catalog callers and G-002 FK/migration/operator evidence.
