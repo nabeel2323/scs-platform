@@ -41,6 +41,19 @@ describe('CatalogTaxonomyController product-type visibility (G-002)', () => {
     expect(h.taxonomy.listProductTypes).toHaveBeenCalledWith({
       categoryId: 'category-1',
       status: 'PUBLISHED',
+      includeInvalidCategoryBindings: false,
+    });
+  });
+
+  it('allows product-type managers to list all statuses and legacy bindings', async () => {
+    const h = buildController();
+
+    await h.controller.listProductTypes(undefined, 'ALL', productTypeManager);
+
+    expect(h.taxonomy.listProductTypes).toHaveBeenCalledWith({
+      categoryId: undefined,
+      status: 'ALL',
+      includeInvalidCategoryBindings: true,
     });
   });
 
