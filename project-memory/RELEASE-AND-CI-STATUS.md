@@ -428,3 +428,12 @@ No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IN_PROGRE
 - Combined status: Vercel Admin and Web FAILURE, both point to the external build-rate-limit page. GitHub Actions returned no workflow runs for the [skip ci] head.
 - Admin mixed Catalog callers fixed: admin product update forwards the verified actor to CatalogService and avoids a request-wide interceptor; admin media preview DB reads use a short user actor scope and S3 signing occurs after commit. Regression tests authored but unexecuted.
 - No formatter/lint/typecheck/E6/CI, shared DB, RLS/grants/migration, staging, deployment, worker activation, merge or release. G-002 remains NOT VERIFIED.
+
+## 25 November 2026 — final cross-module caller checkpoint
+
+- Exact inspected branch head before this status refresh: c37c9062fa4a6604f1ed5792977c30e3f54a87f3.
+- PR #138 is open, draft, unmerged, base develop, head matches this SHA, mergeable=true. Branch compare: 2,680 ahead / 0 behind develop. The PR description remains stale relative to the current source checkpoint.
+- Exact-head combined status: Vercel – scs-platform-web and Vercel – scs-platform-admin are FAILURE states linking to the external Vercel build-rate-limit page. GitHub Actions workflow-run lookup returned no runs for this [skip ci] head.
+- Cross-module Catalog callers now addressed: AdminService mixed product update and media preview; ProfileController favorites and saved suppliers; PricingService/ReviewsService lookup consumers remain behind their controller-level actor interceptors. Reviewed Admin/Profile routes retain DB-only interceptors or explicit short actor scopes as appropriate.
+- Favorites require userId=actor.sub and readable products; saved suppliers require userId=actor.sub and ACTIVE/VERIFIED stores with a safe public projection. Tests remain authored but unexecuted.
+- No tests, formatter, lint, typecheck, E6 or CI were run. No shared/staging DB, RLS/grant/migration, deployment, worker activation, environment/secret change, merge or release. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
