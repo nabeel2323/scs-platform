@@ -1356,3 +1356,7 @@ Remaining: continue cross-module Catalog caller/root-pool inventory beyond Admin
 ## 25 November 2026 — Profile Catalog callsites
 
 The six ProfileController favorites/saved-supplier operations now forward the authenticated actor and are service-scoped. Favorites enforce product readability; saved suppliers filter ACTIVE/VERIFIED stores and return only public-safe fields. Tests remain unexecuted. Continue the cross-module caller inventory; do not assume all non-Catalog module callers have been exhausted.
+
+## 25 November 2026 — Pricing/Reviews lookup boundary
+
+Catalog pricing/review lookup helpers now fail closed without an active user actor context. Their known Pricing/Reviews controller callers provide that context. Remaining cross-module caller inventory is not yet exhaustive; keep checking for other service/worker/CLI callers and any direct catalog-schema reads.
