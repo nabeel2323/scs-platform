@@ -18,7 +18,7 @@
  * Idempotency: each reversal has a unique idempotency key derived from the
  * return request + line item, preventing duplicate reversals from retries.
  */
-import { Injectable, Logger, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { recordOpsCounter } from '../operations/ops-counters';
@@ -31,7 +31,7 @@ import {
   calculateReturnNetGoodsMinor,
 } from './returns-financials';
 import { stores } from '../merchant/merchant.schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray, ne } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /** Categories that trigger commission reversal. */
@@ -81,6 +81,24 @@ export class CommissionReversalService {
       where: eq(paymentRecords.id, ret.paymentRecordId),
     });
     if (!payment) throw new BadRequestException('Payment record not found for return');
+    if (payment.orderId !== ret.subOrderId) {
+      throw new BadRequestException('Return payment record does not belong to its sub-order');
+    }
+
+    const order = await this.db.db.query.orders.findFirst({
+      where: eq(orders.id, ret.subOrderId),
+      columns: { storeId: true },
+    });
+    if (!order?.storeId) throw new BadRequestException('Return sub-order has no merchant store');
+    const store = await this.db.db.query.stores.findFirst({
+      where: eq(stores.id, order.storeId),
+      columns: { orgId: true },
+    });
+    if (!store?.orgId) throw new BadRequestException('Return sub-order has no owning organization');
+    const resolvedOrgId = store.orgId;
+    if (orgId && orgId !== resolvedOrgId) {
+      throw new ForbiddenException('Commission reversal organization does not match its return sub-order');
+    }
 
     // Load the financial breakdown for this sub-order
     const breakdown = await this.db.db.query.orderFinancialBreakdown.findFirst({
@@ -119,11 +137,14 @@ export class CommissionReversalService {
     // Load order items for net-goods basis per line
     const orderItemIds = items.map((i) => i.orderItemId);
     const orderItemRows = await this.db.db.query.orderItems.findMany({
-      where: sql`${orderItems.id} IN (${sql.join(
-        orderItemIds.map((id) => sql`${id}`),
-        sql`, `,
-      )})`,
+      where: and(
+        inArray(orderItems.id, orderItemIds),
+        eq(orderItems.orderId, ret.subOrderId),
+      ),
     });
+    if (orderItemRows.length !== new Set(orderItemIds).size) {
+      throw new BadRequestException('Return items must belong to the return sub-order');
+    }
     const orderItemMap = new Map(orderItemRows.map((oi) => [oi.id, oi]));
 
     // Calculate the net-goods basis for this return's items
@@ -165,29 +186,18 @@ export class CommissionReversalService {
 
     // Find the settlement for this sub-order (if any)
     const settlement = await this.db.db.query.settlementRecords.findFirst({
-      where: eq(settlementRecords.subOrderId, ret.subOrderId),
+      where: and(
+        eq(settlementRecords.subOrderId, ret.subOrderId),
+        eq(settlementRecords.paymentRecordId, payment.id),
+        eq(settlementRecords.merchantStoreId, order.storeId),
+        ne(settlementRecords.status, 'ADJUSTMENT'),
+      ),
     });
 
     // Post the reversal — use external tx if provided (caller manages atomicity),
     // otherwise create a new transaction.
     const idempotencyKey = `commission-reversal:${returnRequestId}:${responsibilityCategory}`;
     const reversalId = crypto.randomUUID();
-
-    // Resolve orgId from the sub-order's store if not provided
-    let resolvedOrgId = orgId ?? null;
-    if (!resolvedOrgId) {
-      const orderRow = await this.db.db.query.orders.findFirst({
-        where: eq(orders.id, ret.subOrderId),
-        columns: { storeId: true },
-      });
-      if (orderRow?.storeId) {
-        const storeRow = await this.db.db.query.stores.findFirst({
-          where: eq(stores.id, orderRow.storeId),
-          columns: { orgId: true },
-        });
-        resolvedOrgId = storeRow?.orgId ?? null;
-      }
-    }
 
     const runTx = externalTx ?? this.db.db;
     try {
