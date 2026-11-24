@@ -472,3 +472,7 @@ Added process-level and chunk-level actor-context tests, error-report tests and 
 ## 25 November 2026 — dormant stale import recovery principal
 
 The dormant CatalogService.recoverStaleJobs entry point now scopes the stale-job query and job/chunk reset writes under worker principal catalog-import-recovery. No worker registration or schedule was added; it remains dormant and was not activated. A regression spec covers this source boundary. No tests/CI were run.
+
+## 25 November 2026 — Catalog product detail/media read closure
+
+GET /products/:id and GET /products/:productId/media are now mixed-read paths with explicit actor boundaries. Authorization checks use a verified-user context. Product detail DB reads (product/store/media rows/variants/pricing/stock/attributes) run in one short actor context; Redis cache I/O and storage URL signing are outside. Media-list DB rows are scoped, with URL resolution after the DB scope closes. These routes intentionally remain without TenantDatabaseContextInterceptor. Regression tests added but not executed.
