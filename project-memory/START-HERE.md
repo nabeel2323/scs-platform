@@ -1282,3 +1282,9 @@ Correction to the earlier continuation observation: full P13MonitorService revie
 ## 25 November 2026 — dormant Catalog import recovery actor
 
 The dormant CatalogService.recoverStaleJobs maintenance entry point now uses a dedicated worker principal, catalog-import-recovery, for its stale-job scan and job/chunk state updates. This is a source-level boundary only: CatalogModule does not register a recovery worker or scheduler, and this change does not activate or schedule it. A regression spec covers the worker principal and the two stale-state writes. The controller metadata test description now covers all mixed Catalog routes, not only product mutations. Tests remain unexecuted; G-002 remains NOT VERIFIED.
+
+## 25 November 2026 — Catalog product detail and media read boundaries
+
+Completed another mixed Catalog read-path slice. GET /products/:id now runs assertProductReadable and canManageProductCatalog in a short verified-user actor context; CatalogService.getProductDetail requires the caller and keeps all product/store/media-row/variant/pricing/stock/attribute DB reads in one short user actor scope. Redis cache get/set and storage URL signing are outside that DB scope. GET /products/:productId/media now similarly scopes its authorization and media-row query, then resolves storage URLs after the DB scope closes. Both routes remain outside TenantDatabaseContextInterceptor.
+
+Added catalog-media-read-actor-context.spec.ts to cover media-row scope, storage resolution outside the transaction, product detail DB reads, and Redis/storage operations outside actor scope. Controller metadata tests now include getProduct and listMedia. Tests remain unexecuted. Continue with the remaining Catalog root-pool and mixed operation inventory; G-002 remains NOT VERIFIED.
