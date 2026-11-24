@@ -2839,3 +2839,14 @@ Regression scenarios are documented in the G-002 migration FK crosswalk; no test
 The shipment/order/store invariant is now enforced beyond the initial detail/worker checks: OrdersService exception/RTS authorization validates lineage before driver or privileged bypass; order-based shipment lookup verifies the shipment store against the order; driver shipment listing joins the order on both ID and store; ShipmentOperationsController list and count queries exclude malformed pairs. This closes the remaining inspected shipment read paths that could expose mismatched order data.
 
 Regression cases are listed in the G-002 crosswalk; no tests, formatter, lint, typecheck, E6 or CI were run. The source commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## G-002 — carrier recovery, webhook and tracking ownership completeness — 24 November 2026
+
+**Source commits:** `0581776dc42e87e4206377b45c971612368ab0ef`, `83a4073c20d14519f9c9f02757bd2386bbe9de58`, `2b2810e14e41f40023e610dcda9e9064fb846e9c`, `5bbd35da8f3f04c132d12f773192de0a4a27fad8`, and `9c9d7f479ae332e6760238c7a9789f9e56febbea`.
+
+The remaining inspected carrier paths now enforce `orders.store_id = shipments.store_id`: direct admin recovery checks both parent rows before tenant/privileged authorization; recovery queue joins the order; scheduled create/cancel reconciliation claims require a matching order/store and direct entry points re-check before provider calls; webhook shipment resolution joins the same-store order before linking the credential-bound event; tracking poll claims and per-shipment processing verify ownership before provider, event or delivery-bridge side effects.
+
+Driver/store assignment disposition: `driver_store_assignments` has separate driver-profile and store FKs, with no same-org constraint. The inspected ShippingModule/controllers do not register an assignment writer, and `shipments.assigned_driver_id` points to users, not driver profiles. No speculative endpoint or schema change was introduced. Confirm whether the assignment table is legacy/dead schema or consumed elsewhere before adding enforcement.
+
+Exact regression cases are recorded in the G-002 migration FK crosswalk; no tests, formatter, lint, typecheck, E6 or CI were run. All commits use `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
