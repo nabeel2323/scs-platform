@@ -112,6 +112,45 @@ describe('CatalogService product/media read actor boundaries (G-002)', () => {
     expect(redisSet).not.toHaveBeenCalled();
   });
 
+  it('does not serve cached draft product data to a non-member', async () => {
+    let activeActor: Record<string, unknown> | null = null;
+    const withActorContext = vi.fn(async (context: Record<string, unknown>, operation: () => Promise<unknown>) => {
+      activeActor = context;
+      try {
+        return await operation();
+      } finally {
+        activeActor = null;
+      }
+    });
+    const redisGet = vi.fn();
+    const service = new CatalogService(
+      {
+        withActorContext,
+        db: {
+          query: {
+            products: { findFirst: vi.fn().mockResolvedValue({ id: 'product-1', storeId: 'store-a', status: 'DRAFT' }) },
+            stores: { findFirst: vi.fn().mockResolvedValue({ orgId: 'org-1' }) },
+            storeMembers: { findFirst: vi.fn().mockResolvedValue(null) },
+          },
+        },
+      } as any,
+      { client: { get: redisGet, set: vi.fn() } } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(service.getProductDetail('product-1', actor, true)).rejects.toThrow(
+      'You are not authorized for this store',
+    );
+    expect(redisGet).not.toHaveBeenCalled();
+  });
+
   it('keeps product detail DB reads in one actor scope and Redis/storage I/O outside it', async () => {
     let activeActor: Record<string, unknown> | null = null;
     const withActorContext = vi.fn(async (context: Record<string, unknown>, operation: () => Promise<unknown>) => {
