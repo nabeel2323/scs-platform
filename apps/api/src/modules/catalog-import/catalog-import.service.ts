@@ -100,9 +100,27 @@ export class CatalogImportService {
     );
   }
 
+  private withAuditActor<T>(
+    caller: CatalogImportCaller,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    return this.db.withActorContext(
+      {
+        actorKind: 'audit',
+        actorId: caller.sub,
+        actorRole: caller.role,
+        activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
+      },
+      operation,
+    );
+  }
+
   // ── Upload ────────────────────────────────────────────────────
 
-  async upload(file: { buffer: Buffer; originalName: string; size: number }, userId: string) {
+  async upload(
+    file: { buffer: Buffer; originalName: string; size: number },
+    caller: CatalogImportCaller,
+  ) {
     const storageKey = `catalog-imports/${randomUUID()}/${file.originalName}`;
 
     await this.storage.putObject({
@@ -113,32 +131,37 @@ export class CatalogImportService {
     });
 
     const id = randomUUID();
-    await this.db.db.insert(catalogImports).values({
-      id,
-      fileName: file.originalName,
-      fileSize: file.size,
-      fileType: 'XLSX',
-      storageKey,
-      importType: 'FULL_CATALOG',
-      status: 'UPLOADED',
-      uploadedBy: userId,
+    await this.withUserActor(caller, async () => {
+      await this.db.db.insert(catalogImports).values({
+        id,
+        fileName: file.originalName,
+        fileSize: file.size,
+        fileType: 'XLSX',
+        storageKey,
+        importType: 'FULL_CATALOG',
+        status: 'UPLOADED',
+        uploadedBy: caller.sub,
+      });
     });
 
     this.logger.log(`Import ${id} uploaded: ${file.originalName} (${file.size} bytes)`);
 
     // Auto-validate after upload
-    await this.validate(id);
+    await this.validate(id, caller);
 
-    return this.getImportDetail(id);
+    return this.withUserActor(caller, () => this.getImportDetail(id));
   }
 
   // ── Validate (parse → validate → resolve → plan) ──────────────
 
-  async validate(importId: string): Promise<{ errors: ImportError[]; plan: ImportPlan }> {
-    const job = await this.getJobOrThrow(importId);
+  async validate(
+    importId: string,
+    caller: CatalogImportCaller,
+  ): Promise<{ errors: ImportError[]; plan: ImportPlan }> {
+    const job = await this.withUserActor(caller, () => this.getJobOrThrow(importId));
 
-    // Update status
-    await this.updateStatus(importId, 'VALIDATING');
+    // Status persistence is a short actor-bound database phase.
+    await this.updateStatus(importId, 'VALIDATING', caller);
 
     // Download file from storage
     const obj = await this.storage.getObject(UPLOAD_BUCKET, job.storageKey);
@@ -149,20 +172,20 @@ export class CatalogImportService {
     const buffer = Buffer.concat(chunks);
 
     // 1. Parse
-    await this.updateStatus(importId, 'PARSING');
+    await this.updateStatus(importId, 'PARSING', caller);
     const workbook = await this.parser.parse(buffer, job.fileName);
 
     // 2. Load existing data snapshot for validation
-    const existingData = await this.loadExistingDataSnapshot();
+    const existingData = await this.withUserActor(caller, () => this.loadExistingDataSnapshot());
 
     // 3. Validate
     const errors = this.validator.validate(workbook, existingData);
 
     // 4. Resolve references
-    const refs = await this.resolver.resolve(workbook);
+    const refs = await this.withUserActor(caller, () => this.resolver.resolve(workbook));
 
     // 5. Build plan
-    const existingEntities = await this.loadExistingEntityMap();
+    const existingEntities = await this.withUserActor(caller, () => this.loadExistingEntityMap());
     const plan = this.planner.buildPlan(workbook, refs, existingEntities);
 
     // Store plan in cache with preview publishability (Phase 11)
@@ -170,27 +193,29 @@ export class CatalogImportService {
     this.planCache.set(importId, { plan, refs, errors, previewPublishability });
 
     // Persist plan + refs snapshots for retry-without-re-upload (Phase 2)
-    await this.persistPlanSnapshot(importId, plan, refs);
+    await this.withUserActor(caller, () => this.persistPlanSnapshot(importId, plan, refs));
 
     // Update import record
     const totalRows = this.countTotalRows(workbook);
     const hardErrors = errors.filter(e => e.severity === 'ERROR');
 
-    await this.db.db.update(catalogImports).set({
-      status: hardErrors.length > 0 ? 'READY' : 'READY',
-      totalRows,
-      errorCount: hardErrors.length,
-      warningCount: errors.length - hardErrors.length,
-      stats: {
-        summary: plan.summary,
-        sheets: [...workbook.sheets.keys()],
-      } as any,
-      updatedAt: new Date(),
-    }).where(eq(catalogImports.id, importId));
+    await this.withUserActor(caller, async () => {
+      await this.db.db.update(catalogImports).set({
+        status: hardErrors.length > 0 ? 'READY' : 'READY',
+        totalRows,
+        errorCount: hardErrors.length,
+        warningCount: errors.length - hardErrors.length,
+        stats: {
+          summary: plan.summary,
+          sheets: [...workbook.sheets.keys()],
+        } as any,
+        updatedAt: new Date(),
+      }).where(eq(catalogImports.id, importId));
+    });
 
     // Store errors in DB
     if (errors.length > 0) {
-      await this.storeErrors(importId, errors);
+      await this.withUserActor(caller, () => this.storeErrors(importId, errors));
     }
 
     return { errors, plan };
@@ -200,7 +225,7 @@ export class CatalogImportService {
 
   async execute(
     importId: string,
-    userId: string,
+    caller: CatalogImportCaller,
     overrides?: Record<string, Record<string, Record<string, string>>>,
   ): Promise<ImportExecutionResult> {
     const cached = this.planCache.get(importId);
@@ -222,40 +247,44 @@ export class CatalogImportService {
       this.logger.log(`Applied ${applied} override(s) to import ${importId}`);
     }
 
-    await this.updateStatus(importId, 'IMPORTING');
-    await this.db.db.update(catalogImports).set({
-      startedAt: new Date(),
-      updatedAt: new Date(),
-    }).where(eq(catalogImports.id, importId));
+    await this.updateStatus(importId, 'IMPORTING', caller);
+    await this.withUserActor(caller, async () => {
+      await this.db.db.update(catalogImports).set({
+        startedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(eq(catalogImports.id, importId));
+    });
 
     try {
-      const result = await this.executor.execute(plan, refs);
+      const result = await this.executor.execute(plan, refs, caller);
 
       // Catalog Governance §21: post-import publishability check. After the
       // transaction commits, validate every product type that was created or
       // updated so the admin knows which ones can be published immediately.
-      const publishability = await this.checkPublishability(plan, refs);
+      const publishability = await this.withUserActor(caller, () => this.checkPublishability(plan, refs));
 
       const hasErrors = result.rejected > 0 || result.skipped > 0 || result.errors.length > 0;
       const status = (hasErrors ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED')
         .slice(0, CatalogImportService.STATUS_MAX_LEN);
 
-      await this.db.db.update(catalogImports).set({
-        status,
-        processedRows: result.created + result.updated + result.unchanged + result.rejected + result.skipped,
-        createdRows: result.created,
-        updatedRows: result.updated,
-        unchangedRows: result.unchanged,
-        rejectedRows: result.rejected,
-        skippedRows: result.skipped,
-        completedAt: new Date(),
-        updatedAt: new Date(),
-      }).where(eq(catalogImports.id, importId));
+      await this.withUserActor(caller, async () => {
+        await this.db.db.update(catalogImports).set({
+          status,
+          processedRows: result.created + result.updated + result.unchanged + result.rejected + result.skipped,
+          createdRows: result.created,
+          updatedRows: result.updated,
+          unchangedRows: result.unchanged,
+          rejectedRows: result.rejected,
+          skippedRows: result.skipped,
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        }).where(eq(catalogImports.id, importId));
+      });
 
       // Audit
-      await this.audit.record({
+      await this.withAuditActor(caller, () => this.audit.record({
         actorType: 'ADMIN',
-        actorId: userId,
+        actorId: caller.sub,
         action: 'CATALOG_IMPORT_EXECUTED',
         resource: 'catalog_import',
         resourceId: importId,
@@ -265,15 +294,15 @@ export class CatalogImportService {
           unchanged: result.unchanged,
           rejected: result.rejected,
         },
-      });
+      }));
 
       // Store structured execution errors (Phase 2)
       if (result.structuredErrors?.length) {
-        await this.storeExecutionErrors(importId, result.structuredErrors);
+        await this.withUserActor(caller, () => this.storeExecutionErrors(importId, result.structuredErrors));
       }
 
       // Persist plan + refs for retry support
-      await this.persistPlanSnapshot(importId, plan, refs);
+      await this.withUserActor(caller, () => this.persistPlanSnapshot(importId, plan, refs));
 
       // Clear in-memory cache
       this.planCache.delete(importId);
@@ -287,7 +316,7 @@ export class CatalogImportService {
         publishability,
       } as Omit<typeof result, 'entityOutcomes'> & { publishability: PublishabilityReport };
     } catch (err) {
-      await this.updateStatus(importId, 'FAILED');
+      await this.updateStatus(importId, 'FAILED', caller);
       // Persist plan for retry even on failure
       await this.persistPlanSnapshot(importId, plan, refs);
       this.logger.error(`Import ${importId} failed: ${err}`);
@@ -459,8 +488,8 @@ export class CatalogImportService {
    * Re-validates (to rebuild the plan against current DB state) then re-executes.
    * Already-committed entities are classified as UNCHANGED by the planner.
    */
-  async retry(importId: string, userId: string): Promise<ImportExecutionResult> {
-    const job = await this.getJobOrThrow(importId);
+  async retry(importId: string, caller: CatalogImportCaller): Promise<ImportExecutionResult> {
+    const job = await this.withUserActor(caller, () => this.getJobOrThrow(importId));
     const status = job.status;
 
     if (status !== 'COMPLETED_WITH_ERRORS' && status !== 'FAILED') {
@@ -472,10 +501,10 @@ export class CatalogImportService {
 
     // Re-validate to rebuild plan against current DB state
     // (entities created in the first attempt will be classified as UNCHANGED)
-    await this.validate(importId);
+    await this.validate(importId, caller);
 
     // Re-execute with the refreshed plan
-    return this.execute(importId, userId);
+    return this.execute(importId, caller);
   }
 
   // ── Helpers ────────────────────────────────────────────────────
@@ -489,10 +518,18 @@ export class CatalogImportService {
   /** Max length of catalog_imports.status column (varchar(30)). */
   private static readonly STATUS_MAX_LEN = 30;
 
-  private async updateStatus(importId: string, status: string): Promise<void> {
-    // Safety: truncate to column limit to prevent PG 22001 transaction poisoning
+  private async updateStatus(
+    importId: string,
+    status: string,
+    caller: CatalogImportCaller,
+  ): Promise<void> {
+    // Safety: truncate to column limit to prevent PG 22001 transaction poisoning.
     const safe = status.slice(0, CatalogImportService.STATUS_MAX_LEN);
-    await this.db.db.update(catalogImports).set({ status: safe, updatedAt: new Date() }).where(eq(catalogImports.id, importId));
+    await this.withUserActor(caller, async () => {
+      await this.db.db.update(catalogImports)
+        .set({ status: safe, updatedAt: new Date() })
+        .where(eq(catalogImports.id, importId));
+    });
   }
 
   private async storeErrors(importId: string, errors: ImportError[]): Promise<void> {
