@@ -351,9 +351,9 @@ export class CatalogService {
     const childNodes = platformCats.filter((c) => c.parentId === cat.id);
     const descendantIds = collectDescendantIds(platformCats, cat.id);
 
-    const directCount = await this.countProductsInCategories([cat.id]);
+    const directCount = await this.countProductsInCategories([cat.id], cat.storeId);
     const descendantCount =
-      descendantIds.size > 0 ? await this.countProductsInCategories([...descendantIds]) : 0;
+      descendantIds.size > 0 ? await this.countProductsInCategories([...descendantIds], null) : 0;
 
     // Product-type count for a category = union of
     //   (a) product types explicitly linked to this category via
@@ -594,16 +594,20 @@ export class CatalogService {
       .orderBy(asc(categories.sortOrder));
   }
 
-  /** Count non-deleted canonical products assigned to any of the given category ids. */
-  private async countProductsInCategories(categoryIds: string[]): Promise<number> {
+  /** Count non-deleted active products in the category's exact store scope. */
+  private async countProductsInCategories(
+    categoryIds: string[],
+    storeId: string | null,
+  ): Promise<number> {
     if (categoryIds.length === 0) return 0;
+    const storeScope = storeId ? eq(products.storeId, storeId) : isNull(products.storeId);
     const rows = await this.db.db
       .select({ count: sql<number>`count(*)::int` })
       .from(products)
       .where(
         and(
           inArray(products.categoryId, categoryIds),
-          isNull(products.storeId),
+          storeScope,
           isNull(products.deletedAt),
           eq(products.status, 'ACTIVE'),
         ),
