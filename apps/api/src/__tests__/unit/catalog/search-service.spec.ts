@@ -355,15 +355,17 @@ describe('SearchService — cached facet actor boundary (G-002)', () => {
     expect(valuesWhere.sql.toLowerCase()).toContain('product_type_id');
   });
 
-  it('rejects cached facet reads without a verified user actor', async () => {
+  it('rejects cached facet reads without a verified user actor before Redis access', async () => {
+    const redisGet = vi.fn();
     const svc = new SearchService(
       {} as any,
       {} as any,
-      { client: {} } as any,
+      { client: { get: redisGet } } as any,
     );
 
     await expect(svc.getFacetsCached(undefined, undefined as any)).rejects.toThrow(
       'Authenticated user actor context is required',
     );
+    expect(redisGet).not.toHaveBeenCalled();
   });
 });
