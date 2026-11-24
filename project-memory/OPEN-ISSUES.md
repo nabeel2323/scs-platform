@@ -1336,3 +1336,7 @@ The stale-import recovery method now has a dedicated worker actor scope but rema
 ## 25 November 2026 — Catalog product detail/media read status
 
 Product detail and media-list reads now scope authorization and database access while keeping Redis and storage URL resolution outside DB transactions. Tests are authored but unexecuted. Remaining Catalog work: inspect other service methods with mixed storage/cache/external calls and remaining root-pool database operations; complete the wider G-002 actor nesting and ownership/FK evidence review.
+
+## 25 November 2026 — Search Facets mixed cache path
+
+The Redis-backed Search Facets route now has a short actor scope for DB reads and external Redis cache I/O outside. Tests are authored but unexecuted. Continue review of remaining Search/Catalog mixed routes and root-pool DB paths.
