@@ -70,14 +70,14 @@ After each meaningful implementation group, and before ending a work session:
 - The user expects ChatGPT to make repository changes directly, including commits and pushes when the GitHub connection permits; do not default to handing implementation to a coding agent.
 - Proceed through logical implementation steps without asking for permission at every small step.
 - Group related implementation and documentation changes into fewer, cohesive commits where practical.
-- The user explicitly directs that implementation must be completed before tests are run; do not ask for approval for routine implementation steps.
+- The user explicitly directs that implementation and integration must be completed before tests are run; do not execute tests or CI during implementation, and do not ask for approval for routine implementation steps.
 - Keep technical documentation synchronized with the actual implementation and verified behavior.
 - Provide detailed, truthful status and exact evidence. Never report a skipped job as passed.
 - A reviewer can be the user or a separately appointed qualified reviewer; the implementation author must not self-certify an independent security review.
 
 ## Current starting point
 
-Live GitHub reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-platform`, work branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest application-code checkpoint is `93844d781ff50cd3ba325c0d9e3ffe209bc128cc`; subsequent commits on this branch are documentation-only handoff updates. `develop` is `f74eb588cc58fc99b105e749d39dbfbacb4f9775`. The latest source commit is a grouped Returns/Shipping module-boundary refactor. Exact-head GitHub Actions lookup returns zero workflow runs because the commits include `[skip ci]`; the current documentation-only head has no combined-status contexts. On the immediately preceding documentation head `4c74a92a295315fa564f5300b246aa722fb7aa8c`, Vercel Web and Admin each reported FAILURE with provider build-rate-limit links. Those are external preview-provider failures, not application-test results.
+Live GitHub reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-platform`, work branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. The latest source implementation extends the opt-in actor transaction context across bounded JWT-protected endpoints in Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Admin/Catalog read handlers, Cart, Returns and Organizations/Roles. The actor-context foundation and expired-scope fence are in `d810ee852aa8ea5b79fef4236a91c81ebd50c7ef` and `464b1c857a113489822ba3345aabe59b0a0be4b2`. The latest branch head is `5c14ad71ad24b8812b7cd1607052a5d79fbc2bf4`. Exact-head GitHub Actions lookup is zero due to `[skip ci]`; preview statuses must be rechecked for the current head and are not application-test results.
 
 ### Exact stopping point
 
@@ -104,7 +104,7 @@ Live GitHub reconciliation on 24 November 2026 confirms repository `nabeel2323/s
 - Phases 0–5 remain IN PROGRESS; Phase 6 consolidated verification is NOT STARTED.
 - Keep PR #138 draft/open/unmerged. Do not deploy, use protected staging writes, mutate shared databases, apply migrations 0070/0071/0075, change grants/default ACLs, enable RLS, change Render configuration, invoke external carriers/SMS/OTP, or activate workers.
 
-**Next task:** format the changed files, run focused API typecheck/unit suites and E6 boundary lint for the current source, then continue the next implementation-first gap. Defer the comprehensive test/migration campaign to the planned implementation-complete Phase 3 checkpoint. Fix any concrete correctness/security defect immediately.
+**Next task:** continue G-002 with bounded, controller-scoped actor-context adoption only after reviewing each request path for nested transactions, detached async work, streaming, external I/O and module provider wiring. Define explicit worker, carrier-webhook, bootstrap and audit context contracts; finish the method-level ownership/predicate map and protected live identity evidence. Do not run tests or trigger CI until implementation and cross-component integration are complete. Do not add a global request interceptor or enable RLS. Fix concrete correctness/security defects immediately.
 
 ## Safety reminder
 
@@ -136,7 +136,7 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 
 The user approved a revised project-wide sequence: (1) baseline/gap mapping, (2) implementation completion across backend, database/security, web, admin, mobile, POS/merchant, workflows, operations and documentation, (3) integration completion, (4) one comprehensive testing campaign, (5) stabilization of discovered defects, and (6) release readiness. The detailed programme and evidence-backed initial register are in [IMPLEMENTATION-GAP-REGISTER.md](./IMPLEMENTATION-GAP-REGISTER.md).
 
-During implementation, keep checks lightweight and targeted rather than repeatedly running the full suite. Comprehensive unit/API/PostgreSQL/migration/tenant-security/concurrency/web-admin-mobile E2E/performance testing is reserved for the dedicated testing phase. This does not permit knowingly deferring a concrete security or correctness defect. Keep the existing G-001/G-002 review, staging, database and release gates intact.
+During implementation, do not execute test commands or trigger GitHub Actions/CI. Add or update test coverage when implementation requires it, but defer all test execution until implementation and cross-component integration are complete. Then run one consolidated unit/API/PostgreSQL/migration/tenant-security/concurrency/web-admin-mobile E2E/performance campaign. This does not permit knowingly deferring a concrete security or correctness defect. Keep the existing G-001/G-002 review, staging, database and release gates intact.
 
 Use the status vocabulary in the gap register: IMPLEMENTATION_PENDING, IMPLEMENTATION_IN_PROGRESS, IMPLEMENTED, INTEGRATION_PENDING, TESTING_PENDING, VERIFIED, BLOCKED and DEFERRED_BY_DECISION. Update this programme register and the authoritative finding tracker together when applicable.
 
@@ -934,3 +934,14 @@ External Vercel preview statuses continue to report the provider build-rate limi
 4. Continue G-002 source evidence and actual FK/method-predicate mapping. Protected staging/runtime identity inspection remains unavailable without authorization. G-001 independent review and G-036 focused security verification remain open; Phase 6 remains NOT STARTED.
 
 No migration, database grant/default-ACL change, RLS enablement, shared/staging database write, deployment, worker activation, merge or release was performed. PR #138 remains draft and unmerged.
+
+
+## Latest G-002 actor-context rollout — 24 November 2026
+
+The live branch checkpoint is `5c14ad71ad24b8812b7cd1607052a5d79fbc2bf4`. The opt-in DatabaseService actor-context primitive uses typed user/anonymous/worker/system/bootstrap/audit identities, transaction-local PostgreSQL GUCs, AsyncLocalStorage-backed Drizzle routing, same-actor nested reuse and an expired-scope fence. The interceptor is explicitly controller/method scoped, never global.
+
+The reviewed route allowlist currently covers bounded JWT-protected Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Catalog and Admin read handlers, Cart, Returns and Organizations/Roles operations. Each additional route must be added only after reviewing the service call graph, transaction behavior, detached async work and external-I/O lifetime.
+
+Auth/Profile, file/import/upload, main Orders/Payments, carrier/shipping, bootstrap, deferred audit writes, workers/schedulers, realtime sockets, CLI and migrations remain outside the first rollout pending explicit principal/transaction contracts. G-002 remains IN PROGRESS; no tests/CI, RLS, shared database changes, migrations, staging actions, deployment or worker activation occurred.
+
+**Standing user instruction:** finish implementation and integration first; do not run tests or CI until that work is complete. Continue autonomously without asking for approval for routine steps.

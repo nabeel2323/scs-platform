@@ -191,3 +191,14 @@ Required cases:
 ## Initial database access-path inventory — 22 November 2026
 
 A bounded static review of all 53 module service/worker/provider files plus DatabaseService, audit middleware/service, guards, AppModule and main.ts is recorded in docs/remediation/G-002-DATABASE-ACCESS-PATH-INVENTORY-2026-11-22.md. The reviewed module queries consistently use the singleton DatabaseService.db Drizzle handle, including raw db.execute(sql...) operations; several services already open nested transactions. AuditLogMiddleware writes asynchronously after response completion, and workers/monitors/bootstrap paths run outside HTTP request context. DatabaseService uses a separate PoolClient for development/test migrations and RBAC seeding; the runtime identity diagnostic logs role flags, but live staging identity remains unverified. This inventory is preliminary: it does not prove all CLI/script paths or exact per-table operation ownership. Do not implement a global request transaction or enable RLS until the blockers in the inventory are closed.
+
+
+## 11. Scoped transaction-context implementation update — 24 November 2026
+
+The active PR #138 source now contains an opt-in actor-context primitive in `DatabaseService`. It uses typed principals (`anonymous`, `user`, `worker`, `system`, `bootstrap`, `audit`), parameterized transaction-local `set_config(..., true)` values for actor ID, role, active organization, actor kind and worker ID, and an AsyncLocalStorage-backed Drizzle handle. Nested calls reuse the active transaction only for an identical actor. The scope is marked inactive after commit/rollback so detached work inheriting the ALS store cannot query through a closed transaction.
+
+The interceptor is deliberately not global. It is applied only to source-reviewed, JWT-protected bounded surfaces, including Notifications, Pricing, Store Membership, Reviews/Disputes, Promotions, Analytics, Inventory, Cart, Returns, Catalog Offers/Requests/Taxonomy, Organizations/Roles, selected Catalog read handlers and selected Admin read handlers. Actor values come from server-verified `request.user`; client-supplied tenant headers are not trusted.
+
+Other controllers and execution paths remain outside this adoption, including Auth/Profile, file/import/upload, main Orders/Payments, carrier/shipping operations, bootstrap, deferred audit middleware writes, workers/schedulers, realtime sockets, CLI and migrations. Each requires explicit principal and transaction contracts, with review for nested transactions, detached work, streaming and external I/O. Carrier context must be established only after credential authentication.
+
+This is source implementation only. Tests and CI remain deferred until implementation and cross-component integration are complete. No RLS policy, migration, shared database grant/default-ACL change, staging operation or deployment is authorized by this update.
