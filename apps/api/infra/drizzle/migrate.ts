@@ -183,13 +183,16 @@ async function main() {
     }
   }
 
-  console.log(`\n🎉 Done — ${count} migration(s) applied, ${applied.size} already up-to-date.`);
-  console.log(`   Total migrations: ${files.length} (${skipped.length} skipped: ${SKIP_REASON})`);
+  console.log(`\n🎉 Done — ${count} migration(s) applied, ${alreadyApplied} already up-to-date.`);
+  console.log(`   Total migration files: ${files.length} (${skipped.length} skipped)`);
   if (skipped.length > 0) {
+    const skipDetails = skipped
+      .map((file) => file + ': ' + DEV_MIGRATION_EXCLUSIONS.get(file))
+      .join('; ');
     console.warn(
-      `   ⚠ ${skipped.length} migration(s) were NOT applied. The schema is incomplete for\n` +
-        `     analytics partitioning. Install pg_partman and use the DATABASE_URL migration runner\n` +
-        `     against the intended target before relying on analytics retention/partition maintenance.`,
+      `   ⚠ ${skipped.length} migration(s) were NOT applied. The local schema is incomplete for\n` +
+        `     analytics partitioning/retention: ${skipDetails}. Install pg_partman and use the\n` +
+        `     DATABASE_URL migration runner against the intended target before relying on it.`,
     );
   }
 }

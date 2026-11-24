@@ -88,6 +88,11 @@ async function main(): Promise<void> {
       : await client.query('SELECT name FROM _migration_log ORDER BY name');
     const applied = new Set(appliedRes.rows.map((r) => r.name));
 
+    // 0018 depends on 0013; reject an impossible ledger state before applying anything.
+    if (applied.has('0018_analytics_retention.sql') && !applied.has('0013_analytics.sql')) {
+      throw new Error('Migration ledger lists 0018_analytics_retention.sql without 0013_analytics.sql.');
+    }
+
     // A legacy non-atomic runner could log analytics migrations after only part
     // of the file applied. Never trust those ledger rows if pg_partman/config is absent.
     if (applied.has('0013_analytics.sql')) {
@@ -115,16 +120,17 @@ async function main(): Promise<void> {
         FROM partman.part_config
         WHERE parent_table = 'public.analytics_events'
       `);
-      if (config.rowCount !== 1) {
+      const retentionConfig = config.rows[0];
+      if (config.rowCount !== 1 || !retentionConfig) {
         throw new Error(
           'Migration ledger lists 0013_analytics.sql but the public.analytics_events pg_partman configuration is missing.',
         );
       }
       if (
         applied.has('0018_analytics_retention.sql') &&
-        (config.rows[0].retention !== '12 months' ||
-          config.rows[0].retention_keep_table !== false ||
-          config.rows[0].retention_keep_index !== false)
+        (retentionConfig.retention !== '12 months' ||
+          retentionConfig.retention_keep_table !== false ||
+          retentionConfig.retention_keep_index !== false)
       ) {
         throw new Error(
           'Migration ledger lists 0018_analytics_retention.sql but the analytics_events retention configuration does not match the migration.',
