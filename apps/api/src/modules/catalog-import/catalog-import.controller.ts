@@ -61,7 +61,7 @@ export class CatalogImportController {
     this.logger.log(`Catalog import upload by ${user.sub}: ${file.originalname}`);
     return this.importService.upload(
       { buffer: file.buffer, originalName: file.originalname, size: file.size },
-      user.sub,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
     );
   }
 
@@ -121,7 +121,11 @@ export class CatalogImportController {
     @Body() body: { overrides?: Record<string, Record<string, Record<string, string>>> } = {},
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.importService.execute(id, user.sub, body.overrides);
+    return this.importService.execute(id, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    }, body.overrides);
   }
 
   /**
@@ -135,7 +139,11 @@ export class CatalogImportController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.importService.retry(id, user.sub);
+    return this.importService.retry(id, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   /**
