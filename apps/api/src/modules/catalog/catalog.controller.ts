@@ -908,11 +908,16 @@ export class CatalogController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async previewImportJob(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, job.storeId);
-    await assertStoreMember(this.db, caller, job.storeId);
-    return this.catalogService.previewImportJob(id);
+    await this.db.withActorContext(
+      { actorKind: 'user', actorId: caller.sub, actorRole: caller.role, activeOrgId: caller.activeOrg ?? null },
+      async () => {
+        const job = await this.catalogService.getImportJob(id);
+        await assertStoreInOrg(this.db, caller, job.storeId);
+        await assertStoreMember(this.db, caller, job.storeId);
+      },
+    );
+    return this.catalogService.previewImportJob(id, caller);
   }
 
   @Get('imports/:id/errors')

@@ -231,7 +231,7 @@ describe('P10 Remediation — previewImportJob (R1 + R3)', () => {
       job: { fileType: 'XLSX', status: 'MAPPING', columnMapping: { name: 'name', sku: 'sku', priceMinor: 'priceminor' } },
       exists: false,
     });
-    await expect(svc.previewImportJob(job.id)).rejects.toThrow('FILE_NOT_UPLOADED');
+    await expect(svc.previewImportJob(job.id, { sub: 'test-user', role: 'MERCHANT', activeOrg: 'org-1' })).rejects.toThrow('FILE_NOT_UPLOADED');
   });
 
   it('reads staged CSV rows BEFORE preview and returns real counts', async () => {
@@ -248,7 +248,7 @@ describe('P10 Remediation — previewImportJob (R1 + R3)', () => {
       redisBatches: [JSON.stringify(rows)],
     });
 
-    const preview: any = await svc.previewImportJob(job.id);
+    const preview: any = await svc.previewImportJob(job.id, { sub: 'test-user', role: 'MERCHANT', activeOrg: 'org-1' });
     expect(preview.totalRows).toBe(2);
     expect(preview.errorCount).toBe(1); // ERROR severity only
     expect(preview.validRows).toBe(1);

@@ -3955,8 +3955,8 @@ export class CatalogService {
    *
    * State transition: MAPPING → PREVIEWING → READY (or FAILED on fatal error).
    */
-  async previewImportJob(id: string): Promise<Record<string, unknown>> {
-    const job = await this.getImportJob(id);
+  async previewImportJob(id: string, actor: CatalogUserActor): Promise<Record<string, unknown>> {
+    const job = await this.withUserActorContext(actor, () => this.getImportJob(id));
 
     const previewable = ['MAPPING', 'READY', 'UPLOADED'];
     if (!previewable.includes(job.status)) {
@@ -3964,10 +3964,12 @@ export class CatalogService {
     }
 
     // Transition to PREVIEWING
-    await this.db.db
-      .update(importJobs)
-      .set({ status: 'PREVIEWING', updatedAt: new Date() })
-      .where(and(eq(importJobs.id, id), inArray(importJobs.status, previewable)));
+    await this.withUserActorContext(actor, async () => {
+      await this.db.db
+        .update(importJobs)
+        .set({ status: 'PREVIEWING', updatedAt: new Date() })
+        .where(and(eq(importJobs.id, id), inArray(importJobs.status, previewable)));
+    });
 
     try {
       const mapping = (job.columnMapping || {}) as Record<string, string>;
@@ -4006,9 +4008,10 @@ export class CatalogService {
 
       // Store preview results
       const previewErrors = result.errors.slice(0, 5000); // Cap stored errors
-      await this.db.db
-        .update(importJobs)
-        .set({
+      await this.withUserActorContext(actor, async () => {
+        await this.db.db
+          .update(importJobs)
+          .set({
           status: result.errorCount > 0 && result.validRows === 0 ? 'FAILED' : 'READY',
           totalRows: result.totalRows,
           errorRows: result.errorCount,
@@ -4021,8 +4024,9 @@ export class CatalogService {
             previewedAt: new Date().toISOString(),
           } as any,
           updatedAt: new Date(),
-        })
-        .where(eq(importJobs.id, id));
+          })
+          .where(eq(importJobs.id, id));
+      });
 
       return {
         totalRows: result.totalRows,
@@ -4040,9 +4044,10 @@ export class CatalogService {
       // retryable and must NOT mark the job FAILED — from a genuinely malformed
       // workbook, which is recorded as a fatal preview failure.
       if (err instanceof BadRequestException && !err.message.startsWith('FILE_NOT_UPLOADED')) {
-        await this.db.db
-          .update(importJobs)
-          .set({
+        await this.withUserActorContext(actor, async () => {
+          await this.db.db
+            .update(importJobs)
+            .set({
             status: 'FAILED',
             errorLog: [
               {
@@ -4056,8 +4061,9 @@ export class CatalogService {
               },
             ] as any,
             updatedAt: new Date(),
-          })
-          .where(eq(importJobs.id, id));
+            })
+            .where(eq(importJobs.id, id));
+        });
       }
       throw err;
     }
