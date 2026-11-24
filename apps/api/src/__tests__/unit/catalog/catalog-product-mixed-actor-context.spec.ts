@@ -1,4 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
+import { PgDialect, type SQL } from 'drizzle-orm/pg-core';
 import { describe, expect, it, vi } from 'vitest';
 import { CatalogService } from '../../../modules/catalog/catalog.service';
 
@@ -14,7 +15,14 @@ const product = {
 function buildService() {
   let activeActor: Record<string, unknown> | null = null;
   const contexts: Record<string, unknown>[] = [];
-  const where = vi.fn().mockResolvedValue(undefined);
+  const updateConditions: unknown[] = [];
+  const returning = vi.fn().mockResolvedValue([{ id: product.id }]);
+  const where = vi.fn((condition: unknown) => {
+    updateConditions.push(condition);
+    const query = Promise.resolve(undefined) as Promise<unknown> & { returning: typeof returning };
+    query.returning = returning;
+    return query;
+  });
   const set = vi.fn(() => ({ where }));
   const update = vi.fn(() => ({ set }));
   const withActorContext = vi.fn(async (context: Record<string, unknown>, operation: () => Promise<unknown>) => {
@@ -31,7 +39,10 @@ function buildService() {
       return activeActor;
     },
     withActorContext,
-    db: { update },
+    db: {
+      update,
+      query: { products: { findMany: vi.fn().mockResolvedValue([{ ...product }]) } },
+    },
   };
   const audit = {
     record: vi.fn(async () => {
@@ -64,7 +75,7 @@ function buildService() {
     expect(activeActor).toBeNull();
   });
 
-  return { service, contexts, withActorContext, update, audit, outbox, invalidate };
+  return { service, contexts, withActorContext, update, updateConditions, audit, outbox, invalidate };
 }
 
 describe('CatalogService mixed product mutation actor boundaries (G-002)', () => {
@@ -76,6 +87,10 @@ describe('CatalogService mixed product mutation actor boundaries (G-002)', () =>
     expect(f.withActorContext).toHaveBeenCalledTimes(3);
     expect(f.contexts.every((context) => context.actorKind === 'user' && context.actorId === actor.sub)).toBe(true);
     expect(f.update).toHaveBeenCalledOnce();
+    const updateWhere = new PgDialect().sqlToQuery(f.updateConditions[0] as SQL);
+    expect(updateWhere.params).toContain('product-1');
+    expect(updateWhere.params).toContain('store-1');
+    expect(updateWhere.sql.toLowerCase()).toContain('deleted_at is null');
     expect(f.invalidate).toHaveBeenCalledOnce();
     expect(f.audit.record).toHaveBeenCalledOnce();
   });
@@ -93,6 +108,10 @@ describe('CatalogService mixed product mutation actor boundaries (G-002)', () =>
       activeOrgId: actor.activeOrg,
     });
     expect(f.update).toHaveBeenCalledOnce();
+    const deleteWhere = new PgDialect().sqlToQuery(f.updateConditions[0] as SQL);
+    expect(deleteWhere.params).toContain('product-1');
+    expect(deleteWhere.params).toContain('store-1');
+    expect(deleteWhere.sql.toLowerCase()).toContain('deleted_at is null');
     expect(f.invalidate).toHaveBeenCalledOnce();
     expect(f.audit.record).toHaveBeenCalledOnce();
   });
