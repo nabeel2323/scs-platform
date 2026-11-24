@@ -1328,3 +1328,7 @@ Closed the source implementation gap for PATCH /products/:id and DELETE /product
 The previously open import processing and CSV error-report paths now have caller-bound DB scopes. Processing scopes all job/chunk/price-list DB phases and keeps workbook/object-storage/Redis operations outside; error-report DB reads are scoped and CSV serialization occurs after commit. Tests are authored but unexecuted. No background worker was added or activated. Remaining: dormant recoverStaleJobs callsite review, other Catalog root-pool DB paths, actor-context nesting, exact ownership predicates, migration FK evidence and protected live runtime/catalog evidence.
 
 P13 note: the complete monitor source already uses withMonitorActor for all direct diagnostic SQL reads; the earlier observation to the contrary was incorrect.
+
+## 25 November 2026 — dormant Catalog import recovery
+
+The stale-import recovery method now has a dedicated worker actor scope but remains unregistered and unscheduled. Do not activate it as part of source remediation. Remaining G-002 gaps include other Catalog root-pool paths, complete actor-nesting review, ownership predicates, migration FK reconciliation and protected live runtime/catalog evidence.
