@@ -479,6 +479,92 @@ async function main(): Promise<void> {
       ORDER BY table_ns.nspname, table_rel.relname, tg.tgname
     `);
 
+    // Report whether pg_partman retention has an actual scheduler. The migration
+    // configures retention but leaves cron.schedule commented out; do not infer that
+    // retention runs merely because part_config contains a retention interval.
+    const partConfigExists = await client.query<QueryResultRow>(`
+      SELECT to_regclass('partman.part_config') IS NOT NULL AS relation_exists
+    `);
+    let partConfigReport: Record<string, unknown> = {
+      relation_exists: Boolean(partConfigExists.rows[0]?.['relation_exists']),
+      can_select: false,
+      columns: [],
+      rows: null,
+    };
+    if (partConfigReport.relation_exists) {
+      const access = await client.query<QueryResultRow>(`
+        SELECT COALESCE(
+          has_table_privilege(current_user, to_regclass('partman.part_config'), 'SELECT'),
+          false
+        ) AS can_select
+      `);
+      const canSelect = Boolean(access.rows[0]?.['can_select']);
+      partConfigReport.can_select = canSelect;
+      if (canSelect) {
+        const columnResult = await client.query<QueryResultRow>(`
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_schema = 'partman' AND table_name = 'part_config'
+        `);
+        const available = new Set(columnResult.rows.map((row) => String(row['column_name'])));
+        const wanted = [
+          'parent_table',
+          'control',
+          'partition_type',
+          'partition_interval',
+          'premake',
+          'retention',
+          'retention_keep_table',
+          'retention_keep_index',
+          'automatic_maintenance',
+        ];
+        const selected = wanted.filter((column) => available.has(column));
+        partConfigReport.columns = selected;
+        if (selected.length > 0) {
+          const config = await client.query<QueryResultRow>(
+            'SELECT ' + selected.map((column) => '"' + column + '"').join(', ') +
+              ' FROM partman.part_config ORDER BY 1',
+          );
+          partConfigReport.rows = config.rows;
+        } else {
+          partConfigReport.rows = [];
+        }
+      }
+    }
+
+    const cronJobExists = await client.query<QueryResultRow>(`
+      SELECT to_regclass('cron.job') IS NOT NULL AS relation_exists
+    `);
+    let cronJobsReport: Record<string, unknown> = {
+      relation_exists: Boolean(cronJobExists.rows[0]?.['relation_exists']),
+      can_select: false,
+      matching_jobs: null,
+    };
+    if (cronJobsReport.relation_exists) {
+      const access = await client.query<QueryResultRow>(`
+        SELECT COALESCE(
+          has_table_privilege(current_user, to_regclass('cron.job'), 'SELECT'),
+          false
+        ) AS can_select
+      `);
+      const canSelect = Boolean(access.rows[0]?.['can_select']);
+      cronJobsReport.can_select = canSelect;
+      if (canSelect) {
+        const jobs = await client.query<QueryResultRow>(`
+          SELECT jobid, schedule, command, database, username, active
+          FROM cron.job
+          WHERE command ILIKE '%partman.run_maintenance%'
+             OR command ILIKE '%run_maintenance_proc%'
+          ORDER BY jobid
+        `);
+        cronJobsReport.matching_jobs = jobs.rows;
+      }
+    }
+    const partmanMaintenance = {
+      partConfig: partConfigReport,
+      cronJobs: cronJobsReport,
+    };
+
     const otherConnections = await client.query<QueryResultRow>(`
       SELECT usename AS login_role,
              application_name,
@@ -565,6 +651,7 @@ async function main(): Promise<void> {
       publicFunctions: functions.rows[0] ?? null,
       functionInventory: functionInventory.rows,
       triggerInventory: triggerInventory.rows,
+      partmanMaintenance,
       extensionInventory: extensionInventory.rows,
       inheritedRoleMemberships: memberships.rows,
       otherDatabaseConnections: otherConnections.rows,
