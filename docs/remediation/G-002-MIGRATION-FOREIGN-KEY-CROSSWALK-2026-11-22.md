@@ -212,3 +212,27 @@ The 35 zero-reference migrations are: 0002, 0013, 0015, 0016, 0018, 0019, 0020, 
 - The list must be reconciled with Drizzle declarations, later ALTER TABLE changes, partition children, and the protected staging pg_constraint/pg_attribute snapshot.
 - Individually valid FKs do not enforce cross-column consistency (e.g. org/store, config/credential/store, settlement/payment/order/store, refund/payment/order, delivery-zone/method/store, driver/store, reconciliation org vs parent). Those require composite constraints or atomic service checks with tests; no policy decision is implied.
 - No live database query was performed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## Cross-column ownership consistency review — 24 November 2026
+
+**Source baseline:** `f21dbe4aca75ba04e9173b1fc28a9591829af554`; implementation follow-ups: `01b6e6c729c1a458f20aaeaed043df4c569119e4` and `fa2547997c4b4dad490b582f92c9a69b8c01ed8f`. This is source-level evidence only; it is not a live catalog/data audit or an approved RLS policy.
+
+The schema defines several independent foreign keys but does not encode the cross-column owner relationships. The following service-level invariants were reviewed and hardened:
+
+| Relationship | Required invariant | Source behavior / disposition |
+| --- | --- | --- |
+| `carrier_configurations` → credential/store/org | `carrier_credentials.org_id = carrier_configurations.org_id`; when `store_id` is set, `stores.org_id = carrier_configurations.org_id`; the selected credential must remain active and organization-bound. | `CarrierConfigurationsService.create` verifies both organization relationships; `resolveForStore` constrains the requested store to the organization and validates the active credential by credential ID + organization. Update does not mutate the relationship columns. The database has separate FKs, not a composite same-org constraint. |
+| `return_requests` → payment/order | `payment_records.order_id = return_requests.sub_order_id`. | The return-creation path resolves the payment for the selected sub-order. Commission reversal now independently rejects a return whose payment record belongs to a different order. |
+| `return_request_items` → return/order item | Every `order_items.id` referenced by a return item must have `order_items.order_id = return_requests.sub_order_id`. | Commission reversal now constrains the order-item query by both the selected IDs and the return's sub-order, and fails closed if any referenced item is absent from that order. The two independent FKs alone do not prove this relationship. |
+| `settlement_records` → sub-order/payment/store | `payment_records.order_id = settlement_records.sub_order_id` and `orders.store_id = settlement_records.merchant_store_id`. | Settlement-adjustment posting now verifies the selected primary settlement's payment record belongs to the adjustment sub-order, in addition to the existing store equality check. Commission reversal selects only a non-adjustment settlement matching the exact sub-order, payment record and merchant store. |
+| `settlement_adjustments` → sub-order/org/return | `org_id) must equal the organization derived from `sub_order_id → orders.store_id → stores.org_id`; optional `return_request_id` must point to a return for the same sub-order. | Creation now always derives the authoritative organization, rejects a supplied mismatching org, rejects a missing sub-order owner, and checks the optional return's parent sub-order before inserting. This prevents creation of an adjustment that would subsequently fail its own organization-scoped readback. |
+| `commission_reversals` → return/org/settlement | `org_id) is derived from the return sub-order's store; optional caller org is an assertion, not an override. Payment, order items and settlement must all resolve to the same return sub-order and store. | Commission reversal now validates payment/order equality, derives and checks the organization, constrains return items to the parent sub-order, and binds its optional settlement to the same payment/store while excluding adjustment ledger rows. |
+
+### Regression cases required before verification
+
+Add/retain automated coverage for: mismatching supplied org on adjustment creation; return ID belonging to another sub-order; adjustment posting against a settlement whose payment belongs to another order; return payment/order mismatch; foreign-order return item; commission-reversal org mismatch; and settlement selection that excludes another payment, store or ADJUSTMENT ledger row. These cases have **not** been executed in this implementation session. No live rows were inspected or changed.
+
+### Remaining cross-column review
+
+The source pass above does not close the full matrix. Driver/store assignment organization consistency, reconciliation run/discrepancy organization inheritance, all remaining order/payment/refund/settlement and carrier/shipment relationships, migration-defined FK reconciliation against the Drizzle declarations, and protected staging `pg_constraint` evidence remain open. The 183 migration REFERENCES scan remains static evidence only; the historical 114/116 relation counts remain unresolved pending the authorized read-only catalog snapshot.
