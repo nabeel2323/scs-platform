@@ -279,3 +279,16 @@ The `refunds` table has independent FKs to `payment_records` and `orders`; those
 The return-refund flow already checks the return/payment/order/refund/buyer/currency links under locks before marking a return REFUNDED. The new payment-service guard closes the corresponding standalone refund approval path. These checks supplement independent FKs; no schema or migration was changed.
 
 Add regression coverage for mismatched `refunds.order_id` or currency on idempotent replay, concurrent key recovery, and approval; each must fail without changing refund/payment state or emitting events/outbox rows. Tests remain unexecuted. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## Shipment order/store ownership hardening — 24 November 2026
+
+**Source commits:** `b1e5490401d9602205d46351ee4eaf1ab2db7d30`, `02edaa89d75b06e6c8a4170cc306662965d8fd30`, and `15d328c952dfd0805a9eee00374c6ad74ed1d6a1`.
+
+The `shipments` table has independent FKs to `orders.id` and `stores.id`; those FKs do not enforce `orders.store_id = shipments.store_id`. The source now checks that relationship at three boundaries:
+
+- `OrdersService.createShipment` rejects a missing order or a supplied store that differs from the persisted sub-order store before inserting a shipment.
+- `ShipmentOperationsController.assertShipmentAccessible` resolves both parent rows and returns not-found if the order is absent or belongs to a different store. This check runs before the platform-privileged bypass as well as merchant organization checks, preventing shipment detail from exposing an unrelated order.
+- `ShippingCarrierWorker.assertOutboxTenantMatchesShipment` verifies the shipment's order/store relationship in the shipment's owning organization context before carrier provider operations and webhook retry processing.
+
+Regression cases: shipment creation with a mismatched store creates no shipment; merchant and privileged shipment detail both fail closed on an order/store mismatch; carrier create/cancel/label/track and webhook retry perform no provider/storage side effect for a mismatched order/store pair. Tests remain unexecuted. No migration or schema change was made.
