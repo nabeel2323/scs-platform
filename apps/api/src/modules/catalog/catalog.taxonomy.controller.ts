@@ -144,7 +144,11 @@ export class CatalogTaxonomyController {
     if (status && status !== 'PUBLISHED' && !this.canManageProductTypes(user)) {
       throw new ForbiddenException('Product-type governance permission is required for non-published types');
     }
-    return this.taxonomy.listProductTypes({ categoryId, status });
+    return this.taxonomy.listProductTypes({
+      categoryId,
+      status,
+      includeInvalidCategoryBindings: this.canManageProductTypes(user),
+    });
   }
 
   /**
