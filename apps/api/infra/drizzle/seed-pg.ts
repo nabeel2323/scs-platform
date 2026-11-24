@@ -483,6 +483,7 @@ export async function seedPlatformRbac(client: PoolClient): Promise<SeedResult> 
       }
     }
 
+    const mappingsTotal = await countExistingMappings(client);
     await client.query('COMMIT');
 
     return {
@@ -490,8 +491,8 @@ export async function seedPlatformRbac(client: PoolClient): Promise<SeedResult> 
       newPermissions: newPerms,
       rolesTotal: ROLES.length,
       newRoles: newRoles,
-      mappingsTotal: newMappings + (await countExistingMappings(client)),
-      newMappings: newMappings,
+      mappingsTotal,
+      newMappings,
     };
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch { /* ignore */ }

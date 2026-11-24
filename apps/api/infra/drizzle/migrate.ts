@@ -37,10 +37,10 @@ const DB_NAME = 'scs_platform';
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../infra/drizzle/migrations');
 
 /**
- * Migrations that need an extension absent from `postgis/postgis:16-3.4`, skipped with a
- * loud warning. Mirrored from `migrate-pg.ts` so a fresh database reaches the same schema
- * through either path; previously the CI runner skipped these two while this one "applied"
- * them and failed silently. Installing pg_partman in the image makes them apply.
+ * The local Docker image does not include pg_partman. Keep these migrations pending
+ * and report the omission loudly; do not write them to _migration_log. The DATABASE_URL
+ * migration runner is the complete-target path and intentionally attempts all migrations,
+ * so its database must provide pg_partman before it is used for a full release schema.
  */
 
 function psql(query: string): string {

@@ -12,6 +12,7 @@
 import { Pool } from 'pg';
 import bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
+import { setOperatorActorContext } from '../infra/drizzle/operator-actor-context';
 
 const LOCAL_DATABASE_HOSTS = new Set([
   'localhost',
@@ -64,6 +65,7 @@ async function main(): Promise<void> {
 
   try {
     await client.query('BEGIN');
+    await setOperatorActorContext(client, 'bootstrap', 'bootstrap-cli:create-admin-user');
 
     const roleResult = await client.query("SELECT id FROM roles WHERE key = 'SUPER_ADMIN' LIMIT 1");
     if (roleResult.rows.length !== 1) {

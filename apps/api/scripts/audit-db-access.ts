@@ -34,6 +34,7 @@ async function main(): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN READ ONLY');
+    await setOperatorActorContext(client, 'audit', 'audit-cli:db-access');
 
     const identity = await client.query<QueryResultRow>(`
       SELECT current_user AS effective_role,
