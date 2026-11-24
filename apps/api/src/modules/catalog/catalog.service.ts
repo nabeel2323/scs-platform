@@ -144,7 +144,27 @@ export class CatalogService {
 
   // ── Categories ───────────────────────────────────────────────
 
+  // Store categories may reference platform categories or categories owned
+  // by the same store, never another merchant's category.
+  private async assertCategoryAvailableForStore(
+    categoryId: string,
+    storeId: string | null | undefined,
+  ): Promise<void> {
+    const ownership = storeId
+      ? or(isNull(categories.storeId), eq(categories.storeId, storeId))
+      : isNull(categories.storeId);
+    const category = await this.db.db.query.categories.findFirst({
+      where: and(eq(categories.id, categoryId), ownership),
+      columns: { id: true },
+    });
+    if (!category) throw new NotFoundException('Category not found');
+  }
+
   async createCategory(input: CreateCategoryInput) {
+    if (input.categoryId) {
+      await this.assertCategoryAvailableForStore(input.categoryId, input.storeId);
+    }
+
     const id = crypto.randomUUID();
     const slug =
       input.slug ||
@@ -156,7 +176,12 @@ export class CatalogService {
     let path = `/${slug}`;
     if (input.parentId) {
       const parent = await this.db.db.query.categories.findFirst({
-        where: eq(categories.id, input.parentId),
+        where: and(
+          eq(categories.id, input.parentId),
+          input.storeId
+            ? or(isNull(categories.storeId), eq(categories.storeId, input.storeId))
+            : isNull(categories.storeId),
+        ),
       });
       if (!parent) throw new NotFoundException('Parent category not found');
       path = `${parent['path']}${slug}/`;
@@ -194,6 +219,7 @@ export class CatalogService {
   }) {
     const conditions = [];
     if (filters?.storeId) conditions.push(eq(categories.storeId, filters.storeId));
+    else conditions.push(isNull(categories.storeId));
     // When `all` is true, skip the parentId filter so the client gets the full
     // tree in one request. Without `all`, root categories are returned by default.
     if (!filters?.all) {
@@ -221,7 +247,9 @@ export class CatalogService {
         .where(
           and(
             inArray(products.categoryId, catIds),
-            isNull(products.storeId),
+            filters?.storeId
+              ? eq(products.storeId, filters.storeId)
+              : isNull(products.storeId),
             isNull(products.deletedAt),
           ),
         )
@@ -255,7 +283,12 @@ export class CatalogService {
         updates['path'] = `/${existing['slug']}`;
       } else {
         const parent = await this.db.db.query.categories.findFirst({
-          where: eq(categories.id, input.parentId),
+          where: and(
+            eq(categories.id, input.parentId),
+            existing.storeId
+              ? or(isNull(categories.storeId), eq(categories.storeId, existing.storeId))
+              : isNull(categories.storeId),
+          ),
         });
         if (!parent) throw new NotFoundException('Parent category not found');
         const subtreeRoot = `${existing['path']}/`.replace(/\/+/g, '/');
@@ -443,7 +476,7 @@ export class CatalogService {
   async getCategoryProducts(id: string, opts?: { scope?: 'DIRECT' | 'DESCENDANT' | 'BOTH' }) {
     const scope = opts?.scope ?? 'BOTH';
     const cat = await this.db.db.query.categories.findFirst({ where: eq(categories.id, id) });
-    if (!cat) throw new NotFoundException('Category not found');
+    if (!cat || cat.storeId) throw new NotFoundException('Category not found');
 
     const platformCats = await this.loadPlatformCategoryNodes();
     const descendantIds = collectDescendantIds(platformCats, cat.id);
@@ -1577,7 +1610,14 @@ export class CatalogService {
     if (input.titleAr !== undefined) changedFields.add('titleAr');
     if (input.description !== undefined) changedFields.add('description');
     if (input.descriptionAr !== undefined) changedFields.add('descriptionAr');
-    if (input.categoryId !== undefined) changedFields.add('categoryId');
+    if (input.categoryId !== undefined) {
+      changedFields.add('categoryId');
+      if (input.categoryId) {
+        await this.withUserActorContext(actor, () =>
+          this.assertCategoryAvailableForStore(input.categoryId!, product['storeId'] as string | null),
+        );
+      }
+    }
     if (input.brandId !== undefined) changedFields.add('brandId');
     if (input.productTypeId !== undefined) changedFields.add('productTypeId');
     if (input.gtin !== undefined) changedFields.add('gtin');
