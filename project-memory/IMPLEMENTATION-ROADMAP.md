@@ -978,3 +978,16 @@ Unit and disposable PostgreSQL regression source was added but not executed. The
 4. Confirm any external process that provisions `driver_store_assignments` without inventing an API.
 5. Obtain actual API/migration runtime identities, pg_partman scheduler owner/target and the 114/116 relation reconciliation only through the authorized read-only staging process.
 6. Keep G-001 independent review and G-036 verification open. Defer the consolidated test/CI campaign until implementation and cross-component integration are complete.
+
+
+## 24 November 2026 — next G-002 implementation slice
+
+The first targeted Drizzle/migration parity slice is complete at source level: the reconciliation-run self-FK is now represented in Drizzle, while three deferred/migration-owned return/payment FKs are explicitly documented. The crosswalk records the exact omissions and the intentionally non-FK application-maintained financial `org_id` columns.
+
+Next implementation sequence:
+1. Continue the Drizzle/migration FK comparison across the remaining schema modules and all migration-defined relationships; record each parity result and distinguish schema omissions, migration-only deferred constraints, and deliberate non-FK metadata.
+2. Continue source-level operation/actor-context nesting and ownership-predicate review, including carrier credential/retry/recovery, audit middleware, migration/bootstrap/CLI, and raw SQL functions/triggers/partitions.
+3. Keep protected read-only staging catalog, actual API/migration runtime identities, pg_partman scheduler ownership and relation-count reconciliation gated to the explicitly authorized process.
+4. Add/adjust regression source after implementation/integration is complete, then run the consolidated verification campaign once.
+
+No tests or CI during implementation. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED; G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.
