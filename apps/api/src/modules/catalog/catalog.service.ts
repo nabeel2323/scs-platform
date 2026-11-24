@@ -6,6 +6,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
+import { assertProductEditableByMerchant, assertProductReadable } from '../../common/tenant-scope';
 import { RedisService } from '../../common/redis/redis.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import {
@@ -1230,7 +1231,9 @@ export class CatalogService {
     actor: CatalogUserActor,
     includeInactiveVariants = true,
   ) {
-    // Cache I/O is external and stays outside the database actor scope.
+    // Authorize before a cache hit can return any product data. The cache I/O
+    // itself remains outside the database actor transaction.
+    await this.withUserActorContext(actor, () => assertProductReadable(this.db, actor, id));
     const cacheKey =
       CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id + (includeInactiveVariants ? '' : ':public');
     try {
@@ -1282,6 +1285,7 @@ export class CatalogService {
     actor: CatalogUserActor,
   ) {
     const snapshot = await this.withUserActorContext(actor, async () => {
+      await assertProductReadable(this.db, actor, id);
       const product = await this.getProduct(id);
       const productStoreId = product.storeId;
       const [storeRows, mediaRows, variants, labels] = await Promise.all([
@@ -1595,7 +1599,10 @@ export class CatalogService {
     clientUpdatedAt: string | undefined,
     actor: CatalogUserActor,
   ) {
-    const product = await this.withUserActorContext(actor, () => this.getProduct(id));
+    const product = await this.withUserActorContext(actor, async () => {
+      await assertProductEditableByMerchant(this.db, actor, id);
+      return this.getProduct(id);
+    });
     const currentStatus = product['status'] as string;
     const storePredicate = product['storeId']
       ? eq(products.storeId, product['storeId'] as string)
@@ -1945,6 +1952,7 @@ export class CatalogService {
 
   async deleteProduct(id: string, actor: CatalogUserActor) {
     const product = await this.withUserActorContext(actor, async () => {
+      await assertProductEditableByMerchant(this.db, actor, id);
       const current = await this.getProduct(id);
       const storePredicate = current['storeId']
         ? eq(products.storeId, current['storeId'] as string)
@@ -2822,6 +2830,7 @@ export class CatalogService {
     actor: CatalogUserActor,
   ) {
     const created = await this.withUserActorContext(actor, async () => {
+      await assertProductEditableByMerchant(this.db, actor, productId);
       await this.getProduct(productId);
       if (input.variantId) {
         const variant = await this.db.db.query.productVariants.findFirst({
@@ -2870,12 +2879,13 @@ export class CatalogService {
   }
 
   async listMediaByProduct(productId: string, actor: CatalogUserActor) {
-    const rows = await this.withUserActorContext(actor, async () =>
-      await this.db.db.query.productMedia.findMany({
+    const rows = await this.withUserActorContext(actor, async () => {
+      await assertProductReadable(this.db, actor, productId);
+      return this.db.db.query.productMedia.findMany({
         where: eq(productMedia.productId, productId),
         orderBy: [productMedia.sortOrder],
-      }),
-    );
+      });
+    });
     // Storage URL resolution is external I/O and must happen after the DB scope closes.
     return Promise.all(rows.map((row) => this.resolveMediaRow(row)));
   }
