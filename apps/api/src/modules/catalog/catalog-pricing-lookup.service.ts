@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { inArray } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { products, productVariants } from './catalog.schema';
@@ -21,9 +21,16 @@ export interface VariantPricingDetails {
 export class CatalogPricingLookupService {
   constructor(private readonly db: DatabaseService) {}
 
+  private requireUserActorContext(): void {
+    if (this.db.currentActorContext?.actorKind !== 'user') {
+      throw new ForbiddenException('Authenticated user database actor context is required');
+    }
+  }
+
   async getVariantPricingDetails(variantIds: readonly string[]): Promise<VariantPricingDetails[]> {
     const uniqueIds = [...new Set(variantIds.filter((id) => id.length > 0))];
     if (uniqueIds.length === 0) return [];
+    this.requireUserActorContext();
 
     const variants = await this.db.db.query.productVariants.findMany({
       where: inArray(productVariants.id, uniqueIds),
