@@ -1247,3 +1247,12 @@ Commits `b1e5490`, `02edaa8` and `15d328c` now enforce `orders.store_id = shipme
 ## G-002 — shipment read-path completeness follow-up (24 November 2026)
 
 Commit `56d605a7377c49766b990abfc023e6ae4a5cea1d` adds same-store order validation to OrdersService exception/RTS access, order-based shipment lookup and driver shipment listing. Commit `c916acd0a8b156affeda50e98dbc88acab2f39bc` filters malformed shipment/order pairs from shipment list and count queries. Regression cases are documented in the G-002 crosswalk and remain unexecuted. Driver-profile/store-assignment consumers and other carrier/webhook relationships remain open.
+
+
+## G-002 — carrier recovery and driver assignment follow-up (24 November 2026)
+
+Carrier admin recovery, recovery queue, scheduled create/cancel reconciliation, webhook shipment resolution and tracking polling now enforce the shipment/order/store same-merchant relationship. See source commits `0581776`, `83a4073`, `2b2810e`, `5bbd35d` and `9c9d7f4` and the updated migration FK crosswalk.
+
+Driver assignment remains unresolved at the model/consumer level: driver_store_assignments has separate driver-profile and store FKs without a same-org constraint, but no writer/controller/runtime consumer was found in the inspected ShippingModule; shipments.assigned_driver_id points to users. Do not add a speculative endpoint or change the FK model. Establish whether the assignment table is legacy/dead or used outside the inspected module.
+
+Regression tests remain pending/unexecuted. Drizzle-to-migration reconciliation, protected live catalog evidence, runtime identities, scheduler ownership and independent review remain open. G-002 is NOT VERIFIED.
