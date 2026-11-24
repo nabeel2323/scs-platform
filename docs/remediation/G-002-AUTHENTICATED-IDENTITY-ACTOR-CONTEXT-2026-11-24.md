@@ -140,3 +140,8 @@ A route-to-service call-graph review found a set of database-only catalog mutati
 The request-wide interceptor was deliberately not added to mixed/long-running routes: product update/delete (cache invalidation, outbox/audit work), media add (storage-backed URL resolution), staged-row upload/processing/preview (Redis/object storage and chunk processing), and CSV error export. These require short service-level actor scopes around each DB phase; wrapping the entire request would hold a DB transaction open across external I/O or long-running processing. These mixed paths remain open follow-up work and must not be treated as actor-context complete.
 
 No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IN_PROGRESS / NOT VERIFIED.
+
+
+## Catalog media mutation actor-context boundary — 24 November 2026
+
+The mixed catalog media-add path now resolves the verified caller context in two bounded DB-only phases. The controller performs product edit authorization inside a user actor transaction. CatalogService.addMedia requires a non-empty authenticated subject and role, then scopes product lookup, variant-to-product ownership validation and the media-row insert in a second short user actor transaction. Media URL resolution remains after commit because it may call external storage; no DB transaction is held over that operation. The unit regression fixture now supplies a user actor and transaction mock. This test was not executed. Other mixed catalog/import paths remain open; this change does not mark the broader catalog actor-context audit complete.
