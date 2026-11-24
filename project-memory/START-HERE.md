@@ -1221,3 +1221,12 @@ Next: complete Drizzle-to-migration FK reconciliation and establish whether `dri
 ## 24 November 2026 — driver assignment eligibility continuation
 
 The current Orders shipment-assignment route has been located and hardened. Driver eligibility now binds the user, active driver profile, DRIVER organization membership and store organization, while preserving migration 0041's unrestricted-within-org behavior when no explicit store rows exist. Regression source was added but not executed. See CURRENT-STATE, WORK-LOG, OPEN-ISSUES, IMPLEMENTATION-ROADMAP, IMPLEMENTATION-PROGRESS and the G-002 migration FK crosswalk for evidence and remaining work. G-002 remains NOT VERIFIED; all protected staging/database/RLS/grant/migration/deployment/worker/merge restrictions remain binding.
+
+
+## Targeted FK parity continuation — 24 November 2026
+
+The latest continuation added a typed Drizzle self-reference for migration 0062's `reconciliation_runs.superseded_by` FK and documented three migration-owned deferred links in the payment/return schemas. The exact targeted comparison is in `docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md`; implementation progress and handoff details are in CURRENT-STATE, OPEN-ISSUES and WORK-LOG.
+
+Source commits: `b37f3386220b7148f2b326f9fd43b532b201a152`, `ef178d7af0d10b1ef80642aa5f6fe77b37cc55d4`, `e1d73e5270f8a815c537edf97f1ff8cc1d45fac4`. Crosswalk/progress/memory commits are recorded in the work log.
+
+Live GitHub check immediately before this handoff sync: PR #138 is OPEN / DRAFT / UNMERGED to `develop`; branch `remediation/phase-0-1-tenant-security`; head `ba8b900ed03f9985f00f052e94724eb861c413f8`; zero exact-head Actions runs and zero status contexts. This head is a documentation checkpoint and remains unverified. The next task is full table-by-table Drizzle/migration FK reconciliation followed by the remaining ownership and actor-context source audit. Do not run tests/CI during implementation.
