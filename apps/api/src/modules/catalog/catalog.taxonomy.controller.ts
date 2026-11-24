@@ -59,7 +59,11 @@ export class CatalogTaxonomyController {
     productTypeId: string,
   ): Promise<void> {
     const productType = await this.taxonomy.getProductType(productTypeId);
-    if (productType.status !== 'PUBLISHED' && !this.canManageProductTypes(user)) {
+    if (
+      !this.canManageProductTypes(user) &&
+      (productType.status !== 'PUBLISHED' ||
+        !(await this.taxonomy.hasPublicCategoryBinding(productType.categoryId)))
+    ) {
       throw new NotFoundException('Product type not found');
     }
   }
