@@ -1331,3 +1331,9 @@ No shared/staging DB, RLS/grant/migration, deployment, worker activation, enviro
 The cross-module audit found ProfileController uses CatalogService for favorites and saved suppliers. All six routes already had TenantDatabaseContextInterceptor; they now also forward the authenticated JWT actor into CatalogService, whose favorites/supplier methods establish/reuse a short user actor context and require userId to equal actor.sub. Favorite creation checks product readability; favorite listing revalidates each product before returning it and skips private/deleted products. Saved-supplier creation/listing now expose only ACTIVE + VERIFIED stores and return a public-safe projection (no orgId, address or metadata). Delete operations remain constrained by both userId and target ID.
 
 Added/updated saved-supplier/favorites service tests and ProfileController actor-forwarding/interceptor metadata tests. Tests remain NOT EXECUTED. This closes the ProfileController caller path only; the broader cross-module inventory remains open.
+
+## 25 November 2026 — Pricing and Reviews Catalog lookup caller guards
+
+The remaining Catalog-owned lookup services consumed by Pricing and Reviews now fail closed unless DatabaseService.currentActorContext is a verified user actor. CatalogPricingLookupService checks this for non-empty variant pricing/ownership lookups; CatalogReviewLookupService checks it for non-empty purchased-variant/product matching. PricingController and ReviewsController already establish controller-level TenantDatabaseContextInterceptor contexts, so their legitimate request path continues to work while accidental root-pool/internal unscoped calls are rejected. Empty input remains a no-query empty result.
+
+Lookup-service tests now provide an explicit user actor and cover unscoped rejection. Tests remain unexecuted.
