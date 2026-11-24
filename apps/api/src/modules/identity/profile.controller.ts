@@ -87,19 +87,31 @@ export class ProfileController {
   @Get('favorites')
   @UseInterceptors(TenantDatabaseContextInterceptor)
   async getFavorites(@CurrentUser() user: JwtPayload) {
-    return this.catalogService.listFavorites(user.sub);
+    return this.catalogService.listFavorites(user.sub, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Post('favorites')
   @UseInterceptors(TenantDatabaseContextInterceptor)
   async addFavorite(@CurrentUser() user: JwtPayload, @Body() body: { productId: string }) {
-    return this.catalogService.addFavorite(user.sub, body.productId);
+    return this.catalogService.addFavorite(user.sub, body.productId, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Delete('favorites/:productId')
   @UseInterceptors(TenantDatabaseContextInterceptor)
   async removeFavorite(@CurrentUser() user: JwtPayload, @Param('productId') productId: string) {
-    return this.catalogService.removeFavorite(user.sub, productId);
+    return this.catalogService.removeFavorite(user.sub, productId, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   // ── Saved Suppliers (§21.3 retailer capability) ────────────
@@ -111,19 +123,31 @@ export class ProfileController {
   @Get('saved-suppliers')
   @UseInterceptors(TenantDatabaseContextInterceptor)
   async getSavedSuppliers(@CurrentUser() user: JwtPayload) {
-    return this.catalogService.listSavedSuppliers(user.sub);
+    return this.catalogService.listSavedSuppliers(user.sub, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Post('saved-suppliers')
   @UseInterceptors(TenantDatabaseContextInterceptor)
   async saveSupplier(@CurrentUser() user: JwtPayload, @Body() body: { storeId: string }) {
-    return this.catalogService.saveSupplier(user.sub, body.storeId);
+    return this.catalogService.saveSupplier(user.sub, body.storeId, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Delete('saved-suppliers/:storeId')
   @UseInterceptors(TenantDatabaseContextInterceptor)
   async removeSavedSupplier(@CurrentUser() user: JwtPayload, @Param('storeId') storeId: string) {
-    return this.catalogService.removeSavedSupplier(user.sub, storeId);
+    return this.catalogService.removeSavedSupplier(user.sub, storeId, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   // ── Credential Management ──────────────────────────────────
