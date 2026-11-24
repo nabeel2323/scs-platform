@@ -1,8 +1,8 @@
 # G-002 — Migration Foreign-Key and Ownership Crosswalk
 
-**Review date:** 22 November 2026  
+**Review date:** 24 November 2026  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Source baseline:** `933e2900eda662fbfd5148bf23a839357651910f`  
+**Source baseline:** `f21dbe4aca75ba04e9173b1fc28a9591829af554`  
 **Status:** Partial static migration crosswalk; no live catalog verification and no policy approval.
 
 ## Why this document exists
@@ -155,3 +155,60 @@ Migration 0071_auto_complete_claim_leases.sql adds worker claim fields and an in
 ## Explicit non-actions
 
 No live database query/write, migration, grant/default-ACL change, RLS policy, staging deployment, worker activation or provider call occurred. This crosswalk is source evidence only; no SQL policy is approved or ready to apply.
+
+
+## 24 November 2026 — complete numbered migration REFERENCES scan
+
+A static scan of all 75 numbered SQL migrations (0001–0075) at source checkpoint `f21dbe4aca75ba04e9173b1fc28a9591829af554` found **183 explicit REFERENCES clauses in 40 migration files**; 35 migration files contain no explicit REFERENCES clause. This includes inline references and table constraints in migration SQL. The table below records the count and distinct referenced parent tables per file. It is source text evidence, not proof that all constraints exist in the deployed database; the protected catalog remains authoritative.
+
+| Migration | REFERENCES clauses | Distinct referenced tables |
+|---|---:|---|
+| 0001_identity.sql | 7 | roles, permissions, organizations, users, sessions |
+| 0003_merchant.sql | 10 | organizations, stores, users |
+| 0004_catalog.sql | 10 | stores, categories, brands, products, product_variants, users |
+| 0005_inventory.sql | 4 | product_variants, warehouses, inventory_items, users |
+| 0006_pricing.sql | 3 | stores, price_lists, product_variants |
+| 0007_search.sql | 2 | stores, users |
+| 0008_promotions.sql | 3 | stores, promotions, users |
+| 0009_cart.sql | 5 | users, promotions, carts, stores, product_variants |
+| 0010_orders.sql | 10 | users, master_orders, stores, promotions, orders, product_variants |
+| 0011_trust.sql | 13 | orders, users, disputes, conversations |
+| 0012_comms.sql | 3 | users |
+| 0014_dual_auth.sql | 1 | users |
+| 0017_saved_suppliers.sql | 2 | users, stores |
+| 0022_org_update_requests.sql | 3 | organizations, users |
+| 0023_attributes.sql | 1 | attribute_definitions |
+| 0024_product_types.sql | 4 | categories, product_types, attribute_definitions, attribute_groups |
+| 0025_canonical_products.sql | 5 | product_types, products, attribute_definitions, product_variants |
+| 0026_merchant_offers.sql | 7 | stores, products, product_variants, price_lists, warehouses, users |
+| 0028_offer_atomization.sql | 2 | merchant_offers |
+| 0031_catalog_requests.sql | 3 | stores, users |
+| 0034_catalog_imports.sql | 2 | users, catalog_imports |
+| 0037_favorites_unique.sql | 2 | users, products |
+| 0038_product_sources.sql | 1 | products |
+| 0040_shipments.sql | 5 | orders, stores, users, shipments |
+| 0041_shipping.sql | 11 | stores, delivery_zones, shipping_methods, shipments, users, organizations, driver_profiles |
+| 0042_shipping_methods_enhancement.sql | 1 | shipping_methods |
+| 0043_carrier_integration.sql | 5 | organizations, users, carrier_credentials, stores |
+| 0054_store_members.sql | 2 | stores, users |
+| 0055_import_chunking_inventory_integrity.sql | 1 | import_jobs |
+| 0056_product_governance.sql | 3 | users, products |
+| 0057_governance_index_offer_snapshot.sql | 2 | products, merchant_offers |
+| 0058_payment_financial_architecture.sql | 11 | orders, users, payment_records, stores |
+| 0059_return_requests.sql | 13 | orders, payment_records, users, return_requests, order_items, disputes, inventory_items, refunds |
+| 0060_escalated_and_business_calendar.sql | 6 | users, business_calendars |
+| 0061_phase3_financial_correctness.sql | 14 | return_requests, refunds, settlement_records, users, orders, settlement_adjustments, reconciliation_runs |
+| 0062_phase3_1_hardening.sql | 1 | reconciliation_runs |
+| 0064_email_identity.sql | 1 | users |
+| 0066_device_trust_credential.sql | 2 | public.users, public.sessions |
+| 0072_carrier_webhook_credential_scoping.sql | 1 | carrier_credentials |
+| 0075_payment_proof_upload_intents.sql | 1 | payment_records |
+
+The 35 zero-reference migrations are: 0002, 0013, 0015, 0016, 0018, 0019, 0020, 0021, 0027, 0029, 0030, 0032, 0033, 0035, 0036, 0039, 0044, 0045, 0046, 0047, 0048, 0049, 0050, 0051, 0052, 0053, 0063, 0065, 0067, 0068, 0069, 0070, 0071, 0073, 0074.
+
+### Interpretation and remaining work
+
+- The 183 count is a static count of explicit REFERENCES clauses, not a count of distinct constraints after deduplication or a live pg_constraint count.
+- The list must be reconciled with Drizzle declarations, later ALTER TABLE changes, partition children, and the protected staging pg_constraint/pg_attribute snapshot.
+- Individually valid FKs do not enforce cross-column consistency (e.g. org/store, config/credential/store, settlement/payment/order/store, refund/payment/order, delivery-zone/method/store, driver/store, reconciliation org vs parent). Those require composite constraints or atomic service checks with tests; no policy decision is implied.
+- No live database query was performed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

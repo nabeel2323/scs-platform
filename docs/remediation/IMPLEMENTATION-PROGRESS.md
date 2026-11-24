@@ -2756,3 +2756,8 @@ Source implementation checkpoint `f21dbe4aca75ba04e9173b1fc28a9591829af554`; cur
 The local manual/API development migration runners now reject 0013/0018 ledger rows when those files are intentionally excluded; the complete DATABASE_URL runner validates pg_partman installation/configuration and 12-month retention before trusting prior analytics ledger rows. Local temp migration files are unique per process/file. The disposable verification migration runner fails fast after a migration error, and its safety guard verifies database/user and loopback/unix-socket server address.
 
 No tests, CI, database, migration, seed, reset, bootstrap or audit command was run. Exact-head Actions is empty; Vercel Web/Admin are externally rate-limited. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — migration FK source scan completion
+
+The 75-file numbered migration scan found 183 explicit REFERENCES clauses across 40 migration files; 35 files had none. The detailed migration/count/parent-table appendix is in `docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md`. This completes the static source-reference inventory, not live catalog verification. Remaining: reconcile with Drizzle declarations and protected staging pg_constraint evidence, then finish cross-column ownership consistency decisions (org/store, carrier config/credential/store, payment/refund/order/settlement, shipping driver/store, reconciliation parent/org). No database query was run.

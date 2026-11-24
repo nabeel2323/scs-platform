@@ -2005,3 +2005,8 @@ Latest source implementation checkpoint: `f21dbe4aca75ba04e9173b1fc28a9591829af5
 Added fail-closed stale-ledger detection for excluded pg_partman migrations in local and complete migration paths; complete migration runner verifies the extension/config/retention state before trusting legacy analytics ledger entries. Local migration temp files are unique per process/file and cleaned up. Legacy disposable migration runner now stops after the first failed migration. Disposable target guard also verifies PostgreSQL server address is loopback/unix-socket.
 
 Exact-head Actions: zero runs. Vercel Web/Admin: deployment rate limited, retry in 24 hours. No tests, CI, database, migration, seed, reset, bootstrap or audit command was executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — migration FK source scan completion
+
+The 75-file numbered migration scan found 183 explicit REFERENCES clauses across 40 migration files; 35 files had none. The detailed migration/count/parent-table appendix is in `docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md`. This completes the static source-reference inventory, not live catalog verification. Remaining: reconcile with Drizzle declarations and protected staging pg_constraint evidence, then finish cross-column ownership consistency decisions (org/store, carrier config/credential/store, payment/refund/order/settlement, shipping driver/store, reconciliation parent/org). No database query was run.
