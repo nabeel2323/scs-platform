@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { assertActiveOrgMembership } from '../../../common/tenant-scope';
@@ -307,5 +307,109 @@ describe('Shipping and carrier tenant context', () => {
     ).rejects.toBeInstanceOf(NonRetryableCarrierError);
 
     expect(storeTenantContext).toHaveBeenCalledWith('store-a');
+  });
+});
+
+describe('ShippingService driver assignment eligibility', () => {
+  function createHarness(options: {
+    store?: any;
+    profile?: any;
+    user?: any;
+    memberships?: any[];
+    driverRole?: any;
+    assignments?: any[];
+  } = {}) {
+    const storesFindFirst = vi.fn().mockResolvedValue(
+      options.store === undefined ? { id: 'store-a', orgId: 'org-a' } : options.store,
+    );
+    const profilesFindFirst = vi.fn().mockResolvedValue(
+      options.profile === undefined ? { id: 'profile-a' } : options.profile,
+    );
+    const usersFindFirst = vi.fn().mockResolvedValue(
+      options.user === undefined ? { id: 'driver-a' } : options.user,
+    );
+    const membershipsFindMany = vi.fn().mockResolvedValue(
+      options.memberships === undefined ? [{ roleId: 'driver-role' }] : options.memberships,
+    );
+    const rolesFindFirst = vi.fn().mockResolvedValue(
+      options.driverRole === undefined ? { id: 'driver-role' } : options.driverRole,
+    );
+    const assignmentsFindMany = vi.fn().mockResolvedValue(options.assignments ?? []);
+
+    const service = Object.create(ShippingService.prototype) as any;
+    service.db = {
+      db: {
+        query: {
+          stores: { findFirst: storesFindFirst },
+          driverProfiles: { findFirst: profilesFindFirst },
+          users: { findFirst: usersFindFirst },
+          organizationMembers: { findMany: membershipsFindMany },
+          roles: { findFirst: rolesFindFirst },
+          driverStoreAssignments: { findMany: assignmentsFindMany },
+        },
+      },
+    };
+
+    return {
+      service,
+      storesFindFirst,
+      profilesFindFirst,
+      usersFindFirst,
+      membershipsFindMany,
+      rolesFindFirst,
+      assignmentsFindMany,
+    };
+  }
+
+  it('allows an active same-organization DRIVER with no explicit store rows (migration 0041 unrestricted mode)', async () => {
+    const harness = createHarness();
+
+    await expect(
+      harness.service.assertDriverEligibleForStore('driver-a', 'store-a'),
+    ).resolves.toBeUndefined();
+
+    expect(harness.assignmentsFindMany).toHaveBeenCalledOnce();
+  });
+
+  it('allows a driver when an explicit assignment includes the target store', async () => {
+    const harness = createHarness({ assignments: [{ storeId: 'store-a' }] });
+
+    await expect(
+      harness.service.assertDriverEligibleForStore('driver-a', 'store-a'),
+    ).resolves.toBeUndefined();
+  });
+
+  it('rejects a driver whose explicit assignments exclude the target store', async () => {
+    const harness = createHarness({ assignments: [{ storeId: 'store-b' }] });
+
+    await expect(
+      harness.service.assertDriverEligibleForStore('driver-a', 'store-a'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a missing, inactive or cross-organization driver profile before assignment lookup', async () => {
+    const harness = createHarness({ profile: null });
+
+    await expect(
+      harness.service.assertDriverEligibleForStore('driver-a', 'store-a'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(harness.profilesFindFirst.mock.calls[0][0].where).toBeDefined();
+    expect(harness.usersFindFirst).not.toHaveBeenCalled();
+    expect(harness.assignmentsFindMany).not.toHaveBeenCalled();
+  });
+
+  it('requires an active user account and active DRIVER organization membership', async () => {
+    const inactiveUser = createHarness({ user: null });
+    await expect(
+      inactiveUser.service.assertDriverEligibleForStore('driver-a', 'store-a'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(inactiveUser.membershipsFindMany).not.toHaveBeenCalled();
+
+    const nonDriver = createHarness({ driverRole: null });
+    await expect(
+      nonDriver.service.assertDriverEligibleForStore('driver-a', 'store-a'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(nonDriver.assignmentsFindMany).not.toHaveBeenCalled();
   });
 });
