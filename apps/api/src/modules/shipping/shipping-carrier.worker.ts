@@ -1179,29 +1179,34 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
     let activeOrgId: string | undefined;
     try {
-      if (!webhookEvent.shipmentId) {
-        if (!webhookEvent.credentialId) {
-          throw new NonRetryableCarrierError(
-            'Legacy webhook event has no unambiguous credential binding',
-            { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
-          );
-        }
+      // A persisted shipment link does not replace credential ownership. When
+      // the event has a credential binding, validate that credential on every
+      // retry, including already-linked events.
+      const credential = webhookEvent.credentialId
+        ? await this.withWorkerContext(() =>
+            this.db.db.query.carrierCredentials.findFirst({
+              where: eq(carrierCredentials.id, webhookEvent.credentialId!),
+            }),
+          )
+        : null;
 
-        const credential = await this.withWorkerContext(() =>
-          this.db.db.query.carrierCredentials.findFirst({
-            where: eq(carrierCredentials.id, webhookEvent.credentialId!),
-          }),
+      if (webhookEvent.credentialId && (!credential || !credential.isActive)) {
+        throw new NonRetryableCarrierError(
+          'Webhook credential is missing, inactive or was deleted',
+          { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
         );
+      }
+      if (credential && credential.providerKey !== webhookEvent.providerKey) {
+        throw new NonRetryableCarrierError(
+          'Webhook event provider does not match its bound credential',
+          { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
+        );
+      }
 
-        if (!credential || !credential.isActive) {
+      if (!webhookEvent.shipmentId) {
+        if (!credential) {
           throw new NonRetryableCarrierError(
-            'Webhook credential is missing, inactive or was deleted',
-            { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
-          );
-        }
-        if (credential.providerKey !== webhookEvent.providerKey) {
-          throw new NonRetryableCarrierError(
-            'Webhook event provider does not match its bound credential',
+            'Unlinked legacy webhook event has no unambiguous credential binding',
             { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
           );
         }
@@ -1259,7 +1264,11 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
             { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
           );
         }
-        activeOrgId = await this.assertOutboxTenantMatchesShipment({}, shipment);
+        activeOrgId = await this.assertOutboxTenantMatchesShipment(
+          credential ? { organizationId: credential.orgId } : {},
+          shipment,
+          credential?.orgId,
+        );
       }
 
       await this.withWorkerContext(
