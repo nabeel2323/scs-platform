@@ -17,7 +17,8 @@ import type { JwtPayload } from '../guards/current-user.decorator';
  * source-reviewed, JWT-protected bounded surfaces: Notifications, Pricing,
  * Store Membership, Reviews/Disputes, Promotions, Analytics, Inventory, Cart,
  * Returns, Catalog Offers/Requests/Taxonomy, Organizations/Roles, selected
- * Catalog/Admin reads, reviewed Merchant store/warehouse/verification plus
+ * Catalog/Admin reads, database-only Admin user/role/org/product/variant writes
+ * (excluding media previews and notification delivery), reviewed Merchant store/warehouse/verification plus
  * document metadata handlers, Shipping method/zone management, and selected
  * Shipment Operations database-only queue/list endpoints. Shipment provider calls
  * and object-storage presign operations remain outside; those handlers scope only
