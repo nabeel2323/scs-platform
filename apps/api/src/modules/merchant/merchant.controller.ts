@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   MerchantService,
@@ -29,6 +30,7 @@ import {
 } from '../../common/guards/current-user.decorator';
 import crypto from 'node:crypto';
 import { DatabaseService } from '../../common/database/database.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 
 /**
@@ -80,6 +82,7 @@ export class MerchantController {
   }
 
   @Get('stores')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listStores(
     @CurrentUser() user: JwtPayload,
     @Query('status') status?: string,
@@ -118,6 +121,7 @@ export class MerchantController {
   }
 
   @Get('merchant/customers')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getMerchantCustomers(@CurrentUser() user: JwtPayload) {
     if (!user.activeOrg) {
       return [];
@@ -130,6 +134,7 @@ export class MerchantController {
   }
 
   @Get('stores/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:read')
   async getStore(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
@@ -139,6 +144,7 @@ export class MerchantController {
   }
 
   @Get('stores/slug/:slug')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getStoreBySlug(@Param('slug') slug: string) {
     return this.merchantService.getPublicStoreBySlug(slug);
   }
@@ -170,6 +176,7 @@ export class MerchantController {
   }
 
   @Get('stores/:storeId/warehouses')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:stores:read')
   async listWarehouses(@CurrentUser() user: JwtPayload, @Param('storeId') storeId: string) {
@@ -268,6 +275,7 @@ export class MerchantController {
   }
 
   @Get('verification/queue')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:verification:review')
   async getVerificationQueue(
@@ -287,11 +295,13 @@ export class MerchantController {
    * Must be declared BEFORE `verification/:id` so 'org' is not parsed as an id.
    */
   @Get('verification/org/:orgId')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listOrgVerifications(@Param('orgId') orgId: string, @CurrentUser() user: JwtPayload) {
     return this.merchantService.listVerificationsForOrg(orgId, user.sub);
   }
 
   @Get('verification/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:verification:review')
   async getVerificationRequest(@Param('id') id: string) {
