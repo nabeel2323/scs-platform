@@ -51,6 +51,7 @@ export class OrdersController {
   // ── Sub-Orders ───────────────────────────────────────────────
 
   @Get('orders')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listOrders(
     @CurrentUser() user: JwtPayload,
     @Query('storeId') storeId?: string,
@@ -215,6 +216,7 @@ export class OrdersController {
   // ── Driver Shipments ──────────────────────────────────────────
 
   @Get('drivers/shipments')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:read')
   async listDriverShipments(@CurrentUser() user: JwtPayload, @Query('status') status?: string) {
