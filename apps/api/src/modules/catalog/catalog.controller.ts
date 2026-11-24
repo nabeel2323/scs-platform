@@ -869,12 +869,18 @@ export class CatalogController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async processImportJob(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    // P7 Phase 1 — F-SEC-01: resolve storeId from persisted import job.
-    const job = await this.catalogService.getImportJob(id);
+    // Resolve and authorize the persisted store under a short caller actor scope.
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, job.storeId);
-    await assertStoreMember(this.db, caller, job.storeId);
-    return this.catalogService.processImportJob(id);
+    await this.db.withActorContext(
+      { actorKind: 'user', actorId: caller.sub, actorRole: caller.role, activeOrgId: caller.activeOrg ?? null },
+      async () => {
+        const job = await this.catalogService.getImportJob(id);
+        await assertStoreInOrg(this.db, caller, job.storeId);
+        await assertStoreMember(this.db, caller, job.storeId);
+      },
+    );
+    // The service scopes each DB phase independently; workbook/Redis work stays outside.
+    return this.catalogService.processImportJob(id, caller);
   }
 
   // ── P8: Chunk management, cancellation, retry ────────────────
@@ -937,11 +943,16 @@ export class CatalogController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:products:read')
   async getImportErrors(@Param('id') id: string, @CurrentUser() user: JwtPayload, @Res() res: any) {
-    const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, job.storeId);
-    await assertStoreMember(this.db, caller, job.storeId);
-    const csv = await this.catalogService.getErrorReport(id);
+    await this.db.withActorContext(
+      { actorKind: 'user', actorId: caller.sub, actorRole: caller.role, activeOrgId: caller.activeOrg ?? null },
+      async () => {
+        const job = await this.catalogService.getImportJob(id);
+        await assertStoreInOrg(this.db, caller, job.storeId);
+        await assertStoreMember(this.db, caller, job.storeId);
+      },
+    );
+    const csv = await this.catalogService.getErrorReport(id, caller);
     res.set({
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="import-errors-${id}.csv"`,
