@@ -124,6 +124,17 @@ export class PaymentsService {
     @Optional() private readonly storage?: StorageService,
   ) {}
 
+  private runWithUserActor<T>(caller: CallerContext, operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext(
+      { actorKind: 'user', actorId: caller.sub, actorRole: caller.role, activeOrgId: caller.activeOrg },
+      operation,
+    );
+  }
+
+  private runWithProofCleanupActor<T>(workerId: string, operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext({ actorKind: 'worker', workerId }, operation);
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // PAYMENT CREATION (called from checkout)
   // ═══════════════════════════════════════════════════════════════
@@ -262,8 +273,11 @@ export class PaymentsService {
     },
     caller: CallerContext,
   ) {
-    const payment = await this.getPaymentOrThrow(paymentId);
-    const order = await this.getOrderForPayment(payment.orderId);
+    const { payment, order } = await this.runWithUserActor(caller, async () => {
+      const payment = await this.getPaymentOrThrow(paymentId);
+      const order = await this.getOrderForPayment(payment.orderId);
+      return { payment, order };
+    });
 
     if (order.buyerId !== caller.sub && !isTenantPrivileged(caller)) {
       throw new ForbiddenException('You do not have access to this payment');
@@ -312,18 +326,20 @@ export class PaymentsService {
 
       // The intent is durable before any object-store side effect. A process
       // crash at any later point is recoverable without listing the bucket.
-      await this.db.db.insert(paymentProofUploadIntents).values({
-        id: uploadIntentId,
-        paymentRecordId: paymentId,
-        storageBucket: uploadsBucket,
-        storageKey: newStorageKey,
-        contentType,
-        sizeBytes: input.fileBuffer.length,
-        status: 'UPLOADING',
-        attemptCount: 0,
-        leaseOwner: uploadLeaseOwner,
-        leaseExpiresAt: new Date(Date.now() + PROOF_UPLOAD_LEASE_MINUTES * 60_000),
-      });
+      await this.runWithUserActor(caller, () =>
+        this.db.db.insert(paymentProofUploadIntents).values({
+          id: uploadIntentId,
+          paymentRecordId: paymentId,
+          storageBucket: uploadsBucket,
+          storageKey: newStorageKey,
+          contentType,
+          sizeBytes: input.fileBuffer.length,
+          status: 'UPLOADING',
+          attemptCount: 0,
+          leaseOwner: uploadLeaseOwner,
+          leaseExpiresAt: new Date(Date.now() + PROOF_UPLOAD_LEASE_MINUTES * 60_000),
+        }),
+      );
 
       try {
         await this.storage.putObject({
@@ -332,50 +348,39 @@ export class PaymentsService {
           body: input.fileBuffer,
           contentType,
         });
-        const uploaded = await this.db.db
-          .update(paymentProofUploadIntents)
-          .set({
-            status: 'UPLOADED',
-            uploadedAt: new Date(),
-            leaseExpiresAt: new Date(Date.now() + PROOF_UPLOAD_LEASE_MINUTES * 60_000),
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
+        const uploaded = await this.runWithUserActor(caller, () =>
+          this.db.db
+            .update(paymentProofUploadIntents)
+            .set({
+              status: 'UPLOADED',
+              uploadedAt: new Date(),
+              leaseExpiresAt: new Date(Date.now() + PROOF_UPLOAD_LEASE_MINUTES * 60_000),
+              updatedAt: new Date(),
+            })
+            .where(and(
               eq(paymentProofUploadIntents.id, uploadIntentId),
               eq(paymentProofUploadIntents.status, 'UPLOADING'),
               eq(paymentProofUploadIntents.leaseOwner, uploadLeaseOwner),
-            ),
-          )
-          .returning({ id: paymentProofUploadIntents.id });
+            ))
+            .returning({ id: paymentProofUploadIntents.id }),
+        );
 
         if (uploaded.length !== 1) {
           // A stale cleanup claimant fenced this upload. Compensate the late
           // object write; if deletion fails, reopen the durable intent.
           try {
             await this.storage.deleteObject(uploadsBucket, newStorageKey);
-            await this.db.db
+            await this.runWithUserActor(caller, () => this.db.db
               .update(paymentProofUploadIntents)
-              .set({
-                status: 'CLEANED',
-                leaseOwner: null,
-                leaseExpiresAt: null,
-                cleanedAt: new Date(),
-                updatedAt: new Date(),
-              })
-              .where(eq(paymentProofUploadIntents.id, uploadIntentId));
+              .set({ status: 'CLEANED', leaseOwner: null, leaseExpiresAt: null, cleanedAt: new Date(), updatedAt: new Date() })
+              .where(eq(paymentProofUploadIntents.id, uploadIntentId)));
+
           } catch {
-            await this.db.db
+            await this.runWithUserActor(caller, () => this.db.db
               .update(paymentProofUploadIntents)
-              .set({
-                status: 'CLEANUP_PENDING',
-                leaseOwner: null,
-                leaseExpiresAt: null,
-                nextAttemptAt: new Date(),
-                lastErrorCode: 'LATE_UPLOAD_COMPENSATION_FAILED',
-                updatedAt: new Date(),
-              })
-              .where(eq(paymentProofUploadIntents.id, uploadIntentId));
+              .set({ status: 'CLEANUP_PENDING', leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: new Date(), lastErrorCode: 'LATE_UPLOAD_COMPENSATION_FAILED', updatedAt: new Date() })
+              .where(eq(paymentProofUploadIntents.id, uploadIntentId)));
+
           }
           throw new ConflictException('Payment proof upload lost its recovery lease; please retry');
         }
@@ -384,22 +389,11 @@ export class PaymentsService {
         // after the object store accepted the upload. The durable sweeper will
         // verify the payment reference and object existence before cleanup.
         try {
-          await this.db.db
+          await this.runWithUserActor(caller, () => this.db.db
             .update(paymentProofUploadIntents)
-            .set({
-              status: 'CLEANUP_PENDING',
-              leaseOwner: null,
-              leaseExpiresAt: null,
-              nextAttemptAt: new Date(),
-              lastErrorCode: 'UPLOAD_OR_INTENT_UPDATE_FAILED',
-              updatedAt: new Date(),
-            })
-            .where(
-              and(
-                eq(paymentProofUploadIntents.id, uploadIntentId),
-                eq(paymentProofUploadIntents.status, 'UPLOADING'),
-              ),
-            );
+            .set({ status: 'CLEANUP_PENDING', leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: new Date(), lastErrorCode: 'UPLOAD_OR_INTENT_UPDATE_FAILED', updatedAt: new Date() })
+            .where(and(eq(paymentProofUploadIntents.id, uploadIntentId), eq(paymentProofUploadIntents.status, 'UPLOADING'))));
+
         } catch {
           // The original UPLOADING lease remains recoverable after its expiry.
         }
@@ -409,7 +403,7 @@ export class PaymentsService {
     }
 
     try {
-      await this.db.db.transaction(async (tx) => {
+      await this.runWithUserActor(caller, () => this.db.db.transaction(async (tx) => {
         const flip = await tx
           .update(paymentRecords)
           .set({
@@ -516,41 +510,19 @@ export class PaymentsService {
             });
           }
         }
-      });
+      }));
     } catch (error) {
       if (uploadIntentId && newStorageKey && uploadLeaseOwner) {
         try {
-          const [persisted] = await this.db.db
-            .select({
-              receiptUrl: paymentRecords.receiptUrl,
-            })
-            .from(paymentRecords)
-            .where(eq(paymentRecords.id, paymentId))
-            .limit(1);
-
-          // A commit can succeed while its acknowledgement is lost. Never
-          // schedule deletion when the durable payment row references the key.
-          if (persisted?.receiptUrl === newStorageKey) {
-            return this.getPaymentOrThrow(paymentId);
-          }
-
-          await this.db.db
-            .update(paymentProofUploadIntents)
-            .set({
-              status: 'CLEANUP_PENDING',
-              leaseOwner: null,
-              leaseExpiresAt: null,
-              nextAttemptAt: new Date(),
-              lastErrorCode: 'PAYMENT_COMMIT_FAILED',
-              updatedAt: new Date(),
-            })
-            .where(
-              and(
-                eq(paymentProofUploadIntents.id, uploadIntentId),
-                eq(paymentProofUploadIntents.status, 'UPLOADED'),
-                eq(paymentProofUploadIntents.leaseOwner, uploadLeaseOwner),
-              ),
-            );
+          const paymentReferenceExists = await this.runWithUserActor(caller, async () => {
+            const [persisted] = await this.db.db.select({ receiptUrl: paymentRecords.receiptUrl }).from(paymentRecords).where(eq(paymentRecords.id, paymentId)).limit(1);
+            if (persisted?.receiptUrl === newStorageKey) return true;
+            await this.db.db.update(paymentProofUploadIntents)
+              .set({ status: 'CLEANUP_PENDING', leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: new Date(), lastErrorCode: 'PAYMENT_COMMIT_FAILED', updatedAt: new Date() })
+              .where(and(eq(paymentProofUploadIntents.id, uploadIntentId), eq(paymentProofUploadIntents.status, 'UPLOADED'), eq(paymentProofUploadIntents.leaseOwner, uploadLeaseOwner)));
+            return false;
+          });
+          if (paymentReferenceExists) return this.runWithUserActor(caller, () => this.getPaymentOrThrow(paymentId));
         } catch (cleanupError: any) {
           this.logger.warn(
             `Payment proof cleanup scheduling deferred for intent ${uploadIntentId}: ${cleanupError?.message || 'database verification failed'}`,
@@ -561,7 +533,7 @@ export class PaymentsService {
     }
 
     this.logger.log(`Payment ${paymentId}: proof submitted by buyer ${buyerId}`);
-    return this.getPaymentOrThrow(paymentId);
+    return this.runWithUserActor(caller, () => this.getPaymentOrThrow(paymentId));
   }
 
   /**
@@ -581,7 +553,7 @@ export class PaymentsService {
     }
     const limit = Math.max(1, Math.min(100, Math.floor(batchSize) || 25));
     const workerId = `proof-cleanup-${crypto.randomUUID()}`;
-    const claimed = await this.db.db.transaction(async (tx) => {
+    const claimed = await this.runWithProofCleanupActor(workerId, () => this.db.db.transaction(async (tx) => {
       const result = await tx.execute(sql`
         WITH candidates AS (
           SELECT id
@@ -614,42 +586,22 @@ export class PaymentsService {
         storageKey: string;
         attemptCount: number;
       }>;
-    });
+    }));
 
     const summary = { claimed: claimed.length, committed: 0, cleaned: 0, retried: 0, failed: 0 };
     for (const intent of claimed) {
       try {
         // Check every payment row, not only the intent's original payment:
         // a shared/misreferenced key must never be deleted while any payment uses it.
-        const [paymentReference] = await this.db.db
-          .select({
-            id: paymentRecords.id,
-          })
-          .from(paymentRecords)
-          .where(eq(paymentRecords.receiptUrl, intent.storageKey))
-          .limit(1);
-
-        if (paymentReference) {
-          await this.db.db
-            .update(paymentProofUploadIntents)
-            .set({
-              status: 'COMMITTED',
-              leaseOwner: null,
-              leaseExpiresAt: null,
-              nextAttemptAt: null,
-              committedAt: new Date(),
-              updatedAt: new Date(),
-            })
-            .where(
-              and(
-                eq(paymentProofUploadIntents.id, intent.id),
-                eq(paymentProofUploadIntents.status, 'CLEANING'),
-                eq(paymentProofUploadIntents.leaseOwner, workerId),
-              ),
-            );
-          summary.committed += 1;
-          continue;
-        }
+        const paymentReferenceExists = await this.runWithProofCleanupActor(workerId, async () => {
+          const [paymentReference] = await this.db.db.select({ id: paymentRecords.id }).from(paymentRecords).where(eq(paymentRecords.receiptUrl, intent.storageKey)).limit(1);
+          if (!paymentReference) return false;
+          await this.db.db.update(paymentProofUploadIntents)
+            .set({ status: 'COMMITTED', leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: null, committedAt: new Date(), updatedAt: new Date() })
+            .where(and(eq(paymentProofUploadIntents.id, intent.id), eq(paymentProofUploadIntents.status, 'CLEANING'), eq(paymentProofUploadIntents.leaseOwner, workerId)));
+          return true;
+        });
+        if (paymentReferenceExists) { summary.committed += 1; continue; }
 
         let objectExists = true;
         try {
@@ -669,45 +621,16 @@ export class PaymentsService {
           }
         }
 
-        await this.db.db
-          .update(paymentProofUploadIntents)
-          .set({
-            status: 'CLEANED',
-            leaseOwner: null,
-            leaseExpiresAt: null,
-            nextAttemptAt: null,
-            cleanedAt: new Date(),
-            lastErrorCode: null,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(paymentProofUploadIntents.id, intent.id),
-              eq(paymentProofUploadIntents.status, 'CLEANING'),
-              eq(paymentProofUploadIntents.leaseOwner, workerId),
-            ),
-          );
+        await this.runWithProofCleanupActor(workerId, () => this.db.db.update(paymentProofUploadIntents)
+          .set({ status: 'CLEANED', leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: null, cleanedAt: new Date(), lastErrorCode: null, updatedAt: new Date() })
+          .where(and(eq(paymentProofUploadIntents.id, intent.id), eq(paymentProofUploadIntents.status, 'CLEANING'), eq(paymentProofUploadIntents.leaseOwner, workerId))));
         summary.cleaned += 1;
       } catch {
         const terminal = intent.attemptCount >= PROOF_CLEANUP_MAX_ATTEMPTS;
         const backoffSeconds = Math.min(3600, 30 * 2 ** Math.min(intent.attemptCount - 1, 7));
-        await this.db.db
-          .update(paymentProofUploadIntents)
-          .set({
-            status: terminal ? 'FAILED' : 'CLEANUP_PENDING',
-            leaseOwner: null,
-            leaseExpiresAt: null,
-            nextAttemptAt: terminal ? null : new Date(Date.now() + backoffSeconds * 1000),
-            lastErrorCode: 'STORAGE_CLEANUP_FAILED',
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(paymentProofUploadIntents.id, intent.id),
-              eq(paymentProofUploadIntents.status, 'CLEANING'),
-              eq(paymentProofUploadIntents.leaseOwner, workerId),
-            ),
-          );
+        await this.runWithProofCleanupActor(workerId, () => this.db.db.update(paymentProofUploadIntents)
+          .set({ status: terminal ? 'FAILED' : 'CLEANUP_PENDING', leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: terminal ? null : new Date(Date.now() + backoffSeconds * 1000), lastErrorCode: 'STORAGE_CLEANUP_FAILED', updatedAt: new Date() })
+          .where(and(eq(paymentProofUploadIntents.id, intent.id), eq(paymentProofUploadIntents.status, 'CLEANING'), eq(paymentProofUploadIntents.leaseOwner, workerId))));
         if (terminal) summary.failed += 1;
         else summary.retried += 1;
       }

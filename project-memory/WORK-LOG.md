@@ -1831,3 +1831,11 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 - Compared all 25 module `*.schema.ts` files with `apps/api/src/drizzle/schema.ts`. Found 100 `pgTable` declarations across module schema files; 98 are re-exported by the barrel. `catalog_imports` and `catalog_import_errors` are declared in `catalog-import.schema.ts` but that file is not re-exported. The prior 99-row matrix included those two and omitted the exported `payment_proof_upload_intents`; the matrix now lists all 100 module declarations.
 - This invalidates the historical 99+15=114 split as a current source reconciliation. The 114 and 116 public relation counts remain historical/unresolved until the authorized protected read-only catalog audit. No subtraction-based delta is asserted.
 - Candidate ownership mapping is not RLS verification. No tests/CI, database, migration, grant, RLS, staging, deployment, worker activation, merge or release action occurred.
+
+
+## G-002 Payments proof upload and cleanup actor-context adoption — 24 November 2026
+
+- Refactored PaymentsService `submitProof` so every database phase is wrapped in a verified-user actor context derived from the passed CallerContext: initial payment/order authorization, durable intent insert, post-upload intent transition, compensation and cleanup scheduling, final payment/event/outbox/intent transaction, lost-ack verification, and final payment read.
+- Kept StorageService put/delete calls outside actor scopes. The multipart controller deliberately remains unwrapped by TenantDatabaseContextInterceptor and forwards verified JWT claims to the service.
+- Added worker actor contexts around cleanupStaleProofUploads claim, per-intent payment-reference read/COMMITTED update, and CLEANED/retry/FAILED writes. Object head/delete remains outside transactions. The global payment reference check is an explicit worker operation with no tenant org.
+- Added focused actor helper specs and controller boundary coverage. They were authored but not run. No scheduler activation, object-storage call, tests/CI, database/RLS/migration/grant/staging/deployment action occurred.

@@ -381,3 +381,12 @@ Source review confirmed that `MerchantController.reviewVerification` delegates t
 The handler now uses `TenantDatabaseContextInterceptor`, which derives its actor from the verified JWT after the existing `merchant:verification:review` permission guard. The existing service transaction remains nested within the same actor-bound transaction. The merchant controller metadata regression spec now includes `reviewVerification` in the DB-only allowlist and continues to assert that all three document presign handlers remain outside request transactions.
 
 This is source implementation and authored regression coverage only. Source commit: `6339acb944d3e41a6066e0f123394daa38d74491`. The test was not executed under the implementation-first instruction. No database, RLS, migration, grants, staging, deployment or worker action occurred.
+
+
+## Payment proof upload and cleanup actor-context split — 24 November 2026
+
+`PaymentsService.submitProof` now runs the initial payment/order authorization read, durable upload-intent insert, post-upload intent state update, compensation/cleanup scheduling writes, payment/event/outbox commit, lost-ack reference check and final payment read under short verified-user actor contexts derived from `CallerContext`. The multipart controller deliberately remains outside the request-wide interceptor. `StorageService.putObject` and `deleteObject` calls occur after each DB actor scope has committed/closed; no actor transaction spans object storage.
+
+`cleanupStaleProofUploads` now uses a worker actor for the bounded `SKIP LOCKED` intent claim, per-intent payment-reference check/commit, and final CLEANED/retry state writes. `headObject`/`deleteObject` remain outside actor transactions. The worker principal has no tenant org because this sweeper intentionally checks whether any payment row references a key across tenants; that cross-tenant read is an explicit worker operation, not a tenant request.
+
+The controller regression spec asserts submitProof remains excluded from request interception and forwards verified caller claims. Focused helper specs cover the user/worker principal payloads. Specs are authored but not executed. No scheduler was activated and no object storage call was made in this implementation session.

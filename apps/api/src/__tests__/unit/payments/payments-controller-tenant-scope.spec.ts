@@ -3,6 +3,7 @@ import { INTERCEPTORS_METADATA } from '@nestjs/common/constants';
 import { TenantDatabaseContextInterceptor } from '../../../common/database/tenant-database-context.interceptor';
 import { describe, expect, it, vi } from 'vitest';
 import { PaymentsController } from '../../../modules/payments/payments.controller';
+import { PaymentsService } from '../../../modules/payments/payments.service';
 
 const user = {
   sub: 'merchant-user-a',
@@ -81,5 +82,36 @@ describe('PaymentsController merchant listing tenant context (G-030)', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(payments.listMerchantSettlements).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('PaymentsController proof upload actor boundary (G-002)', () => {
+  it('keeps multipart storage orchestration outside the request interceptor and forwards verified caller identity', async () => {
+    const payments = { submitProof: vi.fn().mockResolvedValue({ ok: true }) };
+    const controller = new PaymentsController(payments as any, {} as any);
+    await controller.submitProof(user, 'payment-1', { receiptReference: 'ref-1' });
+    expect(payments.submitProof).toHaveBeenCalledWith('payment-1', 'merchant-user-a', { receiptReference: 'ref-1' }, { sub: 'merchant-user-a', role: 'MERCHANT', activeOrg: 'org-a' });
+    const interceptors = Reflect.getMetadata(INTERCEPTORS_METADATA, PaymentsController.prototype.submitProof) as unknown[];
+    expect(interceptors).not.toContain(TenantDatabaseContextInterceptor);
+  });
+});
+
+describe('PaymentsService proof actor-context helpers (G-002)', () => {
+  it('uses only verified caller claims for proof DB phases', async () => {
+    const db = { withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()) };
+    const service = new PaymentsService(db as any, {} as any, {} as any);
+    const caller = { sub: 'buyer-a', role: 'BUYER', activeOrg: 'org-a' };
+    const operation = vi.fn().mockResolvedValue('scoped');
+    await expect((service as any).runWithUserActor(caller, operation)).resolves.toBe('scoped');
+    expect(db.withActorContext).toHaveBeenCalledWith({ actorKind: 'user', actorId: 'buyer-a', actorRole: 'BUYER', activeOrgId: 'org-a' }, operation);
+  });
+
+  it('uses a worker principal for global proof-intent cleanup DB phases', async () => {
+    const db = { withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()) };
+    const service = new PaymentsService(db as any, {} as any, {} as any);
+    const operation = vi.fn().mockResolvedValue('claimed');
+    await expect((service as any).runWithProofCleanupActor('proof-cleanup-worker-a', operation)).resolves.toBe('claimed');
+    expect(db.withActorContext).toHaveBeenCalledWith({ actorKind: 'worker', workerId: 'proof-cleanup-worker-a' }, operation);
   });
 });

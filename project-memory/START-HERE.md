@@ -1043,3 +1043,8 @@ The ownership matrix now includes schema-backed direct columns and declared pare
 ## 24 November 2026 — full module-schema inventory reconciliation
 
 The G-002 table matrix now includes all 100 `pgTable` declarations found across 25 module schema files. The current schema barrel exports 98; two catalog-import declarations are outside the barrel, and the previously omitted exported `payment_proof_upload_intents` table has been added. The old 99+15=114 relation split is historical, not a current source reconciliation. The protected catalog audit and separate 116 count remain open.
+
+
+## 24 November 2026 — Payments proof upload actor-context continuation
+
+Payments proof submission now uses short verified-user actor scopes around database-only phases, with object-storage operations outside transactions. Stale upload-intent cleanup uses a worker actor for claims and DB state transitions, with storage head/delete outside. The multipart route remains outside the request interceptor. Focused regression specs were authored but not executed; no cleanup scheduler was activated.

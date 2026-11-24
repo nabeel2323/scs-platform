@@ -213,3 +213,8 @@ This is source-schema evidence only. Live catalog constraints, runtime identitie
 The table ownership matrix now covers all 100 `pgTable` declarations found across the 25 module schema files, with direct columns, declared parent references, attribution fields, polymorphic references and multi-parent consistency requirements recorded. A source-barrel comparison found that 98 declarations are re-exported by `apps/api/src/drizzle/schema.ts`; `catalog_imports` and `catalog_import_errors` are declared in `catalog-import.schema.ts` but not exported by the barrel. The previous 99-row matrix included those two and omitted the exported `payment_proof_upload_intents` table; that inventory omission is corrected.
 
 The historical 99+15=114 relation split is no longer a current source-backed reconciliation. The detailed 114 relation snapshot and separate 116 count remain unresolved pending protected read-only catalog evidence. No live relation count, policy readiness or RLS verification is claimed.
+
+
+## G-002 Payments proof upload and cleanup phase separation — 24 November 2026
+
+The bank-transfer proof upload and stale-intent cleanup paths now have explicit database actor boundaries. User-owned proof submission DB phases use verified CallerContext claims; the multipart controller remains outside the request interceptor. Object-storage writes/deletes are kept outside actor transactions. The cleanup sweeper uses a worker actor for global intent claims, payment-reference checks and intent state updates, while object head/delete remains outside the DB scope. Tests were authored but not run; the cleanup scheduler was not activated.
