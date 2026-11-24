@@ -1056,3 +1056,9 @@ Product detail and media-list routes now use short caller actor scopes for DB wo
 ## 25 November 2026 — Search Facets cache boundary
 
 Search Facets cache I/O now sits outside its DB actor scope. Continue the remaining Search/Catalog mixed-path audit and ownership-predicate review. Keep the implementation-first restriction: no test/format/lint/typecheck/CI until implementation and integration are complete.
+
+## 25 November 2026 — Catalog ownership/concurrency phase update
+
+The latest Catalog pass adds exact category/store ownership, public taxonomy visibility, search facet publication filters, offer/request compare-and-set/locking, and product/media mutation predicates. Mixed routes retain short actor DB phases with Redis/storage work outside transactions; DB-only routes remain under verified controller interceptors. Tests remain unexecuted.
+
+Next: complete remaining Catalog service/root-pool and cross-module caller audit, then continue the broader G-002 ownership/FK and migration/operator evidence. Do not run quality gates until implementation/integration is complete. Do not change RLS, grants, migrations, shared/staging DBs, deployment or worker activation.
