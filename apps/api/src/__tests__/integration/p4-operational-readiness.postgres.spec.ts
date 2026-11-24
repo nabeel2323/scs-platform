@@ -190,6 +190,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
   const orgB = randomUUID();
   const buyerA = randomUUID();
   const actorAdmin = randomUUID();
+  const adminCaller = { sub: actorAdmin, role: 'SUPER_ADMIN', activeOrg: null };
   let storeA: string;
   let storeB: string;
   let orderA: string;
@@ -208,7 +209,8 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     pool = new Pool({ connectionString: started.getConnectionUri() });
 
     const db = drizzle(pool, { schema }) as unknown as DatabaseService['db'];
-    database = { db } as unknown as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
 
     await pool.query(
       `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`,
@@ -1119,7 +1121,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
     it('AL-23: alert snapshot rolls up status, counters and channel', async () => {
       await alerts.raise({ conditionKey: 'p4.snap', severity: 'CRITICAL', title: 't', detail: {} });
-      const snap = await alerts.snapshot();
+      const snap = await alerts.snapshot(adminCaller);
       expect(snap.channel).toBe('log-only');
       expect(snap.alerts['SUPPRESSED']).toBe(1);
       expect(snap.counters).toBeDefined();
@@ -1171,7 +1173,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
   describe('§5 Pause, recovery and rollback', () => {
     it('KS-01: pausing prevents new protected jobs from starting', async () => {
       const w = makeWorker(database, returnsService, 'pause');
-      await w.controls.setPaused({ paused: true, reason: 'phase 4 spec', actorId: actorAdmin });
+      await w.controls.setPaused({ paused: true, reason: 'phase 4 spec', caller: adminCaller });
 
       const report = await w.worker.tick();
       expect(report.executed).toBe(false);
@@ -1186,7 +1188,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       const acquired = await w.worker.tick();
       const epochBefore = await leaseEpoch();
 
-      await w.controls.setPaused({ paused: true, reason: 'keep ownership', actorId: actorAdmin });
+      await w.controls.setPaused({ paused: true, reason: 'keep ownership', caller: adminCaller });
       await w.worker.tick();
 
       const row = await leaseRow();
@@ -1230,9 +1232,9 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       expect(first.escalated).toBe(2);
       const eventsAfterFirst = await outboxCalls();
 
-      await w.controls.setPaused({ paused: true, reason: 'drill', actorId: actorAdmin });
+      await w.controls.setPaused({ paused: true, reason: 'drill', caller: adminCaller });
       await w.worker.tick();
-      await w.controls.setPaused({ paused: false, reason: 'drill complete', actorId: actorAdmin });
+      await w.controls.setPaused({ paused: false, reason: 'drill complete', caller: adminCaller });
 
       const second = await w.worker.tick();
       expect(second.escalated).toBe(0);
@@ -1264,10 +1266,10 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       await w.controls.setPaused({
         paused: false,
         reason: 'incident resolved',
-        actorId: actorAdmin,
+        caller: adminCaller,
       });
 
-      const history = await w.controls.history(P13_PAUSE_CONTROL_KEY);
+      const history = await w.controls.history(P13_PAUSE_CONTROL_KEY, 50, adminCaller);
       expect(history).toHaveLength(2);
       expect(history.map((h) => h.paused).sort()).toEqual([false, true]);
 
@@ -1282,9 +1284,9 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
     it('KS-07: an unexplained pause is refused — the kill switch cannot be flipped silently', async () => {
       await expect(
-        new OpsControlService(database, audit, alerts).setPaused({ paused: true, reason: '   ' }),
+        new OpsControlService(database, audit, alerts).setPaused({ paused: true, reason: '   ', caller: adminCaller }),
       ).rejects.toThrow(/requires a reason/);
-      expect((await controls.state(P13_PAUSE_CONTROL_KEY)).paused).toBe(false);
+      expect((await controls.state(P13_PAUSE_CONTROL_KEY, adminCaller)).paused).toBe(false);
     });
 
     it('KS-08: a missing control row reads as not-paused, and unrelated work continues', async () => {
@@ -1419,7 +1421,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
         orgId: orgA,
         storeId: null,
         note: 'pilot',
-        actorId: actorAdmin,
+        caller: adminCaller,
       });
 
       expect((await strict.eligibility(orgA)).reason).toBe('eligible_org_wide');
@@ -1434,7 +1436,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
         orgId: orgA,
         storeId: storeA,
         note: 'store pilot',
-        actorId: actorAdmin,
+        caller: adminCaller,
       });
 
       expect((await strict.eligibility(orgA, storeA)).reason).toBe('eligible_store');
@@ -1448,7 +1450,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
         orgId: orgA,
         storeId: null,
         note: 'pilot',
-        actorId: actorAdmin,
+        caller: adminCaller,
       });
       expect((await strict.eligibility(orgA)).eligible).toBe(true);
 
@@ -1456,7 +1458,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
         orgId: orgA,
         storeId: null,
         note: 'paused pilot',
-        actorId: actorAdmin,
+        caller: adminCaller,
       });
       expect(affected).toBe(1);
       expect((await strict.eligibility(orgA)).reason).toBe('entry_disabled');
@@ -1499,7 +1501,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       const legacy = enforcing(database, 'legacy');
       expect(await legacy.isEnforced()).toBe(false);
 
-      await legacy.setFlag(true, actorAdmin, 'phase 4 spec');
+      await legacy.setFlag(true, adminCaller, 'phase 4 spec');
       expect(await legacy.isEnforced()).toBe(true);
       expect((await legacy.eligibility(orgA)).reason).toBe('org_not_allowlisted');
 
@@ -1515,7 +1517,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       // The env floor: clearing the flag cannot disable enforcement where the
       // deployment requires it.
       const strict = enforcing(database, 'allowlist');
-      await strict.setFlag(false, actorAdmin, 'attempt to disable');
+      await strict.setFlag(false, adminCaller, 'attempt to disable');
       expect(await strict.isEnforced()).toBe(true);
     });
 
@@ -1548,7 +1550,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
         orgId: orgA,
         storeId: null,
         note: 'pilot',
-        actorId: actorAdmin,
+        caller: adminCaller,
       });
       const gated = new ReturnsService(
         database,
@@ -1575,7 +1577,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
         orgId: orgA,
         storeId: null,
         note: 'pilot',
-        actorId: actorAdmin,
+        caller: adminCaller,
       });
       const gated = new ReturnsService(
         database,
@@ -1600,9 +1602,9 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
         orgId: orgA,
         storeId: null,
         note: 'pilot',
-        actorId: actorAdmin,
+        caller: adminCaller,
       });
-      const snap = await strict.snapshot();
+      const snap = await strict.snapshot(adminCaller);
       expect(snap).toMatchObject({
         mode: 'allowlist',
         enforced: true,
@@ -1617,9 +1619,9 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
         orgId: orgA,
         storeId: null,
         note: 'pilot',
-        actorId: actorAdmin,
+        caller: adminCaller,
       });
-      await strict.setFlag(false, actorAdmin, 'wind down');
+      await strict.setFlag(false, adminCaller, 'wind down');
       await pool.query(`DELETE FROM p13_pilot_allowlist WHERE org_id = $1`, [orgA]);
 
       expect((await strict.eligibility(orgA)).reason).toBe('org_not_allowlisted');
