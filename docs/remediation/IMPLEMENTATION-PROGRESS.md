@@ -2954,3 +2954,7 @@ P13 source correction: full collectFindings review confirms all direct diagnosti
 ## 25 November 2026 — dormant Catalog import recovery actor
 
 CatalogService.recoverStaleJobs now uses the dedicated worker principal catalog-import-recovery for its stale-job query and job/chunk reset writes. This is not worker activation: the method remains unregistered and unscheduled, and no background process was started. Regression coverage was added but not executed. G-002 remains IN_PROGRESS / NOT VERIFIED.
+
+## 25 November 2026 — Catalog product detail/media read boundaries
+
+The product detail and media list routes are now split into short actor-scoped DB phases and external I/O phases. Controller authorization checks use verified-user actor contexts. getProductDetail requires the caller and scopes all product/store/media-row/variant/pricing/stock/attribute reads; Redis cache reads/writes and storage URL signing happen outside. listMediaByProduct scopes its media-row query and resolves storage URLs after the scope closes. Both handlers intentionally remain outside TenantDatabaseContextInterceptor. Added service and controller regression specs; tests remain unexecuted. No quality gates/CI; G-002 remains IN_PROGRESS / NOT VERIFIED.
