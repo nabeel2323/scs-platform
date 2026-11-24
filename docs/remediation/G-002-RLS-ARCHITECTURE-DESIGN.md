@@ -213,3 +213,18 @@ The interceptor runs after Nest guards, accepts identity only from verified `req
 The promotion merchant routes also gained service-boundary caller checks for active organization and store membership; foreign detail access is normalized to not-found and update writes include the authorized store predicate.
 
 This implementation is not an RLS approval. No policy, migration, grant/default ACL, shared DB, staging or deployment change occurred. The user requires implementation/integration to complete before tests; no test or CI execution is authorized during this phase. The dedicated verification campaign must later cover nested savepoints, transaction rollback, actor switching, detached tasks, pool reuse, cross-tenant isolation, route coverage and worker/system identities.
+
+
+## 24 November 2026 — explicit worker, bootstrap and deferred-audit principals
+
+The actor-context foundation now has explicit entry points for:
+
+- Authenticated bounded HTTP handlers through the controller/method-scoped interceptor.
+- AutoCompleteWorker and OutboxDispatcher through per-operation `worker` contexts. Outbox dispatch is outside the transaction; claim/ack/retry DB phases are inside.
+- CarrierTrackingPoller through short worker contexts for claim and DB persistence/bridge phases. The carrier provider call remains outside the transaction.
+- AuditLogMiddleware through a separate `audit` context and short transaction created in the response-finish callback.
+- BootstrapService through `anonymous` status-read and `bootstrap` provisioning contexts, plus the operator CLI through transaction-local bootstrap settings.
+
+ReturnExpirationWorker remains outside because lease/fencing semantics must not be enclosed by a full-batch transaction; ShippingCarrierWorker remains outside because of external carrier/storage I/O. The context must not be applied across provider calls. A carrier webhook actor must be created only after the credential guard has verified the credential and authoritative organization.
+
+This remains partial implementation. No RLS policy, migration, grants/default ACL, shared database write, staging write, deployment or worker activation was performed. Testing and CI remain deferred by user instruction.

@@ -2397,3 +2397,17 @@ PromotionsController now forwards the verified caller into merchant create/list/
 The shared interceptor remains explicitly controller/method scoped and not global. It reads actor identity only from the JWT-authenticated request after Nest guards and executes the handler observable inside the transaction. No test, formatter, lint, typecheck, E6 or CI was run. The implementation-first instruction defers the consolidated test campaign until implementation and integration are complete. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 
 No RLS policy, migration, shared database grant/default-ACL change, staging write, deployment, worker activation, merge or release occurred.
+
+
+## G-002 system/worker context integration — 24 November 2026
+
+Additional explicit actor-context entry points are now implemented:
+
+- `AutoCompleteWorker`: worker actor context around one atomic order claim and each individual completion/release operation; no full-batch transaction.
+- `OutboxDispatcher`: worker actor context around atomic claim and each dispatch acknowledgement/retry update; dispatch itself remains outside the transaction.
+- `CarrierTrackingPoller`: worker actor context around shipment claims, tracking event persistence, delivered-after-cancel writes, shipment status persistence and the Orders delivery bridge. Carrier provider network calls and circuit-breaker interactions remain outside the transaction.
+- `AuditLogMiddleware`: response-finish audit writes use a separate short audit actor transaction; no request transaction is reused after response completion.
+- `BootstrapService`: anonymous status reads and bootstrap actor contexts for post-OTP authorization insertion and initial Super Admin provisioning.
+- `bootstrap-issue-token.ts`: transaction-local bootstrap principal is set after BEGIN and before CLI database reads/writes.
+
+ReturnExpirationWorker actor wrapping was deliberately reverted to preserve its existing lease/fencing/per-item transaction semantics. ShippingCarrierWorker remains outside until DB and provider/storage phases are split. These are still implementation checkpoints, not verified RLS coverage. No tests, formatting, lint, typecheck, E6 or CI were run, per user instruction.

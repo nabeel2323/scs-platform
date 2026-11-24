@@ -107,3 +107,18 @@ Promotions merchant HTTP operations now carry the verified caller to the service
 Still outstanding: full source-level cached-handle/detached-task audit, remaining bounded controller coverage, explicit worker/scheduler/bootstrap/audit/carrier-webhook principals, complete table-operation predicate evidence, actual deployed API/migration identity, protected live relation inventory, and independent architecture/security review. Carrier webhook context must be established only after credential authentication. AuditLogMiddleware writes after response completion and therefore must use a separately designed explicit system/audit transaction, not the HTTP request transaction.
 
 No RLS policy is enabled; no shared DB grants/default ACLs or migrations were changed. Tests, formatter, lint, typecheck, E6 and CI are deferred until implementation and integration are complete, per the user's explicit instruction.
+
+
+## 24 November 2026 — explicit system and worker entry points
+
+The transaction-bound actor context is now used beyond HTTP:
+
+- AutoCompleteWorker wraps each claim and each order completion/release in a worker principal and separate bounded transaction.
+- OutboxDispatcher wraps the claim statement and each success/retry acknowledgement in a worker principal; dispatch is outside the transaction.
+- CarrierTrackingPoller wraps only DB claim/persist/bridge phases in a worker principal. Provider network calls and circuit-breaker operations remain outside transaction scopes.
+- AuditLogMiddleware creates a new audit principal/transaction from the response-finish callback; it does not depend on the request's ALS context.
+- BootstrapService uses anonymous context for public status, bootstrap context for OTP authorization insertion and initial Super Admin provisioning. The operator CLI sets local bootstrap GUCs inside its transaction.
+
+ReturnExpirationWorker remains unwrapped after an attempted wrapper was reverted because a full-batch transaction would interfere with lease/fencing behavior. ShippingCarrierWorker remains unwrapped because it interleaves DB access and external carrier/storage operations. Both require explicit per-operation/per-phase design before RLS.
+
+No RLS policy is enabled and no database, grants, migrations or staging actions were performed. Tests are deferred until implementation/integration are complete.
