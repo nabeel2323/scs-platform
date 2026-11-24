@@ -338,3 +338,12 @@ The Drizzle schema defines `driver_profiles.user_id → users.id`, `driver_profi
 - If/when a driver assignment write path is located, cross-organization profile/store assignment must be rejected.
 
 These are source-level guards only. No tests or live database queries were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## Persisted webhook credential-to-shipment lineage — 24 November 2026
+
+**Source commit:** `926c475fb9c59ffa1688dccee3d4f9dfbeea59e2`.
+
+A final webhook retry pass found that the unlinked-event retry path revalidated the bound credential, but the already-linked path loaded the shipment and checked its store/order without comparing that store's organization to the event's bound credential organization. The retry worker now loads and validates the bound credential for every unprocessed event, including already-linked events; rejects missing/inactive credentials and provider-key mismatch; and, when credential-bound, requires the linked shipment's owning store organization to equal the credential organization before marking the event processed. Unlinked events still require a credential binding before attempting shipment resolution. Already-linked legacy rows with a null credential remain compatible, but still pass the shipment/order/store integrity guard and derive the active org from the shipment store.
+
+Regression cases: a linked event bound to Org A but linked to an Org B shipment is rejected without marking processed; inactive/deleted credentials and provider-key mismatch are rejected; an unlinked legacy event without a credential is non-retryable; a valid credential-bound event can retry only within its organization. Tests remain unexecuted. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
