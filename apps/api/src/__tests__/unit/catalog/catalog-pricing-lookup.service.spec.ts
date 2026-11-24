@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ForbiddenException } from '@nestjs/common';
 import type { DatabaseService } from '../../../common/database/database.service';
 import { CatalogPricingLookupService } from '../../../modules/catalog/catalog-pricing-lookup.service';
 
@@ -10,6 +11,12 @@ describe('CatalogPricingLookupService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     service = new CatalogPricingLookupService({
+      currentActorContext: {
+        actorKind: 'user',
+        actorId: 'pricing-user',
+        actorRole: 'BUYER',
+        activeOrgId: 'org-1',
+      },
       db: {
         query: {
           productVariants: { findMany: productVariantsFindMany },
@@ -17,6 +24,19 @@ describe('CatalogPricingLookupService', () => {
         },
       },
     } as unknown as DatabaseService);
+  });
+
+  it('rejects non-empty lookup without a verified user actor context', async () => {
+    const unscoped = new CatalogPricingLookupService({
+      db: { query: { productVariants: { findMany: productVariantsFindMany } } },
+    } as unknown as DatabaseService);
+
+    await expect(unscoped.getVariantPricingDetails(['variant-a'])).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    await expect(unscoped.variantBelongsToStore('variant-a', 'store-a')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
   it('returns variant and owning-product details in display order', async () => {
