@@ -25,8 +25,8 @@ export const returnRequests = pgTable('return_requests', {
   subOrderId: uuid('sub_order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
   paymentRecordId: uuid('payment_record_id').notNull().references(() => paymentRecords.id, { onDelete: 'cascade' }),
   buyerId: uuid('buyer_id').notNull().references(() => users.id),
-  // Reverse link is added by migration 0059 after refunds exists. Keep the
-  // column migration-only here to avoid a returns <-> payments schema cycle.
+  // Migration 0059 adds the nullable reverse link; refunds is already imported,
+  // so this lazy reference does not add a module dependency.
   refundId: uuid('refund_id').references(() => refunds.id, { onDelete: 'set null' }),
   status: varchar('status', { length: 30 }).notNull().default('REQUESTED'),
   reason: varchar('reason', { length: 40 }).notNull(),
@@ -62,8 +62,8 @@ export const returnRequestItems = pgTable('return_request_items', {
   orderItemId: uuid('order_item_id').notNull().references(() => orderItems.id, { onDelete: 'cascade' }),
   quantity: integer('quantity').notNull(),
   condition: varchar('condition', { length: 20 }),  // set during inspection
-  // Migration 0059 adds the nullable inventory_items FK (ON DELETE SET NULL).
-  // The inventory module is intentionally not imported into this schema file.
+  // Migration 0059 adds this nullable inventory_items link; inventory does not
+  // depend on returns, so the lazy reference preserves the module direction.
   inventoryItemId: uuid('inventory_item_id').references(() => inventoryItems.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

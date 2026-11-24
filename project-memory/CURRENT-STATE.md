@@ -3,9 +3,9 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest PR head:** `19738fbe16399db7f8975d647b062773a3eb2583` (latest docs-only source after the current handoff update; re-query before acting).  
+**Latest PR head:** `92895859abe20f0132a3ae021c695898e0b9f051` (latest docs-only source after the current handoff update; re-query before acting).  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop`.  
-**Exact-head Actions/status:** zero Actions runs; Vercel Web/Admin contexts fail on the external build-rate-limit page. No current-head application CI result.  
+**Exact-head Actions/status:** zero Actions runs; Vercel Web/Admin contexts are PENDING external preview checks. No current-head application CI result.  
 **Standing instruction:** implementation/integration first; do not intentionally run tests, formatter, lint, typecheck or CI during implementation. Keep PR #138 draft/open/unmerged.
 
 ## Latest implementation checkpoint
@@ -481,3 +481,10 @@ The latest source slice represents three migration 0059 relationships directly i
 The review also found that `refunds.dispute_id → disputes.id ON DELETE SET NULL` was omitted from the earlier targeted parity table. Together with `refunds.return_request_id → return_requests.id ON DELETE SET NULL`, these remain migration-owned because payments cannot import returns/support without a payments → returns/support → payments module cycle. Source comments and the G-002 crosswalk now record this reason.
 
 This is a targeted correction, not completion of the full table-by-table FK reconciliation. No migration, database, RLS, grant, staging, worker, deployment or merge action occurred. No tests, formatter, lint, typecheck, E6 or CI were run. Next: complete the 100-table / 183-migration-reference parity review, then finish remaining operation/actor-context ownership review. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — post-push reconciliation
+
+Source/documentation commit `92895859abe20f0132a3ae021c695898e0b9f051` was pushed successfully to the PR branch using an expected-head check. PR #138 remained OPEN / DRAFT / UNMERGED to `develop`; the branch was 2,490 commits ahead and zero behind at reconciliation. Exact-head Actions lookup returned zero runs; Vercel Web/Admin were PENDING external preview checks. No application test result is available.
+
+The commit adds the three safe migration 0059 Drizzle references and corrects the FK crosswalk, including the previously omitted `refunds.dispute_id` edge. A follow-up source comment cleanup removes stale "migration-only" wording from the three newly modeled links. No tests or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

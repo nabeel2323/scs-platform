@@ -2123,3 +2123,10 @@ The 25-module Drizzle schema pass identified one additional migration-only relat
 ### Verification and boundaries
 
 No tests, formatter, lint, typecheck, E6 or CI were run. No shared/staging database access, migration, grant/default-ACL change, RLS enablement, deployment, worker activation, merge or release occurred. The full 100-table / 183-migration-reference comparison remains incomplete; this slice does not mark G-002 verified.
+
+
+## 24 November 2026 — post-push review and source-comment correction
+
+Commit `92895859abe20f0132a3ae021c695898e0b9f051` was pushed to PR #138 with a fast-forward expected-head check. Live PR state remained OPEN / DRAFT / UNMERGED to `develop`; compare was 2,490 ahead / 0 behind. Exact-head Actions had zero runs. Vercel Web/Admin contexts were PENDING external preview checks, not application test results.
+
+Post-push source inspection found stale comments left beside the newly modeled Drizzle references. This follow-up updates the comments to reflect the actual dependency direction: returns may reference inventory and the already-imported refunds table; support may reference returns; payments keeps both reverse links migration-only to avoid a module cycle. No tests, formatter, lint, typecheck, E6 or CI were run.

@@ -359,3 +359,8 @@ No tests, formatter, lint, typecheck, E6 or CI were run in this implementation c
 Source/documentation update prepared against PR #138 head `19738fbe16399db7f8975d647b062773a3eb2583`. Three safe deferred migration relationships are now represented in Drizzle with nullable `ON DELETE SET NULL` semantics: `return_requests.refund_id`, `return_request_items.inventory_item_id`, and `disputes.return_request_id`. The source crosswalk also records the previously omitted `refunds.dispute_id → disputes.id` FK. The two payment-owned links (`refunds.return_request_id` and `refunds.dispute_id`) remain migration-only to avoid a payments/returns/support module cycle.
 
 No tests, formatter, lint, typecheck, E6 or CI were run. No database, migration, staging, RLS/grant/default-ACL, worker, deployment or merge action occurred. This source slice is not verified. Exact pre-change PR head had zero Actions runs and Vercel Web/Admin provider-rate-limit failures; re-query after push for the new head.
+
+
+## Post-push status — 24 November 2026
+
+PR #138 exact head after source commit `92895859abe20f0132a3ae021c695898e0b9f051`: OPEN / DRAFT / UNMERGED to `develop`, 2,490 commits ahead / 0 behind. Exact-head Actions lookup returned zero workflow runs. Vercel Web/Admin contexts were PENDING external preview checks. No application test result is available. Do not trigger CI during the implementation phase.

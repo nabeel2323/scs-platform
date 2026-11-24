@@ -22,9 +22,8 @@ export const disputes = pgTable('disputes', {
   resolution: text('resolution'),
   resolvedBy: uuid('resolved_by').references(() => users.id),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
-  // P13: link to return request (nullable FK, added by migration 0059)
-  // Migration 0059 adds the nullable return_requests FK (ON DELETE SET NULL).
-  // Keep this cross-module link migration-owned to avoid coupling support to returns.
+  // P13: migration 0059 adds the nullable return_requests FK. Support depends
+  // on returns; returns does not import support, so this reference is acyclic.
   returnRequestId: uuid('return_request_id').references(() => returnRequests.id, { onDelete: 'set null' }),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

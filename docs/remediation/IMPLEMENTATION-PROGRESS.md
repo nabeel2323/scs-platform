@@ -2893,3 +2893,8 @@ G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No tests, formatter, li
 A targeted static comparison of the payment, return and financial Drizzle schemas against the migration FK crosswalk identified five migration-enforced relationships omitted from Drizzle metadata. The self-referential `reconciliation_runs.superseded_by → reconciliation_runs.id` relationship from migration 0062 is now represented with a typed lazy `AnyPgColumn` reference in `financial.schema.ts`. The remaining four deferred links are explicitly documented in their schema declarations: `refunds.return_request_id` and `return_requests.refund_id` form a payments/returns module cycle, while `return_request_items.inventory_item_id` is migration-owned and nullable with ON DELETE SET NULL semantics. Their SQL constraints remain authoritative; no schema migration was changed.
 
 The detailed parity inventory and the deliberate distinction between migration-only links and application-maintained nullable `org_id` metadata are recorded in the G-002 migration FK crosswalk. This is a targeted slice, not full 100-table parity completion. No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## Post-push reconciliation — 24 November 2026
+
+Source/documentation checkpoint `92895859abe20f0132a3ae021c695898e0b9f051` was pushed to PR #138 with expected-head protection. PR remained OPEN / DRAFT / UNMERGED to `develop`; exact-head Actions had zero runs and Vercel Web/Admin were PENDING external preview checks. The latest source slice adds three safe migration 0059 references to Drizzle and corrects the missing `refunds.dispute_id` crosswalk entry. No tests or CI were run. G-002 remains IN PROGRESS / NOT VERIFIED.
