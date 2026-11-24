@@ -3131,11 +3131,10 @@ export class CatalogService {
       throw new ConflictException('Import job is already being processed by another worker');
     }
 
-    const priceListId = await this.withUserActorContext(actor, () =>
-      this.getOrCreateDefaultPriceList(job['storeId']),
-    );
-
     try {
+      const priceListId = await this.withUserActorContext(actor, () =>
+        this.getOrCreateDefaultPriceList(job['storeId']),
+      );
       await this.withUserActorContext(actor, () => this.createChunks(id, rows.length));
       const chunks = await this.withUserActorContext(actor, () => this.getChunks(id));
 
@@ -4083,8 +4082,8 @@ export class CatalogService {
     }));
 
     // CSV serialization is CPU-only and occurs after the short DB actor scope closes.
-    const BOM = '\\uFEFF';
-    const headerLine = 'row_number,field,error_code,severity,message,suggested_fix\\n';
+    const BOM = '\uFEFF';
+    const headerLine = 'row_number,field,error_code,severity,message,suggested_fix\n';
     const allErrors: ImportError[] = [];
 
     const previewErrors = (job.errorLog || []) as ImportError[];
@@ -4129,7 +4128,7 @@ export class CatalogService {
       lines.push(row);
     }
 
-    return lines.join('\\n');
+    return lines.join('\n');
   }
 
   /** Escape a value for CSV output. */
