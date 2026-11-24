@@ -2962,3 +2962,11 @@ The product detail and media list routes are now split into short actor-scoped D
 ## 25 November 2026 — Search Facets cache/DB boundary
 
 The Redis-backed Search Facets route now avoids a request-wide database actor transaction. Controller forwards the verified caller; SearchService.getFacetsCached scopes only the facet DB query while Redis get/set stays outside. Regression tests cover missing actor and Redis-vs-DB scope boundaries; controller metadata test covers interceptor exclusion. Tests remain unexecuted. No quality gates/CI; G-002 remains IN_PROGRESS / NOT VERIFIED.
+
+## 25 November 2026 — Catalog ownership and concurrency implementation
+
+The Catalog ownership pass strengthens category, product-type, product, media, offer and request boundaries. Store-scoped category list/search requires org and active membership; public category lists/tree are active platform-only, and foreign/inactive category detail is hidden. Product create/update category references and category parent/reparent references must be active global or same-store. Product types are global taxonomy; create/update/publish/duplicate/version reject invalid tenant/inactive category bindings. Public product-type reads hide unpublished and legacy tenant-bound bindings, while governance users retain privileged inventory access.
+
+Search facets now use cache namespace v2 and only aggregate values for published product types in active platform categories and ACTIVE/non-deleted products. Merchant-offer lifecycle writes compare status and store ownership; pricing writes compare updatedAt. Catalog request review locks the pending row in an active user actor transaction and transitions only PENDING. Product update/type-change/delete/bulk writes repeat owner and non-deleted predicates; edit/read authorization is revalidated inside service actor scopes. Media delete binds both media ID and parent product ID.
+
+Controller actor coverage was reviewed across Catalog, taxonomy, offers, requests, pricing and reviews; mixed operations retain short DB scopes with external Redis/storage work outside. Regression specs were added/extended but are unexecuted. No formatter/lint/typecheck/E6/CI. No RLS/grant/migration/shared DB/staging/deployment/worker/merge/release action. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
