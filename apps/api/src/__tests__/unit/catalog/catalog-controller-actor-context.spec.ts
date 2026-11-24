@@ -41,9 +41,11 @@ describe('CatalogController database actor boundaries (G-002)', () => {
 
 const DATABASE_SCOPED_READS = [
   'listCategories',
+  'getCategoryTree',
   'getCategory',
   'listCategoryProductTypes',
   'listCategoryProducts',
+  'listCategoryProductTypesForAdmin',
   'getTopCategories',
   'getPopularBrands',
   'search',
