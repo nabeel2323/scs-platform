@@ -75,6 +75,7 @@ export class MerchantController {
   // ── Stores ─────────────────────────────────────────────────────
 
   @Post('stores')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async createStore(@CurrentUser() user: JwtPayload, @Body() input: CreateStoreInput) {
@@ -150,6 +151,7 @@ export class MerchantController {
   }
 
   @Patch('stores/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async updateStore(
@@ -164,6 +166,7 @@ export class MerchantController {
   // ── Warehouses ─────────────────────────────────────────────────
 
   @Post('stores/:storeId/warehouses')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async createWarehouse(
@@ -185,6 +188,7 @@ export class MerchantController {
   }
 
   @Patch('warehouses/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async updateWarehouse(
@@ -267,6 +271,7 @@ export class MerchantController {
   // ── Verification ───────────────────────────────────────────────
 
   @Post('stores/:storeId/verify')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async submitVerification(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
