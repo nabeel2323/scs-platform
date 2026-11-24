@@ -1070,3 +1070,7 @@ AdminService mixed product update and media-preview paths now forward a verified
 ## 25 November 2026 — Identity Profile Catalog caller update
 
 ProfileController favorites and saved-supplier routes now pass the verified actor into CatalogService; service methods scope DB work, enforce userId ownership, validate product readability, and expose only active verified public stores. Continue remaining cross-module Catalog callers and G-002 FK/migration/operator evidence.
+
+## 25 November 2026 — Pricing/Reviews lookup guard
+
+Pricing and Reviews Catalog lookup services now require a current user actor context. Continue the remaining cross-module caller and direct catalog-schema read inventory; then proceed to FK/migration/operator evidence.
