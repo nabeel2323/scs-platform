@@ -103,3 +103,10 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 - No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 - Refund boundary: rejection creates a durable refund request/payment event/outbox record only. The generic OutboxDispatcher currently logs events and marks them dispatched; no payment-provider refund is executed by this path. Automatic provider execution remains outside the approved scope.
 - No merge, deployment, worker activation, RLS, migration, grants/default ACLs or shared/staging database action occurred.
+
+
+## 24 November 2026 — latest continuation boundary
+
+Source commit `6339acb944d3e41a6066e0f123394daa38d74491` adds the verified-user actor interceptor to the database-only Merchant verification-review route and extends its controller metadata regression spec. Subsequent documentation commits reconcile worker/socket actor-context evidence and expand the G-002 schema ownership matrix to all 100 module schema declarations (98 barrel-exported; two catalog-import declarations are not barrel-exported). The prior 99+15=114 decomposition is now historical, not a current source reconciliation.
+
+Implementation-first instruction remains active: no tests, formatter, lint, typecheck, E6 or CI are run until implementation/integration is complete. No protected DB, RLS, migration, grant/default ACL, staging, deployment, worker activation, merge or release action is authorized. Verify live branch/PR/head/status before next action.

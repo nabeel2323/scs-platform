@@ -247,7 +247,7 @@ The legacy /webhooks/carrier/:providerKey route previously used findFirst on act
 
 ## Physical objects outside the Drizzle table declarations — source slice 9
 
-The 19-November 114 public r/p count reconciles to 99 Drizzle declarations plus 15 non-Drizzle relations: public._migration_log (migration runner), public.backfill_errors (migration 0053 only), and 13 analytics_events partition children (default plus 12 monthly partitions). See [G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md](./G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md) for DDL and access evidence. The historical 116 count remains unresolved.
+The 19-November 114 public r/p count is a historical catalog snapshot. Its 21-November decomposition as 99 Drizzle declarations plus 15 non-Drizzle relations is no longer reconciled to current source: the 24-November source enumeration finds 100 `pgTable` declarations across 25 module schema files, 98 re-exported through `drizzle/schema.ts`, with `catalog_imports` and `catalog_import_errors` outside that barrel and `payment_proof_upload_intents` previously omitted from the matrix. Keep the 114/116 relation counts as historical until an approved protected read-only catalog refresh. See [G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md](./G-002-PHYSICAL-DATABASE-OBJECT-INVENTORY-2026-11-22.md) for historical DDL/access evidence; do not infer a current relation delta from source declarations.
 
 ## Method-level ownership predicate checkpoint — Orders, Payments and Inventory
 
@@ -290,3 +290,10 @@ The service-level map is not an authorization to add a global request transactio
 ## PricingService variant-tier query ownership — 22 November 2026
 
 PricingController.getProductPricing resolves the variant's owning store and passes it to PricingService.listTiersByVariant. The service now rejects missing store context and joins priceLists with an explicit storeId predicate on every variant-tier query, including the optional priceListId path. The internal getProductPricing resolver also passes storeId through. Focused regression coverage is added but not run.
+
+
+## Current module-schema inventory reconciliation — 24 November 2026
+
+The 24-November source pass enumerated 100 `pgTable` declarations across all 25 module `*.schema.ts` files. The `apps/api/src/drizzle/schema.ts` barrel re-exports 98; `catalog-import.schema.ts` defines `catalog_imports` and `catalog_import_errors` but is not re-exported. The prior 99-row ownership matrix included those two non-barrel declarations and omitted the exported `payment_proof_upload_intents` table; the matrix now covers all 100 module declarations with direct-column/FK candidates.
+
+This corrects the source inventory only. It does not verify live database presence or reconcile the historical 114/116 public relation counts. The old 99+15 arithmetic is historical and must not be used as a current source-backed total. The protected read-only catalog audit, API/migration identity evidence and exact per-operation predicate map remain open.

@@ -1009,3 +1009,12 @@ Implemented in commit `bccb8c569d122c7b1479881aa162fb428f264c4e`: document regis
 ## Refund-provider execution boundary correction — 24 November 2026
 
 The merchant-rejection flow creates a refund REQUESTED row, payment event and outbox record only. Source inspection of OutboxDispatcher.dispatch confirms generic events are currently logged and marked dispatched; this does not invoke a payment-provider refund. Automatic refund-provider execution is not implemented by this slice and remains outside the approved scope (no automatic gateway/payout expansion or worker activation). The durable refund request is still available for the existing review/approval workflow. Merchant-initiated rejection refunds now attribute requestedBy/paymentEvents.actorId to the authenticated merchant; PaymentsService permits the special MERCHANT_REJECTION reason only when the caller has a MERCHANT_* role and assertOrderAccessible confirms the order is in the caller's active organization. The service no longer impersonates the buyer for audit attribution.
+
+
+## G-002 source-schema inventory correction — 24 November 2026
+
+A fresh source comparison corrected the earlier 99-table ownership inventory. The 25 module `*.schema.ts` files contain 100 `pgTable` declarations. The `drizzle/schema.ts` barrel exports 98; `catalog_imports` and `catalog_import_errors` are declared in `catalog-import.schema.ts` but not re-exported. The prior 99-row matrix included those two non-barrel tables and omitted the exported `payment_proof_upload_intents`; the matrix now contains all 100 source declarations and direct-column/FK candidates.
+
+This means the historical 99 Drizzle + 15 other = 114 relation decomposition is no longer supported by current source counts. The 114 relation report is still a historical catalog snapshot; 116 remains unresolved. No current live relation total or two-object delta is asserted. A protected read-only catalog audit and independent API/migration role evidence are still required.
+
+The G-002 ownership matrix is now schema-column complete across the 100 source declarations, but not operation/policy complete. Exact per-operation predicates, raw SQL/object/privilege coverage, independent review (G-001), runtime identity evidence, G-036 verification and protected catalog review remain open. Do not run tests/CI until implementation and integration are complete; no DB/RLS/migration/grant/staging/deployment action was taken.

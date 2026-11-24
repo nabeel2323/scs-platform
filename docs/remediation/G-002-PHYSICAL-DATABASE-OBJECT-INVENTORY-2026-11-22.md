@@ -73,3 +73,10 @@ The 114 figure is supported by the detailed 19-November public r/p inventory and
 ## Explicit non-actions
 
 No audit script, SQL query, migration, seed, reset, bootstrap, grant change, default-ACL change, RLS activation, staging deployment, worker or provider action was executed. No database policy is approved or ready to apply.
+
+
+## 24 November 2026 — source declaration reconciliation addendum
+
+The detailed 114-relation inventory above remains a historical 19-November database snapshot and its listed object DDL remains useful as historical evidence. A separate 24-November source-only enumeration found 100 `pgTable` declarations across 25 module schema files, while `apps/api/src/drizzle/schema.ts` re-exports 98. The two additional declarations are `catalog_imports` and `catalog_import_errors` from `catalog-import.schema.ts`, which is not in the schema barrel. The corrected 100-row ownership matrix now includes those two and the previously omitted exported `payment_proof_upload_intents`.
+
+This does not establish whether all 100 declarations currently exist in the live database. The historical 99+15=114 arithmetic is not a current source reconciliation, and the 116 count remains unexplained. Only the authorized protected read-only catalog audit can establish current public relations, relation kinds, partitions and the live API/migration role visibility. No such query was run in this continuation.
