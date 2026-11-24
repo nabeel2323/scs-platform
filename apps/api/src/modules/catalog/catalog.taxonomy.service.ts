@@ -723,13 +723,31 @@ export class CatalogTaxonomyService {
   }
 
   async listProductTypes(opts?: { categoryId?: string; status?: string }) {
+    // Product types are global taxonomy. Exclude legacy rows bound to tenant or
+    // inactive categories even if those rows predate the current write guards.
+    const platformCategories = await this.db.db.query.categories.findMany({
+      where: and(isNull(categories.storeId), eq(categories.isActive, true)),
+      columns: { id: true },
+    });
+    const platformCategoryIds = platformCategories.map((category) => category.id);
+
     const conditions = [];
-    if (opts?.categoryId) conditions.push(eq(productTypes.categoryId, opts.categoryId));
+    if (opts?.categoryId) {
+      if (!platformCategoryIds.includes(opts.categoryId)) return [];
+      conditions.push(eq(productTypes.categoryId, opts.categoryId));
+    } else if (platformCategoryIds.length > 0) {
+      conditions.push(
+        or(isNull(productTypes.categoryId), inArray(productTypes.categoryId, platformCategoryIds)),
+      );
+    } else {
+      conditions.push(isNull(productTypes.categoryId));
+    }
+
     if (opts?.status && opts.status !== 'ALL') conditions.push(eq(productTypes.status, opts.status));
     else if (!opts?.status) conditions.push(eq(productTypes.status, 'PUBLISHED'));
-    // status === 'ALL' → no status filter (admin sees every status)
+    // status === 'ALL' is reserved for callers with product-type governance permission.
     return this.db.db.query.productTypes.findMany({
-      where: conditions.length ? and(...conditions) : undefined,
+      where: and(...conditions),
       orderBy: [asc(productTypes.code), asc(productTypes.version)],
     });
   }
