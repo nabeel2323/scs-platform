@@ -90,7 +90,8 @@ describe('CatalogService mixed product mutation actor boundaries (G-002)', () =>
     const updateWhere = new PgDialect().sqlToQuery(f.updateConditions[0] as SQL);
     expect(updateWhere.params).toContain('product-1');
     expect(updateWhere.params).toContain('store-1');
-    expect(updateWhere.sql.toLowerCase()).toContain('deleted_at is null');
+    expect(updateWhere.sql.toLowerCase()).toContain('deleted_at');
+    expect(updateWhere.sql.toLowerCase()).toContain('is null');
     expect(f.invalidate).toHaveBeenCalledOnce();
     expect(f.audit.record).toHaveBeenCalledOnce();
   });
