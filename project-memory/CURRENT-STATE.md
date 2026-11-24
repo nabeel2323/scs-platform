@@ -550,3 +550,7 @@ CatalogService.recoverStaleJobs now runs its stale-job query and job/chunk state
 ## 25 November 2026 — Catalog product detail/media read actor scope
 
 GET /products/:id and GET /products/:productId/media now avoid request-wide actor transactions. Controller authorization reads are wrapped in short verified-user scopes. CatalogService.getProductDetail requires the caller and runs all product/store/media-row/variant/pricing/stock/attribute reads in a short actor scope; Redis cache I/O and storage URL resolution occur after the DB scope closes. listMediaByProduct scopes the media-row read and resolves storage URLs outside. Regression coverage added in catalog-media-read-actor-context.spec.ts and controller metadata tests. Tests remain unexecuted; no quality gates or CI. G-002 remains IN_PROGRESS / NOT VERIFIED.
+
+## 25 November 2026 — Search Facets cache/DB boundary
+
+GET /search/facets now requires the authenticated caller and no longer holds a request-wide DB transaction across Redis cache reads/writes. SearchService.getFacetsCached performs Redis get/set outside the actor transaction and scopes getFacets database reads in a short verified-user context. Added controller interceptor-exclusion and SearchService tests; tests remain unexecuted. G-002 remains IN_PROGRESS / NOT VERIFIED.
