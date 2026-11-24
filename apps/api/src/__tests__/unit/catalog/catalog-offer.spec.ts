@@ -423,9 +423,9 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
     const { svc, updated } = makeHarness({
       merchantOffers: {
         findFirst: [
-          { id: 'o1', storeId: 's1', status: 'DRAFT' },
-          { id: 'o1', storeId: 's1', status: 'DRAFT' },
-          { id: 'o1', storeId: 's1', status: 'DRAFT' },
+          { id: 'o1', storeId: 's1', status: 'DRAFT', updatedAt: new Date('2026-11-25T10:00:00.000Z') },
+          { id: 'o1', storeId: 's1', status: 'DRAFT', updatedAt: new Date('2026-11-25T10:00:00.000Z') },
+          { id: 'o1', storeId: 's1', status: 'DRAFT', updatedAt: new Date('2026-11-25T10:00:00.000Z') },
         ],
       },
       priceLists: { findFirst: { id: 'pl1', storeId: 's1' } },
