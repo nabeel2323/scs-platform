@@ -2054,3 +2054,10 @@ The 75-file numbered migration scan found 183 explicit REFERENCES clauses across
 - Found that `shipments.order_id` and `shipments.store_id` are independent FKs. A mismatched pair could let a store-scoped shipment detail path disclose a different store's order, or pass mismatched data to a carrier.
 - Source commits: [b1e5490](https://github.com/nabeel2323/scs-platform/commit/b1e5490401d9602205d46351ee4eaf1ab2db7d30), [02edaa8](https://github.com/nabeel2323/scs-platform/commit/02edaa89d75b06e6c8a4170cc306662965d8fd30), [15d328c](https://github.com/nabeel2323/scs-platform/commit/15d328c952dfd0805a9eee00374c6ad74ed1d6a1). Creation, authorized reads and carrier worker paths now validate same-store order ownership.
 - Updated G-002 crosswalk and progress tracker. Regression cases are documented but unexecuted. Commits use `[skip ci]`; no tests or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — shipment read-path completeness
+
+- Follow-up callsite review found that the initial shipment/order/store guard did not cover every read path. Commit [56d605a](https://github.com/nabeel2323/scs-platform/commit/56d605a7377c49766b990abfc023e6ae4a5cea1d) adds the same-store invariant before driver/platform exception-operation bypasses, validates order-based shipment lookup, and joins driver shipment lists to same-store orders.
+- ShipmentOperationsController list and count queries also filter malformed shipment/order pairs (commit [c916acd](https://github.com/nabeel2323/scs-platform/commit/c916acd0a8b156affeda50e98dbc88acab2f39bc)).
+- Updated G-002 crosswalk and progress tracker with the complete inspected read-path regression matrix. Tests remain unexecuted; commits use `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
