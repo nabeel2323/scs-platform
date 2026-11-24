@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { CarrierWebhookController } from '../../../modules/shipping/carrier-webhook.controller';
 
 function createHarness(activeCredentials: any[]) {
+  const withActorContext = vi.fn(async (_context: any, operation: () => Promise<unknown>) => operation());
   const db = {
+    currentActorContext: null,
+    withActorContext,
     db: {
       query: {
         carrierCredentials: {
@@ -44,7 +47,7 @@ function createHarness(activeCredentials: any[]) {
       'x-carrier-timestamp': String(Math.floor(Date.now() / 1000)),
     },
   };
-  return { controller, db, security, credentials, webhookRouting, response, request };
+  return { controller, db, security, credentials, webhookRouting, response, request, withActorContext };
 }
 
 describe('CarrierWebhookController tenant credential routing', () => {
@@ -83,7 +86,7 @@ describe('CarrierWebhookController tenant credential routing', () => {
     );
 
     expect(harness.db.db.query.carrierCredentials.findMany).toHaveBeenCalledOnce();
-    expect(harness.credentials.decryptWebhookSecret).toHaveBeenCalledWith('credential-org-a');
+    expect(harness.credentials.decryptWebhookSecret).toHaveBeenCalledWith('credential-org-a', 'org-a');
     expect(harness.response.status).toHaveBeenCalledWith(403);
   });
 
