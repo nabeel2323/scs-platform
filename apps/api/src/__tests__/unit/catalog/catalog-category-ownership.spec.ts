@@ -95,6 +95,16 @@ describe('CatalogService category ownership predicates (G-002)', () => {
     expect(compiled.params).toContain(true);
   });
 
+  it('does not expose buyer-facing product results for a tenant-owned category', async () => {
+    const h = buildService({
+      category: { id: 'category-store-a', storeId: 'store-a', isActive: true },
+    });
+
+    await expect(h.service.getCategoryProducts('category-store-a')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
   it('rejects product creation with a category owned by another store before insert', async () => {
     const h = buildService({ category: null });
 
