@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   UseGuards,
+  UseInterceptors,
   ForbiddenException,
 } from '@nestjs/common';
 import { StoreMembershipService } from './store-membership.service';
@@ -18,6 +19,7 @@ import {
   RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import { DatabaseService } from '../../common/database/database.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { stores, storeMembers } from './merchant.schema';
 import { eq, and } from 'drizzle-orm';
 import {
@@ -40,6 +42,7 @@ import {
  */
 @Controller('stores/:storeId/members')
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class StoreMembershipController {
   constructor(
     private readonly membershipService: StoreMembershipService,

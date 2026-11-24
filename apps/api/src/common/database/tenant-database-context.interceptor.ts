@@ -14,9 +14,10 @@ import type { JwtPayload } from '../guards/current-user.decorator';
  * Controller-scoped transaction context for authenticated user-owned data.
  *
  * This interceptor is deliberately opt-in, not global. It is currently applied
- * only to NotificationsController, whose HTTP handlers are JWT-protected and
- * whose request path performs bounded database work without detached jobs or
- * streaming responses.
+ * only to source-reviewed JWT-protected controllers (currently Notifications,
+ * Pricing and Store Membership) whose request paths have bounded database work
+ * and no detached jobs or streaming responses. Add further controllers only
+ * after reviewing their service call graph and transaction/external-I/O behavior.
  *
  * Nest runs guards before interceptors, so the actor is taken only from the
  * server-verified request.user populated by JwtAuthGuard. The handler observable
