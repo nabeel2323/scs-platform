@@ -307,8 +307,7 @@ describe('Shipping and carrier tenant context', () => {
     ).rejects.toBeInstanceOf(NonRetryableCarrierError);
 
     expect(storeTenantContext).toHaveBeenCalledWith('store-a');
-    },
-  );
+  });
 });
 
 describe('ShippingService driver assignment eligibility', () => {
@@ -365,14 +364,15 @@ describe('ShippingService driver assignment eligibility', () => {
   it(
     'allows an active same-organization DRIVER with no explicit store rows (migration 0041 unrestricted mode)',
     async () => {
-    const harness = createHarness();
+      const harness = createHarness();
 
-    await expect(
-      harness.service.assertDriverEligibleForStore('driver-a', 'store-a'),
-    ).resolves.toBeUndefined();
+      await expect(
+        harness.service.assertDriverEligibleForStore('driver-a', 'store-a'),
+      ).resolves.toBeUndefined();
 
-    expect(harness.assignmentsFindMany).toHaveBeenCalledOnce();
-  });
+      expect(harness.assignmentsFindMany).toHaveBeenCalledOnce();
+    },
+  );
 
   it('allows a driver when an explicit assignment includes the target store', async () => {
     const harness = createHarness({ assignments: [{ storeId: 'store-a' }] });
