@@ -554,3 +554,11 @@ GET /products/:id and GET /products/:productId/media now avoid request-wide acto
 ## 25 November 2026 — Search Facets cache/DB boundary
 
 GET /search/facets now requires the authenticated caller and no longer holds a request-wide DB transaction across Redis cache reads/writes. SearchService.getFacetsCached performs Redis get/set outside the actor transaction and scopes getFacets database reads in a short verified-user context. Added controller interceptor-exclusion and SearchService tests; tests remain unexecuted. G-002 remains IN_PROGRESS / NOT VERIFIED.
+
+## 25 November 2026 — Catalog ownership and concurrency continuation
+
+Implemented additional Catalog ownership and concurrency protections. Category discovery defaults to active platform categories; store-specific category lists/search require current org and active store membership. Category details hide foreign-store and inactive categories from ordinary users. Product create/update category references and category parent/reparent links now require active global or same-store categories. Public product-type surfaces hide unpublished and legacy tenant-bound category references; product-type governance users retain inventory access. Search facet aggregation is restricted to published product types, active platform categories and ACTIVE/non-deleted products, with cache namespace v2.
+
+Merchant offer lifecycle mutations use compare-and-set status plus store ownership; pricing uses updatedAt compare-and-set. Catalog request review locks the pending request in an active user transaction and updates only PENDING state. Product update/type-change/delete/bulk writes repeat owner and non-deleted predicates; service actor scopes revalidate product edit/read access. Media delete binds both media and parent product IDs.
+
+Regression tests were added/extended but remain unexecuted. No formatter/lint/typecheck/E6/CI. PR #138 remains open/draft/unmerged; latest inspected pre-doc head was 6a029779930bef12062d66af9eb7b8aa18ddf838, 2,641 ahead / 0 behind develop. Vercel Admin/Web statuses are external build-rate-limit failures; no Actions runs were returned. No staging/shared DB, RLS, grants, migrations, deployment, worker activation, merge or release occurred. G-002 remains IN_PROGRESS / NOT VERIFIED.
