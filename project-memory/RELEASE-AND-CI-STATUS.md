@@ -3,7 +3,8 @@
 **Live reconciliation:** 24 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — OPEN / DRAFT / UNMERGED.  
 **Branch:** `remediation/phase-0-1-tenant-security`.  
-**Current head at this checkpoint:** `78d0475a7fcdbea6aca848a46236e5f536a4a796`.  
+**Current head:** `c58202e4b3ca26471b60553a647e629c62e0770e`.  
+**Latest source implementation:** `0eccaf90847bce0ca8039b6874a2053ce1412445` — bounded Profile/device/session routes joined the scoped actor-context rollout.  
 **Exact-head GitHub Actions:** zero workflow runs; source commits use `[skip ci]`.  
 **Combined status:** Vercel Web FAILURE and Vercel Admin FAILURE due to the external provider build-rate-limit page. These are preview statuses, not application-test evidence.
 
@@ -13,14 +14,9 @@ The user explicitly requires implementation and cross-component integration to f
 
 ## G-002 source implementation checkpoint
 
-The active source now includes:
-- Typed actor contexts and transaction-local PostgreSQL settings through parameterized `set_config(..., true)`.
-- AsyncLocalStorage-backed transaction-bound Drizzle routing for existing `DatabaseService.db` callers.
-- Same-actor nested transaction reuse and an expired-scope fence against detached asynchronous work.
-- Explicit controller/method-scoped adoption for Notifications, Pricing, Store Membership, Promotions, Reviews, Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Admin reads, Cart, Returns, Organizations and Roles.
-- Merchant promotion mutations now carry caller context and enforce store organization plus active membership; foreign promotion detail access is normalized to not-found.
+The opt-in actor-context foundation provides typed principals, transaction-local PostgreSQL settings, AsyncLocalStorage-backed Drizzle routing, same-actor nested reuse and an expired-scope fence. Explicit controller/method-scoped adoption covers bounded authenticated surfaces in Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Catalog/Admin reads, Cart, Returns, Organizations/Roles and bounded Profile/device/session routes.
 
-This remains partial coverage. No global interceptor is present. AuthController, credential setup/password-change Profile handlers, file/import/upload, main Orders/Payments, shipping/carrier webhooks, bootstrap, audit middleware, workers/schedulers, realtime, CLI and migration paths remain outside the current adoption pending explicit principal/transaction review.
+No global interceptor is present. Auth/OTP, credential/password setup/change, file/import/upload, main Orders/Payments, carrier/shipping, bootstrap, deferred audit writes, workers/schedulers, realtime, CLI and migration paths remain outside pending their own context/transaction review.
 
 ## Verification phase policy
 
