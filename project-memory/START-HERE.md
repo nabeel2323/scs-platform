@@ -1257,3 +1257,16 @@ Source commits: `b6dd8a7d731604be811301dd7168fc3faffde1b6` and `6e3b5a9716eeac51
 ## Import preview validation DB scope refinement — 24 November 2026
 
 Follow-up review confirmed `ImportValidationService.validateRows` performs database reads (catalog lookup/validation), not just in-memory validation. Its invocation is now inside the same short authenticated actor-context boundary; workbook parsing and Redis reads remain outside. Source commit: `9b6387597e8c02de076613b4f4a540a379362491`. Tests and CI remain deferred and G-002 remains NOT VERIFIED.
+
+## 25 November 2026 — mixed Catalog product mutation actor scopes
+
+The next mixed Catalog operations from the previous handoff are now implemented: PATCH /products/:id and DELETE /products/:id no longer rely on an unscoped database connection. The controller wraps the product-edit authorization lookup in a short verified-user actor context and forwards the verified JWT caller to CatalogService. CatalogService scopes product reads, identifier uniqueness checks, product-type validation, publish validation, update/delete writes, product-type-change and re-review transactions, outbox insertion, and final reads to short user actor contexts. Redis cache invalidation and audit recording happen after business DB scopes close; publication outbox insertion uses a separate short user actor scope.
+
+The two routes intentionally remain without TenantDatabaseContextInterceptor: a request-wide transaction would span cache invalidation and other non-DB side effects. AuditService.record now uses a dedicated audit actor when invoked without an existing actor context, while preserving an already-active verified caller/worker transaction to avoid forbidden nested actor switching.
+
+Regression coverage added:
+- catalog-controller-actor-context.spec.ts asserts the mixed update/delete routes do not acquire the request-wide interceptor.
+- catalog-product-mixed-actor-context.spec.ts covers user-scoped update/delete phases, external side-effect boundaries, publication outbox scoping and fail-closed missing caller identity.
+- audit-service-actor-context.spec.ts covers the standalone audit principal and active-context reuse.
+
+These tests are authored but NOT EXECUTED. Formatter, lint, typecheck, E6 and CI remain deferred under the implementation-first restriction. No RLS, grants, migration, shared/staging database, deployment, worker activation, merge or release action occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. The next task is to continue the operation-callsite and ownership-predicate audit, prioritizing other mixed catalog product/variant paths and any remaining root-pool DB calls.
