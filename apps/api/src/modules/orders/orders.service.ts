@@ -1195,62 +1195,91 @@ export class OrdersService {
     reason: string,
     caller?: CallerContext,
   ) {
-    const order = await this.getOrder(orderId);
-    if (caller) await assertOrderAccessible(this.db, caller, order);
-    let currentStatus = order['status'];
-    if (currentStatus === 'SUBMITTED') {
-      await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
-      currentStatus = 'PENDING_CONFIRMATION';
-    }
-    this.assertTransition(currentStatus, 'REJECTED');
+    const runAsCaller = <T>(operation: () => Promise<T>): Promise<T> => {
+      if (!caller?.sub || !caller.role) return operation();
+      return this.db.withActorContext(
+        {
+          actorKind: 'user',
+          actorId: caller.sub,
+          actorRole: caller.role,
+          activeOrgId: caller.activeOrg ?? null,
+        },
+        operation,
+      );
+    };
 
-    // ADVERSARIAL FIX: stock settlement and status write must be atomic.
-    // settleStockForStatus runs first (it manages its own transactions per
-    // inventory item), then the status write + history are in a single
-    // transaction so a failure cannot leave stock released without the
-    // order status reflecting the rejection.
-    await this.settleStockForStatus(orderId, 'REJECTED', merchantUserId);
+    // Order, inventory, history and rejection outbox changes are one
+    // transaction-bound actor phase. No provider/storage work belongs here.
+    const order = await runAsCaller(async () => {
+      const order = await this.getOrder(orderId);
+      if (caller) await assertOrderAccessible(this.db, caller, order);
+      let currentStatus = order['status'];
+      if (currentStatus === 'SUBMITTED') {
+        await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
+        currentStatus = 'PENDING_CONFIRMATION';
+      }
+      this.assertTransition(currentStatus, 'REJECTED');
 
-    await this.db.db.transaction(async (tx) => {
-      await tx
-        .update(orders)
-        .set({ status: 'REJECTED', rejectionReason: reason, updatedAt: new Date() })
-        .where(eq(orders.id, orderId));
+      await this.db.db.transaction(async (tx) => {
+        await this.settleStockForStatus(orderId, 'REJECTED', merchantUserId, tx);
 
-      await tx.insert(orderStatusHistory).values({
-        id: crypto.randomUUID(),
-        orderId,
-        fromStatus: currentStatus,
-        toStatus: 'REJECTED',
-        changedBy: merchantUserId,
-        actorType: 'MERCHANT',
-        reason,
+        const flip = await tx
+          .update(orders)
+          .set({ status: 'REJECTED', rejectionReason: reason, updatedAt: new Date() })
+          .where(and(eq(orders.id, orderId), eq(orders.status, currentStatus)))
+          .returning({ id: orders.id });
+        if (flip.length === 0) {
+          throw new ConflictException(
+            'Order status already changed — concurrent rejection rejected',
+          );
+        }
+
+        await tx.insert(orderStatusHistory).values({
+          id: crypto.randomUUID(),
+          orderId,
+          fromStatus: currentStatus,
+          toStatus: 'REJECTED',
+          changedBy: merchantUserId,
+          actorType: 'MERCHANT',
+          reason,
+        });
+
+        await this.outbox.publish(
+          'order.rejected',
+          orderId,
+          { orderId, storeId: order['storeId'], reason },
+          {},
+          null,
+          tx,
+        );
       });
-    });
-    await this.outbox.publish('order.rejected', orderId, {
-      orderId,
-      storeId: order['storeId'],
-      reason,
+
+      return order;
     });
 
-    // P12: If payment was already confirmed, auto-create refund for buyer.
-    // Merchant rejection after payment confirmation means the buyer is owed money.
+    // Refund request creation is a separate DB-only actor phase. It persists
+    // a refund row/event/outbox entry; provider execution remains downstream.
+    // The stable key makes retries of this rejection idempotent.
     if (this.payments) {
       try {
-        const payment = await this.payments.getPaymentForOrder(orderId);
-        if (payment && ['CONFIRMED', 'PARTIALLY_REFUNDED'].includes(payment.status)) {
-          const refundableAmount = Number(payment.confirmedAmountMinor || payment.amountMinor);
-          if (refundableAmount > 0) {
-            await this.payments.requestRefund(
-              payment.id,
-              refundableAmount,
-              'MERCHANT_REJECTION',
-              order['buyerId'] as string,
-              { sub: order['buyerId'] as string, role: 'BUYER', activeOrg: null } as any,
-              { idempotencyKey: `reject-refund:${orderId}:${Date.now()}` },
+        await runAsCaller(async () => {
+          const payment = await this.payments!.getPaymentForOrder(orderId);
+          if (payment && ['CONFIRMED', 'CAPTURED', 'PARTIALLY_REFUNDED'].includes(payment.status)) {
+            const refundableAmount = Number(
+              payment.confirmedAmountMinor ?? payment.amountMinor,
             );
+            if (refundableAmount > 0) {
+              await this.payments!.requestRefund(
+                payment.id,
+                refundableAmount,
+                'MERCHANT_REJECTION',
+                order['buyerId'] as string,
+                { sub: order['buyerId'] as string, role: 'BUYER', activeOrg: null },
+                { idempotencyKey: `reject-refund:${orderId}` },
+              );
+            }
           }
-        }
+        });
       } catch (err) {
         this.logger.warn(
           `[P12] Auto-refund after merchant rejection failed (non-fatal): ${(err as Error)?.message}`,
@@ -1258,10 +1287,10 @@ export class OrdersService {
       }
     }
 
-    // M7.3-A: Recalculate master order status after rejection
-    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
-
-    return this.getOrder(orderId);
+    return runAsCaller(async () => {
+      await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
+      return this.getOrder(orderId);
+    });
   }
 
   async confirmItem(

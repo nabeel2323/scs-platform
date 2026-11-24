@@ -259,8 +259,12 @@ export class MerchantController {
   @Post('documents/:id/presign')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:verification:review')
-  async presignDocument(@Param('id') id: string) {
-    return this.merchantService.generatePresignedUrl(id);
+  async presignDocument(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.merchantService.generatePresignedUrl(id, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   /** Merchant-accessible document download (org-members only). */
@@ -268,7 +272,11 @@ export class MerchantController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:stores:write')
   async presignMerchantDocument(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    return this.merchantService.presignForMerchant(id, user.sub);
+    return this.merchantService.presignForMerchant(id, user.sub, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   // ── Verification ───────────────────────────────────────────────

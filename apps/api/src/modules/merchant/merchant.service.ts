@@ -527,29 +527,65 @@ export class MerchantService {
     });
   }
 
-  async generatePresignedUrl(docId: string): Promise<{ downloadUrl: string }> {
-    const doc = await this.getDocument(docId);
+  private runWithDocumentActor<T>(
+    caller: CallerContext | undefined,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    if (!caller?.sub || !caller.role) return operation();
+    return this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: caller.sub,
+        actorRole: caller.role,
+        activeOrgId: caller.activeOrg ?? null,
+      },
+      operation,
+    );
+  }
 
+  private async signAndPersistDocumentUrl(
+    docId: string,
+    storageKey: string,
+    caller?: CallerContext,
+  ): Promise<{ downloadUrl: string }> {
+    // Object storage signing runs between two short DB actor transactions.
     const bucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
-    const downloadUrl = await this.storage.createPresignedGetUrl(bucket, doc['storageKey']);
+    const downloadUrl = await this.storage.createPresignedGetUrl(bucket, storageKey);
 
-    await this.db.db
-      .update(businessDocuments)
-      .set({ storageUrl: downloadUrl })
-      .where(eq(businessDocuments.id, docId));
+    await this.runWithDocumentActor(caller, async () => {
+      await this.db.db
+        .update(businessDocuments)
+        .set({ storageUrl: downloadUrl })
+        .where(eq(businessDocuments.id, docId));
+    });
 
     return { downloadUrl };
+  }
+
+  async generatePresignedUrl(
+    docId: string,
+    caller?: CallerContext,
+  ): Promise<{ downloadUrl: string }> {
+    const doc = await this.runWithDocumentActor(caller, () => this.getDocument(docId));
+    return this.signAndPersistDocumentUrl(docId, doc['storageKey'], caller);
   }
 
   /**
    * Merchant-accessible presign: verifies the user is a member of the org
    * that owns the document before generating a download URL.
    */
-  async presignForMerchant(docId: string, userId: string): Promise<{ downloadUrl: string }> {
-    const doc = await this.getDocument(docId);
-    // Recheck current membership rather than trusting a still-valid JWT claim.
-    await this.assertActiveOrgMembership(doc.orgId, userId);
-    return this.generatePresignedUrl(docId);
+  async presignForMerchant(
+    docId: string,
+    userId: string,
+    caller?: CallerContext,
+  ): Promise<{ downloadUrl: string }> {
+    const doc = await this.runWithDocumentActor(caller, async () => {
+      const doc = await this.getDocument(docId);
+      await this.assertActiveOrgMembership(doc.orgId, userId);
+      return doc;
+    });
+
+    return this.signAndPersistDocumentUrl(docId, doc['storageKey'], caller);
   }
 
   // ── Verification ───────────────────────────────────────────────
