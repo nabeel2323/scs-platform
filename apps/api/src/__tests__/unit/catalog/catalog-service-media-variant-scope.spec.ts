@@ -7,6 +7,7 @@ describe('CatalogService.addMedia variant ownership', () => {
     const variantFindFirst = vi.fn().mockResolvedValue(null);
     const insert = vi.fn();
     const db = {
+      withActorContext: vi.fn((_actor, operation) => operation()),
       db: {
         query: { productVariants: { findFirst: variantFindFirst } },
         insert,
@@ -33,7 +34,9 @@ describe('CatalogService.addMedia variant ownership', () => {
       service.addMedia('product-a', {
         variantId: 'variant-from-product-b',
         url: 'https://cdn.example.test/image.jpg',
-      } as any),
+      } as any,
+      { sub: 'user-a', role: 'STAFF', activeOrg: 'org-a' },
+    ),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(variantFindFirst).toHaveBeenCalledOnce();

@@ -689,12 +689,17 @@ export class CatalogController {
     @Param('productId') productId: string,
     @Body() input: AddMediaInput,
   ) {
-    await assertProductEditableByMerchant(
-      this.db,
-      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
-      productId,
+    const actor = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: actor.sub,
+        actorRole: actor.role,
+        activeOrgId: actor.activeOrg ?? null,
+      },
+      () => assertProductEditableByMerchant(this.db, actor, productId),
     );
-    return this.catalogService.addMedia(productId, input);
+    return this.catalogService.addMedia(productId, input, actor);
   }
 
   @Get('products/:productId/media')

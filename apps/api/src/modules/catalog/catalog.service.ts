@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { RedisService } from '../../common/redis/redis.service';
@@ -77,11 +78,40 @@ function collectDescendantIds(
   return result;
 }
 
+type CatalogUserActor = {
+  sub: string;
+  role: string;
+  activeOrg?: string | null;
+};
+
 /**
  * Catalog service — products, variants, categories, brands, media, imports.
  */
 @Injectable()
 export class CatalogService {
+  private withUserActorContext<T>(
+    actor: CatalogUserActor,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    if (
+      !actor ||
+      typeof actor.sub !== 'string' ||
+      actor.sub.trim().length === 0 ||
+      typeof actor.role !== 'string' ||
+      actor.role.trim().length === 0
+    ) {
+      throw new ForbiddenException('Authenticated catalog actor context is required');
+    }
+    return this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: actor.sub,
+        actorRole: actor.role,
+        activeOrgId: actor.activeOrg ?? null,
+      },
+      operation,
+    );
+  }
   constructor(
     private readonly db: DatabaseService,
     private readonly redis: RedisService,
@@ -2706,51 +2736,56 @@ export class CatalogService {
 
   // ── Media ────────────────────────────────────────────────────
 
-  async addMedia(productId: string, input: AddMediaInput) {
-    await this.getProduct(productId);
-    if (input.variantId) {
-      const variant = await this.db.db.query.productVariants.findFirst({
-        where: and(
-          eq(productVariants.id, input.variantId),
-          eq(productVariants.productId, productId),
-        ),
-        columns: { id: true },
-      });
-      if (!variant) {
-        throw new BadRequestException('Variant does not belong to this product');
+  async addMedia(
+    productId: string,
+    input: AddMediaInput,
+    actor: CatalogUserActor,
+  ) {
+    const created = await this.withUserActorContext(actor, async () => {
+      await this.getProduct(productId);
+      if (input.variantId) {
+        const variant = await this.db.db.query.productVariants.findFirst({
+          where: and(
+            eq(productVariants.id, input.variantId),
+            eq(productVariants.productId, productId),
+          ),
+          columns: { id: true },
+        });
+        if (!variant) {
+          throw new BadRequestException('Variant does not belong to this product');
+        }
       }
-    }
-    const id = crypto.randomUUID();
-
-    await this.db.db.insert(productMedia).values({
-      id,
-      productId,
-      variantId: input.variantId || null,
-      mediaType: input.mediaType || 'IMAGE',
-      url: input.url,
-      thumbUrl: input.thumbUrl || null,
-      blurhash: input.blurhash || null,
-      altText: input.altText || null,
-      altTextAr: input.altTextAr || null,
-      sortOrder: input.sortOrder || 0,
-      fileSize: input.fileSize || 0,
-      mimeType: input.mimeType || null,
+      const id = crypto.randomUUID();
+      await this.db.db.insert(productMedia).values({
+        id,
+        productId,
+        variantId: input.variantId || null,
+        mediaType: input.mediaType || 'IMAGE',
+        url: input.url,
+        thumbUrl: input.thumbUrl || null,
+        blurhash: input.blurhash || null,
+        altText: input.altText || null,
+        altTextAr: input.altTextAr || null,
+        sortOrder: input.sortOrder || 0,
+        fileSize: input.fileSize || 0,
+        mimeType: input.mimeType || null,
+      });
+      return {
+        id,
+        productId,
+        variantId: input.variantId || null,
+        mediaType: input.mediaType || 'IMAGE',
+        url: input.url,
+        thumbUrl: input.thumbUrl || null,
+        blurhash: input.blurhash || null,
+        altText: input.altText || null,
+        altTextAr: input.altTextAr || null,
+        sortOrder: input.sortOrder || 0,
+        fileSize: input.fileSize || 0,
+        mimeType: input.mimeType || null,
+      };
     });
-
-    const created = {
-      id,
-      productId,
-      variantId: input.variantId || null,
-      mediaType: input.mediaType || 'IMAGE',
-      url: input.url,
-      thumbUrl: input.thumbUrl || null,
-      blurhash: input.blurhash || null,
-      altText: input.altText || null,
-      altTextAr: input.altTextAr || null,
-      sortOrder: input.sortOrder || 0,
-      fileSize: input.fileSize || 0,
-      mimeType: input.mimeType || null,
-    };
+    // URL resolution may call external storage; keep it outside the transaction.
     return this.resolveMediaRow(created);
   }
 
