@@ -41,6 +41,12 @@ export interface ControlChange {
   actorId: string | null;
 }
 
+type OpsControlCaller = {
+  sub: string;
+  role: string;
+  activeOrg?: string | null;
+};
+
 @Injectable()
 export class OpsControlService {
   private readonly logger = new Logger(OpsControlService.name);
@@ -51,19 +57,44 @@ export class OpsControlService {
     private readonly alerts: OpsAlertService,
   ) {}
 
+  private withUserActor<T>(caller: OpsControlCaller, operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext({
+      actorKind: 'user',
+      actorId: caller.sub,
+      actorRole: caller.role,
+      activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
+    }, operation);
+  }
+
+  private withWorkerActor<T>(operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext({ actorKind: 'worker', workerId: 'p13-ops-control' }, operation);
+  }
+
+  private withAuditActor<T>(caller: OpsControlCaller, operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext({
+      actorKind: 'audit',
+      actorId: caller.sub,
+      actorRole: caller.role,
+      activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
+    }, operation);
+  }
+
   /**
    * Absence of a row means not paused. A DB failure is NOT swallowed here: the
    * worker treats a thrown error as a failed cycle and skips the work, which is
    * the fail-closed direction for a kill switch.
    */
   async isPaused(controlKey: string = P13_PAUSE_CONTROL_KEY): Promise<boolean> {
-    const row = firstRow<{ paused: boolean }>(await this.db.db.execute(sql`
-      SELECT paused FROM ops_controls WHERE control_key = ${controlKey}
-    `));
-    return row?.paused === true;
+    return this.withWorkerActor(async () => {
+      const row = firstRow<{ paused: boolean }>(await this.db.db.execute(sql`
+        SELECT paused FROM ops_controls WHERE control_key = ${controlKey}
+      `));
+      return row?.paused === true;
+    });
   }
 
-  async state(controlKey: string = P13_PAUSE_CONTROL_KEY): Promise<ControlState> {
+  async state(controlKey: string, caller: OpsControlCaller): Promise<ControlState> {
+    return this.withUserActor(caller, async () => {
     const row = firstRow<{
       control_key: string;
       paused: boolean;
@@ -86,6 +117,7 @@ export class OpsControlService {
       updatedBy: row.updated_by,
       updatedAt: toDate(row.updated_at),
     };
+    });
   }
 
   /**
@@ -96,7 +128,7 @@ export class OpsControlService {
   async setPaused(input: {
     paused: boolean;
     reason?: string | null;
-    actorId?: string | null;
+    caller: OpsControlCaller;
     controlKey?: string;
   }): Promise<ControlState> {
     const controlKey = input.controlKey ?? P13_PAUSE_CONTROL_KEY;
@@ -106,15 +138,15 @@ export class OpsControlService {
       throw new Error('Pausing P13 background processing requires a reason');
     }
 
-    // One transaction: control row + its append-only audit row.
-    await this.db.db.transaction(async (tx) => {
+    // One caller-bound transaction: control row + append-only audit row.
+    await this.withUserActor(input.caller, () => this.db.db.transaction(async (tx) => {
       await tx.execute(sql`
         INSERT INTO ops_controls (control_key, paused, reason, updated_by, updated_at)
-        VALUES (${controlKey}, ${input.paused}, ${reason}, ${input.actorId ?? null}, now())
+        VALUES (${controlKey}, ${input.paused}, ${reason}, ${input.caller.sub}, now())
         ON CONFLICT (control_key) DO UPDATE
         SET paused = ${input.paused},
             reason = ${reason},
-            updated_by = ${input.actorId ?? null},
+            updated_by = ${input.caller.sub},
             updated_at = now()
       `);
 
@@ -122,21 +154,21 @@ export class OpsControlService {
         controlKey,
         paused: input.paused,
         reason,
-        actorId: input.actorId ?? null,
-        actorKind: input.actorId ? 'ADMIN' : 'SYSTEM',
+        actorId: input.caller.sub,
+        actorKind: 'ADMIN',
         changedAt: new Date(),
       });
-    });
+    }));
 
     // Platform audit trail (best-effort by design; never fails the change).
-    await this.audit.record({
+    await this.withAuditActor(input.caller, () => this.audit.record({
       actorType: 'ADMIN',
-      actorId: input.actorId ?? null,
+      actorId: input.caller.sub,
       action: input.paused ? 'p13.worker.pause' : 'p13.worker.resume',
       resource: 'ops_control',
       resourceId: null,
       metadata: { controlKey, paused: input.paused, reason },
-    });
+    }));
 
     await this.alerts.raise({
       conditionKey: 'p13.worker.control_changed',
@@ -144,18 +176,19 @@ export class OpsControlService {
       title: input.paused
         ? 'P13 background processing paused'
         : 'P13 background processing resumed',
-      detail: { controlKey, paused: input.paused, reason, actorId: input.actorId ?? null },
+      detail: { controlKey, paused: input.paused, reason, actorId: input.caller.sub },
       resourceType: 'ops_control',
     });
 
     this.logger.warn(
-      `Ops control ${controlKey} -> paused=${input.paused} reason=${reason ?? '-'} actor=${input.actorId ?? 'system'}`,
+      `Ops control ${controlKey} -> paused=${input.paused} reason=${reason ?? '-'} actor=${input.caller.sub}`,
     );
 
-    return this.state(controlKey);
+    return this.state(controlKey, input.caller);
   }
 
-  async history(controlKey: string = P13_PAUSE_CONTROL_KEY, limit = 50): Promise<ControlChange[]> {
+  async history(controlKey: string, limit: number, caller: OpsControlCaller): Promise<ControlChange[]> {
+    return this.withUserActor(caller, async () => {
     const rows = readRows<{
       control_key: string;
       paused: boolean;
@@ -177,5 +210,6 @@ export class OpsControlService {
       actorId: r.actor_id,
       changedAt: toDate(r.changed_at) ?? new Date(0),
     }));
+    });
   }
 }
