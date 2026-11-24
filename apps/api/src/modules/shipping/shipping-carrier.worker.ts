@@ -1183,7 +1183,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           );
         }
 
-        const resolution = await this.webhookRouting.resolveShipmentForCredential(
+        const resolution = await this.withWorkerContext(() => this.webhookRouting.resolveShipmentForCredential(
           credential,
           webhookEvent.providerKey,
           webhookEvent.externalDeliveryId,
@@ -1204,7 +1204,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           { organizationId: credential.orgId },
           resolution.shipment,
           credential.orgId,
-        );
+        ));
 
         await this.withWorkerContext(() => this.db.db
           .update(carrierWebhookEvents)
