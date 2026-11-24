@@ -3,7 +3,7 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest implementation checkpoint:** `bccb8c569d122c7b1479881aa162fb428f264c4e` — adds verified-user actor context to Merchant document registration and organization/store metadata listing, with explicit storage-presign exclusions. Payments DB-only route checkpoint: `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50`.  
+**Latest implementation checkpoint:** `ff8e4aebee01631023fad76eec9a8d98c254108b` — formatting follow-up for Orders cancellation DB-phase actor context (`55910f043360b5e89103fd1ccbe5be6085a14e78`). Merchant document metadata actor-context commit: `bccb8c569d122c7b1479881aa162fb428f264c4e`. Payments DB-only route checkpoint: `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50`.  
 **Latest source implementation commit:** `bccb8c569d122c7b1479881aa162fb428f264c4e`.  
 **Latest documentation checkpoint before this status sync:** `2cff7c0f6604d6918b00efb190abd96d301149e1`.  
 **Latest test-only follow-up:** `c8405a33388731095ef08b64d744a36d7b079cd3` — corrected the Drizzle update-query mock used by the credential actor-context spec.  
@@ -108,3 +108,8 @@ Commit `bccb8c569d122c7b1479881aa162fb428f264c4e` scopes the database-only docum
 ## Live status reconciliation — 24 November 2026
 
 At PR HEAD `2cff7c0f6604d6918b00efb190abd96d301149e1`, PR #138 remained OPEN / DRAFT / UNMERGED to `develop`. GitHub Actions workflow-run lookup returned zero runs. Combined statuses: Vercel Web SUCCESS; Vercel Admin FAILURE with the external provider build-rate-limit URL. These preview statuses are not application-test evidence. The latest implementation commit is `bccb8c569d122c7b1479881aa162fb428f264c4e`; the `2cff7c0` commit is documentation-only. Tests and all quality gates remain deferred.
+
+
+## Orders cancellation actor-context continuation — 24 November 2026
+
+The dedicated cancelOrder database phases use a verified-user actor context. Payment cancellation is a DB-only status/event/outbox operation. The actor transaction commits before realtime emission; master-order recalculation and final read use a second context. Source commits: `55910f043360b5e89103fd1ccbe5be6085a14e78` and formatting follow-up `ff8e4aebee01631023fad76eec9a8d98c254108b`. Merchant rejection remains excluded because it invokes refund orchestration; checkout remains excluded pending full side-effect separation. Regression spec added, not executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

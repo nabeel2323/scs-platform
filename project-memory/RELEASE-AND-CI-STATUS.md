@@ -3,7 +3,7 @@
 **Live reconciliation:** 24 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — OPEN / DRAFT / UNMERGED.  
 **Branch:** `remediation/phase-0-1-tenant-security`.  
-**Latest implementation checkpoint:** `bccb8c569d122c7b1479881aa162fb428f264c4e`; latest documentation checkpoint before this status sync `2cff7c0f6604d6918b00efb190abd96d301149e1`.  
+**Latest implementation checkpoint:** `ff8e4aebee01631023fad76eec9a8d98c254108b` (Orders cancellation actor-context formatting follow-up); latest documentation checkpoint before this status sync `2cff7c0f6604d6918b00efb190abd96d301149e1`.  
 **Exact-head GitHub Actions:** zero workflow runs; source commits use `[skip ci]`.  
 **Last exact-head check before this documentation sync:** on `a18c705616c5b698219377e5f7119a4fcc50a8c0`, GitHub Actions returned zero workflow runs; Vercel Web was PENDING and Vercel Admin was FAILURE. These are preview statuses, not application-test evidence.
 
@@ -61,3 +61,8 @@ Commit `bccb8c569d122c7b1479881aa162fb428f264c4e` scopes only document registrat
 ## Live exact-head status — 24 November 2026
 
 At PR HEAD `2cff7c0f6604d6918b00efb190abd96d301149e1`, PR #138 remained OPEN / DRAFT / UNMERGED to `develop`. Exact-head GitHub Actions lookup returned zero workflow runs. Combined statuses: Vercel Web SUCCESS and Vercel Admin FAILURE with the external build-rate-limit URL. These are preview statuses only. Latest source implementation is `bccb8c569d122c7b1479881aa162fb428f264c4e`; no tests, formatter, lint, typecheck, E6 or CI were run during this implementation phase.
+
+
+## Orders cancellation actor-context source update — 24 November 2026
+
+Source commit `55910f043360b5e89103fd1ccbe5be6085a14e78`; formatting follow-up `ff8e4aebee01631023fad76eec9a8d98c254108b`. The DB-only cancellation phases use a verified-user actor context; realtime emission occurs after commit and post-commit recalculation/read use a second short context. Merchant rejection/refund and checkout remain excluded. Tests were added but not executed. Exact-head Actions lookup returned zero workflow runs; Vercel Web/Admin both reported the external build-rate-limit failure. No application test evidence is claimed.

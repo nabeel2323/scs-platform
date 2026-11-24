@@ -983,3 +983,8 @@ Explicitly excluded: bank-transfer proof upload (object storage), refund request
 ## Live GitHub reconciliation — 24 November 2026, 09:45 UTC
 
 The live PR #138 HEAD at this checkpoint is `2cff7c0f6604d6918b00efb190abd96d301149e1` on `remediation/phase-0-1-tenant-security`, OPEN / DRAFT / UNMERGED to `develop`. Exact-head GitHub Actions lookup returned zero workflow runs. Combined statuses show Vercel Web SUCCESS and Vercel Admin FAILURE with the provider build-rate-limit URL; these are preview statuses, not application-test evidence. The latest source implementation is `bccb8c569d122c7b1479881aa162fb428f264c4e`; `2cff7c0` is documentation-only. Query live GitHub again before the next implementation action.
+
+
+## Latest implementation continuation — 24 November 2026
+
+Latest source implementation checkpoint: `ff8e4aebee01631023fad76eec9a8d98c254108b` (formatting follow-up to `55910f043360b5e89103fd1ccbe5be6085a14e78`). The Orders cancellation DB-only phases now use service-level user actor contexts; realtime is emitted only after commit, and master-order recalculation/final read use a second context. Merchant document metadata source commit: `bccb8c569d122c7b1479881aa162fb428f264c4e`. Merchant rejection/refund and checkout remain excluded. Exact-head Actions lookup at this checkpoint returned zero workflow runs; Vercel Web/Admin both reported external build-rate-limit failures. No tests or quality gates were executed. Next: safely separate rejection/refund orchestration and Merchant download-presign metadata/storage phases; complete G-002 ownership/runtime evidence.
