@@ -1040,3 +1040,7 @@ Follow-up review confirmed `ImportValidationService.validateRows` performs datab
 ## 25 November 2026 — Catalog mixed mutation phase update
 
 The mixed Catalog product update/delete actor-context slice is implemented. Keep both handlers outside request-wide TenantDatabaseContextInterceptor; the service owns short DB scopes and keeps Redis cache invalidation outside them. The caller is mandatory and verified from JWT claims. Continue with the remaining Catalog mixed operations and the G-002 source callsite/ownership-predicate audit. Do not begin deferred quality gates until implementation/integration is complete; do not change shared/staging DB state, RLS, grants, migrations or deployment configuration.
+
+## 25 November 2026 — Catalog import mixed-path phase update
+
+Catalog import processing and CSV error-report DB access now use short verified-user actor scopes. Do not add a request-wide interceptor: workbook parsing, object storage and Redis must remain outside DB transactions. Each chunk retains its own transaction and actor scope. No worker is registered or activated. Continue by reviewing the dormant stale-import recovery method and remaining Catalog root-pool DB paths, then complete the broader G-002 operation/ownership and FK evidence. Quality gates remain deferred until implementation/integration is complete.
