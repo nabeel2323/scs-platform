@@ -3,9 +3,10 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commits:** c587ed46db9a4893f2fa0167a74e671bc9d3ae10 (actor-context type-safety corrections), a78503a01f28de440b2ae8d9c3cafd1e754dfd93 (carrier recovery actor-context phases), and 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f (worker lease actor-context phases).  
+**Latest source implementation commits:** a78503a01f28de440b2ae8d9c3cafd1e754dfd93 (carrier recovery actor phases), 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f (worker lease actor phases), and 5de17d1880aa645a2efeccaf98eba959c6da7c8e (worker lease test-fixture correction).  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base develop.  
-**Latest exact branch/PR head before this documentation sync:** 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f. Actions run #1478 (45386103613) was IN_PROGRESS on this exact SHA; run #1477 on the preceding carrier-recovery commit was automatically CANCELLED by the newer push. Run #1476 on c587ed46db9a4893f2fa0167a74e671bc9d3ae10 completed FAILURE because the changed-file formatting gate failed; its 9 lint/typecheck tasks succeeded and Mobile Flutter Tests succeeded.  
+**Latest exact branch/PR head:** 5de17d1880aa645a2efeccaf98eba959c6da7c8e. Exact-head Actions lookup: zero workflow runs. Vercel Web and Admin contexts both FAILURE due to external deployment rate limiting; these are preview-provider statuses, not application test outcomes.  
+**Recent automatic runs:** #1476 failed the changed-file formatting gate after all 9 lint/typecheck tasks and Mobile Flutter Tests succeeded. #1477 was automatically cancelled by a newer push. #1478 failed API typecheck due only to an outdated worker-lease unit-fixture variable reference; that fixture was corrected in 5de17d1 and has not been re-run.  
 **Standing user instruction:** implementation and cross-component integration first; do not intentionally run tests or trigger CI during implementation. Keep PR #138 draft/open/unmerged.
 
 ## Latest implementation checkpoint
@@ -30,7 +31,7 @@ The source ownership matrix covers all 100 pgTable declarations across 25 module
 
 ## Verification and safety
 
-G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Run #1476: 9 lint/typecheck tasks succeeded, Mobile Flutter Tests succeeded, but the changed-file format check failed; the overall job and workflow failed. Run #1477 was automatically cancelled after a newer push. Run #1478 was IN_PROGRESS on the exact head 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f at the latest lookup; its final outcome must be checked before claiming anything. Unit/integration/E6/build/release gates remain unverified/skipped unless a later run proves otherwise. No local tests, formatter, lint or typecheck were run by this session.
+G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Run #1476: 9 lint/typecheck tasks succeeded, Mobile Flutter Tests succeeded, but the changed-file format check failed; the overall job and workflow failed. Run #1477 was automatically cancelled after a newer push. Run #1478 failed API typecheck on the previous source head because the worker-lease unit test still referenced an undeclared withActorContext variable; commit 5de17d1 fixes the fixture. No re-run was requested. Exact-head Actions lookup for 5de17d1 returned zero runs. Unit/integration/E6/build/release gates remain unverified/skipped unless a later run proves otherwise. No local tests, formatter, lint or typecheck were run by this session.
 
 No shared database mutation, migration, grant/default-ACL change, RLS enablement, protected staging action, deployment, worker activation, merge or release occurred.
 

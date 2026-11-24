@@ -802,3 +802,9 @@ The latest source commit `c587ed46db9a4893f2fa0167a74e671bc9d3ae10` fixes the co
 Carrier recovery claims and durable transitions now use worker actor contexts; carrier provider calls remain outside transactions. Admin recovery database phases and recovery-queue reads use the verified admin actor, while audit writes use a separate audit principal. Worker lease operations use a worker principal and manual force-expire uses a system principal. Regression specs were updated but not executed.
 
 Next implementation priorities: CatalogImportService/ExcelExecutor database phases versus storage/workbook I/O; then P13Monitor, OpsAlert, OpsControl and PilotControl operator/system principal separation.
+
+## 24 November 2026 — latest automatic CI result and fixture correction
+
+Run #1478 (45386103613) on source commit 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f completed FAILURE. API lint succeeded; API typecheck reported only three diagnostics in worker-lease-expiry-fencing.spec.ts: withActorContext was not bound in the third test, and its callback context parameter was consequently implicit any. Mobile Flutter Tests succeeded. Format check and all downstream unit/coverage, integration, E6, build, contract, k6, container and staging jobs were skipped. Source fixture correction commit 5de17d1880aa645a2efeccaf98eba959c6da7c8e binds the helper in that test. It contains [skip ci]; no rerun is requested, so the correction is not yet typecheck-verified.
+
+Exact current head 5de17d1880aa645a2efeccaf98eba959c6da7c8e has zero GitHub Actions runs. Vercel Web/Admin contexts are FAILURE because the preview provider rate-limited deployments. PR #138 remains OPEN / DRAFT / UNMERGED.
