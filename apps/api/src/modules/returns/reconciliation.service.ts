@@ -36,6 +36,7 @@ import { returnRequests, returnRequestItems, returnRequestEvents } from './retur
 import { refunds, settlementRecords } from '../payments/payments.schema';
 import { orders, orderFinancialBreakdown } from '../orders/orders.schema';
 import { stores } from '../merchant/merchant.schema';
+import { organizations } from '../identity/identity.schema';
 import { roundProportionalMinorUnits } from './returns-financials';
 import { eq, and, sql, gte, lte, inArray, isNull } from 'drizzle-orm';
 import crypto from 'node:crypto';
@@ -182,6 +183,13 @@ export class ReconciliationService {
     const startDate = new Date(periodStart + 'T00:00:00.000Z');
     const endDate = new Date(periodEnd + 'T23:59:59.999Z');
     const tenantId = orgId ?? null;
+    if (tenantId) {
+      const organization = await this.db.db.query.organizations.findFirst({
+        where: eq(organizations.id, tenantId),
+        columns: { id: true },
+      });
+      if (!organization) throw new NotFoundException('Reconciliation organization not found');
+    }
     const lockKey = `reconciliation:${tenantId ?? 'global'}:${periodStart}:${periodEnd}:${currency}`;
     let failedRunId: string | null = null;
 
@@ -948,12 +956,14 @@ export class ReconciliationService {
     });
     if (!run) throw new NotFoundException('Reconciliation run not found');
 
-    const discConditions: any[] = [eq(reconciliationDiscrepancies.runId, runId)];
-    if (orgId) discConditions.push(eq(reconciliationDiscrepancies.orgId, orgId));
-
     const discrepancies = await this.db.db.query.reconciliationDiscrepancies.findMany({
-      where: and(...discConditions),
+      where: eq(reconciliationDiscrepancies.runId, runId),
     });
+    // run_id is an FK, but org_id is an independent denormalized scope field.
+    // Never silently omit a mismatched child row or return it to a caller.
+    if (discrepancies.some((discrepancy) => discrepancy.orgId !== run.orgId)) {
+      throw new ConflictException('Reconciliation discrepancy organization does not match its parent run');
+    }
 
     return { ...run, discrepancies };
   }
@@ -986,6 +996,14 @@ export class ReconciliationService {
       where: and(...conditions),
     });
     if (!disc) throw new NotFoundException('Discrepancy not found');
+
+    const parentRun = await this.db.db.query.reconciliationRuns.findFirst({
+      where: eq(reconciliationRuns.id, disc.runId),
+      columns: { id: true, orgId: true },
+    });
+    if (!parentRun || parentRun.orgId !== disc.orgId || (orgId && parentRun.orgId !== orgId)) {
+      throw new NotFoundException('Discrepancy not found');
+    }
 
     const updateConditions: any[] = [eq(reconciliationDiscrepancies.id, discrepancyId)];
     if (orgId) {
