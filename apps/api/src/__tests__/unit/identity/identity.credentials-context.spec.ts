@@ -33,7 +33,7 @@ function createHarness(user: Record<string, unknown>, userReads: unknown[] = [us
     return {
       set: vi.fn((values: unknown) => {
         call.values = values;
-        return { where: vi.fn().mockResolvedValue(terminal) };
+        return { where: vi.fn().mockReturnValue(terminal) };
       }),
     };
   });
