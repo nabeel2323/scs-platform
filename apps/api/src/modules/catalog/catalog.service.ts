@@ -1595,6 +1595,9 @@ export class CatalogService {
   ) {
     const product = await this.withUserActorContext(actor, () => this.getProduct(id));
     const currentStatus = product['status'] as string;
+    const storePredicate = product['storeId']
+      ? eq(products.storeId, product['storeId'] as string)
+      : isNull(products.storeId);
 
     // ── P11 Edit Governance ──
     if (currentStatus === 'SUBMITTED' || currentStatus === 'UNDER_REVIEW') {
@@ -1703,12 +1706,12 @@ export class CatalogService {
             const [updated] = await tx
               .update(products)
               .set(updates)
-              .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
+              .where(and(eq(products.id, id), storePredicate, isNull(products.deletedAt), eq(products.updatedAt, clientDate)))
               .returning();
 
             if (!updated) {
               const current = await tx.query.products.findFirst({
-                where: eq(products.id, id),
+                where: and(eq(products.id, id), storePredicate, isNull(products.deletedAt)),
                 columns: { id: true, updatedAt: true },
               });
               throw new ConflictException({
@@ -1738,7 +1741,7 @@ export class CatalogService {
         await this.db.db
           .update(products)
           .set(updates)
-          .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
+          .where(and(eq(products.id, id), storePredicate, isNull(products.deletedAt), eq(products.updatedAt, clientDate)))
           .returning(),
       );
 
@@ -1782,7 +1785,7 @@ export class CatalogService {
     if (needsReReview) {
       await this.withUserActorContext(actor, async () => {
         await this.db.db.transaction(async (tx) => {
-          await tx.update(products).set(updates).where(eq(products.id, id));
+          await tx.update(products).set(updates).where(and(eq(products.id, id), storePredicate, isNull(products.deletedAt)));
           await this.governance.triggerReReviewIfNeeded(
             tx,
             id,
@@ -1799,7 +1802,7 @@ export class CatalogService {
     }
 
     await this.withUserActorContext(actor, async () => {
-      await this.db.db.update(products).set(updates).where(eq(products.id, id));
+      await this.db.db.update(products).set(updates).where(and(eq(products.id, id), storePredicate, isNull(products.deletedAt)));
     });
     await this.invalidateProductCache(id);
     await this.audit.record({
@@ -1842,13 +1845,16 @@ export class CatalogService {
     product: Record<string, unknown>,
     actor: CatalogUserActor,
   ) {
+    const storePredicate = product['storeId']
+      ? eq(products.storeId, product['storeId'] as string)
+      : isNull(products.storeId);
     try {
       await this.withUserActorContext(actor, async () => {
         await this.db.db.transaction(async (tx) => {
           const [locked] = await tx
             .select({ id: products.id })
             .from(products)
-            .where(eq(products.id, id))
+            .where(and(eq(products.id, id), storePredicate, isNull(products.deletedAt)))
             .for('update')
             .limit(1);
           if (!locked) throw new NotFoundException('Product not found');
@@ -1877,11 +1883,11 @@ export class CatalogService {
             const [updated] = await tx
               .update(products)
               .set(updates)
-              .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
+              .where(and(eq(products.id, id), storePredicate, isNull(products.deletedAt), eq(products.updatedAt, clientDate)))
               .returning();
             if (!updated) {
               const current = await tx.query.products.findFirst({
-                where: eq(products.id, id),
+                where: and(eq(products.id, id), storePredicate, isNull(products.deletedAt)),
                 columns: { id: true, updatedAt: true },
               });
               throw new ConflictException({
@@ -1891,7 +1897,7 @@ export class CatalogService {
               });
             }
           } else {
-            await tx.update(products).set(updates).where(eq(products.id, id));
+            await tx.update(products).set(updates).where(and(eq(products.id, id), storePredicate, isNull(products.deletedAt)));
           }
         });
       });
@@ -1938,14 +1944,19 @@ export class CatalogService {
   async deleteProduct(id: string, actor: CatalogUserActor) {
     const product = await this.withUserActorContext(actor, async () => {
       const current = await this.getProduct(id);
-      await this.db.db
+      const storePredicate = current['storeId']
+        ? eq(products.storeId, current['storeId'] as string)
+        : isNull(products.storeId);
+      const [deleted] = await this.db.db
         .update(products)
         .set({
           deletedAt: new Date(),
           isAvailable: false,
           updatedAt: new Date(),
         })
-        .where(eq(products.id, id));
+        .where(and(eq(products.id, id), storePredicate, isNull(products.deletedAt)))
+        .returning({ id: products.id });
+      if (!deleted) throw new ConflictException('Product changed while deletion was in progress');
       return current;
     });
 
@@ -2082,17 +2093,17 @@ export class CatalogService {
       await this.db.db
         .update(products)
         .set({ deletedAt: now, isAvailable: false, updatedAt: now })
-        .where(inArray(products.id, validIds));
+        .where(and(eq(products.storeId, storeId), inArray(products.id, validIds), isNull(products.deletedAt)));
     } else if (action === 'archive') {
       await this.db.db
         .update(products)
         .set({ status: 'ARCHIVED', updatedAt: now })
-        .where(inArray(products.id, validIds));
+        .where(and(eq(products.storeId, storeId), inArray(products.id, validIds), isNull(products.deletedAt)));
     } else {
       await this.db.db
         .update(products)
         .set({ status: 'DRAFT', updatedAt: now })
-        .where(inArray(products.id, validIds));
+        .where(and(eq(products.storeId, storeId), inArray(products.id, validIds), isNull(products.deletedAt)));
     }
 
     return { affected: validIds.length };
@@ -2870,10 +2881,12 @@ export class CatalogService {
   async removeMedia(productId: string, mediaId: string) {
     await this.getProduct(productId);
     const item = await this.db.db.query.productMedia.findFirst({
-      where: eq(productMedia.id, mediaId),
+      where: and(eq(productMedia.id, mediaId), eq(productMedia.productId, productId)),
     });
     if (!item || item.productId !== productId) throw new NotFoundException('Media not found');
-    await this.db.db.delete(productMedia).where(eq(productMedia.id, mediaId));
+    await this.db.db
+      .delete(productMedia)
+      .where(and(eq(productMedia.id, mediaId), eq(productMedia.productId, productId)));
     return { success: true };
   }
 
