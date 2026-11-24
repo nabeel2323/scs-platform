@@ -269,12 +269,9 @@ describe('SearchService — cached facet actor boundary (G-002)', () => {
         activeActor = null;
       }
     });
-    const findMany = vi.fn(async () => {
-      expect(activeActor).toMatchObject({ actorKind: 'user', actorId: actor.sub });
-      return [];
-    });
-    const redisGet = vi.fn(async () => {
+    const redisGet = vi.fn(async (key: string) => {
       expect(activeActor).toBeNull();
+      expect(key).toBe('search:facets:v2:all');
       return null;
     });
     const redisSet = vi.fn(async () => {
@@ -285,21 +282,74 @@ describe('SearchService — cached facet actor boundary (G-002)', () => {
         return activeActor;
       },
       withActorContext,
-      db: { query: { productTypes: { findMany } } },
+      db: {},
     };
     const svc = new SearchService(
       db as any,
       { createPresignedGetUrl: async () => null } as any,
       { client: { get: redisGet, set: redisSet } } as any,
     );
+    const getFacets = vi.spyOn(svc, 'getFacets').mockImplementation(async () => {
+      expect(activeActor).toMatchObject({ actorKind: 'user', actorId: actor.sub });
+      return [];
+    });
 
     const result = await svc.getFacetsCached(undefined, actor);
 
     expect(result).toEqual([]);
     expect(withActorContext).toHaveBeenCalledOnce();
-    expect(findMany).toHaveBeenCalledOnce();
+    expect(getFacets).toHaveBeenCalledOnce();
     expect(redisGet).toHaveBeenCalledOnce();
     expect(redisSet).toHaveBeenCalledOnce();
+  });
+
+  it('restricts facet taxonomy and values to active platform categories and published products', async () => {
+    const whereConditions: unknown[] = [];
+    let selectCount = 0;
+    const select = vi.fn(() => {
+      const index = selectCount++;
+      const builder: any = {
+        from: vi.fn(() => builder),
+        leftJoin: vi.fn(() => builder),
+        innerJoin: vi.fn(() => builder),
+        where: vi.fn((condition: unknown) => {
+          whereConditions.push(condition);
+          if (index === 0) return [{ id: 'type-1' }];
+          if (index === 1) return [{ code: 'ram_gb', name: 'RAM', type: 'INTEGER' }];
+          return builder;
+        }),
+        groupBy: vi.fn(() => builder),
+        orderBy: vi.fn(() => builder),
+        limit: vi.fn(async () => [{ val: '16', cnt: 2 }]),
+      };
+      return builder;
+    });
+    const attributeDefinitionsFindMany = vi.fn().mockResolvedValue([
+      { id: 'attribute-ram', code: 'ram_gb' },
+    ]);
+    const svc = new SearchService(
+      { db: { select, query: { attributeDefinitions: { findMany: attributeDefinitionsFindMany } } } } as any,
+      {} as any,
+      {} as any,
+    );
+
+    const result = await svc.getFacets('platform-category');
+
+    expect(result).toEqual([
+      { code: 'ram_gb', label: 'RAM', type: 'INTEGER', values: [{ value: '16', count: 2 }] },
+    ]);
+    expect(selectCount).toBe(3);
+
+    const taxonomyWhere = new PgDialect().sqlToQuery(whereConditions[0] as any);
+    expect(taxonomyWhere.sql.toLowerCase()).toContain('categories.store_id is null');
+    expect(taxonomyWhere.sql.toLowerCase()).toContain('categories.is_active');
+    expect(taxonomyWhere.params).toContain('platform-category');
+
+    const valuesWhere = new PgDialect().sqlToQuery(whereConditions[2] as any);
+    expect(valuesWhere.params).toContain('attribute-ram');
+    expect(valuesWhere.params).toContain('ACTIVE');
+    expect(valuesWhere.sql.toLowerCase()).toContain('products.deleted_at is null');
+    expect(valuesWhere.sql.toLowerCase()).toContain('products.product_type_id in');
   });
 
   it('rejects cached facet reads without a verified user actor', async () => {
