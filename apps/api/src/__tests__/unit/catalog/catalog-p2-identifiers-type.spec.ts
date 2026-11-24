@@ -554,7 +554,7 @@ describe('P2 — Optimistic locking with identifiers', () => {
     const product = { id: 'p1', gtin: null, ean: null, mpn: null, productTypeId: null, updatedAt: LATER, status: 'DRAFT', storeId: 's1' };
     const mockDb = makeMockDb({
       product,
-      productsFindFirstSequence: [product, null],
+      productsFindFirstSequence: [product, product],
       updateReturning: [], // 0 rows → conflict
     });
     const svc = makeService(mockDb);
