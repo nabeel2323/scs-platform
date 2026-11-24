@@ -9,6 +9,7 @@ import {
   Query,
   Body,
   UseGuards,
+  UseInterceptors,
   HttpCode,
   ParseUUIDPipe,
 } from '@nestjs/common';
@@ -27,6 +28,7 @@ import {
 } from '../catalog/catalog.service';
 import { AttributeValueInput } from '../catalog/catalog.taxonomy.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import {
   CurrentUser,
@@ -55,30 +57,35 @@ export class AdminController {
 
   @Get('orders')
   @RequirePermission('admin:orders:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listOrders(@Query() query: AdminListInput) {
     return this.adminService.listOrders(query);
   }
 
   @Get('orders/:id')
   @RequirePermission('admin:orders:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getOrderDetail(@Param('id') id: string) {
     return this.adminService.getOrderDetail(id);
   }
 
   @Get('merchants')
   @RequirePermission('admin:merchants:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listMerchants(@Query() query: AdminListInput) {
     return this.adminService.listMerchants(query);
   }
 
   @Get('merchants/:id')
   @RequirePermission('admin:merchants:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getMerchantDetail(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.getMerchantDetail(id);
   }
 
   @Get('kpis')
   @RequirePermission('admin:kpis:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getKpis(@Query('from') from?: string, @Query('to') to?: string) {
     return this.adminService.getKpis(from, to);
   }
@@ -90,6 +97,7 @@ export class AdminController {
    */
   @Get('offers/kpis')
   @RequirePermission('admin:kpis:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getOfferRevenueKpis(
     @Query('from') from?: string,
     @Query('to') to?: string,
@@ -114,6 +122,7 @@ export class AdminController {
    */
   @Get('offers/trend')
   @RequirePermission('admin:kpis:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getOfferTrend(
     @Query('from') from?: string,
     @Query('to') to?: string,
@@ -138,6 +147,7 @@ export class AdminController {
 
   @Get('audit-logs')
   @RequirePermission('admin:audit:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getAuditLogs(@Query() query: AdminListInput) {
     return this.adminService.getAuditLogs(query);
   }
@@ -146,42 +156,49 @@ export class AdminController {
 
   @Get('verifications')
   @RequirePermission('admin:merchants:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listVerifications(@Query() query: AdminListInput) {
     return this.adminService.listVerifications(query);
   }
 
   @Get('verification-queue')
   @RequirePermission('merchant:verification:review')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async verificationQueue(@Query() query: AdminListInput) {
     return this.adminService.listVerifications(query);
   }
 
   @Get('categories')
   @RequirePermission('catalog:categories:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listCategories(@Query() query: AdminListInput) {
     return this.adminService.listCategories(query);
   }
 
   @Get('brands')
   @RequirePermission('catalog:brands:manage')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listBrands(@Query() query: AdminListInput) {
     return this.adminService.listBrands(query);
   }
 
   @Get('offers')
   @RequirePermission('catalog:offers:govern')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listOffers(@Query() query: AdminListInput) {
     return this.adminService.listOffers(query);
   }
 
   @Get('disputes')
   @RequirePermission('support:disputes:resolve')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listDisputes(@Query() query: AdminListInput) {
     return this.adminService.listDisputes(query);
   }
 
   @Get('disputes/:id')
   @RequirePermission('support:disputes:resolve')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getDispute(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.getDisputeDetail(id);
   }
@@ -190,12 +207,14 @@ export class AdminController {
 
   @Get('users')
   @RequirePermission('admin:users:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listUsers(@Query() query: AdminListInput, @CurrentUser() user: JwtPayload) {
     return this.adminService.listUsers(query, user.sub);
   }
 
   @Get('users/:id')
   @RequirePermission('admin:users:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getUserDetail(@Param('id') id: string) {
     return this.adminService.getUserDetail(id);
   }
@@ -248,12 +267,14 @@ export class AdminController {
 
   @Get('permissions')
   @RequirePermission('admin:users:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getPermissionCatalog() {
     return this.adminService.getPermissionCatalog();
   }
 
   @Get('roles/:id')
   @RequirePermission('admin:users:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getRoleDetail(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.getRoleDetail(id);
   }
@@ -270,18 +291,21 @@ export class AdminController {
 
   @Get('roles')
   @RequirePermission('admin:users:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listRoles() {
     return this.adminService.listRoles();
   }
 
   @Get('organizations')
   @RequirePermission('admin:users:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listOrganizations() {
     return this.adminService.listOrganizations();
   }
 
   @Get('organizations/:id')
   @RequirePermission('admin:users:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getOrganizationDetail(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.getOrganizationDetail(id);
   }
@@ -299,6 +323,7 @@ export class AdminController {
 
   @Get('org-update-requests')
   @RequirePermission('admin:users:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listOrgUpdateRequests(@Query('status') status?: string) {
     return this.adminService.listOrgUpdateRequests(status);
   }
@@ -317,6 +342,7 @@ export class AdminController {
 
   @Get('products')
   @RequirePermission('admin:merchants:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listProductsModeration(@Query() query: AdminListInput) {
     return this.adminService.listProductsModeration(query);
   }
@@ -347,6 +373,7 @@ export class AdminController {
 
   @Get('products/:id/attribute-values')
   @RequirePermission('catalog:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async adminGetProductAttributeValues(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.adminGetProductAttributeValues(id);
   }
@@ -383,6 +410,7 @@ export class AdminController {
    */
   @Get('products/moderation-queue')
   @RequirePermission('admin:merchants:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getModerationQueue(
     @Query('status') status?: string,
     @Query('categoryId') categoryId?: string,
@@ -444,6 +472,7 @@ export class AdminController {
    */
   @Get('products/:id/moderation-history')
   @RequirePermission('admin:merchants:read')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getAdminModerationHistory(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.getAdminModerationHistory(id);
   }
@@ -457,6 +486,7 @@ export class AdminController {
    */
   @Get('variants/:id')
   @RequirePermission('catalog:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async adminGetVariant(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminService.adminGetVariant(id);
   }
@@ -498,6 +528,7 @@ export class AdminController {
    */
   @Get('products/:productId/variants/:variantId/attribute-values')
   @RequirePermission('catalog:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async adminGetVariantAttributeValues(
     @Param('productId', ParseUUIDPipe) productId: string,
     @Param('variantId', ParseUUIDPipe) variantId: string,
