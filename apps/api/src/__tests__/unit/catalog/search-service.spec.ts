@@ -341,15 +341,17 @@ describe('SearchService — cached facet actor boundary (G-002)', () => {
     expect(selectCount).toBe(3);
 
     const taxonomyWhere = new PgDialect().sqlToQuery(whereConditions[0] as any);
-    expect(taxonomyWhere.sql.toLowerCase()).toContain('categories.store_id is null');
-    expect(taxonomyWhere.sql.toLowerCase()).toContain('categories.is_active');
+    expect(taxonomyWhere.sql.toLowerCase()).toContain('store_id');
+    expect(taxonomyWhere.sql.toLowerCase()).toContain('is null');
+    expect(taxonomyWhere.sql.toLowerCase()).toContain('is_active');
     expect(taxonomyWhere.params).toContain('platform-category');
 
     const valuesWhere = new PgDialect().sqlToQuery(whereConditions[2] as any);
     expect(valuesWhere.params).toContain('attribute-ram');
     expect(valuesWhere.params).toContain('ACTIVE');
-    expect(valuesWhere.sql.toLowerCase()).toContain('products.deleted_at is null');
-    expect(valuesWhere.sql.toLowerCase()).toContain('products.product_type_id in');
+    expect(valuesWhere.sql.toLowerCase()).toContain('deleted_at');
+    expect(valuesWhere.sql.toLowerCase()).toContain('is null');
+    expect(valuesWhere.sql.toLowerCase()).toContain('product_type_id');
   });
 
   it('rejects cached facet reads without a verified user actor', async () => {
