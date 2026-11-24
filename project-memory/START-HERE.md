@@ -79,7 +79,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation immediately before this handoff update on 24 November 2026: repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, PR #138 head `f0bbe5c95aaf70ac57a3b67f31a3c5257ab91fb7`. PR #138 is OPEN / DRAFT / UNMERGED and targets `develop`. This START-HERE synchronization itself will become the next documentation commit; always re-query the live branch head before the next session.
+Live GitHub reconciliation immediately before this handoff update on 24 November 2026: repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, PR #138 head `18156904f6ad218109966d3adede6bdd3b0a46be`. PR #138 is OPEN / DRAFT / UNMERGED and targets `develop`. This START-HERE synchronization itself will become the next documentation commit; always re-query the live branch head before the next session.
 
 Latest source implementation checkpoint: `efa6349651b7f2b5083475e4bdaa9104ee3402cc`. Latest regression-source checkpoint: `5ab4c9358191f184d2e5917741e08263777ac72d`. Recent source commits add driver eligibility validation to the existing Orders shipment-assignment path; related test and documentation checkpoints are recorded in CURRENT-STATE, WORK-LOG, OPEN-ISSUES and the G-002 migration FK crosswalk.
 
@@ -93,7 +93,7 @@ Latest source implementation checkpoint: `efa6349651b7f2b5083475e4bdaa9104ee3402
 
 ### Exact-head CI/status at the last live check
 
-On `f0bbe5c95aaf70ac57a3b67f31a3c5257ab91fb7`, GitHub Actions returned **zero workflow runs** and combined commit status returned **zero status contexts**. Earlier automatic CI #1503 failed on an older source checkpoint and does not verify the current changes. Vercel Web/Admin build-rate-limit failures were observed on the earlier `5ab4c935` code/test head; those external preview statuses are not current-head application test results. No tests, formatter, lint, typecheck, E6 or CI were intentionally run during this implementation continuation.
+On `18156904f6ad218109966d3adede6bdd3b0a46be`, GitHub Actions returned **zero workflow runs** and combined commit status returned **zero status contexts**. Earlier automatic CI #1503 failed on an older source checkpoint and does not verify the current changes. Vercel Web/Admin build-rate-limit failures were observed on the earlier `5ab4c935` code/test head; those external preview statuses are not current-head application test results. No tests, formatter, lint, typecheck, E6 or CI were intentionally run during this implementation continuation.
 
 ### Next implementation priorities
 
