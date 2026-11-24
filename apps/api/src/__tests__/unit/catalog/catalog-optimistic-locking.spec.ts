@@ -13,6 +13,10 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+vi.mock('../../../common/tenant-scope', () => ({
+  assertProductEditableByMerchant: vi.fn().mockResolvedValue(undefined),
+  assertProductReadable: vi.fn().mockResolvedValue(undefined),
+}));
 import { CatalogService } from '../../../modules/catalog/catalog.service';
 
 // ── Mock helpers ────────────────────────────────────────────────────────────
@@ -44,6 +48,7 @@ function makeMockDb(opts: {
   });
 
   return {
+    withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
     db: {
       query: {
         products: {
@@ -73,6 +78,8 @@ function makeService(mockDb: any) {
   );
 }
 
+const actor = { sub: 'merchant-test', role: 'MERCHANT_OWNER', activeOrg: 'org-test' };
+
 const NOW = new Date('2026-10-05T10:00:00.000Z');
 const LATER = new Date('2026-10-05T10:01:00.000Z');
 
@@ -95,7 +102,7 @@ describe('updateProduct — optimistic locking', () => {
     // getProduct is called at start and end; mock both
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
-    const result = await svc.updateProduct('p1', { title: 'New' });
+    const result = await svc.updateProduct('p1', { title: 'New' }, actor);
     // Legacy path: no conflict, returns product
     expect(result).toBeDefined();
   });
@@ -109,7 +116,7 @@ describe('updateProduct — optimistic locking', () => {
       .mockResolvedValueOnce(product as any)   // initial getProduct
       .mockResolvedValueOnce(updatedRow as any); // after update
 
-    const result = await svc.updateProduct('p1', { title: 'New' }, NOW.toISOString());
+    const result = await svc.updateProduct('p1', { title: 'New' }, NOW.toISOString(), actor);
     expect(result).toBeDefined();
     expect(mockDb.db.update).toHaveBeenCalled();
   });
@@ -122,7 +129,7 @@ describe('updateProduct — optimistic locking', () => {
 
     const staleTs = NOW.toISOString();
     try {
-      await svc.updateProduct('p1', { title: 'Overwrite' }, staleTs);
+      await svc.updateProduct('p1', { title: 'Overwrite' }, staleTs, actor);
       expect.fail('Should have thrown');
     } catch (err: any) {
       expect(err).toBeInstanceOf(ConflictException);
@@ -139,7 +146,7 @@ describe('updateProduct — optimistic locking', () => {
     vi.spyOn(svc, 'getProduct').mockRejectedValue(new NotFoundException('Product not found'));
 
     await expect(
-      svc.updateProduct('missing', { title: 'X' }, NOW.toISOString()),
+      svc.updateProduct('missing', { title: 'X' }, NOW.toISOString(), actor),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -150,7 +157,7 @@ describe('updateProduct — optimistic locking', () => {
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
     await expect(
-      svc.updateProduct('p1', { title: 'X' }, 'not-a-date'),
+      svc.updateProduct('p1', { title: 'X' }, 'not-a-date', actor),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -161,7 +168,7 @@ describe('updateProduct — optimistic locking', () => {
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
     try {
-      await svc.updateProduct('p1', { title: 'X' }, NOW.toISOString());
+      await svc.updateProduct('p1', { title: 'X' }, NOW.toISOString(), actor);
       expect.fail('Should have thrown');
     } catch (err: any) {
       const body = err.getResponse();
