@@ -1242,3 +1242,8 @@ Commit `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d` adds missing refund order/curr
 ## G-002 — shipment order/store consistency follow-up (24 November 2026)
 
 Commits `b1e5490`, `02edaa8` and `15d328c` now enforce `orders.store_id = shipments.store_id` at shipment creation, shipment detail authorization (including platform-privileged reads), and carrier worker processing before provider/storage effects. Regression cases are documented in the G-002 crosswalk but remain unexecuted. Other carrier/shipment relationships and the driver assignment consumer remain open.
+
+
+## G-002 — shipment read-path completeness follow-up (24 November 2026)
+
+Commit `56d605a7377c49766b990abfc023e6ae4a5cea1d` adds same-store order validation to OrdersService exception/RTS access, order-based shipment lookup and driver shipment listing. Commit `c916acd0a8b156affeda50e98dbc88acab2f39bc` filters malformed shipment/order pairs from shipment list and count queries. Regression cases are documented in the G-002 crosswalk and remain unexecuted. Driver-profile/store-assignment consumers and other carrier/webhook relationships remain open.
