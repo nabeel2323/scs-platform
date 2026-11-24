@@ -394,3 +394,12 @@ No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IN_PROGRE
 - This continuation authored actor-context implementation and regression specs for Catalog product update/delete, import processing/chunk transactions/error report, product detail/media reads, AuditService fallback and dormant stale-import recovery. Documentation was synchronized. No tests, formatter, lint, typecheck, E6 or CI were executed; tests remain pending the consolidated verification campaign.
 - No staging deployment, shared database mutation, RLS/grant/migration change, worker registration/activation, environment/secret change, merge or release occurred. The dormant catalog-import-recovery method remains unregistered and unscheduled.
 - G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. The uploaded staging audit findings (RLS disabled on 111/111 tables, OTP values previously logged in plaintext, worker/startup configuration requiring source/runtime confirmation) remain read-only evidence and are not remediated by this source-only continuation.
+
+## 25 November 2026 — latest Catalog actor-scope continuation
+
+- Branch: remediation/phase-0-1-tenant-security. Exact inspected tip before this status-note commit: 65ef11d50da7d62f80f39a0f7a3431983610ca62.
+- PR #138 is still open and draft/unmerged, targeting develop. Live compare reports 2,566 commits ahead and 0 behind develop; do not merge based on this continuation.
+- Combined status on the inspected tip contains only two Vercel failures: scs-platform-admin and scs-platform-web, both linking to the external Vercel build-rate-limit page. GitHub Actions workflow-run lookup returned no runs for the exact SHA; the continuation commits use [skip ci]. These statuses are not application test failures or passes.
+- Implementation added actor-scoped DB phases for Catalog product update/delete, import processing/chunk transactions/error report, product detail/media reads, dormant stale-import recovery and Redis-backed Search Facets. AuditService standalone writes use the audit principal. Regression tests were authored in the corresponding Catalog/Audit/Search specs.
+- No tests, formatter, lint, typecheck, E6 or CI were executed. All new tests remain unverified. G-002 remains IN_PROGRESS / NOT VERIFIED.
+- No staging deployment, shared database mutation, RLS/grant/migration change, worker registration/activation, environment/secret change, merge or release occurred. catalog-import-recovery remains dormant and unscheduled.
