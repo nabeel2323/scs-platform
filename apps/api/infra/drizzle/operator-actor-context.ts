@@ -1,6 +1,6 @@
-import type { PoolClient } from 'pg';
-
 export type OperatorActorKind = 'system' | 'bootstrap' | 'audit';
+
+type SqlQueryClient = { query: (...args: any[]) => Promise<any> };
 
 /**
  * Set an application operator principal on an already-open transaction.
@@ -8,7 +8,7 @@ export type OperatorActorKind = 'system' | 'bootstrap' | 'audit';
  * end and cannot leak when the PostgreSQL connection is returned to its pool.
  */
 export async function setOperatorActorContext(
-  client: Pick<PoolClient, 'query'>,
+  client: SqlQueryClient,
   actorKind: OperatorActorKind,
   actorId: string,
 ): Promise<void> {

@@ -20,8 +20,9 @@
  *
  * Now every migration runs as one transaction that also inserts its own `_migration_log`
  * row, with `ON_ERROR_STOP=1`. Either the file applies completely and is logged, or it is
- * rolled back and the runner exits non-zero — matching `migrate-pg.ts`, so the two runners
- * finally share one contract.
+ * rolled back and the runner exits non-zero. A transaction-level advisory lock and
+ * in-transaction ledger recheck prevent duplicate application when this local runner
+ * overlaps the API's development bootstrap or another migration process.
  */
 
 import * as fs from 'node:fs';

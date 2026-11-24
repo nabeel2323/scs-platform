@@ -9,6 +9,7 @@
  */
 import * as fs from 'node:fs';
 import { Pool } from 'pg';
+import { setOperatorActorContext } from '../infra/drizzle/operator-actor-context';
 
 type QueryResultRow = Record<string, unknown>;
 
