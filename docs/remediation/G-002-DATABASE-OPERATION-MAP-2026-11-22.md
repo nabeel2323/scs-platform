@@ -498,3 +498,7 @@ Controller coverage review found DB-only Catalog reads protected by method-level
 AdminService is an additional CatalogService caller. The admin product update route now forwards the verified admin actor to CatalogService.updateProduct and is excluded from request-wide TenantDatabaseContextInterceptor so the CatalogService DB phases close before cache/audit side effects. Admin product media previews now load product/media/variant rows in a short user actor scope and generate presigned URLs after commit. Other inspected AdminService Catalog create/variant/typed-attribute operations remain on request-interceptor DB-only paths. The admin organization-update review path already scopes DB work and sends notification after commit.
 
 Admin regression specs cover these mixed route boundaries and actor forwarding; they remain unexecuted. This is source evidence only, not deployed runtime identity proof. G-002 remains IN_PROGRESS / NOT VERIFIED.
+
+## 25 November 2026 — Identity Profile Catalog callsites
+
+ProfileController favorites/saved-supplier operations are now explicit cross-module CatalogService callers with verified actor forwarding. Each service operation uses a user actor scope and enforces the authenticated user ID; favorite product access uses assertProductReadable; supplier visibility is restricted to ACTIVE/VERIFIED stores and a public-safe store projection. The six routes retain TenantDatabaseContextInterceptor. Regression tests are authored but unexecuted.
