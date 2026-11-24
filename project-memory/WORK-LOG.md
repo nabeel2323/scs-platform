@@ -2168,3 +2168,11 @@ Source commits: `b6dd8a7d731604be811301dd7168fc3faffde1b6` and `6e3b5a9716eeac51
 ## Import preview validation DB scope refinement — 24 November 2026
 
 Follow-up review confirmed `ImportValidationService.validateRows` performs database reads (catalog lookup/validation), not just in-memory validation. Its invocation is now inside the same short authenticated actor-context boundary; workbook parsing and Redis reads remain outside. Source commit: `9b6387597e8c02de076613b4f4a540a379362491`. Tests and CI remain deferred and G-002 remains NOT VERIFIED.
+
+## 25 November 2026 — mixed Catalog product mutation actor scopes
+
+Implemented actor-context boundaries for mixed Catalog product update/delete routes. Controller-level assertProductEditableByMerchant reads now execute inside a short user actor transaction, and the verified caller is forwarded to CatalogService. The service requires the caller and scopes product preflight reads, GTIN/EAN uniqueness reads, product-type checks, publish validation, all update branches, product-type-change/re-review transactions, soft-delete reads/writes, outbox publication and final reads. Cache invalidation is deliberately after the DB scope. AuditService standalone writes now use an audit principal; an already-active verified caller/worker context is reused rather than attempting a prohibited actor switch.
+
+Added/updated regression specs for controller interceptor exclusions, CatalogService update/delete and outbox boundaries, and AuditService standalone/reused actor scopes. Tests are authored only; none were executed. No formatter/lint/typecheck/E6/CI. No shared/staging DB access, RLS/grant/migration change, deployment, worker activation, merge or release.
+
+Source commits: 0cd4606db719fdeaab61da5f0bc30767c381c5e9, e9b65ce7ceb2c8b73362c1ffe5db67f96883095b, 8959b67691585f4beaa43d12775a221d5a02927e. Test commits: ce66bf52df655f7e995e1cc91f1dd494e8b50660, d5d81e92b8a69bd243786d8846b7b4d5c7b68737, 0a94b92295b7525e95dffcc6682f61f0842a5656. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
