@@ -1193,3 +1193,18 @@ The latest source correction additionally rejects stale pg_partman migration led
 ## 24 November 2026 — migration FK source scan completion
 
 The 75-file numbered migration scan found 183 explicit REFERENCES clauses across 40 migration files; 35 files had none. The detailed migration/count/parent-table appendix is in `docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md`. This completes the static source-reference inventory, not live catalog verification. Remaining: reconcile with Drizzle declarations and protected staging pg_constraint evidence, then finish cross-column ownership consistency decisions (org/store, carrier config/credential/store, payment/refund/order/settlement, shipping driver/store, reconciliation parent/org). No database query was run.
+
+
+## G-002 — remaining cross-column ownership and evidence gaps (24 November 2026)
+
+**Implemented source hardening:** settlement adjustments now derive organization from the sub-order's store, validate optional return-parent consistency, and validate settlement-payment/order consistency before posting. Commission reversals validate return-payment/order, return-item/order, organization and exact settlement payment/store relationships. See commits `01b6e6c729c1a458f20aaeaed043df4c569119e4` and `fa2547997c4b4dad490b582f92c9a69b8c01ed8f` and the updated migration FK crosswalk.
+
+**Still open:**
+- Driver-profile/store-assignment organization consistency.
+- Reconciliation-run/discrepancy organization inheritance and scope.
+- Remaining carrier/shipment, payment/refund/order/settlement cross-column relationships.
+- Full Drizzle-to-migration FK reconciliation and protected read-only staging `pg_constraint` evidence.
+- Actual API/migration runtime identities, external pg_partman scheduler owner/target, and the 114/116 live relation-count discrepancy.
+- Regression specs and the consolidated verification campaign (deferred until implementation/integration completion).
+
+No live database evidence or policy approval is implied by the source review. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
