@@ -10,7 +10,12 @@ describe('CatalogService.addMedia variant ownership', () => {
     const db = {
       withActorContext: vi.fn((_actor, operation) => operation()),
       db: {
-        query: { productVariants: { findFirst: variantFindFirst } },
+        query: {
+          productVariants: { findFirst: variantFindFirst },
+          products: { findFirst: vi.fn().mockResolvedValue({ storeId: 'store-a' }) },
+          stores: { findFirst: vi.fn().mockResolvedValue({ orgId: 'org-a' }) },
+          storeMembers: { findFirst: vi.fn().mockResolvedValue({ id: 'membership-a' }) },
+        },
         insert,
       },
     };
