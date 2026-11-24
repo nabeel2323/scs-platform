@@ -165,7 +165,7 @@ describe('CatalogService — Saved Suppliers (§21.3)', () => {
       { id: 'ss-1', userId: 'user-1', storeId: 'store-A', createdAt: new Date() },
     ]);
     mocks.selectChain.where.mockResolvedValue([
-      { id: 'store-A', displayName: 'Supplier A', slug: 'supplier-a', logoUrl: 'logo.png' },
+      { id: 'store-A', displayName: 'Supplier A', slug: 'supplier-a', logoUrl: 'logo.png', verificationStatus: 'VERIFIED' },
     ]);
 
     const result = await service.listSavedSuppliers('user-1', actor);
@@ -174,6 +174,7 @@ describe('CatalogService — Saved Suppliers (§21.3)', () => {
       id: 'store-A',
       displayName: 'Supplier A',
       slug: 'supplier-a',
+      verificationStatus: 'VERIFIED',
     });
     expect(result[0]!.store).not.toHaveProperty('orgId');
     expect(result[0]!.store).not.toHaveProperty('address');
