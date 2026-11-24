@@ -546,3 +546,7 @@ P13 correction: inspection of the complete P13MonitorService confirms every dire
 ## 25 November 2026 — dormant import recovery actor scope
 
 CatalogService.recoverStaleJobs now runs its stale-job query and job/chunk state updates under workerId catalog-import-recovery. The method remains dormant: no worker registration, scheduler or activation was added. A regression spec covers its dedicated worker principal. No tests or quality gates were run; G-002 remains IN_PROGRESS / NOT VERIFIED.
+
+## 25 November 2026 — Catalog product detail/media read actor scope
+
+GET /products/:id and GET /products/:productId/media now avoid request-wide actor transactions. Controller authorization reads are wrapped in short verified-user scopes. CatalogService.getProductDetail requires the caller and runs all product/store/media-row/variant/pricing/stock/attribute reads in a short actor scope; Redis cache I/O and storage URL resolution occur after the DB scope closes. listMediaByProduct scopes the media-row read and resolves storage URLs outside. Regression coverage added in catalog-media-read-actor-context.spec.ts and controller metadata tests. Tests remain unexecuted; no quality gates or CI. G-002 remains IN_PROGRESS / NOT VERIFIED.
