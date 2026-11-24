@@ -9,6 +9,7 @@ import { CarrierCredentialsService } from './carrier-credentials.service';
 import { CarrierConfigurationsService } from './carrier-configurations.service';
 import { outboxEvents } from '../audit/audit.schema';
 import { shipments } from '../orders/shipment.schema';
+import { orders } from '../orders/orders.schema';
 import { carrierWebhookEvents, carrierCredentials, shipmentLabels } from './shipping.schema';
 import {
   generateIdempotencyKey,
@@ -301,6 +302,22 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     const store = await this.withWorkerContext(() => this.merchant.getStoreTenantContextForSystem(shipment.storeId));
     if (!store?.orgId) {
       throw new NonRetryableCarrierError('Carrier shipment has no valid owning organization', {
+        providerKey,
+        operation: 'validateTenant',
+      });
+    }
+
+    // The shipment's order and store are separate FKs. Verify they describe
+    // the same merchant before any carrier/provider side effect or webhook retry.
+    const order = await this.withWorkerContext(
+      () => this.db.db.query.orders.findFirst({
+        where: eq(orders.id, shipment.orderId),
+        columns: { storeId: true },
+      }),
+      store.orgId,
+    );
+    if (!order || order.storeId !== shipment.storeId) {
+      throw new NonRetryableCarrierError('Carrier shipment order does not belong to its store', {
         providerKey,
         operation: 'validateTenant',
       });
