@@ -49,7 +49,7 @@ const MIXED_DB_PHASE_MUTATIONS = [
   'getImportErrors',
 ] as const;
 
-describe('CatalogController mixed product mutation boundaries (G-002)', () => {
+describe('CatalogController mixed operation boundaries (G-002)', () => {
   it.each(MIXED_DB_PHASE_MUTATIONS)(
     '%s does not hold a request-wide actor transaction across cache/audit side effects',
     (methodName) => {
