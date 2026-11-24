@@ -134,18 +134,20 @@ export class BootstrapService {
 
   /** Authoritative initialization status. No user data is disclosed. */
   async getStatus(): Promise<StatusResult> {
-    const initialized = await this.isInitialized();
-    const bootstrapAvailable = !initialized && (await this.hasAvailableAuthorization());
-    const ownerEmailConfigured = !!this.ownerEmail;
-    const ownerVerificationRequired = !initialized && ownerEmailConfigured && !bootstrapAvailable;
-    return {
-      initialized,
-      bootstrapAvailable,
-      setupRequired: !initialized,
-      ownerVerificationRequired,
-      ownerEmailConfigured,
-      ownerEmailHint: this.ownerEmail ? maskEmail(this.ownerEmail) : null,
-    };
+    return this.db.withActorContext({ actorKind: 'anonymous' }, async () => {
+      const initialized = await this.isInitialized();
+      const bootstrapAvailable = !initialized && (await this.hasAvailableAuthorization());
+      const ownerEmailConfigured = !!this.ownerEmail;
+      const ownerVerificationRequired = !initialized && ownerEmailConfigured && !bootstrapAvailable;
+      return {
+        initialized,
+        bootstrapAvailable,
+        setupRequired: !initialized,
+        ownerVerificationRequired,
+        ownerEmailConfigured,
+        ownerEmailHint: this.ownerEmail ? maskEmail(this.ownerEmail) : null,
+      };
+    });
   }
 
   /**
@@ -435,17 +437,22 @@ export class BootstrapService {
     const expiresAt = new Date(Date.now() + BOOTSTRAP_AUTHORIZATION_TTL_MS);
     const emailVerifiedAt = new Date();
 
-    await this.db.db.insert(bootstrapAuthorizations).values({
-      id: crypto.randomUUID(),
-      tokenDigest,
-      expiresAt,
-      consumedAt: null,
-      consumed: false,
-      purpose: 'super_admin_bootstrap',
-      createdBy: 'SYSTEM',
-      emailVerifiedAt,
-      createdAt: new Date(),
-    });
+    await this.db.withActorContext(
+      { actorKind: 'bootstrap', actorId: 'bootstrap:owner-otp' },
+      async () => {
+        await this.db.db.insert(bootstrapAuthorizations).values({
+          id: crypto.randomUUID(),
+          tokenDigest,
+          expiresAt,
+          consumedAt: null,
+          consumed: false,
+          purpose: 'super_admin_bootstrap',
+          createdBy: 'SYSTEM',
+          emailVerifiedAt,
+          createdAt: new Date(),
+        });
+      },
+    );
 
     return {
       authorization: authorizationToken,
@@ -471,7 +478,9 @@ export class BootstrapService {
     dto: CreateSuperAdminDto,
     ip?: string,
   ): Promise<{ status: 'initialized'; loginUrl: string }> {
-    return await this.db.db.transaction(async (tx) => {
+    return await this.db.withActorContext(
+      { actorKind: 'bootstrap', actorId: 'bootstrap:initial-super-admin' },
+      () => this.db.db.transaction(async (tx) => {
       // 1. Serialize concurrent initializers (transaction-scoped advisory lock).
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${BOOTSTRAP_ADVISORY_LOCK_KEY})`);
 
@@ -594,7 +603,8 @@ export class BootstrapService {
       });
 
       return { status: 'initialized', loginUrl: '/auth/login' };
-    });
+      }),
+    );
   }
 
   /** Whether an ACTIVE user with an ACTIVE SUPER_ADMIN role membership exists. */
