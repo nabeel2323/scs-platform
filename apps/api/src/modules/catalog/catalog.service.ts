@@ -1755,11 +1755,17 @@ export class CatalogService {
       );
 
       if (!updated) {
-        const current = await this.withUserActorContext(actor, () => this.getProduct(id));
+        const current = await this.withUserActorContext(actor, () =>
+          this.db.db.query.products.findFirst({
+            where: and(eq(products.id, id), storePredicate, isNull(products.deletedAt)),
+            columns: { id: true, updatedAt: true },
+          }),
+        );
+        if (!current) throw new NotFoundException('Product not found');
         throw new ConflictException({
           statusCode: 409,
           message: 'CONFLICT',
-          currentUpdatedAt: current['updatedAt'],
+          currentUpdatedAt: current.updatedAt,
         });
       }
 
