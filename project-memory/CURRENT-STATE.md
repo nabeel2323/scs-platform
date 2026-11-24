@@ -7,7 +7,7 @@
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop`.  
 **Latest source commits:** `9906430459666effbd25f33148c3cdf01b976330`, `9a010db69c668432f2811c68094a367ad5c7684c`, `4d3488d7017439c1e756df4a595873dc9d590455`.  
 **Exact-head Actions:** no run. Latest automatic run #1501 on prior SHA `9a010db69c668432f2811c68094a367ad5c7684c` FAILED: API lint PASS, API typecheck FAIL on nullable caller role; Mobile Flutter analysis/tests PASS; dependent integration/unit/coverage/migration/Web/Admin/build/release jobs SKIPPED. The type error is corrected in `4d3488d`, not re-run.  
-**Exact-head Vercel:** Web/Admin SUCCESS / SKIPPED — NOT AFFECTED.  
+**Latest live Vercel status checked on docs head `977e837`:** Web/Admin FAILURE — “Deployment rate limited — retry in 24 hours.” External preview-provider limit, not application test evidence.  
 **Standing instruction:** implementation/integration first; do not intentionally run tests or trigger CI during implementation. Keep PR #138 draft/open/unmerged.
 
 ## Latest implementation checkpoint
@@ -343,3 +343,8 @@ Commit `4d3488d7017439c1e756df4a595873dc9d590455` makes carrier user actor creat
 ## 24 November 2026 — webhook actor-context test harness follow-up
 
 Latest source/test commit before this documentation sync: `47c27898447389de4809a861f19c7b37e54b7081`. It updates the CarrierWebhookController tenant-routing test harness to supply the new actor-context wrapper and assert the org-bound webhook-secret call signature. The test has not been executed.
+
+
+## 24 November 2026 — Vercel status reconciliation
+
+At the last live check, branch/PR head was `977e837e65fc6639f24610832962c20c766eb55d`. Exact-head Actions lookup was empty. Vercel Web and Admin contexts were FAILURE with “Deployment rate limited — retry in 24 hours.” This is an external preview-provider rate limit, not an application test result. PR #138 remained OPEN / DRAFT / UNMERGED to `develop`. Re-query live HEAD and statuses before continuing after this documentation note.

@@ -248,3 +248,10 @@ The Catalog Import source slice and P13 operational principal slice are now impl
 ## 24 November 2026 — webhook test fixture follow-up
 
 Commit `47c27898447389de4809a861f19c7b37e54b7081` updates the tenant-routing unit-test harness with a no-op actor-context wrapper and asserts the new `decryptWebhookSecret(credentialId, orgId)` signature. Tests remain unexecuted; no verification status changed. Exact-head Actions remains empty due to `[skip ci]` commits.
+
+
+## 24 November 2026 — exact-head Vercel rate-limit status
+
+At the last live check, branch/PR head was `977e837e65fc6639f24610832962c20c766eb55d`. Exact-head Actions lookup was empty. Vercel Web and Admin contexts were FAILURE with “Deployment rate limited — retry in 24 hours.” This is an external preview-provider rate limit, not an application test result. PR #138 remained OPEN / DRAFT / UNMERGED to `develop`. Re-query live HEAD and statuses before continuing after this documentation note.
+
+The latest source/test correction remains `47c27898447389de4809a861f19c7b37e54b7081`; the nullable-role typecheck correction is `4d3488d7017439c1e756df4a595873dc9d590455`. Automatic run #1501 on prior SHA `9a010db69c668432f2811c68094a367ad5c7684c` failed API typecheck; the correction has not been re-run. No exact-head Actions run exists on the last checked docs head.
