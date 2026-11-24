@@ -116,6 +116,18 @@ describe('CatalogService mixed product mutation actor boundaries (G-002)', () =>
     expect(f.audit.record).toHaveBeenCalledOnce();
   });
 
+  it('repeats the store ownership predicate on bulk product writes', async () => {
+    const f = buildService();
+
+    await f.service.bulkProductOperations('store-1', ['product-1'], 'archive');
+
+    expect(f.update).toHaveBeenCalledOnce();
+    const bulkWhere = new PgDialect().sqlToQuery(f.updateConditions[0] as SQL);
+    expect(bulkWhere.params).toContain('store-1');
+    expect(bulkWhere.params).toContain('product-1');
+    expect(bulkWhere.sql.toLowerCase()).toContain('deleted_at is null');
+  });
+
   it('keeps publication outbox insertion in a separate short user actor scope', async () => {
     const f = buildService();
     vi.spyOn(f.service, 'validatePublish').mockResolvedValue(undefined);
