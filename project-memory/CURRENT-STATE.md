@@ -185,3 +185,10 @@ Source implementation commit: `6339acb944d3e41a6066e0f123394daa38d74491`. Post-c
 The method-level ownership map's earlier statement that ReturnExpirationWorker, ShippingCarrierWorker and realtime socket actor context remained uncovered was stale. Current source review confirms explicit operation-scoped worker contexts for ReturnExpirationWorker and ShippingCarrierWorker, verified socket-user context for RealtimeGateway room authorization, plus bounded contexts for AutoCompleteWorker, OutboxDispatcher, AuditLogMiddleware and CarrierTrackingPoller. Carrier provider calls, label fetch/streaming and object-storage writes remain outside actor transactions; return lease fencing remains per-operation/per-return rather than a full-batch transaction.
 
 The method-level map now records these boundaries. This closes only the source-map inconsistency; it does not complete G-002's physical table/operation/ownership matrix or establish live runtime identity/RLS verification. No tests or CI were run and no protected database/staging/deployment action occurred.
+
+
+## G-002 physical table matrix — Identity and Merchant direct-column pass — 24 November 2026
+
+Updated 16 Identity/Merchant table rows with direct Drizzle columns and declared parent references. The matrix now distinguishes user-owned records from organization membership, global RBAC reference data, organization-owned stores, store-inherited warehouses, dual-parent documents/verification requests, and store/user membership rows. Actor attribution fields are not treated as ownership keys; the missing composite org/store constraints remain explicit service-level consistency requirements.
+
+This is schema-source evidence only. The 99 Drizzle / 114 detailed public relation / unresolved 116 count discrepancy, live staging constraints, actual API/migration identities and protected catalog audit remain open. No tests or CI were run and no database/RLS/migration/grant/staging/deployment action occurred.

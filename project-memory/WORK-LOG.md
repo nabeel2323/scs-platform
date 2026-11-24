@@ -1798,3 +1798,11 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 - Confirmed provider calls, carrier label HTTP fetch/streaming, and object-storage persistence remain outside actor transactions. Return-expiration still checks the live lease holder/epoch/expiry and does not wrap the full batch in one transaction.
 - Corrected the stale method-level map statement that ReturnExpirationWorker, ShippingCarrierWorker and realtime socket context remained uncovered. The G-002 physical table/operation matrix and runtime identity evidence remain incomplete.
 - Source-map reconciliation only. No tests, formatter, lint, typecheck, E6 or CI were run. No database/RLS/migration/grant/staging/deployment/worker activation/merge/release action occurred.
+
+
+## G-002 physical table matrix — Identity and Merchant direct-column pass — 24 November 2026
+
+- Reopened current `identity.schema.ts` and `merchant.schema.ts` and upgraded 16 ownership-matrix rows from broad module-level guesses to schema-backed direct columns and declared FK paths.
+- Explicitly distinguished user-private identity from organization membership; global RBAC reference tables from tenant data; user-owned sessions/device credentials/security audit rows; organization-owned stores; store-inherited warehouses; dual-parent business documents and verification requests; and store/user membership relationship rows.
+- Recorded that `business_documents` and `verification_requests` have independent org/store references with no composite FK in the reviewed Drizzle schema, so service-level cross-parent consistency checks remain mandatory. Actor attribution fields are not treated as ownership keys.
+- This is schema-source evidence only. Live staging FK/constraint/privilege verification and the 114-versus-116 discrepancy remain open. No tests/CI or database/staging/deployment action occurred.

@@ -1023,3 +1023,8 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 ## 24 November 2026 — worker/socket actor-context map reconciliation
 
 The G-002 method-level map was reconciled against current source. ReturnExpirationWorker, ShippingCarrierWorker and RealtimeGateway now have explicit actor-context adoption recorded; AutoCompleteWorker, OutboxDispatcher, AuditLogMiddleware and CarrierTrackingPoller are also source-reviewed. External carrier API, label HTTP and object-storage I/O remain outside actor transactions. This is source evidence only; the physical table/operation matrix, actual runtime identities and protected read-only catalog audit remain open.
+
+
+## 24 November 2026 — G-002 Identity/Merchant table ownership detail
+
+The G-002 ownership matrix now records schema-backed direct columns and declared parent paths for 11 Identity tables and five Merchant tables. It distinguishes the global RBAC reference tables, user-private session/device/audit rows, organization-owned stores, store-inherited warehouses, dual-parent documents/verification requests, and store/user membership relationships. The matrix remains candidate evidence only; live catalog constraints and per-operation policy readiness are not asserted.

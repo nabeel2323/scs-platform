@@ -2524,3 +2524,12 @@ Important scope boundary: requestRefund creates a REQUESTED refund row, payment 
 - Confirmed short worker scopes around auto-complete claim/completion, outbox claim/ack/retry, return-expiration lease/claim/escalation bookkeeping, carrier shipment/outbox/credential DB phases and tracking-poller claim/persistence/delivery bridge. Deferred response-finish audit writes use a separate audit actor transaction; socket room authorization uses a verified socket-user actor context.
 - Confirmed external carrier API calls, label fetch/streaming and object-storage writes remain outside actor transactions. Return-expiration lease fencing remains per-operation and per-return; no full-batch transaction was introduced.
 - Updated the G-002 method-level predicate map to replace the obsolete uncovered-status statement. This is source-map reconciliation, not runtime verification. No tests, formatter, lint, typecheck, E6 or CI were run; no database/RLS/migration/grant/staging/deployment/worker activation/merge/release action occurred.
+
+
+## G-002 table matrix — Identity and Merchant direct-column pass — 24 November 2026
+
+- Updated the 11 Identity and five Merchant rows in `G-002-TABLE-OWNERSHIP-MATRIX.md` with direct Drizzle columns, declared parent references and important attribution-versus-ownership distinctions.
+- Identity: `users` has no direct organization key; organization access is via `organization_members`. RBAC roles/permissions/mappings are global reference data. Sessions and device credentials are user-owned; credential/account-link audit rows inherit user ownership.
+- Merchant: stores are organization-owned; warehouses inherit store ownership; documents have both organization and optional store references; verification requests carry store and organization references that must agree; store_members is a store/user relationship with role/status.
+- Source evidence is limited to current Drizzle declarations and the existing method/FK maps. This does not prove live catalog constraints or make any row policy-ready. The 99/114/116 inventory discrepancy and protected catalog audit remain open.
+- No tests, formatter, lint, typecheck, E6 or CI were run. No database/RLS/migration/grant/staging/deployment/worker/merge/release action occurred.
