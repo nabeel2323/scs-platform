@@ -2186,6 +2186,14 @@ export class OrdersService {
       throw new ConflictException(`Shipment cannot be assigned in status ${shipment['status']}`);
     }
 
+    // Driver eligibility is a shipping-domain ownership invariant. Fail closed
+    // if the ShippingService contract is unavailable; never accept an
+    // arbitrary user UUID or write the assignment before validation.
+    if (!this.shipping) {
+      throw new InternalServerErrorException('Driver eligibility validation is unavailable');
+    }
+    await this.shipping.assertDriverEligibleForStore(driverId, order['storeId'] as string);
+
     // Atomic optimistic lock on order status
     const flipResult = await this.db.db
       .update(orders)
