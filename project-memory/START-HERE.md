@@ -1225,7 +1225,7 @@ The current Orders shipment-assignment route has been located and hardened. Driv
 
 ## Targeted FK parity continuation — 24 November 2026
 
-The latest continuation added a typed Drizzle self-reference for migration 0062's `reconciliation_runs.superseded_by` FK and documented three migration-owned deferred links in the payment/return schemas. The exact targeted comparison is in `docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md`; implementation progress and handoff details are in CURRENT-STATE, OPEN-ISSUES and WORK-LOG.
+The latest continuation added a typed Drizzle self-reference for migration 0062's `reconciliation_runs.superseded_by` FK and documented four migration-owned deferred links in the payment/return schemas. The exact targeted comparison is in `docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md`; implementation progress and handoff details are in CURRENT-STATE, OPEN-ISSUES and WORK-LOG.
 
 Source commits: `b37f3386220b7148f2b326f9fd43b532b201a152`, `ef178d7af0d10b1ef80642aa5f6fe77b37cc55d4`, `e1d73e5270f8a815c537edf97f1ff8cc1d45fac4`. Crosswalk/progress/memory commits are recorded in the work log.
 
