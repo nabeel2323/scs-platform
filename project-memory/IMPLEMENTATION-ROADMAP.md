@@ -923,3 +923,10 @@ No database was inspected or repaired, and no tests/CI were run. These are sourc
 ## 24 November 2026 — migration FK source scan completion
 
 The 75-file numbered migration scan found 183 explicit REFERENCES clauses across 40 migration files; 35 files had none. The detailed migration/count/parent-table appendix is in `docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md`. This completes the static source-reference inventory, not live catalog verification. Remaining: reconcile with Drizzle declarations and protected staging pg_constraint evidence, then finish cross-column ownership consistency decisions (org/store, carrier config/credential/store, payment/refund/order/settlement, shipping driver/store, reconciliation parent/org). No database query was run.
+
+
+## 24 November 2026 — financial ownership cross-column hardening
+
+Source commits `01b6e6c729c1a458f20aaeaed043df4c569119e4` and `fa2547997c4b4dad490b582f92c9a69b8c01ed8f` close source-level relationship gaps across settlement adjustments, returns, payments, order items, commission reversals and merchant stores. Independent FKs are now supplemented by explicit service checks for organization derivation, same-sub-order return references, return-payment/order identity, return-item/order identity, and settlement payment/store identity. Exact cases and evidence are in the G-002 migration FK crosswalk.
+
+G-002 remains NOT VERIFIED. Next source review: driver/store assignment org consistency and reconciliation run/discrepancy org inheritance, followed by remaining financial/shipping cross-column relationships and Drizzle/migration FK reconciliation. Runtime identity, protected catalog, external scheduler, independent review and full verification gates remain unchanged. Tests remain deferred; an automatic PR CI run #1503 was queued by source pushes and is not yet a verification result.
