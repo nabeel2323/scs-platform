@@ -1346,3 +1346,9 @@ The Redis-backed Search Facets route now has a short actor scope for DB reads an
 The latest source pass closes several specific ownership gaps: store category discovery now checks membership; product/category and product-type/category references are scoped to active global or same-store taxonomy; public type/facet reads exclude unpublished and legacy tenant-bound data; product writes repeat store/deleted predicates; media deletes bind parent product; offer lifecycle/pricing writes use CAS predicates; request review locks and transitions only pending rows. Tests are authored but unexecuted.
 
 Do not mark Catalog or G-002 complete. Remaining: exhaustive Catalog service/root-pool and cross-module callsite inventory; verify every route/service/worker/bootstrap/CLI caller's actor class; complete all table/operation ownership predicates and FK cross-column reconciliation; protected live catalog and actual API/migration role evidence; pg_partman/operator scheduling evidence. No live DB/RLS/grant/migration/deployment action is authorized.
+
+## 25 November 2026 — Admin Catalog caller status
+
+The two mixed AdminService Catalog call paths are now actor-scoped: admin product update forwards the verified actor to CatalogService and avoids a request-wide transaction; admin media previews scope DB reads and sign URLs after commit. Other inspected AdminService Catalog CRUD/variant/attribute delegations remain request-interceptor scoped. Tests are authored but unexecuted.
+
+Remaining: continue cross-module Catalog caller/root-pool inventory beyond Admin/Pricing/Reviews and reviewed Inventory/Merchant/Orders/Promotions/Shipping/Catalog Import candidates; complete actor context for any additional mixed callers; finish FK/migration/operator evidence and protected live catalog proof. G-002 remains NOT VERIFIED.
