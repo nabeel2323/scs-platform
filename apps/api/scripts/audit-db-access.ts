@@ -485,13 +485,14 @@ async function main(): Promise<void> {
     const partConfigExists = await client.query<QueryResultRow>(`
       SELECT to_regclass('partman.part_config') IS NOT NULL AS relation_exists
     `);
+    const hasPartConfig = Boolean(partConfigExists.rows[0]?.['relation_exists']);
     let partConfigReport: Record<string, unknown> = {
-      relation_exists: Boolean(partConfigExists.rows[0]?.['relation_exists']),
+      relation_exists: hasPartConfig,
       can_select: false,
       columns: [],
       rows: null,
     };
-    if (partConfigReport.relation_exists) {
+    if (hasPartConfig) {
       const access = await client.query<QueryResultRow>(`
         SELECT COALESCE(
           has_table_privilege(current_user, to_regclass('partman.part_config'), 'SELECT'),
@@ -535,12 +536,13 @@ async function main(): Promise<void> {
     const cronJobExists = await client.query<QueryResultRow>(`
       SELECT to_regclass('cron.job') IS NOT NULL AS relation_exists
     `);
+    const hasCronJobs = Boolean(cronJobExists.rows[0]?.['relation_exists']);
     let cronJobsReport: Record<string, unknown> = {
-      relation_exists: Boolean(cronJobExists.rows[0]?.['relation_exists']),
+      relation_exists: hasCronJobs,
       can_select: false,
       matching_jobs: null,
     };
-    if (cronJobsReport.relation_exists) {
+    if (hasCronJobs) {
       const access = await client.query<QueryResultRow>(`
         SELECT COALESCE(
           has_table_privilege(current_user, to_regclass('cron.job'), 'SELECT'),
