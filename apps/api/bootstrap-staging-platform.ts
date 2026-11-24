@@ -1,7 +1,7 @@
 import { Client } from 'pg';
 import * as fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { assertStagingBootstrapTarget } from './scripts/staging-bootstrap-safety';
+import { assertStagingBootstrapTarget, setStagingBootstrapActorContext } from './scripts/staging-bootstrap-safety';
 
 async function main() {
   const connectionString = process.env['DATABASE_URL'];
@@ -35,6 +35,7 @@ async function main() {
     console.log(`User:     ${identity.current_user}`);
 
     await client.query('BEGIN');
+    await setStagingBootstrapActorContext(client, 'bootstrap-staging-platform');
 
     /*
      * ------------------------------------------------------------

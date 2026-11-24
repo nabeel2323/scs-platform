@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { assertStagingBootstrapTarget } from '../../../../scripts/staging-bootstrap-safety';
+import {
+  assertStagingBootstrapTarget,
+  setStagingBootstrapActorContext,
+} from '../../../../scripts/staging-bootstrap-safety';
 
 describe('staging bootstrap target guard', () => {
   beforeEach(() => {
@@ -11,6 +14,23 @@ describe('staging bootstrap target guard', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  it('sets a transaction-local bootstrap principal for staging CLI work', async () => {
+    const client = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+    await setStagingBootstrapActorContext(client as any, 'test-bootstrap');
+    expect(client.query).toHaveBeenCalledWith(
+      expect.stringContaining("set_config('app.actor_kind', $2, true)"),
+      ['bootstrap-cli:test-bootstrap', 'bootstrap'],
+    );
+  });
+
+  it('rejects an empty bootstrap script identity', async () => {
+    const client = { query: vi.fn() };
+    await expect(setStagingBootstrapActorContext(client as any, '  ')).rejects.toThrow(
+      /script name is required/,
+    );
+    expect(client.query).not.toHaveBeenCalled();
   });
 
   it('accepts only the explicitly approved target database', async () => {

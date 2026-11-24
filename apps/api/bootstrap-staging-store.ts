@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { assertStagingBootstrapTarget } from './scripts/staging-bootstrap-safety';
+import { assertStagingBootstrapTarget, setStagingBootstrapActorContext } from './scripts/staging-bootstrap-safety';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 
@@ -24,6 +24,7 @@ async function main() {
   try {
     await assertStagingBootstrapTarget(client, 'bootstrap-staging-store');
     await client.query('BEGIN');
+    await setStagingBootstrapActorContext(client, 'bootstrap-staging-store');
 
     /*
      * Resolve the existing staging merchant organization.

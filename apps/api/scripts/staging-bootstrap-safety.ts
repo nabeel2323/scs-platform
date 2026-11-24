@@ -1,4 +1,5 @@
 import type { Client } from 'pg';
+import { setOperatorActorContext } from '../infra/drizzle/operator-actor-context';
 
 export interface StagingBootstrapIdentity {
   current_database: string;
@@ -46,4 +47,15 @@ export async function assertStagingBootstrapTarget(
     );
   }
   return identity;
+}
+
+
+/** Establish the dedicated bootstrap principal inside an already-open transaction. */
+export async function setStagingBootstrapActorContext(
+  client: Pick<Client, 'query'>,
+  scriptName: string,
+): Promise<void> {
+  const normalizedScriptName = scriptName.trim();
+  if (!normalizedScriptName) throw new Error('Staging bootstrap script name is required');
+  await setOperatorActorContext(client, 'bootstrap', 'bootstrap-cli:' + normalizedScriptName);
 }

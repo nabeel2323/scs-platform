@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { assertStagingBootstrapTarget } from './scripts/staging-bootstrap-safety';
+import { assertStagingBootstrapTarget, setStagingBootstrapActorContext } from './scripts/staging-bootstrap-safety';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 
@@ -209,6 +209,7 @@ async function main() {
   try {
     await assertStagingBootstrapTarget(client, 'bootstrap-staging-rbac');
     await client.query('BEGIN');
+    await setStagingBootstrapActorContext(client, 'bootstrap-staging-rbac');
 
     console.log('Creating permissions...');
 
@@ -266,7 +267,10 @@ async function main() {
     console.log(`Permissions: ${PERMISSIONS.length}`);
     console.log(`Roles: ${ROLES.length}`);
 
-    const verification = await pool.query(`
+    await client.query('BEGIN');
+    await setStagingBootstrapActorContext(client, 'bootstrap-staging-rbac:verification');
+
+    const verification = await client.query(`
       SELECT
         r.key AS role,
         COUNT(rp.permission_id)::int AS permissions
@@ -287,13 +291,14 @@ async function main() {
 
     console.table(verification.rows);
 
-    const merchantPermission = await pool.query(`
+    const merchantPermission = await client.query(`
       SELECT id, key
       FROM permissions
       WHERE key = 'merchant:products:write';
     `);
 
     console.table(merchantPermission.rows);
+    await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
