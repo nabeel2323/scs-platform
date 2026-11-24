@@ -67,6 +67,9 @@ export class OpsControlService {
   }
 
   private withWorkerActor<T>(operation: () => PromiseLike<T>): Promise<T> {
+    // Worker callers may already hold their lease-fenced actor transaction.
+    // Reuse it rather than switching to a second worker identity mid-transaction.
+    if (this.db.currentActorContext) return Promise.resolve(operation());
     return this.db.withActorContext(
       { actorKind: 'worker', workerId: 'p13-ops-control' },
       async () => await operation(),
