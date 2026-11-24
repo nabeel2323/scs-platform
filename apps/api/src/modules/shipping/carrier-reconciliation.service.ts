@@ -26,6 +26,7 @@ import { eq, and, isNull, lte, or, sql, ne } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { shipments } from '../orders/shipment.schema';
+import { orders } from '../orders/orders.schema';
 import { CarrierObservabilityService } from './carrier-observability';
 import { CarrierCircuitBreaker } from './carrier-circuit-breaker';
 import { CarrierEmailResolver } from './carrier-email-resolver';
@@ -225,11 +226,36 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
   }
 
   /**
+   * Verify the independent shipment.order_id and shipment.store_id references
+   * describe the same merchant-owned sub-order before any provider interaction.
+   * Accept both Drizzle camelCase rows and raw SQL snake_case claim rows.
+   */
+  private async hasConsistentShipmentOrderStore(shipment: any): Promise<boolean> {
+    const orderId = shipment.orderId ?? shipment.order_id;
+    const storeId = shipment.storeId ?? shipment.store_id;
+    if (typeof orderId !== 'string' || typeof storeId !== 'string') return false;
+    const order = await this.withWorkerContext(() =>
+      this.db.db.query.orders.findFirst({
+        where: eq(orders.id, orderId),
+        columns: { storeId: true },
+      }),
+    );
+    return !!order && order.storeId === storeId;
+  }
+
+  /**
    * Reconcile a single shipment.
    */
   async reconcileShipment(shipment: any): Promise<ReconciliationResult> {
     const shipmentId = shipment.id as string;
-    const providerKey = shipment.shippingProviderKey || 'aramex';
+    if (!(await this.hasConsistentShipmentOrderStore(shipment))) {
+      return {
+        shipmentId,
+        outcome: 'error',
+        detail: 'Shipment order does not belong to its store; carrier reconciliation was blocked',
+      };
+    }
+    const providerKey = shipment.shippingProviderKey || shipment.shipping_provider_key || 'aramex';
     const provider = this.registry.findProvider(providerKey);
 
     if (!provider) {
@@ -433,6 +459,13 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
    */
   async reconcileCancelShipment(shipment: any): Promise<ReconciliationResult> {
     const shipmentId = shipment.id as string;
+    if (!(await this.hasConsistentShipmentOrderStore(shipment))) {
+      return {
+        shipmentId,
+        outcome: 'error',
+        detail: 'Shipment order does not belong to its store; cancel reconciliation was blocked',
+      };
+    }
     const cancelStatus = shipment.carrier_cancel_status as string | null;
 
     // CA: Already terminal
