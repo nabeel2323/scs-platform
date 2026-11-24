@@ -19,6 +19,13 @@ assert_verification_target() {
       exit 1
       ;;
   esac
+  case "${PGHOSTADDR:-}" in
+    ""|127.0.0.1|::1) ;;
+    *)
+      echo "Refusing verification DB access: PGHOSTADDR must be local." >&2
+      exit 1
+      ;;
+  esac
   if [ -n "${PGSERVICE:-}" ]; then
     echo "Refusing verification DB access: PGSERVICE must not redirect the connection." >&2
     exit 1
