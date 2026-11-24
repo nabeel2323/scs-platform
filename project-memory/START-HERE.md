@@ -1311,3 +1311,17 @@ Regression specs added/extended across category visibility/ownership, taxonomy v
 Inspected branch head before this documentation update: 6a029779930bef12062d66af9eb7b8aa18ddf838. PR #138 remains open/draft/unmerged, target develop; branch comparison was 2,641 ahead / 0 behind. Exact-head combined status contains only Vercel Admin/Web failures linking to the external Vercel build-rate-limit page; GitHub Actions lookup returned no runs for this [skip ci] head. These are not application test results.
 
 No RLS/grant/migration change, shared/staging DB operation, deployment, worker activation, environment/secret change, merge or release occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Continue with the remaining Catalog service/root-pool and cross-module caller inventory, then resume operation-specific ownership/FK and migration/operator evidence. Do not start quality gates until implementation/integration is complete.
+
+## 25 November 2026 — Admin-to-Catalog mixed caller integration
+
+The cross-module caller audit found that AdminService also delegates to CatalogService. Two admin routes were mixed DB/external-I/O operations and were corrected:
+- PATCH /admin/products/:id previously retained TenantDatabaseContextInterceptor while delegating to CatalogService.updateProduct, whose cache/audit side effects must occur after short DB scopes. The route now forwards the verified admin JWT actor to AdminService.adminUpdateProduct and deliberately has no request-wide interceptor. CatalogService.updateProduct revalidates edit permission and owns its short actor DB phases.
+- GET /admin/products/:id/media-previews previously read product/media/variant rows from the root pool and signed storage URLs in the same unscoped method. AdminService.productMediaPreviews now reads those rows in a short verified-user actor transaction and generates presigned URLs only after commit. The controller forwards the authenticated admin actor and does not install a request-wide interceptor.
+
+Other inspected AdminService Catalog delegations (create product, variant detail/create/update/bulk, typed attribute reads/writes) remain on DB-only admin endpoints with TenantDatabaseContextInterceptor. reviewOrgUpdateRequest already uses an explicit user actor scope and sends notification after commit. CatalogUserActor is now exported for module-level caller contracts.
+
+Added/updated admin service and controller regression specs for actor forwarding, mixed-route interceptor exclusions, product media DB scope and storage-after-commit behavior. Tests remain NOT EXECUTED. No formatter/lint/typecheck/E6/CI.
+
+Exact inspected head before the next documentation refresh: 9364f7ae1e7c6dc5fc046ba231a188f1954a779d. PR #138 is open/draft/unmerged, base develop, head matches this SHA, mergeable=true; branch is 2,658 ahead and 0 behind develop. Exact-head Vercel Admin/Web statuses are FAILURE due to the external build-rate-limit page; GitHub Actions returned no runs for this [skip ci] head. Do not merge.
+
+No shared/staging DB, RLS/grant/migration, deployment, worker activation, environment/secret change, merge or release occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Continue remaining cross-module Catalog caller/root-pool audit and then the outstanding FK/migration/operator evidence.
