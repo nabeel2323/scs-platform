@@ -17,6 +17,7 @@ export class OrdersController {
   // ── Checkout ─────────────────────────────────────────────────
 
   @Post('checkout/preview')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('orders:write')
   async previewCheckout(@CurrentUser() user: JwtPayload, @Body() input: CheckoutInput) {
