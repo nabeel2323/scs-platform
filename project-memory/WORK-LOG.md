@@ -2184,3 +2184,7 @@ Implemented verified-user actor scopes for mixed Catalog Import processing and C
 Added tests for processing DB phases, chunk transaction scope, missing caller fail-closed behavior, error report scope and mixed route interceptor exclusions. Tests remain unexecuted; no quality gates or CI were run. No worker was added or activated. G-002 remains NOT VERIFIED.
 
 P13 correction: the full source shows P13MonitorService already wraps its direct diagnostic SQL reads in withMonitorActor. No P13 code change was made; the earlier helper-unused observation was incorrect.
+
+## 25 November 2026 — dormant import recovery principal
+
+Scoped the dormant CatalogService.recoverStaleJobs scan and stale job/chunk updates under the stable worker principal catalog-import-recovery. This does not register or schedule the method and does not activate any background worker. Added regression coverage for the worker actor and both writes. Tests remain unexecuted; no quality gates/CI or runtime worker action occurred.
