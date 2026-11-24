@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { RedisService } from '../../common/redis/redis.service';
@@ -15,6 +15,12 @@ import {
 import { eq, and, isNull, or, sql, desc, asc, inArray } from 'drizzle-orm';
 import { createMediaRefResolver, enrichProductCards } from './product-card';
 import crypto from 'node:crypto';
+
+type SearchUserActor = {
+  sub: string;
+  role: string;
+  activeOrg?: string | null;
+};
 
 /**
  * Search service — FTS + trigram fuzzy search with Arabic normalization.
@@ -41,7 +47,25 @@ export class SearchService {
     this.resolveImage = createMediaRefResolver(storage);
   }
 
-  async search(query: string, options?: SearchOptions) {
+  private withUserActorContext<T>(
+    actor: SearchUserActor,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    if (!actor?.sub?.trim() || !actor?.role?.trim()) {
+      throw new ForbiddenException('Authenticated user actor context is required');
+    }
+    return this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: actor.sub,
+        actorRole: actor.role,
+        activeOrgId: actor.activeOrg ?? null,
+      },
+      operation,
+    );
+  }
+
+  async search(query: string, options: SearchOptions | undefined, actor: SearchUserActor) {
     // Handle missing or empty query — return paginated active products
     if (!query || !query.trim()) {
       const limit = options?.limit || 20;
@@ -498,7 +522,7 @@ export class SearchService {
   private static readonly FACETS_CACHE_PREFIX = 'search:facets:';
   private static readonly FACETS_TTL_S = 120;
 
-  async getFacetsCached(categoryId?: string): Promise<FacetEntry[]> {
+  async getFacetsCached(categoryId: string | undefined, actor: SearchUserActor): Promise<FacetEntry[]> {
     const key = SearchService.FACETS_CACHE_PREFIX + (categoryId ?? 'all');
     try {
       const hit = await this.redis.client.get(key);
@@ -512,7 +536,7 @@ export class SearchService {
     }
 
     const facets = await timeQuery(`getFacets:${categoryId ?? 'all'}`, () =>
-      this.getFacets(categoryId),
+      this.withUserActorContext(actor, () => this.getFacets(categoryId)),
     );
 
     try {
