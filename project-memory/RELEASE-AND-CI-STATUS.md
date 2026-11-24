@@ -325,3 +325,8 @@ Commits `c916acd0a8b156affeda50e98dbc88acab2f39bc` and `56d605a7377c49766b990abf
 ## 24 November 2026 — carrier recovery ownership source update
 
 Commits `0581776`, `83a4073`, `2b2810e`, `5bbd35d` and `9c9d7f4` extend shipment/order/store validation to direct admin recovery, recovery queue, scheduled reconciliation, webhook shipment resolution and tracking polling. They use `[skip ci]`; no tests or workflows were run. The earlier automatic CI #1503 failure is from an earlier source checkpoint and does not verify these commits. Vercel Web/Admin remain external rate-limit failures. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — webhook retry credential source update
+
+Source commit `926c475fb9c59ffa1688dccee3d4f9dfbeea59e2` adds bound-credential validation and credential-org/shipment-store-org equality to already-linked webhook retries. The commit uses `[skip ci]`; no tests or workflows were run. The prior CI #1503 failure is historical and does not verify this update. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
