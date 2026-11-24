@@ -79,24 +79,32 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 24 November 2026: repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, branch/PR head `bb193c7b52ed83bc6c0a6f72ce1a24ba4dcdd926`. PR #138 is OPEN / DRAFT / UNMERGED to `develop`. Latest source implementation checkpoint is `f21dbe4aca75ba04e9173b1fc28a9591829af554`. Always re-query branch HEAD before the next session.
+Live GitHub reconciliation immediately before this handoff update on 24 November 2026: repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, PR #138 head `f0bbe5c95aaf70ac57a3b67f31a3c5257ab91fb7`. PR #138 is OPEN / DRAFT / UNMERGED and targets `develop`. This START-HERE synchronization itself will become the next documentation commit; always re-query the live branch head before the next session.
 
-The carrier credential/configuration actor-context and webhook changes are committed. The current continuation adds consistent local migration exclusions, advisory-lock/ledger rechecks, transaction-local system/bootstrap/audit principals for operator paths, staging verification target guards, atomic legacy verification runners, broader function/trigger/pg_partman audit output, and a seed mapping-count correction.
+Latest source implementation checkpoint: `efa6349651b7f2b5083475e4bdaa9104ee3402cc`. Latest regression-source checkpoint: `5ab4c9358191f184d2e5917741e08263777ac72d`. Recent source commits add driver eligibility validation to the existing Orders shipment-assignment path; related test and documentation checkpoints are recorded in CURRENT-STATE, WORK-LOG, OPEN-ISSUES and the G-002 migration FK crosswalk.
 
-The 75-file numbered migration source review found one application function (`public.normalize_arabic`, search_path pinned by migration 0070), no migration-defined triggers/policies/RLS/view/sequence/SECURITY DEFINER declarations, and the pg_partman analytics partition/retention setup. Migration 0013's pg_cron schedule remains commented out; no repository scheduler manifest was found. The read-only audit tool now reports partman retention config and pg_cron maintenance jobs if visible.
+### Current implementation state
 
-**Exact-head CI/status:** Actions lookup on `bb193c7b52ed83bc6c0a6f72ce1a24ba4dcdd926` returned zero workflow runs. Vercel Web and Admin contexts both report FAILURE: “Deployment rate limited — retry in 24 hours.” These are preview-provider rate limits, not application test results. Do not intentionally run tests or dispatch CI until implementation/integration is complete. Latest automatic run #1501 on the prior carrier source SHA failed API typecheck on optional caller.role; commit `4d3488d` corrected the type boundary but remains unverified. Vercel Web/Admin failures were external deployment rate limits, not application test results.
+- The actual `POST /orders/:id/assign-driver` path is `OrdersController → OrdersService.assignDriver`; it writes `shipments.assigned_driver_id` (user FK). Before this continuation, it accepted arbitrary user IDs without validating driver/store eligibility.
+- `ShippingService.assertDriverEligibleForStore` now requires an active driver profile, active user, active DRIVER organization membership, and `driver_profiles.org_id = stores.org_id`. It preserves migration 0041 semantics: zero `driver_store_assignments` rows means unrestricted eligibility within the profile organization; if rows exist, only listed stores are eligible. OrdersService checks eligibility before any order/shipment/event/history/outbox mutation and fails closed if the ShippingService contract is unavailable.
+- Unit and disposable-PostgreSQL regression source covers unrestricted and explicit assignment modes, cross-org rejection, inactive profile/user/membership/role, and no mutation when the guard fails. These tests have **not** been executed. No new driver CRUD endpoint, composite FK or migration was added; no repository writer for the optional allowlist table was found.
+- The carrier credential/webhook retry lineage, reconciliation parent/child org checks, refund/payment/order consistency and shipment/order/store checks described in the G-002 crosswalk remain part of the same unfinished remediation workstream.
+- G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Source implementation and authored tests are not automated-test verification, runtime verification, independent review or approval.
 
-G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No database command, migration, seed, reset, bootstrap, audit query, RLS/grant/default-ACL change, worker activation, deployment or merge was performed.
+### Exact-head CI/status at the last live check
+
+On `f0bbe5c95aaf70ac57a3b67f31a3c5257ab91fb7`, GitHub Actions returned **zero workflow runs** and combined commit status returned **zero status contexts**. Earlier automatic CI #1503 failed on an older source checkpoint and does not verify the current changes. Vercel Web/Admin build-rate-limit failures were observed on the earlier `5ab4c935` code/test head; those external preview statuses are not current-head application test results. No tests, formatter, lint, typecheck, E6 or CI were intentionally run during this implementation continuation.
 
 ### Next implementation priorities
 
-1. Finish exact operation-to-table ownership predicates and migration-defined FK evidence, including direct Pool/PoolClient, CLI and worker boundaries.
-2. Confirm external pg_partman maintenance scheduling and its actual database role/target only through the authorized read-only staging process.
-3. Review operator actor-context nesting/reuse and the updated test fixtures without executing the verification campaign yet.
-4. Obtain actual API/migration runtime identities and protected read-only catalog evidence; reconcile 114/116 historical relation counts.
-5. Keep G-001 independent review and G-036 verification open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
+1. Finish the Drizzle-to-migration FK reconciliation and remaining cross-column ownership predicates; distinguish schema source evidence from protected live catalog evidence.
+2. Complete the remaining source callsite/operation audit, including direct Pool/PoolClient, migration/seed/bootstrap/CLI, worker and raw SQL paths; finish actor-context nesting/reuse checks.
+3. Confirm whether any external operator/provisioning process manages `driver_store_assignments`; do not invent a CRUD endpoint or alter the migration's zero-row unrestricted semantics.
+4. Verify pg_partman maintenance scheduling and actual API/migration runtime identities only through the authorized read-only staging process.
+5. Reconcile the historical 114/116 relation-count discrepancy using a fresh protected read-only catalog snapshot.
+6. Keep G-001 independent security review and G-036 verification open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
 
+Do not run tests, formatter, lint, typecheck, E6 or CI until implementation and cross-component integration are complete. Do not merge/deploy PR #138, mutate shared/staging databases, apply migrations, alter RLS/grants/default ACLs, change protected environment configuration, or activate workers without the explicitly required authorization.
 ## Safety reminder
 
 The restrictions in [DECISIONS-AND-CONSTRAINTS.md](./DECISIONS-AND-CONSTRAINTS.md) are mandatory. In particular, do not merge/deploy PR #138, bypass protected staging approval, modify shared database grants/default ACLs, apply migration 0070, enable RLS, change production/staging configuration, or activate workers without the explicitly required authorization.
@@ -1208,3 +1216,8 @@ Source commits: `0581776`, `83a4073`, `2b2810e`, `5bbd35d`, `9c9d7f4`. Driver as
 Commit `926c475` ensures every unprocessed credential-bound webhook event revalidates its credential, and an already-linked shipment's store organization must match that credential before processing. Unlinked legacy events without credential binding fail closed; already-linked legacy rows remain compatible with shipment/order/store validation. See G-002 migration FK crosswalk and implementation progress tracker.
 
 Next: complete Drizzle-to-migration FK reconciliation and establish whether `driver_store_assignments` has an external consumer. Do not invent a driver API. Regression tests remain pending; commits use `[skip ci]`. G-002 remains NOT VERIFIED and all protected staging/database/RLS/grant/migration/deployment/worker/merge restrictions remain binding.
+
+
+## 24 November 2026 — driver assignment eligibility continuation
+
+The current Orders shipment-assignment route has been located and hardened. Driver eligibility now binds the user, active driver profile, DRIVER organization membership and store organization, while preserving migration 0041's unrestricted-within-org behavior when no explicit store rows exist. Regression source was added but not executed. See CURRENT-STATE, WORK-LOG, OPEN-ISSUES, IMPLEMENTATION-ROADMAP, IMPLEMENTATION-PROGRESS and the G-002 migration FK crosswalk for evidence and remaining work. G-002 remains NOT VERIFIED; all protected staging/database/RLS/grant/migration/deployment/worker/merge restrictions remain binding.
