@@ -110,3 +110,10 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 Source commit `6339acb944d3e41a6066e0f123394daa38d74491` adds the verified-user actor interceptor to the database-only Merchant verification-review route and extends its controller metadata regression spec. Subsequent documentation commits reconcile worker/socket actor-context evidence and expand the G-002 schema ownership matrix to all 100 module schema declarations (98 barrel-exported; two catalog-import declarations are not barrel-exported). The prior 99+15=114 decomposition is now historical, not a current source reconciliation.
 
 Implementation-first instruction remains active: no tests, formatter, lint, typecheck, E6 or CI are run until implementation/integration is complete. No protected DB, RLS, migration, grant/default ACL, staging, deployment, worker activation, merge or release action is authorized. Verify live branch/PR/head/status before next action.
+
+
+## 24 November 2026 — automatic workflow execution exception
+
+- Run #1474 / `45376045168` (triggered by `fa9e554418f6b268bbab35208a8f35db48a41161`) completed: Mobile Flutter Tests SUCCESS, API Lint SUCCESS, API Typecheck FAILURE. New PaymentsService type errors were identified and corrected in `fc2993290d4522d397ab56934e41103f8dd9d060`; other failures occurred in interceptor, identity, shipping worker and integration-test files, baseline attribution unknown.
+- Run #1475 / `45376830054` was automatically triggered by the type-fix commit and was IN_PROGRESS at the time of this update. No local tests or typecheck were manually run. The connected GitHub actions do not expose a workflow cancellation action.
+- Implementation-first restriction remains: do not intentionally dispatch or rerun CI until implementation/integration completion. Vercel Web/Admin contexts remain build-rate-limited. PR #138 must remain OPEN / DRAFT / UNMERGED.

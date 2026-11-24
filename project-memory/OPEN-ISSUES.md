@@ -1018,3 +1018,8 @@ A fresh source comparison corrected the earlier 99-table ownership inventory. Th
 This means the historical 99 Drizzle + 15 other = 114 relation decomposition is no longer supported by current source counts. The 114 relation report is still a historical catalog snapshot; 116 remains unresolved. No current live relation total or two-object delta is asserted. A protected read-only catalog audit and independent API/migration role evidence are still required.
 
 The G-002 ownership matrix is now schema-column complete across the 100 source declarations, but not operation/policy complete. Exact per-operation predicates, raw SQL/object/privilege coverage, independent review (G-001), runtime identity evidence, G-036 verification and protected catalog review remain open. Do not run tests/CI until implementation and integration are complete; no DB/RLS/migration/grant/staging/deployment action was taken.
+
+
+## G-002 automatic CI exception — 24 November 2026
+
+The proof actor-context source commit unintentionally triggered Actions run #1474 (`45376045168`): Mobile Flutter Tests and API Lint succeeded; API Typecheck failed. It reported new PaymentsService type errors and additional errors in interceptor, identity, shipping worker and integration tests. The PaymentsService-specific errors were corrected in commit `fc2993290d4522d397ab56934e41103f8dd9d060`; no local test/typecheck was run. Run #1475 (`45376830054`) was automatically triggered by the fix and remained in progress at this checkpoint. No cancel action was available. Do not intentionally rerun CI before the implementation/integration gate is reached.

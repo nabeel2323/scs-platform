@@ -1048,3 +1048,8 @@ The G-002 table matrix now includes all 100 `pgTable` declarations found across 
 ## 24 November 2026 — Payments proof upload actor-context continuation
 
 Payments proof submission now uses short verified-user actor scopes around database-only phases, with object-storage operations outside transactions. Stale upload-intent cleanup uses a worker actor for claims and DB state transitions, with storage head/delete outside. The multipart route remains outside the request interceptor. Focused regression specs were authored but not executed; no cleanup scheduler was activated.
+
+
+## 24 November 2026 — automatic CI exception recorded
+
+Actions run #1474 (`45376045168`) was automatically triggered by the proof actor-context source commit and failed API Typecheck (Mobile Flutter Tests and API Lint succeeded). The new PaymentsService nullable actor/file/intent type errors were corrected in `fc2993290d4522d397ab56934e41103f8dd9d060`; other failures appeared in interceptor, identity, shipping worker and integration tests, with no baseline to classify them. Run #1475 (`45376830054`) was automatically triggered by the fix and was in progress at this checkpoint. No local tests/typecheck were run; no intentional CI dispatch or rerun is requested. The available GitHub connection does not expose cancellation.

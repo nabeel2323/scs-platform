@@ -390,3 +390,10 @@ This is source implementation and authored regression coverage only. Source comm
 `cleanupStaleProofUploads` now uses a worker actor for the bounded `SKIP LOCKED` intent claim, per-intent payment-reference check/commit, and final CLEANED/retry state writes. `headObject`/`deleteObject` remain outside actor transactions. The worker principal has no tenant org because this sweeper intentionally checks whether any payment row references a key across tenants; that cross-tenant read is an explicit worker operation, not a tenant request.
 
 The controller regression spec asserts submitProof remains excluded from request interception and forwards verified caller claims. Focused helper specs cover the user/worker principal payloads. Specs are authored but not executed. No scheduler was activated and no object storage call was made in this implementation session.
+
+
+## Automatic CI exception — 24 November 2026
+
+The source commit `fa9e554418f6b268bbab35208a8f35db48a41161` unexpectedly triggered GitHub Actions CI run #1474 (`45376045168`). It completed with Mobile Flutter Tests SUCCESS, API Lint SUCCESS and API Typecheck FAILURE. The typecheck reported errors in the newly changed PaymentsService proof path (nullable actor role, nullable upload identifiers and fileBuffer closure narrowing), plus additional errors in TenantDatabaseContextInterceptor, IdentityService, ShippingCarrierWorker and integration-test files. No baseline run was available to attribute the additional errors.
+
+The PaymentsService errors attributable to this change were corrected in source commit `fc2993290d4522d397ab56934e41103f8dd9d060` by validating/narrowing the caller role and capturing immutable non-null file/intent values before async callbacks. No tests or typecheck were manually invoked. The source fix commit automatically triggered CI run #1475 (`45376830054`), which was IN_PROGRESS at this documentation checkpoint. The available GitHub connector exposes no workflow-cancel action; no cancellation was possible. Do not treat run #1474 as successful verification, and do not intentionally dispatch or rerun CI before implementation/integration is complete.

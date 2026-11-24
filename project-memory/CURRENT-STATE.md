@@ -218,3 +218,10 @@ The historical 99+15=114 relation split is no longer a current source-backed rec
 ## G-002 Payments proof upload and cleanup phase separation — 24 November 2026
 
 The bank-transfer proof upload and stale-intent cleanup paths now have explicit database actor boundaries. User-owned proof submission DB phases use verified CallerContext claims; the multipart controller remains outside the request interceptor. Object-storage writes/deletes are kept outside actor transactions. The cleanup sweeper uses a worker actor for global intent claims, payment-reference checks and intent state updates, while object head/delete remains outside the DB scope. Tests were authored but not run; the cleanup scheduler was not activated.
+
+
+## Automatic CI exception and typecheck remediation — 24 November 2026
+
+The source commit `fa9e554418f6b268bbab35208a8f35db48a41161` unintentionally triggered Actions run #1474 (`45376045168`). It completed with Mobile Flutter Tests SUCCESS, API Lint SUCCESS and API Typecheck FAILURE. The typecheck identified new PaymentsService errors from nullable caller role, fileBuffer and mutable upload-intent values captured by async callbacks, as well as additional failures in TenantDatabaseContextInterceptor, IdentityService, ShippingCarrierWorker and integration-test files (baseline attribution unknown).
+
+The PaymentsService-specific type errors were corrected in `fc2993290d4522d397ab56934e41103f8dd9d060` by guarding the caller role and capturing immutable non-null upload values. The correction has not been rerun locally. Automatic Actions run #1475 (`45376830054`) was IN_PROGRESS at this checkpoint. No cancellation action is available through the connected GitHub capability. No further CI run is intentionally requested.

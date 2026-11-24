@@ -1839,3 +1839,10 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 - Kept StorageService put/delete calls outside actor scopes. The multipart controller deliberately remains unwrapped by TenantDatabaseContextInterceptor and forwards verified JWT claims to the service.
 - Added worker actor contexts around cleanupStaleProofUploads claim, per-intent payment-reference read/COMMITTED update, and CLEANED/retry/FAILED writes. Object head/delete remains outside transactions. The global payment reference check is an explicit worker operation with no tenant org.
 - Added focused actor helper specs and controller boundary coverage. They were authored but not run. No scheduler activation, object-storage call, tests/CI, database/RLS/migration/grant/staging/deployment action occurred.
+
+
+## Automatic CI exception — 24 November 2026
+
+The source commit `fa9e554418f6b268bbab35208a8f35db48a41161` unexpectedly triggered GitHub Actions CI run #1474 (`45376045168`). It completed with Mobile Flutter Tests SUCCESS, API Lint SUCCESS and API Typecheck FAILURE. The typecheck reported errors in the newly changed PaymentsService proof path (nullable actor role, nullable upload identifiers and fileBuffer closure narrowing), plus additional errors in TenantDatabaseContextInterceptor, IdentityService, ShippingCarrierWorker and integration-test files. No baseline run was available to attribute the additional errors.
+
+The PaymentsService errors attributable to this change were corrected in source commit `fc2993290d4522d397ab56934e41103f8dd9d060` by validating/narrowing the caller role and capturing immutable non-null file/intent values before async callbacks. No tests or typecheck were manually invoked. The source fix commit automatically triggered CI run #1475 (`45376830054`), which was IN_PROGRESS at this documentation checkpoint. The available GitHub connector exposes no workflow-cancel action; no cancellation was possible. Do not treat run #1474 as successful verification, and do not intentionally dispatch or rerun CI before implementation/integration is complete.
