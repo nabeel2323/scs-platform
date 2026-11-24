@@ -5,7 +5,7 @@
 **Branch:** `remediation/phase-0-1-tenant-security`.  
 **Latest source checkpoint:** `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50`; latest branch/documentation head `7cef8cbd5e0e68c08efacb2431f4f82ee012e189`.  
 **Exact-head GitHub Actions:** zero workflow runs; source commits use `[skip ci]`.  
-**Exact branch-head status:** GitHub Actions zero workflow runs; Vercel Web and Admin PENDING on `7cef8cbd5e0e68c08efacb2431f4f82ee012e189`. These are preview statuses, not application-test evidence.
+**Last exact-head check before this documentation sync:** on `a18c705616c5b698219377e5f7119a4fcc50a8c0`, GitHub Actions returned zero workflow runs; Vercel Web was PENDING and Vercel Admin was FAILURE. These are preview statuses, not application-test evidence.
 
 ## Standing implementation-first instruction
 

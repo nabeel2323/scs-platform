@@ -8,7 +8,7 @@
 **Latest test-only follow-up:** `c8405a33388731095ef08b64d744a36d7b079cd3` — corrected the Drizzle update-query mock used by the credential actor-context spec.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop` (`f74eb588cc58fc99b105e749d39dbfbacb4f9775`).  
 **Exact-head GitHub Actions:** zero workflow runs; source commits intentionally include `[skip ci]`.  
-**Exact branch-head status (7cef8cbd5e0e68c08efacb2431f4f82ee012e189):** GitHub Actions zero workflow runs; Vercel Web and Admin PENDING. These are preview statuses, not application-test results.
+**Last exact-head check before this documentation sync (a18c705616c5b698219377e5f7119a4fcc50a8c0):** GitHub Actions zero workflow runs; Vercel Web PENDING and Vercel Admin FAILURE. These are preview statuses, not application-test results; Admin failure is not an API test result.
 
 > **Standing user instruction:** complete implementation and cross-component integration first, then run tests. Do not execute test commands or trigger CI during implementation. Proceed autonomously without asking for approval for routine steps; group related changes and synchronize project memory.
 
