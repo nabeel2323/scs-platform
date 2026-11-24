@@ -1,9 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { promotions, promotionRedemptions } from './promotions.schema';
-import { eq, and, desc, inArray } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import crypto from 'node:crypto';
-import { stores } from '../merchant/merchant.schema';
 import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 
 /**
@@ -49,8 +48,16 @@ export class PromotionsService {
     });
     if (!promo) throw new NotFoundException('Promotion not found');
     if (caller) {
-      await assertStoreInOrg(this.db, caller, promo.storeId);
-      await assertStoreMember(this.db, caller, promo.storeId);
+      try {
+        await assertStoreInOrg(this.db, caller, promo.storeId);
+        await assertStoreMember(this.db, caller, promo.storeId);
+      } catch (error) {
+        // Keep foreign-store and same-org non-member identifiers indistinguishable.
+        if (error instanceof ForbiddenException) {
+          throw new NotFoundException('Promotion not found');
+        }
+        throw error;
+      }
     }
     return promo;
   }
@@ -67,11 +74,6 @@ export class PromotionsService {
   }
 
   async listActive(storeId: string) {
-    const store = await this.db.db.query.stores.findFirst({
-      where: and(eq(stores.id, storeId), eq(stores.status, 'ACTIVE')),
-      columns: { id: true },
-    });
-    if (!store) return [];
     const now = new Date();
     const results = await this.db.db.query.promotions.findMany({
       where: and(eq(promotions.storeId, storeId), eq(promotions.isActive, true)),
@@ -169,7 +171,7 @@ export class PromotionsService {
       .update(promotions)
       .set(updates)
       .where(and(eq(promotions.id, id), eq(promotions.storeId, promo.storeId)));
-    return this.getPromotion(id);
+    return this.getPromotion(id, caller);
   }
 
   /**
@@ -263,16 +265,8 @@ export class PromotionsService {
     limit?: number;
   }) {
     const now = new Date();
-    const activeStores = await this.db.db.query.stores.findMany({
-      where: eq(stores.status, 'ACTIVE'),
-      columns: { id: true },
-    });
-    if (activeStores.length === 0) return [];
     const results = await this.db.db.query.promotions.findMany({
-      where: and(
-        eq(promotions.isActive, true),
-        inArray(promotions.storeId, activeStores.map((store) => store.id)),
-      ),
+      where: eq(promotions.isActive, true),
       orderBy: [desc(promotions.createdAt)],
     });
 
