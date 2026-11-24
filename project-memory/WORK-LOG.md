@@ -2039,3 +2039,10 @@ The 75-file numbered migration scan found 183 explicit REFERENCES clauses across
 - Driver assignment review: the schema has independent profile-org and assignment-store FKs, while shipment assignedDriverId references users. The inspected ShippingModule/ShipmentOperationsController does not expose an assignment mutation path; no speculative API was added. Locate the actual consumer before implementation.
 - Updated the migration FK crosswalk and implementation progress tracker. Regression cases are documented, not executed. No tests or manual CI were run. Automatic CI #1503 failed on the prior source SHA and does not verify this commit. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 - Next: locate the real driver/store assignment consumer, finish the cross-column shipping/financial matrix and Drizzle/migration reconciliation, then add the regression suite before consolidated verification.
+
+
+## 24 November 2026 — refund/payment/order lineage follow-up
+
+- Reviewed refund creation, approval, failure/retry and return-refund transitions against the independent `refunds.payment_record_id` and `refunds.order_id` FKs.
+- Commit [e9bf293](https://github.com/nabeel2323/scs-platform/commit/e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d) adds payment/order/currency equality checks to approval and both idempotent request-recovery paths. The return-refund workflow already validates its full return/payment/order/refund lineage under locks.
+- Updated the G-002 migration FK crosswalk and implementation progress tracker. Regression scenarios are documented but not executed. The source commit uses `[skip ci]`; no tests or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
