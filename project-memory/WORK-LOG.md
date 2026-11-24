@@ -2192,3 +2192,7 @@ Scoped the dormant CatalogService.recoverStaleJobs scan and stale job/chunk upda
 ## 25 November 2026 — Catalog product detail and media reads
 
 Removed request-wide TenantDatabaseContextInterceptor from GET /products/:id and GET /products/:productId/media. Controller authorization checks now use short verified-user contexts. getProductDetail requires CatalogUserActor and groups product/store/media-row/variant/pricing/stock/attribute reads inside one actor scope, while Redis cache and storage URL signing happen outside. listMediaByProduct scopes its DB query then resolves media URLs after commit. Added tests for both service paths and controller interceptor exclusions. Tests are authored but unexecuted; no quality gates/CI.
+
+## 25 November 2026 — Search Facets cache/DB split
+
+Removed TenantDatabaseContextInterceptor from GET /search/facets. The controller passes the verified JWT actor; SearchService.getFacetsCached now performs Redis cache reads/writes outside the database scope and wraps only the facet database query in a short user actor context. Added missing-actor and cache/DB boundary tests plus controller metadata coverage. Tests remain unexecuted; no quality gates/CI.
