@@ -20,6 +20,9 @@ function buildService(options?: {
     db: {
       query: {
         categories: { findFirst: categoryFindFirst, findMany: categoryFindMany },
+        products: { findFirst: vi.fn().mockResolvedValue({ storeId: 'store-a' }) },
+        stores: { findFirst: vi.fn().mockResolvedValue({ orgId: 'org-a' }) },
+        storeMembers: { findFirst: vi.fn().mockResolvedValue({ id: 'membership-a' }) },
       },
       insert,
       update,
