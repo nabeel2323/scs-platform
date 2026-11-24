@@ -43,11 +43,24 @@ function buildService() {
       update,
       query: {
         products: {
-          findFirst: vi.fn().mockResolvedValue({ storeId: product.storeId }),
+          findFirst: vi.fn(async () => {
+            expect(activeActor).toMatchObject({ actorKind: 'user', actorId: actor.sub });
+            return { storeId: product.storeId };
+          }),
           findMany: vi.fn().mockResolvedValue([{ ...product }]),
         },
-        stores: { findFirst: vi.fn().mockResolvedValue({ orgId: actor.activeOrg }) },
-        storeMembers: { findFirst: vi.fn().mockResolvedValue({ id: 'membership-1' }) },
+        stores: {
+          findFirst: vi.fn(async () => {
+            expect(activeActor).toMatchObject({ actorKind: 'user', actorId: actor.sub });
+            return { orgId: actor.activeOrg };
+          }),
+        },
+        storeMembers: {
+          findFirst: vi.fn(async () => {
+            expect(activeActor).toMatchObject({ actorKind: 'user', actorId: actor.sub });
+            return { id: 'membership-1' };
+          }),
+        },
       },
     },
   };
