@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import {
   InventoryService,
   AdjustStockInput,
@@ -8,6 +8,7 @@ import {
   TransferStockInput,
 } from './inventory.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import {
   CurrentUser,
@@ -17,6 +18,7 @@ import {
 
 @Controller()
 @UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
