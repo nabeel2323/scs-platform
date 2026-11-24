@@ -171,3 +171,10 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 - No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 - Refund boundary: rejection creates a durable refund request/payment event/outbox record only. The generic OutboxDispatcher currently logs events and marks them dispatched; no payment-provider refund is executed by this path. Automatic provider execution remains outside the approved scope.
 - No merge, deployment, worker activation, RLS, migration, grants/default ACLs or shared/staging database action occurred.
+
+
+## Merchant verification-review actor-context continuation — 24 November 2026
+
+The verified-user actor interceptor now also covers `MerchantController.reviewVerification`. Source review confirms the service's request/store locks, organization consistency check, verification request/store/document updates, conditional organization verification/product activation, and outbox insertion all occur in one database transaction; no storage or provider I/O occurs in this handler. The existing `merchant:verification:review` permission guard remains authoritative. The controller metadata spec was extended; it is authored but not executed.
+
+Live state before this implementation commit: branch `remediation/phase-0-1-tenant-security`, PR #138 OPEN / DRAFT / UNMERGED to `develop`, parent HEAD `b876718174882459c1e92bb4d08ecb5db95e5b67`. Exact-parent Actions lookup returned zero workflow runs. Combined status contains Vercel Admin and Web FAILURE contexts pointing to the external build-rate-limit page; these are not application test outcomes. No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No protected DB, migration, grants/default ACLs, RLS, staging, deployment, worker activation, merge or release action occurred.

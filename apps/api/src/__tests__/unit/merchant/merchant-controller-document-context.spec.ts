@@ -3,9 +3,14 @@ import { TenantDatabaseContextInterceptor } from '../../../common/database/tenan
 import { describe, expect, it } from 'vitest';
 import { MerchantController } from '../../../modules/merchant/merchant.controller';
 
-describe('MerchantController document metadata actor context (G-002)', () => {
-  it('scopes only database-only document registration and listing handlers', () => {
-    const scoped = ['uploadDocument', 'listOrgDocuments', 'listStoreDocuments'] as const;
+describe('MerchantController database-only metadata and review actor context (G-002)', () => {
+  it('scopes database-only document registration/listing and verification review handlers', () => {
+    const scoped = [
+      'uploadDocument',
+      'listOrgDocuments',
+      'listStoreDocuments',
+      'reviewVerification',
+    ] as const;
     for (const method of scoped) {
       const handler = MerchantController.prototype[method];
       const interceptors = Reflect.getMetadata(INTERCEPTORS_METADATA, handler) as unknown[];

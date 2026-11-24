@@ -364,3 +364,12 @@ This supplemental source map is not runtime/RLS verification. The user requires 
 | bootstrap-issue-token CLI | bootstrap | Transaction-local principal after BEGIN, before lock/read/write | No token plaintext persistence |
 
 ReturnExpirationWorker and ShippingCarrierWorker remain uncovered; do not mark worker/system coverage complete. Realtime socket context remains open.
+
+
+## Merchant verification review actor-context continuation — 24 November 2026
+
+Source review confirmed that `MerchantController.reviewVerification` delegates to a database-only service transaction. The transaction locks the verification request and owning store, rejects a request/store organization mismatch, updates the request/store/document states, conditionally verifies the organization and activates eligible products, and inserts the decision outbox event using the same transaction client. It performs no object-storage or external-provider I/O.
+
+The handler now uses `TenantDatabaseContextInterceptor`, which derives its actor from the verified JWT after the existing `merchant:verification:review` permission guard. The existing service transaction remains nested within the same actor-bound transaction. The merchant controller metadata regression spec now includes `reviewVerification` in the DB-only allowlist and continues to assert that all three document presign handlers remain outside request transactions.
+
+This is source implementation and authored regression coverage only. The test was not executed under the implementation-first instruction. No database, RLS, migration, grants, staging, deployment or worker action occurred.

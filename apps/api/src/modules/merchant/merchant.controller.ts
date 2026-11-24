@@ -326,6 +326,7 @@ export class MerchantController {
 
   @Post('verification/:id/review')
   @HttpCode(HttpStatus.OK)
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:verification:review')
   async reviewVerification(

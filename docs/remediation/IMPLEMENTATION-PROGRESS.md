@@ -2507,3 +2507,11 @@ Regression specs added: orders-reject-actor-context.spec.ts and merchant-documen
 The merchant-rejection request now passes the actual authenticated merchant CallerContext and merchant user ID into PaymentsService.requestRefund. PaymentsService permits this non-buyer path only for reason MERCHANT_REJECTION, a MERCHANT_* role, and an order that passes assertOrderAccessible for the caller's active organization. The payment event records actorType MERCHANT and actorId/requestedBy as the merchant. The previous synthetic BUYER caller was removed. A focused regression spec covers valid same-org merchant initiation and rejects an order outside the merchant's active organization.
 
 Important scope boundary: requestRefund creates a REQUESTED refund row, payment event and outbox row. OutboxDispatcher.dispatch currently only logs generic events and marks them dispatched; it does not call a payment provider. This work does not implement automatic refund settlement/provider execution. That remains outside this slice and must not be implied as complete or activated without the relevant product/financial approval. No provider call or worker activation occurred. Tests remain authored but unexecuted.
+
+
+## G-002 Merchant verification-review actor context — 24 November 2026
+
+- Source review verified `MerchantController.reviewVerification` is a database-only workflow: it locks the verification request and store, checks request/store organization consistency, updates verification request/store/document records, conditionally verifies the organization and activates eligible products, and inserts the decision outbox event in the same service transaction.
+- Added `TenantDatabaseContextInterceptor` to the review handler. It remains behind the existing `merchant:verification:review` permission guard and derives actor identity only from the verified JWT.
+- Extended `merchant-controller-document-context.spec.ts` so the DB-only review handler is in the scoped allowlist while upload/download presign storage handlers remain excluded.
+- Regression spec authored but not executed. No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No RLS, migration, grants/default ACL changes, shared/staging DB operations, deployment, worker activation, merge or release occurred.

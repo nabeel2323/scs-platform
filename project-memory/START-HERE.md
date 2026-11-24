@@ -78,7 +78,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live reconciliation on 24 November 2026 confirms repository nabeel2323/scs-platform, branch remediation/phase-0-1-tenant-security, and PR #138 OPEN / DRAFT / UNMERGED against develop. Latest verified branch/PR HEAD before this handoff update: f01fc1dfb05af8975d50739ccee7563db8e5bf95. Exact-head GitHub Actions lookup returned zero workflow runs and combined status returned zero contexts. Re-query GitHub before the next action.
+Live reconciliation on 24 November 2026 confirms repository nabeel2323/scs-platform, branch remediation/phase-0-1-tenant-security, and PR #138 OPEN / DRAFT / UNMERGED against develop. Exact verified branch/PR HEAD before the current implementation commit: b876718174882459c1e92bb4d08ecb5db95e5b67. The current continuation adds verified-user actor context to the database-only Merchant verification-review handler and extends its controller metadata regression spec. Exact-parent GitHub Actions lookup returned zero workflow runs; combined status shows Vercel Admin/Web failures caused by the external build-rate-limit page, not application-test outcomes. Re-query GitHub before the next action.
 
 ### Latest G-002 source implementation
 
