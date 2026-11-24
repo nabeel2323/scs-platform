@@ -447,3 +447,12 @@ The 75-file numbered migration scan found 183 explicit REFERENCES clauses across
 ## 24 November 2026 — Orders cancel/reject actor context fail-closed review
 
 The `POST /orders/:id/cancel` and `POST /orders/:id/reject` handlers intentionally do not use `TenantDatabaseContextInterceptor`; their service methods create narrowly scoped user actor transactions around DB-only phases and keep post-commit realtime emission outside. Rejection additionally scopes its independent refund-request DB phase. The previous helper condition silently ran without actor context when a caller object was supplied without `sub` or `role`. Both helpers now allow context-free execution only when `caller` is truly absent (trusted internal call); malformed supplied caller context throws before DB work. Regression cases were added for missing subject and role in both methods. Tests not run.
+
+
+## Catalog controller actor-context pass — database-only mutation routes (24 November 2026)
+
+A route-to-service call-graph review found a set of database-only catalog mutations that had no controller interceptor and no service-level `withActorContext`. Added `TenantDatabaseContextInterceptor` to 23 verified DB-only mutation routes: category create/update/delete; brand create/update/deactivate; product create; product governance submit/withdraw/publish/unpublish; product/variant typed attribute writes; variant create/update and bulk operations; bulk product operations; media reorder/remove; import-job create/mapping/cancel/retry. Added a metadata regression spec asserting the interceptor is attached to every listed handler.
+
+The request-wide interceptor was deliberately not added to mixed/long-running routes: product update/delete (cache invalidation, outbox/audit work), media add (storage-backed URL resolution), staged-row upload/processing/preview (Redis/object storage and chunk processing), and CSV error export. These require short service-level actor scopes around each DB phase; wrapping the entire request would hold a DB transaction open across external I/O or long-running processing. These mixed paths remain open follow-up work and must not be treated as actor-context complete.
+
+No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IN_PROGRESS / NOT VERIFIED.

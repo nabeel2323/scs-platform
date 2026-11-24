@@ -2910,3 +2910,12 @@ The three previously corrected links (`return_requests.refund_id`, `return_reque
 ## 24 November 2026 — Orders cancel/reject actor-context fail-closed correction
 
 The `POST /orders/:id/cancel` and `POST /orders/:id/reject` routes intentionally use service-level actor boundaries rather than a blanket controller interceptor. The service scopes database-only work and keeps post-commit realtime emission outside the transaction; rejection also scopes its separate refund-persistence phase. A supplied caller object missing a non-empty `sub` or `role` previously fell through to unscoped DB work. Both helpers now fail closed with `ForbiddenException` before DB access; only an absent caller argument preserves the trusted internal-call path. Four unit regression cases cover missing subject/role for both operations. Tests remain unexecuted. Do not add a controller interceptor without re-reviewing the split side-effect boundaries.
+
+
+## Catalog controller actor-context pass — database-only mutation routes (24 November 2026)
+
+A route-to-service call-graph review found a set of database-only catalog mutations that had no controller interceptor and no service-level `withActorContext`. Added `TenantDatabaseContextInterceptor` to 23 verified DB-only mutation routes: category create/update/delete; brand create/update/deactivate; product create; product governance submit/withdraw/publish/unpublish; product/variant typed attribute writes; variant create/update and bulk operations; bulk product operations; media reorder/remove; import-job create/mapping/cancel/retry. Added a metadata regression spec asserting the interceptor is attached to every listed handler.
+
+The request-wide interceptor was deliberately not added to mixed/long-running routes: product update/delete (cache invalidation, outbox/audit work), media add (storage-backed URL resolution), staged-row upload/processing/preview (Redis/object storage and chunk processing), and CSV error export. These require short service-level actor scopes around each DB phase; wrapping the entire request would hold a DB transaction open across external I/O or long-running processing. These mixed paths remain open follow-up work and must not be treated as actor-context complete.
+
+No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IN_PROGRESS / NOT VERIFIED.

@@ -76,6 +76,7 @@ export class CatalogController {
   @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermission('catalog:categories:write')
   @RequireRole('ADMIN', 'MODERATOR')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async createCategory(@Body() input: CreateCategoryInput) {
     return this.catalogService.createCategory(input);
   }
@@ -156,6 +157,7 @@ export class CatalogController {
   @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermission('catalog:categories:write')
   @RequireRole('ADMIN', 'MODERATOR')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async updateCategory(@Param('id') id: string, @Body() input: UpdateCategoryInput) {
     return this.catalogService.updateCategory(id, input);
   }
@@ -164,6 +166,7 @@ export class CatalogController {
   @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermission('catalog:categories:write')
   @RequireRole('ADMIN', 'MODERATOR')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async deleteCategory(@Param('id') id: string) {
     return this.catalogService.deleteCategory(id);
   }
@@ -173,6 +176,7 @@ export class CatalogController {
   @Post('brands')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:brands:manage')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async createBrand(@Body() input: CreateBrandInput) {
     return this.catalogService.createBrand(input);
   }
@@ -204,6 +208,7 @@ export class CatalogController {
   @Patch('brands/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:brands:manage')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async updateBrand(@Param('id') id: string, @Body() input: Record<string, unknown>) {
     return this.catalogService.updateBrand(id, input as any);
   }
@@ -211,6 +216,7 @@ export class CatalogController {
   @Delete('brands/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:brands:manage')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async deactivateBrand(@Param('id') id: string) {
     return this.catalogService.deactivateBrand(id);
   }
@@ -220,6 +226,7 @@ export class CatalogController {
   @Post('products')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async createProduct(@CurrentUser() user: JwtPayload, @Body() input: CreateProductInput) {
     // P6 remediation: verify store membership before creating product.
     // Merchants must specify a valid storeId and be ACTIVE members of that store.
@@ -304,6 +311,7 @@ export class CatalogController {
   @Post('merchant/products/:id/submit')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async submitProduct(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -328,6 +336,7 @@ export class CatalogController {
   @Post('merchant/products/:id/withdraw')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async withdrawProduct(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -352,6 +361,7 @@ export class CatalogController {
   @Post('merchant/products/:id/publish')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async publishProduct(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -376,6 +386,7 @@ export class CatalogController {
   @Post('merchant/products/:id/unpublish')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async unpublishProduct(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -440,6 +451,7 @@ export class CatalogController {
   @Put('products/:id/attribute-values')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async setProductAttributeValues(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -479,6 +491,7 @@ export class CatalogController {
   @Post('products/:productId/variants')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async createVariant(
     @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
@@ -504,6 +517,7 @@ export class CatalogController {
   @Patch('products/:productId/variants/:variantId')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async updateVariant(
     @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
@@ -561,6 +575,7 @@ export class CatalogController {
   @Put('products/:productId/variants/:variantId/attribute-values')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async setVariantAttributeValues(
     @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
@@ -591,6 +606,7 @@ export class CatalogController {
   @Post('products/:productId/variants/bulk')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async bulkVariantOperations(
     @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
@@ -612,6 +628,7 @@ export class CatalogController {
   @Post('stores/:storeId/products/bulk')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async bulkProductOperations(
     @Param('storeId') storeId: string,
     @CurrentUser() user: JwtPayload,
@@ -648,6 +665,7 @@ export class CatalogController {
   @Post('products/:productId/media/reorder')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async reorderMedia(
     @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
@@ -693,6 +711,7 @@ export class CatalogController {
   @Delete('products/:productId/media/:mediaId')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async removeMedia(
     @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
@@ -730,6 +749,7 @@ export class CatalogController {
   @Post('stores/:storeId/imports')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async createImportJob(
     @Param('storeId') storeId: string,
     @CurrentUser() user: JwtPayload,
@@ -804,6 +824,7 @@ export class CatalogController {
   @Post('imports/:id/mapping')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async updateImportMapping(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
@@ -845,6 +866,7 @@ export class CatalogController {
   @Post('imports/:id/cancel')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async cancelImport(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
@@ -856,6 +878,7 @@ export class CatalogController {
   @Post('imports/:id/retry')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async retryImportJob(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
