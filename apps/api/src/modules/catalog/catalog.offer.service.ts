@@ -847,10 +847,16 @@ export class CatalogOfferService {
         warehouseId: input.warehouseId ?? offer.warehouseId,
         updatedAt: new Date(),
       })
-      .where(and(eq(merchantOffers.id, id), eq(merchantOffers.storeId, offer.storeId)))
+      .where(
+        and(
+          eq(merchantOffers.id, id),
+          eq(merchantOffers.storeId, offer.storeId),
+          ...(offer.updatedAt ? [eq(merchantOffers.updatedAt, offer.updatedAt)] : []),
+        ),
+      )
       .returning({ id: merchantOffers.id });
     if (!updated) {
-      throw new ConflictException('Offer ownership changed while this operation was in progress');
+      throw new ConflictException('Offer changed while this operation was in progress; reload and retry');
     }
 
     await this.audit.record({
