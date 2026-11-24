@@ -164,3 +164,14 @@ The “schema path” column identifies the inspected declaration. The owner pat
 ## Explicit non-actions
 
 No database query or write was run for this document. No migration, grant, default-ACL, ownership, RLS, staging, deployment, worker activation or provider call occurred. No policy is approved or ready to apply.
+
+## 25 November 2026 — source-level Catalog predicate follow-up
+
+The Catalog source now has additional operation-specific predicates, without changing the evidence boundary of this candidate inventory:
+- Store-owned category list/search/detail surfaces require active org/store membership; default/public category discovery and tree are active platform-only.
+- Product category assignments and category parent links require active global or same-store ownership. Product types are global and reject tenant/inactive category references on write, publish, duplicate and version; public reads exclude legacy tenant-bound bindings.
+- Product update/type-change/delete/bulk writes repeat the store owner and non-deleted predicate. Media deletion includes both media and parent product IDs.
+- Offer lifecycle writes compare current status and owner store; pricing compares updatedAt. Request review locks the pending request under a verified user transaction and transitions only PENDING rows.
+- Public facet values are derived only from published product types in active platform categories and ACTIVE/non-deleted products.
+
+These are source-level changes and regression specs only. They do not prove deployed constraints, existing row consistency, or the protected live catalog. The required live 114-versus-116 table discrepancy, FK reconciliation, full operation/caller inventory, role identity and migration/operator evidence remain open. No database/RLS/grant/migration/deployment action occurred.
