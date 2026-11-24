@@ -2,20 +2,25 @@
 
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
-**Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commits:** c587ed46db9a4893f2fa0167a74e671bc9d3ae10 (actor-context type-safety), a78503a01f28de440b2ae8d9c3cafd1e754dfd93 (carrier recovery), 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f (worker leases), 5de17d1880aa645a2efeccaf98eba959c6da7c8e (worker-lease test fixture), 400acb3cb3c338e477bed180b64580b9b200dc0e (catalog-import read routes), and 565ab94a678053a60ef9386fafe3d2615e177f93 (report error-read phase).  
-**PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base develop.  
-**Latest exact branch/PR head:** 565ab94a678053a60ef9386fafe3d2615e177f93. Exact-head Actions lookup: zero workflow runs. Vercel Web and Admin contexts both FAILURE due to external deployment rate limiting; these are preview-provider statuses, not application test outcomes.  
-**Recent automatic runs:** #1476 failed the changed-file formatting gate after all 9 lint/typecheck tasks and Mobile Flutter Tests succeeded. #1477 was automatically cancelled by a newer push. #1478 failed API typecheck due only to an outdated worker-lease unit-fixture variable reference; that fixture was corrected in 5de17d1 and has not been re-run.  
-**Standing user instruction:** implementation and cross-component integration first; do not intentionally run tests or trigger CI during implementation. Keep PR #138 draft/open/unmerged.
+**Branch:** `remediation/phase-0-1-tenant-security`  
+**Latest source implementation commits:** `9906430459666effbd25f33148c3cdf01b976330` and `9a010db69c668432f2811c68094a367ad5c7684c`.  
+**PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop`.  
+**Latest source head before this documentation sync:** `9a010db69c668432f2811c68094a367ad5c7684c`; re-query live branch HEAD before continuing after the documentation commits.  
+**Exact-source Actions run:** [#1501](https://github.com/nabeel2323/scs-platform/actions/runs/45422228217), ID `45422228217`, automatically queued on the latest source SHA and IN_PROGRESS at last inspection.  
+**Exact-source Vercel statuses:** Web and Admin SUCCESS / SKIPPED — NOT AFFECTED.  
+**Standing instruction:** implementation/integration first; do not intentionally run tests or trigger CI during implementation. Keep PR #138 draft/open/unmerged.
 
 ## Latest implementation checkpoint
 
-- The actor-context typecheck corrections capture narrowed JWT claims before the deferred interceptor callback, retain the non-null prior password hash in IdentityService's optimistic update predicate, and return the validated organization ID from the carrier tenant assertion. Direct-service test fixtures now pass authenticated actor claims and current method/constructor arguments.
-- Carrier reconciliation claims and durable DB transitions now use a short global worker actor (carrier-reconciliation:<pid>). Carrier tracking/provider calls remain outside actor transactions. Outbox retry intent and shipment retry-state update commit together under the worker actor.
-- Carrier admin recovery now performs shipment read, tenant/membership checks, recovery-state update and authoritative re-read under the verified admin actor. The carrier reconciliation call happens after that scope closes; the audit write uses a separate audit principal. The recovery queue read uses the verified user actor.
-- WorkerLeaseService wraps lease ensure/acquire/renew/heartbeat/failure/release/read operations in the process holder's worker actor. The runbook-only force-expire operation uses a separate system actor.
-- Regression specs were added/updated for carrier recovery worker/admin actor scopes and worker lease actor scopes. They remain unexecuted.
+- Authenticated Identity/Profile, Payments, Orders/Merchant, Catalog Import, P13 monitoring/control and selected worker/system paths have the bounded actor-context adoption recorded in later entries.
+- CarrierCredentialsService list/get/create/deactivate operations now use a verified user actor. Encryption is performed before the DB transaction; membership is checked inside the transaction before insert. Deactivation repeats credential ID + organization in its UPDATE predicate.
+- CarrierConfigurationsService list/get/create/update operations now use a verified user actor. Internal store resolution uses an organization-bound worker context; store lookup repeats store ID + organization, configuration lookup repeats org/store/active predicates, and updates repeat configuration ID + org.
+- Internal carrier credential lookup/decryption requires expected org ID; credential and webhook-secret queries constrain credential ID + org. Decryption occurs after the short DB read transaction closes.
+- Aramex provider credential lookup uses explicit worker contexts and retains expected organization, provider and active predicates. Platform credential lookup is restricted to the Identity-resolved PLATFORM organization.
+- Carrier webhook credential resolution uses a dedicated worker principal. The legacy provider-only route still rejects multiple active credentials with HTTP 401, returned outside the transaction. Subsequent webhook persistence uses the credential's org-bound context.
+- AuditLogMiddleware already establishes a separate audit actor in its response-finish callback; AuditService remains context-dependent to avoid an actor switch inside an active transaction.
+- Migration runner, seed CLI, bootstrap-token CLI and BootstrapService retain distinct migration/seed/bootstrap/anonymous principal boundaries. They are not wrapped in a generic HTTP user context.
+- Regression coverage was updated/added for carrier actor context and webhook lookup fixture compatibility. Tests remain unexecuted.
 
 ## G-002 physical table inventory
 
@@ -27,15 +32,15 @@ CatalogImportController list/detail/errors database-only routes use the verified
 
 ## Remaining implementation priorities
 
-1. Complete actor-context phase separation for CatalogImportService/ExcelExecutor: distinguish admin DB reads/writes from object-storage upload/download, workbook parsing, export/report generation and per-entity nested transactions; pass verified caller identity through all import routes.
-2. Complete P13 operational principal separation across P13MonitorService, OpsAlertService, OpsControlService and PilotControlService (worker/system monitoring versus authenticated operator read/write).
-3. Finish remaining source-backed raw SQL/function/trigger/partition, migration, bootstrap, CLI and helper-mediated R/I/U/D paths and per-operation ownership predicates.
+1. Complete the raw SQL/function/trigger/partition inventory across migration files and remaining operator/bootstrap/CLI access paths.
+2. Finish exact per-operation table ownership predicates and migration-defined FK evidence; preserve the distinction between source declarations and live catalog evidence.
+3. Verify remaining worker/audit/bootstrap actor-context nesting and ensure no different actor is switched while a transaction is active.
 4. Obtain actual API/migration runtime identities and protected read-only staging catalog evidence only through the authorized process.
 5. Keep G-001 independent review and G-036 verification open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
 
 ## Verification and safety
 
-G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Run #1476: 9 lint/typecheck tasks succeeded, Mobile Flutter Tests succeeded, but the changed-file format check failed; the overall job and workflow failed. Run #1477 was automatically cancelled after a newer push. Run #1478 failed API typecheck on the previous source head because the worker-lease unit test still referenced an undeclared withActorContext variable; commit 5de17d1 fixes the fixture. No re-run was requested. Exact-head Actions lookup for 5de17d1 returned zero runs. Unit/integration/E6/build/release gates remain unverified/skipped unless a later run proves otherwise. No local tests, formatter, lint or typecheck were run by this session.
+G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Actions run #1501 was automatically queued on source SHA `9a010db69c668432f2811c68094a367ad5c7684c` and was IN_PROGRESS at last inspection; it was not manually dispatched. The available GitHub connector exposes no workflow-cancel action. Exact-source Vercel Web/Admin contexts were SUCCESS / SKIPPED — NOT AFFECTED. No tests, formatter, lint, typecheck or E6 were intentionally run by this session. Do not infer a pass from an in-progress run.
 
 No shared database mutation, migration, grant/default-ACL change, RLS enablement, protected staging action, deployment, worker activation, merge or release occurred.
 
@@ -323,3 +328,8 @@ The Catalog Import source slice and P13 operational principal slice are now impl
 - PR #138 remains OPEN / DRAFT / UNMERGED. No merge, deployment, worker activation, migration, RLS/grant/default-ACL change, shared/staging DB access or provider call occurred.
 
 **Next:** complete the remaining source callsite/ownership-predicate inventory, then run the consolidated typecheck/unit/PostgreSQL/E6 verification campaign only after implementation and integration are complete. Resolve any newly exposed failures before considering G-002 verified. G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.
+
+
+## 24 November 2026 — carrier credential/configuration actor-context continuation
+
+Source commits: `9906430459666effbd25f33148c3cdf01b976330` and `9a010db69c668432f2811c68094a367ad5c7684c`. Next task: migration/CLI/raw SQL function/trigger/partition reconciliation and exact ownership/FK evidence. No verification was executed; Actions #1501 is automatic and was in progress at last inspection.

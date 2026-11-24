@@ -78,30 +78,24 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. The latest Catalog Import source implementation checkpoint is `ff83be282b9f36c1153271e612e5686bbee33931`. Upload/validate/execute/retry, ExcelExecutor per-entity transactions, template dropdown reads and catalog-export source queries now use explicit caller actor scopes; object storage, workbook parsing and workbook generation remain outside DB actor transactions. No tests or quality gates were intentionally run. The latest exact branch head and Actions status must be re-queried after the documentation synchronization commits.
+Live reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Source commits: `9906430459666effbd25f33148c3cdf01b976330` (carrier credential/configuration actor-context adoption) and `9a010db69c668432f2811c68094a367ad5c7684c` (webhook scoped lookup and ambiguity-preserving response correction). Latest source checkpoint before this documentation sync: `9a010db69c668432f2811c68094a367ad5c7684c`.
 
-### Latest G-002 source implementation
-- Orders merchant rejection now uses the verified merchant actor for DB-only authorization, auto-advance, inventory settlement, optimistic status flip, history and rejection outbox. Stock release and rejection persistence share one transaction. Refund request persistence is a separate DB-only phase with stable per-order idempotency. Master-order recalculation/read use a separate short actor scope.
-- Merchant rejection refund attribution now uses the authenticated merchant identity. PaymentsService accepts the special MERCHANT_REJECTION reason from a MERCHANT_* caller only when assertOrderAccessible confirms the order belongs to the caller's active organization. It no longer impersonates the buyer.
-- Important financial boundary: this flow creates a REQUESTED refund row, payment event and outbox record. The current generic OutboxDispatcher only logs generic events and marks them dispatched; it does not execute a payment-provider refund. Automatic provider execution remains outside the approved scope.
-- Merchant document download presigning performs metadata/membership reads in a short user actor context, calls object storage with no DB transaction open, then persists the signed URL in a second short actor context. Upload presign remains storage-only. Document registration and organization/store listing retain their existing scoped DB handlers.
-- Regression specs were added for Orders rejection actor ordering, merchant refund actor attribution and Merchant document presign phase boundaries. They have not been executed.
-- G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No RLS, grants, migrations, protected staging/database operations, worker activation, deployment, merge or release occurred.
+Carrier credential/configuration CRUD now uses verified user actor contexts; internal credential/configuration resolution uses organization-bound worker contexts and exact organization predicates. Aramex provider credential reads use explicit worker contexts, provider and active-state predicates, and the Identity-resolved PLATFORM organization for platform credentials. Incoming webhook credential resolution uses a dedicated worker principal and preserves the ambiguous legacy-route 401 response outside the transaction. Decryption occurs after short database reads close. AuditLogMiddleware already uses a separate audit principal.
 
-### Exact PR and CI state
+Migration execution uses a separate migration Pool/identity diagnostic and advisory lock; seed CLI uses a dedicated PoolClient; bootstrap token issuance uses transaction-local bootstrap actor settings; BootstrapService uses anonymous/bootstrap actor contexts. These are distinct operator/system principals, not ordinary tenant HTTP requests.
 
-- PR #138 is OPEN / DRAFT / UNMERGED against develop. Keep it that way.
-- Latest known exact-head Actions lookup: zero workflow runs; combined status: zero contexts. Earlier Vercel build-rate-limit failures were on a previous SHA and are not current-head evidence.
-- No tests, formatter, lint, typecheck, E6 or CI were run in this implementation phase.
+**Verification:** Actions run #1501 (ID `45422228217`) was automatically queued by the source push on SHA `9a010db69c668432f2811c68094a367ad5c7684c`; it was IN_PROGRESS at last inspection. No test, formatter, lint, typecheck, E6 or CI workflow was intentionally dispatched. The source commit did not include the skip-CI marker, so automatic CI could not be prevented; no cancellation action is exposed by the available GitHub connection. Exact-source Vercel Web/Admin statuses were SUCCESS / SKIPPED — NOT AFFECTED. Do not treat the in-progress run as a pass.
+
+G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No RLS, grant/default-ACL change, migration execution, protected staging/database action, worker activation, deployment, merge or release occurred. The 100 source Drizzle declarations, historical 114 public relation snapshot and unexplained 116 count remain distinct; live catalog evidence is still required.
 
 ### Next implementation priorities
 
-1. Continue the source-backed G-002 physical table/operation/ownership-predicate matrix; reconcile the 99 Drizzle-exported tables, 114 detailed public relations and unresolved 116 count. Do not invent a two-table delta.
-2. Continue remaining service/controller/worker access-path review, distinguishing authenticated user, worker, audit, bootstrap and system principals. Keep provider, object storage and external I/O outside actor transactions.
-3. Complete the API/migration runtime identity and protected read-only catalog evidence only through the authorized staging process.
-4. Keep G-001 independent review and G-036 verification open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
-
-**Standing restriction:** implementation/integration first; do not run tests, formatter, lint, typecheck, E6 or CI until the consolidated verification phase. No migrations, grants/default ACL changes, RLS enablement, shared/staging database writes, deployment, worker activation, merge or release without the recorded authorization.
+1. Complete the raw SQL/function/trigger/partition inventory across migrations and standalone database scripts; keep migration, seed, bootstrap, operator and API identities distinct.
+2. Finish exact operation-to-table and row-ownership predicate mapping, including carrier, webhook, audit, bootstrap, CLI and worker boundaries.
+3. Complete migration-defined FK evidence and source-to-runtime schema reconciliation. The 100 source declarations, historical 114 public r/p snapshot and unexplained 116 count are separate evidence sets.
+4. Add remaining actor-context reuse/nesting, worker ownership, carrier credential, webhook ambiguity, schema-barrel and bootstrap boundary regression coverage after implementation/integration is complete.
+5. Obtain actual API/migration runtime identities and protected read-only catalog evidence only through the authorized staging process.
+6. Keep G-001 independent review and G-036 verification open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
 
 ## Safety reminder
 

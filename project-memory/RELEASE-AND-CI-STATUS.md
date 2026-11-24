@@ -221,3 +221,15 @@ The Catalog Import source slice and P13 operational principal slice are now impl
 - PR #138 remains OPEN / DRAFT / UNMERGED. No merge, deployment, worker activation, migration, RLS/grant/default-ACL change, shared/staging DB access or provider call occurred.
 
 **Next:** complete the remaining source callsite/ownership-predicate inventory, then run the consolidated typecheck/unit/PostgreSQL/E6 verification campaign only after implementation and integration are complete. Resolve any newly exposed failures before considering G-002 verified. G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.
+
+
+## 24 November 2026 — carrier credential/configuration actor-context source update
+
+- Source commits: `9906430459666effbd25f33148c3cdf01b976330` and `9a010db69c668432f2811c68094a367ad5c7684c`.
+- Authenticated carrier credential/configuration CRUD uses verified user actor contexts. Internal resolver/decryption paths use explicit worker contexts and organization predicates. Aramex provider credential queries are scoped and tenant-bound. Incoming webhook credential lookup uses a dedicated worker context; ambiguous legacy provider routes still return HTTP 401 outside the DB transaction.
+- AuditLogMiddleware already establishes a separate audit principal. Migration/seed/bootstrap paths retain distinct operator principals; no generic request context was applied to them.
+- Regression coverage was updated/added but not executed.
+- Actions #1501 (ID 45422228217) was automatically queued on source SHA `9a010db69c668432f2811c68094a367ad5c7684c`; it was IN_PROGRESS at last inspection. No manual workflow dispatch or test command was used. The source commit lacked a skip-CI marker; the available GitHub connector exposes no cancellation action. Exact-source Vercel Web/Admin statuses were SUCCESS / SKIPPED — NOT AFFECTED.
+- PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No RLS/grant/default-ACL/migration/shared-staging/deployment/worker/merge/release action occurred.
+
+**Next:** complete raw SQL/function/trigger/partition and migration/bootstrap/CLI access-path reconciliation, exact operation ownership predicates and FK evidence. Obtain runtime identities and live catalog only through the authorized read-only staging process. Keep tests and CI deferred until implementation/integration is complete.

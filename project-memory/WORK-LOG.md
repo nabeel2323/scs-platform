@@ -1940,3 +1940,14 @@ The Catalog Import source slice and P13 operational principal slice are now impl
 - PR #138 remains OPEN / DRAFT / UNMERGED. No merge, deployment, worker activation, migration, RLS/grant/default-ACL change, shared/staging DB access or provider call occurred.
 
 **Next:** complete the remaining source callsite/ownership-predicate inventory, then run the consolidated typecheck/unit/PostgreSQL/E6 verification campaign only after implementation and integration are complete. Resolve any newly exposed failures before considering G-002 verified. G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.
+
+
+## 24 November 2026 — carrier credential/configuration actor-context continuation
+
+**Source commits:** `9906430459666effbd25f33148c3cdf01b976330` and `9a010db69c668432f2811c68094a367ad5c7684c`.
+
+Carrier credential CRUD now uses verified user actors; configuration CRUD is likewise user-scoped. Internal credential/configuration resolution and decryption use organization-bound worker contexts and exact org predicates. Aramex provider reads retain org/provider/active predicates and use the Identity-resolved PLATFORM organization for global lookups. Incoming webhook credential resolution uses a dedicated worker principal and preserves the ambiguous legacy-route 401 response outside the transaction. Decryption occurs after DB scopes close.
+
+AuditLogMiddleware already scopes its deferred response-finish write with an audit actor. Migration runner, seed CLI, bootstrap token CLI and BootstrapService retain separate migration/seed/bootstrap/anonymous principals. No generic HTTP context was applied to those paths.
+
+No tests, formatter, lint, typecheck or E6 were intentionally executed. Automatic Actions [#1501](https://github.com/nabeel2323/scs-platform/actions/runs/45422228217) was in progress at last inspection. No pass is claimed. Next: raw SQL/function/trigger/partition inventory, direct migration/bootstrap/CLI access-path reconciliation, exact ownership predicates and FK evidence, then protected read-only runtime identity/catalog evidence. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

@@ -5,6 +5,15 @@
 
 ## Immediate blockers and high-priority work
 
+### G-002 latest continuation — carrier and operator/database access paths — 24 November 2026
+
+Carrier credential/configuration CRUD and internal resolution now use explicit verified-user or organization-bound worker actor contexts. Aramex credential reads retain organization/provider/active predicates; webhook credential resolution is scoped and preserves ambiguous legacy-route rejection. AuditLogMiddleware already writes under its own audit principal. Migration/seed/bootstrap CLI paths remain distinct operator principals.
+
+Still open: complete the source-backed raw SQL/function/trigger/partition inventory; reconcile remaining migration/bootstrap/CLI/direct PoolClient paths and exact table/ownership predicates; complete migration-defined FK evidence; verify actor-context reuse/nesting; obtain protected read-only live API/migration identity/catalog evidence only through the authorized process. The 100 source declarations, historical 114 public r/p snapshot and unexplained 116 count remain distinct.
+
+Exact source SHA `9a010db69c668432f2811c68094a367ad5c7684c` automatically queued Actions #1501, IN_PROGRESS at last inspection. No test/CI workflow was intentionally dispatched. G-002 remains NOT VERIFIED; no RLS, grants, migration, protected staging, deployment, worker activation or merge is authorized.
+
+
 ### G-002 continuation — 22 November 2026
 
 The source operation map now covers 26 service files plus supporting outbox, carrier, tracking, reconciliation, operations-control and worker paths. A separate schema review records candidate owner paths and principal classes across the major tenant, buyer/order, financial, user-private and system tables. These documents are source-only evidence, not an approved policy. Still open: complete the remaining import-executor/carrier recovery/bootstrap/migration/CLI paths; verify FK constraints and plain UUID relationships against migrations/catalog; map exact read/insert/update/delete predicates and route principals; obtain actual API/migration runtime identities and the protected read-only staging catalog snapshot; resolve 114-versus-116. A user-uploaded supplemental note reports 111/111 tables with RLS disabled and 32 public functions with none SECURITY DEFINER, but it lacks timestamp, endpoint, query, connection identity and relation-kind scope. Preserve it as supplemental evidence only; do not substitute 111 for the detailed 114 or historical 116 counts. See [G-002 supplemental audit note](../docs/remediation/G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md). No shared database changes, migration, grants, RLS, deployment or worker activation are authorized.
@@ -1137,3 +1146,8 @@ The Catalog Import source slice and P13 operational principal slice are now impl
 - PR #138 remains OPEN / DRAFT / UNMERGED. No merge, deployment, worker activation, migration, RLS/grant/default-ACL change, shared/staging DB access or provider call occurred.
 
 **Next:** complete the remaining source callsite/ownership-predicate inventory, then run the consolidated typecheck/unit/PostgreSQL/E6 verification campaign only after implementation and integration are complete. Resolve any newly exposed failures before considering G-002 verified. G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.
+
+
+## 24 November 2026 — next G-002 source task
+
+Continue the migration/CLI/raw database object audit. Review SQL function/trigger/partition creation and maintenance, direct Pool/PoolClient scripts, and operation ownership predicates. Keep runtime identity and live catalog evidence gated to the authorized read-only staging process. Add remaining actor-context regression coverage only after source integration is complete; do not run the verification campaign during implementation.
