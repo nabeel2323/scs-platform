@@ -642,7 +642,7 @@ export class CatalogTaxonomyService {
   }
 
   async hasPublicCategoryBinding(categoryId: string | null | undefined): Promise<boolean> {
-    if (!categoryId) return true;
+    if (!categoryId) return false;
     const category = await this.db.db.query.categories.findFirst({
       where: and(
         eq(categories.id, categoryId),
@@ -748,12 +748,9 @@ export class CatalogTaxonomyService {
     if (opts?.categoryId) {
       if (!platformCategoryIds.includes(opts.categoryId)) return [];
       conditions.push(eq(productTypes.categoryId, opts.categoryId));
-    } else if (platformCategoryIds.length > 0) {
-      conditions.push(
-        or(isNull(productTypes.categoryId), inArray(productTypes.categoryId, platformCategoryIds)),
-      );
     } else {
-      conditions.push(isNull(productTypes.categoryId));
+      if (platformCategoryIds.length === 0) return [];
+      conditions.push(inArray(productTypes.categoryId, platformCategoryIds));
     }
 
     if (opts?.status && opts.status !== 'ALL') conditions.push(eq(productTypes.status, opts.status));
