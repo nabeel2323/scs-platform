@@ -1232,3 +1232,8 @@ No live database evidence or policy approval is implied by the source review. G-
 **Driver assignment remains unresolved:** `driver_profiles.org_id` and `driver_store_assignments.store_id` have separate FKs without a same-organization constraint. The inspected ShippingModule/ShipmentOperationsController does not expose an assignment mutation path; shipment `assigned_driver_id` references users rather than driver profiles. Locate all consumers and any write path before adding guards or changing the model.
 
 Regression coverage for the financial and reconciliation checks remains pending and unexecuted. Live `pg_constraint`, runtime identities and database state remain unverified. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## G-002 — refund/payment/order consistency follow-up (24 November 2026)
+
+Commit `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d` adds missing refund order/currency equality checks to approval and both idempotent request recovery paths. The return-refund path already checks return/payment/order/refund/buyer/currency lineage under locks. Remaining cross-column checks and regression cases are documented in the G-002 migration FK crosswalk; tests remain pending and unexecuted.
