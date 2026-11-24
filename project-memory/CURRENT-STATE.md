@@ -4,7 +4,8 @@
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
 **Latest implementation checkpoint:** `bccb8c569d122c7b1479881aa162fb428f264c4e` — adds verified-user actor context to Merchant document registration and organization/store metadata listing, with explicit storage-presign exclusions. Payments DB-only route checkpoint: `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50`.  
-**Parent branch/documentation head:** `137d0849ba6e91c477fbb15323e8af28b07f59b1`.  
+**Latest source implementation commit:** `bccb8c569d122c7b1479881aa162fb428f264c4e`.  
+**Latest documentation checkpoint before this status sync:** `2cff7c0f6604d6918b00efb190abd96d301149e1`.  
 **Latest test-only follow-up:** `c8405a33388731095ef08b64d744a36d7b079cd3` — corrected the Drizzle update-query mock used by the credential actor-context spec.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop` (`f74eb588cc58fc99b105e749d39dbfbacb4f9775`).  
 **Exact-head GitHub Actions:** zero workflow runs; source commits intentionally include `[skip ci]`.  
@@ -102,3 +103,8 @@ Explicitly excluded: bank-transfer proof upload (object storage), refund request
 ## 24 November 2026 — Merchant document metadata actor-context adoption
 
 Commit `bccb8c569d122c7b1479881aa162fb428f264c4e` scopes the database-only document registration, organization listing and store listing handlers through the verified-user interceptor. Object-storage upload/download presign handlers remain excluded. The new controller metadata spec asserts the allowlist and exclusions; it has not been executed. Exact-head Actions lookup returned zero workflow runs and zero status contexts. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## Live status reconciliation — 24 November 2026
+
+At PR HEAD `2cff7c0f6604d6918b00efb190abd96d301149e1`, PR #138 remained OPEN / DRAFT / UNMERGED to `develop`. GitHub Actions workflow-run lookup returned zero runs. Combined statuses: Vercel Web SUCCESS; Vercel Admin FAILURE with the external provider build-rate-limit URL. These preview statuses are not application-test evidence. The latest implementation commit is `bccb8c569d122c7b1479881aa162fb428f264c4e`; the `2cff7c0` commit is documentation-only. Tests and all quality gates remain deferred.

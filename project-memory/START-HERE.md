@@ -978,3 +978,8 @@ Explicitly excluded: bank-transfer proof upload (object storage), refund request
 - Exact-head GitHub Actions lookup for bccb8c569d122c7b1479881aa162fb428f264c4e returned zero workflow runs and zero status contexts. The commit uses [skip ci] as required during implementation. No tests, formatter, lint, typecheck or E6 were run.
 - Next implementation slice: continue the source-level Orders reject/cancel/payment-provider boundary review. Keep refund/provider workflows outside DB actor transactions; split only proven DB-only phases and do not wrap a complete handler if it awaits or emits external effects before commit. Then complete Merchant presign metadata/storage separation and the G-002 ownership/runtime evidence matrix.
 - All protected staging, shared database, migration, grants/default ACL, RLS, deployment, worker activation, no-merge and no-release restrictions remain unchanged.
+
+
+## Live GitHub reconciliation — 24 November 2026, 09:45 UTC
+
+The live PR #138 HEAD at this checkpoint is `2cff7c0f6604d6918b00efb190abd96d301149e1` on `remediation/phase-0-1-tenant-security`, OPEN / DRAFT / UNMERGED to `develop`. Exact-head GitHub Actions lookup returned zero workflow runs. Combined statuses show Vercel Web SUCCESS and Vercel Admin FAILURE with the provider build-rate-limit URL; these are preview statuses, not application-test evidence. The latest source implementation is `bccb8c569d122c7b1479881aa162fb428f264c4e`; `2cff7c0` is documentation-only. Query live GitHub again before the next implementation action.
