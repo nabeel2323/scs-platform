@@ -48,6 +48,7 @@ interface Harness {
   auditRecords: unknown[];
   findManyCalls: unknown[];
   merchantOfferFindFirstCalls: unknown[];
+  updateConditions: unknown[];
 }
 
 function makeHarness(queries: HarnessQueries = {}): Harness {
@@ -56,6 +57,7 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
   const auditRecords: unknown[] = [];
   const findManyCalls: unknown[] = [];
   const merchantOfferFindFirstCalls: unknown[] = [];
+  const updateConditions: unknown[] = [];
 
   const firstFn = (spec?: Row | Array<Row | null> | null, calls?: unknown[]) => {
     if (Array.isArray(spec)) {
@@ -110,9 +112,12 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
       }),
       update: () => ({
         set: (patch: unknown) => ({
-          where: () => {
+          where: (condition: unknown) => {
             updated.push(patch);
-            return Promise.resolve();
+            updateConditions.push(condition);
+            return {
+              returning: async () => [{ id: 'updated-offer' }],
+            };
           },
         }),
       }),
@@ -125,7 +130,7 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
       auditRecords.push(entry);
     },
   });
-  return { svc, inserted, updated, auditRecords, findManyCalls, merchantOfferFindFirstCalls };
+  return { svc, inserted, updated, auditRecords, findManyCalls, merchantOfferFindFirstCalls, updateConditions };
 }
 
 describe('CatalogOfferService — create', () => {
@@ -335,6 +340,37 @@ describe('CatalogOfferService — lifecycle', () => {
   it('throws when the offer does not exist', async () => {
     const { svc } = makeHarness({ merchantOffers: { findFirst: null } });
     await expect(svc.suspendOffer('missing', 'admin-1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('CatalogOfferService — conditional ownership predicates (G-002)', () => {
+  it('uses offer ID, current lifecycle status and owning store for merchant transitions', async () => {
+    const offer = { id: 'o1', storeId: 's1', status: 'DRAFT' };
+    const { svc, updateConditions } = makeHarness({
+      merchantOffers: { findFirst: [offer, offer, { ...offer, status: 'PROPOSED' }] },
+    });
+
+    await svc.proposeOffer('o1', caller);
+
+    expect(updateConditions).toHaveLength(1);
+    const compiled = new PgDialect().sqlToQuery(updateConditions[0] as SQL);
+    expect(compiled.params).toContain('o1');
+    expect(compiled.params).toContain('DRAFT');
+    expect(compiled.params).toContain('s1');
+  });
+
+  it('uses the previously-read lifecycle status as a compare-and-set predicate for governance transitions', async () => {
+    const offer = { id: 'o1', storeId: 's1', status: 'PROPOSED' };
+    const { svc, updateConditions } = makeHarness({
+      merchantOffers: { findFirst: [offer, { ...offer, status: 'ACTIVE' }] },
+    });
+
+    await svc.approveOffer('o1', 'admin-1');
+
+    expect(updateConditions).toHaveLength(1);
+    const compiled = new PgDialect().sqlToQuery(updateConditions[0] as SQL);
+    expect(compiled.params).toContain('o1');
+    expect(compiled.params).toContain('PROPOSED');
   });
 });
 
