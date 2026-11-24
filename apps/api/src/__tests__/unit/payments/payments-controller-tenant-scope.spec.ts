@@ -1,4 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
+import { INTERCEPTORS_METADATA } from '@nestjs/common/constants';
+import { TenantDatabaseContextInterceptor } from '../../../common/database/tenant-database-context.interceptor';
 import { describe, expect, it, vi } from 'vitest';
 import { PaymentsController } from '../../../modules/payments/payments.controller';
 
@@ -7,6 +9,27 @@ const user = {
   role: 'MERCHANT',
   activeOrg: 'org-a',
 } as any;
+
+describe('PaymentsController bounded read actor context (G-002)', () => {
+  it('wraps database-only payment and settlement GET routes in the verified user actor context', () => {
+    const methods = [
+      'getPayment',
+      'requestedRefunds',
+      'listPayments',
+      'verificationQueue',
+      'stalePayments',
+      'listSettlements',
+      'merchantListPayments',
+      'merchantSettlements',
+    ] as const;
+
+    for (const method of methods) {
+      const handler = PaymentsController.prototype[method];
+      const interceptors = Reflect.getMetadata(INTERCEPTORS_METADATA, handler) as unknown[];
+      expect(interceptors).toContain(TenantDatabaseContextInterceptor);
+    }
+  });
+});
 
 describe('PaymentsController merchant listing tenant context (G-030)', () => {
   it('lists requested refunds through the admin queue service', async () => {

@@ -36,6 +36,7 @@ import {
 import { CallerContext, assertOrderAccessible } from '../../common/tenant-scope';
 import { DatabaseService } from '../../common/database/database.service';
 import { parseSettlementPagination } from './settlement-pagination';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -49,6 +50,7 @@ export class PaymentsController {
 
   /** GET /v1/payments/:id — view payment details (buyer owns it or admin). */
   @Get('payments/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getPayment(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const payment = await this.payments.getPaymentOrThrow(id);
     const order = await this.payments.getOrderForPayment(payment.orderId);
@@ -147,6 +149,7 @@ export class PaymentsController {
 
   /** GET /v1/admin/refunds — refund requests awaiting admin approval. */
   @Get('admin/refunds')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:refunds:approve')
   async requestedRefunds() {
@@ -164,6 +167,7 @@ export class PaymentsController {
 
   /** GET /v1/admin/payments — list all payments (admin). */
   @Get('admin/payments')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:payments:read')
   async listPayments(
@@ -175,6 +179,7 @@ export class PaymentsController {
 
   /** GET /v1/admin/payments/verification-queue — pending proofs. */
   @Get('admin/payments/verification-queue')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:payments:verify')
   async verificationQueue() {
@@ -183,6 +188,7 @@ export class PaymentsController {
 
   /** GET /v1/admin/payments/stale — reconciliation: stale payments. */
   @Get('admin/payments/stale')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:payments:read')
   async stalePayments() {
@@ -213,6 +219,7 @@ export class PaymentsController {
 
   /** GET /v1/admin/settlements — list settlements. */
   @Get('admin/settlements')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:settlements:read')
   async listSettlements(
@@ -232,6 +239,7 @@ export class PaymentsController {
 
   /** GET /v1/merchant/payments — payments for merchant's stores. */
   @Get('merchant/payments')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:read')
   async merchantListPayments(
@@ -245,6 +253,7 @@ export class PaymentsController {
 
   /** GET /v1/merchant/settlements — settlements for merchant's stores. */
   @Get('merchant/settlements')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:read')
   async merchantSettlements(
