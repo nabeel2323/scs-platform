@@ -956,3 +956,7 @@ Merchant uses actor context for bounded store/customer/warehouse/verification re
 ShippingCarrierWorker scopes its direct DB operations and supporting tenant/credential lookups to a worker actor; carrier API and object-storage operations remain outside the DB transaction. Carrier webhook processing is credential-scoped only after HMAC authentication. Realtime room authorization, bootstrap, deferred audit writes and the bounded worker set are also scoped.
 
 **Standing user instruction:** finish implementation and integration first; do not run tests or CI until that work is complete.
+
+## Identity session/device route reconciliation — 24 November 2026
+
+A follow-up controller audit confirmed that ProfileController's session list, revoke-by-device, trusted-device list and trusted-device revoke handlers already carry `TenantDatabaseContextInterceptor`. The interceptor derives the actor from the verified JWT after guards and scopes the complete awaited handler. These routes were therefore already covered; no redundant service-level wrapper or controller signature change was added. Credential setup/change remain explicitly scoped inside IdentityService because those handlers intentionally stay outside the interceptor for bcrypt separation.

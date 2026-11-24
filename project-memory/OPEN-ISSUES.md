@@ -973,3 +973,8 @@ Source commits `5a6eba900eabe021352a0f7f3307bddaeb2d6333` and `b939a335a5bc12624
 ## G-002 Payments read-route actor context — 24 November 2026
 
 Commit `7f56e5185cf1a7c7b6954845ca9151aac83c5ac6` adds the opt-in user actor interceptor to eight DB-only Payments GET handlers, preserving existing permission/object-level checks. Write/payment-provider/refund/upload paths remain excluded pending explicit DB/external-I/O separation. Regression metadata coverage was added but not run.
+
+## Identity session/device route reconciliation — 24 November 2026
+
+A follow-up controller audit confirmed that ProfileController's session list, revoke-by-device, trusted-device list and trusted-device revoke handlers already carry `TenantDatabaseContextInterceptor`. The interceptor derives the actor from the verified JWT after guards and scopes the complete awaited handler. These routes were therefore already covered; no redundant service-level wrapper or controller signature change was added. Credential setup/change remain explicitly scoped inside IdentityService because those handlers intentionally stay outside the interceptor for bcrypt separation.
+**Next:** continue method-level Payments write review and separate DB-only operations from payment/refund/provider/file-storage side effects; then Merchant document metadata. Eight DB-only Payments GET routes now use the user actor.
