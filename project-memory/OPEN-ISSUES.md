@@ -1322,3 +1322,9 @@ Follow-up review confirmed `ImportValidationService.validateRows` performs datab
 ## 25 November 2026 — Catalog mixed product update/delete status
 
 Closed the source implementation gap for PATCH /products/:id and DELETE /products/:id: verified-user authorization checks and service DB phases now use short actor scopes; cache invalidation remains outside the transaction; outbox insertion is separately scoped; standalone audit writes use the audit principal. Regression specs are authored but unexecuted. Do not mark Catalog or G-002 complete: remaining operation-callsite, actor-nesting, exact ownership-predicate, migration-FK and protected live runtime/catalog evidence work remains open.
+
+## 25 November 2026 — Catalog import mixed-path status
+
+The previously open import processing and CSV error-report paths now have caller-bound DB scopes. Processing scopes all job/chunk/price-list DB phases and keeps workbook/object-storage/Redis operations outside; error-report DB reads are scoped and CSV serialization occurs after commit. Tests are authored but unexecuted. No background worker was added or activated. Remaining: dormant recoverStaleJobs callsite review, other Catalog root-pool DB paths, actor-context nesting, exact ownership predicates, migration FK evidence and protected live runtime/catalog evidence.
+
+P13 note: the complete monitor source already uses withMonitorActor for all direct diagnostic SQL reads; the earlier observation to the contrary was incorrect.
