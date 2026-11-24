@@ -641,6 +641,19 @@ export class CatalogTaxonomyService {
     };
   }
 
+  async hasPublicCategoryBinding(categoryId: string | null | undefined): Promise<boolean> {
+    if (!categoryId) return true;
+    const category = await this.db.db.query.categories.findFirst({
+      where: and(
+        eq(categories.id, categoryId),
+        isNull(categories.storeId),
+        eq(categories.isActive, true),
+      ),
+      columns: { id: true },
+    });
+    return !!category;
+  }
+
   async getProductType(id: string) {
     const pt = await this.db.db.query.productTypes.findFirst({ where: eq(productTypes.id, id) });
     if (!pt) throw new NotFoundException('Product type not found');
