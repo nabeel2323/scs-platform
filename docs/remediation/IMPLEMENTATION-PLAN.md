@@ -1426,3 +1426,9 @@ Regression specs added: orders-reject-actor-context.spec.ts and merchant-documen
 The merchant-rejection request now passes the actual authenticated merchant CallerContext and merchant user ID into PaymentsService.requestRefund. PaymentsService permits this non-buyer path only for reason MERCHANT_REJECTION, a MERCHANT_* role, and an order that passes assertOrderAccessible for the caller's active organization. The payment event records actorType MERCHANT and actorId/requestedBy as the merchant. The previous synthetic BUYER caller was removed. A focused regression spec covers valid same-org merchant initiation and rejects an order outside the merchant's active organization.
 
 Important scope boundary: requestRefund creates a REQUESTED refund row, payment event and outbox row. OutboxDispatcher.dispatch currently only logs generic events and marks them dispatched; it does not call a payment provider. This work does not implement automatic refund settlement/provider execution. That remains outside this slice and must not be implied as complete or activated without the relevant product/financial approval. No provider call or worker activation occurred. Tests remain authored but unexecuted.
+
+
+
+## 24 November 2026 — actor-context typecheck correction
+
+The source and fixture corrections in commit `c587ed46db9a4893f2fa0167a74e671bc9d3ae10` address the concrete TypeScript diagnostics recorded by automatic CI #1475. This is implementation/type-safety remediation, not test verification. No local test, formatter, lint, typecheck or E6 command was run. Actions #1476 was unintentionally triggered by the PR push; no additional CI run is intentionally requested. G-002 remains IN PROGRESS pending complete operation/predicate mapping and protected runtime/catalog evidence.

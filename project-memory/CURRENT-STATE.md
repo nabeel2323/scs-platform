@@ -3,39 +3,40 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation group:** Orders rejection actor-context, merchant rejection refund actor attribution, and Merchant document download-presign separation. Key source commits: 7e2b2509292cfbcfe6f1f12ebae8d2fad25f8cf1 and 733b0570c9ae4e94a9684ff28b30cbd3f77ec038.  
-**Latest test-source follow-ups:** 61489e264fbe5e15e332ba23c4947ea3120d9476 and ec2998abb0ff5fbb9208d66558b4dde309f672bc. Tests remain unexecuted.  
-**Latest remediation documentation checkpoints:** 7663d692fd0f32a3760e07980b4a232e3ab900fb and project-memory sync f01fc1dfb05af8975d50739ccee7563db8e5bf95.  
+**Latest source implementation:** actor-context type-safety corrections for the tenant interceptor, IdentityService password-change optimistic predicate and ShippingCarrierWorker tenant resolution; source commit `c587ed46db9a4893f2fa0167a74e671bc9d3ae10`.  
+**Related test-source corrections:** direct IdentityService integration fixtures now pass explicit authenticated actor claims; the carrier-worker concurrency fixture supplies the new MerchantService and webhook-routing collaborators; the authentication-context mock transaction type and switchOrg/password-change signatures are aligned. Tests remain unexecuted.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base develop.  
-**Exact-head evidence before this current-state update:** GitHub Actions zero workflow runs; combined status zero contexts.  
-**Standing user instruction:** complete implementation and cross-component integration first. Do not execute tests or trigger CI during implementation. Keep PR #138 draft/open/unmerged.
+**Exact-head Actions:** run #1476 (`45385046873`) was automatically triggered on this source commit and is in progress at this checkpoint. It was not intentionally dispatched.  
+**Exact-head status contexts:** Vercel Web and Admin preview rate-limit failures; these are external preview-provider statuses, not application-test results.  
+**Standing user instruction:** implementation and integration first; do not intentionally execute tests or trigger CI during implementation. Keep PR #138 draft/open/unmerged.
 
-## Latest G-002 implementation checkpoint
+## Latest implementation checkpoint
 
-- Orders merchant rejection scopes DB-only authorization, optional SUBMITTED auto-advance, stock release, optimistic REJECTED status transition, history and rejection outbox under the verified merchant actor. Stock release and rejection persistence share the same transaction.
-- Refund request creation is a separate DB-only actor phase with stable per-order idempotency. The actual authenticated merchant identity is passed through; PaymentsService permits the MERCHANT_REJECTION reason only for MERCHANT_* callers whose order passes assertOrderAccessible. Payment-event actor attribution is MERCHANT, not a synthetic BUYER.
-- This path creates a REQUESTED refund row, payment event and outbox record only. OutboxDispatcher currently logs generic events and marks them dispatched; it does not execute a payment-provider refund. Automatic refund-provider execution is outside the approved scope.
-- Master-order recalculation and final read use a separate short actor context after rejection/refund request persistence.
-- Merchant document download presigning scopes document/membership reads, calls object storage outside any DB transaction, then scopes storageUrl metadata persistence in a second actor context. Upload presign remains storage-only; document registration and organization/store listing are already scoped.
-- Regression specs exist for rejection phase boundaries, merchant refund actor attribution, and Merchant presign transaction separation. None have been executed.
+The actor-context adoption now includes the preceding Payments proof-upload/cleanup phase separation and the completed 100-table module-schema ownership candidate matrix. The latest source correction commit fixes concrete type-safety defects exposed by the accidental Actions run #1475:
 
-## Bounded authenticated HTTP and service adoption
+- The HTTP actor-context interceptor snapshots narrowed `sub`, `role` and `activeOrg` claims before entering the deferred RxJS callback, preserving the JWT guard's fail-closed validation and satisfying the required user actor type.
+- IdentityService captures the non-null prior password hash after its guard and uses that stable value in the optimistic password update predicate.
+- ShippingCarrierWorker returns the validated owning organization ID from its shipment tenant assertion; the previous path declared `Promise<string>` but fell through after validation.
+- Direct IdentityService tests now supply the explicit actor argument required by the authenticated account-linking/unlinking, password-change and organization-switch methods. The worker concurrency fixture supplies the expanded constructor collaborators. The authentication-context test mock uses a non-recursive transaction callback type.
 
-- Payments: eight bounded GET handlers and four DB-only POST handlers use the verified-user interceptor. Refund request/approval/retry, proof upload and payment-provider operations remain outside the controller-wide actor interceptor by explicit decision.
-- Orders: safe reads/preview/reorder and bounded lifecycle operations are scoped. Reject and cancel use service-level actor phases because post-commit/refund/outbox boundaries require narrower scopes. Actual checkout remains excluded.
-- Merchant: store/warehouse/verification and document registration/listing are scoped. Download presign uses two short service actor phases around storage signing. Upload presign is storage-only.
-- Worker, webhook, bootstrap, audit and realtime principals remain separately bounded as recorded in the G-002 operation map and progress tracker.
+These are source/test-fixture changes only. No tests, formatter, lint, typecheck or E6 command was run for the correction. Actions #1476 was unintentionally triggered by the PR push; its result must be recorded but is not a reason to launch further CI during implementation.
+
+## G-002 physical table inventory
+
+The current source ownership matrix covers all 100 `pgTable` declarations found across the 25 module schema files; 98 are re-exported by `apps/api/src/drizzle/schema.ts`, while `catalog_imports` and `catalog_import_errors` are defined in `catalog-import.schema.ts` but are not exported by that barrel. The previously omitted exported `payment_proof_upload_intents` table is included. This invalidates the historical 99+15=114 source split. The detailed 114 public relation snapshot and separate 116 count remain unresolved pending protected read-only catalog evidence. No subtraction-based delta or live relation total is claimed.
 
 ## Remaining implementation priorities
 
-1. Continue the G-002 physical table/operation/ownership-predicate matrix and reconcile 99 Drizzle-exported tables versus 114 detailed public relations and the unresolved 116 count. Do not infer a two-relation delta.
-2. Finish source review of service/controller/worker raw SQL, operation and principal paths. Preserve the external-I/O boundaries.
-3. Obtain actual API/migration runtime identity and protected read-only catalog evidence only through the authorized staging process.
-4. Keep G-001 independent review and G-036 verification open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
+1. Continue the source-backed service/controller/worker operation map, including import executors, carrier recovery, bootstrap, migration and CLI paths; identify direct Drizzle, raw SQL and helper-mediated R/I/U/D operations and their exact principals.
+2. Complete per-operation ownership predicates and verify declared relationships against migration definitions; keep candidate ownership columns distinct from approved policy.
+3. Obtain actual API and migration runtime identities plus the protected read-only staging catalog snapshot only through the authorized staging process.
+4. Keep G-001 independent security review and G-036 verification open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
 
-## Verification state
+## Verification and safety
 
-No tests, formatter, lint, typecheck, E6 boundary check or GitHub Actions workflow was run for this implementation group. Exact-head Actions and status evidence must be re-queried at the start of the next session. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED; source adoption is not RLS verification.
+G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Run #1475 on `fc2993290d4522d397ab56934e41103f8dd9d060` failed API Typecheck; Mobile Flutter Tests and API Lint succeeded; unit/coverage, PostgreSQL integration, E6, container, Web/Admin, migration, build, contracts, k6 and staging jobs were skipped. Run #1476 is the accidental in-progress follow-up on `c587ed46db9a4893f2fa0167a74e671bc9d3ae10`; no conclusion is claimed until its result is known. Do not rerun CI intentionally.
+
+No shared database mutation, migration, grant/default-ACL change, RLS enablement, protected staging action, deployment, worker activation, merge or release occurred.
 
 ## G-002 actor-context implementation checkpoint
 

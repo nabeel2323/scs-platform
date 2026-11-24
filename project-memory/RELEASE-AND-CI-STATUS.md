@@ -134,3 +134,13 @@ Unit Tests + Coverage Gates, Integration Tests, Boundary Lint (E6), Container Bu
 | #1475 / `45376830054` | `fc2993290d4522d397ab56934e41103f8dd9d060` | SUCCESS | SUCCESS | FAILURE (PaymentsService errors no longer present; remaining identity/context, shipping worker and test fixture errors) | SKIPPED |
 
 The source type issues identified in #1474 were corrected in `fc2993290d4522d397ab56934e41103f8dd9d060`, and the follow-up typecheck no longer reported `payments.service.ts`. Remaining failures are not attributed to baseline because no clean baseline run exists. No local test/typecheck command was run. No further CI dispatch or rerun is authorized before implementation/integration completion.
+
+
+
+## Automatic CI exception and source correction — 24 November 2026
+
+- Run #1475 / `45376830054` on `fc2993290d4522d397ab56934e41103f8dd9d060`: Mobile Flutter Tests SUCCESS; API Lint SUCCESS; API Typecheck FAILURE. Unit Tests + Coverage Gates, Integration Tests, E6, Container Build & Smoke, Web/Admin, Migration Full Apply, Build, Contract Spec & Codegen, k6 and staging release were SKIPPED.
+- Typecheck errors included outdated actor arguments in IdentityService tests, outdated ShippingCarrierWorker constructor arguments, a self-referential mock transaction type, JWT claim narrowing in the interceptor, nullable passwordHash in the optimistic update, and a missing return in the carrier tenant assertion.
+- Source correction commit: [`c587ed46db9a4893f2fa0167a74e671bc9d3ae10`](https://github.com/nabeel2323/scs-platform/commit/c587ed46db9a4893f2fa0167a74e671bc9d3ae10). It updates source and affected test fixtures. No tests or local typecheck were run.
+- Run #1476 / `45385046873` was automatically triggered by the PR push and was IN_PROGRESS at the latest lookup. It was not intentionally dispatched. No cancel action is available in the connected GitHub capability; no further CI is intentionally requested.
+- Exact PR head at this checkpoint: `c587ed46db9a4893f2fa0167a74e671bc9d3ae10`. Vercel Web/Admin preview contexts report external build-rate-limit failures; they are not application test outcomes. PR #138 remains OPEN / DRAFT / UNMERGED.

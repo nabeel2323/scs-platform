@@ -78,7 +78,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live reconciliation on 24 November 2026 confirms repository nabeel2323/scs-platform, branch remediation/phase-0-1-tenant-security, and PR #138 OPEN / DRAFT / UNMERGED against develop. Latest source implementation commit and exact verified branch/PR HEAD: 6339acb944d3e41a6066e0f123394daa38d74491. This commit adds verified-user actor context to the database-only Merchant verification-review handler and extends its controller metadata regression spec. Exact-head GitHub Actions lookup returned zero workflow runs. Combined statuses: Vercel Web PENDING; Vercel Admin FAILURE due to the external build-rate-limit page. These preview statuses are not application-test outcomes. Re-query GitHub before the next action.
+Live reconciliation on 24 November 2026 confirms repository nabeel2323/scs-platform, branch remediation/phase-0-1-tenant-security, and PR #138 OPEN / DRAFT / UNMERGED against develop. Latest source implementation and PR HEAD: c587ed46db9a4893f2fa0167a74e671bc9d3ae10. It corrects JWT actor claim narrowing, the IdentityService optimistic password-hash predicate and ShippingCarrierWorker tenant resolution, and aligns direct-service test fixtures with authenticated actor-context signatures. Actions run #1476 (45385046873) was automatically triggered by the PR push and is in progress; it was not intentionally dispatched. Exact-head status contexts are external Vercel Web/Admin preview rate-limit failures, not application-test outcomes. Re-query GitHub before the next action.
 
 ### Latest G-002 source implementation
 
@@ -1060,3 +1060,8 @@ Actions run #1474 (`45376045168`) was automatically triggered by the proof actor
 Actions run #1475 (`45376830054`), on source commit `fc2993290d4522d397ab56934e41103f8dd9d060`, completed with Mobile Flutter Tests SUCCESS, API Lint SUCCESS and API Typecheck FAILURE. The typecheck no longer reported errors in `payments.service.ts`; the PaymentsService actor-role and async nullable-value issues from run #1474 were absent after the fix. Remaining reported failures were in `tenant-database-context.interceptor.ts`, `identity.service.ts`, `shipping-carrier.worker.ts`, integration specs (account-linking, device-trust, email-OTP, m723a1 concurrency, registration flows) and unit specs (token revocation and database authentication context). No baseline run was available to classify those as pre-existing.
 
 Unit Tests + Coverage Gates, Integration Tests, Boundary Lint (E6), Container Build & Smoke Test, Web/Admin App Tests, Migration Full Apply, Build, Contract Spec & Codegen, k6 Smoke Test and Trigger Staging Release were SKIPPED. No backend unit/integration or release-gate success is claimed. The two automatic runs were not intentionally dispatched; no further CI rerun is requested. The available GitHub connector has no workflow-cancel action.
+
+
+## 24 November 2026 — actor-context typecheck remediation
+
+Source commit `c587ed46db9a4893f2fa0167a74e671bc9d3ae10` corrects the interceptor, IdentityService and ShippingCarrierWorker type errors recorded by automatic CI #1475, and updates the affected unit/integration fixtures to pass explicit actor claims and current constructor dependencies. The authentication-context mock transaction callback no longer self-references its own type. Tests and formatting were not run. Actions #1476 was unintentionally triggered by the PR push; no further CI run is intentionally requested. PR #138 remains OPEN / DRAFT / UNMERGED.

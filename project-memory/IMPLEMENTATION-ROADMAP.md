@@ -791,3 +791,8 @@ Next: continue the remaining G-002 Orders/Payments method map and Merchant docum
 ## Refund-provider execution boundary correction — 24 November 2026
 
 The merchant-rejection flow creates a refund REQUESTED row, payment event and outbox record only. Source inspection of OutboxDispatcher.dispatch confirms generic events are currently logged and marked dispatched; this does not invoke a payment-provider refund. Automatic refund-provider execution is not implemented by this slice and remains outside the approved scope (no automatic gateway/payout expansion or worker activation). The durable refund request is still available for the existing review/approval workflow. Merchant-initiated rejection refunds now attribute requestedBy/paymentEvents.actorId to the authenticated merchant; PaymentsService permits the special MERCHANT_REJECTION reason only when the caller has a MERCHANT_* role and assertOrderAccessible confirms the order is in the caller's active organization. The service no longer impersonates the buyer for audit attribution.
+
+
+## 24 November 2026 — actor-context typecheck correction
+
+The latest source commit `c587ed46db9a4893f2fa0167a74e671bc9d3ae10` fixes the concrete typecheck diagnostics from automatic run #1475 and updates direct IdentityService fixtures to pass the new actor arguments. The 100-table source ownership matrix is complete as a schema inventory, but G-002 remains in progress: exact per-operation predicates, migration-backed relationship verification, remaining import/carrier/bootstrap/CLI access paths and protected runtime/catalog evidence are open. Run #1476 was unintentionally triggered by the PR push; do not intentionally run CI before implementation/integration completion.
