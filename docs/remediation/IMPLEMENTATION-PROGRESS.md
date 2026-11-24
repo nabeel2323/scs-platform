@@ -2500,3 +2500,10 @@ Merchant rejection now runs under the verified merchant actor for the database l
 Merchant/admin download presign now reads document metadata (and, for merchant callers, verifies current organization membership) in a short user actor scope, calls object storage outside all DB transactions, then persists storageUrl in a second short user actor scope. Controller methods pass verified JWT identity and intentionally have no transaction interceptor. Upload presign remains storage-only.
 
 Regression specs added: orders-reject-actor-context.spec.ts and merchant-document-presign-context.spec.ts. Not executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No RLS, grants, migrations, shared/staging database writes, deployment, worker activation, merge or release.
+
+
+## Refund request actor attribution and provider boundary correction — 24 November 2026
+
+The merchant-rejection request now passes the actual authenticated merchant CallerContext and merchant user ID into PaymentsService.requestRefund. PaymentsService permits this non-buyer path only for reason MERCHANT_REJECTION, a MERCHANT_* role, and an order that passes assertOrderAccessible for the caller's active organization. The payment event records actorType MERCHANT and actorId/requestedBy as the merchant. The previous synthetic BUYER caller was removed. A focused regression spec covers valid same-org merchant initiation and rejects an order outside the merchant's active organization.
+
+Important scope boundary: requestRefund creates a REQUESTED refund row, payment event and outbox row. OutboxDispatcher.dispatch currently only logs generic events and marks them dispatched; it does not call a payment provider. This work does not implement automatic refund settlement/provider execution. That remains outside this slice and must not be implied as complete or activated without the relevant product/financial approval. No provider call or worker activation occurred. Tests remain authored but unexecuted.
