@@ -480,3 +480,15 @@ GET /products/:id and GET /products/:productId/media are now mixed-read paths wi
 ## 25 November 2026 — Search Facets cache boundary
 
 GET /search/facets now runs Redis cache get/set outside the DB actor transaction. The verified JWT caller is passed to SearchService.getFacetsCached, which scopes the taxonomy/facet query in a short user actor context. Added tests and controller metadata coverage; tests remain unexecuted.
+
+## 25 November 2026 — Catalog ownership and conditional-write pass
+
+Additional Catalog operation-specific ownership checks are now in source:
+- Category list/search surfaces: platform-only by default; explicit store scopes require org and active membership; category details enforce owner membership and hide inactive categories from non-governance users. Public category tree is active platform-only; buyer-facing product listing rejects store categories.
+- Product category references: create/update allow active global or same-store categories only. Category parent create/reparent allows active global or same-store parent only.
+- Product type category references: product types are global; create/update/publish/duplicate/version require active platform category bindings. Public product-type list/detail/schema/product lookup hides unpublished and legacy tenant-bound bindings; managers can inspect legacy inventory.
+- Search facets: v2 cache namespace; active platform categories and published product types only; value aggregation joins products and filters ACTIVE, non-deleted rows plus the selected category.
+- Product update/type-change/delete/bulk writes repeat exact store and non-deleted predicates. Service scopes revalidate edit/read authorization; media delete includes both media ID and product ID.
+- Offer lifecycle updates compare the read status and merchant store; pricing writes compare updatedAt. Request review locks the PENDING request in the controller's active user transaction and uses a PENDING-only state transition.
+
+Controller coverage review found DB-only Catalog reads protected by method-level interceptors and taxonomy/offers/requests by controller-level interceptors; mixed media/detail/import/facet paths use explicit short actor scopes. Pricing and Reviews controllers also scope their Catalog lookup-service calls. This is source review only; no live catalog/predicate verification has occurred. Regression tests are authored but unexecuted. G-002 remains IN_PROGRESS / NOT VERIFIED.
