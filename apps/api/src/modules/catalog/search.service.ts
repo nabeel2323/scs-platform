@@ -561,12 +561,9 @@ export class SearchService {
       const typeConditions = [
         eq(productTypes.status, 'PUBLISHED'),
         isNull(categories.storeId),
+        eq(categories.isActive, true),
       ];
-      if (categoryId) {
-        typeConditions.push(eq(productTypes.categoryId, categoryId), eq(categories.isActive, true));
-      } else {
-        typeConditions.push(or(isNull(categories.id), eq(categories.isActive, true)));
-      }
+      if (categoryId) typeConditions.push(eq(productTypes.categoryId, categoryId));
       const types = await this.db.db
         .select({ id: productTypes.id })
         .from(productTypes)
