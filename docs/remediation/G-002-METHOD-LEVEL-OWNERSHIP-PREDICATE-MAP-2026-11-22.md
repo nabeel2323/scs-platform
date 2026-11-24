@@ -456,3 +456,20 @@ Credential/webhook-secret decryption, carrier HTTP calls, object storage and web
 ## 24 November 2026 — carrier actor-context typecheck correction
 
 Commit `4d3488d7017439c1e756df4a595873dc9d590455` requires a non-empty caller role before creating a user actor context and performs the organization membership pre-check before credential encryption, with a second check inside the insert transaction. This addresses the nullable `caller.role` type error in automatic Actions #1501 on the prior source SHA. The correction is not re-run; exact-head CI is empty because the commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — operator principal and database runner predicates
+
+| Operation | Principal | Transaction boundary / predicate |
+|---|---|---|
+| migrate-pg complete-target migration | Dedicated migration DB login; no app actor kind | Session advisory lock spans ledger check and all migrations; each migration DDL + ledger insert in one transaction. Target must provide pg_partman for 0013/0018. |
+| migrate.ts local Docker migration | Local migration operator | Per-migration transaction advisory lock; ledger recheck occurs after lock; migration and ledger row commit atomically. 0013/0018 are intentionally excluded and remain unlogged. |
+| DatabaseService development migration | Development startup/migration connection | Shared session advisory lock spans migrations and seed; same 0013/0018 exclusion map. No production/staging inference from this path. |
+| RBAC/catalog seed | system actor | setOperatorActorContext sets actor_kind/system, actor_id, null role/org/worker/auth op with transaction-local settings before all seed queries. |
+| Staging bootstrap writes | bootstrap actor | Exact environment, database name and approval token guard precede transaction; bootstrap actor established immediately after BEGIN. |
+| Staging merchant diagnostic | bootstrap actor | Same exact target guard; BEGIN READ ONLY; transaction-local bootstrap actor before SELECTs. |
+| Local admin creation | bootstrap actor | Existing development/test + local host + explicit confirmation guard; actor established inside transaction. |
+| Read-only DB access audit | audit actor | BEGIN READ ONLY; audit actor set before catalog/role/privilege/function/trigger/partman/cron inspection. |
+| Legacy disposable verification scripts | Test-only direct DB principal | Exact test DB/user confirmation, local PGHOST/PGHOSTADDR and no PGSERVICE; migration runners use transaction/lock/ledger checks. Fixture DML remains confined to named disposable databases. |
+
+The helper's settings are transaction-local and clear on commit/rollback. Actual PostgreSQL login identities remain unverified until authorized staging evidence is collected. No RLS policy or grant change is implied.

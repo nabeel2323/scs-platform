@@ -3,24 +3,23 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source/test commit before this documentation sync:** `47c27898447389de4809a861f19c7b37e54b7081`; documentation sync commits follow. Re-query the live PR head before continuing.  
+**Latest source implementation checkpoint before this documentation sync:** `48b22ded255f514f4ccec55d58a604a1c41e7b8f`; documentation sync commits follow. Re-query live PR HEAD before continuing.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop`.  
-**Latest source commits:** `9906430459666effbd25f33148c3cdf01b976330`, `9a010db69c668432f2811c68094a367ad5c7684c`, `4d3488d7017439c1e756df4a595873dc9d590455`.  
+**Latest source commits:** carrier actor-context commits `9906430`, `9a010db`, role correction `4d3488d`, webhook test fixture `47c2789`, and database/operator access continuation through `48b22ded255f514f4ccec55d58a604a1c41e7b8f`.  
 **Exact-head Actions:** no run. Latest automatic run #1501 on prior SHA `9a010db69c668432f2811c68094a367ad5c7684c` FAILED: API lint PASS, API typecheck FAIL on nullable caller role; Mobile Flutter analysis/tests PASS; dependent integration/unit/coverage/migration/Web/Admin/build/release jobs SKIPPED. The type error is corrected in `4d3488d`, not re-run.  
-**Latest live Vercel status checked on docs head `977e837`:** Web/Admin FAILURE — “Deployment rate limited — retry in 24 hours.” External preview-provider limit, not application test evidence.  
+**Latest Vercel status:** re-query exact current head after the documentation commit; the prior docs head `977e837` had Web/Admin FAILURE from external deployment rate limiting, not application test evidence.  
 **Standing instruction:** implementation/integration first; do not intentionally run tests or trigger CI during implementation. Keep PR #138 draft/open/unmerged.
 
 ## Latest implementation checkpoint
 
 - Authenticated Identity/Profile, Payments, Orders/Merchant, Catalog Import, P13 monitoring/control and selected worker/system paths have the bounded actor-context adoption recorded in later entries.
-- CarrierCredentialsService list/get/create/deactivate use verified user actors. Caller role is required and validated before opening the actor context. Create authorizes membership before encryption and re-checks membership inside the insert transaction. Deactivation repeats credential ID + org in its UPDATE predicate.
-- CarrierConfigurationsService list/get/create/update use verified user actors. Internal store resolution uses an organization-bound worker context; store lookup repeats store ID + org, configuration lookup repeats org/store/active predicates, and updates repeat config ID + org.
-- Internal credential lookup/decryption requires expected org ID; credential and webhook-secret queries constrain credential ID + org. Decryption occurs after the short DB read transaction closes.
-- Aramex provider credential lookup uses explicit worker contexts and retains expected organization, provider and active predicates. Platform credential lookup is restricted to the Identity-resolved PLATFORM organization.
-- Carrier webhook credential resolution uses a dedicated worker principal. The legacy provider-only route rejects multiple active credentials with HTTP 401, returned outside the transaction. Subsequent webhook persistence uses the credential's org-bound context.
-- AuditLogMiddleware already establishes a separate audit actor in its response-finish callback; AuditService remains context-dependent to avoid actor switching inside an active transaction.
-- Migration runner, seed CLI, bootstrap-token CLI and BootstrapService retain distinct migration/seed/bootstrap/anonymous principal boundaries.
-- Regression coverage was updated/added, including webhook tenant-routing harness support in `47c2789`; all remain unexecuted. Commit `4d3488d` addresses the nullable caller-role typecheck failure seen in automatic run #1501; this is not yet verified.
+- Carrier credential/configuration CRUD and Aramex/webhook credential resolution use verified-user or organization-bound worker contexts with exact organization predicates. The legacy ambiguous webhook route still returns HTTP 401.
+- Local Docker migration exclusions for pg_partman-dependent migrations 0013/0018 are now centralized and shared by manual and API development migration paths. The DATABASE_URL migration runner remains the complete-target path and requires pg_partman.
+- DatabaseService development migration now holds the shared session advisory lock; the manual local runner uses transaction locks and in-transaction ledger rechecks. The legacy disposable verification migration scripts are guarded and atomic.
+- RBAC seed, catalog seed and development RBAC seed use transaction-local system principals. Staging bootstrap and local admin creation use bootstrap principals. The read-only DB access audit uses an audit principal.
+- Staging bootstrap diagnostics now require the same explicit target guard and read-only actor scope. RBAC post-commit verification is scoped. The seed mapping total no longer double-counts newly inserted mappings.
+- The read-only DB audit now enumerates functions/triggers in all non-system schemas, including partman, and reports pg_partman retention config plus pg_cron maintenance jobs when available.
+- Regression specs were updated/added for operator actor context and staging bootstrap actor context. Tests remain unexecuted.
 
 ## G-002 physical table inventory
 
@@ -32,17 +31,17 @@ CatalogImportController list/detail/errors database-only routes use the verified
 
 ## Remaining implementation priorities
 
-1. Complete the raw SQL/function/trigger/partition inventory across migration files and remaining operator/bootstrap/CLI access paths.
-2. Finish exact per-operation table ownership predicates and migration-defined FK evidence; preserve the distinction between source declarations and live catalog evidence.
+1. Finish exact per-operation table ownership predicates and migration-defined FK evidence; preserve the distinction between source declarations and live catalog evidence.
+2. Verify external pg_partman maintenance scheduling, actual API/migration identities and protected read-only catalog evidence only through the authorized process.
 3. Verify remaining worker/audit/bootstrap actor-context nesting and ensure no different actor is switched while a transaction is active.
-4. Obtain actual API/migration runtime identities and protected read-only staging catalog evidence only through the authorized process.
+4. Reconcile the historical 114/116 relation-count discrepancy from a fresh protected read-only catalog snapshot.
 5. Keep G-001 independent review and G-036 verification open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
 
 ## Verification and safety
 
-G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Exact branch head `4d3488d7017439c1e756df4a595873dc9d590455` has no Actions run. The preceding automatic run #1501 on `9a010db69c668432f2811c68094a367ad5c7684c` failed API typecheck because the new user actor context passed optional `caller.role`; API lint and Mobile Flutter tests passed, while dependent integration/unit/coverage/migration/Web/Admin/build/release jobs were skipped. Commit `4d3488d` now rejects a missing role before creating the context; not re-run. Exact-head Vercel statuses are SUCCESS / SKIPPED — NOT AFFECTED. No test/CI workflow was intentionally dispatched.
+G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Exact branch Actions are intentionally not triggered during implementation; source and documentation commits use `[skip ci]`. The prior automatic run #1501 on source SHA `9a010db69c668432f2811c68094a367ad5c7684c` failed API typecheck on optional caller.role; commit `4d3488d` corrected it but was not re-run. Vercel Web/Admin checks on the prior docs head reported external deployment rate limiting. No application test pass is claimed.
 
-No shared DB mutation, migration, grant/default-ACL change, RLS enablement, protected staging action, deployment, worker activation, merge or release occurred.
+No shared DB mutation, migration, seed, reset, bootstrap, audit query, grant/default-ACL change, RLS enablement, protected staging action, deployment, worker activation, merge or release occurred.
 
 ## G-002 actor-context implementation checkpoint
 
@@ -348,3 +347,8 @@ Latest source/test commit before this documentation sync: `47c27898447389de4809a
 ## 24 November 2026 — Vercel status reconciliation
 
 At the last live check, branch/PR head was `977e837e65fc6639f24610832962c20c766eb55d`. Exact-head Actions lookup was empty. Vercel Web and Admin contexts were FAILURE with “Deployment rate limited — retry in 24 hours.” This is an external preview-provider rate limit, not an application test result. PR #138 remained OPEN / DRAFT / UNMERGED to `develop`. Re-query live HEAD and statuses before continuing after this documentation note.
+
+
+## 24 November 2026 — migration object and operator access continuation
+
+See [G-002 migration object and operator access audit](../docs/remediation/G-002-MIGRATION-OBJECT-AND-OPERATOR-ACCESS-AUDIT-2026-11-24.md). Latest source checkpoint before docs: `48b22ded255f514f4ccec55d58a604a1c41e7b8f`. New migration exclusion/locking, operator actor context, staging target guards, legacy verification-script safety and audit tooling changes are committed but unverified. No database operation or CI run was performed.

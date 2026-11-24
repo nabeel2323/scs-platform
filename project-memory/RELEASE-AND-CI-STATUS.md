@@ -255,3 +255,12 @@ Commit `47c27898447389de4809a861f19c7b37e54b7081` updates the tenant-routing uni
 At the last live check, branch/PR head was `977e837e65fc6639f24610832962c20c766eb55d`. Exact-head Actions lookup was empty. Vercel Web and Admin contexts were FAILURE with “Deployment rate limited — retry in 24 hours.” This is an external preview-provider rate limit, not an application test result. PR #138 remained OPEN / DRAFT / UNMERGED to `develop`. Re-query live HEAD and statuses before continuing after this documentation note.
 
 The latest source/test correction remains `47c27898447389de4809a861f19c7b37e54b7081`; the nullable-role typecheck correction is `4d3488d7017439c1e756df4a595873dc9d590455`. Automatic run #1501 on prior SHA `9a010db69c668432f2811c68094a367ad5c7684c` failed API typecheck; the correction has not been re-run. No exact-head Actions run exists on the last checked docs head.
+
+
+## 24 November 2026 — migration/operator source implementation continuation
+
+Source checkpoint before documentation sync: `48b22ded255f514f4ccec55d58a604a1c41e7b8f`. The migration-object and operator access audit is documented in [G-002-MIGRATION-OBJECT-AND-OPERATOR-ACCESS-AUDIT-2026-11-24.md](../docs/remediation/G-002-MIGRATION-OBJECT-AND-OPERATOR-ACCESS-AUDIT-2026-11-24.md).
+
+Changes include shared local migration exclusions for 0013/0018, advisory-lock/ledger rechecks, transaction-local system/bootstrap/audit principals, staging bootstrap guards, guarded atomic legacy verification runners, full non-system function/trigger inventory and partman/cron maintenance reporting, and correction of the RBAC seed mapping total.
+
+No tests or CI were intentionally run. Exact-head Actions must be checked after the docs commit. The prior automatic #1501 typecheck failure on nullable caller.role was corrected by 4d3488d but not re-run. Vercel preview-provider rate-limit failures are not application test results. PR #138 remains OPEN / DRAFT / UNMERGED. No database operation, migration, staging/shared access, RLS/grant change, deployment, worker activation or merge occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

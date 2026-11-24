@@ -411,3 +411,16 @@ The Catalog Import source slice and P13 operational principal slice are now impl
 ## 24 November 2026 — carrier actor-context typecheck correction
 
 Commit `4d3488d7017439c1e756df4a595873dc9d590455` requires a non-empty caller role before creating a user actor context and performs the organization membership pre-check before credential encryption, with a second check inside the insert transaction. This addresses the nullable `caller.role` type error in automatic Actions #1501 on the prior source SHA. The correction is not re-run; exact-head CI is empty because the commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — migration, seed, bootstrap and CLI operation-map update
+
+- `migrate-pg.ts`: full migration principal, session advisory lock, migration identity diagnostic, transaction + ledger insert. Requires pg_partman on target for 0013/0018.
+- `migrate.ts` and DatabaseService development startup: shared local-only exclusions for pg_partman-dependent 0013/0018; both keep them unlogged. Local runner uses transaction lock and ledger recheck; startup runner holds shared session lock.
+- `seed-pg.ts`, `seed-catalog.ts`, DatabaseService dev RBAC seed: system actor, transaction-local. RBAC seed total now counts committed-in-transaction mappings once and before commit.
+- staging platform/RBAC/merchant/staff/store bootstrap and local admin CLI: bootstrap actor. Staging merchant diagnostic: explicit staging target guard + read-only bootstrap scope. RBAC verification read phase uses a second scoped transaction.
+- `audit-db-access.ts`: audit actor, read-only transaction; now inventories non-system functions/triggers, partman retention config and cron maintenance jobs where visible.
+- legacy m73a/scs_p12 verification runners: exact disposable database/user, explicit test confirmation, local PG host checks; migration apply scripts use atomic transactions/advisory lock/ledger recheck.
+- migration 0013 pg_cron scheduling remains commented out; external scheduler ownership and execution are unverified.
+
+No CLI, migration, seed, reset, bootstrap, audit, test or CI command was executed.

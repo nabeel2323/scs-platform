@@ -896,3 +896,12 @@ Tests were updated but not executed. Actions #1501 was automatically queued on t
 Commit `4d3488d7017439c1e756df4a595873dc9d590455` adds fail-closed caller-role validation to carrier user actor contexts and moves the membership pre-check before credential encryption, with a second check inside the insert transaction. This corrects the typecheck failure seen in automatic run #1501 on the previous source SHA. The correction is not verified; exact-head Actions is empty because the commit uses `[skip ci]`.
 
 Next: continue the raw SQL/function/trigger/partition and migration/bootstrap/CLI access-path audit; finish exact ownership predicates and migration FK evidence; verify actor-context reuse/nesting; obtain protected read-only runtime identity/catalog evidence only through authorized staging. G-002 remains NOT VERIFIED. G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.
+
+
+## 24 November 2026 — G-002 migration-object and operator-access continuation
+
+Source checkpoint `48b22ded255f514f4ccec55d58a604a1c41e7b8f` adds shared local pg_partman exclusions, migration advisory-lock/ledger rechecks, transaction-local system/bootstrap/audit principals, staging bootstrap target guards, guarded atomic legacy verification runners and extended read-only function/trigger/partman/cron inventory. The RBAC seed mapping total double-count bug was corrected.
+
+The source audit found pg_partman monthly analytics partitioning and 12-month retention, but the only pg_cron scheduling example is commented out. The existence and owner of any external maintenance schedule remain unverified. No migration, seed, reset, bootstrap, audit, tests or CI were run. G-002 remains NOT VERIFIED.
+
+Next sequence: verify external maintenance schedule and actual API/migration runtime roles through authorized read-only staging; finish exact ownership predicates and FK evidence; audit actor-context reuse/nesting; then run consolidated verification. G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.

@@ -28,6 +28,7 @@ Then read the relevant authoritative technical documents linked below. Do not du
 - [Audit-driven remediation implementation plan](../docs/remediation/IMPLEMENTATION-PLAN.md) — authoritative phases, findings, acceptance criteria and release gates.
 - [Audit-driven implementation progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md) — authoritative finding register, current progress and evidence log.
 - [G-002 RLS architecture design](../docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md) — read-only target database role model, transaction-bound tenant context, ownership classification and rollout gates.
+- [G-002 migration object and operator access audit — 24 November 2026](../docs/remediation/G-002-MIGRATION-OBJECT-AND-OPERATOR-ACCESS-AUDIT-2026-11-24.md) — 75-migration SQL object review, pg_partman retention/scheduler gap, migration runner contracts, operator principals and guarded legacy verification scripts.
 - [G-002 database operation map](../docs/remediation/G-002-DATABASE-OPERATION-MAP-2026-11-22.md) — source map covering 53 service/worker/provider candidates and 28 module controllers; raw SQL, actor handoffs and unverified runtime identities are distinguished.
 - [G-002 table ownership and predicate candidates](../docs/remediation/G-002-TABLE-OWNERSHIP-AND-PREDICATE-CANDIDATES-2026-11-22.md) — schema-backed candidate ownership paths for identity, store, catalog, order, financial, user-private and system rows; not an approved policy.
 - [G-002 migration foreign-key crosswalk](../docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md) — migration-defined FKs, deferred relationships, non-FK org_id metadata, system-table scope and migration 0070/0071 boundaries.
@@ -78,20 +79,23 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. Latest source commits: `9906430459666effbd25f33148c3cdf01b976330` (carrier actor-context adoption), `9a010db69c668432f2811c68094a367ad5c7684c` (webhook scoped credential lookup and ambiguity response), and `4d3488d7017439c1e756df4a595873dc9d590455` (require non-empty caller role in user actor context; authorize org membership before encryption, then re-check in the insert transaction).
+Live GitHub reconciliation on 24 November 2026: repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, PR #138 OPEN / DRAFT / UNMERGED to `develop`. Latest source implementation checkpoint: `48b22ded255f514f4ccec55d58a604a1c41e7b8f`; this is followed by documentation commits. Always re-query branch HEAD before the next session.
 
-**Current branch/PR head:** `4d3488d7017439c1e756df4a595873dc9d590455`. **Exact-head Actions:** no run (the latest correction commit uses `[skip ci]`). **Latest automatic Actions run:** [#1501](https://github.com/nabeel2323/scs-platform/actions/runs/45422228217) on the prior source SHA `9a010db69c668432f2811c68094a367ad5c7684c` FAILED. Mobile Flutter analysis/tests PASS; API lint PASS; API TypeScript typecheck FAIL because the caller role type was `string | null | undefined` where DatabaseActorContext requires a string; integration, boundary lint, unit/coverage, migration, Web/Admin, contract, build, smoke, k6 and staging jobs were SKIPPED. Commit `4d3488d` now rejects a missing/blank caller role before creating the user actor context. This correction has not been re-run or verified. Exact-head Vercel Web/Admin statuses are SUCCESS / SKIPPED — NOT AFFECTED.
+The carrier credential/configuration actor-context and webhook changes are committed. The current continuation adds consistent local migration exclusions, advisory-lock/ledger rechecks, transaction-local system/bootstrap/audit principals for operator paths, staging verification target guards, atomic legacy verification runners, broader function/trigger/pg_partman audit output, and a seed mapping-count correction.
 
-No test, formatter, lint, typecheck, E6 or CI workflow was intentionally dispatched. Run #1501 was automatically queued by the earlier source push; no cancel action was available. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No RLS, grants/default-ACL, migration execution, protected staging/database action, worker activation, deployment, merge or release occurred.
+The 75-file numbered migration source review found one application function (`public.normalize_arabic`, search_path pinned by migration 0070), no migration-defined triggers/policies/RLS/view/sequence/SECURITY DEFINER declarations, and the pg_partman analytics partition/retention setup. Migration 0013's pg_cron schedule remains commented out; no repository scheduler manifest was found. The read-only audit tool now reports partman retention config and pg_cron maintenance jobs if visible.
+
+**CI policy:** do not intentionally run tests or dispatch CI until implementation/integration is complete. Current exact-head CI/status must be re-queried after this documentation sync. Latest automatic run #1501 on the prior carrier source SHA failed API typecheck on optional caller.role; commit `4d3488d` corrected the type boundary but remains unverified. Vercel Web/Admin failures were external deployment rate limits, not application test results.
+
+G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No database command, migration, seed, reset, bootstrap, audit query, RLS/grant/default-ACL change, worker activation, deployment or merge was performed.
 
 ### Next implementation priorities
 
-1. Complete the raw SQL/function/trigger/partition inventory across migrations and standalone database scripts; keep migration, seed, bootstrap, operator and API identities distinct.
-2. Finish exact operation-to-table and row-ownership predicate mapping, including carrier, webhook, audit, bootstrap, CLI and worker boundaries.
-3. Complete migration-defined FK evidence and source-to-runtime schema reconciliation. The 100 source declarations, historical 114 public r/p snapshot and unexplained 116 count are separate evidence sets.
-4. Add remaining actor-context reuse/nesting, worker ownership, carrier credential, webhook ambiguity, schema-barrel and bootstrap boundary regression coverage after implementation/integration is complete.
-5. Obtain actual API/migration runtime identities and protected read-only catalog evidence only through the authorized staging process.
-6. Keep G-001 independent review and G-036 verification open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
+1. Finish exact operation-to-table ownership predicates and migration-defined FK evidence, including direct Pool/PoolClient, CLI and worker boundaries.
+2. Confirm external pg_partman maintenance scheduling and its actual database role/target only through the authorized read-only staging process.
+3. Review operator actor-context nesting/reuse and the updated test fixtures without executing the verification campaign yet.
+4. Obtain actual API/migration runtime identities and protected read-only catalog evidence; reconcile 114/116 historical relation counts.
+5. Keep G-001 independent review and G-036 verification open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
 
 ## Safety reminder
 

@@ -196,3 +196,14 @@ The raw SQL/function/trigger/partition inventory across the full migration set r
 ## 24 November 2026 — carrier actor-context typecheck correction
 
 Commit `4d3488d7017439c1e756df4a595873dc9d590455` requires a non-empty caller role before creating a user actor context and performs the organization membership pre-check before credential encryption, with a second check inside the insert transaction. This addresses the nullable `caller.role` type error in automatic Actions #1501 on the prior source SHA. The correction is not re-run; exact-head CI is empty because the commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — migration object and operator access audit
+
+See [G-002 migration object and operator access audit](./G-002-MIGRATION-OBJECT-AND-OPERATOR-ACCESS-AUDIT-2026-11-24.md) for the detailed 75-file SQL object scan and runner/CLI principal matrix.
+
+Key findings: migration 0007 defines only the application normalize_arabic function; 0070 pins its search_path to pg_catalog. No migration-defined triggers, RLS policies, RLS enablement, views, sequences or SECURITY DEFINER routines were found. Migrations 0013/0018 create/configure pg_partman monthly analytics partitioning and 12-month retention, but the pg_cron schedule example is commented out and no repository scheduler config was found.
+
+The local Docker runner and DatabaseService dev startup now share pg_partman exclusions for 0013/0018; the complete DATABASE_URL runner still requires pg_partman. Local migration locking/ledger checks were tightened. Seed/bootstrap/audit CLI operations now use transaction-local operator principals. Legacy disposable verification scripts gained explicit local test-target guards and atomic migration application. The read-only audit tool now inventories non-system functions/triggers and partman/cron maintenance metadata.
+
+No test or database command was executed. External maintenance scheduling and actual runtime role identity remain unverified.

@@ -1137,3 +1137,10 @@ Remaining G-002 gaps: full raw SQL/function/trigger/partition inventory; direct 
 ## 24 November 2026 — carrier actor-context typecheck correction
 
 Commit `4d3488d7017439c1e756df4a595873dc9d590455` requires a non-empty caller role before creating a user actor context and performs the organization membership pre-check before credential encryption, with a second check inside the insert transaction. This addresses the nullable `caller.role` type error in automatic Actions #1501 on the prior source SHA. The correction is not re-run; exact-head CI is empty because the commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — G-002 migration/operator source continuation
+
+Source checkpoint `48b22ded255f514f4ccec55d58a604a1c41e7b8f`. Implemented migration exclusions/locking, operator actor contexts, staging bootstrap safety, guarded atomic legacy verification scripts, expanded read-only function/trigger/partman/cron audit, and RBAC seed mapping count correction.
+
+Remaining gaps: external pg_partman maintenance scheduler and its principal/target are not evidenced; actual API/migration login roles and live relation catalog are unverified; migration FK and exact per-operation ownership predicate crosswalk remains incomplete; actor-context nesting/reuse and tests remain unverified. G-002 stays IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No database, RLS, grant, migration, staging, deployment, worker or merge action occurred.

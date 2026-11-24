@@ -2717,3 +2717,20 @@ Commit `4d3488d7017439c1e756df4a595873dc9d590455` requires a non-empty caller ro
 ## 24 November 2026 — webhook actor-context fixture update
 
 Commit `47c27898447389de4809a861f19c7b37e54b7081` updates the CarrierWebhookController tenant-routing test harness for the new worker actor-context boundary and expected organization-bound webhook-secret decryption signature. Existing assertions continue to cover the ambiguous legacy route (HTTP 401, no decryption or event write), single-credential legacy route and token-specific route. The tests remain unexecuted.
+
+
+## 24 November 2026 — migration object and operator access continuation
+
+**Source checkpoint:** `48b22ded255f514f4ccec55d58a604a1c41e7b8f`.
+
+Implemented:
+- Central `DEV_MIGRATION_EXCLUSIONS` for pg_partman-dependent migrations 0013/0018, used by both local Docker migrate.ts and DatabaseService dev startup. They remain unlogged. migrate-pg remains the complete-target path.
+- Shared advisory lock in DatabaseService dev migration; local migrate.ts per-migration transaction lock plus in-transaction ledger recheck; legacy verification migration runners are guarded and atomic.
+- Transaction-local system/bootstrap/audit actor context for seed/catalog/dev seed, staging bootstrap, local admin and read-only DB audit paths.
+- Staging merchant diagnostic exact-target guard + read-only transaction; RBAC post-commit verification now has a separate scoped transaction.
+- RBAC seed mapping total no longer double-counts newly inserted mappings.
+- Audit tool enumerates all non-system functions/triggers, and partman retention/cron maintenance metadata where visible.
+
+**Migration findings:** migration 0007 defines public.normalize_arabic(text); 0070 pins search_path=pg_catalog. No migration-defined trigger, RLS policy/enablement, view, sequence or SECURITY DEFINER function was found. 0013/0018 configure pg_partman monthly analytics partitioning and 12-month retention; the cron.schedule example remains commented out and no repository scheduler manifest was found.
+
+**Remaining:** prove external partman maintenance scheduling/owner/target; obtain actual API/migration runtime roles and protected read-only catalog; complete exact ownership predicates and migration FK crosswalk; verify actor-context nesting and later run tests after implementation completes. No test, CI, migration, seed, reset, bootstrap, audit or database access was executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

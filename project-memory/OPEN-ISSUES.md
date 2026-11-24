@@ -5,14 +5,26 @@
 
 ## Immediate blockers and high-priority work
 
-### G-002 latest continuation — carrier and operator/database access paths — 24 November 2026
+### G-002 latest continuation — migration objects and operator access — 24 November 2026
 
-Carrier credential/configuration CRUD and internal resolution now use explicit verified-user or organization-bound worker actor contexts. Aramex credential reads retain organization/provider/active predicates; webhook credential resolution is scoped and preserves ambiguous legacy-route rejection. AuditLogMiddleware already writes under its own audit principal. Migration/seed/bootstrap CLI paths remain distinct operator principals.
+Carrier credential/configuration and webhook paths remain scoped. This continuation reconciles 75 numbered migration files and direct migration/seed/bootstrap/CLI paths.
 
-Still open: complete the source-backed raw SQL/function/trigger/partition inventory; reconcile remaining migration/bootstrap/CLI/direct PoolClient paths and exact table/ownership predicates; complete migration-defined FK evidence; verify actor-context reuse/nesting; obtain protected read-only live API/migration identity/catalog evidence only through the authorized process. The 100 source declarations, historical 114 public r/p snapshot and unexplained 116 count remain distinct.
+Implemented:
+- Centralized local pg_partman migration exclusions shared by manual Docker migration and DatabaseService development startup; complete DATABASE_URL migration path remains unchanged.
+- Advisory lock and in-transaction ledger recheck for local migration runner; shared session lock for API development startup.
+- Transaction-local system/bootstrap/audit principals for RBAC/catalog seeds, development seed, staging bootstrap scripts, local admin creation and read-only database audit.
+- Staging merchant diagnostic now requires exact staging database approval and uses a read-only bootstrap actor scope.
+- Legacy disposable migration verification scripts require explicit test target confirmation and local PG connection; legacy migration runners now apply atomically with advisory locking.
+- Read-only audit now enumerates non-system functions/triggers, partman retention config and cron maintenance jobs where accessible.
+- Corrected RBAC seed mapping total double count.
 
-Exact source SHA `4d3488d7017439c1e756df4a595873dc9d590455` has no Actions run. Automatic run #1501 on prior SHA `9a010db69c668432f2811c68094a367ad5c7684c` failed API typecheck on nullable caller.role; commit `4d3488d` corrects it but is unverified. No test/CI workflow was intentionally dispatched. G-002 remains NOT VERIFIED; no RLS, grants, migration, protected staging, deployment, worker activation or merge is authorized.
+Remaining:
+1. Verify whether an external scheduler actually invokes pg_partman maintenance. Migration 0013's cron.schedule example is commented out; no repository scheduler configuration was found.
+2. Verify actual API/migration login roles and protected read-only catalog evidence through authorized staging only.
+3. Complete exact ownership predicates, migration FK crosswalk and actor-context nesting/reuse audit.
+4. Reconcile 114/116 relation history from a fresh catalog snapshot.
 
+Source checkpoint `48b22ded255f514f4ccec55d58a604a1c41e7b8f`. No test, CI, migration, seed, reset, bootstrap, database audit, RLS/grant change, staging access, deployment, worker activation or merge was performed. G-002 remains NOT VERIFIED.
 
 ### G-002 continuation — 22 November 2026
 

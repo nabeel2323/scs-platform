@@ -1963,3 +1963,14 @@ Run #1501 on the prior source SHA failed API typecheck (nullable caller.role); A
 ## 24 November 2026 — webhook actor-context test fixture follow-up
 
 Commit `47c27898447389de4809a861f19c7b37e54b7081` updates the existing webhook tenant-routing tests to supply `DatabaseService.withActorContext` and expect the credential's organization ID to be passed to webhook-secret decryption. The ambiguous-credential test continues to assert HTTP 401 and no secret decryption/event persistence. The tests were not executed.
+
+
+## 24 November 2026 — G-002 migration and operator access continuation
+
+**Source checkpoint:** `48b22ded255f514f4ccec55d58a604a1c41e7b8f`.
+
+The 75-file migration source audit found the normalize_arabic function in migration 0007, its pg_catalog search_path hardening in 0070, no migration-defined triggers/policies/RLS/views/sequences/SECURITY DEFINER declarations, and pg_partman analytics partition/retention setup in 0013/0018. The pg_cron scheduling example is commented out; no repository scheduler manifest exists. The read-only DB audit now reports all non-system functions/triggers, partman retention config and cron maintenance jobs when accessible.
+
+Implemented source corrections: local migration exclusions shared between migrate.ts and DatabaseService; advisory-lock/ledger rechecks; system/bootstrap/audit transaction-local principals for seed/bootstrap/audit tools; staging target confirmation and scoped read-only diagnostic; guarded/atomic legacy verification scripts; seed mapping-count double-count correction.
+
+No test, CI, database, migration, seed, reset, bootstrap or audit command was run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Next: prove external partman maintenance schedule and actual API/migration roles via authorized read-only staging, finish FK/ownership evidence, then consolidated verification after implementation completes.
