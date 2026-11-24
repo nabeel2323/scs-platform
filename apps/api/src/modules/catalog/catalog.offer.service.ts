@@ -107,7 +107,7 @@ export class CatalogOfferService {
    */
   private async updateOfferIfCurrent(
     id: string,
-    expectedStatus: OfferStatus,
+    expectedStatus: string,
     updates: Record<string, unknown>,
     expectedStoreId?: string,
   ): Promise<void> {
