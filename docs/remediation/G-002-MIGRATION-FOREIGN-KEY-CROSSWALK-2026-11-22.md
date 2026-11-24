@@ -371,17 +371,23 @@ No driver-store assignment CRUD endpoint, schema change, composite FK or migrati
 
 ## Drizzle declaration parity — targeted static comparison, 24 November 2026
 
-A targeted comparison of the current Drizzle declarations in `payments.schema.ts`, `returns.schema.ts` and `financial.schema.ts` against the migration-defined relationships already recorded above identified four SQL-enforced foreign keys that are not expressed with Drizzle `.references()` on the corresponding columns:
+A targeted comparison of the current Drizzle declarations in `payments.schema.ts`, `returns.schema.ts` and `financial.schema.ts` against the migration-defined relationships already recorded above identified five SQL-enforced foreign keys that are not expressed with Drizzle `.references()` on the corresponding columns:
 
 | Drizzle table/column | Migration-defined target | Drizzle declaration | Interpretation / follow-up |
 | --- | --- | --- | --- |
 | `refunds.return_request_id` | `return_requests.id ON DELETE SET NULL` (0059) | Plain nullable UUID | Migration-only deferred relationship; add explicit schema parity without creating a payments/returns module initialization cycle. |
 | `return_requests.refund_id` | `refunds.id ON DELETE SET NULL` (0059) | Plain nullable UUID; source comment says FK is added by migration | Reverse link is deliberately deferred until refund creation; preserve the migration's nullable/set-null behavior. |
 | `return_request_items.inventory_item_id` | `inventory_items.id ON DELETE SET NULL` (0059) | Plain nullable UUID; source comment says resolved during inspection | Optional inventory linkage; preserve nullability and set-null semantics. |
+| `disputes.return_request_id` | `return_requests.id ON DELETE SET NULL` (0059) | Plain nullable UUID | Migration-owned cross-module link; preserve nullability and set-null semantics. |
 | `reconciliation_runs.superseded_by` | `reconciliation_runs.id` (0062) | Plain nullable UUID | Self-referential version lineage is migration-enforced but absent from the Drizzle declaration. |
 
-This is a **targeted source comparison**, not a complete 100-table parity reconciliation. The four entries above are confirmed declaration omissions relative to the migration crosswalk; they are not evidence that the deployed database is missing the constraints. The next source task is to model these relationships safely in Drizzle (or explicitly document a reviewed reason to keep each migration-only), while avoiding circular module initialization. Then continue the same comparison across the remaining schema modules and migration-defined constraints.
+This is a **targeted source comparison**, not a complete 100-table parity reconciliation. The five entries above are confirmed declaration omissions relative to the migration crosswalk; they are not evidence that the deployed database is missing the constraints. The next source task is to model these relationships safely in Drizzle (or explicitly document a reviewed reason to keep each migration-only), while avoiding circular module initialization. Then continue the same comparison across the remaining schema modules and migration-defined constraints.
 
 The nullable `org_id` fields on `commission_reversals`, `settlement_adjustments`, `reconciliation_runs` and `reconciliation_discrepancies` are different: migration 0062 intentionally adds application-maintained tenant metadata without an organizations FK. Do not add a synthetic FK or treat those columns as migration drift. Their values must continue to be derived and checked against canonical financial/order/store parents by service logic.
 
 No schema or migration was changed in this audit. No database was queried. Tests and CI remain deferred under the implementation-first instruction; G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+### Additional deferred dispute relationship — 24 November 2026
+
+The whole-product schema pass also confirmed that `disputes.return_request_id` is a plain nullable UUID in `reviews/support.schema.ts`, while migration 0059 defines the nullable FK to `return_requests.id ON DELETE SET NULL`. The source declaration now documents this as migration-owned to avoid introducing a support/returns module dependency. This raises the targeted omission count above from four to five; it does not change the deployed constraint or application behavior.
