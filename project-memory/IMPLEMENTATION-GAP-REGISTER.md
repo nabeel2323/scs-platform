@@ -1162,3 +1162,14 @@ No database was inspected or repaired, and no tests/CI were run. These are sourc
 ## 24 November 2026 — migration FK source scan completion
 
 The 75-file numbered migration scan found 183 explicit REFERENCES clauses across 40 migration files; 35 files had none. The detailed migration/count/parent-table appendix is in `docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md`. This completes the static source-reference inventory, not live catalog verification. Remaining: reconcile with Drizzle declarations and protected staging pg_constraint evidence, then finish cross-column ownership consistency decisions (org/store, carrier config/credential/store, payment/refund/order/settlement, shipping driver/store, reconciliation parent/org). No database query was run.
+
+
+## G-002 — driver assignment eligibility source correction — 24 November 2026
+
+The existing `OrdersController.assignDriver → OrdersService.assignDriver` path is now included in the ownership review. Before shipment assignment, `ShippingService.assertDriverEligibleForStore` verifies an active driver profile and user, an ACTIVE DRIVER organization membership, and equality between the driver's profile organization and the shipment store organization.
+
+Migration 0041 defines a compatibility rule that remains intact: no `driver_store_assignments` rows means the driver is unrestricted across stores in their organization; once any rows exist, the driver is limited to the stores listed. The order assignment service fails closed if ShippingService eligibility validation is unavailable, and validation occurs before order/shipment/event/history/outbox writes.
+
+Unit and disposable-PostgreSQL regression source was added but remains unexecuted. No writer for the optional allowlist table was found; no speculative API, composite FK or migration was introduced. The previous "no shipment assignment writer" note is superseded; the mapping-table writer remains unlocated.
+
+G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Remaining gates include Drizzle/migration FK reconciliation, complete operation ownership predicates, actor-context nesting/reuse review, external allowlist provisioning confirmation, actual API/migration runtime identity, protected read-only catalog evidence, pg_partman scheduler ownership and 114/116 relation reconciliation. No tests, CI, shared DB, staging, RLS/grant, migration, deployment, worker activation, merge or release action occurred.
