@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { catalogRequests } from './catalog.requests.schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -94,6 +94,9 @@ export class CatalogRequestsService {
    * create the same requested entity twice.
    */
   private async getRequestForUpdate(id: string) {
+    if (this.db.currentActorContext?.actorKind !== 'user') {
+      throw new ForbiddenException('Authenticated reviewer actor context is required');
+    }
     const [request] = await this.db.db
       .select()
       .from(catalogRequests)
