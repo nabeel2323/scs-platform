@@ -81,23 +81,26 @@ export class PilotControlService {
     this.mode = resolveP13OpsConfig().pilotMode;
   }
 
-  private withUserActor<T>(caller: PilotControlCaller, operation: () => Promise<T>): Promise<T> {
+  private withUserActor<T>(caller: PilotControlCaller, operation: () => PromiseLike<T>): Promise<T> {
     return this.db.withActorContext({
       actorKind: 'user', actorId: caller.sub, actorRole: caller.role,
       activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
-    }, operation);
+    }, async () => await operation());
   }
 
-  private withAuditActor<T>(caller: PilotControlCaller, operation: () => Promise<T>): Promise<T> {
+  private withAuditActor<T>(caller: PilotControlCaller, operation: () => PromiseLike<T>): Promise<T> {
     return this.db.withActorContext({
       actorKind: 'audit', actorId: caller.sub, actorRole: caller.role,
       activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
-    }, operation);
+    }, async () => await operation());
   }
 
-  private withPolicyActor<T>(operation: () => Promise<T>): Promise<T> {
-    if (this.db.currentActorContext) return operation();
-    return this.db.withActorContext({ actorKind: 'system', actorId: 'p13-pilot-policy' }, operation);
+  private withPolicyActor<T>(operation: () => PromiseLike<T>): Promise<T> {
+    if (this.db.currentActorContext) return Promise.resolve(operation());
+    return this.db.withActorContext(
+      { actorKind: 'system', actorId: 'p13-pilot-policy' },
+      async () => await operation(),
+    );
   }
 
 
