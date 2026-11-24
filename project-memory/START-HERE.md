@@ -968,3 +968,13 @@ Source commit: `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50`.
 Added the verified user actor interceptor to four Payments POST handlers whose inspected service call graphs perform database transactions, append payment events and write outbox rows without calling payment/refund providers or object storage: COD cash confirmation, bank-transfer proof verification decision, settlement calculation and settlement-paid recording. Existing permission guards, service-level object/store authorization, row locks, optimistic state predicates and transactional outbox writes remain authoritative. The actor context wraps the complete awaited method; nested Drizzle transactions remain inside that scope.
 
 Explicitly excluded: bank-transfer proof upload (object storage), refund request/approval/retry (refund lifecycle), payment-provider operations, checkout and order cancellation/rejection paths. The controller metadata test now covers 12 Payments routes (eight GET and four DB-only POST); it remains unexecuted.
+
+
+## Latest continuation checkpoint — 24 November 2026
+
+- Live repository: nabeel2323/scs-platform; active branch remediation/phase-0-1-tenant-security; PR #138 remains OPEN / DRAFT / UNMERGED against develop.
+- Latest source/documentation implementation commit before this memory refresh: bccb8c569d122c7b1479881aa162fb428f264c4e. It adds verified-user actor context to the three DB-only Merchant document metadata handlers and adds an unexecuted controller-metadata regression spec.
+- Merchant document registration and organization/store listing are now scoped. Upload/download presign handlers remain outside the request transaction because they call object storage; download presign also persists the generated URL and needs a separate DB/storage phase split.
+- Exact-head GitHub Actions lookup for bccb8c569d122c7b1479881aa162fb428f264c4e returned zero workflow runs and zero status contexts. The commit uses [skip ci] as required during implementation. No tests, formatter, lint, typecheck or E6 were run.
+- Next implementation slice: continue the source-level Orders reject/cancel/payment-provider boundary review. Keep refund/provider workflows outside DB actor transactions; split only proven DB-only phases and do not wrap a complete handler if it awaits or emits external effects before commit. Then complete Merchant presign metadata/storage separation and the G-002 ownership/runtime evidence matrix.
+- All protected staging, shared database, migration, grants/default ACL, RLS, deployment, worker activation, no-merge and no-release restrictions remain unchanged.

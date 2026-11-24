@@ -14,10 +14,15 @@ describe('MerchantController document metadata actor context (G-002)', () => {
   });
 
   it('keeps object-storage presign handlers outside the request transaction', () => {
-    const storageHandlers = ['presignDocumentUpload', 'presignDocument', 'presignMerchantDocument'] as const;
+    const storageHandlers = [
+      'presignDocumentUpload',
+      'presignDocument',
+      'presignMerchantDocument',
+    ] as const;
     for (const method of storageHandlers) {
       const handler = MerchantController.prototype[method];
-      const interceptors = (Reflect.getMetadata(INTERCEPTORS_METADATA, handler) as unknown[] | undefined) ?? [];
+      const interceptors =
+        (Reflect.getMetadata(INTERCEPTORS_METADATA, handler) as unknown[] | undefined) ?? [];
       expect(interceptors).not.toContain(TenantDatabaseContextInterceptor);
     }
   });

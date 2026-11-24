@@ -774,3 +774,8 @@ Added the verified user actor interceptor to four Payments POST handlers whose i
 
 Explicitly excluded: bank-transfer proof upload (object storage), refund request/approval/retry (refund lifecycle), payment-provider operations, checkout and order cancellation/rejection paths. The controller metadata test now covers 12 Payments routes (eight GET and four DB-only POST); it remains unexecuted.
 **Next:** finish remaining Orders reject/cancel/provider transaction boundaries and Merchant document metadata/storage separation. Refund/payment-provider/file upload flows remain excluded.
+
+
+## G-002 continuation — Merchant documents and Orders payment boundaries (24 November 2026)
+
+Merchant metadata registration and organization/store document listing are implemented under verified-user actor context in commit `bccb8c569d122c7b1479881aa162fb428f264c4e`. Presign upload/download remains excluded until database metadata phases are split from object-storage calls. Next, continue Orders reject/cancel/payment-provider source review; preserve external refund/provider boundaries and scope only independently bounded DB-only phases. The implementation-first testing deferral remains in force.

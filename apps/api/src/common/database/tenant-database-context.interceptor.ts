@@ -17,11 +17,12 @@ import type { JwtPayload } from '../guards/current-user.decorator';
  * source-reviewed, JWT-protected bounded surfaces: Notifications, Pricing,
  * Store Membership, Reviews/Disputes, Promotions, Analytics, Inventory, Cart,
  * Returns, Catalog Offers/Requests/Taxonomy, Organizations/Roles, selected
- * Catalog read handlers and selected Admin read handlers. The selected paths
- * have no streaming response or detached task; controller/methods that perform
- * external provider work, upload files or return streams remain outside the
- * interceptor. Add further routes only after reviewing the full service call
- * graph, transaction behavior and external-I/O lifetime.
+ * Catalog/Admin reads, and reviewed Merchant store/warehouse/verification plus
+ * document metadata handlers. Merchant document registration and listing are
+ * database-only; object-storage presign operations remain outside. Controller
+ * methods that perform external provider work, upload files or return streams
+ * remain outside the interceptor. Add routes only after reviewing the full
+ * service call graph, transaction behavior and external-I/O lifetime.
  *
  * Nest runs guards before interceptors, so the actor is taken only from the
  * server-verified request.user populated by JwtAuthGuard. The handler observable

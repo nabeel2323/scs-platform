@@ -3,7 +3,7 @@
 **Live reconciliation:** 24 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — OPEN / DRAFT / UNMERGED.  
 **Branch:** `remediation/phase-0-1-tenant-security`.  
-**Latest source checkpoint:** `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50`; latest branch/documentation head `7cef8cbd5e0e68c08efacb2431f4f82ee012e189`.  
+**Latest implementation checkpoint:** `bccb8c569d122c7b1479881aa162fb428f264c4e`; parent branch/documentation head `137d0849ba6e91c477fbb15323e8af28b07f59b1`.  
 **Exact-head GitHub Actions:** zero workflow runs; source commits use `[skip ci]`.  
 **Last exact-head check before this documentation sync:** on `a18c705616c5b698219377e5f7119a4fcc50a8c0`, GitHub Actions returned zero workflow runs; Vercel Web was PENDING and Vercel Admin was FAILURE. These are preview statuses, not application-test evidence.
 
@@ -51,3 +51,8 @@ Added the verified user actor interceptor to four Payments POST handlers whose i
 
 Explicitly excluded: bank-transfer proof upload (object storage), refund request/approval/retry (refund lifecycle), payment-provider operations, checkout and order cancellation/rejection paths. The controller metadata test now covers 12 Payments routes (eight GET and four DB-only POST); it remains unexecuted.
 No tests or CI were run; commit contains `[skip ci]`. No RLS/grant/migration/database/staging/deployment/worker/merge/release action occurred.
+
+
+## 24 November 2026 — Merchant document metadata context source update
+
+Commit `bccb8c569d122c7b1479881aa162fb428f264c4e` scopes only document registration and organization/store document listing under the verified-user actor context. Storage presign upload/download routes remain outside. The new controller metadata test was added but not executed. Exact-head Actions lookup returned zero workflow runs; combined status returned zero contexts. No tests, formatter, lint, typecheck or E6 were run. No RLS, migration, grants/default ACLs, shared/staging database writes, deployment, worker activation, merge or release occurred.

@@ -3,8 +3,8 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source checkpoint:** `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50` — adds four DB-only Payments confirmation/settlement write routes to eight bounded GET routes. Prior Payments GET checkpoint: `7f56e5185cf1a7c7b6954845ca9151aac83c5ac6`.  
-**Latest branch/documentation head:** `7cef8cbd5e0e68c08efacb2431f4f82ee012e189`.  
+**Latest implementation checkpoint:** `bccb8c569d122c7b1479881aa162fb428f264c4e` — adds verified-user actor context to Merchant document registration and organization/store metadata listing, with explicit storage-presign exclusions. Payments DB-only route checkpoint: `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50`.  
+**Parent branch/documentation head:** `137d0849ba6e91c477fbb15323e8af28b07f59b1`.  
 **Latest test-only follow-up:** `c8405a33388731095ef08b64d744a36d7b079cd3` — corrected the Drizzle update-query mock used by the credential actor-context spec.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop` (`f74eb588cc58fc99b105e749d39dbfbacb4f9775`).  
 **Exact-head GitHub Actions:** zero workflow runs; source commits intentionally include `[skip ci]`.  
@@ -97,3 +97,8 @@ Source commit: `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50`.
 Added the verified user actor interceptor to four Payments POST handlers whose inspected service call graphs perform database transactions, append payment events and write outbox rows without calling payment/refund providers or object storage: COD cash confirmation, bank-transfer proof verification decision, settlement calculation and settlement-paid recording. Existing permission guards, service-level object/store authorization, row locks, optimistic state predicates and transactional outbox writes remain authoritative. The actor context wraps the complete awaited method; nested Drizzle transactions remain inside that scope.
 
 Explicitly excluded: bank-transfer proof upload (object storage), refund request/approval/retry (refund lifecycle), payment-provider operations, checkout and order cancellation/rejection paths. The controller metadata test now covers 12 Payments routes (eight GET and four DB-only POST); it remains unexecuted.
+
+
+## 24 November 2026 — Merchant document metadata actor-context adoption
+
+Commit `bccb8c569d122c7b1479881aa162fb428f264c4e` scopes the database-only document registration, organization listing and store listing handlers through the verified-user interceptor. Object-storage upload/download presign handlers remain excluded. The new controller metadata spec asserts the allowlist and exclusions; it has not been executed. Exact-head Actions lookup returned zero workflow runs and zero status contexts. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
