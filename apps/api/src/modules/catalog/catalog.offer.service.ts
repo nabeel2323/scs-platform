@@ -851,7 +851,7 @@ export class CatalogOfferService {
         and(
           eq(merchantOffers.id, id),
           eq(merchantOffers.storeId, offer.storeId),
-          ...(offer.updatedAt ? [eq(merchantOffers.updatedAt, offer.updatedAt)] : []),
+          eq(merchantOffers.updatedAt, offer.updatedAt),
         ),
       )
       .returning({ id: merchantOffers.id });
