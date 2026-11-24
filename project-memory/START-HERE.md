@@ -78,33 +78,31 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) OPEN / DRAFT / UNMERGED against `develop`. The latest source implementation commits include `fe98b12f` (authenticated Identity/Profile), `4e9e0475` (pre-authentication principal), `5a6eba90` and `b939a335` (post-proof OTP/password/session DB phases), `7f56e518` (Payments GET scopes) and `22f14b0e` (Payments DB-only confirmation/settlement write scopes). Latest branch/documentation head: `7cef8cbd5e0e68c08efacb2431f4f82ee012e189`. It extends the existing transaction-bound actor-context rollout into authenticated identity and credential flows; the detailed method boundary is recorded in [G-002 authenticated identity actor-context adoption](../docs/remediation/G-002-AUTHENTICATED-IDENTITY-ACTOR-CONTEXT-2026-11-24.md).
+Live reconciliation on 24 November 2026 confirms repository nabeel2323/scs-platform, branch remediation/phase-0-1-tenant-security, and PR #138 OPEN / DRAFT / UNMERGED against develop. Latest verified branch/PR HEAD before this handoff update: f01fc1dfb05af8975d50739ccee7563db8e5bf95. Exact-head GitHub Actions lookup returned zero workflow runs and combined status returned zero contexts. Re-query GitHub before the next action.
 
-### Exact stopping point
+### Latest G-002 source implementation
 
-- Latest source checkpoint `7f56e5185cf1a7c7b6954845ca9151aac83c5ac6` extends authentication/session actor contexts and adds eight bounded Payments GET handlers under the verified user actor. The prior Identity checkpoint is `b939a335a5bc126241131ab48bb03c9ed3cfaea6`.
-- G-002 now has scoped DB-only actor context for credential setup/change, OTP-proven email/phone linking, account identifier unlinking, and authenticated organization switching.
-- JWT-protected AuthController/ProfileController handlers forward only verified user ID, role and active-organization claims. The service uses those values for explicit user actor contexts.
-- Password hashing and comparison, OTP challenge consumption, Redis denylisting, provider traffic and JWT signing remain outside the database transactions. Password change atomically updates the password, writes the credential audit row, revokes trusted-device credentials and revokes sessions; the general audit entry is a separate audit actor write.
-- Regression coverage was added/updated in the Profile/Auth controller, account-linking, email-OTP error-coverage and organization N+1 suites, plus a new credential actor-context service spec. Tests have **not** been executed.
-- FIN-047 remains implemented / TESTING_PENDING; do not repeat its pagination implementation.
+- Orders merchant rejection now uses the verified merchant actor for DB-only authorization, auto-advance, inventory settlement, optimistic status flip, history and rejection outbox. Stock release and rejection persistence share one transaction. Refund request persistence is a separate DB-only phase with stable per-order idempotency. Master-order recalculation/read use a separate short actor scope.
+- Merchant rejection refund attribution now uses the authenticated merchant identity. PaymentsService accepts the special MERCHANT_REJECTION reason from a MERCHANT_* caller only when assertOrderAccessible confirms the order belongs to the caller's active organization. It no longer impersonates the buyer.
+- Important financial boundary: this flow creates a REQUESTED refund row, payment event and outbox record. The current generic OutboxDispatcher only logs generic events and marks them dispatched; it does not execute a payment-provider refund. Automatic provider execution remains outside the approved scope.
+- Merchant document download presigning performs metadata/membership reads in a short user actor context, calls object storage with no DB transaction open, then persists the signed URL in a second short actor context. Upload presign remains storage-only. Document registration and organization/store listing retain their existing scoped DB handlers.
+- Regression specs were added for Orders rejection actor ordering, merchant refund actor attribution and Merchant document presign phase boundaries. They have not been executed.
+- G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No RLS, grants, migrations, protected staging/database operations, worker activation, deployment, merge or release occurred.
 
-### Live PR and CI
+### Exact PR and CI state
 
-- PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) is OPEN / DRAFT / UNMERGED to `develop`; do not merge.
-- On live branch head `7cef8cbd5e0e68c08efacb2431f4f82ee012e189`, GitHub Actions returned zero workflow runs. Vercel Admin and Web statuses are PENDING; they are preview statuses, not API, PostgreSQL, boundary or test evidence.
-- The latest broad historical Actions failures predate this actor-context source commit. Do not report historical failures or skipped jobs as current-head results or passes.
-- G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Source adoption alone is not proof of RLS enforcement.
+- PR #138 is OPEN / DRAFT / UNMERGED against develop. Keep it that way.
+- Latest known exact-head Actions lookup: zero workflow runs; combined status: zero contexts. Earlier Vercel build-rate-limit failures were on a previous SHA and are not current-head evidence.
+- No tests, formatter, lint, typecheck, E6 or CI were run in this implementation phase.
 
-### Remaining project gates
+### Next implementation priorities
 
-- Next G-002 source task: map remaining DB-only Payments write operations and separate provider/refund/file-storage side effects before adding user actor contexts. Then review Merchant document metadata paths and the remaining ownership matrix. Keep external I/O outside transactions.
-- Then complete remaining safe Orders/Payments DB-only reads and mutations, keeping payment/refund/provider phases excluded.
-- Separate Merchant document metadata operations from object-storage I/O before adding actor context.
-- Complete the physical table/operation/ownership-predicate matrix and reconcile the 114/116 relation-count discrepancy; obtain runtime API/migration identity and protected read-only catalog evidence only through the authorized process.
-- G-001 independent review and G-036 verification remain open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
+1. Continue the source-backed G-002 physical table/operation/ownership-predicate matrix; reconcile the 99 Drizzle-exported tables, 114 detailed public relations and unresolved 116 count. Do not invent a two-table delta.
+2. Continue remaining service/controller/worker access-path review, distinguishing authenticated user, worker, audit, bootstrap and system principals. Keep provider, object storage and external I/O outside actor transactions.
+3. Complete the API/migration runtime identity and protected read-only catalog evidence only through the authorized staging process.
+4. Keep G-001 independent review and G-036 verification open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
 
-**Standing restriction:** do not run tests, formatter, lint, typecheck, E6 or CI while implementation/integration is still in progress. Keep PR #138 draft/open/unmerged. No migrations, grants/default ACL changes, RLS enablement, shared/staging database writes, deployment or worker activation without the recorded authorization.
+**Standing restriction:** implementation/integration first; do not run tests, formatter, lint, typecheck, E6 or CI until the consolidated verification phase. No migrations, grants/default ACL changes, RLS enablement, shared/staging database writes, deployment, worker activation, merge or release without the recorded authorization.
 
 ## Safety reminder
 

@@ -2,16 +2,40 @@
 
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
-**Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest implementation checkpoint:** `ff8e4aebee01631023fad76eec9a8d98c254108b` — formatting follow-up for Orders cancellation DB-phase actor context (`55910f043360b5e89103fd1ccbe5be6085a14e78`). Merchant document metadata actor-context commit: `bccb8c569d122c7b1479881aa162fb428f264c4e`. Payments DB-only route checkpoint: `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50`.  
-**Latest source implementation commit:** `bccb8c569d122c7b1479881aa162fb428f264c4e`.  
-**Latest documentation checkpoint before this status sync:** `2cff7c0f6604d6918b00efb190abd96d301149e1`.  
-**Latest test-only follow-up:** `c8405a33388731095ef08b64d744a36d7b079cd3` — corrected the Drizzle update-query mock used by the credential actor-context spec.  
-**PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop` (`f74eb588cc58fc99b105e749d39dbfbacb4f9775`).  
-**Exact-head GitHub Actions:** zero workflow runs; source commits intentionally include `[skip ci]`.  
-**Last exact-head check before this documentation sync (a18c705616c5b698219377e5f7119a4fcc50a8c0):** GitHub Actions zero workflow runs; Vercel Web PENDING and Vercel Admin FAILURE. These are preview statuses, not application-test results; Admin failure is not an API test result.
+**Branch:** remediation/phase-0-1-tenant-security  
+**Latest source implementation group:** Orders rejection actor-context, merchant rejection refund actor attribution, and Merchant document download-presign separation. Key source commits: 7e2b2509292cfbcfe6f1f12ebae8d2fad25f8cf1 and 733b0570c9ae4e94a9684ff28b30cbd3f77ec038.  
+**Latest test-source follow-ups:** 61489e264fbe5e15e332ba23c4947ea3120d9476 and ec2998abb0ff5fbb9208d66558b4dde309f672bc. Tests remain unexecuted.  
+**Latest remediation documentation checkpoints:** 7663d692fd0f32a3760e07980b4a232e3ab900fb and project-memory sync f01fc1dfb05af8975d50739ccee7563db8e5bf95.  
+**PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base develop.  
+**Exact-head evidence before this current-state update:** GitHub Actions zero workflow runs; combined status zero contexts.  
+**Standing user instruction:** complete implementation and cross-component integration first. Do not execute tests or trigger CI during implementation. Keep PR #138 draft/open/unmerged.
 
-> **Standing user instruction:** complete implementation and cross-component integration first, then run tests. Do not execute test commands or trigger CI during implementation. Proceed autonomously without asking for approval for routine steps; group related changes and synchronize project memory.
+## Latest G-002 implementation checkpoint
+
+- Orders merchant rejection scopes DB-only authorization, optional SUBMITTED auto-advance, stock release, optimistic REJECTED status transition, history and rejection outbox under the verified merchant actor. Stock release and rejection persistence share the same transaction.
+- Refund request creation is a separate DB-only actor phase with stable per-order idempotency. The actual authenticated merchant identity is passed through; PaymentsService permits the MERCHANT_REJECTION reason only for MERCHANT_* callers whose order passes assertOrderAccessible. Payment-event actor attribution is MERCHANT, not a synthetic BUYER.
+- This path creates a REQUESTED refund row, payment event and outbox record only. OutboxDispatcher currently logs generic events and marks them dispatched; it does not execute a payment-provider refund. Automatic refund-provider execution is outside the approved scope.
+- Master-order recalculation and final read use a separate short actor context after rejection/refund request persistence.
+- Merchant document download presigning scopes document/membership reads, calls object storage outside any DB transaction, then scopes storageUrl metadata persistence in a second actor context. Upload presign remains storage-only; document registration and organization/store listing are already scoped.
+- Regression specs exist for rejection phase boundaries, merchant refund actor attribution, and Merchant presign transaction separation. None have been executed.
+
+## Bounded authenticated HTTP and service adoption
+
+- Payments: eight bounded GET handlers and four DB-only POST handlers use the verified-user interceptor. Refund request/approval/retry, proof upload and payment-provider operations remain outside the controller-wide actor interceptor by explicit decision.
+- Orders: safe reads/preview/reorder and bounded lifecycle operations are scoped. Reject and cancel use service-level actor phases because post-commit/refund/outbox boundaries require narrower scopes. Actual checkout remains excluded.
+- Merchant: store/warehouse/verification and document registration/listing are scoped. Download presign uses two short service actor phases around storage signing. Upload presign is storage-only.
+- Worker, webhook, bootstrap, audit and realtime principals remain separately bounded as recorded in the G-002 operation map and progress tracker.
+
+## Remaining implementation priorities
+
+1. Continue the G-002 physical table/operation/ownership-predicate matrix and reconcile 99 Drizzle-exported tables versus 114 detailed public relations and the unresolved 116 count. Do not infer a two-relation delta.
+2. Finish source review of service/controller/worker raw SQL, operation and principal paths. Preserve the external-I/O boundaries.
+3. Obtain actual API/migration runtime identity and protected read-only catalog evidence only through the authorized staging process.
+4. Keep G-001 independent review and G-036 verification open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
+
+## Verification state
+
+No tests, formatter, lint, typecheck, E6 boundary check or GitHub Actions workflow was run for this implementation group. Exact-head Actions and status evidence must be re-queried at the start of the next session. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED; source adoption is not RLS verification.
 
 ## G-002 actor-context implementation checkpoint
 
