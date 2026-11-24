@@ -264,12 +264,22 @@ export class CatalogController {
   }
 
   @Get('products/:id')
-  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getProduct(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: JwtPayload) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertProductReadable(this.db, caller, id);
-    const includeInactiveVariants = await canManageProductCatalog(this.db, caller, id);
-    return this.catalogService.getProductDetail(id, includeInactiveVariants);
+    const includeInactiveVariants = await this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: caller.sub,
+        actorRole: caller.role,
+        activeOrgId: caller.activeOrg ?? null,
+      },
+      async () => {
+        await assertProductReadable(this.db, caller, id);
+        return canManageProductCatalog(this.db, caller, id);
+      },
+    );
+    // Redis caching and storage URL resolution happen outside the service DB actor scope.
+    return this.catalogService.getProductDetail(id, caller, includeInactiveVariants);
   }
 
   @Patch('products/:id')
@@ -716,14 +726,18 @@ export class CatalogController {
   }
 
   @Get('products/:productId/media')
-  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listMedia(@Param('productId') productId: string, @CurrentUser() user: JwtPayload) {
-    await assertProductReadable(
-      this.db,
-      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
-      productId,
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: caller.sub,
+        actorRole: caller.role,
+        activeOrgId: caller.activeOrg ?? null,
+      },
+      () => assertProductReadable(this.db, caller, productId),
     );
-    return this.catalogService.listMediaByProduct(productId);
+    return this.catalogService.listMediaByProduct(productId, caller);
   }
 
   @Delete('products/:productId/media/:mediaId')
