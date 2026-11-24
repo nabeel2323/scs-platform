@@ -2214,3 +2214,7 @@ Exported CatalogUserActor as the shared service caller contract. Added admin P3 
 ## 25 November 2026 — ProfileController Catalog callsites
 
 Updated ProfileController favorites and saved-supplier calls to pass the authenticated actor. CatalogService list/add/remove favorite and list/save/remove supplier methods now run in short user actor scopes and reject userId/actor.sub mismatch. Favorite reads and adds enforce product readability; unreadable/deleted favorites are omitted. Saved suppliers are restricted to ACTIVE/VERIFIED stores and return a public-safe store projection. Added service and controller regression coverage; tests remain unexecuted.
+
+## 25 November 2026 — Catalog lookup service fail-closed guards
+
+Added currentActorContext user-principal checks to CatalogPricingLookupService and CatalogReviewLookupService. Non-empty variant pricing/store ownership and purchased-variant/product lookup calls now reject when no verified user actor transaction is active. PricingController and ReviewsController already provide the required controller-level context. Updated lookup unit tests with explicit actor context and unscoped rejection coverage; tests remain unexecuted.
