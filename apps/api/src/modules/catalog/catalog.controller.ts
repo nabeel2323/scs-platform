@@ -1075,9 +1075,12 @@ export class CatalogController {
   }
 
   @Get('search/facets')
-  @UseInterceptors(TenantDatabaseContextInterceptor)
-  async getSearchFacets(@Query('categoryId') categoryId?: string) {
-    return this.searchService.getFacetsCached(categoryId);
+  async getSearchFacets(
+    @Query('categoryId') categoryId: string | undefined,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const actor = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    return this.searchService.getFacetsCached(categoryId, actor);
   }
 
   // ── PHASE 7: Data Quality / Deduplication ──────────────────────
