@@ -65,7 +65,8 @@ function psql(query: string): string {
  * the old `psql -f` + separate INSERT could not guarantee.
  */
 function psqlFile(sqlContent: string, file: string): boolean {
-  const tmpFile = '/tmp/_migrate.sql';
+  const tmpFile =
+    '/tmp/_migrate-' + process.pid + '-' + file.replace(/[^a-zA-Z0-9_.-]/g, '_') + '.sql';
   const script = `BEGIN;
 SELECT pg_advisory_xact_lock(5456723, 1);
 SELECT EXISTS (SELECT 1 FROM _migration_log WHERE name = '${file}') AS migration_already_applied \\gset
@@ -84,10 +85,19 @@ COMMIT;
     { input: script, encoding: 'utf-8' },
   );
   // ON_ERROR_STOP aborts and rolls back the transaction on the first error.
-  const output = execFileSync('docker', [
-    'exec', CONTAINER, 'psql', '-U', DB_USER, '-d', DB_NAME,
-    '-v', 'ON_ERROR_STOP=1', '-f', tmpFile,
-  ], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+  let output = '';
+  try {
+    output = execFileSync('docker', [
+      'exec', CONTAINER, 'psql', '-U', DB_USER, '-d', DB_NAME,
+      '-v', 'ON_ERROR_STOP=1', '-f', tmpFile,
+    ], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+  } finally {
+    try {
+      execFileSync('docker', ['exec', CONTAINER, 'rm', '-f', tmpFile], { stdio: 'pipe' });
+    } catch {
+      // A stale temporary SQL file is harmless; preserve the migration result.
+    }
+  }
   return !output.includes('SCS_MIGRATION_ALREADY_APPLIED');
 }
 
