@@ -395,3 +395,14 @@ The Catalog Import source slice and P13 operational principal slice are now impl
 - No tests, formatter, lint, typecheck or E6 were intentionally run. No merge/deploy, worker activation, migration, RLS/grant/default-ACL change or shared/staging DB access occurred. Automatic CI run #1499 was queued on the prior source checkpoint and must not be treated as exact-head verification.
 
 **Next task:** continue the source callsite and ownership-predicate audit across carrier credential lifecycle/retry/recovery, audit middleware, migration/bootstrap/CLI paths and raw database functions/triggers/partitions. Add targeted regression specs for actor reuse, worker nesting, caller-scope boundaries and the schema-barrel completeness correction after implementation/integration is complete. Then finish FK evidence and protected read-only API/migration identity/catalog verification.
+
+
+## 24 November 2026 — carrier credential/configuration and operator principal reconciliation
+
+- Carrier credential CRUD is user-scoped. Reads/writes retain organization membership validation; deactivation repeats ID + org in its UPDATE predicate. Encryption occurs before the insert transaction; decryption occurs after a short org-bound credential read.
+- Internal credential lookup/decryption requires expected org ID and constrains credential ID + org. Internal access uses an org-bound worker actor or reuses a compatible active actor; conflicting active user/worker organization contexts fail closed.
+- Carrier configuration CRUD is user-scoped. Internal store resolution uses an org-bound worker actor and validates store ID + org, configuration org + store + active, and credential ID + org + active. Updates repeat config ID + org.
+- Aramex provider store-owner resolution and credential reads use explicit worker contexts; credential queries retain org/provider/active predicates. Platform lookup is restricted to Identity-resolved PLATFORM org.
+- Carrier webhook initial credential lookup uses a dedicated worker principal; decryption and subsequent routing/event persistence use the credential org context. The legacy route still rejects more than one active credential with 401, returned after the lookup transaction closes.
+- AuditLogMiddleware already uses a separate audit principal. AuditService.record remains context-dependent. migrate-pg uses a separate migration Pool, identity diagnostics, session advisory lock and migration+ledger transaction; seed-pg uses an operator PoolClient; bootstrap-issue-token sets transaction-local bootstrap settings; BootstrapService uses anonymous/bootstrap contexts.
+- Source review only; no CLI, migration, seed, database, worker or provider action was executed. Raw SQL functions/triggers/partitions and pg_partman maintenance identity remain open. Live API/migration identity and protected catalog evidence remain gated.

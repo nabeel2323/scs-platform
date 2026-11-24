@@ -2691,3 +2691,19 @@ The Catalog Import source slice and P13 operational principal slice are now impl
 - PR #138 remains OPEN / DRAFT / UNMERGED. No merge, deployment, worker activation, migration, RLS/grant/default-ACL change, shared/staging DB access or provider call occurred.
 
 **Next:** complete the remaining source callsite/ownership-predicate inventory, then run the consolidated typecheck/unit/PostgreSQL/E6 verification campaign only after implementation and integration are complete. Resolve any newly exposed failures before considering G-002 verified. G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.
+
+
+## 24 November 2026 — G-002 carrier credential/configuration actor-context continuation
+
+**Source commits:** `9906430459666effbd25f33148c3cdf01b976330`, `9a010db69c668432f2811c68094a367ad5c7684c`.
+
+Implemented source changes:
+- Verified-user actor contexts for carrier credential and configuration CRUD; organization membership checks execute inside the scope.
+- Organization-bound worker scopes for internal credential/configuration resolution and decryption. Credential ID + org ID predicates are mandatory; Aramex additionally constrains provider key and active state. Decryption occurs after the read transaction closes.
+- Dedicated worker context for webhook credential lookup. Ambiguous legacy provider-only lookup still returns 401 outside the transaction. Subsequent webhook persistence uses the credential-specific organization scope.
+- AuditLogMiddleware already has a separate audit context; migration/seed/bootstrap CLI paths retain separate operator principals.
+- Regression coverage was updated/added but not run.
+
+**Verification:** automatic Actions run #1501 (ID 45422228217) on source SHA `9a010db69c668432f2811c68094a367ad5c7684c` was IN_PROGRESS at last inspection. No test or CI workflow was intentionally dispatched. Vercel Web/Admin exact-source checks were SUCCESS / SKIPPED — NOT AFFECTED. No test pass is claimed.
+
+**Remaining:** complete migration-set raw SQL/function/trigger/partition inventory; reconcile direct migration/seed/bootstrap/CLI PoolClient paths and exact principals; finish per-operation ownership predicates and migration FK evidence; verify actor-context reuse/nesting; obtain protected read-only runtime identity/catalog evidence only through authorized staging. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

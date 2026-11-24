@@ -168,3 +168,26 @@ Implemented: list/detail/errors read endpoints use the verified-user context int
 - P13 platform-control tables (`ops_alerts`, `ops_controls`, `ops_control_audit`, `p13_pilot_allowlist`, and `worker_leases`) are platform operational/control data. The pilot allowlist's `org_id`/`store_id` identify the configured target scope; they do not turn the control table into a merchant-owned tenant table.
 - Source commit `474ef450d98a62fe3b2f6b480a5dc4ea300d824d` adds `catalog-import.schema.ts` to the runtime Drizzle schema barrel. The barrel now exports all 100 current `pgTable` declarations. This does not prove deployed table presence or apply migration 0075.
 - Remaining source work is callsite/nesting audit across the full 53-file candidate set, carrier/bootstrap/CLI/audit middleware and raw SQL DB objects; exact operation predicates and FK evidence; and protected live API/migration identity plus relation-kind inventory. No RLS/grant/migration or shared/staging action is authorized by this source map.
+
+
+## 24 November 2026 — carrier, audit and operator access-path continuation
+
+### Carrier credential and configuration service paths
+
+- `CarrierCredentialsService.listForOrg/getById/create/deactivate` use a verified user actor derived from caller JWT claims. Membership validation and DB mutation/read occur inside the scoped transaction. Credential encryption is performed before the insert transaction; decryption occurs only after a short tenant-bound read transaction closes.
+- Internal credential lookup/decryption requires the expected org ID. DB predicates include credential ID + org ID; active-state checks remain. Internal scopes reuse an existing compatible actor or establish a dedicated worker principal.
+- `CarrierConfigurationsService.listForOrg/getById/create/update` use verified user actors. `resolveForStore` uses an organization-bound worker actor and repeats store ID + org ID, config org/store/active and credential org/active predicates. Update repeats config ID + org ID.
+- Aramex provider's direct store/credential/platform reads use explicit worker contexts. Credential reads retain expected org, provider key and active predicates. Platform credential resolution is restricted to the Identity-resolved PLATFORM organization.
+- Carrier webhook initial credential lookup uses a dedicated `carrier-webhook:credential-resolution` worker principal. Secret decryption uses the credential's org-bound context; subsequent webhook event persistence/routing already uses `withCredentialContext`. The ambiguous legacy provider-only route still rejects multiple active credentials with HTTP 401, with the response returned after the DB transaction closes.
+
+### Audit, migration, seed and bootstrap boundaries
+
+- `AuditLogMiddleware` already wraps its deferred response-finish write in a separate `audit` actor context. `AuditService.record` remains a context-dependent append operation and must not self-switch actors inside an active scope.
+- `migrate-pg.ts` uses a dedicated DATABASE_URL Pool, emits migration identity diagnostics, holds a session advisory lock and commits each migration with its ledger row. It is a migration principal, not an API actor.
+- `seed-pg.ts` uses its own Pool/PoolClient for platform RBAC seed writes. The standalone seed path remains an operator/deployment principal.
+- `bootstrap-issue-token.ts` sets transaction-local bootstrap actor settings before token authorization/audit operations. `BootstrapService` uses an anonymous context for bounded availability reads and a bootstrap context for owner-verified issuance/initialization transactions.
+- These paths were source-inspected only. No migration, seed, bootstrap CLI, database query or shared/staging operation was executed.
+
+### Remaining source and evidence gaps
+
+The raw SQL/function/trigger/partition inventory across the full migration set remains incomplete. Review pg_partman partition maintenance/retention identity, function search_path/SECURITY DEFINER posture, migration-only tables and every direct Pool/PoolClient CLI/bootstrap path. The 100 source pgTable declarations, historical 114 public r/p snapshot and unresolved 116 count are distinct. Protected read-only live catalog and actual API/migration role identity remain gated to the authorized staging process.

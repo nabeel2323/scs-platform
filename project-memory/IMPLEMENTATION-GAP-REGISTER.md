@@ -1125,3 +1125,10 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 - P13 platform-control tables (`ops_alerts`, `ops_controls`, `ops_control_audit`, `p13_pilot_allowlist`, and `worker_leases`) are platform operational/control data. The pilot allowlist's `org_id`/`store_id` identify the configured target scope; they do not turn the control table into a merchant-owned tenant table.
 - Source commit `474ef450d98a62fe3b2f6b480a5dc4ea300d824d` adds `catalog-import.schema.ts` to the runtime Drizzle schema barrel. The barrel now exports all 100 current `pgTable` declarations. This does not prove deployed table presence or apply migration 0075.
 - Remaining source work is callsite/nesting audit across the full 53-file candidate set, carrier/bootstrap/CLI/audit middleware and raw SQL DB objects; exact operation predicates and FK evidence; and protected live API/migration identity plus relation-kind inventory. No RLS/grant/migration or shared/staging action is authorized by this source map.
+
+
+## 24 November 2026 — G-002 carrier/operator access-path continuation
+
+Carrier credential/configuration CRUD, Aramex credential resolution and webhook credential lookup now use explicit user/worker actor contexts and organization predicates. AuditLogMiddleware already has an independent audit context. Migration/seed/bootstrap CLI paths use separate operator identities and must remain separate from user request context.
+
+Remaining G-002 gaps: full raw SQL/function/trigger/partition inventory; direct migration/seed/bootstrap/CLI PoolClient ownership/role reconciliation; exact per-operation ownership predicates and migration-defined FK validation; actor-context nesting/reuse audit; protected read-only API/migration identity and catalog evidence; 114/116 historical relation count reconciliation. No live DB/RLS/grant/migration action is authorized. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

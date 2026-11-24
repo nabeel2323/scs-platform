@@ -426,3 +426,28 @@ Unit Tests + Coverage Gates, Integration Tests, Boundary Lint (E6), Container Bu
 - No tests, formatter, lint, typecheck or E6 were intentionally run. No merge/deploy, worker activation, migration, RLS/grant/default-ACL change or shared/staging DB access occurred. Automatic CI run #1499 was queued on the prior source checkpoint and must not be treated as exact-head verification.
 
 **Next task:** continue the source callsite and ownership-predicate audit across carrier credential lifecycle/retry/recovery, audit middleware, migration/bootstrap/CLI paths and raw database functions/triggers/partitions. Add targeted regression specs for actor reuse, worker nesting, caller-scope boundaries and the schema-barrel completeness correction after implementation/integration is complete. Then finish FK evidence and protected read-only API/migration identity/catalog verification.
+
+
+## 24 November 2026 — carrier credential/configuration method predicates
+
+### CarrierCredentialsService
+
+| Operation | Principal | Required row predicate / boundary |
+|---|---|---|
+| listForOrg | Verified user | Membership validated for requested org; query constrained by credential.org_id. |
+| getById | Verified user | Credential ID lookup inside caller scope, followed by active-org membership validation against row.org_id. |
+| create | Verified user | Admin role checked; membership revalidated inside insert transaction; created_by derives from verified caller; encryption completes before insert transaction. |
+| deactivate | Verified user | Read + membership check + soft-delete in one user transaction; UPDATE repeats credential ID + row org ID. |
+| decryptCredentials / decryptWebhookSecret | Internal worker or compatible active actor | Expected org ID is required; lookup repeats credential ID + org ID; active-state required; decryption occurs after transaction closes. |
+| findCredentialId | Internal worker or compatible active actor | Org + provider + environment + active predicates. |
+
+### CarrierConfigurationsService and Aramex provider
+
+| Operation | Principal | Required row predicate / boundary |
+|---|---|---|
+| listForOrg/getById/create/update | Verified user | Membership check for requested/row org; update repeats configuration ID + org ID. |
+| resolveForStore | Org-bound worker or compatible active actor | Store ID + org; configuration org + store + active; credential ID + org + active. Store-specific override precedes org default. |
+| Aramex credential read | Worker or compatible active actor | Credential ID + expected org + provider key + active. Platform lookup additionally requires Identity-resolved PLATFORM org. |
+| Webhook credential resolution | Dedicated worker principal | Token + provider + active for token route; provider + active with max two candidates for legacy route. More than one candidate returns 401 outside the DB transaction. |
+
+Credential/webhook-secret decryption, carrier HTTP calls, object storage and webhook external side effects remain outside DB actor transactions. Audit middleware uses a separate audit principal. Migration, seed and bootstrap CLI paths retain distinct operator identities. Regression specs were updated but remain unexecuted. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
