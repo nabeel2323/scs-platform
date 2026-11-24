@@ -11,6 +11,7 @@ import { CatalogModule } from '../catalog/catalog.module';
 import { AuditModule } from '../audit/audit.module';
 import { StorageModule } from '../../common/storage/storage.module';
 import { CatalogValidationService } from '../catalog/catalog.validation-service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 
 /**
  * Catalog Import module — admin-driven Excel imports for the canonical catalog.
@@ -32,6 +33,7 @@ import { CatalogValidationService } from '../catalog/catalog.validation-service'
     ExcelExecutorService,
     TemplateGeneratorService,
     CatalogValidationService,
+    TenantDatabaseContextInterceptor,
   ],
 })
 export class CatalogImportModule {}

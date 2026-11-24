@@ -16,6 +16,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { CatalogImportService } from './catalog-import.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -71,6 +72,7 @@ export class CatalogImportController {
   @Get()
   @RequirePermission('catalog:imports:manage')
   @RequireRole('ADMIN', 'SUPER_ADMIN')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async list(
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
@@ -90,6 +92,7 @@ export class CatalogImportController {
   @Get(':id')
   @RequirePermission('catalog:imports:manage')
   @RequireRole('ADMIN', 'SUPER_ADMIN')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async detail(@Param('id', ParseUUIDPipe) id: string) {
     return this.importService.getImportDetail(id);
   }
@@ -142,6 +145,7 @@ export class CatalogImportController {
   @Get(':id/errors')
   @RequirePermission('catalog:imports:manage')
   @RequireRole('ADMIN', 'SUPER_ADMIN')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async errors(@Param('id', ParseUUIDPipe) id: string) {
     return this.importService.getErrors(id);
   }
