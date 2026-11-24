@@ -1637,3 +1637,12 @@ The user explicitly directed: finish implementation first, then do the tests; pr
 - The interceptor remains method-scoped for ProfileController, not class/global scoped. The actor is taken from verified JWT claims by the shared interceptor.
 - No tests, formatter, lint, typecheck, E6 or CI were run. No RLS, migration, grants, shared DB, staging, deployment or worker activation occurred.
 - Source commit: `0eccaf90847bce0ca8039b6874a2053ce1412445`; allowlist documentation commit: `78d0475a7fcdbea6aca848a46236e5f536a4a796`.
+
+
+## 24 November 2026 — CarrierTrackingPoller worker context
+
+- Added a unique worker identity and a short `withWorkerContext` scope to CarrierTrackingPoller.
+- The atomic shipment claim, tracking event inserts, delivered-after-cancel event/recovery-token writes, shipment status updates and Orders delivery bridge now run under the worker actor context.
+- The external `provider.getTrackingInfo()` call and circuit-breaker operations remain outside the transaction. The context is opened only around the DB phase after the provider response is received; no transaction is held across the carrier network call.
+- ShippingCarrierWorker remains outside because its create/cancel/label/track/webhook-retry paths mix database access with provider/storage operations and need a more granular DB/external-I/O split. ReturnExpirationWorker remains outside after its attempted wrapper was reverted to preserve lease/fencing semantics.
+- No tests, formatter, lint, typecheck, E6 or CI were run. No worker was newly activated; existing enablement gates remain unchanged. No RLS, migration, grant, shared DB, staging or deployment action occurred.
