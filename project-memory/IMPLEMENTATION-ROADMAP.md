@@ -1052,3 +1052,7 @@ The dormant stale-import recovery entry point now has a dedicated worker princip
 ## 25 November 2026 — Catalog detail/media read phase update
 
 Product detail and media-list routes now use short caller actor scopes for DB work; Redis cache and storage URL signing remain outside. Continue auditing remaining Catalog mixed reads/writes and root-pool DB calls. Do not apply request-wide interceptors to mixed external-I/O routes. Keep tests/quality gates deferred until implementation/integration is complete.
+
+## 25 November 2026 — Search Facets cache boundary
+
+Search Facets cache I/O now sits outside its DB actor scope. Continue the remaining Search/Catalog mixed-path audit and ownership-predicate review. Keep the implementation-first restriction: no test/format/lint/typecheck/CI until implementation and integration are complete.
