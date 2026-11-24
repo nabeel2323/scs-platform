@@ -418,3 +418,10 @@ Latest source implementation commits:
 The G-002 migration FK crosswalk, implementation progress tracker, work log, open issues and START-HERE handoff were synchronized. Regression scenarios are documented but have not been added/executed in this continuation. The only recent automatic CI run, #1503, failed on an earlier source SHA; later source/docs commits use `[skip ci]` and have no workflow runs. Vercel Web/Admin remain external rate-limit failures. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 
 **Next:** locate the actual `driver_store_assignments` consumer/write path, finish the remaining carrier/webhook/shipment relationship inventory, reconcile Drizzle declarations with migration FKs, and then add regression coverage before the deferred consolidated verification. No protected staging, shared DB, migration, RLS/grant, deployment, worker activation, merge or release action occurred.
+
+
+## 24 November 2026 — shipment read-path completion update
+
+Source commit `56d605a7377c49766b990abfc023e6ae4a5cea1d` extends shipment/order/store consistency to OrdersService exception/RTS access before driver/platform bypasses, order-based shipment lookup, and driver shipment lists. Commit `c916acd0a8b156affeda50e98dbc88acab2f39bc` filters malformed pairs from ShipmentOperationsController list and count queries. Combined with shipment creation, detail and carrier worker guards, all inspected shipment read/provider paths now enforce same-store order ownership.
+
+Regression cases are documented but unexecuted. Driver profile/store assignment consumers and remaining carrier/webhook relationships remain open. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED; no tests or CI were run for the `[skip ci]` source commits.
