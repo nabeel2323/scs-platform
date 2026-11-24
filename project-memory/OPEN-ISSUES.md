@@ -1256,3 +1256,8 @@ Carrier admin recovery, recovery queue, scheduled create/cancel reconciliation, 
 Driver assignment remains unresolved at the model/consumer level: driver_store_assignments has separate driver-profile and store FKs without a same-org constraint, but no writer/controller/runtime consumer was found in the inspected ShippingModule; shipments.assigned_driver_id points to users. Do not add a speculative endpoint or change the FK model. Establish whether the assignment table is legacy/dead or used outside the inspected module.
 
 Regression tests remain pending/unexecuted. Drizzle-to-migration reconciliation, protected live catalog evidence, runtime identities, scheduler ownership and independent review remain open. G-002 is NOT VERIFIED.
+
+
+## G-002 — webhook retry credential lineage follow-up (24 November 2026)
+
+Commit `926c475fb9c59ffa1688dccee3d4f9dfbeea59e2` requires every unprocessed credential-bound webhook retry, including already-linked events, to revalidate credential active/provider identity and match the shipment store organization to the credential organization. Unlinked legacy events without a credential fail closed; already-linked legacy rows without credential binding retain compatibility with shipment/order/store checks. Regression cases are documented but unexecuted.
