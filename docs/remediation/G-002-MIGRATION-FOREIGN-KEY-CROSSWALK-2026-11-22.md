@@ -324,21 +324,32 @@ The independent `shipments.order_id` and `shipments.store_id` FKs are now checke
 - Carrier webhook resolution now joins shipments to orders on both IDs and same-store ownership before a credential-scoped shipment can be linked to the authenticated webhook event.
 - The tracking poller's claim query excludes inconsistent pairs, and its per-shipment method repeats the order/store check before provider tracking, event persistence, or the delivery bridge.
 
-### Driver/store assignment disposition
+### Driver/store assignment ownership — source-path correction, 24 November 2026
 
-The Drizzle schema defines `driver_profiles.user_id → users.id`, `driver_profiles.org_id → organizations.id`, and `driver_store_assignments.driver_profile_id → driver_profiles.id` plus `store_id → stores.id`. It does not define a same-organization composite constraint. The inspected ShippingModule registers no driver-assignment service/controller, the ShippingController exposes shipping-method/zone operations rather than driver assignment, and the shipment model's `assigned_driver_id` is a user FK rather than a driver-profile FK. The source callsite review has not found an assignment write path or runtime consumer for `driver_store_assignments`. Do not create a speculative endpoint or silently redefine `assigned_driver_id`; first establish whether this table is legacy/dead schema or whether a consumer exists outside the inspected module. If a real assignment writer is found, enforce `driver_profiles.org_id = stores.org_id` there and add a composite DB constraint only after the approved migration review.
+The earlier ShippingModule-only review missed the existing shipment assignment path in `OrdersController` / `OrdersService.assignDriver`. The route `POST /orders/:id/assign-driver` writes `shipments.assigned_driver_id` (a FK to `users.id`), but previously accepted an arbitrary user ID without checking the driver's profile or store eligibility.
 
-### Regression cases still required (not executed)
+The migration 0041 comment is a binding compatibility rule: a driver with **zero** `driver_store_assignments` rows is eligible for every store in that driver's organization ("unrestricted mode"). Once one or more rows exist, the driver is eligible only for stores represented by those rows. Do not turn this into a mandatory assignment-row requirement.
 
-- Admin recovery rejects a shipment with mismatched order/store for both privileged and org-scoped callers, before state mutation or provider calls.
-- Admin recovery queue omits malformed order/store pairs for all roles.
-- Scheduled create and cancel reconciliation claim SQL excludes malformed pairs; direct create/cancel reconciliation calls make no provider request for a mismatch.
-- Webhook shipment resolution cannot link a shipment whose order belongs to another store, even if the shipment store is inside the credential organization.
-- Tracking poll claim excludes malformed pairs and direct poll processing makes no provider call, writes no tracking event, and does not invoke the order-delivery bridge for a mismatch.
-- If/when a driver assignment write path is located, cross-organization profile/store assignment must be rejected.
+The source now validates eligibility in `ShippingService.assertDriverEligibleForStore` before the OrdersService assignment writes:
 
-These are source-level guards only. No tests or live database queries were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+- The target store must resolve to an organization.
+- The target user must have an active `driver_profiles` row whose `org_id` equals the store's `org_id`.
+- The user account must be ACTIVE and have an ACTIVE organization membership with the DRIVER role in that same organization.
+- If the driver has no explicit store-assignment rows, the migration's unrestricted-within-org behavior is preserved. If rows exist, the target store must be among them.
+- The eligibility check runs before the optimistic order transition, shipment update, event/history writes and outbox publication. Missing ShippingService validation fails closed.
 
+No writer/controller for managing `driver_store_assignments` itself was found. This is not a reason to invent a new endpoint or redefine `shipments.assigned_driver_id`; the optional allowlist remains an existing provisioning/data-management concern. Any future writer must preserve profile-org/store-org equality and the documented zero-row behavior. No composite FK or migration was added.
+
+Regression source added (not executed): `apps/api/src/__tests__/unit/shipping/shipping-tenant-context.spec.ts`, `apps/api/src/__tests__/unit/orders/driver-assignment-eligibility.spec.ts`, and the disposable-PostgreSQL `apps/api/src/__tests__/integration/m722-shipping.postgres.spec.ts`. Coverage includes unrestricted mode, explicit store allowlisting, cross-org denial, inactive profile/user/membership/role rejection, and no order/shipment mutation when eligibility fails.
+
+### Additional regression cases required
+
+- Unknown non-null organization is rejected before a reconciliation run is inserted.
+- A run read fails closed when any child discrepancy has a different `org_id`.
+- Resolving a discrepancy fails closed when its parent run is missing or has a different `org_id`.
+- Confirm through the consolidated disposable-PostgreSQL campaign that driver assignment rejects cross-organization profiles and respects the migration 0041 zero-row/explicit-row semantics.
+
+These are source-level guards and authored regression cases only. No tests or live database queries were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 
 ## Persisted webhook credential-to-shipment lineage — 24 November 2026
 
@@ -347,3 +358,12 @@ These are source-level guards only. No tests or live database queries were run. 
 A final webhook retry pass found that the unlinked-event retry path revalidated the bound credential, but the already-linked path loaded the shipment and checked its store/order without comparing that store's organization to the event's bound credential organization. The retry worker now loads and validates the bound credential for every unprocessed event, including already-linked events; rejects missing/inactive credentials and provider-key mismatch; and, when credential-bound, requires the linked shipment's owning store organization to equal the credential organization before marking the event processed. Unlinked events still require a credential binding before attempting shipment resolution. Already-linked legacy rows with a null credential remain compatible, but still pass the shipment/order/store integrity guard and derive the active org from the shipment store.
 
 Regression cases: a linked event bound to Org A but linked to an Org B shipment is rejected without marking processed; inactive/deleted credentials and provider-key mismatch are rejected; an unlinked legacy event without a credential is non-retryable; a valid credential-bound event can retry only within its organization. Tests remain unexecuted. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## Driver assignment path and store-eligibility correction — 24 November 2026
+
+**Source commits:** `9d461e1c25381d4528fc733059ee58afb320fa6b`, `fca4c3569976fd6e5a8b9db767e876f8f449c367`, and formatting follow-up `efa6349651b7f2b5083475e4bdaa9104ee3402cc`.
+
+A broader Orders callsite review located the existing `POST /orders/:id/assign-driver` path. The service now validates an active driver profile, active user, active DRIVER organization membership and profile/store organization equality before writing `shipments.assigned_driver_id`. It also honors migration 0041's compatibility semantics: no explicit assignment rows means unrestricted eligibility within the profile organization; once rows exist, only listed stores are eligible. Missing eligibility infrastructure fails closed before any fulfillment write.
+
+No driver-store assignment CRUD endpoint, schema change, composite FK or migration was introduced. Regression tests were authored for the helper, pre-write fail-closed behavior and disposable PostgreSQL unrestricted/restricted cases. They remain unexecuted under the implementation-first restriction. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
