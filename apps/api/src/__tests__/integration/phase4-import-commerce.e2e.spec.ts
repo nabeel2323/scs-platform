@@ -84,6 +84,7 @@ const audit = { record: vi.fn().mockResolvedValue(undefined) } as any;
 const redis = { get: vi.fn(), set: vi.fn(), del: vi.fn() } as any;
 const realtime = { emitNewOrder: vi.fn(), emitOrderStatusChanged: vi.fn() } as any;
 const notifications = { send: vi.fn().mockResolvedValue(undefined) } as any;
+const importCaller = { sub: randomUUID(), role: 'SUPER_ADMIN', activeOrg: null };
 
 // ── Test identity IDs ──────────────────────────────────────────────────────
 let orgA: string;
@@ -248,7 +249,8 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
     }
 
     // ── Instantiate services ──────────────────────────────────────
-    database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
     const conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
     catalog = new CatalogService(
@@ -403,7 +405,7 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
       const refs = await resolver.resolve(workbook);
       const existingEntities = { categories: new Map(), brands: new Map(), products: new Map() };
       const plan = planner.buildPlan(workbook, refs, existingEntities);
-      const result = await executor.execute(plan, refs);
+      const result = await executor.execute(plan, refs, importCaller);
 
       expect(result.created).toBeGreaterThan(0);
       expect(result.rejected).toBe(0);
