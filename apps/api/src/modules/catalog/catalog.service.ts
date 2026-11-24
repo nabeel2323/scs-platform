@@ -590,7 +590,7 @@ export class CatalogService {
         sortOrder: categories.sortOrder,
       })
       .from(categories)
-      .where(isNull(categories.storeId))
+      .where(and(isNull(categories.storeId), eq(categories.isActive, true)))
       .orderBy(asc(categories.sortOrder));
   }
 
