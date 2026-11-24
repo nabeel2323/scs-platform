@@ -2980,3 +2980,7 @@ Added admin service and controller regression coverage for actor forwarding, mix
 ## 25 November 2026 — ProfileController Catalog caller integration
 
 ProfileController is another CatalogService caller. The six favorites/saved-supplier routes already had method-level actor interceptors; they now forward the authenticated actor to service methods, which reuse/establish a short user actor context and enforce userId equals actor.sub. Favorite creation/read enforces product readability and skips inaccessible/deleted products. Saved-supplier reads/creation require ACTIVE + VERIFIED stores and return only a public-safe projection. Added service/controller regression tests; tests remain unexecuted. No quality gates or CI.
+
+## 25 November 2026 — Pricing/Reviews Catalog lookup guards
+
+CatalogPricingLookupService and CatalogReviewLookupService now require DatabaseService.currentActorContext.actorKind=user for non-empty DB operations. Their known PricingController and ReviewsController consumers already establish controller-level actor contexts. Added unscoped-rejection regression coverage and updated lookup harnesses with explicit user contexts. Tests remain unexecuted; no quality gates/CI.
