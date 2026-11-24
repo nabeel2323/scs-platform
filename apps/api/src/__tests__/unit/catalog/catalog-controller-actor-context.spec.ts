@@ -105,6 +105,7 @@ const MIXED_DB_PHASE_MUTATIONS = [
   'getProduct',
   'updateProduct',
   'deleteProduct',
+  'addMedia',
   'stageImportRows',
   'uploadImportFile',
   'processImportJob',
