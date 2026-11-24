@@ -1028,3 +1028,8 @@ The G-002 method-level map was reconciled against current source. ReturnExpirati
 ## 24 November 2026 — G-002 Identity/Merchant table ownership detail
 
 The G-002 ownership matrix now records schema-backed direct columns and declared parent paths for 11 Identity tables and five Merchant tables. It distinguishes the global RBAC reference tables, user-private session/device/audit rows, organization-owned stores, store-inherited warehouses, dual-parent documents/verification requests, and store/user membership relationships. The matrix remains candidate evidence only; live catalog constraints and per-operation policy readiness are not asserted.
+
+
+## 24 November 2026 — G-002 Catalog table ownership detail
+
+The table ownership matrix now includes schema-backed direct columns and declared parent paths for 24 Catalog/Search/Import tables. Shared/global taxonomy, nullable shared products, merchant offer ownership, child inheritance, user-owned bookmarks, merchant imports, platform catalog imports and mixed search query scope are explicitly distinguished. Multi-parent consistency checks remain required where composite FKs are absent. This remains source evidence, not policy approval.

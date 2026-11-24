@@ -2533,3 +2533,11 @@ Important scope boundary: requestRefund creates a REQUESTED refund row, payment 
 - Merchant: stores are organization-owned; warehouses inherit store ownership; documents have both organization and optional store references; verification requests carry store and organization references that must agree; store_members is a store/user relationship with role/status.
 - Source evidence is limited to current Drizzle declarations and the existing method/FK maps. This does not prove live catalog constraints or make any row policy-ready. The 99/114/116 inventory discrepancy and protected catalog audit remain open.
 - No tests, formatter, lint, typecheck, E6 or CI were run. No database/RLS/migration/grant/staging/deployment/worker/merge/release action occurred.
+
+
+## G-002 table matrix — Catalog core, offers and taxonomy direct-column pass — 24 November 2026
+
+- Updated 24 Catalog/Search/Import table rows with direct Drizzle columns, declared parent references, nullable/shared taxonomy distinctions and actor-attribution notes.
+- Mapped category optional store ownership plus self-parent; platform-global brands and taxonomy; nullable/shared products; product/variant/media/source/value inheritance; user-owned favorites/saved suppliers; store-owned merchant import jobs/chunks; platform-owned catalog imports/errors; store-owned catalog requests; and mixed search queries.
+- Recorded multi-parent invariants for merchant_offers (store/product/variant/price-list/warehouse), product_offer_review_state (product/offer), and product_media (product/variant). These cross-parent constraints are not fully encoded as composite FKs and remain service-level predicates.
+- This is schema-source evidence only. The matrix remains non-policy-ready pending migration/catalog constraint review, operation mapping and protected live catalog evidence. No tests, formatter, lint, typecheck, E6 or CI were run; no database/RLS/migration/grant/staging/deployment action occurred.

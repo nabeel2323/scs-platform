@@ -192,3 +192,10 @@ The method-level map now records these boundaries. This closes only the source-m
 Updated 16 Identity/Merchant table rows with direct Drizzle columns and declared parent references. The matrix now distinguishes user-owned records from organization membership, global RBAC reference data, organization-owned stores, store-inherited warehouses, dual-parent documents/verification requests, and store/user membership rows. Actor attribution fields are not treated as ownership keys; the missing composite org/store constraints remain explicit service-level consistency requirements.
 
 This is schema-source evidence only. The 99 Drizzle / 114 detailed public relation / unresolved 116 count discrepancy, live staging constraints, actual API/migration identities and protected catalog audit remain open. No tests or CI were run and no database/RLS/migration/grant/staging/deployment action occurred.
+
+
+## G-002 physical table matrix — Catalog core/offers/taxonomy direct-column pass — 24 November 2026
+
+Updated 24 Catalog/Search/Import table rows with schema-backed direct columns and declared parent paths. The pass distinguishes shared/global taxonomy from store-owned category extensions, nullable shared products from merchant offers, inherited child rows, user-owned favorites/saved suppliers, merchant store imports from platform catalog imports, and mixed user/store search history. Multi-parent consistency for merchant offers, offer-review state and product media remains a service-level requirement where no composite FK is declared.
+
+This is Drizzle source evidence only; no live catalog constraints or policy readiness are claimed. The 99/114/116 discrepancy, runtime identity and protected catalog audit remain open.

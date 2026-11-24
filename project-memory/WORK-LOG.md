@@ -1806,3 +1806,12 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 - Explicitly distinguished user-private identity from organization membership; global RBAC reference tables from tenant data; user-owned sessions/device credentials/security audit rows; organization-owned stores; store-inherited warehouses; dual-parent business documents and verification requests; and store/user membership relationship rows.
 - Recorded that `business_documents` and `verification_requests` have independent org/store references with no composite FK in the reviewed Drizzle schema, so service-level cross-parent consistency checks remain mandatory. Actor attribution fields are not treated as ownership keys.
 - This is schema-source evidence only. Live staging FK/constraint/privilege verification and the 114-versus-116 discrepancy remain open. No tests/CI or database/staging/deployment action occurred.
+
+
+## G-002 physical table matrix — Catalog core/offers/taxonomy direct-column pass — 24 November 2026
+
+- Reopened the current Catalog core, offer, request, taxonomy, search and platform catalog-import schema modules and mapped 24 table rows with direct columns and declared FK paths.
+- Preserved nullable/shared category and product cases; separated global taxonomy/reference tables from merchant-owned product and offer rows; mapped child inheritance for variants/media/sources/typed attribute values; and distinguished user-owned favorites/saved-supplier relationships from referenced products/stores.
+- Separated store-scoped merchant import_jobs from platform-level catalog_imports; uploader IDs are actor attribution for the latter. Search query rows are mixed because both user_id and store_id are nullable.
+- Recorded multi-parent consistency requirements for offers, offer-review state and product media where simple FKs do not prove the full relationship. This is source-schema evidence, not a live catalog or RLS policy approval.
+- No tests/CI, database, migration, grant, RLS, staging, deployment or worker action occurred.
