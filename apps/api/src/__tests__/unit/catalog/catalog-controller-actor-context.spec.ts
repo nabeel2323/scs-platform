@@ -39,7 +39,15 @@ describe('CatalogController database actor boundaries (G-002)', () => {
   });
 });
 
-const MIXED_DB_PHASE_MUTATIONS = ['updateProduct', 'deleteProduct'] as const;
+const MIXED_DB_PHASE_MUTATIONS = [
+  'updateProduct',
+  'deleteProduct',
+  'stageImportRows',
+  'uploadImportFile',
+  'processImportJob',
+  'previewImportJob',
+  'getImportErrors',
+] as const;
 
 describe('CatalogController mixed product mutation boundaries (G-002)', () => {
   it.each(MIXED_DB_PHASE_MUTATIONS)(
