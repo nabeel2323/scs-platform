@@ -29,9 +29,9 @@ describe('OrdersService.assignDriver eligibility boundary', () => {
       .mockRejectedValue(new BadRequestException('Driver is not eligible for this store'));
     const service = createService({ assertDriverEligibleForStore });
 
-    await expect(service.assignDriver('order-a', 'driver-b', 'merchant-a')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      service.assignDriver('order-a', 'driver-b', 'merchant-a'),
+    ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(assertDriverEligibleForStore).toHaveBeenCalledWith('driver-b', 'store-a');
     expect(service.db.db.update).not.toHaveBeenCalled();
@@ -40,9 +40,9 @@ describe('OrdersService.assignDriver eligibility boundary', () => {
   it('fails closed when the shipping eligibility contract is unavailable', async () => {
     const service = createService(undefined);
 
-    await expect(service.assignDriver('order-a', 'driver-b', 'merchant-a')).rejects.toBeInstanceOf(
-      InternalServerErrorException,
-    );
+    await expect(
+      service.assignDriver('order-a', 'driver-b', 'merchant-a'),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
 
     expect(service.db.db.update).not.toHaveBeenCalled();
   });
