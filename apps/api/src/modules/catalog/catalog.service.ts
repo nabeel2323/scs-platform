@@ -154,7 +154,7 @@ export class CatalogService {
       ? or(isNull(categories.storeId), eq(categories.storeId, storeId))
       : isNull(categories.storeId);
     const category = await this.db.db.query.categories.findFirst({
-      where: and(eq(categories.id, categoryId), ownership),
+      where: and(eq(categories.id, categoryId), ownership, eq(categories.isActive, true)),
       columns: { id: true },
     });
     if (!category) throw new NotFoundException('Category not found');
@@ -177,6 +177,7 @@ export class CatalogService {
           input.storeId
             ? or(isNull(categories.storeId), eq(categories.storeId, input.storeId))
             : isNull(categories.storeId),
+          eq(categories.isActive, true),
         ),
       });
       if (!parent) throw new NotFoundException('Parent category not found');
@@ -284,6 +285,7 @@ export class CatalogService {
             existing.storeId
               ? or(isNull(categories.storeId), eq(categories.storeId, existing.storeId))
               : isNull(categories.storeId),
+            eq(categories.isActive, true),
           ),
         });
         if (!parent) throw new NotFoundException('Parent category not found');
