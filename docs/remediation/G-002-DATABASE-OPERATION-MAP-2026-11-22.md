@@ -502,3 +502,7 @@ Admin regression specs cover these mixed route boundaries and actor forwarding; 
 ## 25 November 2026 — Identity Profile Catalog callsites
 
 ProfileController favorites/saved-supplier operations are now explicit cross-module CatalogService callers with verified actor forwarding. Each service operation uses a user actor scope and enforces the authenticated user ID; favorite product access uses assertProductReadable; supplier visibility is restricted to ACTIVE/VERIFIED stores and a public-safe store projection. The six routes retain TenantDatabaseContextInterceptor. Regression tests are authored but unexecuted.
+
+## 25 November 2026 — Pricing/Reviews Catalog lookup callsites
+
+CatalogPricingLookupService and CatalogReviewLookupService are consumed by PricingService and ReviewsService. Their non-empty DB methods now fail closed unless DatabaseService.currentActorContext is a user actor. PricingController and ReviewsController establish controller-level actor contexts for the known request paths. Tests cover explicit actor context and unscoped rejection but remain unexecuted. Any additional service/worker/CLI callsites remain to be inventoried.
