@@ -1790,3 +1790,11 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 - Added the verified-user `TenantDatabaseContextInterceptor` to the review handler. The existing permission guard remains in place; the actor is derived from the authenticated JWT, not the request body.
 - Expanded `merchant-controller-document-context.spec.ts` to assert that review is scoped while all document presign routes remain outside the request transaction.
 - Regression spec authored, not executed. No tests, formatter, lint, typecheck, E6 or CI were run. No database/RLS/migration/grant/staging/deployment/worker/merge/release action occurred.
+
+
+## G-002 worker/realtime actor-context source reconciliation — 24 November 2026
+
+- Reopened the current worker/socket source rather than relying on historical handoff text. Confirmed AutoCompleteWorker claim and completion phases, OutboxDispatcher claim/ack/retry, AuditLogMiddleware's response-finish audit transaction, ReturnExpirationWorker's lease/claim/per-return escalation phases, ShippingCarrierWorker DB phases, CarrierTrackingPoller claim/persistence/delivery bridge and RealtimeGateway room authorization all use explicit actor contexts.
+- Confirmed provider calls, carrier label HTTP fetch/streaming, and object-storage persistence remain outside actor transactions. Return-expiration still checks the live lease holder/epoch/expiry and does not wrap the full batch in one transaction.
+- Corrected the stale method-level map statement that ReturnExpirationWorker, ShippingCarrierWorker and realtime socket context remained uncovered. The G-002 physical table/operation matrix and runtime identity evidence remain incomplete.
+- Source-map reconciliation only. No tests, formatter, lint, typecheck, E6 or CI were run. No database/RLS/migration/grant/staging/deployment/worker activation/merge/release action occurred.

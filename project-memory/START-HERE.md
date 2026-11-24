@@ -1018,3 +1018,8 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 - No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 - Refund boundary: rejection creates a durable refund request/payment event/outbox record only. The generic OutboxDispatcher currently logs events and marks them dispatched; no payment-provider refund is executed by this path. Automatic provider execution remains outside the approved scope.
 - No merge, deployment, worker activation, RLS, migration, grants/default ACLs or shared/staging database action occurred.
+
+
+## 24 November 2026 — worker/socket actor-context map reconciliation
+
+The G-002 method-level map was reconciled against current source. ReturnExpirationWorker, ShippingCarrierWorker and RealtimeGateway now have explicit actor-context adoption recorded; AutoCompleteWorker, OutboxDispatcher, AuditLogMiddleware and CarrierTrackingPoller are also source-reviewed. External carrier API, label HTTP and object-storage I/O remain outside actor transactions. This is source evidence only; the physical table/operation matrix, actual runtime identities and protected read-only catalog audit remain open.

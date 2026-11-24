@@ -2516,3 +2516,11 @@ Important scope boundary: requestRefund creates a REQUESTED refund row, payment 
 - Added `TenantDatabaseContextInterceptor` to the review handler. It remains behind the existing `merchant:verification:review` permission guard and derives actor identity only from the verified JWT.
 - Extended `merchant-controller-document-context.spec.ts` so the DB-only review handler is in the scoped allowlist while upload/download presign storage handlers remain excluded.
 - Regression spec authored but not executed. No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No RLS, migration, grants/default ACL changes, shared/staging DB operations, deployment, worker activation, merge or release occurred.
+
+
+## G-002 worker and realtime actor-context reconciliation — 24 November 2026
+
+- Reopened current source for AutoCompleteWorker, OutboxDispatcher, AuditLogMiddleware, RealtimeGateway, ReturnExpirationWorker, ShippingCarrierWorker and CarrierTrackingPoller. The previous method-map sentence claiming ReturnExpirationWorker, ShippingCarrierWorker and realtime socket context were uncovered was stale.
+- Confirmed short worker scopes around auto-complete claim/completion, outbox claim/ack/retry, return-expiration lease/claim/escalation bookkeeping, carrier shipment/outbox/credential DB phases and tracking-poller claim/persistence/delivery bridge. Deferred response-finish audit writes use a separate audit actor transaction; socket room authorization uses a verified socket-user actor context.
+- Confirmed external carrier API calls, label fetch/streaming and object-storage writes remain outside actor transactions. Return-expiration lease fencing remains per-operation and per-return; no full-batch transaction was introduced.
+- Updated the G-002 method-level predicate map to replace the obsolete uncovered-status statement. This is source-map reconciliation, not runtime verification. No tests, formatter, lint, typecheck, E6 or CI were run; no database/RLS/migration/grant/staging/deployment/worker activation/merge/release action occurred.

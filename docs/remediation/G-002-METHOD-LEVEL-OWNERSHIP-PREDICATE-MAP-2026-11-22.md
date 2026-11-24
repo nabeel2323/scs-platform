@@ -363,7 +363,15 @@ This supplemental source map is not runtime/RLS verification. The user requires 
 | BootstrapService | anonymous/bootstrap | Public status read; post-OTP authorization insert; initial Super Admin provisioning | OTP Redis/rate-limit/delivery operations remain outside DB transaction |
 | bootstrap-issue-token CLI | bootstrap | Transaction-local principal after BEGIN, before lock/read/write | No token plaintext persistence |
 
-ReturnExpirationWorker and ShippingCarrierWorker remain uncovered; do not mark worker/system coverage complete. Realtime socket context remains open.
+The following worker/socket entry points were subsequently adopted with short, operation-scoped actor contexts; these are not full-batch transactions:
+
+| Entry point | Actor kind | Scope and transaction boundary | External-I/O boundary |
+|---|---|---|---|
+| ReturnExpirationWorker | worker | Lease acquisition/renewal, pause checks, bounded claim, per-return escalation, and poll bookkeeping use short worker contexts. The return transition revalidates and locks the live holder/epoch/unexpired lease in the same transaction as the mutation. | No full-batch actor transaction; alert delivery remains outside the DB scope. |
+| ShippingCarrierWorker | worker | Outbox recovery/claim, shipment and tenant resolution, state transitions, webhook retry persistence, and label metadata persistence use short worker contexts. Store-derived organization is used for store-bound DB phases. | Carrier API calls, label URL fetch/stream validation, and object-storage writes occur outside actor transactions. |
+| RealtimeGateway room authorization | user | Authenticated socket caller claims are converted to a user actor context around room-authorization DB reads. | Socket room joins/emits are not DB work; pure emit helpers do not open actor transactions. |
+
+This closes those specific actor-context adoption gaps only. It does not complete the physical table/operation/ownership matrix, prove live API/migration identities, or establish RLS behavior. Preserve lease fencing and per-event/per-order atomicity; never replace these short scopes with a full polling-loop transaction.
 
 
 ## Merchant verification review actor-context continuation — 24 November 2026
