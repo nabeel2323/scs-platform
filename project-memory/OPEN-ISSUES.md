@@ -931,3 +931,14 @@ No migration, database grant/default-ACL change, RLS enablement, shared/staging 
 ## 24 November 2026 — implementation-first sequencing reaffirmed
 
 The user explicitly instructed that implementation must be completed before tests are run, and that routine steps should proceed autonomously without repeated approval requests. During implementation, do not execute test commands or trigger GitHub Actions/CI. Finish cross-module integration first, then run the consolidated verification campaign. Continue source review and fix concrete security/correctness defects immediately. Group related changes and synchronize project memory. This sequencing does not waive independent review, protected staging, shared database, no-merge/no-deploy or release restrictions.
+
+
+## G-002 scoped actor-context rollout — 24 November 2026
+
+The opt-in actor-context foundation now routes opted-in `DatabaseService.db` calls through a transaction-bound Drizzle handle and transaction-local PostgreSQL settings. It supports typed user/anonymous/worker/system/bootstrap/audit principals, same-actor nested reuse, and a closed-scope fence against detached async work.
+
+Bounded controller adoption now covers Notifications, Pricing, Store Membership, Promotions, Reviews, Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Admin reads, Cart, Returns, Organizations and Roles. The interceptor remains explicitly scoped; there is no global request transaction.
+
+G-002 remains IN PROGRESS. Uncovered paths include Auth/Profile, file/import/upload, main Orders/Payments, shipping/carrier webhooks, bootstrap, deferred audit writes, workers/schedulers, realtime sockets, CLI and migration execution. Continue only after each path's principal, nested transaction, streaming, external-I/O and detached-work behavior is reviewed. Carrier context must follow credential authentication. Live runtime identity, protected catalog inventory, complete operation predicates and independent review remain outstanding. No RLS/shared database change is authorized.
+
+**Next:** finish the remaining safe bounded HTTP integrations, then implement explicit worker/webhook/bootstrap/audit context contracts and complete the operation/ownership matrix. Do not run tests or CI until implementation and integration are complete.

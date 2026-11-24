@@ -136,3 +136,17 @@ The user has explicitly reaffirmed the required execution sequence for all subse
 5. Continue to inspect source and fix concrete security/correctness defects discovered during implementation. Preserve every existing safety, independent-review, protected-staging, database, no-merge, no-deploy and release gate. This sequencing instruction does not waive those restrictions.
 
 This is a standing instruction for future sessions unless the user changes it. The implementation author must not claim tests passed when they have not been run; report them as deferred/pending.
+
+
+## G-002 scoped actor-context rollout — 24 November 2026
+
+- The DatabaseService actor-context primitive is opt-in. Do not install a global request interceptor or blanket transaction wrapper.
+- Context must be derived from server-verified JWT identity or an explicitly reviewed worker/system principal; never trust client-supplied tenant headers.
+- PostgreSQL identity settings must use parameterized transaction-local `set_config(..., true)`; session-level settings are prohibited.
+- Existing `DatabaseService.db` calls inside a scoped awaited operation must resolve to the same transaction-bound Drizzle handle. Same-actor nested calls reuse the active transaction; switching actors fails closed.
+- AsyncLocalStorage context must be fenced after the transaction callback completes so detached tasks cannot query through a closed transaction.
+- Controller adoption is selective and requires review of nested transactions, detached work, streaming, external I/O, and module provider wiring.
+- Current bounded adoption: Notifications, Pricing, Store Membership, Promotions, Reviews, Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Admin reads, Cart, Returns, Organizations and Roles.
+- Workers, carrier webhooks, bootstrap, audit writes, realtime, CLI and migration paths need separate principal contracts. Webhook context may only be established after credential authentication.
+- Do not enable RLS, change grants/default ACLs, apply shared-database migrations, or use protected staging as part of this implementation.
+- The user requires implementation/integration to finish before test execution; no tests or CI during the implementation phase.

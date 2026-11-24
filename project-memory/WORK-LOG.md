@@ -1615,3 +1615,15 @@ The user explicitly directed: finish implementation first, then do the tests; pr
 - Added `TenantDatabaseContextInterceptor` and applied it only to NotificationsController (commit `108c60c668827065e6fcb29499860c8febdae984`). It runs after the JWT guard, derives identity only from verified `request.user`, and awaits the handler observable inside the database transaction. This is the first bounded HTTP adoption, not a global interceptor. The notification controller routes are DB-only; internal notification delivery methods are not automatically wrapped.
 - No workers, audit middleware or other controllers are wired. Continue reviewing nested transactions, cached/detached handles, streaming, provider side effects and post-response audit writes before expanding the allowlist.
 - No tests, formatter, lint, typecheck, E6 or CI were run per the standing user instruction. No database migration, grant/RLS, staging, deployment or worker activation occurred.
+
+
+## 24 November 2026 — G-002 bounded actor-context adoption expansion
+
+- Continued from the live PR #138 head and preserved the open/draft/unmerged PR.
+- The opt-in DatabaseService actor-context implementation and expired-scope fence are now used by bounded authenticated request paths. Controller/method-scoped adoption covers Notifications, Pricing, Store Membership, Promotions, Reviews, Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Admin read endpoints, Cart, Returns, Organizations and Roles.
+- The Promotions source correction also forwards the authenticated caller to merchant promotion operations, checks organization/store membership, constrains updates to the resolved store and normalizes foreign promotion detail denial to not-found.
+- No global interceptor was added. Main Orders/Payments, Auth/Profile, file/import/upload, carrier webhooks, bootstrap, audit middleware, workers/schedulers, realtime, CLI and migration paths remain separate follow-up work.
+- Latest branch head at this checkpoint: `836e06467228a8f7d6b34fff1c58bb33104f03a0`; PR #138 OPEN / DRAFT / UNMERGED. Exact-head Actions lookup returned zero workflow runs due to `[skip ci]`; Vercel Web/Admin both report external provider build-rate-limit FAILURE.
+- Tests, formatter, lint, typecheck, E6 and CI were not run, per the user's implementation-first instruction.
+- No RLS, migration, grants/default ACL changes, shared/staging DB writes, deployment, worker activation, merge or release.
+- **Next:** continue safe bounded controller integrations only after source review; then define explicit worker/webhook/bootstrap/audit context scopes and finish G-002 operation/ownership evidence.

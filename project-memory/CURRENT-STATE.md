@@ -3,36 +3,56 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Exact branch head:** `108c60c668827065e6fcb29499860c8febdae984` — `feat(notifications): scope REST queries to actor transaction [skip ci]`.  
-**Latest source implementation:** `108c60c668827065e6fcb29499860c8febdae984` — first controller-scoped transaction-context adoption.  
+**Exact branch head:** `836e06467228a8f7d6b34fff1c58bb33104f03a0` — `feat(identity): scope organization REST queries to actor transaction [skip ci]`.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop`.  
-**Exact-head CI:** none; commits use `[skip ci]`. Existing Vercel Web/Admin statuses are external provider build-rate-limit failures, not application test evidence. No tests have been run for the transaction-context changes.
+**Exact-head GitHub Actions:** zero workflow runs; source commits intentionally include `[skip ci]`.  
+**Exact-head preview status:** Vercel Web FAILURE and Vercel Admin FAILURE, both due to the external provider build-rate-limit page. These are not application-test results.
 
-> **Standing user instruction:** implementation first, tests afterward. Do not execute tests or trigger CI until implementation and cross-component integration are complete. Proceed autonomously through routine steps, group related changes, and synchronize project memory. This does not waive any security/release gate.
+> **Standing user instruction:** complete implementation and cross-component integration first, then run tests. Do not execute test commands or trigger CI during implementation. Proceed autonomously without asking for approval for routine steps; group related changes and synchronize project memory.
 
-## Current implementation checkpoint
+## Current G-002 implementation checkpoint
 
-- Returns/Shipping module-boundary refactor: `93844d781ff50cd3ba325c0d9e3ffe209bc128cc`.
-- G-002 transaction-context primitive: `464b1c857a113489822ba3345aabe59b0a0be4b2`. DatabaseService now exposes opt-in `withActorContext`, an AsyncLocalStorage-backed Drizzle transaction handle, typed anonymous/user/worker/system/bootstrap/audit actor contexts, parameterized transaction-local GUC setup (`app.actor_id`, `app.actor_role`, `app.active_org_id`, `app.actor_kind`, `app.worker_id`), same-actor nested reuse, actor-switch rejection and closed-scope fail-closed behavior.
-- First HTTP adoption: `108c60c668827065e6fcb29499860c8febdae984`. A controller-scoped `TenantDatabaseContextInterceptor` is registered only on NotificationsController. Nest guards authenticate the JWT before interceptors; the interceptor takes `sub`, `role` and `activeOrg` from the verified request user and awaits the handler observable inside the transaction. The eight bounded notification/preferences/device-token endpoints are DB-only in their controller path; the service's internal notification-delivery entry points remain outside this interceptor.
-- The interceptor is deliberately not global. No other HTTP controllers or workers are wired yet. Streaming/SSE, external-provider side effects, asynchronous audit-after-response, worker/system principals and nested transaction paths still need explicit review before wider adoption. No RLS policy, migration, grant or runtime configuration was changed.
-- Tests are deferred and have not been executed.
+The opt-in DatabaseService actor-context foundation is implemented in source:
 
-## Highest-priority unfinished work
+- Typed principals: `anonymous`, `user`, `worker`, `system`, `bootstrap`, `audit`.
+- Parameterized transaction-local PostgreSQL settings use `set_config(..., true)` for actor ID, actor role, active organization, actor kind and worker ID.
+- AsyncLocalStorage routes existing `DatabaseService.db` calls through the transaction-bound Drizzle handle during an opted-in operation.
+- Nested calls reuse the active transaction only for the same actor. Actor switching fails closed.
+- The context scope is marked inactive after completion; detached async work that inherits the ALS store cannot query through a committed/rolled-back transaction.
+- The interceptor is explicitly scoped, never global.
 
-**G-002 — database access and tenant context (IN PROGRESS).** Continue a source-level transaction/handle escape audit and classify the next safe bounded controllers for explicit opt-in. Preserve a route allowlist; do not wrap the whole API globally. For each surface, confirm authenticated guard ordering, no streaming, no external provider action, no detached async task, no post-response audit dependency, and the intended active-org semantics. Review existing service-level transactions and raw SQL paths before adoption. Later test phase must prove transaction binding, nested savepoints, rollback, actor-switch denial, detached-task closure and pool reuse. Protected live API/migration identities and 114-vs-116 catalog reconciliation remain separate authorization/evidence gates.
+### Bounded controller adoption
 
-Other open gates remain: G-001 independent security review; G-015 exact-head boundary verification and residual import remediation; G-036 focused security verification/independent review; remaining programme gaps and Phase 6 consolidated verification. Phase 6 has not started.
+The controller-level interceptor is now wired into:
+- Notifications REST controller.
+- Pricing controller.
+- Store Membership controller.
+- Promotions controller (also includes source-level store/org ownership enforcement for merchant operations).
+- Reviews and Disputes controllers.
+- Inventory controller.
+- Analytics controller.
+- Catalog Offer, Catalog Requests and Catalog Taxonomy controllers.
+- Selected Admin read handlers (method-scoped).
+- Cart controller.
+- Returns controller.
+- Organizations and Roles controllers.
 
-## GitHub and verification state
+Each adoption is restricted to JWT-authenticated request paths reviewed for bounded DB work. This is not universal coverage and does not make the project RLS-ready.
 
-- PR #138 remains OPEN / DRAFT / UNMERGED to `develop`.
-- Current head has no Actions run; source commits intentionally use `[skip ci]`.
-- No staging deployment, protected audit approval, shared DB write, migration, grants/default-ACL change, RLS enablement, worker activation, merge or release occurred.
+### Remaining uncovered paths
 
-## Next-session procedure
+Other complex or separately authenticated paths remain outside this first rollout, including Auth/Profile, general Catalog import/upload and Merchant document/upload operations, main Orders/Payments, Shipping/carrier webhooks, bootstrap, deferred audit middleware writes, workers/schedulers, realtime sockets, CLI and migration execution. Each requires its own principal and transaction contract; do not apply the interceptor indiscriminately.
 
-Read START-HERE and authoritative G-002/programme documents; verify live GitHub again. Continue implementation and integration without running tests or CI. Expand controller-scoped adoption only to source-reviewed bounded routes; never turn it into an unreviewed global transaction. Update this file and the work log after each meaningful group.
+## Next implementation priorities
 
----
+1. Complete bounded adoption for remaining authenticated HTTP controllers only after reviewing detached async work, streaming, external I/O, nested transactions and module provider wiring.
+2. Define explicit service contexts for worker/scheduler, carrier webhook (only after credential authentication), bootstrap and deferred audit writes.
+3. Finish the G-002 method-level physical table/operation/ownership matrix and reconcile the 114/116 relation inventory.
+4. Obtain actual API/migration runtime identity and protected read-only catalog evidence through the authorized staging process.
+5. Keep RLS, grants, ACLs, migrations, staging and deployment blocked until their independent design/review/authorization gates are satisfied.
 
+## Verification state
+
+No tests, formatter, lint, typecheck, E6 boundary check or GitHub Actions workflow was run for this implementation batch. The consolidated testing campaign is deferred until implementation and integration are complete. Do not mark G-002 VERIFIED from source implementation alone.
+
+No shared database mutation, migration, grant/default-ACL change, RLS enablement, staging action, deployment, worker activation, merge or release occurred. PR #138 remains draft and unmerged.
