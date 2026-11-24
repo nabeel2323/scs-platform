@@ -2188,3 +2188,7 @@ P13 correction: the full source shows P13MonitorService already wraps its direct
 ## 25 November 2026 — dormant import recovery principal
 
 Scoped the dormant CatalogService.recoverStaleJobs scan and stale job/chunk updates under the stable worker principal catalog-import-recovery. This does not register or schedule the method and does not activate any background worker. Added regression coverage for the worker actor and both writes. Tests remain unexecuted; no quality gates/CI or runtime worker action occurred.
+
+## 25 November 2026 — Catalog product detail and media reads
+
+Removed request-wide TenantDatabaseContextInterceptor from GET /products/:id and GET /products/:productId/media. Controller authorization checks now use short verified-user contexts. getProductDetail requires CatalogUserActor and groups product/store/media-row/variant/pricing/stock/attribute reads inside one actor scope, while Redis cache and storage URL signing happen outside. listMediaByProduct scopes its DB query then resolves media URLs after commit. Added tests for both service paths and controller interceptor exclusions. Tests are authored but unexecuted; no quality gates/CI.
