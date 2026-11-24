@@ -310,3 +310,8 @@ Source commit `98843bfe455667f7a96d7cbdd6dfb2253ce2af0f` adds reconciliation org
 ## 24 November 2026 — refund lineage source update
 
 Source commit `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d` adds refund order/currency checks to approval and idempotent recovery. The commit uses `[skip ci]`; no tests or CI were run for it. The only recent automatic CI run (#1503) failed on the earlier source checkpoint and does not cover this change. No new workflow runs exist for the latest skip-CI source/documentation commits. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED; full verification remains deferred.
+
+
+## 24 November 2026 — refund/shipment ownership source checkpoint
+
+The latest source work adds refund/payment/order/currency consistency and shipment/order/store checks at creation, detail authorization and carrier worker boundaries. Source commits: `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d`, `b1e5490401d9602205d46351ee4eaf1ab2db7d30`, `02edaa89d75b06e6c8a4170cc306662965d8fd30`, and `15d328c952dfd0805a9eee00374c6ad74ed1d6a1`. Follow-up commits use `[skip ci]`; no tests, formatter, lint, typecheck, E6 or CI were run for these updates. Automatic PR CI #1503 failed on the earlier source checkpoint and is not evidence for these commits. Exact-head Actions remains empty for the latest skip-CI checkpoint; Vercel Web/Admin are external build-rate-limit failures. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
