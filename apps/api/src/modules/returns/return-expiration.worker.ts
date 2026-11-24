@@ -126,7 +126,9 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
       // promise can be cut off before the UPDATE reaches the database, which would
       // strand the lease until its TTL expires. Bounded by a timeout so an
       // unreachable database cannot hang shutdown — the TTL still covers takeover.
-      const release = this.leases.release(this.epoch, P13_RETURN_EXPIRATION_LEASE_KEY).catch(() => undefined);
+      const release = this.withWorkerContext(() =>
+        this.leases.release(this.epoch, P13_RETURN_EXPIRATION_LEASE_KEY),
+      ).catch(() => undefined);
       let guardTimer: NodeJS.Timeout | undefined;
       const guard = new Promise<void>((resolve) => {
         guardTimer = setTimeout(resolve, 5_000);
@@ -148,6 +150,13 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
       clearInterval(this.timer);
       this.timer = null;
     }
+  }
+
+  private withWorkerContext<T>(operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext(
+      { actorKind: 'worker', workerId: this.leases.holderId },
+      operation,
+    );
   }
 
   private async runQuietly(): Promise<void> {
@@ -175,7 +184,9 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
 
     // 1. Establish or verify ownership.
     if (this.epoch === 0) {
-      const acquired = await this.leases.tryAcquire(P13_RETURN_EXPIRATION_LEASE_KEY);
+      const acquired = await this.withWorkerContext(() =>
+        this.leases.tryAcquire(P13_RETURN_EXPIRATION_LEASE_KEY),
+      );
       if (!acquired.acquired) {
         await this.handleAcquisitionFailure(acquired);
         return {
@@ -189,12 +200,14 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
       this.state = 'HELD';
       this.logger.log(`Lease acquired at epoch ${this.epoch} by ${acquired.holderId}`);
     } else {
-      const stillOurs = await this.leases.renewAndFence(this.epoch, P13_RETURN_EXPIRATION_LEASE_KEY);
+      const stillOurs = await this.withWorkerContext(() =>
+        this.leases.renewAndFence(this.epoch, P13_RETURN_EXPIRATION_LEASE_KEY),
+      );
       if (!stillOurs) {
         const lostEpoch = this.epoch;
         this.epoch = 0;
         this.state = 'STANDBY';
-        await this.alerts.raise({
+        await this.withWorkerContext(() => this.alerts.raise({
           conditionKey: 'p13.worker.ownership_lost',
           severity: 'WARN',
           title: `Worker lost the ${P13_RETURN_EXPIRATION_LEASE_KEY} lease at epoch ${lostEpoch}`,
@@ -203,7 +216,7 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
           // Deduped per job key: `ops_alerts.resource_id` is a UUID, so the lease
           // key has to be carried in the dedup identity explicitly.
           dedupKey: `p13.worker.ownership_lost:${P13_RETURN_EXPIRATION_LEASE_KEY}`,
-        });
+        }));
         return { state: 'STANDBY', executed: false, skipped: 'fence_lost', epoch: lostEpoch };
       }
     }
@@ -211,11 +224,13 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
     // 2. Pause control — checked before any read of business state.
     let paused = false;
     try {
-      paused = await this.controls.isPaused();
+      paused = await this.withWorkerContext(() => this.controls.isPaused());
     } catch (err) {
       // Fail closed: an unreadable control is treated as paused, and the cycle
       // is recorded as a failure so alert 1 can fire.
-      await this.leases.recordPollFailure(this.epoch, 'CONTROL_UNREADABLE', P13_RETURN_EXPIRATION_LEASE_KEY);
+      await this.withWorkerContext(() =>
+        this.leases.recordPollFailure(this.epoch, 'CONTROL_UNREADABLE', P13_RETURN_EXPIRATION_LEASE_KEY),
+      );
       this.logger.error(`Pause control unreadable — skipping cycle: ${errMessage(err)}`);
       return { state: this.state, executed: false, skipped: 'paused', epoch: this.epoch };
     }
@@ -248,10 +263,12 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
     // assume the caller just renewed: the claim statement below writes
     // `return_requests.updated_at`, and a partitioned worker must not be able to
     // write even that.
-    if (!(await this.leases.renewAndFence(epoch, P13_RETURN_EXPIRATION_LEASE_KEY))) {
+    if (!(await this.withWorkerContext(() =>
+      this.leases.renewAndFence(epoch, P13_RETURN_EXPIRATION_LEASE_KEY),
+    ))) {
       this.epoch = 0;
       this.state = 'STANDBY';
-      await this.alerts.raise({
+      await this.withWorkerContext(() => this.alerts.raise({
         conditionKey: 'p13.worker.ownership_lost',
         severity: 'WARN',
         title: `Worker lost the ${P13_RETURN_EXPIRATION_LEASE_KEY} lease at epoch ${epoch}`,
@@ -263,14 +280,14 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
         },
         dedupKey: `p13.worker.ownership_lost:${P13_RETURN_EXPIRATION_LEASE_KEY}`,
         resourceType: 'worker_lease',
-      });
+      }));
       return { state: this.state, executed: false, skipped: 'fence_lost', epoch };
     }
 
     let claimedRows: Array<{ id: string }>;
 
     try {
-      const claimed = await this.db.db.execute(sql`
+      const claimed = await this.withWorkerContext(() => this.db.db.execute(sql`
         WITH live_fence AS MATERIALIZED (
           SELECT lease_key
           FROM worker_leases
@@ -296,16 +313,20 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
         FROM candidate
         WHERE target.id = candidate.id
         RETURNING target.id
-      `);
+      `));
       claimedRows = readRows<{ id: string }>(claimed);
     } catch (err) {
-      const failures = await this.leases.recordPollFailure(epoch, errCode(err), P13_RETURN_EXPIRATION_LEASE_KEY);
+      const failures = await this.withWorkerContext(() =>
+        this.leases.recordPollFailure(epoch, errCode(err), P13_RETURN_EXPIRATION_LEASE_KEY),
+      );
       await this.alertOnFailures(epoch, failures, errMessage(err));
       this.logger.error(`Return expiration poll error: ${errMessage(err)}`);
       return { state: this.state, executed: false, skipped: 'acquisition_failed', epoch };
     }
 
-    if (claimedRows.length === 0 && !(await this.leases.renewAndFence(epoch, P13_RETURN_EXPIRATION_LEASE_KEY))) {
+    if (claimedRows.length === 0 && !(await this.withWorkerContext(() =>
+      this.leases.renewAndFence(epoch, P13_RETURN_EXPIRATION_LEASE_KEY),
+    ))) {
       this.epoch = 0;
       this.state = 'STANDBY';
       return { state: this.state, executed: false, skipped: 'fence_lost', epoch };
@@ -323,7 +344,9 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
 
       // Re-verify fence AND pause before every individual mutation, so a pause
       // or a takeover lands between items rather than only between batches.
-      if (!(await this.leases.renewAndFence(epoch, P13_RETURN_EXPIRATION_LEASE_KEY))) {
+      if (!(await this.withWorkerContext(() =>
+        this.leases.renewAndFence(epoch, P13_RETURN_EXPIRATION_LEASE_KEY),
+      ))) {
         this.epoch = 0;
         this.state = 'STANDBY';
         this.logger.warn(
@@ -338,12 +361,12 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
           failed,
         };
       }
-      if (await this.controls.isPaused()) {
+      if (await this.withWorkerContext(() => this.controls.isPaused())) {
         this.state = 'HELD_PAUSED';
         return { state: this.state, executed: true, skipped: 'paused', epoch, escalated, failed };
       }
 
-      const outcome = await this.processExpiration(row.id, epoch);
+      const outcome = await this.withWorkerContext(() => this.processExpiration(row.id, epoch));
       if (outcome === 'escalated') escalated += 1;
       else if (outcome === 'failed') failed += 1;
       else if (outcome === 'fence_lost') {
@@ -359,13 +382,17 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
     }
 
     if (failed > 0) {
-      const failures = await this.leases.recordPollFailure(epoch, 'ITEM_FAILURE', P13_RETURN_EXPIRATION_LEASE_KEY);
+      const failures = await this.withWorkerContext(() =>
+        this.leases.recordPollFailure(epoch, 'ITEM_FAILURE', P13_RETURN_EXPIRATION_LEASE_KEY),
+      );
       await this.alertOnFailures(epoch, failures, `${failed} return(s) failed to escalate`);
     } else {
-      await this.leases.recordPollSuccess(
-        epoch,
-        `claimed=${claimedRows.length} escalated=${escalated}`,
-        P13_RETURN_EXPIRATION_LEASE_KEY,
+      await this.withWorkerContext(() =>
+        this.leases.recordPollSuccess(
+          epoch,
+          `claimed=${claimedRows.length} escalated=${escalated}`,
+          P13_RETURN_EXPIRATION_LEASE_KEY,
+        ),
       );
     }
 
@@ -399,7 +426,9 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
         epoch,
       });
       if (!result) {
-        const stillOwnsLease = await this.leases.renewAndFence(epoch, P13_RETURN_EXPIRATION_LEASE_KEY);
+        const stillOwnsLease = await this.withWorkerContext(() =>
+          this.leases.renewAndFence(epoch, P13_RETURN_EXPIRATION_LEASE_KEY),
+        );
         if (!stillOwnsLease) {
           this.epoch = 0;
           this.state = 'STANDBY';
@@ -436,9 +465,11 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
 
     // DB_ERROR / ROW_MISSING: exclusivity could not be established at all.
     this.state = 'STANDBY';
-    const failures = await this.leases
-      .recordPollFailure(this.epoch, acquired.reason ?? 'ACQUIRE_FAILED', P13_RETURN_EXPIRATION_LEASE_KEY)
-      .catch(() => null);
+    const failures = await this.withWorkerContext(() =>
+      this.leases
+        .recordPollFailure(this.epoch, acquired.reason ?? 'ACQUIRE_FAILED', P13_RETURN_EXPIRATION_LEASE_KEY)
+        .catch(() => null),
+    );
     await this.alertOnFailures(
       this.epoch,
       failures,
@@ -454,7 +485,7 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     const threshold = this.config.thresholds.pollFailureAlertCount;
     if (failures === null || failures < threshold) return;
-    await this.alerts.raise({
+    await this.withWorkerContext(() => this.alerts.raise({
       conditionKey: 'p13.worker.poll_failures',
       severity: 'CRITICAL',
       title: `P13 worker failed ${failures} consecutive polls (threshold ${threshold})`,
@@ -468,7 +499,7 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
       // Identical key to the monitor's check 1, so the two paths cannot open
       // two incidents for one condition.
       dedupKey: `p13.worker.poll_failures:${P13_RETURN_EXPIRATION_LEASE_KEY}`,
-    });
+    }));
   }
 }
 
