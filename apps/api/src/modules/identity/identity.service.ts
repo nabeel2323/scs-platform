@@ -366,77 +366,71 @@ export class IdentityService {
     refreshToken: string;
     deviceTrust?: DeviceTrustTransportInstruction;
   }> {
-    // Steps 1-5 (challenge read, HMAC compare, atomic consume, failure-limit
-    // enforcement, rate-limit key cleanup) are delegated to consumePhoneChallenge
-    // so that this login path and the account-linking path can never drift apart
-    // (S1.37-F-05).
     const { phone: normalizedPhone } = await this.consumePhoneChallenge(phone, otp);
 
-    const existing = await this.withAuthenticationDatabaseContext('phone_otp_login', () =>
-      this.db.db.query.users.findFirst({ where: eq(users.phone, normalizedPhone) }),
-    );
-
-    let userId: string;
-    if (existing) {
-      userId = existing.id;
-    } else {
-      userId = crypto.randomUUID();
-      await this.db.db.insert(users).values({
-        id: userId,
-        phone: normalizedPhone,
-        fullName: 'New User',
-        locale: 'en',
-        status: 'ACTIVE',
+    // Resolve or create the account only after the Redis OTP proof succeeds.
+    // The auth principal has no user/tenant identity and is operation-limited.
+    const identity = await this.withAuthenticationDatabaseContext('phone_otp_login', async () => {
+      const existing = await this.db.db.query.users.findFirst({
+        where: eq(users.phone, normalizedPhone),
       });
-    }
+      let userId = existing?.id;
+      if (!userId) {
+        userId = crypto.randomUUID();
+        await this.db.db.insert(users).values({
+          id: userId,
+          phone: normalizedPhone,
+          fullName: 'New User',
+          locale: 'en',
+          status: 'ACTIVE',
+        });
+      }
+      const claims = await this.buildClaims(userId);
+      return { userId, claims };
+    });
 
-    // Resolve user's org membership and permissions for JWT claims
-    const claims = await this.buildClaims(userId);
-
-    // Generate opaque refresh token
     const refreshToken = crypto.randomUUID();
     const tokenHash = this.hashToken(refreshToken);
-
-    // Mint the session id first so the access token can carry it as the `sid`
-    // claim (WEB-B3): the server can then tell which session a token belongs to.
     const sessionId = crypto.randomUUID();
-
-    // Sign JWT access token
     const accessToken = this.jwt.sign({
-      sub: userId,
-      activeOrg: claims.activeOrgId,
-      role: claims.roleKey,
-      perms: claims.permissions,
+      sub: identity.userId,
+      activeOrg: identity.claims.activeOrgId,
+      role: identity.claims.roleKey,
+      perms: identity.claims.permissions,
       sid: sessionId,
       jti: crypto.randomUUID(),
     });
 
-    // Store session. deviceId is provenance for revoke-by-device; it does not
-    // establish trust (S-1) — the credential minted below does.
-    await this.db.db.insert(sessions).values({
-      id: sessionId,
-      userId,
-      tokenHash,
-      device: deviceInfo?.platform || 'web',
-      deviceId: deviceId || null,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    });
+    // Persist the authenticated session and the second-factor device credential
+    // under the now-proven user principal. JWT signing remains outside the scope.
+    const issued = await this.withUserDatabaseContext(
+      identity.userId,
+      { role: identity.claims.roleKey, activeOrg: identity.claims.activeOrgId },
+      async () => {
+        await this.db.db.insert(sessions).values({
+          id: sessionId,
+          userId: identity.userId,
+          tokenHash,
+          device: deviceInfo?.platform || 'web',
+          deviceId: deviceId || null,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        });
+        return this.issueDeviceCredential(identity.userId, {
+          sessionId,
+          label: deviceInfo?.platform ?? 'web',
+        });
+      },
+    );
 
     await this.audit.record({
-      actorType: AuditService.actorTypeForRole(claims.roleKey),
-      actorId: userId,
-      orgId: claims.activeOrgId,
+      actorType: AuditService.actorTypeForRole(identity.claims.roleKey),
+      actorId: identity.userId,
+      orgId: identity.claims.activeOrgId,
       action: 'auth.login',
       resource: 'auth',
       metadata: { method: 'otp', phone: normalizedPhone, deviceId: deviceId ?? null, sessionId },
       ip: context?.ip,
       userAgent: context?.userAgent ?? deviceInfo?.userAgent,
-    });
-
-    // Second factor satisfied -> enrol this device for future password logins.
-    const issued = await this.issueDeviceCredential(userId, {
-      sessionId,
-      label: deviceInfo?.platform ?? 'web',
     });
 
     return {
@@ -801,70 +795,73 @@ export class IdentityService {
     refreshToken: string;
     deviceTrust?: DeviceTrustTransportInstruction;
   }> {
-    // Steps 1-5 (challenge read, HMAC compare, atomic consume, failure limits,
-    // rate-limit key cleanup) live in consumeEmailChallenge so linking proves
-    // mailbox control through exactly the same gate.
     const { email } = await this.consumeEmailChallenge(rawEmail, otp);
 
-    // 6. Resolve or create user by email
-    const existing = await this.withAuthenticationDatabaseContext('email_otp_login', () =>
-      this.db.db.query.users.findFirst({ where: eq(users.email, email) }),
-    );
-
-    let userId: string;
-    if (existing) {
-      userId = existing.id;
-    } else {
-      // Email-only registration (D-1)
-      userId = crypto.randomUUID();
-      await this.db.db.insert(users).values({
-        id: userId,
-        email,
-        fullName: 'New User',
-        locale: 'en',
-        status: 'ACTIVE',
-        emailVerifiedAt: new Date(),
+    const identity = await this.withAuthenticationDatabaseContext('email_otp_login', async () => {
+      const existing = await this.db.db.query.users.findFirst({
+        where: eq(users.email, email),
       });
-    }
+      let userId = existing?.id;
+      if (!userId) {
+        userId = crypto.randomUUID();
+        await this.db.db.insert(users).values({
+          id: userId,
+          email,
+          fullName: 'New User',
+          locale: 'en',
+          status: 'ACTIVE',
+          emailVerifiedAt: new Date(),
+        });
+      }
+      const claims = await this.buildClaims(userId);
+      return { userId, claims };
+    });
 
-    // 7. Issue JWT pair through existing session infrastructure
-    const claims = await this.buildClaims(userId);
     const refreshToken = crypto.randomUUID();
     const tokenHash = this.hashToken(refreshToken);
     const sessionId = crypto.randomUUID();
-
     const accessToken = this.jwt.sign({
-      sub: userId,
-      activeOrg: claims.activeOrgId,
-      role: claims.roleKey,
-      perms: claims.permissions,
+      sub: identity.userId,
+      activeOrg: identity.claims.activeOrgId,
+      role: identity.claims.roleKey,
+      perms: identity.claims.permissions,
       sid: sessionId,
       jti: crypto.randomUUID(),
     });
 
-    await this.db.db.insert(sessions).values({
-      id: sessionId,
-      userId,
-      tokenHash,
-      device: deviceInfo?.platform || 'web',
-      deviceId: deviceId || null,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    });
+    const issued = await this.withUserDatabaseContext(
+      identity.userId,
+      { role: identity.claims.roleKey, activeOrg: identity.claims.activeOrgId },
+      async () => {
+        await this.db.db.insert(sessions).values({
+          id: sessionId,
+          userId: identity.userId,
+          tokenHash,
+          device: deviceInfo?.platform || 'web',
+          deviceId: deviceId || null,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        });
+        return this.issueDeviceCredential(identity.userId, {
+          sessionId,
+          label: deviceInfo?.platform ?? 'web',
+        });
+      },
+    );
 
     await this.audit.record({
-      actorType: AuditService.actorTypeForRole(claims.roleKey),
-      actorId: userId,
-      orgId: claims.activeOrgId,
+      actorType: AuditService.actorTypeForRole(identity.claims.roleKey),
+      actorId: identity.userId,
+      orgId: identity.claims.activeOrgId,
       action: 'auth.login',
       resource: 'auth',
-      metadata: { method: 'email_otp', emailHash: hashIdentifier(email, this.hmacSecret, 'email'), deviceId: deviceId ?? null, sessionId },
+      metadata: {
+        method: 'email_otp',
+        emailHash: hashIdentifier(email, this.hmacSecret, 'email'),
+        deviceId: deviceId ?? null,
+        sessionId,
+      },
       ip: context?.ip,
       userAgent: context?.userAgent ?? deviceInfo?.userAgent,
-    });
-
-    const issued = await this.issueDeviceCredential(userId, {
-      sessionId,
-      label: deviceInfo?.platform ?? 'web',
     });
 
     return {
@@ -895,44 +892,66 @@ export class IdentityService {
     deviceTrust?: DeviceTrustTransportInstruction;
   }> {
     const tokenHash = this.hashToken(refreshToken);
-
     const session = await this.withAuthenticationDatabaseContext('refresh_token', () =>
       this.db.db.query.sessions.findFirst({ where: eq(sessions.tokenHash, tokenHash) }),
     );
 
     if (!session || session.revokedAt) {
-      // Reuse detected — revoke entire chain
       if (session?.revokedAt) {
-        await this.revokeChain(session.userId);
-        await this.revokeAllDeviceCredentials(session.userId, 'ROTATION_REUSE');
+        const reuseClaims = await this.withAuthenticationDatabaseContext('refresh_token', () =>
+          this.buildClaims(session.userId),
+        );
+        await this.withUserDatabaseContext(session.userId, {
+          role: reuseClaims.roleKey,
+          activeOrg: reuseClaims.activeOrgId,
+        }, async () => {
+          await this.revokeChain(session.userId);
+          await this.revokeAllDeviceCredentials(session.userId, 'ROTATION_REUSE');
+        });
       }
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
-
     if (new Date() > session.expiresAt) {
       throw new UnauthorizedException('Refresh token expired');
     }
 
-    // Rotate: revoke old, create new
-    await this.db.db
-      .update(sessions)
-      .set({ revokedAt: new Date() })
-      .where(eq(sessions.id, session.id));
-
-    const claims = await this.buildClaims(session.userId);
+    // Resolve the current role/permissions in the auth-only phase; the session
+    // owner is known, but no role claim is trusted from the refresh request.
+    const claims = await this.withAuthenticationDatabaseContext('refresh_token', () =>
+      this.buildClaims(session.userId),
+    );
 
     const newRefreshToken = crypto.randomUUID();
     const newTokenHash = this.hashToken(newRefreshToken);
-
     const newSessionId = crypto.randomUUID();
-    await this.db.db.insert(sessions).values({
-      id: newSessionId,
-      userId: session.userId,
-      tokenHash: newTokenHash,
-      device: session.device,
-      deviceId: session.deviceId, // Provenance carried forward; trust is the credential, not this value
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    });
+
+    const trust = await this.withUserDatabaseContext(
+      session.userId,
+      { role: claims.roleKey, activeOrg: claims.activeOrgId },
+      async () => {
+        const revoked = await this.db.db
+          .update(sessions)
+          .set({ revokedAt: new Date() })
+          .where(and(eq(sessions.id, session.id), eq(sessions.userId, session.userId), isNull(sessions.revokedAt)))
+          .returning({ id: sessions.id });
+        if (revoked.length === 0) {
+          throw new UnauthorizedException('Refresh token has already been rotated');
+        }
+        await this.db.db.insert(sessions).values({
+          id: newSessionId,
+          userId: session.userId,
+          tokenHash: newTokenHash,
+          device: session.device,
+          deviceId: session.deviceId,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        });
+        const result = await this.validateDeviceCredential(presentedCredential, session.userId);
+        if (result.status === 'trusted') {
+          await this.anchorCredentialToSession(presentedCredential, session.userId, newSessionId);
+        }
+        return result;
+      },
+    );
 
     const accessToken = this.jwt.sign({
       sub: session.userId,
@@ -942,18 +961,6 @@ export class IdentityService {
       sid: newSessionId,
       jti: crypto.randomUUID(),
     });
-
-    // Validate-and-slide the device credential the browser presented, so a
-    // rotation never costs a legitimate user their trusted-device status.
-    const trust = await this.validateDeviceCredential(presentedCredential, session.userId);
-
-    // Keep the session anchor pointing at the browser's LIVE session: rotation
-    // replaced the session row above, and a stale anchor would leave logout
-    // unable to find the credential this session earned (finding B6). Only a
-    // credential that just validated as trusted is moved.
-    if (trust.status === 'trusted') {
-      await this.anchorCredentialToSession(presentedCredential, session.userId, newSessionId);
-    }
 
     return {
       accessToken,
@@ -998,29 +1005,35 @@ export class IdentityService {
     presentedCredential?: string | null,
   ): Promise<{ success: boolean; deviceTrust?: DeviceTrustTransportInstruction }> {
     const tokenHash = this.hashToken(refreshToken);
-
-    // Resolve the owner first: credential revocation must be ownership-bound,
-    // so a logout cannot be used to revoke someone else's credential.
     const session = await this.withAuthenticationDatabaseContext('logout', () =>
       this.db.db.query.sessions.findFirst({ where: eq(sessions.tokenHash, tokenHash) }),
     );
 
-    await this.db.db
-      .update(sessions)
-      .set({ revokedAt: new Date() })
-      .where(eq(sessions.tokenHash, tokenHash));
+    if (!session) {
+      return { success: true, deviceTrust: presentedCredential ? { clear: true } : undefined };
+    }
 
-    // Path 2 first: what this session earned, whether or not anything was presented.
-    const anchored = session
-      ? (await this.revokeCredentialsBySession(session.id, session.userId)) > 0
-      : false;
-
-    const cleared =
-      (await this.revokePresentedCredential(
-        presentedCredential,
-        session?.userId ?? null,
-        'LOGOUT',
-      )) || anchored;
+    const logoutClaims = await this.withAuthenticationDatabaseContext('logout', () =>
+      this.buildClaims(session.userId),
+    );
+    const cleared = await this.withUserDatabaseContext(
+      session.userId,
+      { role: logoutClaims.roleKey, activeOrg: logoutClaims.activeOrgId },
+      async () => {
+        // Session owner was resolved from the one-way refresh-token digest.
+        // Keep all owner-bound revocations atomic in the user-scoped transaction.
+        await this.db.db
+          .update(sessions)
+          .set({ revokedAt: new Date() })
+          .where(and(eq(sessions.id, session.id), eq(sessions.userId, session.userId)));
+        const anchored = (await this.revokeCredentialsBySession(session.id, session.userId)) > 0;
+        return (await this.revokePresentedCredential(
+          presentedCredential,
+          session.userId,
+          'LOGOUT',
+        )) || anchored;
+      },
+    );
 
     return { success: true, deviceTrust: cleared ? { clear: true } : undefined };
   }
@@ -1987,10 +2000,16 @@ export class IdentityService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // Device trust is decided ONLY by a server-issued credential (S-1). The
-    // client-supplied deviceId is not consulted here: it is written to the
-    // session as provenance and used by revoke-by-device, nothing more.
-    const trust = await this.validateDeviceCredential(presentedCredential, user.id);
+    // Resolve role/permission claims only after password proof, then validate
+    // the presented device credential under the verified account's actor.
+    const claims = await this.withAuthenticationDatabaseContext('password_login', () =>
+      this.buildClaims(user.id),
+    );
+    const trust = await this.withUserDatabaseContext(
+      user.id,
+      { role: claims.roleKey, activeOrg: claims.activeOrgId },
+      () => this.validateDeviceCredential(presentedCredential, user.id),
+    );
     const isTrustedDevice = trust.status === 'trusted';
 
     if (!isTrustedDevice) {
@@ -2084,8 +2103,6 @@ export class IdentityService {
     }
 
     // Device trusted - issue JWT pair
-    const claims = await this.buildClaims(user.id);
-
     const refreshToken = crypto.randomUUID();
     const tokenHash = this.hashToken(refreshToken);
 
@@ -2101,21 +2118,23 @@ export class IdentityService {
       jti: crypto.randomUUID(),
     });
 
-    await this.db.db.insert(sessions).values({
-      id: sessionId,
-      userId: user.id,
-      tokenHash,
-      device: deviceInfo?.userAgent || 'unknown',
-      deviceId,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    });
-
-    // This login was authenticated by the credential, so the credential's
-    // session anchor moves to the session just created. Without it, a browser
-    // that enrolled long ago would log out of a session its credential never
-    // named, and the session-anchored half of logout revocation (finding B6)
-    // would find nothing.
-    await this.anchorCredentialToSession(presentedCredential, user.id, sessionId);
+    await this.withUserDatabaseContext(
+      user.id,
+      { role: claims.roleKey, activeOrg: claims.activeOrgId },
+      async () => {
+        await this.db.db.insert(sessions).values({
+          id: sessionId,
+          userId: user.id,
+          tokenHash,
+          device: deviceInfo?.userAgent || 'unknown',
+          deviceId,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        });
+        // Move the trusted credential's server-side logout anchor atomically
+        // with the new session row.
+        await this.anchorCredentialToSession(presentedCredential, user.id, sessionId);
+      },
+    );
 
     // Reset rate limit on successful login
     await this.rateLimitService.resetAttempts('password_login', email);

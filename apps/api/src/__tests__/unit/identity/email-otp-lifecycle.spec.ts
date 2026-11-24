@@ -21,6 +21,7 @@ const FIXED_OTP = '123456';
 
 function mockDb(userStore: Map<string, any> = new Map()) {
   return {
+    withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()),
     db: {
       query: {
         users: {

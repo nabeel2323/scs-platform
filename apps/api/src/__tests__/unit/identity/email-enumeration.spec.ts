@@ -18,6 +18,7 @@ process.env['OTP_HMAC_SECRET'] = 'test-hmac-secret-for-unit-tests-only-32chars-m
 
 function mockDb(existingUser: any | null = null) {
   return {
+    withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()),
     db: {
       query: {
         users: {
