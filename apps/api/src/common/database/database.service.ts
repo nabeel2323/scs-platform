@@ -25,17 +25,21 @@ export type DatabaseActorContext =
       actorId: string;
       actorRole: string;
       activeOrgId?: string | null;
+      workerId?: null;
     }
   | {
       actorKind: 'worker';
-      workerId: string;
+      actorId?: null;
+      actorRole?: null;
       activeOrgId?: string | null;
+      workerId: string;
     }
   | {
       actorKind: 'system' | 'bootstrap' | 'audit';
       actorId: string;
       actorRole?: string | null;
       activeOrgId?: string | null;
+      workerId?: null;
     };
 
 type NormalizedDatabaseActorContext = {
@@ -67,6 +71,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private readonly actorContextStorage = new AsyncLocalStorage<{
     db: NodePgDatabase<typeof schema>;
     actor: NormalizedDatabaseActorContext;
+    active: boolean;
   }>();
 
   /**
@@ -77,8 +82,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    * The setter preserves the existing bootstrap/test injection contract.
    */
   get db(): NodePgDatabase<typeof schema> {
-    const scoped = this.actorContextStorage.getStore()?.db;
-    const handle = scoped ?? this.rootDb;
+    const scope = this.actorContextStorage.getStore();
+    if (scope && !scope.active) {
+      throw new Error('Database actor context has already completed');
+    }
+    const handle = scope?.db ?? this.rootDb;
     if (!handle) throw new Error('DatabaseService has not initialized its database handle');
     return handle;
   }
@@ -88,7 +96,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   get currentActorContext(): Readonly<NormalizedDatabaseActorContext> | null {
-    return this.actorContextStorage.getStore()?.actor ?? null;
+    const scope = this.actorContextStorage.getStore();
+    return scope?.active ? scope.actor : null;
   }
 
   /**
@@ -113,6 +122,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const active = this.actorContextStorage.getStore();
 
     if (active) {
+      if (!active.active) {
+        throw new Error('Cannot reuse a completed database actor context');
+      }
       if (!this.sameActor(active.actor, actor)) {
         throw new Error('Cannot change database actor context inside an active transaction');
       }
@@ -133,10 +145,18 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           set_config('app.worker_id', ${actor.workerId ?? ''}, true)
       `);
 
-      return this.actorContextStorage.run(
-        { db: tx as unknown as NodePgDatabase<typeof schema>, actor },
-        operation,
-      );
+      const scope = {
+        db: tx as unknown as NodePgDatabase<typeof schema>,
+        actor,
+        active: true,
+      };
+      try {
+        return await this.actorContextStorage.run(scope, operation);
+      } finally {
+        // Detached async work inherits the ALS store. Mark it closed so it cannot
+        // issue queries on a transaction after its callback has committed/rolled back.
+        scope.active = false;
+      }
     });
   }
 
