@@ -1201,3 +1201,10 @@ Next: locate the actual driver-profile/store-assignment consumer/write path and 
 The latest G-002 pass closes additional shipment/order/store cross-column gaps: admin recovery checks the order/store relationship before privileged bypass; recovery queue joins orders; scheduled create/cancel reconciliation claim queries and direct entry points validate same-store ownership; webhook shipment resolution joins same-store orders; tracking poller filters and validates before provider/event/delivery-bridge effects. See the latest G-002 migration FK crosswalk and implementation progress tracker.
 
 Source commits: `0581776`, `83a4073`, `2b2810e`, `5bbd35d`, `9c9d7f4`. Driver assignment table remains schema-only in the inspected ShippingModule; no assignment writer was found, and shipment assignedDriverId references users. Do not invent a new API. Next: finish Drizzle-to-migration FK reconciliation and establish whether driver_store_assignments is legacy/dead or has an external consumer. Regression cases are documented but not executed; commits use `[skip ci]`. G-002 remains NOT VERIFIED; preserve all protected staging/database/RLS/grant/migration/deployment/worker/merge restrictions.
+
+
+## Latest continuation — webhook retry credential lineage — 24 November 2026
+
+Commit `926c475` ensures every unprocessed credential-bound webhook event revalidates its credential, and an already-linked shipment's store organization must match that credential before processing. Unlinked legacy events without credential binding fail closed; already-linked legacy rows remain compatible with shipment/order/store validation. See G-002 migration FK crosswalk and implementation progress tracker.
+
+Next: complete Drizzle-to-migration FK reconciliation and establish whether `driver_store_assignments` has an external consumer. Do not invent a driver API. Regression tests remain pending; commits use `[skip ci]`. G-002 remains NOT VERIFIED and all protected staging/database/RLS/grant/migration/deployment/worker/merge restrictions remain binding.
