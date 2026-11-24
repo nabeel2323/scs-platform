@@ -252,12 +252,12 @@ export class PilotControlService {
   }): Promise<void> {
     if (!input.orgId) throw new ForbiddenException('orgId is required for an allowlist entry');
 
-    await this.identity.getOrg(input.orgId);
+    await this.withUserActor(input.caller, () => this.identity.getOrg(input.orgId));
 
     if (input.storeId) {
       let store: Awaited<ReturnType<MerchantService['getStore']>>;
       try {
-        store = await this.merchant.getStore(input.storeId);
+        store = await this.withUserActor(input.caller, () => this.merchant.getStore(input.storeId as string));
       } catch (error) {
         if (error instanceof NotFoundException) {
           throw new NotFoundException('Store not found in the target organization');
