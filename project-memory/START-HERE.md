@@ -1292,3 +1292,22 @@ Added catalog-media-read-actor-context.spec.ts to cover media-row scope, storage
 ## 25 November 2026 — Redis-backed Search Facets actor scope
 
 The GET /search/facets route no longer uses TenantDatabaseContextInterceptor across Redis cache I/O. SearchService.getFacetsCached now requires a verified user actor; cache get/set remains outside the DB transaction, and only the taxonomy/facet query runs in a short user actor context. Controller metadata coverage now includes getSearchFacets, and search-service.spec.ts adds regression coverage for Redis outside the actor scope, the scoped facet query and missing-actor rejection. Tests remain unexecuted. The other SearchService routes (search, top categories, popular brands) were reviewed; the latter two are DB-only, while search image signing uses the existing product-card resolver. Continue auditing remaining mixed Catalog/Search callsites.
+
+## 25 November 2026 — Catalog ownership predicates and lifecycle concurrency
+
+The Catalog root-pool/ownership continuation has advanced beyond the prior mixed-route slice. The main Catalog, taxonomy, offer and request controllers were re-reviewed for actor-context coverage. CatalogOfferController, CatalogRequestsController and CatalogTaxonomyController have controller-level TenantDatabaseContextInterceptor coverage; CatalogController DB-only reads use method-level coverage, while mixed detail/media/import/facet paths use explicit short actor scopes. PricingController and ReviewsController also establish actor contexts for their Catalog lookup-service consumers. Search facets now validate the caller before cache access and scope only the DB phase.
+
+New source protections:
+- Store-scoped category list/search surfaces require current organization and active store membership; default category listing and public category tree are platform-only and active-only. Inactive category detail is hidden unless the caller has category governance permission.
+- Product create/update category references must point to an active global category or a category owned by the same store. Category parent creation/reparenting rejects inactive and foreign-store parents. Public category-product listing rejects tenant categories.
+- Product types are global taxonomy: create/update, publish, duplicate and new-version paths reject tenant/inactive category bindings. Public type lists/details/schema/product lookups hide unpublished types and legacy tenant-bound category references; managers retain privileged inventory access.
+- Public search facets use the v2 cache key, only active platform categories and published product types, and aggregate values only from ACTIVE, non-deleted products of the selected type/category.
+- Merchant-offer lifecycle writes compare-and-set the previously read status and store owner; pricing writes additionally compare the prior updatedAt.
+- Catalog request approval/rejection locks the pending request in an active user actor transaction and conditionally transitions only PENDING rows.
+- Product update/type-change/delete/bulk mutations repeat the exact store and non-deleted predicates on writes. Product edit/read authorization is revalidated inside service actor scopes before writes, cache hits or media reads. Media deletion binds both media ID and parent product ID.
+
+Regression specs added/extended across category visibility/ownership, taxonomy visibility and legacy category bindings, Search Facets, offer CAS, request review locking, product mutation owner predicates, media parent ownership, actor-context route metadata and existing optimistic-locking/type tests. They are authored but NOT EXECUTED. No formatter, lint, typecheck, E6 or CI was run.
+
+Inspected branch head before this documentation update: 6a029779930bef12062d66af9eb7b8aa18ddf838. PR #138 remains open/draft/unmerged, target develop; branch comparison was 2,641 ahead / 0 behind. Exact-head combined status contains only Vercel Admin/Web failures linking to the external Vercel build-rate-limit page; GitHub Actions lookup returned no runs for this [skip ci] head. These are not application test results.
+
+No RLS/grant/migration change, shared/staging DB operation, deployment, worker activation, environment/secret change, merge or release occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Continue with the remaining Catalog service/root-pool and cross-module caller inventory, then resume operation-specific ownership/FK and migration/operator evidence. Do not start quality gates until implementation/integration is complete.
