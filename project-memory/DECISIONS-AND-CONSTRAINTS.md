@@ -150,3 +150,10 @@ This is a standing instruction for future sessions unless the user changes it. T
 - Workers, carrier webhooks, bootstrap, audit writes, realtime, CLI and migration paths need separate principal contracts. Webhook context may only be established after credential authentication.
 - Do not enable RLS, change grants/default ACLs, apply shared-database migrations, or use protected staging as part of this implementation.
 - The user requires implementation/integration to finish before test execution; no tests or CI during the implementation phase.
+
+
+## Orders/Merchant actor-context decision — 24 November 2026
+
+- Apply user actor context to bounded Orders read/preview/reorder and DB-only lifecycle routes. Do not wrap actual checkout, reject/refund or cancel/payment paths until external payment/provider boundaries are separated.
+- Apply user actor context to bounded Merchant store/customer/warehouse/verification reads and DB-only store/warehouse/verification writes.
+- Do not wrap Merchant document presign/upload/storage operations in a DB transaction. If metadata registration is adopted, keep storage I/O outside and scope only the DB write.

@@ -1663,3 +1663,12 @@ The user explicitly directed: finish implementation first, then do the tests; pr
 - After HMAC verification, deduplication insert/read, credential-scoped shipment routing, ambiguous/not-found status writes, shipment linking, processed status and retry outbox writes run inside short actor-context transactions. Retry state and outbox insertion are separated into bounded transactions so a best-effort update failure does not hold the entire webhook operation open.
 - HTTP response writes occur after each actor-context operation completes; no transaction is held across external carrier I/O (there is no carrier provider call in this webhook path).
 - No tests, formatter, lint, typecheck, E6 or CI were run. No RLS, migration, grant, shared DB, staging, deployment, worker activation, merge or release occurred.
+
+
+## 24 November 2026 — Orders and Merchant actor-context expansion
+
+- Added method-scoped user actor contexts to bounded Orders reads: master/sub-order details, status history, tracking, order lists and driver shipment lists. Added context to checkout preview and reorder.
+- Added context to DB-only Orders lifecycle operations: accept, partial accept, item confirmation, status transition, prepare, ready, driver assignment, pickup, out-for-delivery, deliver and delivery confirmation. Actual checkout, reject/refund and cancel/payment paths remain excluded because they may cross provider boundaries.
+- Added method-scoped actor context to Merchant store list, merchant customers, store detail/slug, warehouse list, verification queue/history/detail reads, and DB-only store/warehouse/verification writes. Document listing/presigning and upload/storage routes remain excluded pending explicit DB/storage separation.
+- Latest source checkpoint: `12ae73c7ddc6dd3e59485918ada316b7088cdd3b`; docs checkpoint: `b7b0cea7d51c123c263222034a748f97b90e0f1e`. PR #138 remains OPEN / DRAFT / UNMERGED.
+- No tests, formatter, lint, typecheck, E6 or CI were run. No RLS, migrations, grants/default ACL changes, shared/staging DB writes, deployment, worker activation, merge or release.

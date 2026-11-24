@@ -942,3 +942,10 @@ Bounded controller adoption now covers Notifications, Pricing, Store Membership,
 G-002 remains IN PROGRESS. Uncovered paths include Auth/Profile, file/import/upload, main Orders/Payments, shipping/carrier webhooks, bootstrap, deferred audit writes, workers/schedulers, realtime sockets, CLI and migration execution. Continue only after each path's principal, nested transaction, streaming, external-I/O and detached-work behavior is reviewed. Carrier context must follow credential authentication. Live runtime identity, protected catalog inventory, complete operation predicates and independent review remain outstanding. No RLS/shared database change is authorized.
 
 **Next:** finish the remaining safe bounded HTTP integrations, then implement explicit worker/webhook/bootstrap/audit context contracts and complete the operation/ownership matrix. Do not run tests or CI until implementation and integration are complete.
+
+
+## G-002 Orders and Merchant endpoint adoption — 24 November 2026
+
+Orders actor-context coverage now includes bounded authenticated read routes, checkout preview, reorder and DB-only lifecycle operations. Reject/refund, cancel/payment and actual checkout execution remain excluded pending explicit payment/provider boundary design.
+
+Merchant actor-context coverage includes bounded store/customer/warehouse/verification reads and DB-only store/warehouse/verification writes. Document listing/presign and upload/storage routes remain excluded until their DB metadata and storage phases are separated.
