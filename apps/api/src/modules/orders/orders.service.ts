@@ -2122,16 +2122,19 @@ export class OrdersService {
     const order = await this.db.db.query.orders.findFirst({
       where: eq(orders.id, orderId),
     });
+    if (!order) throw new NotFoundException('Order not found while creating shipment');
+    if (order.storeId !== storeId) {
+      throw new ConflictException('Shipment store does not match its sub-order');
+    }
+
     let deliveryAddress: Record<string, unknown> | null = null;
     let shippingMethodId: string | null = null;
-    if (order) {
-      const master = await this.db.db.query.masterOrders.findFirst({
-        where: eq(masterOrders.id, order['masterOrderId']),
-      });
-      deliveryAddress = (master?.['deliveryAddress'] as Record<string, unknown>) || null;
-      const meta = (order['metadata'] as Record<string, unknown>) || {};
-      shippingMethodId = (meta['shippingMethodId'] as string) || null;
-    }
+    const master = await this.db.db.query.masterOrders.findFirst({
+      where: eq(masterOrders.id, order['masterOrderId']),
+    });
+    deliveryAddress = (master?.['deliveryAddress'] as Record<string, unknown>) || null;
+    const meta = (order['metadata'] as Record<string, unknown>) || {};
+    shippingMethodId = (meta['shippingMethodId'] as string) || null;
 
     await this.db.db.insert(shipments).values({
       id: shipmentId,
