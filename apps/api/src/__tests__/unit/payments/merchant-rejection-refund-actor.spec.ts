@@ -3,7 +3,11 @@ import { PaymentsService } from '../../../modules/payments/payments.service';
 import { assertOrderAccessible } from '../../../common/tenant-scope';
 
 vi.mock('../../../common/tenant-scope', () => ({
-  assertOrderAccessible: vi.fn().mockResolvedValue(undefined),
+  assertOrderAccessible: vi.fn(async (_db: unknown, caller: { activeOrg?: string | null }) => {
+    if (caller.activeOrg !== 'org-a') {
+      throw new Error('You do not have access to this order');
+    }
+  }),
   assertStoreInOrg: vi.fn().mockResolvedValue(undefined),
   isTenantPrivileged: vi.fn().mockReturnValue(false),
 }));
@@ -39,6 +43,7 @@ describe('PaymentsService.requestRefund merchant rejection attribution', () => {
         where: vi.fn().mockResolvedValue([{ total: '0' }]),
       })),
     };
+    const insertedRows: Record<string, unknown>[] = [];
     const tx = {
       select: vi
         .fn()
@@ -46,11 +51,14 @@ describe('PaymentsService.requestRefund merchant rejection attribution', () => {
         .mockReturnValueOnce(existingRefundQuery)
         .mockReturnValueOnce(aggregateQuery),
       insert: vi.fn(() => ({
-        values: vi.fn(() => ({
-          onConflictDoNothing: vi.fn(() => ({
-            returning: vi.fn().mockResolvedValue([{ id: 'refund-a' }]),
-          })),
-        })),
+        values: vi.fn((row: Record<string, unknown>) => {
+          insertedRows.push(row);
+          return {
+            onConflictDoNothing: vi.fn(() => ({
+              returning: vi.fn().mockResolvedValue([{ id: 'refund-a' }]),
+            })),
+          };
+        }),
       })),
     };
     const db = {
@@ -87,6 +95,7 @@ describe('PaymentsService.requestRefund merchant rejection attribution', () => {
     });
     expect(assertOrderAccessible).toHaveBeenCalledWith(db, caller, order);
     expect(tx.insert).toHaveBeenCalledTimes(2);
+    expect(insertedRows[1]).toMatchObject({ actorId: 'merchant-a', actorType: 'MERCHANT' });
     expect(outbox.publish).toHaveBeenCalledOnce();
   });
 
