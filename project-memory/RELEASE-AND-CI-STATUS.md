@@ -412,3 +412,11 @@ No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IN_PROGRE
 - This continuation adds category/store ownership and visibility protections, global product-type category binding and public-read guards, active/public facet aggregation and cache v2, product update/delete/bulk/media owner predicates, offer status/store and updatedAt compare-and-set, and pending request row-lock/CAS. Service actor scopes now revalidate product read/edit access before cache hits and mutations. Regression specs were authored/extended across the affected areas.
 - Tests, formatter, lint, typecheck, E6 and CI were NOT run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 - No staging deployment, shared DB mutation, RLS/grant/migration change, worker activation, environment/secret change, merge or release occurred.
+
+## 25 November 2026 — final continuation status refresh
+
+- Exact inspected branch head before this status refresh: 43e684c43e9ed58e4011f77dd4b03a9a742d155f.
+- PR #138 remains open/draft/unmerged, targeting develop. Branch comparison: 2,652 ahead and 0 behind develop. The PR body still reflects an older November 21 checkpoint; use the live branch ref for current state.
+- Exact-head combined status: Vercel Admin and Web both FAILURE with target URL https://vercel.com/taif3?upgradeToPro=build-rate-limit. GitHub Actions workflow-run lookup returned no runs for the exact [skip ci] head.
+- This continuation's latest additional test change expands the CatalogController metadata inventory to all DB-only endpoints and includes the explicitly actor-scoped media upload path among mixed operations. Tests remain unexecuted; no formatter/lint/typecheck/E6/CI was run.
+- No RLS/grant/migration/shared DB/staging/deployment/worker activation/environment change/merge/release occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
