@@ -34,6 +34,7 @@ import { CarrierReconciliationService } from './carrier-reconciliation.service';
 import { AuditService } from '../audit/audit.service';
 import { DatabaseService } from '../../common/database/database.service';
 import { shipments } from '../orders/shipment.schema';
+import { orders } from '../orders/orders.schema';
 import { stores } from '../merchant/merchant.schema';
 
 /**
@@ -205,12 +206,24 @@ export class CarrierAdminController {
       });
       if (!shipment) throw new NotFoundException(`Shipment ${id} not found`);
 
-      if (!isTenantPrivileged(caller)) {
-        const store = await this.db.db.query.stores.findFirst({
+      // The order and store are independent shipment FKs. Validate their
+      // relationship before tenant authorization or privileged-role bypass.
+      const [store, order] = await Promise.all([
+        this.db.db.query.stores.findFirst({
           where: eq(stores.id, shipment.storeId),
           columns: { orgId: true },
-        });
-        if (!user.activeOrg || !store?.orgId || store.orgId !== user.activeOrg) {
+        }),
+        this.db.db.query.orders.findFirst({
+          where: eq(orders.id, shipment.orderId),
+          columns: { storeId: true },
+        }),
+      ]);
+      if (!store?.orgId || !order || order.storeId !== shipment.storeId) {
+        throw new NotFoundException(`Shipment ${id} not found`);
+      }
+
+      if (!isTenantPrivileged(caller)) {
+        if (!user.activeOrg || store.orgId !== user.activeOrg) {
           throw new NotFoundException(`Shipment ${id} not found`);
         }
         await assertActiveOrgMembership(this.db, caller, store.orgId);
@@ -358,6 +371,10 @@ export class CarrierAdminController {
             updatedAt: shipments.updatedAt,
           })
           .from(shipments)
+          .innerJoin(
+            orders,
+            and(eq(orders.id, shipments.orderId), eq(orders.storeId, shipments.storeId)),
+          )
           .where(baseWhere)
           .orderBy(shipments.createdAt)
           .limit(maxItems);
