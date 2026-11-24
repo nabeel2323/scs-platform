@@ -27,6 +27,10 @@ describe('CatalogService product/media read actor boundaries (G-002)', () => {
         activeActor = null;
       }
     });
+    const findProduct = vi.fn(async () => {
+      expect(activeActor).toMatchObject({ actorKind: 'user', actorId: actor.sub });
+      return { ...product };
+    });
     const findMany = vi.fn(async () => {
       expect(activeActor).toMatchObject({ actorKind: 'user', actorId: actor.sub });
       return [mediaRow];
@@ -36,7 +40,7 @@ describe('CatalogService product/media read actor boundaries (G-002)', () => {
         return activeActor;
       },
       withActorContext,
-      db: { query: { productMedia: { findMany } } },
+      db: { query: { products: { findFirst: findProduct }, productMedia: { findMany } } },
     };
     const service = new CatalogService(
       db as any,
@@ -58,6 +62,7 @@ describe('CatalogService product/media read actor boundaries (G-002)', () => {
     const result = await service.listMediaByProduct('product-1', actor);
 
     expect(withActorContext).toHaveBeenCalledOnce();
+    expect(findProduct).toHaveBeenCalledOnce();
     expect(findMany).toHaveBeenCalledOnce();
     expect(resolveMediaRow).toHaveBeenCalledOnce();
     expect(result[0]).toMatchObject({ id: 'media-1', displayUrl: 'https://cdn.example.test/image.jpg' });
@@ -136,8 +141,8 @@ describe('CatalogService product/media read actor boundaries (G-002)', () => {
 
     const result = await service.getProductDetail('product-1', actor, false);
 
-    expect(withActorContext).toHaveBeenCalledOnce();
-    expect(findProduct).toHaveBeenCalledTimes(2);
+    expect(withActorContext).toHaveBeenCalledTimes(2);
+    expect(findProduct).toHaveBeenCalledTimes(3);
     expect(findMedia).toHaveBeenCalledOnce();
     expect(findVariants).toHaveBeenCalledOnce();
     expect(redisGet).toHaveBeenCalledOnce();
