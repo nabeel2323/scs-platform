@@ -1190,9 +1190,12 @@ export class CatalogService {
   private static readonly PRODUCT_DETAIL_CACHE_PREFIX = 'product:detail:';
   private static readonly PRODUCT_DETAIL_TTL_S = 300;
 
-  async getProductDetail(id: string, includeInactiveVariants = true) {
-    // Keep studio and buyer cache entries separate: merchant callers may see
-    // inactive variants, while public product reads must not.
+  async getProductDetail(
+    id: string,
+    actor: CatalogUserActor,
+    includeInactiveVariants = true,
+  ) {
+    // Cache I/O is external and stays outside the database actor scope.
     const cacheKey =
       CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id + (includeInactiveVariants ? '' : ':public');
     try {
@@ -1208,10 +1211,9 @@ export class CatalogService {
 
     const result = await timeQuery(
       `getProductDetail:${id}:${includeInactiveVariants ? 'studio' : 'public'}`,
-      () => this._getProductDetailUncached(id, includeInactiveVariants),
+      () => this._getProductDetailUncached(id, includeInactiveVariants, actor),
     );
 
-    // Fire-and-forget cache write
     try {
       await this.redis.client.set(
         cacheKey,
@@ -1239,136 +1241,147 @@ export class CatalogService {
     }
   }
 
-  private async _getProductDetailUncached(id: string, includeInactiveVariants = true) {
-    const product = await this.getProduct(id);
-    const productStoreId = product.storeId;
-    const [storeRows, media, variants, labels] = await Promise.all([
-      productStoreId
-        ? this.db.db
-            .select({
-              id: stores.id,
-              displayName: stores.displayName,
-              name: stores.displayName,
-              slug: stores.slug,
-              currency: stores.currency,
-              status: stores.status,
-              verificationStatus: stores.verificationStatus,
-              orgId: stores.orgId,
-              orgName: organizations.name,
-            })
-            .from(stores)
-            .leftJoin(organizations, eq(stores.orgId, organizations.id))
-            .where(eq(stores.id, productStoreId))
-        : Promise.resolve([] as any[]),
-      this.listMediaByProduct(id),
-      this.listVariantsByProduct(id, includeInactiveVariants),
-      this.db.db
-        .select({ categoryName: categories.name, brandName: brands.name })
-        .from(products)
-        .leftJoin(categories, eq(products.categoryId, categories.id))
-        .leftJoin(brands, eq(products.brandId, brands.id))
-        .where(eq(products.id, id)),
-    ]);
-    // A5-1: attach per-variant pricing via the shared resolver so the buyer
-    // detail page and the cart agree on what a unit costs. MOQ is offer-owned;
-    // resolve at quantity=1 for display (cart uses actual offer MOQ).
-    const activeVariants = variants.filter((v) => v['isActive']);
-    const variantIds = activeVariants.map((v) => v['id']);
-    const pricingMap =
-      variantIds.length > 0 && productStoreId
-        ? await resolveOfferPrices(this.db.db, productStoreId, variantIds, 1, { ladder: true })
-        : new Map();
-    const variantsWithPricing = variants.map((v) => ({
-      ...v,
-      pricing: pricingMap.get(v['id']) ?? null,
-    }));
+  private async _getProductDetailUncached(
+    id: string,
+    includeInactiveVariants: boolean,
+    actor: CatalogUserActor,
+  ) {
+    const snapshot = await this.withUserActorContext(actor, async () => {
+      const product = await this.getProduct(id);
+      const productStoreId = product.storeId;
+      const [storeRows, mediaRows, variants, labels] = await Promise.all([
+        productStoreId
+          ? this.db.db
+              .select({
+                id: stores.id,
+                displayName: stores.displayName,
+                name: stores.displayName,
+                slug: stores.slug,
+                currency: stores.currency,
+                status: stores.status,
+                verificationStatus: stores.verificationStatus,
+                orgId: stores.orgId,
+                orgName: organizations.name,
+              })
+              .from(stores)
+              .leftJoin(organizations, eq(stores.orgId, organizations.id))
+              .where(eq(stores.id, productStoreId))
+          : Promise.resolve([] as any[]),
+        this.db.db.query.productMedia.findMany({
+          where: eq(productMedia.productId, id),
+          orderBy: [productMedia.sortOrder],
+        }),
+        this.listVariantsByProduct(id, includeInactiveVariants),
+        this.db.db
+          .select({ categoryName: categories.name, brandName: brands.name })
+          .from(products)
+          .leftJoin(categories, eq(products.categoryId, categories.id))
+          .leftJoin(brands, eq(products.brandId, brands.id))
+          .where(eq(products.id, id)),
+      ]);
 
-    // Attach stock status per variant: sum available across all store warehouses.
-    // Wrapped in try-catch so test environments with partial mock DBs still work.
-    const allVariantIds = variants.map((v) => v['id']);
-    const stockByVariant: Record<
-      string,
-      { totalAvailable: number; totalOnHand: number; warehouseCount: number }
-    > = {};
-    try {
-      if (allVariantIds.length > 0 && product['storeId']) {
-        const storeWarehouses = await this.db.db.query.warehouses.findMany({
-          where: eq(warehouses.storeId, product['storeId']),
-          columns: { id: true },
-        });
-        if (storeWarehouses.length > 0) {
-          const whIds = storeWarehouses.map((w) => w.id);
-          const invRows = await this.db.db.query.inventoryItems.findMany({
-            where: and(
-              inArray(inventoryItems.warehouseId, whIds),
-              inArray(inventoryItems.variantId, allVariantIds),
-            ),
+      const activeVariants = variants.filter((variant) => variant['isActive']);
+      const variantIds = activeVariants.map((variant) => variant['id']);
+      const pricingMap =
+        variantIds.length > 0 && productStoreId
+          ? await resolveOfferPrices(this.db.db, productStoreId, variantIds, 1, { ladder: true })
+          : new Map();
+      const variantsWithPricing = variants.map((variant) => ({
+        ...variant,
+        pricing: pricingMap.get(variant['id']) ?? null,
+      }));
+
+      const allVariantIds = variants.map((variant) => variant['id']);
+      const stockByVariant: Record<
+        string,
+        { totalAvailable: number; totalOnHand: number; warehouseCount: number }
+      > = {};
+      try {
+        if (allVariantIds.length > 0 && product['storeId']) {
+          const storeWarehouses = await this.db.db.query.warehouses.findMany({
+            where: eq(warehouses.storeId, product['storeId']),
+            columns: { id: true },
           });
-          for (const row of invRows) {
-            const vid = row['variantId'];
-            const prev = stockByVariant[vid] ?? {
-              totalAvailable: 0,
-              totalOnHand: 0,
-              warehouseCount: 0,
-            };
-            const available = row['qtyOnHand'] - row['qtyReserved'];
-            stockByVariant[vid] = {
-              totalAvailable: prev.totalAvailable + available,
-              totalOnHand: prev.totalOnHand + row['qtyOnHand'],
-              warehouseCount: prev.warehouseCount + 1,
-            };
+          if (storeWarehouses.length > 0) {
+            const warehouseIds = storeWarehouses.map((warehouse) => warehouse.id);
+            const inventoryRows = await this.db.db.query.inventoryItems.findMany({
+              where: and(
+                inArray(inventoryItems.warehouseId, warehouseIds),
+                inArray(inventoryItems.variantId, allVariantIds),
+              ),
+            });
+            for (const row of inventoryRows) {
+              const variantId = row['variantId'];
+              const previous = stockByVariant[variantId] ?? {
+                totalAvailable: 0,
+                totalOnHand: 0,
+                warehouseCount: 0,
+              };
+              const available = row['qtyOnHand'] - row['qtyReserved'];
+              stockByVariant[variantId] = {
+                totalAvailable: previous.totalAvailable + available,
+                totalOnHand: previous.totalOnHand + row['qtyOnHand'],
+                warehouseCount: previous.warehouseCount + 1,
+              };
+            }
           }
         }
+      } catch {
+        // Stock tables may not be available in all environments (e.g. test mocks).
       }
-    } catch {
-      // Stock tables may not be available in all environments (e.g. test mocks)
-    }
-    const variantsWithStock = variantsWithPricing.map((v) => ({
-      ...v,
-      stock: stockByVariant[v['id']] ?? { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 },
-    }));
-
-    // Resolve storage keys to signed URLs so the buyer page can render
-    // product photos directly; failures degrade to null (placeholder shown).
-    const resolvedMedia = await Promise.all(media.map((m) => this.resolveMediaRow(m)));
-
-    // PHASE 5e: structured attribute values for specs display
-    let attributeValues: Array<{ code: string; label: string; value: unknown }> = [];
-    try {
-      const rows = await this.db.db
-        .select({
-          code: attributeDefinitions.code,
-          label: attributeDefinitions.name,
-          valueText: productAttributeValues.valueText,
-          valueNumber: productAttributeValues.valueNumber,
-          valueBoolean: productAttributeValues.valueBoolean,
-          optionValue: productAttributeValues.optionValue,
-          valueJson: productAttributeValues.valueJson,
-        })
-        .from(productAttributeValues)
-        .innerJoin(
-          attributeDefinitions,
-          eq(productAttributeValues.attributeDefinitionId, attributeDefinitions.id),
-        )
-        .where(eq(productAttributeValues.productId, id));
-      attributeValues = rows.map((r) => ({
-        code: r.code,
-        label: r.label,
-        value:
-          r.valueText ?? r.valueNumber ?? r.valueBoolean ?? r.optionValue ?? r.valueJson ?? null,
+      const variantsWithStock = variantsWithPricing.map((variant) => ({
+        ...variant,
+        stock: stockByVariant[variant['id']] ?? {
+          totalAvailable: 0,
+          totalOnHand: 0,
+          warehouseCount: 0,
+        },
       }));
-    } catch {
-      /* taxonomy tables may not be available in all envs */
-    }
+
+      let attributeValues: Array<{ code: string; label: string; value: unknown }> = [];
+      try {
+        const rows = await this.db.db
+          .select({
+            code: attributeDefinitions.code,
+            label: attributeDefinitions.name,
+            valueText: productAttributeValues.valueText,
+            valueNumber: productAttributeValues.valueNumber,
+            valueBoolean: productAttributeValues.valueBoolean,
+            optionValue: productAttributeValues.optionValue,
+            valueJson: productAttributeValues.valueJson,
+          })
+          .from(productAttributeValues)
+          .innerJoin(
+            attributeDefinitions,
+            eq(productAttributeValues.attributeDefinitionId, attributeDefinitions.id),
+          )
+          .where(eq(productAttributeValues.productId, id));
+        attributeValues = rows.map((row) => ({
+          code: row.code,
+          label: row.label,
+          value:
+            row.valueText ?? row.valueNumber ?? row.valueBoolean ?? row.optionValue ?? row.valueJson ?? null,
+        }));
+      } catch {
+        /* taxonomy tables may not be available in all environments */
+      }
+
+      return { product, storeRows, mediaRows, labels, variantsWithStock, attributeValues };
+    });
+
+    // Resolve storage keys only after the DB actor transaction has committed.
+    const resolvedMedia = await Promise.all(
+      snapshot.mediaRows.map((mediaRow) => this.resolveMediaRow(mediaRow)),
+    );
 
     return {
-      ...product,
-      ...labels[0],
-      store: storeRows[0] ?? null,
+      ...snapshot.product,
+      ...snapshot.labels[0],
+      store: snapshot.storeRows[0] ?? null,
       media: resolvedMedia,
-      variants: variantsWithStock,
-      attributeValues,
-      imageCount: imageReferences(product.images, media).length,
+      variants: snapshot.variantsWithStock,
+      attributeValues: snapshot.attributeValues,
+      imageCount: imageReferences(snapshot.product.images, snapshot.mediaRows).length,
     };
   }
 
@@ -2803,12 +2816,15 @@ export class CatalogService {
     return this.resolveMediaRow(created);
   }
 
-  async listMediaByProduct(productId: string) {
-    const rows = await this.db.db.query.productMedia.findMany({
-      where: eq(productMedia.productId, productId),
-      orderBy: [productMedia.sortOrder],
-    });
-    return Promise.all(rows.map((r) => this.resolveMediaRow(r)));
+  async listMediaByProduct(productId: string, actor: CatalogUserActor) {
+    const rows = await this.withUserActorContext(actor, async () =>
+      await this.db.db.query.productMedia.findMany({
+        where: eq(productMedia.productId, productId),
+        orderBy: [productMedia.sortOrder],
+      }),
+    );
+    // Storage URL resolution is external I/O and must happen after the DB scope closes.
+    return Promise.all(rows.map((row) => this.resolveMediaRow(row)));
   }
 
   async removeMedia(productId: string, mediaId: string) {
