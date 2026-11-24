@@ -425,3 +425,16 @@ The G-002 migration FK crosswalk, implementation progress tracker, work log, ope
 Source commit `56d605a7377c49766b990abfc023e6ae4a5cea1d` extends shipment/order/store consistency to OrdersService exception/RTS access before driver/platform bypasses, order-based shipment lookup, and driver shipment lists. Commit `c916acd0a8b156affeda50e98dbc88acab2f39bc` filters malformed pairs from ShipmentOperationsController list and count queries. Combined with shipment creation, detail and carrier worker guards, all inspected shipment read/provider paths now enforce same-store order ownership.
 
 Regression cases are documented but unexecuted. Driver profile/store assignment consumers and remaining carrier/webhook relationships remain open. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED; no tests or CI were run for the `[skip ci]` source commits.
+
+
+## 24 November 2026 — carrier recovery/webhook/tracking ownership checkpoint
+
+Latest source follow-up commits:
+- `0581776dc42e87e4206377b45c971612368ab0ef`: direct create/cancel reconciliation validates shipment order/store before provider calls; both claim SQL paths exclude mismatched pairs.
+- `83a4073c20d14519f9c9f02757bd2386bbe9de58`: admin recovery validates order/store before privileged bypass and recovery queue joins matching orders.
+- `2b2810e14e41f40023e610dcda9e9064fb846e9c`: webhook shipment resolution joins orders on ID and same store.
+- `9c9d7f479ae332e6760238c7a9789f9e56febbea`: tracking poll claim and per-shipment path validate same-store order ownership before provider/event/delivery side effects.
+
+Driver/store assignment review found only schema declarations in the inspected module; no assignment writer/controller was found, and shipment assignedDriverId points to users rather than driver profiles. Do not invent an API. The crosswalk and implementation progress tracker record this disposition and the remaining regression cases.
+
+No tests or CI were run; commits use `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Next: continue full Drizzle-to-migration FK reconciliation and source callsite scan, then add regression coverage before the deferred verification campaign. Protected staging/database/RLS/grant/migration/deployment/worker/merge gates remain unchanged.
