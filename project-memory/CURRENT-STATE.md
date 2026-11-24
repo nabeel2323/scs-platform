@@ -454,3 +454,15 @@ Source commits `9d461e1c25381d4528fc733059ee58afb320fa6b` and `fca4c3569976fd6e5
 Unit and disposable PostgreSQL regression source was added; no tests, formatter, lint, typecheck, E6 or CI were run. The latest exact-head check on parent SHA `d6070e476e29d826b953f1874e12f757c736c222` returned zero Actions runs and zero status contexts. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. No live/shared DB, migration, RLS/grant, protected staging, deployment, worker activation, merge or release action occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 
 **Next:** complete Drizzle-to-migration FK reconciliation and remaining source-level ownership/actor-context review; confirm whether an external process provisions optional driver-store allowlist rows; obtain actual API/migration runtime identities, pg_partman scheduler ownership and live catalog evidence only through the authorized read-only staging process. Keep G-001 independent review and G-036 verification open; defer consolidated tests/CI until implementation/integration is complete.
+
+
+## 24 November 2026 — targeted Drizzle FK parity continuation
+
+The current session advanced the migration/Drizzle FK reconciliation:
+- `financial.schema.ts` now declares the migration 0062 self-reference `reconciliation_runs.superseded_by → reconciliation_runs.id` using a typed lazy reference.
+- The migration-only deferred links `refunds.return_request_id`, `return_requests.refund_id` and `return_request_items.inventory_item_id` are explicitly documented in their schema declarations, including the payments/returns module-cycle and ON DELETE SET NULL semantics.
+- The G-002 migration FK crosswalk now records the four targeted parity findings and distinguishes them from nullable application-maintained `org_id` columns that intentionally have no organizations FK.
+
+This is not full Drizzle/migration parity completion: only the payment, return and financial schema slice was inspected. The remaining 100-table schema/migration comparison, exact ownership predicates, source operation and actor-context nesting audit, protected read-only catalog/runtime identity, external pg_partman scheduler evidence, 114/116 historical relation reconciliation, G-001 independent review and G-036 verification remain open.
+
+Source commits: `b37f3386220b7148f2b326f9fd43b532b201a152`, `ef178d7af0d10b1ef80642aa5f6fe77b37cc55d4`, `e1d73e5270f8a815c537edf97f1ff8cc1d45fac4`. Crosswalk commit: `ad1547e781e0382bbd4ad6b6105c59dc3b19c0a3`. Tests, formatter, lint, typecheck, E6 and CI were not run; all remain deferred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; no protected database, staging, migration, RLS/grant, deployment, worker activation, merge or release action occurred.
