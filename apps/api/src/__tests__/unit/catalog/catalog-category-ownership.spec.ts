@@ -1,4 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
+import { PgDialect, type SQL } from 'drizzle-orm/pg-core';
 import { describe, expect, it, vi } from 'vitest';
 import { CatalogService } from '../../../modules/catalog/catalog.service';
 
@@ -9,6 +10,7 @@ function buildService(options?: {
   product?: Record<string, unknown> | null;
 }) {
   const categoryFindFirst = vi.fn().mockResolvedValue(options?.category ?? null);
+  const categoryFindMany = vi.fn().mockResolvedValue([]);
   const productInsertValues = vi.fn().mockResolvedValue(undefined);
   const insert = vi.fn(() => ({ values: productInsertValues }));
   const update = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })) }));
@@ -17,7 +19,7 @@ function buildService(options?: {
     withActorContext,
     db: {
       query: {
-        categories: { findFirst: categoryFindFirst },
+        categories: { findFirst: categoryFindFirst, findMany: categoryFindMany },
       },
       insert,
       update,
@@ -36,10 +38,21 @@ function buildService(options?: {
     {} as any,
   );
 
-  return { service, categoryFindFirst, insert, productInsertValues, update, withActorContext };
+  return { service, categoryFindFirst, categoryFindMany, insert, productInsertValues, update, withActorContext };
 }
 
 describe('CatalogService category ownership predicates (G-002)', () => {
+  it('defaults category listings to platform-level categories only', async () => {
+    const h = buildService();
+
+    await h.service.listCategories();
+
+    expect(h.categoryFindMany).toHaveBeenCalledOnce();
+    const config = h.categoryFindMany.mock.calls[0]?.[0] as { where: SQL };
+    const compiled = new PgDialect().sqlToQuery(config.where);
+    expect(compiled.sql.toLowerCase()).toContain('store_id is null');
+  });
+
   it('rejects product creation with a category owned by another store before insert', async () => {
     const h = buildService({ category: null });
 
