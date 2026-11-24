@@ -228,7 +228,10 @@ export class ShippingService implements OnModuleInit {
       columns: { storeId: true },
     });
 
-    if (assignments.length > 0 && !assignments.some((assignment) => assignment.storeId === storeId)) {
+    if (
+      assignments.length > 0 &&
+      !assignments.some((assignment) => assignment.storeId === storeId)
+    ) {
       throw reject();
     }
   }
