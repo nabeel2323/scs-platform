@@ -157,8 +157,16 @@ export class CatalogImportController {
   @Get(':id/report')
   @RequirePermission('catalog:imports:manage')
   @RequireRole('ADMIN', 'SUPER_ADMIN')
-  async report(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
-    const buffer = await this.importService.downloadReport(id);
+  async report(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const buffer = await this.importService.downloadReport(id, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="import-report-${id}.xlsx"`,

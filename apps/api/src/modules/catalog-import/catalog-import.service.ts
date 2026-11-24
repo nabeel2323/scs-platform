@@ -59,6 +59,12 @@ export interface PreviewPublishability {
 
 const UPLOAD_BUCKET = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
 
+type CatalogImportCaller = {
+  sub: string;
+  role: string;
+  activeOrg?: string | null;
+};
+
 @Injectable()
 export class CatalogImportService {
   private readonly logger = new Logger(CatalogImportService.name);
@@ -78,6 +84,21 @@ export class CatalogImportService {
     private readonly templateGenerator: TemplateGeneratorService,
     private readonly taxonomyService: CatalogTaxonomyService,
   ) {}
+
+  private withUserActor<T>(
+    caller: CatalogImportCaller,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    return this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: caller.sub,
+        actorRole: caller.role,
+        activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
+      },
+      operation,
+    );
+  }
 
   // ── Upload ────────────────────────────────────────────────────
 
@@ -396,9 +417,9 @@ export class CatalogImportService {
     return this.templateGenerator.generateExport();
   }
 
-  async downloadReport(importId: string): Promise<Buffer> {
-    // Generate an error report XLSX for the import
-    const errors = await this.getErrors(importId);
+  async downloadReport(importId: string, caller: CatalogImportCaller): Promise<Buffer> {
+    // Fetch persisted errors in a short user actor scope; workbook generation is in-memory and outside the DB transaction.
+    const errors = await this.withUserActor(caller, () => this.getErrors(importId));
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Import Errors');
     sheet.columns = [
