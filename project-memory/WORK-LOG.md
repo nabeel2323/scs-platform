@@ -2100,3 +2100,8 @@ The 75-file numbered migration scan found 183 explicit REFERENCES clauses across
 - Source commits: `b37f3386220b7148f2b326f9fd43b532b201a152`, `ef178d7af0d10b1ef80642aa5f6fe77b37cc55d4`, `e1d73e5270f8a815c537edf97f1ff8cc1d45fac4`. Crosswalk commit: `ad1547e781e0382bbd4ad6b6105c59dc3b19c0a3`.
 - No tests, formatter, lint, typecheck, E6 or CI were run. No migration, shared/staging DB, RLS/grant, deployment, worker activation, merge or release action occurred. PR #138 remains draft and unmerged. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 - Next: continue the table-by-table Drizzle/migration FK comparison, then finish the source operation/actor-context audit. Keep protected runtime identity/catalog and pg_partman scheduler evidence gated to the authorized read-only staging process.
+
+
+### Follow-up — dispute return FK parity, 24 November 2026
+
+The 25-module Drizzle schema pass identified one additional migration-only relationship: `disputes.return_request_id → return_requests.id ON DELETE SET NULL` from migration 0059. The field is now explicitly documented in `reviews/support.schema.ts` as a deferred cross-module link, and the G-002 FK crosswalk/progress tracker now records five targeted Drizzle declaration omissions in total. The self-referential reconciliation FK is represented in Drizzle; the four cross-module/deferred FKs remain migration-owned and documented. This is still a targeted reconciliation, not proof of complete 100-table parity. No tests or CI were run.
