@@ -1090,6 +1090,8 @@ export class PaymentsService {
       if (existingRefund) {
         if (
           existingRefund.paymentRecordId !== paymentId ||
+          existingRefund.orderId !== lockedPayment.orderId ||
+          existingRefund.currency !== lockedPayment.currency ||
           Number(existingRefund.amountMinor) !== amountMinor ||
           existingRefund.reason !== reason ||
           existingRefund.requestedBy !== requestedBy
@@ -1161,6 +1163,8 @@ export class PaymentsService {
         if (
           !conflictingRefund ||
           conflictingRefund.paymentRecordId !== paymentId ||
+          conflictingRefund.orderId !== lockedPayment.orderId ||
+          conflictingRefund.currency !== lockedPayment.currency ||
           Number(conflictingRefund.amountMinor) !== amountMinor ||
           conflictingRefund.reason !== reason ||
           conflictingRefund.requestedBy !== requestedBy
@@ -1246,6 +1250,9 @@ export class PaymentsService {
         .limit(1);
 
       if (!refundRow) throw new NotFoundException('Refund not found');
+      if (refundRow.orderId !== payment.orderId || refundRow.currency !== payment.currency) {
+        throw new ConflictException('Refund order/currency does not match its payment');
+      }
       // The first approval and its history/outbox commit atomically. A retried
       // command after a lost response is therefore a read-only success, not a
       // second approval event or a duplicate notification.
