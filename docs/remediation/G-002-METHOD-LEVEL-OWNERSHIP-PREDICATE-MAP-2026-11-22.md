@@ -451,3 +451,8 @@ Unit Tests + Coverage Gates, Integration Tests, Boundary Lint (E6), Container Bu
 | Webhook credential resolution | Dedicated worker principal | Token + provider + active for token route; provider + active with max two candidates for legacy route. More than one candidate returns 401 outside the DB transaction. |
 
 Credential/webhook-secret decryption, carrier HTTP calls, object storage and webhook external side effects remain outside DB actor transactions. Audit middleware uses a separate audit principal. Migration, seed and bootstrap CLI paths retain distinct operator identities. Regression specs were updated but remain unexecuted. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — carrier actor-context typecheck correction
+
+Commit `4d3488d7017439c1e756df4a595873dc9d590455` requires a non-empty caller role before creating a user actor context and performs the organization membership pre-check before credential encryption, with a second check inside the insert transaction. This addresses the nullable `caller.role` type error in automatic Actions #1501 on the prior source SHA. The correction is not re-run; exact-head CI is empty because the commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

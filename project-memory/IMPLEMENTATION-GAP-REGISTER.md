@@ -1132,3 +1132,8 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 Carrier credential/configuration CRUD, Aramex credential resolution and webhook credential lookup now use explicit user/worker actor contexts and organization predicates. AuditLogMiddleware already has an independent audit context. Migration/seed/bootstrap CLI paths use separate operator identities and must remain separate from user request context.
 
 Remaining G-002 gaps: full raw SQL/function/trigger/partition inventory; direct migration/seed/bootstrap/CLI PoolClient ownership/role reconciliation; exact per-operation ownership predicates and migration-defined FK validation; actor-context nesting/reuse audit; protected read-only API/migration identity and catalog evidence; 114/116 historical relation count reconciliation. No live DB/RLS/grant/migration action is authorized. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — carrier actor-context typecheck correction
+
+Commit `4d3488d7017439c1e756df4a595873dc9d590455` requires a non-empty caller role before creating a user actor context and performs the organization membership pre-check before credential encryption, with a second check inside the insert transaction. This addresses the nullable `caller.role` type error in automatic Actions #1501 on the prior source SHA. The correction is not re-run; exact-head CI is empty because the commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

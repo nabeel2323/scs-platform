@@ -2707,3 +2707,8 @@ Implemented source changes:
 **Verification:** automatic Actions run #1501 (ID 45422228217) on source SHA `9a010db69c668432f2811c68094a367ad5c7684c` was IN_PROGRESS at last inspection. No test or CI workflow was intentionally dispatched. Vercel Web/Admin exact-source checks were SUCCESS / SKIPPED — NOT AFFECTED. No test pass is claimed.
 
 **Remaining:** complete migration-set raw SQL/function/trigger/partition inventory; reconcile direct migration/seed/bootstrap/CLI PoolClient paths and exact principals; finish per-operation ownership predicates and migration FK evidence; verify actor-context reuse/nesting; obtain protected read-only runtime identity/catalog evidence only through authorized staging. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — carrier actor-context typecheck correction
+
+Commit `4d3488d7017439c1e756df4a595873dc9d590455` requires a non-empty caller role before creating a user actor context and performs the organization membership pre-check before credential encryption, with a second check inside the insert transaction. This addresses the nullable `caller.role` type error in automatic Actions #1501 on the prior source SHA. The correction is not re-run; exact-head CI is empty because the commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

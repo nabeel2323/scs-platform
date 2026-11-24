@@ -191,3 +191,8 @@ Implemented: list/detail/errors read endpoints use the verified-user context int
 ### Remaining source and evidence gaps
 
 The raw SQL/function/trigger/partition inventory across the full migration set remains incomplete. Review pg_partman partition maintenance/retention identity, function search_path/SECURITY DEFINER posture, migration-only tables and every direct Pool/PoolClient CLI/bootstrap path. The 100 source pgTable declarations, historical 114 public r/p snapshot and unresolved 116 count are distinct. Protected read-only live catalog and actual API/migration role identity remain gated to the authorized staging process.
+
+
+## 24 November 2026 — carrier actor-context typecheck correction
+
+Commit `4d3488d7017439c1e756df4a595873dc9d590455` requires a non-empty caller role before creating a user actor context and performs the organization membership pre-check before credential encryption, with a second check inside the insert transaction. This addresses the nullable `caller.role` type error in automatic Actions #1501 on the prior source SHA. The correction is not re-run; exact-head CI is empty because the commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

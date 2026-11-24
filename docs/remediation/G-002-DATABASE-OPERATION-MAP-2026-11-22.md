@@ -406,3 +406,8 @@ The Catalog Import source slice and P13 operational principal slice are now impl
 - Carrier webhook initial credential lookup uses a dedicated worker principal; decryption and subsequent routing/event persistence use the credential org context. The legacy route still rejects more than one active credential with 401, returned after the lookup transaction closes.
 - AuditLogMiddleware already uses a separate audit principal. AuditService.record remains context-dependent. migrate-pg uses a separate migration Pool, identity diagnostics, session advisory lock and migration+ledger transaction; seed-pg uses an operator PoolClient; bootstrap-issue-token sets transaction-local bootstrap settings; BootstrapService uses anonymous/bootstrap contexts.
 - Source review only; no CLI, migration, seed, database, worker or provider action was executed. Raw SQL functions/triggers/partitions and pg_partman maintenance identity remain open. Live API/migration identity and protected catalog evidence remain gated.
+
+
+## 24 November 2026 — carrier actor-context typecheck correction
+
+Commit `4d3488d7017439c1e756df4a595873dc9d590455` requires a non-empty caller role before creating a user actor context and performs the organization membership pre-check before credential encryption, with a second check inside the insert transaction. This addresses the nullable `caller.role` type error in automatic Actions #1501 on the prior source SHA. The correction is not re-run; exact-head CI is empty because the commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
