@@ -2950,3 +2950,7 @@ Closed the remaining mixed Catalog Import processing and error-report DB access 
 Added catalog-import-processing-actor-context.spec.ts for orchestration, chunk transaction, error-report and fail-closed actor behavior; controller metadata tests now include processImportJob and getImportErrors among mixed routes that must not receive the request-wide interceptor. Tests are authored but not executed. No formatter, lint, typecheck, E6 or CI was run. No worker activation or DB/staging/deployment action occurred. G-002 remains IN_PROGRESS / NOT VERIFIED.
 
 P13 source correction: full collectFindings review confirms all direct diagnostic SQL reads already invoke withMonitorActor; no P13 changes were required. The earlier helper-unused observation was incorrect.
+
+## 25 November 2026 — dormant Catalog import recovery actor
+
+CatalogService.recoverStaleJobs now uses the dedicated worker principal catalog-import-recovery for its stale-job query and job/chunk reset writes. This is not worker activation: the method remains unregistered and unscheduled, and no background process was started. Regression coverage was added but not executed. G-002 remains IN_PROGRESS / NOT VERIFIED.
