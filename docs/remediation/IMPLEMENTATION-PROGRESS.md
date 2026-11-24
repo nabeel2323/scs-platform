@@ -2799,3 +2799,16 @@ Source review found that independent foreign keys did not enforce several financ
 The schema/migration relationship evidence and remaining unverified cross-column paths are recorded in [G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md](./G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md). Regression cases are specified there; no tests, formatter, lint, typecheck, E6 or manual CI dispatch was intentionally run. A GitHub Actions run was automatically queued by the source commits (run #1503, ID 45434170778) and was IN_PROGRESS at the time of reconciliation; this was not an intentional verification dispatch and no pass is claimed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No migration, RLS, grant, shared database, staging, deployment, worker activation, merge or release action occurred.
 
 **Next:** continue the exact source callsite/ownership matrix for driver/store assignments and reconciliation run/discrepancy organization inheritance; then reconcile all remaining cross-column financial and shipping relationships with the Drizzle declarations and migration FK evidence. Protected live catalog and runtime identity evidence remain gated on the authorized read-only staging process.
+
+
+## G-002 — reconciliation parent-scope integrity — 24 November 2026
+
+**Source commit:** `98843bfe455667f7a96d7cbdd6dfb2253ce2af0f`.
+
+The reconciliation schema stores nullable `org_id` independently on runs and discrepancies; the child has an FK to its run but no composite organization relationship. The write path already stamps both from the same `tenantId`. The service now verifies a non-null organization exists before creating a run, rejects run reads when any discrepancy child has an organization different from its parent run, and verifies the parent run's organization before resolving a discrepancy. This prevents corrupted/mismatched child rows from being silently omitted or updated under a misleading tenant scope.
+
+Driver/store assignment review found separate FKs from driver profile to organization and assignment to store, but no same-org constraint. The inspected ShippingModule/ShipmentOperationsController has no assignment mutation path; `shipments.assigned_driver_id` points to `users.id`, not `driver_profiles.id`. No speculative API was added. Locate actual consumers/write paths before choosing a correction.
+
+Regression cases are specified in the G-002 migration FK crosswalk but have not been added/executed in this session. No tests, formatter, lint, typecheck, E6 or manual CI dispatch was run. Automatic PR CI #1503 failed on the preceding source SHA; it is not evidence for commit `98843bf`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+**Next:** locate the actual driver/store assignment consumer/write path; finish remaining shipping/financial relationship predicates and Drizzle/migration FK reconciliation; then add the consolidated regression coverage before the deferred verification campaign. Protected runtime identity/catalog and external scheduler evidence remain gated.
