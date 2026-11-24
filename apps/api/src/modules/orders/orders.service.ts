@@ -3883,14 +3883,20 @@ export class OrdersService {
     storeIds: string[],
   ): Promise<any[]> {
     if (storeIds.length === 0) return [];
-    return this.db.db.query.shipments.findMany({
-      where: and(
+    const rows = await this.db.db
+      .select({ shipment: shipments })
+      .from(shipments)
+      .innerJoin(
+        orders,
+        and(eq(orders.id, shipments.orderId), eq(orders.storeId, shipments.storeId)),
+      )
+      .where(and(
         eq(shipments.carrierShipmentId, externalDeliveryId),
         eq(shipments.shippingProviderKey, providerKey),
         inArray(shipments.storeId, storeIds),
-      ),
-      limit: 2,
-    });
+      ))
+      .limit(2);
+    return rows.map((row) => row.shipment);
   }
 
   /**
