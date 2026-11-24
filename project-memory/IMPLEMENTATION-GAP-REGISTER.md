@@ -1062,3 +1062,15 @@ The opt-in actor-context foundation and first bounded HTTP integrations are impl
 The reviewed allowlist covers bounded JWT-protected routes in Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Admin/Catalog reads, Cart, Returns and Organizations/Roles. This is partial adoption only. Auth/Profile, file/import/upload, main Orders/Payments, carrier/shipping, bootstrap, deferred audit writes, workers/schedulers, realtime, CLI and migration paths still require explicit principal/transaction contracts.
 
 No tests, formatter, lint, typecheck, E6 or CI have been executed during implementation. G-002 remains IMPLEMENTATION_IN_PROGRESS, not VERIFIED. No RLS, migration, grant/default-ACL change, shared/staging DB action, deployment or worker activation occurred.
+
+
+## G-002 — Merchant document metadata actor-context slice — 24 November 2026
+
+| Surface | Implementation state | Boundary / next gate |
+| --- | --- | --- |
+| Document registration (POST /documents) | IMPLEMENTED — verified-user actor context around metadata validation and persistence | Object upload is a separate prior presigned operation; registration does not perform storage I/O |
+| Organization document listing | IMPLEMENTED — verified-user actor context | Organization membership/reviewer authorization remains in the service |
+| Store document listing | IMPLEMENTED — verified-user actor context | Store-to-organization resolution and membership checks remain in the service |
+| Upload/download presign | DEFERRED_BY_DECISION | Keep storage signing outside DB transactions; split DB metadata phases before adopting context |
+
+Regression metadata assertions were added but not executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED; no RLS policy or privilege change follows from this source adoption.

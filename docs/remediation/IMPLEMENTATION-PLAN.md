@@ -1400,3 +1400,8 @@ Implementation follow-up: adjustment parent selection must exclude all adjustmen
 ## FIN-045/046 — Adjustment reconciliation and merchant visibility — 23 November 2026
 
 The implementation now preserves adjustment accounting semantics across the ADJUSTMENT → PAID transition by identifying rows through durable adjustment metadata or the legacy posted-adjustment note marker. The merchant-facing read-only Settlements page consumes the existing organization/store-scoped API, with store/status filtering and distinct paid-adjustment labeling. Admin settlement listings also label paid adjustment rows. Regression coverage is added; execution remains part of the consolidated Phase 3 campaign.
+
+
+## G-002 — Merchant document metadata context boundary (24 November 2026)
+
+Merchant document metadata operations are separated from object-storage signing at the controller boundary. Only registration of already-uploaded metadata and the two metadata-list reads are wrapped by the verified-user transaction context. Upload URL signing and download URL signing remain excluded because they perform object-storage work; download signing currently also persists the generated URL. Do not wrap those complete handlers in a request transaction. A future slice must split short DB metadata reads/writes from storage calls, preserve membership/ownership checks and avoid holding a transaction across storage I/O.

@@ -2471,3 +2471,16 @@ Source commit: `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50`.
 Added the verified user actor interceptor to four Payments POST handlers whose inspected service call graphs perform database transactions, append payment events and write outbox rows without calling payment/refund providers or object storage: COD cash confirmation, bank-transfer proof verification decision, settlement calculation and settlement-paid recording. Existing permission guards, service-level object/store authorization, row locks, optimistic state predicates and transactional outbox writes remain authoritative. The actor context wraps the complete awaited method; nested Drizzle transactions remain inside that scope.
 
 Explicitly excluded: bank-transfer proof upload (object storage), refund request/approval/retry (refund lifecycle), payment-provider operations, checkout and order cancellation/rejection paths. The controller metadata test now covers 12 Payments routes (eight GET and four DB-only POST); it remains unexecuted.
+
+
+## G-002 Merchant document metadata actor-context adoption — 24 November 2026
+
+The Merchant document controller now applies the verified-user TenantDatabaseContextInterceptor only to three database-only handlers:
+
+- POST /documents: validates organization/store membership and registers metadata for an object already uploaded using the presigned URL.
+- GET /documents/org/:orgId: checks organization access and lists document metadata.
+- GET /documents/store/:storeId: resolves the store, checks organization access and lists document metadata.
+
+The object-storage paths remain deliberately outside the request transaction: POST /documents/presign-upload, POST /documents/:id/presign, and POST /documents/:id/merchant-presign. These handlers call storage signing and/or combine storage I/O with metadata persistence; they require a separate short-phase DB/storage design before actor-context adoption. No storage operation is held inside a database transaction.
+
+Added merchant-controller-document-context.spec.ts to assert the three scoped handlers and the three excluded presign handlers. Test source is added but NOT EXECUTED under the implementation-first instruction. No RLS, grants, migration, shared/staging database, deployment, worker, merge or release action occurred.

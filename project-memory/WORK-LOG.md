@@ -1732,3 +1732,11 @@ Source commit: `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50`.
 Added the verified user actor interceptor to four Payments POST handlers whose inspected service call graphs perform database transactions, append payment events and write outbox rows without calling payment/refund providers or object storage: COD cash confirmation, bank-transfer proof verification decision, settlement calculation and settlement-paid recording. Existing permission guards, service-level object/store authorization, row locks, optimistic state predicates and transactional outbox writes remain authoritative. The actor context wraps the complete awaited method; nested Drizzle transactions remain inside that scope.
 
 Explicitly excluded: bank-transfer proof upload (object storage), refund request/approval/retry (refund lifecycle), payment-provider operations, checkout and order cancellation/rejection paths. The controller metadata test now covers 12 Payments routes (eight GET and four DB-only POST); it remains unexecuted.
+
+
+## 24 November 2026 — Merchant document metadata actor-context slice
+
+- Reviewed Merchant document controller/service call graphs. Registration of an already-uploaded document and organization/store document listing perform database-only metadata and membership operations; presign handlers perform object-storage signing, and download presigning also writes the resulting URL.
+- Added TenantDatabaseContextInterceptor to uploadDocument, listOrgDocuments and listStoreDocuments only. Kept presignDocumentUpload, presignDocument and presignMerchantDocument outside the request transaction.
+- Added merchant-controller-document-context.spec.ts to assert both the allowlist and storage-path exclusions. Test source was not executed.
+- Updated the G-002 implementation plan, progress tracker and programme gap register. No tests, formatter, lint, typecheck, E6 or CI were run. No RLS, migration, grants/default ACLs, shared/staging DB writes, deployment, worker activation, merge or release occurred.

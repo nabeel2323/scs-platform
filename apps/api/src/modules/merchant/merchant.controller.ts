@@ -204,6 +204,7 @@ export class MerchantController {
   // ── Documents ──────────────────────────────────────────────────
 
   @Post('documents')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async uploadDocument(@CurrentUser() user: JwtPayload, @Body() input: UploadDocumentInput) {
@@ -244,11 +245,13 @@ export class MerchantController {
   }
 
   @Get('documents/org/:orgId')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listOrgDocuments(@Param('orgId') orgId: string, @CurrentUser() user: JwtPayload) {
     return this.merchantService.listDocumentsByOrg(orgId, user.sub, user.perms);
   }
 
   @Get('documents/store/:storeId')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listStoreDocuments(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     return this.merchantService.listDocumentsByStore(storeId, user.sub, user.perms);
   }
