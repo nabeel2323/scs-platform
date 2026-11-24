@@ -195,10 +195,18 @@ export class CarrierConfigurationsService {
   // ── Private helpers ─────────────────────────────────────────────────────
 
   private withCallerContext<T>(caller: CallerContext, operation: () => Promise<T>): Promise<T> {
-    return this.db.withActorContext({
-      actorKind: 'user', actorId: caller.sub, actorRole: caller.role,
-      activeOrgId: caller.activeOrg ?? null,
-    }, operation);
+    if (typeof caller.role !== 'string' || caller.role.trim().length === 0) {
+      throw new ForbiddenException('Authenticated caller role is required for carrier database access');
+    }
+    return this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: caller.sub,
+        actorRole: caller.role,
+        activeOrgId: caller.activeOrg ?? null,
+      },
+      operation,
+    );
   }
 
   private withInternalContext<T>(orgId: string, workerId: string, operation: () => Promise<T>): Promise<T> {

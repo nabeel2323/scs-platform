@@ -109,6 +109,8 @@ export class CarrierCredentialsService {
     if (!['sandbox', 'production'].includes(environment)) {
       throw new BadRequestException("environment must be 'sandbox' or 'production'");
     }
+    // Authorize before doing credential crypto, then re-check membership in the insert transaction.
+    await this.withCallerContext(caller, () => this.assertOrgAccess(input.orgId, caller));
     const credentialsEncrypted = this.crypto.encrypt(input.credentialsJson);
     const webhookSecretEncrypted = input.webhookSecret ? this.crypto.encrypt(input.webhookSecret) : null;
     const webhookToken = 'whk_' + crypto.randomUUID().replace(/-/g, '');
@@ -215,10 +217,18 @@ export class CarrierCredentialsService {
   // ── Private helpers ─────────────────────────────────────────────────────
 
   private withCallerContext<T>(caller: CallerContext, operation: () => Promise<T>): Promise<T> {
-    return this.db.withActorContext({
-      actorKind: 'user', actorId: caller.sub, actorRole: caller.role,
-      activeOrgId: caller.activeOrg ?? null,
-    }, operation);
+    if (typeof caller.role !== 'string' || caller.role.trim().length === 0) {
+      throw new ForbiddenException('Authenticated caller role is required for carrier database access');
+    }
+    return this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: caller.sub,
+        actorRole: caller.role,
+        activeOrgId: caller.activeOrg ?? null,
+      },
+      operation,
+    );
   }
 
   private withInternalContext<T>(orgId: string, workerId: string, operation: () => Promise<T>): Promise<T> {
