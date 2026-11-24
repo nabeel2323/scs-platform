@@ -85,3 +85,10 @@ The controller callsite map is now paired with [G-002-METHOD-LEVEL-OWNERSHIP-PRE
 ## Catalog method-level predicate link — 22 November 2026
 
 The method-level map now includes CatalogService, CatalogOfferService, ProductGovernanceService and CatalogTaxonomyService. It records product/store, product/variant, media/product, offer/store/product, price-list/warehouse and admin taxonomy boundaries. Four ownership gaps were fixed; focused tests were added but not run.
+
+
+## 24 November 2026 — scoped actor-context adoption update
+
+The opt-in `TenantDatabaseContextInterceptor` now wraps only source-reviewed, bounded JWT-protected paths. Controller-level adoption: Notifications, Pricing, Store Membership, Promotions, Reviews, Disputes, Inventory, Analytics, Catalog Offers, Catalog Requests, Catalog Taxonomy, Cart, Returns, Organizations and Roles. Method-level adoption: 31 bounded CatalogController GET routes (excluding the direct-response import-errors handler), 29 bounded AdminController GET routes (excluding media-preview signing), and 16 ProfileController handlers (excluding credential setup/password change).
+
+The main OrdersController, PaymentsController, AuthController, carrier/shipping operations, file/import/upload mutations, bootstrap, deferred audit middleware, workers/schedulers, realtime, CLI and migrations remain outside. This is a selective allowlist, not a global request transaction. Each next route must be reviewed for nested transaction/savepoint behavior, detached async work, streaming and external I/O.

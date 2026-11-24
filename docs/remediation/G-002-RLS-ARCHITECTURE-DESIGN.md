@@ -202,3 +202,14 @@ The interceptor is deliberately not global. It is applied only to source-reviewe
 Other controllers and execution paths remain outside this adoption, including Auth/Profile, file/import/upload, main Orders/Payments, carrier/shipping operations, bootstrap, deferred audit middleware writes, workers/schedulers, realtime sockets, CLI and migrations. Each requires explicit principal and transaction contracts, with review for nested transactions, detached work, streaming and external I/O. Carrier context must be established only after credential authentication.
 
 This is source implementation only. Tests and CI remain deferred until implementation and cross-component integration are complete. No RLS policy, migration, shared database grant/default-ACL change, staging operation or deployment is authorized by this update.
+
+
+## 24 November 2026 — implemented opt-in transaction context and bounded HTTP rollout
+
+The initial actor-context primitive is implemented in DatabaseService and the shared `TenantDatabaseContextInterceptor` is opt-in. The primitive uses typed actor kinds (`anonymous`, `user`, `worker`, `system`, `bootstrap`, `audit`), parameterized transaction-local PostgreSQL settings (`app.actor_id`, `app.actor_role`, `app.active_org_id`, `app.actor_kind`, `app.worker_id`), and AsyncLocalStorage-backed Drizzle transaction routing. It reuses an identical actor context, rejects actor switching, and fences the ALS scope after transaction completion to prevent detached async work from querying via the expired handle.
+
+The interceptor runs after Nest guards, accepts identity only from verified `request.user`, awaits the request handler observable inside the transaction, and is never global. Bounded adoption currently covers Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Catalog/Admin reads, Cart, Returns, Organizations/Roles and selected Profile/device handlers. Credential setup/password change, AuthController, file/import/upload mutations, main Orders/Payments, carrier/shipping, bootstrap, post-response audit middleware, workers, realtime, CLI and migrations remain excluded pending separate context contracts.
+
+The promotion merchant routes also gained service-boundary caller checks for active organization and store membership; foreign detail access is normalized to not-found and update writes include the authorized store predicate.
+
+This implementation is not an RLS approval. No policy, migration, grant/default ACL, shared DB, staging or deployment change occurred. The user requires implementation/integration to complete before tests; no test or CI execution is authorized during this phase. The dedicated verification campaign must later cover nested savepoints, transaction rollback, actor switching, detached tasks, pool reuse, cross-tenant isolation, route coverage and worker/system identities.

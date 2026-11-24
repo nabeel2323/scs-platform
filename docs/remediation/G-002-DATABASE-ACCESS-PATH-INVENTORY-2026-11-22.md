@@ -94,3 +94,16 @@ Physical relation detail is now recorded in [G-002-PHYSICAL-DATABASE-OBJECT-INVE
 PricingController already validated that the requested variant belongs to the caller's store, but the no-storeId branch of PricingService.listTiersByVariant previously queried by variantId alone. A corrupt cross-store price-list association could therefore expose another store's tier. The service now requires storeId for all paths and joins priceLists with an explicit priceLists.storeId predicate. The controller passes the store resolved from the variant; internal getProductPricing calls pass their storeId too.
 
 AdminService.getOrderDetail previously returned raw orderItems without product/variant labels. It now joins products/productVariants and returns productTitle, variantTitle and variantSku for the Admin UI. This is a read-only projection change; the existing admin:orders:read guard remains unchanged.
+
+
+## 24 November 2026 — transaction-bound actor context implemented as opt-in
+
+DatabaseService now has an explicit `withActorContext` primitive. It opens a Drizzle transaction, establishes parameterized transaction-local GUC values with `set_config(..., true)`, and binds the transaction handle through AsyncLocalStorage so existing `DatabaseService.db` access resolves to the scoped transaction during the awaited operation. The context contract supports anonymous, user, worker, system, bootstrap and audit principals. Same-actor nested scopes reuse the current transaction; actor switching is rejected; the scope is marked inactive after completion to block inherited detached work from querying a closed transaction.
+
+A controller/method-scoped interceptor derives user context only from verified `request.user` after guards. It is currently applied to bounded JWT-protected routes in Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Catalog/Admin reads, Cart, Returns, Organizations/Roles, and selected Profile/device handlers. It is deliberately not global.
+
+Promotions merchant HTTP operations now carry the verified caller to the service boundary, assert active organization and store membership, normalize foreign detail denial to not-found, and constrain updates by both promotion ID and resolved store ID. Internal checkout redemption paths remain outside HTTP context until Orders/checkout integration.
+
+Still outstanding: full source-level cached-handle/detached-task audit, remaining bounded controller coverage, explicit worker/scheduler/bootstrap/audit/carrier-webhook principals, complete table-operation predicate evidence, actual deployed API/migration identity, protected live relation inventory, and independent architecture/security review. Carrier webhook context must be established only after credential authentication. AuditLogMiddleware writes after response completion and therefore must use a separately designed explicit system/audit transaction, not the HTTP request transaction.
+
+No RLS policy is enabled; no shared DB grants/default ACLs or migrations were changed. Tests, formatter, lint, typecheck, E6 and CI are deferred until implementation and integration are complete, per the user's explicit instruction.
