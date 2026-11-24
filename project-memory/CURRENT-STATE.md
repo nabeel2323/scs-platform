@@ -404,3 +404,17 @@ No tests or CI were run for this `[skip ci]` source commit. The previous automat
 Source commits `b1e5490401d9602205d46351ee4eaf1ab2db7d30`, `02edaa89d75b06e6c8a4170cc306662965d8fd30`, and `15d328c952dfd0805a9eee00374c6ad74ed1d6a1` enforce the shipment/order/store same-merchant invariant at creation, shipment detail authorization (before privileged bypass), and carrier worker processing before external side effects. This addresses independent `shipments.order_id` and `shipments.store_id` FKs that otherwise allow a mismatched pair.
 
 Regression cases are documented, not executed. Commits use `[skip ci]`. Next: locate the driver/store assignment consumer, review remaining carrier/webhook/shipment relationships, reconcile Drizzle and migration FKs, then add and execute the consolidated regression suite only after implementation/integration completion. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — latest refund and shipment source checkpoint
+
+Latest source implementation commits:
+- `01b6e6c729c1a458f20aaeaed043df4c569119e4` — settlement-adjustment org/return/payment ownership.
+- `fa2547997c4b4dad490b582f92c9a69b8c01ed8f` — commission-reversal return/payment/item/settlement/store ownership.
+- `98843bfe455667f7a96d7cbdd6dfb2253ce2af0f` — reconciliation organization and parent-child scope.
+- `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d` — refund/payment/order/currency lineage.
+- `b1e5490401d9602205d46351ee4eaf1ab2db7d30`, `02edaa89d75b06e6c8a4170cc306662965d8fd30`, `15d328c952dfd0805a9eee00374c6ad74ed1d6a1` — shipment/order/store consistency at creation, detail authorization and carrier worker boundaries.
+
+The G-002 migration FK crosswalk, implementation progress tracker, work log, open issues and START-HERE handoff were synchronized. Regression scenarios are documented but have not been added/executed in this continuation. The only recent automatic CI run, #1503, failed on an earlier source SHA; later source/docs commits use `[skip ci]` and have no workflow runs. Vercel Web/Admin remain external rate-limit failures. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+**Next:** locate the actual `driver_store_assignments` consumer/write path, finish the remaining carrier/webhook/shipment relationship inventory, reconcile Drizzle declarations with migration FKs, and then add regression coverage before the deferred consolidated verification. No protected staging, shared DB, migration, RLS/grant, deployment, worker activation, merge or release action occurred.
