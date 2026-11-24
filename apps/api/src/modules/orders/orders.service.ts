@@ -1258,7 +1258,8 @@ export class OrdersService {
     });
 
     // Refund request creation is a separate DB-only actor phase. It persists
-    // a refund row/event/outbox entry; provider execution remains downstream.
+    // a refund row/event/outbox entry; the current generic dispatcher only logs
+    // this event and does not execute a payment-provider refund.
     // The stable key makes retries of this rejection idempotent.
     if (this.payments) {
       try {
