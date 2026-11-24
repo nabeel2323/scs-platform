@@ -343,11 +343,11 @@ export class CatalogTaxonomyService {
 
   private async assertPlatformCategory(categoryId: string): Promise<void> {
     const category = await this.db.db.query.categories.findFirst({
-      where: and(eq(categories.id, categoryId), isNull(categories.storeId)),
+      where: and(eq(categories.id, categoryId), isNull(categories.storeId), eq(categories.isActive, true)),
       columns: { id: true },
     });
     if (!category) {
-      throw new BadRequestException('Product types may only reference platform-level categories');
+      throw new BadRequestException('Product types may only reference active platform-level categories');
     }
   }
 
@@ -388,6 +388,7 @@ export class CatalogTaxonomyService {
       where: eq(productTypes.id, id),
     });
     if (!current) throw new NotFoundException('Product type not found');
+    if (current.categoryId) await this.assertPlatformCategory(current.categoryId);
 
     const { version: _v, id: _id, status: _s, publishedAt: _p, ...base } = current;
     const newVersion = current.version + 1;
@@ -512,11 +513,18 @@ export class CatalogTaxonomyService {
           severity: 'ERROR',
         });
       } else if (cat.storeId != null) {
-        warnings.push({
+        errors.push({
           code: 'CATEGORY_NOT_PLATFORM',
           field: 'categoryId',
-          message: `Category "${cat.name}" is store-scoped; platform Product Types should reference a platform-level category`,
-          severity: 'WARNING',
+          message: `Category "${cat.name}" is store-scoped; platform Product Types must reference a platform-level category`,
+          severity: 'ERROR',
+        });
+      } else if (!cat.isActive) {
+        errors.push({
+          code: 'CATEGORY_INACTIVE',
+          field: 'categoryId',
+          message: `Category "${cat.name}" is inactive; publish requires an active platform category`,
+          severity: 'ERROR',
         });
       }
     }
@@ -664,6 +672,7 @@ export class CatalogTaxonomyService {
    */
   async duplicateProductType(id: string) {
     const source = await this.getProductType(id);
+    if (source.categoryId) await this.assertPlatformCategory(source.categoryId);
     const sourceAttrs = await this.db.db.query.productTypeAttributes.findMany({
       where: eq(productTypeAttributes.productTypeId, id),
     });
