@@ -4145,35 +4145,42 @@ export class CatalogService {
    * Returns the list of reset job IDs.
    */
   async recoverStaleJobs(): Promise<string[]> {
-    const staleThreshold = new Date(Date.now() - CatalogService.STALE_LOCK_MS);
+    // Dormant recovery entry point: use a stable worker principal if invoked,
+    // but do not register or schedule this method as part of this remediation.
+    return this.db.withActorContext(
+      { actorKind: 'worker', workerId: 'catalog-import-recovery' },
+      async () => {
+        const staleThreshold = new Date(Date.now() - CatalogService.STALE_LOCK_MS);
+        const staleJobs = await this.db.db
+          .select({ id: importJobs.id })
+          .from(importJobs)
+          .where(
+            and(eq(importJobs.status, 'PROCESSING'), sql`${importJobs.lockedAt} < ${staleThreshold}`),
+          );
 
-    const staleJobs = await this.db.db
-      .select({ id: importJobs.id })
-      .from(importJobs)
-      .where(
-        and(eq(importJobs.status, 'PROCESSING'), sql`${importJobs.lockedAt} < ${staleThreshold}`),
-      );
+        const resetIds: string[] = [];
+        for (const job of staleJobs) {
+          await this.db.db
+            .update(importJobs)
+            .set({ status: 'FAILED', updatedAt: new Date() })
+            .where(eq(importJobs.id, job.id));
 
-    const resetIds: string[] = [];
-    for (const j of staleJobs) {
-      // Reset job to FAILED (admin can then retry)
-      await this.db.db
-        .update(importJobs)
-        .set({ status: 'FAILED', updatedAt: new Date() })
-        .where(eq(importJobs.id, j.id));
+          await this.db.db
+            .update(importJobChunks)
+            .set({ status: 'PENDING', updatedAt: new Date() })
+            .where(
+              and(
+                eq(importJobChunks.importJobId, job.id),
+                eq(importJobChunks.status, 'PROCESSING'),
+              ),
+            );
 
-      // Reset any PROCESSING chunks to PENDING
-      await this.db.db
-        .update(importJobChunks)
-        .set({ status: 'PENDING', updatedAt: new Date() })
-        .where(
-          and(eq(importJobChunks.importJobId, j.id), eq(importJobChunks.status, 'PROCESSING')),
-        );
+          resetIds.push(job.id);
+        }
 
-      resetIds.push(j.id);
-    }
-
-    return resetIds;
+        return resetIds;
+      },
+    );
   }
 
   // ── Favorites / Wishlist ───────────────────────────────────
