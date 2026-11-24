@@ -2176,3 +2176,11 @@ Implemented actor-context boundaries for mixed Catalog product update/delete rou
 Added/updated regression specs for controller interceptor exclusions, CatalogService update/delete and outbox boundaries, and AuditService standalone/reused actor scopes. Tests are authored only; none were executed. No formatter/lint/typecheck/E6/CI. No shared/staging DB access, RLS/grant/migration change, deployment, worker activation, merge or release.
 
 Source commits: 0cd4606db719fdeaab61da5f0bc30767c381c5e9, e9b65ce7ceb2c8b73362c1ffe5db67f96883095b, 8959b67691585f4beaa43d12775a221d5a02927e. Test commits: ce66bf52df655f7e995e1cc91f1dd494e8b50660, d5d81e92b8a69bd243786d8846b7b4d5c7b68737, 0a94b92295b7525e95dffcc6682f61f0842a5656. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+## 25 November 2026 — Catalog import processing and error-report scopes
+
+Implemented verified-user actor scopes for mixed Catalog Import processing and CSV error export. Controller preflight job lookup and store membership/organization authorization now run inside short user scopes. processImportJob requires CatalogUserActor and scopes job lookup, atomic claim, default price-list operations, chunk creation/listing, cancellation reads, each chunk claim + per-chunk DB transaction, final aggregation/status writes, failure status update and final read. Object storage/XLSX parsing, Redis row loading and Redis cleanup stay outside actor transactions. getErrorReport requires the caller, loads the job and chunks in one short actor scope, then serializes CSV outside it. Routes intentionally remain excluded from TenantDatabaseContextInterceptor.
+
+Added tests for processing DB phases, chunk transaction scope, missing caller fail-closed behavior, error report scope and mixed route interceptor exclusions. Tests remain unexecuted; no quality gates or CI were run. No worker was added or activated. G-002 remains NOT VERIFIED.
+
+P13 correction: the full source shows P13MonitorService already wraps its direct diagnostic SQL reads in withMonitorActor. No P13 code change was made; the earlier helper-unused observation was incorrect.
