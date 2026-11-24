@@ -315,3 +315,8 @@ Source commit `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d` adds refund order/curre
 ## 24 November 2026 — refund/shipment ownership source checkpoint
 
 The latest source work adds refund/payment/order/currency consistency and shipment/order/store checks at creation, detail authorization and carrier worker boundaries. Source commits: `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d`, `b1e5490401d9602205d46351ee4eaf1ab2db7d30`, `02edaa89d75b06e6c8a4170cc306662965d8fd30`, and `15d328c952dfd0805a9eee00374c6ad74ed1d6a1`. Follow-up commits use `[skip ci]`; no tests, formatter, lint, typecheck, E6 or CI were run for these updates. Automatic PR CI #1503 failed on the earlier source checkpoint and is not evidence for these commits. Exact-head Actions remains empty for the latest skip-CI checkpoint; Vercel Web/Admin are external build-rate-limit failures. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — shipment read-path source update
+
+Commits `c916acd0a8b156affeda50e98dbc88acab2f39bc` and `56d605a7377c49766b990abfc023e6ae4a5cea1d` extend shipment/order/store checks to list/count, exception/RTS, order lookup and driver-list paths. Both use `[skip ci]`; no tests or workflows were run for them. The only automatic CI #1503 failure remains tied to an earlier source commit. No Actions runs exist for the later skip-CI source/docs checkpoints; Vercel Web/Admin remain external rate-limit failures. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
