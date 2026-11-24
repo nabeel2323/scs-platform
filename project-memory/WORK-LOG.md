@@ -1823,3 +1823,11 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 - Preserved the distinction between warehouse-owned stock and product variant references; store-owned price lists and their variant tiers; store-owned promotions and buyer-specific redemptions; buyer-owned carts/master orders; buyer/store participant visibility for sub-orders; and shipment child inheritance.
 - Recorded non-FK and multi-parent edge cases: stock movement reference_id is polymorphic; promotion scope_id is polymorphic; promotion_redemptions.order_id is not a declared FK; cart items and orders require cross-parent consistency; shipments must agree with their order/store; actor IDs are attribution only.
 - This is schema-source evidence only. No tests/CI or database/RLS/migration/grant/staging/deployment action occurred.
+
+
+## G-002 full module-schema inventory and final ownership-column pass — 24 November 2026
+
+- Mapped the remaining 44 table entries across Audit, Payments/Financial, Returns/Calendar, Reviews/Support, Notifications, Operations, Shipping and Bootstrap with direct columns, declared FK paths, polymorphic references, actor attribution and sensitive-data notes. Added the previously missing `payment_proof_upload_intents` row.
+- Compared all 25 module `*.schema.ts` files with `apps/api/src/drizzle/schema.ts`. Found 100 `pgTable` declarations across module schema files; 98 are re-exported by the barrel. `catalog_imports` and `catalog_import_errors` are declared in `catalog-import.schema.ts` but that file is not re-exported. The prior 99-row matrix included those two and omitted the exported `payment_proof_upload_intents`; the matrix now lists all 100 module declarations.
+- This invalidates the historical 99+15=114 split as a current source reconciliation. The 114 and 116 public relation counts remain historical/unresolved until the authorized protected read-only catalog audit. No subtraction-based delta is asserted.
+- Candidate ownership mapping is not RLS verification. No tests/CI, database, migration, grant, RLS, staging, deployment, worker activation, merge or release action occurred.

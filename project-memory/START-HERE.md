@@ -1038,3 +1038,8 @@ The table ownership matrix now includes schema-backed direct columns and declare
 ## 24 November 2026 — G-002 Inventory/Pricing/Promotions/Orders/Shipment table detail
 
 The ownership matrix now includes schema-backed direct columns and declared parent paths for 15 additional Inventory, Pricing, Promotions, Cart, Orders and Shipment tables. It records buyer/store participant visibility, warehouse inheritance, polymorphic references and multi-parent consistency requirements without promoting those to composite FKs.
+
+
+## 24 November 2026 — full module-schema inventory reconciliation
+
+The G-002 table matrix now includes all 100 `pgTable` declarations found across 25 module schema files. The current schema barrel exports 98; two catalog-import declarations are outside the barrel, and the previously omitted exported `payment_proof_upload_intents` table has been added. The old 99+15=114 relation split is historical, not a current source reconciliation. The protected catalog audit and separate 116 count remain open.

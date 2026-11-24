@@ -2550,3 +2550,11 @@ Important scope boundary: requestRefund creates a REQUESTED refund row, payment 
 - Mapped buyer-owned carts and master orders, multi-parent cart items, buyer/store participant orders, order child financial/history ledgers, and shipment/order/store/driver references plus shipment event inheritance.
 - Explicitly retained service-level cross-parent consistency predicates where no composite FK exists. Source-schema evidence only; live catalog constraints, operation-specific policies and the 99/114/116 discrepancy remain open.
 - No tests, formatter, lint, typecheck, E6 or CI were run; no database/RLS/migration/grant/staging/deployment/worker/merge/release action occurred.
+
+
+## G-002 full module-schema table inventory and remaining ownership pass — 24 November 2026
+
+- Completed schema-backed direct-column/FK candidate mapping for the remaining Audit, Payments/Financial, Returns/Calendar, Reviews/Support, Notifications, Operations, Shipping and Bootstrap tables; the ownership matrix now covers all 100 `pgTable` declarations found across 25 module schema files.
+- Added the previously omitted `payment_proof_upload_intents` table. Reconciled the source export boundary: `schema.ts` re-exports 98 tables; `catalog-import.schema.ts` defines two additional Drizzle tables but is not re-exported by the barrel. The matrix contains all 100 declarations and explicitly labels those two non-barrel tables.
+- The old historical `99 Drizzle + 15 other = 114` split is no longer supported by current source counts. The detailed 114 relation report and separate 116 count remain historical/unresolved pending protected read-only catalog evidence. Do not infer a 2-relation delta or current live total.
+- The matrix is still candidate ownership evidence, not policy-ready: live constraints, exact operation predicates, privilege/function/partition inventory and protected runtime identities remain open. No tests, formatter, lint, typecheck, E6 or CI were run; no database/RLS/migration/grant/staging/deployment action occurred.

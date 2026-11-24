@@ -206,3 +206,10 @@ This is Drizzle source evidence only; no live catalog constraints or policy read
 Updated 15 table rows with direct Drizzle columns and parent references across Inventory, Pricing, Promotions, Cart, Orders and Shipments. The matrix now distinguishes warehouse-inherited stock ownership, store-owned price books/promotions, buyer-owned carts/master orders, buyer/store participant access for sub-orders, and shipment inheritance. Polymorphic references and missing composite constraints are explicitly recorded as service-level invariants, not treated as FKs.
 
 This is source-schema evidence only. Live catalog constraints, runtime identities, operation-by-operation policy mapping and the 99/114/116 reconciliation remain open.
+
+
+## G-002 full source-schema inventory reconciliation — 24 November 2026
+
+The table ownership matrix now covers all 100 `pgTable` declarations found across the 25 module schema files, with direct columns, declared parent references, attribution fields, polymorphic references and multi-parent consistency requirements recorded. A source-barrel comparison found that 98 declarations are re-exported by `apps/api/src/drizzle/schema.ts`; `catalog_imports` and `catalog_import_errors` are declared in `catalog-import.schema.ts` but not exported by the barrel. The previous 99-row matrix included those two and omitted the exported `payment_proof_upload_intents` table; that inventory omission is corrected.
+
+The historical 99+15=114 relation split is no longer a current source-backed reconciliation. The detailed 114 relation snapshot and separate 116 count remain unresolved pending protected read-only catalog evidence. No live relation count, policy readiness or RLS verification is claimed.
