@@ -2812,3 +2812,12 @@ Driver/store assignment review found separate FKs from driver profile to organiz
 Regression cases are specified in the G-002 migration FK crosswalk but have not been added/executed in this session. No tests, formatter, lint, typecheck, E6 or manual CI dispatch was run. Automatic PR CI #1503 failed on the preceding source SHA; it is not evidence for commit `98843bf`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 
 **Next:** locate the actual driver/store assignment consumer/write path; finish remaining shipping/financial relationship predicates and Drizzle/migration FK reconciliation; then add the consolidated regression coverage before the deferred verification campaign. Protected runtime identity/catalog and external scheduler evidence remain gated.
+
+
+## G-002 — refund/payment/order lineage hardening — 24 November 2026
+
+**Source commit:** `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d`.
+
+The refund schema has independent payment-record and order FKs. The request path persisted the order/currency from the locked payment, and failed/retry paths already checked their equality, but approval and idempotent recovery did not. Refund request replay and concurrent idempotency-conflict recovery now require the stored order and currency to match the locked payment. Refund approval now checks the locked refund order/currency against the locked payment before transitioning state or writing events/outbox. The return-refund flow's existing multi-ledger lineage checks remain unchanged.
+
+Regression cases are documented in the G-002 migration FK crosswalk; they have not been added/executed in this session. No tests, formatter, lint, typecheck, E6 or CI dispatch was run. The commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
