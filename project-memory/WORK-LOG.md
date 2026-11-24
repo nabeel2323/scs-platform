@@ -1654,3 +1654,12 @@ The user explicitly directed: finish implementation first, then do the tests; pr
 - `BootstrapService.getStatus` runs under an anonymous actor context; the bootstrap authorization insert after OTP verification uses a bootstrap principal; initial Super Admin provisioning wraps its existing atomic transaction in a bootstrap context. OTP Redis/rate-limit/delivery work remains outside database transactions.
 - `bootstrap-issue-token.ts` now sets transaction-local bootstrap GUCs immediately after BEGIN and before the advisory lock and any reads/writes. The CLI continues to keep token plaintext out of persistence/audit.
 - No tests, formatter, lint, typecheck, E6 or CI were run. No shared database, migration, grants, RLS, staging, deployment, worker activation, merge or release occurred.
+
+
+## 24 November 2026 — authenticated carrier webhook actor context
+
+- CarrierWebhookController now establishes a credential-scoped worker context only after the webhook HMAC signature has been verified. The context uses `workerId: carrier-webhook:<credentialId>` and `activeOrgId: credential.orgId` from the authoritative credential row.
+- Pre-auth credential lookup and webhook-secret decryption remain outside tenant context because the credential has not yet been authenticated. The payload's tenant/store/order identifiers remain untrusted.
+- After HMAC verification, deduplication insert/read, credential-scoped shipment routing, ambiguous/not-found status writes, shipment linking, processed status and retry outbox writes run inside short actor-context transactions. Retry state and outbox insertion are separated into bounded transactions so a best-effort update failure does not hold the entire webhook operation open.
+- HTTP response writes occur after each actor-context operation completes; no transaction is held across external carrier I/O (there is no carrier provider call in this webhook path).
+- No tests, formatter, lint, typecheck, E6 or CI were run. No RLS, migration, grant, shared DB, staging, deployment, worker activation, merge or release occurred.

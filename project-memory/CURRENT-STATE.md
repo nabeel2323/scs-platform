@@ -3,7 +3,7 @@
 **Live reconciliation:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Exact branch head at this checkpoint:** `ab8317297fcf9c2dba2eaa5b9653251833da7a86` — operator bootstrap CLI transaction-local principal.  
+**Exact branch head at this checkpoint:** `fdecc491177528bbbac93bf826bee2f59314450e` — authenticated carrier webhook DB phases now use credential-scoped worker context.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop`.  
 **Actions:** no exact-head workflow run; implementation commits use `[skip ci]`. Latest listed Actions runs are historical older SHAs. External Vercel preview statuses are not application test evidence.
 
@@ -27,28 +27,29 @@ The shared interceptor is explicitly controller/method scoped, runs after guards
 
 Promotions merchant create/list/detail/update/code-validation now carry verified caller context, enforce active organization/store membership at the service boundary, normalize foreign detail denial to not-found, and constrain updates by both promotion ID and authorized store ID.
 
-## Current worker and system adoption
+## Current worker/system adoption
 
-- `AutoCompleteWorker`: claim and per-order completion/release run under a unique `worker` actor context; each claim and completion uses a bounded transaction.
+- `AutoCompleteWorker`: claim and per-order completion/release run under a unique `worker` actor context; each claim/completion uses a bounded transaction.
 - `OutboxDispatcher`: claim and status/retry acknowledgements run under a unique `worker` actor context; event dispatch remains outside the transaction.
-- `CarrierTrackingPoller`: shipment claim, tracking event persistence, delivered-after-cancel exception writes, shipment status updates and Orders delivery bridge run under a worker actor context. Carrier network calls and circuit-breaker operations remain outside transactions.
-- `AuditLogMiddleware`: response-finish audit writes now open their own short transaction with an explicit `audit` actor; this avoids reusing an HTTP request transaction after response completion.
-- `BootstrapService`: public status reads use an anonymous context; OTP authorization insertion and initial Super Admin provisioning use bootstrap contexts.
-- `bootstrap-issue-token.ts`: the operator CLI sets a transaction-local bootstrap principal immediately after BEGIN, before advisory locking and database operations.
-- `ReturnExpirationWorker`: remains outside actor context. An attempted wrapper was reverted to preserve lease/fencing and per-item transaction boundaries.
-- `ShippingCarrierWorker`: remains outside actor context because it mixes DB reads/writes with external carrier and storage calls. It needs a per-phase DB/external-I/O split.
+- `CarrierTrackingPoller`: shipment claim, tracking event persistence, delivered-after-cancel exception writes, shipment status updates and Orders delivery bridge run under a worker actor context. Carrier network calls and circuit-breaker interactions remain outside transactions.
+- `CarrierWebhookController`: pre-auth credential lookup/decryption and HMAC verification remain outside tenant context. Only after a valid HMAC signature does it establish a worker actor with `workerId=carrier-webhook:<credentialId>` and `activeOrgId=credential.orgId` around each bounded DB phase (dedup insert, credential-scoped shipment routing, event status and retry outbox writes). Payload tenant IDs remain untrusted.
+- `AuditLogMiddleware`: response-finish audit writes use their own short `audit` actor transaction.
+- `BootstrapService`: anonymous status reads and bootstrap actor contexts for post-OTP authorization insertion and initial Super Admin provisioning.
+- `bootstrap-issue-token.ts`: sets transaction-local bootstrap principal immediately after BEGIN.
+- `ReturnExpirationWorker`: remains outside actor context; an attempted wrapper was reverted to preserve lease/fencing and per-item transaction boundaries.
+- `ShippingCarrierWorker`: remains outside actor context because it mixes DB reads/writes with external carrier and storage calls; it needs a per-phase DB/external-I/O split.
 - `WorkerCountMonitor` has no database operations.
 
 ## Remaining uncovered paths
 
-AuthController; Profile credential setup/password change; main Catalog import/upload and Merchant document/upload mutations; main Orders and Payments controllers; ShippingCarrierWorker provider/storage phases; ReturnExpirationWorker lease/fencing operations; realtime sockets; remaining workers/schedulers; CLI utilities other than bootstrap issue; and migration execution. Carrier webhook context must be established only after credential authentication.
+AuthController; Profile credential setup/password change; main Catalog import/upload and Merchant document/upload mutations; main Orders and Payments controllers; ShippingCarrierWorker provider/storage phases; ReturnExpirationWorker lease/fencing operations; realtime sockets; remaining workers/schedulers; CLI utilities other than bootstrap issue; and migration execution.
 
 ## Next implementation priorities
 
 1. Complete the method-level table/operation/ownership matrix and reconcile the 114/116 relation inventory.
 2. Design ReturnExpirationWorker context without wrapping the full batch or weakening lease/fencing semantics.
-3. Split ShippingCarrierWorker into short worker-context DB phases around external carrier/storage calls, using the validated credential/shipment organization only after authorization.
-4. Define explicit carrier-webhook and realtime socket context contracts; never establish webhook context before credential authentication.
+3. Split ShippingCarrierWorker into short worker-context DB phases around external carrier/storage calls.
+4. Review realtime socket authentication/authorization and add a distinct socket actor context only if it can be scoped to each authorized operation.
 5. Obtain actual API/migration runtime identity and protected read-only catalog evidence through the authorized staging process.
 
 ## Verification state
