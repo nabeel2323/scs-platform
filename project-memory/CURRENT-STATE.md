@@ -397,3 +397,10 @@ CI #1503, automatically triggered by earlier source commits, completed FAILURE o
 Source commit `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d` closes missing cross-column checks in refund approval and idempotent request recovery: refund order and currency must match the locked payment before a replay is accepted or an approval transitions state. Return-refund processing already validates its return/payment/order/refund/buyer/currency lineage under locks. The G-002 crosswalk and progress tracker now include the source evidence and regression cases.
 
 No tests or CI were run for this `[skip ci]` source commit. The previous automatic CI #1503 failure was on the earlier financial source checkpoint, not this update. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Next: locate actual driver/store assignment consumers, complete remaining shipment/order and carrier/shipment cross-column review, reconcile Drizzle declarations against migrations, then add regression coverage and proceed to consolidated verification only after implementation/integration is complete.
+
+
+## 24 November 2026 — shipment order/store integrity follow-up
+
+Source commits `b1e5490401d9602205d46351ee4eaf1ab2db7d30`, `02edaa89d75b06e6c8a4170cc306662965d8fd30`, and `15d328c952dfd0805a9eee00374c6ad74ed1d6a1` enforce the shipment/order/store same-merchant invariant at creation, shipment detail authorization (before privileged bypass), and carrier worker processing before external side effects. This addresses independent `shipments.order_id` and `shipments.store_id` FKs that otherwise allow a mismatched pair.
+
+Regression cases are documented, not executed. Commits use `[skip ci]`. Next: locate the driver/store assignment consumer, review remaining carrier/webhook/shipment relationships, reconcile Drizzle and migration FKs, then add and execute the consolidated regression suite only after implementation/integration completion. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
