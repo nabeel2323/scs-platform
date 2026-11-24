@@ -438,12 +438,12 @@ export class CatalogImportService {
     return rows;
   }
 
-  async downloadTemplate(type: string): Promise<Buffer> {
-    return this.templateGenerator.generateTemplate(type);
+  async downloadTemplate(type: string, caller: CatalogImportCaller): Promise<Buffer> {
+    return this.templateGenerator.generateTemplate(type, caller);
   }
 
-  async exportCatalog(): Promise<Buffer> {
-    return this.templateGenerator.generateExport();
+  async exportCatalog(caller: CatalogImportCaller): Promise<Buffer> {
+    return this.templateGenerator.generateExport(caller);
   }
 
   async downloadReport(importId: string, caller: CatalogImportCaller): Promise<Buffer> {
