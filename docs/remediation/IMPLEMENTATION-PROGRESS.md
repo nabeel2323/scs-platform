@@ -2386,3 +2386,14 @@ Added explicit controller/method-scoped adoption to bounded JWT-protected paths:
 **Status:** IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Auth/Profile, file/import/upload, main Orders/Payments, carrier/shipping, bootstrap, deferred audit writes, workers/schedulers, realtime sockets, CLI and migration paths remain outside the adoption pending explicit context design. Live runtime identity evidence, protected read-only catalog inventory, complete operation predicates and independent review remain outstanding.
 
 No tests, formatting, lint, typecheck, E6 or CI were run, per the implementation-first instruction. No RLS, shared database changes, migration, staging action, deployment or worker activation occurred.
+
+
+## G-002 transaction-bound actor context — bounded HTTP adoption expansion — 24 November 2026
+
+The opt-in actor-context primitive has been integrated into additional bounded, JWT-protected HTTP surfaces. The current reviewed allowlist includes Notifications; Pricing; Store Membership; Promotions; Reviews and Disputes; Inventory; Analytics; Catalog Offers, Requests and Taxonomy; selected Catalog read handlers; selected Admin read handlers; Cart; Returns; Organizations and Roles; and 16 bounded Profile/device handlers. Credential setup and password-change handlers remain outside the Profile adoption. Catalog import/upload operations, Admin media-preview signing, and the direct-response import-errors handler remain excluded from their respective controller adoption.
+
+PromotionsController now forwards the verified caller into merchant create/list/detail/update/code-validation operations. PromotionsService enforces active organization and store membership at the service boundary; foreign-store and same-org non-member detail reads normalize to not-found; updates repeat the resolved store ID in the write predicate. This closes the concrete merchant promotion ownership gap found during the G-002 source review. Internal checkout methods `resolveApplicable` and `redeemPromotion` remain trusted service-to-service operations and require later Orders context adoption.
+
+The shared interceptor remains explicitly controller/method scoped and not global. It reads actor identity only from the JWT-authenticated request after Nest guards and executes the handler observable inside the transaction. No test, formatter, lint, typecheck, E6 or CI was run. The implementation-first instruction defers the consolidated test campaign until implementation and integration are complete. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+No RLS policy, migration, shared database grant/default-ACL change, staging write, deployment, worker activation, merge or release occurred.

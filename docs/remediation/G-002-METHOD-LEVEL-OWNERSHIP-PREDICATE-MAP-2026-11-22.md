@@ -332,3 +332,20 @@ AdminService.getOrderDetail now enriches order items with productTitle, variantS
 - PricingService.listTiersByVariant now requires storeId for all paths. It joins priceLists and constrains priceLists.storeId, optionally also constraining priceListId. PricingController.getProductPricing passes the store resolved from the variant; getProductPricing passes its known store through the internal lookup.
 - Focused regression tests cover missing-store rejection and the owning-store SQL predicate.
 - AdminService.getOrderDetail joins orderItems to products/productVariants; Admin order detail displays product title, variant title and SKU with UUID fallback.
+
+
+## Supplemental source review batch — Promotions and Profile/Identity — 24 November 2026
+
+### PromotionsService and PromotionsController
+
+- `promotions`: service operations include create, read/detail, list by store, active listing, code lookup/validation, applicable-promotion resolution, update, and nearby active listing. Merchant HTTP create/list/detail/update/code-validation routes now pass a `CallerContext` built only from the verified JWT. The service asserts store-in-active-org and active store membership before merchant operations. Foreign/non-member detail access returns not-found to avoid identifier disclosure. Update predicates include both promotion ID and the store ID resolved during authorization.
+- `promotion_redemptions`: read/insert operations remain in the internal checkout/redeem service path; they are scoped by promotion ID and user ID. `resolveApplicable` additionally checks the supplied store ID matches the promotion's store before returning it. These internal paths still need the Orders/checkout transaction context before RLS rollout.
+- The controller-scoped actor interceptor covers all bounded PromotionsController handlers; no external provider, streaming or detached task is invoked by those HTTP handlers.
+
+### Identity/Profile
+
+- `OrganizationsController` and `RolesController` are controller-scoped behind JWT authentication and use the shared actor transaction interceptor.
+- ProfileController uses method-level actor context for 16 bounded profile, organization-list, device-token, favorites, saved-supplier, session and trusted-device handlers. Credential setup and password-change methods are deliberately excluded pending review of credential/session side effects and transaction lifetime.
+- `AuthController` remains outside due OTP/provider/rate-limit/session workflows.
+
+This supplemental source map is not runtime/RLS verification. The user requires all test execution to remain deferred until implementation and cross-component integration are complete.
