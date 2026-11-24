@@ -207,6 +207,18 @@ export async function issueToken(
   try {
     await client.query('BEGIN');
 
+    // Establish a transaction-local bootstrap principal before any database
+    // reads or writes. The settings are cleared automatically on COMMIT/ROLLBACK.
+    await client.query(
+      `SELECT
+        set_config('app.actor_kind', $1, true),
+        set_config('app.actor_id', $2, true),
+        set_config('app.actor_role', '', true),
+        set_config('app.active_org_id', '', true),
+        set_config('app.worker_id', '', true)`,
+      ['bootstrap', `bootstrap-cli:${operator}`],
+    );
+
     await client.query(`SELECT pg_advisory_xact_lock(${ISSUANCE_ADVISORY_LOCK_KEY})`);
 
     const existingAdmin = await client.query(`
