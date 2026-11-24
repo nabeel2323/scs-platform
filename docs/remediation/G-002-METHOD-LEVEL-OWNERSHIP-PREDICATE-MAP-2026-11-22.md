@@ -372,4 +372,4 @@ Source review confirmed that `MerchantController.reviewVerification` delegates t
 
 The handler now uses `TenantDatabaseContextInterceptor`, which derives its actor from the verified JWT after the existing `merchant:verification:review` permission guard. The existing service transaction remains nested within the same actor-bound transaction. The merchant controller metadata regression spec now includes `reviewVerification` in the DB-only allowlist and continues to assert that all three document presign handlers remain outside request transactions.
 
-This is source implementation and authored regression coverage only. The test was not executed under the implementation-first instruction. No database, RLS, migration, grants, staging, deployment or worker action occurred.
+This is source implementation and authored regression coverage only. Source commit: `6339acb944d3e41a6066e0f123394daa38d74491`. The test was not executed under the implementation-first instruction. No database, RLS, migration, grants, staging, deployment or worker action occurred.

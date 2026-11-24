@@ -1785,6 +1785,7 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 
 ## G-002 Merchant verification-review actor context — 24 November 2026
 
+- Source commit: `6339acb944d3e41a6066e0f123394daa38d74491`.
 - Audited `MerchantController.reviewVerification` and `MerchantService.reviewVerification`. The service uses one DB transaction with row locks on the verification request and store; checks that the request organization matches the store; updates verification request, store and business-document state; conditionally updates organization verification and activates eligible products; and writes the decision outbox row with the same transaction client. No storage/provider I/O occurs in this path.
 - Added the verified-user `TenantDatabaseContextInterceptor` to the review handler. The existing permission guard remains in place; the actor is derived from the authenticated JWT, not the request body.
 - Expanded `merchant-controller-document-context.spec.ts` to assert that review is scoped while all document presign routes remain outside the request transaction.

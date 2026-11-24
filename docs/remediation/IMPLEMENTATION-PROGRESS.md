@@ -2511,6 +2511,7 @@ Important scope boundary: requestRefund creates a REQUESTED refund row, payment 
 
 ## G-002 Merchant verification-review actor context — 24 November 2026
 
+- Source commit: `6339acb944d3e41a6066e0f123394daa38d74491`.
 - Source review verified `MerchantController.reviewVerification` is a database-only workflow: it locks the verification request and store, checks request/store organization consistency, updates verification request/store/document records, conditionally verifies the organization and activates eligible products, and inserts the decision outbox event in the same service transaction.
 - Added `TenantDatabaseContextInterceptor` to the review handler. It remains behind the existing `merchant:verification:review` permission guard and derives actor identity only from the verified JWT.
 - Extended `merchant-controller-document-context.spec.ts` so the DB-only review handler is in the scoped allowlist while upload/download presign storage handlers remain excluded.
