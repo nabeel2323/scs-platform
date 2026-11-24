@@ -2070,3 +2070,10 @@ The 75-file numbered migration scan found 183 explicit REFERENCES clauses across
 - Admin recovery validates order/store before privileged bypass; recovery queue joins the matching order; both reconciliation cycles filter and direct methods revalidate; webhook resolution only links same-store shipment/order pairs; tracking poll filters and revalidates before provider/events/delivery bridge.
 - Driver assignment disposition: schema only, no writer/controller found in inspected shipping module; shipment assignedDriverId references users, not driver profiles. Do not invent an endpoint. Confirm whether driver_store_assignments is dead/legacy or consumed outside the module.
 - Crosswalk and progress tracker updated. Regression cases are documented but unexecuted; commits use `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — webhook retry credential lineage
+
+- A final webhook worker pass found already-linked retry events did not compare the shipment's owning store organization with the event's credential organization, although unlinked events did revalidate the credential.
+- Commit [926c475](https://github.com/nabeel2323/scs-platform/commit/926c475fb9c59ffa1688dccee3d4f9dfbeea59e2) now validates the bound credential for every unprocessed event and requires linked shipment store org = credential org before marking processed. Unlinked legacy events without credential binding fail closed; already-linked legacy null-credential rows remain compatible with shipment/order/store validation.
+- Updated G-002 crosswalk and progress tracker with regression scenarios. Tests remain unexecuted; commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
