@@ -83,7 +83,9 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
     try {
       // Claim rows atomically across API instances. A five-minute lease allows
       // another worker to recover an event if this process exits mid-dispatch.
-      const pending = await this.db.db.transaction(async (tx) => {
+      const pending = await this.db.withActorContext(
+        { actorKind: 'worker', workerId: this.workerId },
+        () => this.db.db.transaction(async (tx) => {
         const result = await tx.execute(sql`
           WITH candidates AS (
             SELECT id
@@ -109,12 +111,15 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
             event.attempts
         `);
         return (result as any).rows as any[];
-      });
+        }),
+      );
 
       for (const event of pending) {
         try {
           await this.dispatch(event);
-          await this.db.db
+          await this.db.withActorContext(
+            { actorKind: 'worker', workerId: this.workerId },
+            () => this.db.db
             .update(outboxEvents)
             .set({
               status: 'DISPATCHED',
@@ -122,7 +127,8 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
               lockedAt: null,
               lockedBy: null,
             })
-            .where(and(eq(outboxEvents.id, event.id), eq(outboxEvents.lockedBy, this.workerId)));
+            .where(and(eq(outboxEvents.id, event.id), eq(outboxEvents.lockedBy, this.workerId))),
+          );
         } catch (err: any) {
           const attempts = (event.attempts || 0) + 1;
           const isFinal = attempts >= 5;
@@ -134,7 +140,9 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
 
           // Only the current lease owner may change retry state. If the lease
           // expired and another worker reclaimed it, this update is a no-op.
-          await this.db.db
+          await this.db.withActorContext(
+            { actorKind: 'worker', workerId: this.workerId },
+            () => this.db.db
             .update(outboxEvents)
             .set({
               status,
@@ -144,7 +152,8 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
               lockedAt: null,
               lockedBy: null,
             })
-            .where(and(eq(outboxEvents.id, event.id), eq(outboxEvents.lockedBy, this.workerId)));
+            .where(and(eq(outboxEvents.id, event.id), eq(outboxEvents.lockedBy, this.workerId))),
+          );
           console.error(`[OutboxDispatcher] Failed to dispatch ${event.eventType}:`, err?.message);
         }
       }

@@ -103,10 +103,16 @@ export class AutoCompleteWorker implements OnModuleInit, OnModuleDestroy {
     try {
       let processed = 0;
       while (processed < AutoCompleteWorker.BATCH_SIZE) {
-        const row = await this.claimNextOrder();
+        const row = await this.db.withActorContext(
+          { actorKind: 'worker', workerId: this.workerId },
+          () => this.claimNextOrder(),
+        );
         if (!row) break;
         processed += 1;
-        await this.processCompletion(row);
+        await this.db.withActorContext(
+          { actorKind: 'worker', workerId: this.workerId },
+          () => this.processCompletion(row),
+        );
       }
 
       if (processed > 0) {
