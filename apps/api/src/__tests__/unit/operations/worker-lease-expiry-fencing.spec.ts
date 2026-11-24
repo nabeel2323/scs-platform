@@ -55,7 +55,7 @@ describe('WorkerLeaseService expiry fencing', () => {
 
   it('fences poll success, poll failure and release after lease expiry', async () => {
     const execute = vi.fn().mockResolvedValue({ rows: [] });
-    const service = new WorkerLeaseService({ db: { execute } } as any);
+    const { service, withActorContext } = createService(execute);
 
     await service.recordPollSuccess(12, 'claimed=0', 'p13-return-expiration');
     await expect(
