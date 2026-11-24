@@ -90,3 +90,15 @@ Source commit: `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f`.
 DatabaseService supports an operation-scoped `authentication` actor with no user ID, role, organization or worker identity. It requires one of five fixed operation labels and sets `app.auth_operation` transaction-locally. IdentityService uses it only for initial account lookup in phone OTP, email OTP and password login, and initial session lookup in refresh/logout.
 
 This is only the first lookup boundary. Post-proof account creation, claims reads, session rotation/revocation and device-credential DB work remain open. Next, scope those DB-only phases under a verified user actor after OTP/password proof or refresh-token owner resolution. Keep Redis, bcrypt, provider, rate-limit and JWT work outside transactions. Future RLS policies must restrict authentication-context reads by operation and must not grant general identity-table access. No RLS, grants, migrations or database changes were made. No tests/CI were run.
+
+## Post-proof login/session actor-context adoption — 24 November 2026
+
+Source commits: `5a6eba900eabe021352a0f7f3307bddaeb2d6333` and `b939a335a5bc126241131ab48bb03c9ed3cfaea6`.
+
+- Phone/email OTP: Redis challenge consumption stays outside. Account lookup/create and claims resolution use the fixed authentication operation. Once role/org claims are resolved, session insertion and device-credential issuance run in a verified user actor transaction.
+- Password login: rate limiting and bcrypt comparison stay outside. Post-password claims resolution uses the authentication operation; device-credential validation and trusted session insertion/anchor update use the user actor.
+- Refresh: initial session lookup and claims resolution use the authentication operation. A user actor transaction conditionally revokes the still-active old session, inserts its replacement and validates/anchors device trust. A zero-row conditional revoke rejects a concurrent rotation. JWT signing remains outside.
+- Refresh reuse and logout: resolve session owner first, then perform owner-bound session/device-credential revocations under the user actor. Logout's revocations share one DB-only transaction; unknown tokens remain non-disclosing.
+- OTP Redis, rate limits, bcrypt, provider delivery, external audit side effects and JWT signing remain outside database actor transactions.
+
+A new `database-authentication-context.spec.ts` covers purpose validation, rejection of identity-bearing authentication contexts, transaction-local context and nested-purpose switching. OTP lifecycle/concurrency/security and email-enumeration fixtures were updated for actor contexts; the identity N+1 mock supports the conditional update's `returning()` chain. Tests remain unexecuted.

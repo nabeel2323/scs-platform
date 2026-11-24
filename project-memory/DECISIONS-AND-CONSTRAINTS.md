@@ -164,3 +164,13 @@ This is a standing instruction for future sessions unless the user changes it. T
 - This actor carries no user ID, role, active organization or worker ID. Its operation label is server-selected, validated and transaction-local as `app.auth_operation`.
 - The context is not a policy or privilege grant. Future RLS policies must allow only minimum operation-specific reads, not general identity CRUD.
 - After proof/owner resolution, post-proof mutations must use a verified user actor and ownership predicates. OTP/Redis, rate-limit, bcrypt, provider and JWT work remains outside DB transactions.
+
+## Post-proof authentication/session actor-context boundary — 24 November 2026
+
+- Phone/email OTP: Redis challenge consumption stays outside. Account lookup/create and claims resolution use the fixed authentication operation. Once role/org claims are resolved, session insertion and device-credential issuance run in a verified user actor transaction.
+- Password login: rate limiting and bcrypt comparison stay outside. Post-password claims resolution uses the authentication operation; device-credential validation and trusted session insertion/anchor update use the user actor.
+- Refresh: initial session lookup and claims resolution use the authentication operation. A user actor transaction conditionally revokes the still-active old session, inserts its replacement and validates/anchors device trust. A zero-row conditional revoke rejects a concurrent rotation. JWT signing remains outside.
+- Refresh reuse and logout: resolve session owner first, then perform owner-bound session/device-credential revocations under the user actor. Logout's revocations share one DB-only transaction; unknown tokens remain non-disclosing.
+- OTP Redis, rate limits, bcrypt, provider delivery, external audit side effects and JWT signing remain outside database actor transactions.
+
+The authentication actor remains purpose-scoped and is not a general-purpose identity CRUD grant. After identity proof/owner resolution, writes use the verified user actor. No Redis, provider, bcrypt, rate-limit or JWT work inside actor transactions.

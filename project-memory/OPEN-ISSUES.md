@@ -963,3 +963,9 @@ Focused tests were added/updated in the controller, account-linking, email-OTP e
 Source commit `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f` introduces an operation-scoped authentication actor with no user/role/org/worker identity and five fixed purpose labels. Initial phone OTP/email OTP/password account lookups and refresh/logout session lookups now run in this context.
 
 **Remaining:** scope post-proof account creation and session/device-credential DB work under a verified user actor; split Redis/bcrypt/provider/rate-limit/JWT work outside. Review refresh-token rotation/reuse race conditions and make session rotation atomic. Logout should perform owner-bound session and enrolled-device revocation in one user transaction after the initial token lookup. Future RLS policies must allow only minimum operation-specific reads. No tests/CI run; G-002 remains NOT VERIFIED.
+
+## G-002 identity/session post-proof DB scopes — 24 November 2026
+
+Source commits `5a6eba900eabe021352a0f7f3307bddaeb2d6333` and `b939a335a5bc126241131ab48bb03c9ed3cfaea6` extend auth actor scopes through OTP account creation/claims and session/device credential issuance; password-login trusted-device/session operations; refresh rotation/reuse; and logout. External Redis, rate-limit, bcrypt, provider and JWT operations remain outside transactions.
+
+**Remaining:** scope authenticated device credential listing/revocation, session listing and revoke-by-device under verified user actor contexts. Audit all remaining IdentityService controller call sites. Tests remain unexecuted; G-002 remains NOT VERIFIED.

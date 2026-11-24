@@ -748,3 +748,9 @@ The latest source group adds short user actor contexts to authenticated credenti
 Source commit `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f` adds a narrowly typed authentication actor to DatabaseService. It has no user/tenant identity and requires one fixed operation label stored in transaction-local `app.auth_operation`. Initial OTP/password account lookups and refresh/logout session lookups use this actor. This is a context primitive, not an RLS policy or grant.
 
 **Next implementation:** after successful OTP/password proof or refresh-token owner resolution, move DB-only claims/session/device-credential persistence into a verified user actor context. Keep OTP Redis, rate-limit, bcrypt, providers and JWT operations outside. Make refresh rotation/reuse detection and logout revocation atomic with owner predicates. Then continue Orders/Payments and Merchant metadata coverage.
+
+## G-002 identity/session post-proof actor contexts — 24 November 2026
+
+OTP/password login and refresh/logout now have bounded pre-auth and post-proof DB phases. User actor contexts cover session/device credential persistence, trusted-device validation, refresh rotation/reuse and logout revocation. Refresh rotation uses an owner-bound conditional revoke and replacement insert in one transaction.
+
+**Next implementation:** authenticated device/session endpoints (credential list/revoke, session list, revoke-by-device), then remaining safe Orders/Payments and Merchant metadata slices. No test execution until implementation/integration is complete.

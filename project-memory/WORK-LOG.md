@@ -1700,3 +1700,15 @@ The user explicitly directed: finish implementation first, then do the tests; pr
 - Authentication contexts reject user ID, role, active organization and worker identity; operation label is stored in transaction-local `app.auth_operation` and included in same-actor nested-scope equality.
 - IdentityService scopes initial account lookup for phone OTP, email OTP and password login, plus initial refresh/logout session lookup. OTP challenge consumption, rate limiting, bcrypt, provider delivery and JWT signing remain outside.
 - This is only the first pre-auth lookup boundary. Post-proof account/session/device-credential writes and claims reads remain open for verified user actor contexts. No tests, formatter, lint, typecheck, E6 or CI were run. No RLS/grant/migration/database/deployment/worker/merge/release action occurred.
+
+## 24 November 2026 — post-proof authentication/session DB phases
+
+Source commits `5a6eba900eabe021352a0f7f3307bddaeb2d6333` and `b939a335a5bc126241131ab48bb03c9ed3cfaea6`.
+
+- Phone/email OTP: Redis challenge consumption stays outside. Account lookup/create and claims resolution use the fixed authentication operation. Once role/org claims are resolved, session insertion and device-credential issuance run in a verified user actor transaction.
+- Password login: rate limiting and bcrypt comparison stay outside. Post-password claims resolution uses the authentication operation; device-credential validation and trusted session insertion/anchor update use the user actor.
+- Refresh: initial session lookup and claims resolution use the authentication operation. A user actor transaction conditionally revokes the still-active old session, inserts its replacement and validates/anchors device trust. A zero-row conditional revoke rejects a concurrent rotation. JWT signing remains outside.
+- Refresh reuse and logout: resolve session owner first, then perform owner-bound session/device-credential revocations under the user actor. Logout's revocations share one DB-only transaction; unknown tokens remain non-disclosing.
+- OTP Redis, rate limits, bcrypt, provider delivery, external audit side effects and JWT signing remain outside database actor transactions.
+
+Added `database-authentication-context.spec.ts`; updated OTP lifecycle, OTP concurrency/security, email enumeration and identity N+1 test fixtures. No tests, formatter, lint, typecheck, E6 or CI were run. No RLS/grant/migration/staging/deployment/worker/merge/release action occurred.

@@ -3,7 +3,7 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source checkpoint:** `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f` — operation-scoped pre-authentication lookup actor added for OTP/password login and refresh/logout. Previous authenticated Identity/Profile adoption: `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`.  
+**Latest source checkpoint:** `b939a335a5bc126241131ab48bb03c9ed3cfaea6` — pre-auth principal and post-proof OTP/password/session DB actor-context adoption plus focused test authoring. Previous authenticated Identity/Profile adoption: `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`.  
 **Latest test-only follow-up:** `c8405a33388731095ef08b64d744a36d7b079cd3` — corrected the Drizzle update-query mock used by the credential actor-context spec.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop` (`f74eb588cc58fc99b105e749d39dbfbacb4f9775`).  
 **Exact-head GitHub Actions:** zero workflow runs; source commits intentionally include `[skip ci]`.  
@@ -41,7 +41,7 @@ Orders reject/cancel and actual checkout remain excluded where payment/refund/pr
 
 ## Remaining implementation priorities
 
-1. Complete post-proof Identity DB phases: after OTP/password proof or refresh owner resolution, scope account creation, claims reads, session insert/rotation/revocation and device-credential persistence under a verified user actor. Keep Redis/provider/bcrypt/rate-limit/JWT work outside transactions. Initial lookup boundaries now use the operation-scoped authentication actor. Authenticated credential setup/change, account linking/unlinking and organization switching are already scoped.
+1. Finish remaining authenticated device/session endpoints: device credential list/revoke, session list and revoke-by-device under verified user actor contexts. Audit remaining Profile/Auth controller call sites. OTP/password login, refresh and logout DB phases are now bounded.
 2. Complete remaining safe Orders/Payments read and mutation coverage while excluding external payment/refund phases from DB transactions.
 3. Complete Merchant document metadata paths only after separating storage I/O from DB-only registration.
 4. Finish the G-002 physical table/operation/ownership matrix and reconcile the 114/116 relation inventory.
@@ -64,3 +64,15 @@ Tests were added/updated but not executed. G-002 remains NOT VERIFIED; the next 
 ## 24 November 2026 — pre-authentication lookup principal
 
 Source commit `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f` adds an `authentication` actor kind with no user/role/org/worker identity and five fixed operation labels in transaction-local `app.auth_operation`. IdentityService uses it for initial phone OTP, email OTP and password account lookups, plus refresh/logout session lookups. Post-proof persistence and device-credential phases remain next. No RLS/grant/migration change; no tests/CI run.
+
+## 24 November 2026 — post-proof authentication/session adoption
+
+Source commits: `5a6eba900eabe021352a0f7f3307bddaeb2d6333` and `b939a335a5bc126241131ab48bb03c9ed3cfaea6`.
+
+- Phone/email OTP: Redis challenge consumption stays outside. Account lookup/create and claims resolution use the fixed authentication operation. Once role/org claims are resolved, session insertion and device-credential issuance run in a verified user actor transaction.
+- Password login: rate limiting and bcrypt comparison stay outside. Post-password claims resolution uses the authentication operation; device-credential validation and trusted session insertion/anchor update use the user actor.
+- Refresh: initial session lookup and claims resolution use the authentication operation. A user actor transaction conditionally revokes the still-active old session, inserts its replacement and validates/anchors device trust. A zero-row conditional revoke rejects a concurrent rotation. JWT signing remains outside.
+- Refresh reuse and logout: resolve session owner first, then perform owner-bound session/device-credential revocations under the user actor. Logout's revocations share one DB-only transaction; unknown tokens remain non-disclosing.
+- OTP Redis, rate limits, bcrypt, provider delivery, external audit side effects and JWT signing remain outside database actor transactions.
+
+New DatabaseService auth-context coverage and existing OTP/password/refresh regression fixtures were added/updated but not executed. No RLS/grant/migration/database/deployment action occurred.

@@ -82,7 +82,7 @@ Live reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-plat
 
 ### Exact stopping point
 
-- Latest source commit `4e9e04757e0ab5f6b3c7ac924240216de0b39d0f` adds an operation-scoped `authentication` actor for initial pre-auth account/session lookups. It carries no user, role or tenant identity and requires a fixed operation label.
+- Latest source checkpoint `b939a335a5bc126241131ab48bb03c9ed3cfaea6` extends the operation-scoped `authentication` actor through OTP/password claims resolution and adds user-scoped OTP session/device issuance, password trusted-device/session persistence, refresh rotation and logout/reuse revocation.
 - G-002 now has scoped DB-only actor context for credential setup/change, OTP-proven email/phone linking, account identifier unlinking, and authenticated organization switching.
 - JWT-protected AuthController/ProfileController handlers forward only verified user ID, role and active-organization claims. The service uses those values for explicit user actor contexts.
 - Password hashing and comparison, OTP challenge consumption, Redis denylisting, provider traffic and JWT signing remain outside the database transactions. Password change atomically updates the password, writes the credential audit row, revokes trusted-device credentials and revokes sessions; the general audit entry is a separate audit actor write.
@@ -98,7 +98,7 @@ Live reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-plat
 
 ### Remaining project gates
 
-- Next G-002 source task: finish post-proof Identity DB phases: scope account creation, claims reads, session creation/rotation/revocation and device-credential persistence under a verified user actor after OTP/password proof or refresh owner resolution. Keep Redis/provider/bcrypt/rate-limit/JWT work outside transactions. The initial lookup boundary now uses an operation-scoped authentication actor.
+- Next G-002 source task: finish authenticated device/session endpoints (credential list/revoke, session list and revoke-by-device) under verified user actor contexts, then continue safe Orders/Payments and Merchant metadata coverage. OTP/password login, refresh and logout DB phases now have bounded actor contexts. Keep Redis/provider/bcrypt/rate-limit/JWT work outside transactions.
 - Then complete remaining safe Orders/Payments DB-only reads and mutations, keeping payment/refund/provider phases excluded.
 - Separate Merchant document metadata operations from object-storage I/O before adding actor context.
 - Complete the physical table/operation/ownership-predicate matrix and reconcile the 114/116 relation-count discrepancy; obtain runtime API/migration identity and protected read-only catalog evidence only through the authorized process.
