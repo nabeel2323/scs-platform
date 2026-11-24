@@ -3,34 +3,36 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Exact branch head:** `3b59801da41d10793960c5ea849f4811ae5b2d73` — `docs: clarify exact-head verification evidence [skip ci]`.  
-**Latest source implementation checkpoint:** `93844d781ff50cd3ba325c0d9e3ffe209bc128cc` — Returns/Shipping module-boundary refactor.  
+**Exact branch head:** `108c60c668827065e6fcb29499860c8febdae984` — `feat(notifications): scope REST queries to actor transaction [skip ci]`.  
+**Latest source implementation:** `108c60c668827065e6fcb29499860c8febdae984` — first controller-scoped transaction-context adoption.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop`.  
-**Exact-head CI:** no GitHub Actions workflow run exists for the current head (recent branch workflow lookup contains older runs only); the current combined status has Vercel Web and Admin FAILURE contexts linking to the external provider build-rate-limit page. These are not application-test results. No test suite has been run for the latest source implementation checkpoint.
+**Exact-head CI:** none; commits use `[skip ci]`. Existing Vercel Web/Admin statuses are external provider build-rate-limit failures, not application test evidence. No tests have been run for the transaction-context changes.
 
-> **Standing user instruction (24 November 2026): implementation first, tests afterward. Do not execute tests or trigger CI during implementation. Complete implementation and cross-component integration, then run the consolidated test/verification campaign. Proceed autonomously without asking for approval for routine steps; group related changes and synchronize project memory.**
+> **Standing user instruction:** implementation first, tests afterward. Do not execute tests or trigger CI until implementation and cross-component integration are complete. Proceed autonomously through routine steps, group related changes, and synchronize project memory. This does not waive any security/release gate.
 
 ## Current implementation checkpoint
 
-The latest source batch is `93844d781ff50cd3ba325c0d9e3ffe209bc128cc`. It introduced common Returns/Shipping boundary helpers, Identity and Merchant module-owned lookups, and an Orders-owned carrier shipment lookup scoped to the authenticated credential organization's stores. Carrier webhook routing is injectable and only invoked after credential authentication. Focused test files were added/updated in that source batch but have not been executed. G-015 remains PARTIAL pending exact-head boundary evidence. The 193-entry reviewed legacy boundary baseline was not modified.
+- Returns/Shipping module-boundary refactor: `93844d781ff50cd3ba325c0d9e3ffe209bc128cc`.
+- G-002 transaction-context primitive: `464b1c857a113489822ba3345aabe59b0a0be4b2`. DatabaseService now exposes opt-in `withActorContext`, an AsyncLocalStorage-backed Drizzle transaction handle, typed anonymous/user/worker/system/bootstrap/audit actor contexts, parameterized transaction-local GUC setup (`app.actor_id`, `app.actor_role`, `app.active_org_id`, `app.actor_kind`, `app.worker_id`), same-actor nested reuse, actor-switch rejection and closed-scope fail-closed behavior.
+- First HTTP adoption: `108c60c668827065e6fcb29499860c8febdae984`. A controller-scoped `TenantDatabaseContextInterceptor` is registered only on NotificationsController. Nest guards authenticate the JWT before interceptors; the interceptor takes `sub`, `role` and `activeOrg` from the verified request user and awaits the handler observable inside the transaction. The eight bounded notification/preferences/device-token endpoints are DB-only in their controller path; the service's internal notification-delivery entry points remain outside this interceptor.
+- The interceptor is deliberately not global. No other HTTP controllers or workers are wired yet. Streaming/SSE, external-provider side effects, asynchronous audit-after-response, worker/system principals and nested transaction paths still need explicit review before wider adoption. No RLS policy, migration, grant or runtime configuration was changed.
+- Tests are deferred and have not been executed.
 
 ## Highest-priority unfinished work
 
-**G-002 — database access and tenant context (IN PROGRESS).** The source inventory explicitly warns against implementing a global request transaction before closing its blockers. The next work is to finish the method-level route/service/table ownership and predicate map, reconcile controller/direct-SQL/worker/bootstrap paths and transaction semantics, then design a safe explicit transaction-bound context for HTTP and worker operations. Do not implement a global request transaction or enable RLS until the inventory/design blockers are closed. Do not change shared DB grants/default ACLs, apply migrations 0070/0071, enable RLS, deploy, or alter staging.
+**G-002 — database access and tenant context (IN PROGRESS).** Continue a source-level transaction/handle escape audit and classify the next safe bounded controllers for explicit opt-in. Preserve a route allowlist; do not wrap the whole API globally. For each surface, confirm authenticated guard ordering, no streaming, no external provider action, no detached async task, no post-response audit dependency, and the intended active-org semantics. Review existing service-level transactions and raw SQL paths before adoption. Later test phase must prove transaction binding, nested savepoints, rollback, actor-switch denial, detached-task closure and pool reuse. Protected live API/migration identities and 114-vs-116 catalog reconciliation remain separate authorization/evidence gates.
 
 Other open gates remain: G-001 independent security review; G-015 exact-head boundary verification and residual import remediation; G-036 focused security verification/independent review; remaining programme gaps and Phase 6 consolidated verification. Phase 6 has not started.
 
-## Verified live GitHub state
+## GitHub and verification state
 
-- Branch head: `3b59801da41d10793960c5ea849f4811ae5b2d73`.
-- PR #138 head matches that SHA; OPEN / DRAFT / UNMERGED to `develop`.
-- Recent Actions runs are historical and tested older SHAs, including CI #45266315504 on `0a023175ea5cfd7bd24c4fb36ee8c0b32f531adb`; it failed at changed-file formatting and did not verify the latest Returns/Shipping source checkpoint. No exact-head run exists for `3b59801`.
-- Current status contexts are Vercel Web and Admin failures with external provider build-rate-limit URLs; they do not represent application test results.
+- PR #138 remains OPEN / DRAFT / UNMERGED to `develop`.
+- Current head has no Actions run; source commits intentionally use `[skip ci]`.
 - No staging deployment, protected audit approval, shared DB write, migration, grants/default-ACL change, RLS enablement, worker activation, merge or release occurred.
 
 ## Next-session procedure
 
-Read START-HERE and all linked authoritative G-002 and programme documents, verify the live branch/PR/commit/CI again, and continue the highest-priority implementation gap. **Do not run tests or trigger CI until implementation and integration are complete.** Update this file and the work log after each meaningful implementation group.
+Read START-HERE and authoritative G-002/programme documents; verify live GitHub again. Continue implementation and integration without running tests or CI. Expand controller-scoped adoption only to source-reviewed bounded routes; never turn it into an unreviewed global transaction. Update this file and the work log after each meaningful group.
 
 ---
 

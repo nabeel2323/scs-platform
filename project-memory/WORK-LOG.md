@@ -1607,3 +1607,11 @@ No migration, database grant/default-ACL change, RLS enablement, shared/staging 
 ## 24 November 2026 — user reaffirmed implementation-first execution
 
 The user explicitly directed: finish implementation first, then do the tests; proceed autonomously without asking for approval for each routine step. This is now a standing next-session instruction. No tests or CI workflows are to be run during implementation. Continue source review, complete cross-component wiring, group related changes into cohesive commits, and update project memory. The consolidated testing campaign begins only after implementation/integration is complete. Existing security and release restrictions remain unchanged.
+
+
+## 24 November 2026 — G-002 transaction context: first HTTP integration
+
+- Added the opt-in transaction-bound actor-context primitive in DatabaseService (commit `464b1c857a113489822ba3345aabe59b0a0be4b2`). Existing service access through `DatabaseService.db` resolves to the active Drizzle transaction handle inside the scoped operation. Actor context is set with parameterized transaction-local GUCs; same-actor nested context is reused; actor changes and access after scope completion fail closed.
+- Added `TenantDatabaseContextInterceptor` and applied it only to NotificationsController (commit `108c60c668827065e6fcb29499860c8febdae984`). It runs after the JWT guard, derives identity only from verified `request.user`, and awaits the handler observable inside the database transaction. This is the first bounded HTTP adoption, not a global interceptor. The notification controller routes are DB-only; internal notification delivery methods are not automatically wrapped.
+- No workers, audit middleware or other controllers are wired. Continue reviewing nested transactions, cached/detached handles, streaming, provider side effects and post-response audit writes before expanding the allowlist.
+- No tests, formatter, lint, typecheck, E6 or CI were run per the standing user instruction. No database migration, grant/RLS, staging, deployment or worker activation occurred.

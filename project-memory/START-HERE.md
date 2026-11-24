@@ -81,6 +81,8 @@ Live GitHub reconciliation on 24 November 2026 confirms repository `nabeel2323/s
 
 ### Exact stopping point
 
+- G-002 DB-002 now has an opt-in transaction-bound actor-context primitive and its first controller integration: NotificationsController. The interceptor is controller-scoped, reads only the JWT-authenticated `request.user` after guards, and awaits the handler observable inside the transaction. It is intentionally limited to bounded DB-only handlers; do not apply it to streaming or external side-effect routes without explicit review. Commit `108c60c668827065e6fcb29499860c8febdae984`. Tests are deferred.
+
 - FIN-047 settlement-history pagination and its source audit remain implemented / TESTING_PENDING; do not repeat the work.
 - The prior G-015 source batch at `0a023175ea5cfd7bd24c4fb36ee8c0b32f531adb` already moved Pricing, Operations, Reviews and Realtime imports behind module contracts. This continuation handles the residual Returns/Shipping boundary findings: common P13 lease/raw-result helpers, Identity's PLATFORM organization lookup, Merchant's system store ownership contract, and Orders' credential-scoped shipment lookup contract.
 - Shipping webhook routing now runs through an injectable service only after the credential is authenticated. The shipment search is scoped to store IDs owned by that credential organization and returns at most two candidates to preserve fail-closed ambiguity handling.
