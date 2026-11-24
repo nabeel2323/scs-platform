@@ -275,31 +275,44 @@ export class CatalogController {
   @Patch('products/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  // These mixed operations intentionally avoid a request-wide interceptor:
+  // their database phases are scoped in CatalogService, while cache invalidation,
+  // outbox publication and audit recording happen after those short scopes close.
   async updateProduct(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
     @Body() input: UpdateProductInput,
   ) {
-    await assertProductEditableByMerchant(
-      this.db,
-      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
-      id,
+    const actor = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: actor.sub,
+        actorRole: actor.role,
+        activeOrgId: actor.activeOrg ?? null,
+      },
+      () => assertProductEditableByMerchant(this.db, actor, id),
     );
     // PHASE 4 P1: Extract optimistic-locking timestamp from body before passing to service.
     const { updatedAt: clientUpdatedAt, ...rest } = input;
-    return this.catalogService.updateProduct(id, rest, clientUpdatedAt);
+    return this.catalogService.updateProduct(id, rest, clientUpdatedAt, actor);
   }
 
   @Delete('products/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async deleteProduct(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    await assertProductEditableByMerchant(
-      this.db,
-      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
-      id,
+    const actor = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: actor.sub,
+        actorRole: actor.role,
+        activeOrgId: actor.activeOrg ?? null,
+      },
+      () => assertProductEditableByMerchant(this.db, actor, id),
     );
-    return this.catalogService.deleteProduct(id);
+    return this.catalogService.deleteProduct(id, actor);
   }
 
   // ── P11 Product Governance (Merchant) ─────────────────────────
