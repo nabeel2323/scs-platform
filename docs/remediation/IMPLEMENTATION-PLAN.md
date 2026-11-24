@@ -1410,3 +1410,12 @@ Merchant document metadata operations are separated from object-storage signing 
 ## G-002 — Orders cancellation database phase (24 November 2026)
 
 The dedicated cancellation flow may use a service-level user actor context only around its DB-only phases. Payment cancellation is currently a conditional payment-record status update, payment-event insert and transactional outbox write; it does not call a provider. Keep the complete cancellation controller handler outside the request interceptor: the order/shipment transaction must commit before realtime emission. Run a second short user actor context for master-order recalculation and final read. Merchant rejection remains excluded while it invokes refund orchestration; checkout remains excluded until its pre-transaction, transaction and post-commit side effects are separated.
+
+
+## G-002 Orders rejection and Merchant document download-presign — 24 November 2026
+
+Merchant rejection now runs under the verified merchant actor for the database lifecycle. Stock release is performed with the same transaction client as the optimistic REJECTED status update, status history and rejection outbox row. This corrects the prior per-item stock transaction boundary: stock/status/history/outbox now commit or roll back together. A stable reject-refund:<orderId> key is used for retry-safe refund-request creation in a separate DB-only actor phase after rejection commits; payment-provider execution remains downstream of the outbox worker. Master-order recalculation and final read use another short actor scope.
+
+Merchant/admin download presign now reads document metadata (and, for merchant callers, verifies current organization membership) in a short user actor scope, calls object storage outside all DB transactions, then persists storageUrl in a second short user actor scope. Controller methods pass verified JWT identity and intentionally have no transaction interceptor. Upload presign remains storage-only.
+
+Regression specs added: orders-reject-actor-context.spec.ts and merchant-document-presign-context.spec.ts. Not executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No RLS, grants, migrations, shared/staging database writes, deployment, worker activation, merge or release.
