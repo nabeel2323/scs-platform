@@ -4366,6 +4366,7 @@ export class CatalogService {
           currency: stores.currency,
           locale: stores.locale,
           hidePopularityBadge: stores.hidePopularityBadge,
+          verificationStatus: stores.verificationStatus,
         })
         .from(stores)
         .where(
