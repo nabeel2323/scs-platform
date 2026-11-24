@@ -370,3 +370,14 @@ No database was inspected or repaired, and no tests/CI were run. These are sourc
 ## 24 November 2026 — migration FK source scan completion
 
 The 75-file numbered migration scan found 183 explicit REFERENCES clauses across 40 migration files; 35 files had none. The detailed migration/count/parent-table appendix is in `docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md`. This completes the static source-reference inventory, not live catalog verification. Remaining: reconcile with Drizzle declarations and protected staging pg_constraint evidence, then finish cross-column ownership consistency decisions (org/store, carrier config/credential/store, payment/refund/order/settlement, shipping driver/store, reconciliation parent/org). No database query was run.
+
+
+## 24 November 2026 — financial cross-column ownership continuation
+
+Latest source commits:
+- `01b6e6c729c1a458f20aaeaed043df4c569119e4`: settlement-adjustment `org_id` is always derived from sub-order → store → organization; optional caller org and return parent are validated; settlement payment/order consistency is checked before posting.
+- `fa2547997c4b4dad490b582f92c9a69b8c01ed8f`: commission reversal validates return payment/order, item/order, caller org and settlement payment/store identity; adjustment ledger rows cannot be selected as the primary settlement.
+
+The crosswalk and progress tracker now record the invariant evidence and regression cases. Tests remain deferred. CI run #1503 (ID 45434170778) was automatically queued by source pushes and was IN_PROGRESS at last observation; it was not manually dispatched and no pass is claimed. Vercel Web/Admin remain external rate-limit failures. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+**Next source task:** inspect driver-profile/store-assignment organization consistency and reconciliation run/discrepancy organization inheritance; then complete the remaining financial/shipping cross-column matrix and Drizzle/migration FK reconciliation. Obtain actual runtime identity/catalog evidence only through the authorized read-only staging process. PR #138 remains draft/unmerged; no merge, deployment, shared DB mutation, migration, RLS/grant change or worker activation occurred.
