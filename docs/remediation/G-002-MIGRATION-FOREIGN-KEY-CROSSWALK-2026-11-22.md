@@ -264,3 +264,18 @@ The inspected `shipping.schema.ts` declares `driver_profiles.org_id → organiza
 - Driver profile/store assignment rejects cross-organization assignment if/when a real write path is located; no speculative endpoint was added.
 
 No tests or live database queries were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## Refund/payment/order consistency follow-up — 24 November 2026
+
+**Source commit:** `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d`.
+
+The `refunds` table has independent FKs to `payment_records` and `orders`; those FKs do not prove `refunds.order_id = payment_records.order_id`. The request path writes the order ID and currency from the locked payment, and failed/retry transitions already validate payment/order/currency. The review found the approval path did not repeat that check, and idempotent request recovery did not compare the stored order/currency. The source now:
+
+- Rejects an idempotent refund replay when the stored refund order or currency differs from the locked payment.
+- Applies the same order/currency checks to the concurrent idempotency-conflict recovery path.
+- Rejects approval before state changes if the locked refund's order or currency does not match its locked payment.
+
+The return-refund flow already checks the return/payment/order/refund/buyer/currency links under locks before marking a return REFUNDED. The new payment-service guard closes the corresponding standalone refund approval path. These checks supplement independent FKs; no schema or migration was changed.
+
+Add regression coverage for mismatched `refunds.order_id` or currency on idempotent replay, concurrent key recovery, and approval; each must fail without changing refund/payment state or emitting events/outbox rows. Tests remain unexecuted. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
