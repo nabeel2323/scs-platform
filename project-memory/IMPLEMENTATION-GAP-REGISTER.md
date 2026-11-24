@@ -1144,3 +1144,16 @@ Commit `4d3488d7017439c1e756df4a595873dc9d590455` requires a non-empty caller ro
 Source checkpoint `48b22ded255f514f4ccec55d58a604a1c41e7b8f`. Implemented migration exclusions/locking, operator actor contexts, staging bootstrap safety, guarded atomic legacy verification scripts, expanded read-only function/trigger/partman/cron audit, and RBAC seed mapping count correction.
 
 Remaining gaps: external pg_partman maintenance scheduler and its principal/target are not evidenced; actual API/migration login roles and live relation catalog are unverified; migration FK and exact per-operation ownership predicate crosswalk remains incomplete; actor-context nesting/reuse and tests remain unverified. G-002 stays IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No database, RLS, grant, migration, staging, deployment, worker or merge action occurred.
+
+
+## 24 November 2026 — stale migration-ledger fail-closed correction
+
+Source follow-up through `6f3327a2039c65fb0f9578202d4bd76c75e7b426` adds a second layer of migration consistency protection:
+
+- Local `migrate.ts` and DatabaseService development bootstrap now refuse to proceed when pg_partman-dependent migrations 0013/0018 are already present in the ledger despite being excluded from the local image. They do not delete ledger rows or attempt automatic repair; the local DB may contain partial state and must be explicitly rebuilt/reconciled.
+- The complete `migrate-pg.ts` runner now rejects impossible/stale analytics ledger states: 0018 without 0013, 0013 without the pg_partman extension/config row, or 0018 whose retention values do not match the migration.
+- The disposable M7.3 runner refuses to continue if skipped pg_partman migrations already appear in its ledger.
+- Local `migrate.ts` uses a unique per-process/per-file temp SQL path and cleans it up, avoiding concurrent runners overwriting the same temporary script.
+- Disposable shell verification target guard now also checks `inet_server_addr()` is a Unix socket or loopback address, in addition to explicit test environment, exact DB/user, local PGHOST/PGHOSTADDR and no PGSERVICE redirection.
+
+No database was inspected or repaired, and no tests/CI were run. These are source-level fail-closed checks only.

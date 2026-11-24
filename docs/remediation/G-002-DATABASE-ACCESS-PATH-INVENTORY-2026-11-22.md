@@ -207,3 +207,16 @@ Key findings: migration 0007 defines only the application normalize_arabic funct
 The local Docker runner and DatabaseService dev startup now share pg_partman exclusions for 0013/0018; the complete DATABASE_URL runner still requires pg_partman. Local migration locking/ledger checks were tightened. Seed/bootstrap/audit CLI operations now use transaction-local operator principals. Legacy disposable verification scripts gained explicit local test-target guards and atomic migration application. The read-only audit tool now inventories non-system functions/triggers and partman/cron maintenance metadata.
 
 No test or database command was executed. External maintenance scheduling and actual runtime role identity remain unverified.
+
+
+## 24 November 2026 — stale migration-ledger fail-closed correction
+
+Source follow-up through `6f3327a2039c65fb0f9578202d4bd76c75e7b426` adds a second layer of migration consistency protection:
+
+- Local `migrate.ts` and DatabaseService development bootstrap now refuse to proceed when pg_partman-dependent migrations 0013/0018 are already present in the ledger despite being excluded from the local image. They do not delete ledger rows or attempt automatic repair; the local DB may contain partial state and must be explicitly rebuilt/reconciled.
+- The complete `migrate-pg.ts` runner now rejects impossible/stale analytics ledger states: 0018 without 0013, 0013 without the pg_partman extension/config row, or 0018 whose retention values do not match the migration.
+- The disposable M7.3 runner refuses to continue if skipped pg_partman migrations already appear in its ledger.
+- Local `migrate.ts` uses a unique per-process/per-file temp SQL path and cleans it up, avoiding concurrent runners overwriting the same temporary script.
+- Disposable shell verification target guard now also checks `inet_server_addr()` is a Unix socket or loopback address, in addition to explicit test environment, exact DB/user, local PGHOST/PGHOSTADDR and no PGSERVICE redirection.
+
+No database was inspected or repaired, and no tests/CI were run. These are source-level fail-closed checks only.

@@ -270,3 +270,16 @@ No tests or CI were intentionally run. Exact-head Actions must be checked after 
 ## 24 November 2026 — exact current branch/PR checkpoint
 
 Branch `remediation/phase-0-1-tenant-security` and PR #138 both point to `a286cd6b2c8d239e94a3a4d024c872e08fbbc3d4`; PR remains OPEN / DRAFT / UNMERGED to `develop`. Exact-head Actions lookup returned zero workflow runs. Vercel Web/Admin both report “Deployment rate limited — retry in 24 hours.” No tests, formatter, lint, typecheck, E6 or CI workflow were intentionally executed. Earlier automatic run #1501 failed API typecheck on nullable caller.role; commit `4d3488d` corrected that source issue but has not been re-run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — stale migration-ledger fail-closed correction
+
+Source follow-up through `6f3327a2039c65fb0f9578202d4bd76c75e7b426` adds a second layer of migration consistency protection:
+
+- Local `migrate.ts` and DatabaseService development bootstrap now refuse to proceed when pg_partman-dependent migrations 0013/0018 are already present in the ledger despite being excluded from the local image. They do not delete ledger rows or attempt automatic repair; the local DB may contain partial state and must be explicitly rebuilt/reconciled.
+- The complete `migrate-pg.ts` runner now rejects impossible/stale analytics ledger states: 0018 without 0013, 0013 without the pg_partman extension/config row, or 0018 whose retention values do not match the migration.
+- The disposable M7.3 runner refuses to continue if skipped pg_partman migrations already appear in its ledger.
+- Local `migrate.ts` uses a unique per-process/per-file temp SQL path and cleans it up, avoiding concurrent runners overwriting the same temporary script.
+- Disposable shell verification target guard now also checks `inet_server_addr()` is a Unix socket or loopback address, in addition to explicit test environment, exact DB/user, local PGHOST/PGHOSTADDR and no PGSERVICE redirection.
+
+No database was inspected or repaired, and no tests/CI were run. These are source-level fail-closed checks only.

@@ -1983,3 +1983,16 @@ Source implementation checkpoint: `48b22ded255f514f4ccec55d58a604a1c41e7b8f`. Cu
 Completed source work: shared pg_partman development migration exclusions; advisory-lock and ledger rechecks; transaction-local system/bootstrap/audit actor contexts; staging bootstrap target guards; guarded atomic legacy verification runners; extended read-only function/trigger/partman/cron audit; RBAC seed mapping count correction. Detailed handoff: `docs/remediation/G-002-MIGRATION-OBJECT-AND-OPERATOR-ACCESS-AUDIT-2026-11-24.md`.
 
 Exact-head Actions lookup: zero runs. Vercel Web/Admin: FAILURE due to deployment rate limit (“retry in 24 hours”), not application tests. No tests, formatter, lint, typecheck, E6 or CI were intentionally run. No database/migration/seed/reset/bootstrap/audit operation was executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Next: confirm external pg_partman maintenance scheduling and actual runtime roles through authorized read-only staging, finish ownership/FK evidence and actor-context nesting review, then consolidated verification after implementation completion.
+
+
+## 24 November 2026 — stale migration-ledger fail-closed correction
+
+Source follow-up through `6f3327a2039c65fb0f9578202d4bd76c75e7b426` adds a second layer of migration consistency protection:
+
+- Local `migrate.ts` and DatabaseService development bootstrap now refuse to proceed when pg_partman-dependent migrations 0013/0018 are already present in the ledger despite being excluded from the local image. They do not delete ledger rows or attempt automatic repair; the local DB may contain partial state and must be explicitly rebuilt/reconciled.
+- The complete `migrate-pg.ts` runner now rejects impossible/stale analytics ledger states: 0018 without 0013, 0013 without the pg_partman extension/config row, or 0018 whose retention values do not match the migration.
+- The disposable M7.3 runner refuses to continue if skipped pg_partman migrations already appear in its ledger.
+- Local `migrate.ts` uses a unique per-process/per-file temp SQL path and cleans it up, avoiding concurrent runners overwriting the same temporary script.
+- Disposable shell verification target guard now also checks `inet_server_addr()` is a Unix socket or loopback address, in addition to explicit test environment, exact DB/user, local PGHOST/PGHOSTADDR and no PGSERVICE redirection.
+
+No database was inspected or repaired, and no tests/CI were run. These are source-level fail-closed checks only.
