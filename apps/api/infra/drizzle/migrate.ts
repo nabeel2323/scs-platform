@@ -27,6 +27,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execFileSync, execSync } from 'node:child_process';
+import { DEV_MIGRATION_EXCLUSIONS } from './migration-config';
 
 const CONTAINER = 'scs-postgres';
 const DB_USER = 'scs';
@@ -41,8 +42,6 @@ const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../infra/drizzle/migrat
  * through either path; previously the CI runner skipped these two while this one "applied"
  * them and failed silently. Installing pg_partman in the image makes them apply.
  */
-const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
-const SKIP_REASON = 'requires the pg_partman extension, not present in postgis/postgis:16-3.4';
 
 function psql(query: string): string {
   return execFileSync(
@@ -122,10 +121,10 @@ async function main() {
     .filter((f: string) => f.endsWith('.sql'))
     .sort();
 
-  const skipped = files.filter((f) => EXCLUDED.has(f));
+  const skipped = files.filter((f) => DEV_MIGRATION_EXCLUSIONS.has(f));
   for (const file of skipped) {
-    // Loud, not silent: an unapplied migration is a real gap in the schema.
-    console.warn(`   ⚠ SKIPPED ${file} — ${SKIP_REASON}`);
+    // Loud, not silent: an unapplied migration is a real gap in the local schema.
+    console.warn('   ⚠ SKIPPED ' + file + ' — ' + DEV_MIGRATION_EXCLUSIONS.get(file));
   }
 
   if (files.length === 0) {
@@ -135,7 +134,7 @@ async function main() {
 
   let count = 0;
   for (const file of files) {
-    if (EXCLUDED.has(file)) continue;
+    if (DEV_MIGRATION_EXCLUSIONS.has(file)) continue;
     if (applied.has(file)) {
       console.log(`   ✓ ${file} (already applied)`);
       continue;
@@ -162,7 +161,8 @@ async function main() {
   if (skipped.length > 0) {
     console.warn(
       `   ⚠ ${skipped.length} migration(s) were NOT applied. The schema is incomplete for\n` +
-        `     analytics partitioning. Install pg_partman, then re-run pnpm db:migrate.`,
+        `     analytics partitioning. Install pg_partman and use the DATABASE_URL migration runner\n` +
+        `     against the intended target before relying on analytics retention/partition maintenance.`,
     );
   }
 }

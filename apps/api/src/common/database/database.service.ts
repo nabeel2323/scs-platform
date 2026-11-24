@@ -9,6 +9,9 @@ import { randomUUID } from 'node:crypto';
 import * as schema from '../../drizzle/schema';
 import { resolveDatabaseUrl } from '../../config/env-gate';
 import { PERMISSIONS, ROLES } from './rbac-seed.data';
+import { acquireMigrationLock, releaseMigrationLock } from '../../../infra/drizzle/migration-lock';
+import { DEV_MIGRATION_EXCLUSIONS } from '../../../infra/drizzle/migration-config';
+import { setOperatorActorContext } from '../../../infra/drizzle/operator-actor-context';
 
 export type DatabaseActorKind = 'anonymous' | 'authentication' | 'user' | 'worker' | 'system' | 'bootstrap' | 'audit';
 export type DatabaseAuthenticationOperation =
@@ -359,9 +362,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     });
 
     let client: PoolClient | undefined;
+    let migrationLockAcquired = false;
     try {
       client = await bootstrapPool.connect();
       await client.query('SELECT 1'); // prove connectivity
+      await acquireMigrationLock(client);
+      migrationLockAcquired = true;
 
       // ── Migrations ──────────────────────────────────────────────────────
       const migrationsDir = resolveMigrationsDir();
@@ -377,9 +383,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )`);
 
+        const excluded = files.filter((file) => DEV_MIGRATION_EXCLUSIONS.has(file));
+        for (const file of excluded) {
+          DatabaseService.logger.warn('Skipping extension-dependent migration: ' + file);
+        }
+        const applicableFiles = files.filter((file) => !DEV_MIGRATION_EXCLUSIONS.has(file));
         const appliedRes = await client.query('SELECT name FROM _migration_log ORDER BY name');
         const applied = new Set(appliedRes.rows.map((r) => r.name));
-        const pending = files.filter((f) => !applied.has(f));
+        const pending = applicableFiles.filter((f) => !applied.has(f));
 
         if (pending.length > 0) {
           DatabaseService.logger.log(`Applying ${pending.length} pending migration(s)...`);
@@ -400,7 +411,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           DatabaseService.logger.log(`Migrations complete (${pending.length} applied).`);
         } else {
           DatabaseService.logger.log(
-            `Database up-to-date — all ${files.length} migration(s) applied.`,
+            'Database up-to-date — all ' + applicableFiles.length + ' eligible migration(s) applied' +
+              (excluded.length > 0 ? '; ' + excluded.length + ' extension-dependent migration(s) skipped.' : '.'),
           );
         }
       } else {
@@ -414,6 +426,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       // Don't crash — let the app try to start anyway (tables may already exist).
     } finally {
       if (client) {
+        if (migrationLockAcquired) {
+          try {
+            await releaseMigrationLock(client);
+          } catch {
+            DatabaseService.logger.warn('Could not explicitly release development migration lock.');
+          }
+        }
         try {
           await client.release();
         } catch {
@@ -431,6 +450,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private async runDevSeed(client: PoolClient): Promise<void> {
     await client.query('BEGIN');
     try {
+      await setOperatorActorContext(client, 'system', 'dev-bootstrap:rbac-seed');
       // 1. Permissions
       let newPerms = 0;
       for (const key of PERMISSIONS) {

@@ -20,6 +20,7 @@
 import * as fs from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { Pool, PoolClient } from 'pg';
+import { setOperatorActorContext } from './operator-actor-context';
 
 import { CATEGORIES } from '../seed-data/categories';
 import { BRANDS } from '../seed-data/brands';
@@ -270,6 +271,7 @@ export async function seedCatalog(
 
   await client.query('BEGIN');
   try {
+    await setOperatorActorContext(client, 'system', 'seed-cli:catalog');
     // ── 0. Ensure partial unique index for platform categories ────────────
     await client.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS uq_categories_platform_slug
