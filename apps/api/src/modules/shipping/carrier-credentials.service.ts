@@ -69,26 +69,27 @@ export class CarrierCredentialsService {
    * List all credentials for an organization (masked — no plaintext).
    */
   async listForOrg(orgId: string, caller: CallerContext): Promise<MaskedCredential[]> {
-    await this.assertOrgAccess(orgId, caller);
-
-    const rows = await this.db.db.query.carrierCredentials.findMany({
-      where: eq(carrierCredentials.orgId, orgId),
+    return this.withCallerContext(caller, async () => {
+      await this.assertOrgAccess(orgId, caller);
+      const rows = await this.db.db.query.carrierCredentials.findMany({
+        where: eq(carrierCredentials.orgId, orgId),
+      });
+      return rows.map((r) => this.maskCredential(r));
     });
-
-    return rows.map((r) => this.maskCredential(r));
   }
 
   /**
    * Get a single credential by ID (masked).
    */
   async getById(id: string, caller: CallerContext): Promise<MaskedCredential> {
-    const row = await this.db.db.query.carrierCredentials.findFirst({
-      where: eq(carrierCredentials.id, id),
+    return this.withCallerContext(caller, async () => {
+      const row = await this.db.db.query.carrierCredentials.findFirst({
+        where: eq(carrierCredentials.id, id),
+      });
+      if (!row) throw new NotFoundException('Carrier credential not found');
+      await this.assertOrgAccess(row.orgId, caller);
+      return this.maskCredential(row);
     });
-    if (!row) throw new NotFoundException('Carrier credential not found');
-
-    await this.assertOrgAccess(row.orgId, caller);
-    return this.maskCredential(row);
   }
 
   // ── Mutations ───────────────────────────────────────────────────────────
@@ -97,73 +98,47 @@ export class CarrierCredentialsService {
    * Create a new carrier credential.
    * Only SUPER_ADMIN / ADMIN may create credentials.
    */
-  async create(
-    input: CreateCarrierCredentialInput,
-    caller: CallerContext,
-  ): Promise<MaskedCredential> {
+  async create(input: CreateCarrierCredentialInput, caller: CallerContext): Promise<MaskedCredential> {
     this.assertAdmin(caller);
-    await this.assertOrgAccess(input.orgId, caller);
-
-    // Validate provider key format
     if (!input.providerKey || !/^[a-z0-9-]{1,40}$/.test(input.providerKey)) {
       throw new BadRequestException(
         'providerKey must be 1-40 lowercase alphanumeric characters or hyphens',
       );
     }
-
     const environment = (input.environment || 'sandbox').toLowerCase();
     if (!['sandbox', 'production'].includes(environment)) {
       throw new BadRequestException("environment must be 'sandbox' or 'production'");
     }
-
-    // Encrypt credentials
     const credentialsEncrypted = this.crypto.encrypt(input.credentialsJson);
-    const webhookSecretEncrypted = input.webhookSecret
-      ? this.crypto.encrypt(input.webhookSecret)
-      : null;
-
-    // M7.2.3-B.1: Generate webhook routing token
+    const webhookSecretEncrypted = input.webhookSecret ? this.crypto.encrypt(input.webhookSecret) : null;
     const webhookToken = 'whk_' + crypto.randomUUID().replace(/-/g, '');
-
     const id = crypto.randomUUID();
     const now = new Date();
 
-    try {
-      const rows = await this.db.db
-        .insert(carrierCredentials)
-        .values({
-          id,
-          orgId: input.orgId,
-          providerKey: input.providerKey,
-          environment,
-          label: input.label.trim(),
-          credentialsEncrypted,
-          endpointUrl: input.endpointUrl?.trim() || null,
-          webhookSecretEncrypted,
-          webhookToken,
-          isActive: true,
-          createdBy: caller.sub,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
-
-      const inserted = rows[0];
-      if (!inserted) throw new Error('Carrier credential insert returned no rows');
-
-      this.logger.log(
-        `Carrier credential created: ${inserted.providerKey}/${inserted.environment} for org ${inserted.orgId}`,
-      );
-
-      return this.maskCredential(inserted);
-    } catch (err: any) {
-      if (err?.code === '23505') {
-        throw new BadRequestException(
-          `An active credential already exists for ${input.providerKey}/${environment} in this organization`,
+    return this.withCallerContext(caller, async () => {
+      await this.assertOrgAccess(input.orgId, caller);
+      try {
+        const rows = await this.db.db.insert(carrierCredentials).values({
+          id, orgId: input.orgId, providerKey: input.providerKey, environment,
+          label: input.label.trim(), credentialsEncrypted,
+          endpointUrl: input.endpointUrl?.trim() || null, webhookSecretEncrypted,
+          webhookToken, isActive: true, createdBy: caller.sub, createdAt: now, updatedAt: now,
+        }).returning();
+        const inserted = rows[0];
+        if (!inserted) throw new Error('Carrier credential insert returned no rows');
+        this.logger.log(
+          `Carrier credential created: ${inserted.providerKey}/${inserted.environment} for org ${inserted.orgId}`,
         );
+        return this.maskCredential(inserted);
+      } catch (err: any) {
+        if (err?.code === '23505') {
+          throw new BadRequestException(
+            `An active credential already exists for ${input.providerKey}/${environment} in this organization`,
+          );
+        }
+        throw err;
       }
-      throw err;
-    }
+    });
   }
 
   /**
@@ -171,22 +146,20 @@ export class CarrierCredentialsService {
    */
   async deactivate(id: string, caller: CallerContext): Promise<MaskedCredential> {
     this.assertAdmin(caller);
-
-    const row = await this.db.db.query.carrierCredentials.findFirst({
-      where: eq(carrierCredentials.id, id),
+    return this.withCallerContext(caller, async () => {
+      const row = await this.db.db.query.carrierCredentials.findFirst({
+        where: eq(carrierCredentials.id, id),
+      });
+      if (!row) throw new NotFoundException('Carrier credential not found');
+      await this.assertOrgAccess(row.orgId, caller);
+      const [updated] = await this.db.db.update(carrierCredentials)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(and(eq(carrierCredentials.id, id), eq(carrierCredentials.orgId, row.orgId)))
+        .returning();
+      if (!updated) throw new NotFoundException('Carrier credential not found');
+      this.logger.log(`Carrier credential deactivated: ${id}`);
+      return this.maskCredential(updated);
     });
-    if (!row) throw new NotFoundException('Carrier credential not found');
-
-    await this.assertOrgAccess(row.orgId, caller);
-
-    const [updated] = await this.db.db
-      .update(carrierCredentials)
-      .set({ isActive: false, updatedAt: new Date() })
-      .where(eq(carrierCredentials.id, id))
-      .returning();
-
-    this.logger.log(`Carrier credential deactivated: ${id}`);
-    return this.maskCredential(updated);
   }
 
   // ── Internal helpers (used by other services) ───────────────────────────
@@ -195,13 +168,14 @@ export class CarrierCredentialsService {
    * Decrypt and return the credential JSON for a given credential ID.
    * ONLY called within the backend process boundary — never exposed via API.
    */
-  async decryptCredentials(credentialId: string): Promise<string> {
-    const row = await this.db.db.query.carrierCredentials.findFirst({
-      where: eq(carrierCredentials.id, credentialId),
-    });
+  async decryptCredentials(credentialId: string, orgId: string): Promise<string> {
+    const row = await this.withInternalContext(orgId, 'carrier-credential-decrypt', () =>
+      this.db.db.query.carrierCredentials.findFirst({
+        where: and(eq(carrierCredentials.id, credentialId), eq(carrierCredentials.orgId, orgId)),
+      }),
+    );
     if (!row) throw new NotFoundException('Carrier credential not found');
     if (!row.isActive) throw new BadRequestException('Carrier credential is not active');
-
     return this.crypto.decrypt(row.credentialsEncrypted);
   }
 
@@ -209,13 +183,13 @@ export class CarrierCredentialsService {
    * Decrypt the webhook secret for a given credential ID.
    * Returns null if no webhook secret is configured.
    */
-  async decryptWebhookSecret(credentialId: string): Promise<string | null> {
-    const row = await this.db.db.query.carrierCredentials.findFirst({
-      where: eq(carrierCredentials.id, credentialId),
-    });
-    if (!row || !row.isActive) return null;
-    if (!row.webhookSecretEncrypted) return null;
-
+  async decryptWebhookSecret(credentialId: string, orgId: string): Promise<string | null> {
+    const row = await this.withInternalContext(orgId, 'carrier-webhook-secret-read', () =>
+      this.db.db.query.carrierCredentials.findFirst({
+        where: and(eq(carrierCredentials.id, credentialId), eq(carrierCredentials.orgId, orgId)),
+      }),
+    );
+    if (!row || !row.isActive || !row.webhookSecretEncrypted) return null;
     return this.crypto.decrypt(row.webhookSecretEncrypted);
   }
 
@@ -223,24 +197,41 @@ export class CarrierCredentialsService {
    * Find the active credential ID for a given org + provider + environment.
    * Returns null if no active credential exists.
    */
-  async findCredentialId(
-    orgId: string,
-    providerKey: string,
-    environment = 'sandbox',
-  ): Promise<string | null> {
-    const row = await this.db.db.query.carrierCredentials.findFirst({
-      where: and(
-        eq(carrierCredentials.orgId, orgId),
-        eq(carrierCredentials.providerKey, providerKey),
-        eq(carrierCredentials.environment, environment),
-        eq(carrierCredentials.isActive, true),
-      ),
-      columns: { id: true },
-    });
+  async findCredentialId(orgId: string, providerKey: string, environment = 'sandbox'): Promise<string | null> {
+    const row = await this.withInternalContext(orgId, 'carrier-credential-lookup', () =>
+      this.db.db.query.carrierCredentials.findFirst({
+        where: and(
+          eq(carrierCredentials.orgId, orgId),
+          eq(carrierCredentials.providerKey, providerKey),
+          eq(carrierCredentials.environment, environment),
+          eq(carrierCredentials.isActive, true),
+        ),
+        columns: { id: true },
+      }),
+    );
     return row?.id ?? null;
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────
+
+  private withCallerContext<T>(caller: CallerContext, operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext({
+      actorKind: 'user', actorId: caller.sub, actorRole: caller.role,
+      activeOrgId: caller.activeOrg ?? null,
+    }, operation);
+  }
+
+  private withInternalContext<T>(orgId: string, workerId: string, operation: () => Promise<T>): Promise<T> {
+    const active = this.db.currentActorContext;
+    if (active) {
+      if ((active.actorKind === 'user' || active.actorKind === 'worker') &&
+          active.activeOrgId !== null && active.activeOrgId !== orgId) {
+        throw new Error('Carrier credential access crossed the active organization context');
+      }
+      return operation();
+    }
+    return this.db.withActorContext({ actorKind: 'worker', workerId, activeOrgId: orgId }, operation);
+  }
 
   /**
    * Mask a credential row for safe API responses.

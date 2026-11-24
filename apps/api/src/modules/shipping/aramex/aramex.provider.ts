@@ -978,10 +978,12 @@ export class AramexProvider extends ShippingProvider {
     storeId: string,
     explicitCredentialId?: string,
   ): Promise<{ payload: AramexCredentialPayload; primaryUrl: string | null }> {
-    const store = await this.db.db.query.stores.findFirst({
-      where: eq(stores.id, storeId),
-      columns: { orgId: true },
-    });
+    const store = await this.withCredentialDatabaseContext(
+      'aramex-store-owner-resolution', null,
+      () => this.db.db.query.stores.findFirst({
+        where: eq(stores.id, storeId), columns: { orgId: true },
+      }),
+    );
     if (!store?.orgId) {
       throw new NonRetryableCarrierError(
         'Store has no owning organization; refusing cross-tenant credential fallback',
@@ -1011,15 +1013,18 @@ export class AramexProvider extends ShippingProvider {
     credentialId: string,
     expectedOrgId: string,
   ): Promise<{ payload: AramexCredentialPayload; primaryUrl: string | null }> {
-    const row = await this.db.db.query.carrierCredentials.findFirst({
-      where: and(
-        eq(carrierCredentials.id, credentialId),
-        eq(carrierCredentials.orgId, expectedOrgId),
-        eq(carrierCredentials.providerKey, ARAMEX_PROVIDER_KEY),
-        eq(carrierCredentials.isActive, true),
-      ),
-      columns: { endpointUrl: true },
-    });
+    const row = await this.withCredentialDatabaseContext(
+      'aramex-credential-resolution', expectedOrgId,
+      () => this.db.db.query.carrierCredentials.findFirst({
+        where: and(
+          eq(carrierCredentials.id, credentialId),
+          eq(carrierCredentials.orgId, expectedOrgId),
+          eq(carrierCredentials.providerKey, ARAMEX_PROVIDER_KEY),
+          eq(carrierCredentials.isActive, true),
+        ),
+        columns: { endpointUrl: true },
+      }),
+    );
     if (!row) {
       throw new NonRetryableCarrierError(
         'Aramex credential is inactive or belongs to another organization',
@@ -1027,7 +1032,7 @@ export class AramexProvider extends ShippingProvider {
       );
     }
 
-    const credJson = await this.credentials.decryptCredentials(credentialId);
+    const credJson = await this.credentials.decryptCredentials(credentialId, expectedOrgId);
     const payload = JSON.parse(credJson) as AramexCredentialPayload;
     return { payload, primaryUrl: row.endpointUrl || null };
   }
@@ -1048,14 +1053,17 @@ export class AramexProvider extends ShippingProvider {
       );
     }
 
-    const credential = await this.db.db.query.carrierCredentials.findFirst({
-      where: and(
-        eq(carrierCredentials.orgId, platformOrgId),
-        eq(carrierCredentials.providerKey, ARAMEX_PROVIDER_KEY),
-        eq(carrierCredentials.isActive, true),
-      ),
-      columns: { id: true },
-    });
+    const credential = await this.withCredentialDatabaseContext(
+      'aramex-platform-credential-resolution', platformOrgId,
+      () => this.db.db.query.carrierCredentials.findFirst({
+        where: and(
+          eq(carrierCredentials.orgId, platformOrgId),
+          eq(carrierCredentials.providerKey, ARAMEX_PROVIDER_KEY),
+          eq(carrierCredentials.isActive, true),
+        ),
+        columns: { id: true },
+      }),
+    );
     if (!credential) {
       throw new NonRetryableCarrierError('No active platform Aramex credential is configured', {
         providerKey: this.key,
@@ -1064,6 +1072,22 @@ export class AramexProvider extends ShippingProvider {
     }
 
     return this.resolveCredentialsById(credential.id, platformOrgId);
+  }
+
+  private withCredentialDatabaseContext<T>(
+    workerId: string,
+    activeOrgId: string | null,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const active = this.db.currentActorContext;
+    if (active) {
+      if (activeOrgId && (active.actorKind === 'user' || active.actorKind === 'worker') &&
+          active.activeOrgId !== null && active.activeOrgId !== activeOrgId) {
+        throw new Error('Aramex credential lookup crossed the active organization context');
+      }
+      return operation();
+    }
+    return this.db.withActorContext({ actorKind: 'worker', workerId, activeOrgId }, operation);
   }
 
   // ── Private: HTTP Client ────────────────────────────────────────────────

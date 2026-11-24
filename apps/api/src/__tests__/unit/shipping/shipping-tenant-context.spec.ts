@@ -11,6 +11,8 @@ import { ShippingCarrierWorker } from '../../../modules/shipping/shipping-carrie
 import { AramexProvider } from '../../../modules/shipping/aramex/aramex.provider';
 import { NonRetryableCarrierError } from '../../../modules/shipping/carrier-errors';
 
+const runActorContext = vi.fn(async (_context: any, operation: () => Promise<unknown>) => operation());
+
 const caller = {
   sub: 'merchant-a',
   role: 'MERCHANT_OWNER',
@@ -57,6 +59,8 @@ describe('Shipping and carrier tenant context', () => {
     const credentialFindMany = vi.fn();
     const service = Object.create(CarrierCredentialsService.prototype) as any;
     service.db = {
+      currentActorContext: null,
+      withActorContext: runActorContext,
       db: {
         query: {
           organizationMembers: { findFirst: organizationFindFirst },
@@ -74,6 +78,8 @@ describe('Shipping and carrier tenant context', () => {
     const configFindFirst = vi.fn();
     const service = Object.create(CarrierConfigurationsService.prototype) as any;
     service.db = {
+      currentActorContext: null,
+      withActorContext: runActorContext,
       db: {
         query: {
           stores: { findFirst: storeFindFirst },
@@ -96,6 +102,8 @@ describe('Shipping and carrier tenant context', () => {
     const credentialFindFirst = vi.fn().mockResolvedValue(null);
     const service = Object.create(CarrierConfigurationsService.prototype) as any;
     service.db = {
+      currentActorContext: null,
+      withActorContext: runActorContext,
       db: {
         query: {
           stores: { findFirst: storeFindFirst },
@@ -117,11 +125,13 @@ describe('Shipping and carrier tenant context', () => {
     });
     const service = Object.create(CarrierCredentialsService.prototype) as any;
     service.db = {
+      currentActorContext: null,
+      withActorContext: runActorContext,
       db: { query: { carrierCredentials: { findFirst: credentialFindFirst } } },
     };
     service.crypto = { decrypt: vi.fn() };
 
-    await expect(service.decryptWebhookSecret('credential-a')).resolves.toBeNull();
+    await expect(service.decryptWebhookSecret('credential-a', 'org-a')).resolves.toBeNull();
     expect(service.crypto.decrypt).not.toHaveBeenCalled();
   });
 
@@ -130,6 +140,8 @@ describe('Shipping and carrier tenant context', () => {
     const resolveForStore = vi.fn().mockResolvedValue(null);
     const provider = Object.create(AramexProvider.prototype) as any;
     provider.db = {
+      currentActorContext: null,
+      withActorContext: runActorContext,
       db: { query: { stores: { findFirst: storeFindFirst } } },
     };
     provider.configurations = { resolveForStore };
@@ -159,7 +171,7 @@ describe('Shipping and carrier tenant context', () => {
     const resolved = { payload: { userName: 'synthetic' }, primaryUrl: null };
     const provider = Object.create(AramexProvider.prototype) as any;
     provider.identity = { getPlatformOrganizationId: vi.fn().mockResolvedValue('platform-org') };
-    provider.db = { db: { query: { carrierCredentials: { findFirst: credentialFindFirst } } } };
+    provider.db = { currentActorContext: null, withActorContext: runActorContext, db: { query: { carrierCredentials: { findFirst: credentialFindFirst } } } };
     provider.resolveCredentialsById = vi.fn().mockResolvedValue(resolved);
 
     await expect(provider.resolvePlatformCredential()).resolves.toEqual(resolved);
