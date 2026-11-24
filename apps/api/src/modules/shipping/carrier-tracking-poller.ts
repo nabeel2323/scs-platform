@@ -343,10 +343,10 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
           }
         }
       } else {
-        await this.db.db
+        await this.withWorkerContext(() => this.db.db
           .update(shipments)
           .set({ lastCarrierSyncAt: new Date(), updatedAt: new Date() })
-          .where(eq(shipments.id, shipment.id));
+          .where(eq(shipments.id, shipment.id)));
       }
     } catch (err: any) {
       this.circuitBreaker.recordFailure(cbScope);
