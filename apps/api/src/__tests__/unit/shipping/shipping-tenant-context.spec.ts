@@ -307,7 +307,8 @@ describe('Shipping and carrier tenant context', () => {
     ).rejects.toBeInstanceOf(NonRetryableCarrierError);
 
     expect(storeTenantContext).toHaveBeenCalledWith('store-a');
-  });
+    },
+  );
 });
 
 describe('ShippingService driver assignment eligibility', () => {
@@ -361,7 +362,9 @@ describe('ShippingService driver assignment eligibility', () => {
     };
   }
 
-  it('allows an active same-organization DRIVER with no explicit store rows (migration 0041 unrestricted mode)', async () => {
+  it(
+    'allows an active same-organization DRIVER with no explicit store rows (migration 0041 unrestricted mode)',
+    async () => {
     const harness = createHarness();
 
     await expect(
