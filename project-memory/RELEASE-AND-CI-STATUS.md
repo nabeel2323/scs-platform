@@ -420,3 +420,11 @@ No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IN_PROGRE
 - Exact-head combined status: Vercel Admin and Web both FAILURE with target URL https://vercel.com/taif3?upgradeToPro=build-rate-limit. GitHub Actions workflow-run lookup returned no runs for the exact [skip ci] head.
 - This continuation's latest additional test change expands the CatalogController metadata inventory to all DB-only endpoints and includes the explicitly actor-scoped media upload path among mixed operations. Tests remain unexecuted; no formatter/lint/typecheck/E6/CI was run.
 - No RLS/grant/migration/shared DB/staging/deployment/worker activation/environment change/merge/release occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+## 25 November 2026 — Admin Catalog integration status
+
+- Exact inspected head before this status-note commit: 9364f7ae1e7c6dc5fc046ba231a188f1954a779d.
+- PR #138: open, draft, unmerged, base develop, head matches inspected SHA, mergeable=true. Branch compare: 2,658 ahead / 0 behind develop.
+- Combined status: Vercel Admin and Web FAILURE, both point to the external build-rate-limit page. GitHub Actions returned no workflow runs for the [skip ci] head.
+- Admin mixed Catalog callers fixed: admin product update forwards the verified actor to CatalogService and avoids a request-wide interceptor; admin media preview DB reads use a short user actor scope and S3 signing occurs after commit. Regression tests authored but unexecuted.
+- No formatter/lint/typecheck/E6/CI, shared DB, RLS/grants/migration, staging, deployment, worker activation, merge or release. G-002 remains NOT VERIFIED.
