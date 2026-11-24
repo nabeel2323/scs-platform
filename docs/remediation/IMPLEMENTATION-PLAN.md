@@ -1405,3 +1405,8 @@ The implementation now preserves adjustment accounting semantics across the ADJU
 ## G-002 — Merchant document metadata context boundary (24 November 2026)
 
 Merchant document metadata operations are separated from object-storage signing at the controller boundary. Only registration of already-uploaded metadata and the two metadata-list reads are wrapped by the verified-user transaction context. Upload URL signing and download URL signing remain excluded because they perform object-storage work; download signing currently also persists the generated URL. Do not wrap those complete handlers in a request transaction. A future slice must split short DB metadata reads/writes from storage calls, preserve membership/ownership checks and avoid holding a transaction across storage I/O.
+
+
+## G-002 — Orders cancellation database phase (24 November 2026)
+
+The dedicated cancellation flow may use a service-level user actor context only around its DB-only phases. Payment cancellation is currently a conditional payment-record status update, payment-event insert and transactional outbox write; it does not call a provider. Keep the complete cancellation controller handler outside the request interceptor: the order/shipment transaction must commit before realtime emission. Run a second short user actor context for master-order recalculation and final read. Merchant rejection remains excluded while it invokes refund orchestration; checkout remains excluded until its pre-transaction, transaction and post-commit side effects are separated.

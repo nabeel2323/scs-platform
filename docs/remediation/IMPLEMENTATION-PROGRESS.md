@@ -2484,3 +2484,10 @@ The Merchant document controller now applies the verified-user TenantDatabaseCon
 The object-storage paths remain deliberately outside the request transaction: POST /documents/presign-upload, POST /documents/:id/presign, and POST /documents/:id/merchant-presign. These handlers call storage signing and/or combine storage I/O with metadata persistence; they require a separate short-phase DB/storage design before actor-context adoption. No storage operation is held inside a database transaction.
 
 Added merchant-controller-document-context.spec.ts to assert the three scoped handlers and the three excluded presign handlers. Test source is added but NOT EXECUTED under the implementation-first instruction. No RLS, grants, migration, shared/staging database, deployment, worker, merge or release action occurred.
+
+
+## G-002 Orders cancellation DB-only phase — 24 November 2026
+
+Source commit records the dedicated order-cancellation database phase under a verified-user actor context derived from the caller. The scope includes order lookup and authorization, the optimistic status flip, inventory reservation release, shipment state/history, transactional order/shipment outbox writes, and the DB-only payment-record cancellation. Source review of PaymentsService.cancelPayment confirms it only reads/updates payment records, appends payment events and writes a transactional outbox row; it does not invoke a payment provider or refund API.
+
+The actor transaction commits before the realtime order-status event is emitted. Master-order recalculation and final order read run in a second short actor context. The controller deliberately does not receive TenantDatabaseContextInterceptor because that would keep the outer transaction open across the post-commit realtime emission. Merchant rejection remains excluded because it invokes requestRefund; checkout remains excluded pending a full side-effect boundary review. Regression coverage was added but not executed.

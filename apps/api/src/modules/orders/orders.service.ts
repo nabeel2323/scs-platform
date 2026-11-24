@@ -1522,7 +1522,21 @@ export class OrdersService {
       throw new BadRequestException('Cancellation reason OTHER requires explanatory notes');
     }
 
-    const order = await this.getOrder(orderId);
+    const runAsCaller = <T>(operation: () => Promise<T>): Promise<T> => {
+      if (!caller?.sub || !caller.role) return operation();
+      return this.db.withActorContext(
+        {
+          actorKind: 'user',
+          actorId: caller.sub,
+          actorRole: caller.role,
+          activeOrgId: caller.activeOrg ?? null,
+        },
+        operation,
+      );
+    };
+
+    const order = await runAsCaller(async () => {
+      const order = await this.getOrder(orderId);
 
     // A3-1: object-level check — buyers cancel their own orders, merchants
     // cancel orders their org fulfills, platform staff bypass.
@@ -1728,6 +1742,8 @@ export class OrdersService {
         }
       }
     });
+      return order;
+    });
 
     // Post-commit: realtime emit
     this.realtime?.emitOrderStatusChanged(
@@ -1738,9 +1754,10 @@ export class OrdersService {
     );
 
     // Recalculate master order status after cancellation
-    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
-
-    return this.getOrder(orderId);
+    return runAsCaller(async () => {
+      await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
+      return this.getOrder(orderId);
+    });
   }
 
   // ── Queries ──────────────────────────────────────────────────

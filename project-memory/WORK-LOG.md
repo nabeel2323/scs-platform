@@ -1740,3 +1740,11 @@ Explicitly excluded: bank-transfer proof upload (object storage), refund request
 - Added TenantDatabaseContextInterceptor to uploadDocument, listOrgDocuments and listStoreDocuments only. Kept presignDocumentUpload, presignDocument and presignMerchantDocument outside the request transaction.
 - Added merchant-controller-document-context.spec.ts to assert both the allowlist and storage-path exclusions. Test source was not executed.
 - Updated the G-002 implementation plan, progress tracker and programme gap register. No tests, formatter, lint, typecheck, E6 or CI were run. No RLS, migration, grants/default ACLs, shared/staging DB writes, deployment, worker activation, merge or release occurred.
+
+
+## 24 November 2026 — Orders cancellation actor-context boundary
+
+- Reviewed OrdersService.cancelOrder and PaymentsService.cancelPayment. The latter performs only payment-record lookup/update, payment-event insertion and transactional outbox persistence; no provider/refund call occurs in that method.
+- Wrapped the cancellation authorization/read and order/shipment/inventory/payment DB transaction in a service-level user actor context derived from the verified caller. Kept realtime emission after the actor transaction commits, then ran master-order recalculation and final order read in a second short actor context.
+- Did not add the controller interceptor: it would hold the outer transaction open across realtime emission. Merchant rejectOrder remains excluded because it calls requestRefund; checkout remains excluded pending full side-effect separation.
+- Added an unexecuted regression spec for actor identity and commit-before-realtime ordering. No tests, formatter, lint, typecheck, E6 or CI were run. No RLS, migration, grants/default ACLs, shared/staging DB writes, deployment, worker activation, merge or release occurred.

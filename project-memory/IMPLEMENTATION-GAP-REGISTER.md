@@ -1074,3 +1074,16 @@ No tests, formatter, lint, typecheck, E6 or CI have been executed during impleme
 | Upload/download presign | DEFERRED_BY_DECISION | Keep storage signing outside DB transactions; split DB metadata phases before adopting context |
 
 Regression metadata assertions were added but not executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED; no RLS policy or privilege change follows from this source adoption.
+
+
+## G-002 — Orders cancellation actor-context slice — 24 November 2026
+
+| Operation | Implementation state | Boundary / next gate |
+| --- | --- | --- |
+| Cancellation authorization/read + order/shipment/inventory/payment-record transaction | IMPLEMENTED — service-level user actor context | Payment cancellation is DB-only; transactional outbox remains atomic |
+| Post-commit realtime status emission | OUTSIDE actor transaction | Emitted only after the cancellation transaction commits |
+| Master-order recalculation + final order read | IMPLEMENTED — second short user actor context | No external I/O inside the scope |
+| Merchant rejection/refund | DEFERRED_BY_DECISION | requestRefund/refund orchestration stays outside DB actor transactions |
+| Checkout | DEFERRED_BY_DECISION | Complete side-effect boundary review required |
+
+Regression coverage was added but not executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
