@@ -189,7 +189,12 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
             updated_at = NOW()
         WHERE id IN (
           SELECT id FROM shipments
-          WHERE (
+          WHERE EXISTS (
+              SELECT 1 FROM orders o
+              WHERE o.id = shipments.order_id
+                AND o.store_id = shipments.store_id
+            )
+            AND (
             carrier_create_status = 'RECOVERY_REQUIRED'
             OR (
               carrier_create_status IN ('PENDING', 'IN_PROGRESS')
@@ -413,7 +418,12 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
             updated_at = NOW()
         WHERE id IN (
           SELECT id FROM shipments
-          WHERE carrier_cancel_status IN ('UNKNOWN', 'RECONCILIATION_REQUIRED')
+          WHERE EXISTS (
+              SELECT 1 FROM orders o
+              WHERE o.id = shipments.order_id
+                AND o.store_id = shipments.store_id
+            )
+            AND carrier_cancel_status IN ('UNKNOWN', 'RECONCILIATION_REQUIRED')
             AND (next_reconciliation_at IS NULL OR next_reconciliation_at <= NOW())
             AND (recovery_status IS NULL
                  OR recovery_status NOT IN ('RECONCILING', 'RECOVERED', 'ADMIN_TRIGGERED'))
