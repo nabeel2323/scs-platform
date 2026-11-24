@@ -2821,3 +2821,12 @@ Regression cases are specified in the G-002 migration FK crosswalk but have not 
 The refund schema has independent payment-record and order FKs. The request path persisted the order/currency from the locked payment, and failed/retry paths already checked their equality, but approval and idempotent recovery did not. Refund request replay and concurrent idempotency-conflict recovery now require the stored order and currency to match the locked payment. Refund approval now checks the locked refund order/currency against the locked payment before transitioning state or writing events/outbox. The return-refund flow's existing multi-ledger lineage checks remain unchanged.
 
 Regression cases are documented in the G-002 migration FK crosswalk; they have not been added/executed in this session. No tests, formatter, lint, typecheck, E6 or CI dispatch was run. The commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## G-002 — shipment order/store ownership hardening — 24 November 2026
+
+**Source commits:** `b1e5490401d9602205d46351ee4eaf1ab2db7d30`, `02edaa89d75b06e6c8a4170cc306662965d8fd30`, and `15d328c952dfd0805a9eee00374c6ad74ed1d6a1`.
+
+The shipment schema has independent order/store FKs. The source now rejects a mismatched order/store at shipment creation, verifies order/store consistency before any shipment detail authorization bypass, and checks the same relationship in the carrier worker before provider/storage side effects and webhook retry processing. This closes a potential cross-store order disclosure through a shipment whose store belongs to one merchant while its order belongs to another.
+
+Regression scenarios are documented in the G-002 migration FK crosswalk; no tests, formatter, lint, typecheck, E6 or CI were run. All source commits use `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
