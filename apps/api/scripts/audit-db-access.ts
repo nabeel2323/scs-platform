@@ -459,23 +459,23 @@ async function main(): Promise<void> {
     const triggerInventory = await client.query<QueryResultRow>(`
       SELECT table_ns.nspname AS table_schema,
              table_rel.relname AS table_name,
-             trigger.tgname AS trigger_name,
-             trigger.tgenabled AS enabled_state,
-             trigger.tgisinternal AS is_internal,
+             tg.tgname AS trigger_name,
+             tg.tgenabled AS enabled_state,
+             tg.tgisinternal AS is_internal,
              pg_get_triggerdef(trigger.oid, true) AS trigger_definition,
              function_ns.nspname AS function_schema,
              function_proc.proname AS function_name,
              function_proc.prosecdef AS function_security_definer,
              function_proc.proconfig AS function_settings,
              pg_get_userbyid(function_proc.proowner) AS function_owner
-      FROM pg_trigger trigger
-      JOIN pg_class table_rel ON table_rel.oid = trigger.tgrelid
+      FROM pg_trigger tg
+      JOIN pg_class table_rel ON table_rel.oid = tg.tgrelid
       JOIN pg_namespace table_ns ON table_ns.oid = table_rel.relnamespace
-      JOIN pg_proc function_proc ON function_proc.oid = trigger.tgfoid
+      JOIN pg_proc function_proc ON function_proc.oid = tg.tgfoid
       JOIN pg_namespace function_ns ON function_ns.oid = function_proc.pronamespace
       WHERE table_ns.nspname NOT IN ('pg_catalog', 'information_schema')
         AND table_ns.nspname NOT LIKE 'pg_toast%'
-      ORDER BY table_ns.nspname, table_rel.relname, trigger.tgname
+      ORDER BY table_ns.nspname, table_rel.relname, tg.tgname
     `);
 
     const otherConnections = await client.query<QueryResultRow>(`
