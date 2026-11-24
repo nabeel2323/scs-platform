@@ -466,3 +466,10 @@ The current session advanced the migration/Drizzle FK reconciliation:
 This is not full Drizzle/migration parity completion: only the payment, return and financial schema slice was inspected. The remaining 100-table schema/migration comparison, exact ownership predicates, source operation and actor-context nesting audit, protected read-only catalog/runtime identity, external pg_partman scheduler evidence, 114/116 historical relation reconciliation, G-001 independent review and G-036 verification remain open.
 
 Source commits: `b37f3386220b7148f2b326f9fd43b532b201a152`, `ef178d7af0d10b1ef80642aa5f6fe77b37cc55d4`, `e1d73e5270f8a815c537edf97f1ff8cc1d45fac4`. Crosswalk commit: `ad1547e781e0382bbd4ad6b6105c59dc3b19c0a3`. Tests, formatter, lint, typecheck, E6 and CI were not run; all remain deferred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; no protected database, staging, migration, RLS/grant, deployment, worker activation, merge or release action occurred.
+
+
+## Final live reconciliation — 24 November 2026
+
+Immediately before this checkpoint update, GitHub reported PR #138 head `07eb6b7c60152ca72dd937bc0dd1251003fd583b`, OPEN / DRAFT / UNMERGED to `develop`. The compare API reports the branch 2,485 commits ahead and 0 behind `develop`. Exact-head Actions lookup returned zero workflow runs. Combined status contains only Vercel Web/Admin FAILURE contexts pointing to the provider build-rate-limit page; these are external preview-provider failures, not application test results.
+
+The current source/docs work remains unverified. No tests, formatter, lint, typecheck, E6 or CI were run during implementation. The next task remains full table-by-table Drizzle/migration FK parity and source callsite/actor-context audit; protected runtime identity/catalog and pg_partman scheduler evidence remain gated.
