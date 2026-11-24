@@ -5,6 +5,7 @@ import { CatalogController } from '../../../modules/catalog/catalog.controller';
 function buildController(options?: {
   category?: { id: string; storeId: string | null; isActive: boolean };
   storeOrgId?: string;
+  member?: boolean;
 }) {
   const service = {
     getCategory: vi.fn().mockResolvedValue(
@@ -19,10 +20,16 @@ function buildController(options?: {
   const storeFindFirst = vi.fn().mockResolvedValue(
     options?.storeOrgId ? { orgId: options.storeOrgId } : null,
   );
+  const storeMemberFindFirst = vi.fn().mockResolvedValue(
+    options?.member === false ? null : { id: 'membership-1' },
+  );
   const membershipWhere = vi.fn().mockResolvedValue([{ id: 'membership-1' }]);
   const db = {
     db: {
-      query: { stores: { findFirst: storeFindFirst } },
+      query: {
+        stores: { findFirst: storeFindFirst },
+        storeMembers: { findFirst: storeMemberFindFirst },
+      },
       select: vi.fn(() => ({
         from: vi.fn(() => ({
           where: membershipWhere,
@@ -39,7 +46,7 @@ function buildController(options?: {
     {} as any,
     {} as any,
   );
-  return { controller, service, storeFindFirst, membershipWhere };
+  return { controller, service, storeFindFirst, storeMemberFindFirst, membershipWhere };
 }
 
 const buyer = {
@@ -62,6 +69,21 @@ describe('CatalogController category tenant visibility (G-002)', () => {
       isActive: true,
     });
     expect(h.storeFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('allows an active store member to list that store category scope', async () => {
+    const h = buildController({ storeOrgId: 'org-a', member: true });
+
+    await h.controller.listCategories(buyer, 'store-a');
+
+    expect(h.storeFindFirst).toHaveBeenCalledOnce();
+    expect(h.storeMemberFindFirst).toHaveBeenCalledOnce();
+    expect(h.service.listCategories).toHaveBeenCalledWith({
+      storeId: 'store-a',
+      parentId: undefined,
+      all: false,
+      isActive: true,
+    });
   });
 
   it('requires organization and active store membership before listing store categories', async () => {
