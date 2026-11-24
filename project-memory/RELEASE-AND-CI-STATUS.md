@@ -403,3 +403,12 @@ No tests, formatter, lint, typecheck, E6 or CI were run. G-002 remains IN_PROGRE
 - Implementation added actor-scoped DB phases for Catalog product update/delete, import processing/chunk transactions/error report, product detail/media reads, dormant stale-import recovery and Redis-backed Search Facets. AuditService standalone writes use the audit principal. Regression tests were authored in the corresponding Catalog/Audit/Search specs.
 - No tests, formatter, lint, typecheck, E6 or CI were executed. All new tests remain unverified. G-002 remains IN_PROGRESS / NOT VERIFIED.
 - No staging deployment, shared database mutation, RLS/grant/migration change, worker registration/activation, environment/secret change, merge or release occurred. catalog-import-recovery remains dormant and unscheduled.
+
+## 25 November 2026 — latest Catalog ownership continuation checkpoint
+
+- Branch: remediation/phase-0-1-tenant-security. Exact inspected head before this status-note commit: 6a029779930bef12062d66af9eb7b8aa18ddf838.
+- PR #138 remains open/draft/unmerged, targeting develop. Live comparison: 2,641 commits ahead, 0 behind develop. The PR description is stale relative to the current branch and is not a substitute for live branch inspection.
+- Exact-head combined status: Vercel – scs-platform-admin and Vercel – scs-platform-web are FAILURE states pointing to the external Vercel build-rate-limit page. GitHub Actions workflow-run lookup returned no runs for this [skip ci] head. These are not application test results.
+- This continuation adds category/store ownership and visibility protections, global product-type category binding and public-read guards, active/public facet aggregation and cache v2, product update/delete/bulk/media owner predicates, offer status/store and updatedAt compare-and-set, and pending request row-lock/CAS. Service actor scopes now revalidate product read/edit access before cache hits and mutations. Regression specs were authored/extended across the affected areas.
+- Tests, formatter, lint, typecheck, E6 and CI were NOT run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+- No staging deployment, shared DB mutation, RLS/grant/migration change, worker activation, environment/secret change, merge or release occurred.
