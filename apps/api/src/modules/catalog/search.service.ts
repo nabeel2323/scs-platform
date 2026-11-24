@@ -519,7 +519,7 @@ export class SearchService {
   }
 
   /** PHASE 8: Read-through cache for facets (TTL 2 min). */
-  private static readonly FACETS_CACHE_PREFIX = 'search:facets:';
+  private static readonly FACETS_CACHE_PREFIX = 'search:facets:v2:';
   private static readonly FACETS_TTL_S = 120;
 
   async getFacetsCached(categoryId: string | undefined, actor: SearchUserActor): Promise<FacetEntry[]> {
@@ -555,13 +555,23 @@ export class SearchService {
    */
   async getFacets(categoryId?: string): Promise<FacetEntry[]> {
     try {
-      // 1. Find published product types for this category (or all types if no category)
-      const typeConditions = [eq(productTypes.status, 'PUBLISHED')];
-      if (categoryId) typeConditions.push(eq(productTypes.categoryId, categoryId));
-      const types = await this.db.db.query.productTypes.findMany({
-        where: and(...typeConditions),
-        columns: { id: true },
-      });
+      // 1. Only global taxonomy is exposed by public facets. Historical product
+      // types may predate the platform-category ownership invariant, so enforce
+      // the category scope in this read as well as on create/update.
+      const typeConditions = [
+        eq(productTypes.status, 'PUBLISHED'),
+        isNull(categories.storeId),
+      ];
+      if (categoryId) {
+        typeConditions.push(eq(productTypes.categoryId, categoryId), eq(categories.isActive, true));
+      } else {
+        typeConditions.push(or(isNull(categories.id), eq(categories.isActive, true)));
+      }
+      const types = await this.db.db
+        .select({ id: productTypes.id })
+        .from(productTypes)
+        .leftJoin(categories, eq(productTypes.categoryId, categories.id))
+        .where(and(...typeConditions));
       if (types.length === 0) return [];
       const typeIds = types.map((t) => t.id);
 
@@ -594,18 +604,30 @@ export class SearchService {
       const facets: FacetEntry[] = [];
 
       for (const attr of attrDefs) {
-        const result = await this.db.db.execute(sql`
-          SELECT
-            COALESCE(pav.value_text, pav.option_value, pav.value_number::text, pav.value_boolean::text) AS val,
-            count(*)::int AS cnt
-          FROM product_attribute_values pav
-          WHERE pav.attribute_definition_id = ${attr.id}
-            AND (pav.value_text IS NOT NULL OR pav.option_value IS NOT NULL OR pav.value_number IS NOT NULL OR pav.value_boolean IS NOT NULL)
-          GROUP BY val
-          ORDER BY cnt DESC
-          LIMIT 20
-        `);
-        const rows = (result as any).rows ?? result;
+        const valueExpression = sql`COALESCE(
+          ${productAttributeValues.valueText},
+          ${productAttributeValues.optionValue},
+          ${productAttributeValues.valueNumber}::text,
+          ${productAttributeValues.valueBoolean}::text
+        )`;
+        const rows = await this.db.db
+          .select({
+            val: valueExpression,
+            cnt: sql<number>`count(*)::int`,
+          })
+          .from(productAttributeValues)
+          .innerJoin(products, eq(productAttributeValues.productId, products.id))
+          .where(
+            and(
+              eq(productAttributeValues.attributeDefinitionId, attr.id),
+              inArray(products.productTypeId, typeIds),
+              eq(products.status, 'ACTIVE'),
+              isNull(products.deletedAt),
+            ),
+          )
+          .groupBy(valueExpression)
+          .orderBy(desc(sql`count(*)`))
+          .limit(20);
         const def = filterableAttrs.find((f) => f.code === attr.code);
         if (def && Array.isArray(rows) && rows.length > 0) {
           facets.push({
