@@ -430,6 +430,53 @@ async function main(): Promise<void> {
       WHERE n.nspname = 'public'
     `);
 
+    // Inventory functions across every non-system schema, not only public.
+    // This includes extension-owned routines such as pg_partman's functions.
+    const functionInventory = await client.query<QueryResultRow>(`
+      SELECT n.nspname AS schema_name,
+             p.proname AS function_name,
+             pg_get_function_identity_arguments(p.oid) AS identity_arguments,
+             pg_get_userbyid(p.proowner) AS owner_role,
+             l.lanname AS language,
+             p.prosecdef AS security_definer,
+             p.proconfig AS function_settings,
+             has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_executable,
+             has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authenticated_executable,
+             EXISTS (
+               SELECT 1
+               FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) acl
+               WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
+             ) AS public_executable
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      JOIN pg_language l ON l.oid = p.prolang
+      WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+        AND n.nspname NOT LIKE 'pg_toast%'
+      ORDER BY n.nspname, p.proname, identity_arguments
+    `);
+
+    const triggerInventory = await client.query<QueryResultRow>(`
+      SELECT table_ns.nspname AS table_schema,
+             table_rel.relname AS table_name,
+             trigger.tgname AS trigger_name,
+             trigger.tgenabled AS enabled_state,
+             trigger.tgisinternal AS is_internal,
+             pg_get_triggerdef(trigger.oid, true) AS trigger_definition,
+             function_ns.nspname AS function_schema,
+             function_proc.proname AS function_name,
+             function_proc.prosecdef AS function_security_definer,
+             function_proc.proconfig AS function_settings,
+             pg_get_userbyid(function_proc.proowner) AS function_owner
+      FROM pg_trigger trigger
+      JOIN pg_class table_rel ON table_rel.oid = trigger.tgrelid
+      JOIN pg_namespace table_ns ON table_ns.oid = table_rel.relnamespace
+      JOIN pg_proc function_proc ON function_proc.oid = trigger.tgfoid
+      JOIN pg_namespace function_ns ON function_ns.oid = function_proc.pronamespace
+      WHERE table_ns.nspname NOT IN ('pg_catalog', 'information_schema')
+        AND table_ns.nspname NOT LIKE 'pg_toast%'
+      ORDER BY table_ns.nspname, table_rel.relname, trigger.tgname
+    `);
+
     const otherConnections = await client.query<QueryResultRow>(`
       SELECT usename AS login_role,
              application_name,
@@ -514,6 +561,8 @@ async function main(): Promise<void> {
       specialObjectSummaries,
       defaultPrivileges: defaultAcls.rows,
       publicFunctions: functions.rows[0] ?? null,
+      functionInventory: functionInventory.rows,
+      triggerInventory: triggerInventory.rows,
       extensionInventory: extensionInventory.rows,
       inheritedRoleMemberships: memberships.rows,
       otherDatabaseConnections: otherConnections.rows,
