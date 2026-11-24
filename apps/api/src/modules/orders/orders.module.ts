@@ -7,6 +7,7 @@ import { CartController } from './cart.controller';
 import { CartService } from './cart.service';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { AutoCompleteWorker } from './auto-complete.worker';
 import { OrderRealtimeAccessService } from './order-realtime-access.service';
 

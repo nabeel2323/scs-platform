@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { OrdersService, CheckoutInput, ItemConfirmation } from './orders.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import {
   CurrentUser,
@@ -35,6 +36,7 @@ export class OrdersController {
   // ── Master Orders ────────────────────────────────────────────
 
   @Get('orders/master/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getMasterOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.getMasterOrder(id, user);
   }
@@ -60,11 +62,13 @@ export class OrdersController {
   }
 
   @Get('orders/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.getOrderWithItems(id, user);
   }
 
   @Get('orders/:id/history')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getStatusHistory(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.getStatusHistory(id, user);
   }
@@ -203,6 +207,7 @@ export class OrdersController {
   // ── Buyer Tracking ────────────────────────────────────────────
 
   @Get('orders/master/:id/tracking')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getTracking(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.getTracking(id, user.sub);
   }
