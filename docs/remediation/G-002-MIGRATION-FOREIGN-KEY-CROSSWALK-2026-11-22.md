@@ -236,3 +236,31 @@ Add/retain automated coverage for: mismatching supplied org on adjustment creati
 ### Remaining cross-column review
 
 The source pass above does not close the full matrix. Driver/store assignment organization consistency, reconciliation run/discrepancy organization inheritance, all remaining order/payment/refund/settlement and carrier/shipment relationships, migration-defined FK reconciliation against the Drizzle declarations, and protected staging `pg_constraint` evidence remain open. The 183 migration REFERENCES scan remains static evidence only; the historical 114/116 relation counts remain unresolved pending the authorized read-only catalog snapshot.
+
+
+## Reconciliation parent-scope hardening and driver assignment disposition — 24 November 2026
+
+**Source commit:** `98843bfe455667f7a96d7cbdd6dfb2253ce2af0f`.
+
+### Reconciliation run/discrepancy relationship
+
+The Drizzle schema gives `reconciliation_discrepancies.run_id` an FK to `reconciliation_runs.id`, while each table independently stores nullable `org_id` without an organization FK. The writer already stamps each run and its discrepancy rows from the same resolved `tenantId`. The service now adds fail-closed checks around that intended denormalized invariant:
+
+- A non-null requested organization must exist before a reconciliation run is created.
+- `getReconciliationRun` loads all children for the selected run and rejects the read if any child `org_id` differs from the parent run's `org_id`; it no longer silently hides a mismatched child through a second organization filter.
+- `resolveDiscrepancy` verifies that the parent run exists and that its `org_id` equals the discrepancy's `org_id`, as well as the requested organization scope, before updating the discrepancy.
+
+These are service checks, not a composite FK or live-data proof. Global platform reconciliation intentionally uses a null run scope and writes null scope to its child discrepancies; tenant-scoped runs use the active organization scope.
+
+### Driver/store assignment relationship
+
+The inspected `shipping.schema.ts` declares `driver_profiles.org_id → organizations.id` and `driver_store_assignments.driver_profile_id → driver_profiles.id` plus `store_id → stores.id`. There is no composite constraint tying `driver_profiles.org_id` to `stores.org_id`. The separate `shipments.assigned_driver_id` currently references `users.id`, not `driver_profiles.id`. The inspected `ShippingModule` and `ShipmentOperationsController` do not expose a driver/store assignment mutation path; the shipment list/detail only reads `assignedDriverId`. Therefore no assignment-path guard is claimed. The table's actual consumers and any assignment write path remain to be located before implementation or policy decisions.
+
+### Additional regression cases required
+
+- Unknown non-null organization is rejected before a reconciliation run is inserted.
+- A run read fails closed when any child discrepancy has a different `org_id`.
+- Resolving a discrepancy fails closed when its parent run is missing or has a different `org_id`.
+- Driver profile/store assignment rejects cross-organization assignment if/when a real write path is located; no speculative endpoint was added.
+
+No tests or live database queries were run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
