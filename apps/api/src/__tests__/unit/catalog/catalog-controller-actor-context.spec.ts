@@ -40,6 +40,7 @@ describe('CatalogController database actor boundaries (G-002)', () => {
 });
 
 const MIXED_DB_PHASE_MUTATIONS = [
+  'getProduct',
   'updateProduct',
   'deleteProduct',
   'stageImportRows',
@@ -47,6 +48,7 @@ const MIXED_DB_PHASE_MUTATIONS = [
   'processImportJob',
   'previewImportJob',
   'getImportErrors',
+  'listMedia',
 ] as const;
 
 describe('CatalogController mixed operation boundaries (G-002)', () => {
