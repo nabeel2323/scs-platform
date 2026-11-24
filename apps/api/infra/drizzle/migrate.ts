@@ -63,24 +63,31 @@ function psql(query: string): string {
  * structurally impossible to record a migration that did not fully apply — the property
  * the old `psql -f` + separate INSERT could not guarantee.
  */
-function psqlFile(sqlContent: string, file: string): void {
+function psqlFile(sqlContent: string, file: string): boolean {
   const tmpFile = '/tmp/_migrate.sql';
   const script = `BEGIN;
+SELECT pg_advisory_xact_lock(5456723, 1);
+SELECT EXISTS (SELECT 1 FROM _migration_log WHERE name = '${file}') AS migration_already_applied \\gset
+\\if :migration_already_applied
+\\echo SCS_MIGRATION_ALREADY_APPLIED
+COMMIT;
+\\else
 ${sqlContent}
 INSERT INTO _migration_log (name) VALUES ('${file}');
 COMMIT;
+\\endif
 `;
-  // Pipe SQL content into a file inside the container
+  // Pipe SQL content into a file inside the container.
   execSync(
     `docker exec -i ${CONTAINER} bash -c "cat > ${tmpFile}"`,
     { input: script, encoding: 'utf-8' },
   );
-  // Execute the SQL file. ON_ERROR_STOP makes psql abort and roll back on the first
-  // error; an aborted transaction leaves no log row, so the migration is retried next run.
-  execFileSync('docker', [
+  // ON_ERROR_STOP aborts and rolls back the transaction on the first error.
+  const output = execFileSync('docker', [
     'exec', CONTAINER, 'psql', '-U', DB_USER, '-d', DB_NAME,
     '-v', 'ON_ERROR_STOP=1', '-f', tmpFile,
   ], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+  return !output.includes('SCS_MIGRATION_ALREADY_APPLIED');
 }
 
 async function main() {
@@ -101,10 +108,14 @@ async function main() {
   }
 
   // Ensure migration tracking table exists
-  psql(`CREATE TABLE IF NOT EXISTS _migration_log (
-    name TEXT PRIMARY KEY,
-    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`);
+  psql(`BEGIN;
+    SELECT pg_advisory_xact_lock(5456723, 1);
+    CREATE TABLE IF NOT EXISTS _migration_log (
+      name TEXT PRIMARY KEY,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    COMMIT;
+  `);
 
   // Get already-applied migrations
   const appliedRaw = psql('SELECT name FROM _migration_log ORDER BY name');
@@ -146,9 +157,13 @@ async function main() {
     try {
       // The log INSERT happens inside psqlFile's transaction, so a failure here means
       // nothing was committed and nothing was recorded.
-      psqlFile(content, file);
-      console.log(`   ✅ ${file} applied`);
-      count++;
+      const appliedNow = psqlFile(content, file);
+      if (appliedNow) {
+        console.log(`   ✅ ${file} applied`);
+        count++;
+      } else {
+        console.log(`   ✓ ${file} (applied by another migration runner)`);
+      }
     } catch (err: any) {
       console.error(`\n❌ Migration ${file} FAILED (rolled back, not logged):`);
       console.error(`   ${err.stderr || err.message}`);
