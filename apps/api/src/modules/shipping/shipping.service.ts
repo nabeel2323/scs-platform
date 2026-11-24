@@ -15,7 +15,13 @@ import { ManualDeliveryProvider } from './providers/manual-delivery.provider';
 import { AramexProvider } from './aramex/aramex.provider';
 import { ShippingProvider } from './shipping-provider';
 import { CreateShipmentRequest, CreateShipmentResult } from './shipping.types';
-import { shippingMethods, deliveryZones, deliveryZoneMethods } from './shipping.schema';
+import {
+  shippingMethods,
+  deliveryZones,
+  deliveryZoneMethods,
+  driverProfiles,
+  driverStoreAssignments,
+} from './shipping.schema';
 import {
   resolveShippingCost,
   matchDeliveryZone,
@@ -29,6 +35,7 @@ import {
   type CallerContext,
 } from '../../common/tenant-scope';
 import { stores } from '../merchant/merchant.schema';
+import { users, organizationMembers, roles } from '../identity/identity.schema';
 
 // ── Input / Output types ────────────────────────────────────────────────────
 
@@ -161,6 +168,69 @@ export class ShippingService implements OnModuleInit {
     }
 
     await assertActiveOrgMembership(this.db, caller, store.orgId);
+  }
+
+  /**
+   * Verify that a user is an eligible driver for a store before a shipment is
+   * assigned. Driver profiles are organization-bound and must belong to the
+   * store's owning organization; the user must be active and hold an active
+   * DRIVER membership in that same organization.
+   *
+   * Migration 0041 defines an explicit-assignment compatibility rule:
+   * drivers with no driver_store_assignments rows are unrestricted across
+   * stores in their own organization. Once any rows exist, only those stores
+   * are eligible. Preserve that rule rather than requiring a mapping row.
+   */
+  async assertDriverEligibleForStore(driverUserId: string, storeId: string): Promise<void> {
+    const reject = () => new BadRequestException('Driver is not eligible for this store');
+
+    const store = await this.db.db.query.stores.findFirst({
+      where: eq(stores.id, storeId),
+      columns: { id: true, orgId: true },
+    });
+    if (!store?.orgId) throw reject();
+
+    const profile = await this.db.db.query.driverProfiles.findFirst({
+      where: and(
+        eq(driverProfiles.userId, driverUserId),
+        eq(driverProfiles.orgId, store.orgId),
+        eq(driverProfiles.isActive, true),
+      ),
+      columns: { id: true },
+    });
+    if (!profile) throw reject();
+
+    const user = await this.db.db.query.users.findFirst({
+      where: and(eq(users.id, driverUserId), eq(users.status, 'ACTIVE')),
+      columns: { id: true },
+    });
+    if (!user) throw reject();
+
+    const memberships = await this.db.db.query.organizationMembers.findMany({
+      where: and(
+        eq(organizationMembers.orgId, store.orgId),
+        eq(organizationMembers.userId, driverUserId),
+        eq(organizationMembers.status, 'ACTIVE'),
+      ),
+      columns: { roleId: true },
+    });
+    const roleIds = memberships.map((membership) => membership.roleId);
+    if (roleIds.length === 0) throw reject();
+
+    const driverRole = await this.db.db.query.roles.findFirst({
+      where: and(inArray(roles.id, roleIds), eq(roles.key, 'DRIVER')),
+      columns: { id: true },
+    });
+    if (!driverRole) throw reject();
+
+    const assignments = await this.db.db.query.driverStoreAssignments.findMany({
+      where: eq(driverStoreAssignments.driverProfileId, profile.id),
+      columns: { storeId: true },
+    });
+
+    if (assignments.length > 0 && !assignments.some((assignment) => assignment.storeId === storeId)) {
+      throw reject();
+    }
   }
 
   // ── Shipping Method CRUD ────────────────────────────────────────────────
