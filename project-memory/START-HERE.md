@@ -1159,3 +1159,10 @@ No database was inspected or repaired, and no tests/CI were run. These are sourc
 ## 24 November 2026 — migration FK source scan completion
 
 The 75-file numbered migration scan found 183 explicit REFERENCES clauses across 40 migration files; 35 files had none. The detailed migration/count/parent-table appendix is in `docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md`. This completes the static source-reference inventory, not live catalog verification. Remaining: reconcile with Drizzle declarations and protected staging pg_constraint evidence, then finish cross-column ownership consistency decisions (org/store, carrier config/credential/store, payment/refund/order/settlement, shipping driver/store, reconciliation parent/org). No database query was run.
+
+
+## Latest continuation — financial ownership matrix — 24 November 2026
+
+Latest source commits: `01b6e6c729c1a458f20aaeaed043df4c569119e4` and `fa2547997c4b4dad490b582f92c9a69b8c01ed8f`. These harden cross-column relationships for settlement adjustments and commission reversals; see the matching entry in [WORK-LOG.md](./WORK-LOG.md), [CURRENT-STATE.md](./CURRENT-STATE.md), and the authoritative [G-002 migration FK crosswalk](../docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md).
+
+The next task is to inspect driver-profile/store-assignment organization consistency and reconciliation-run/discrepancy organization inheritance, then complete the remaining financial/shipping cross-column owner matrix. Regression cases are documented but not executed. Do not run tests or intentionally trigger CI until implementation/integration is complete; source pushes automatically queued CI #1503, which was IN_PROGRESS at last observation. All staging/database/RLS/grant/migration/deployment/worker/merge restrictions remain in force. PR #138 remains draft and unmerged.
