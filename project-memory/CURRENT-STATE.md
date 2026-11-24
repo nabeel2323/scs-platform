@@ -381,3 +381,12 @@ Latest source commits:
 The crosswalk and progress tracker now record the invariant evidence and regression cases. Tests remain deferred. CI run #1503 (ID 45434170778) was automatically queued by source pushes and was IN_PROGRESS at last observation; it was not manually dispatched and no pass is claimed. Vercel Web/Admin remain external rate-limit failures. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 
 **Next source task:** inspect driver-profile/store-assignment organization consistency and reconciliation run/discrepancy organization inheritance; then complete the remaining financial/shipping cross-column matrix and Drizzle/migration FK reconciliation. Obtain actual runtime identity/catalog evidence only through the authorized read-only staging process. PR #138 remains draft/unmerged; no merge, deployment, shared DB mutation, migration, RLS/grant change or worker activation occurred.
+
+
+## 24 November 2026 — reconciliation scope integrity follow-up
+
+Source commit `98843bfe455667f7a96d7cbdd6dfb2253ce2af0f` now verifies a non-null reconciliation organization exists before run creation, rejects a run read if any discrepancy child has a different organization from the run, and checks the parent run's organization before discrepancy resolution. The run writer already stamped both parent and children from the same tenant scope; this closes the missing read/resolve validation.
+
+Driver assignment schema review remains open: profile org and assignment store are separate FKs without a same-org constraint; the inspected ShippingModule and ShipmentOperationsController have no assignment write route, and shipment assignedDriverId references users. No speculative endpoint was introduced. The next task is to locate the actual consumer/write path.
+
+CI #1503, automatically triggered by earlier source commits, completed FAILURE on the prior source SHA; it does not cover the reconciliation update and has not been triaged during implementation. Follow-up commits use `[skip ci]`. No tests, staging/shared DB, migration, RLS/grant, deployment, worker activation, merge or release action occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
