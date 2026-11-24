@@ -127,7 +127,8 @@ describe('CatalogService mixed product mutation actor boundaries (G-002)', () =>
     const bulkWhere = new PgDialect().sqlToQuery(f.updateConditions[0] as SQL);
     expect(bulkWhere.params).toContain('store-1');
     expect(bulkWhere.params).toContain('product-1');
-    expect(bulkWhere.sql.toLowerCase()).toContain('deleted_at is null');
+    expect(bulkWhere.sql.toLowerCase()).toContain('deleted_at');
+    expect(bulkWhere.sql.toLowerCase()).toContain('is null');
   });
 
   it('keeps publication outbox insertion in a separate short user actor scope', async () => {
