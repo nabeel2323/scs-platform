@@ -2859,3 +2859,30 @@ Exact regression cases are recorded in the G-002 migration FK crosswalk; no test
 Webhook retry now revalidates the bound credential for already-linked as well as unlinked events. It rejects missing/inactive bound credentials and provider-key mismatch, and requires the linked shipment store's organization to equal the credential organization before marking the event processed. Unlinked legacy events without a credential are rejected; already-linked legacy rows with null credential remain compatible but still pass shipment/order/store consistency validation. This closes a path where an existing event link could otherwise be retried under a different organization's shipment.
 
 Regression cases are in the G-002 crosswalk and remain unexecuted. No tests, formatter, lint, typecheck, E6 or CI were run; commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## G-002 — driver profile/store eligibility at shipment assignment — 24 November 2026
+
+**Source commits:** `9d461e1c25381d4528fc733059ee58afb320fa6b` (ShippingService eligibility contract), `fca4c3569976fd6e5a8b9db767e876f8f449c367` (OrdersService pre-write guard), and `efa6349651b7f2b5083475e4bdaa9104ee3402cc` (source formatting follow-up).
+
+A broader source callsite review corrected the earlier ShippingModule-only conclusion. The actual shipment assignment path is `OrdersController.assignDriver → OrdersService.assignDriver`, which writes `shipments.assigned_driver_id` (user FK). Before this change, it did not verify the user's driver profile or the relationship between that profile and the order's store.
+
+The new `ShippingService.assertDriverEligibleForStore(driverUserId, storeId)` contract requires:
+- A real target store with an organization.
+- An active `driver_profiles` row for the user, with `driver_profiles.org_id = stores.org_id`.
+- An ACTIVE user account.
+- An ACTIVE membership for that user in the store organization with the canonical DRIVER role.
+- Migration 0041's explicit-assignment behavior: zero `driver_store_assignments` rows means unrestricted eligibility across stores in the profile organization; if any rows exist, the target store must be among them.
+
+`OrdersService.assignDriver` invokes the eligibility contract before its optimistic order status update, shipment assignment, shipment event/history writes and outbox publication. If the ShippingService contract is unavailable, the assignment fails closed before mutation. The existing transaction-bound tenant context remains the outer controller boundary; no global interceptor or separate transaction was added.
+
+No writer for the optional `driver_store_assignments` allowlist itself was found. No new API, composite FK, migration or schema change was introduced. The prior statement that no shipment assignment write path existed is superseded; the mapping-table writer remains absent and its migration-defined zero-row compatibility semantics are preserved.
+
+**Regression source added; not executed:**
+- `apps/api/src/__tests__/unit/shipping/shipping-tenant-context.spec.ts`: active same-org profile, unrestricted mode, explicit target assignment, foreign-store restriction, inactive/missing profile, inactive user and non-DRIVER membership.
+- `apps/api/src/__tests__/unit/orders/driver-assignment-eligibility.spec.ts`: invalid driver rejection before any order/shipment write; missing ShippingService fails closed.
+- `apps/api/src/__tests__/integration/m722-shipping.postgres.spec.ts`: disposable PostgreSQL coverage for unrestricted same-org stores, cross-org rejection, explicit allowlist restriction, inactive profile and inactive DRIVER membership.
+
+G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No tests, formatter, lint, typecheck, E6 or CI were run. No live/shared database, migration, RLS/grant, protected staging, deployment, worker activation, merge or release action occurred.
+
+**Next:** continue the remaining Drizzle-to-migration FK reconciliation and source-level cross-column ownership matrix; review whether any external process provisions `driver_store_assignments` without inventing an API. Then finish actor-context nesting/reuse review and obtain protected read-only API/migration runtime identity/catalog evidence only through the authorized staging process. Consolidated verification remains deferred until implementation/integration is complete.
