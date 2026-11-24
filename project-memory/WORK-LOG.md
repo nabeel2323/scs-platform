@@ -2196,3 +2196,11 @@ Removed request-wide TenantDatabaseContextInterceptor from GET /products/:id and
 ## 25 November 2026 — Search Facets cache/DB split
 
 Removed TenantDatabaseContextInterceptor from GET /search/facets. The controller passes the verified JWT actor; SearchService.getFacetsCached now performs Redis cache reads/writes outside the database scope and wraps only the facet database query in a short user actor context. Added missing-actor and cache/DB boundary tests plus controller metadata coverage. Tests remain unexecuted; no quality gates/CI.
+
+## 25 November 2026 — Catalog ownership predicate and concurrency pass
+
+Reviewed Catalog route actor boundaries and strengthened ownership predicates across category, product-type, product, media, offer and request operations. Store category list/search access now requires current org and active membership; public category lists/tree are active platform-only; inactive/foreign category detail is hidden. Product category assignment and category parent links reject inactive/foreign-store references. Global product types require active platform categories on create/update/publish/duplicate/version; public product-type list/detail/schema/product routes hide unpublished and legacy tenant-bound bindings, while product-type managers can inspect legacy inventory. Search facets use cache v2 and only aggregate public active product values.
+
+Offer lifecycle updates now compare current status and owner store; pricing updates compare updatedAt. Request approvals/rejections lock the pending row under an active user transaction and use PENDING-only updates. Product update/type-change/delete/bulk mutations include exact store and soft-delete predicates. Product read/edit authorization is repeated inside service actor scopes; media deletion includes the parent product predicate.
+
+Added/extended regression specs for category service/controller ownership, taxonomy category and visibility rules, search facet filtering and cache actor validation, offer CAS, request row locking, product/media owner predicates, and actor metadata across Catalog-adjacent controllers. Tests remain authored but not executed. No quality gates or CI were run. No shared DB/RLS/grants/migration/deployment/worker/merge/release action occurred. G-002 remains NOT VERIFIED.
