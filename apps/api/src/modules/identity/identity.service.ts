@@ -9,7 +9,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { DatabaseService } from '../../common/database/database.service';
+import { DatabaseService, type DatabaseAuthenticationOperation } from '../../common/database/database.service';
 import { RedisService } from '../../common/redis/redis.service';
 import {
   users,
@@ -159,6 +159,8 @@ type AuthenticatedIdentityActor = {
   activeOrg: string | null;
 };
 
+type AuthenticationOperation = DatabaseAuthenticationOperation;
+
 @Injectable()
 export class IdentityService {
   private readonly logger = new Logger(IdentityService.name);
@@ -201,6 +203,17 @@ export class IdentityService {
       },
       operation,
     );
+  }
+
+  /**
+   * Resolve a minimal unauthenticated account/session record before a verified
+   * user principal exists. No user ID, role or tenant claim is carried.
+   */
+  private withAuthenticationDatabaseContext<T>(
+    authOperation: AuthenticationOperation,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    return this.db.withActorContext({ actorKind: 'authentication', authOperation }, operation);
   }
 
   /**
@@ -359,9 +372,9 @@ export class IdentityService {
     // (S1.37-F-05).
     const { phone: normalizedPhone } = await this.consumePhoneChallenge(phone, otp);
 
-    const existing = await this.db.db.query.users.findFirst({
-      where: eq(users.phone, normalizedPhone),
-    });
+    const existing = await this.withAuthenticationDatabaseContext('phone_otp_login', () =>
+      this.db.db.query.users.findFirst({ where: eq(users.phone, normalizedPhone) }),
+    );
 
     let userId: string;
     if (existing) {
@@ -794,9 +807,9 @@ export class IdentityService {
     const { email } = await this.consumeEmailChallenge(rawEmail, otp);
 
     // 6. Resolve or create user by email
-    const existing = await this.db.db.query.users.findFirst({
-      where: eq(users.email, email),
-    });
+    const existing = await this.withAuthenticationDatabaseContext('email_otp_login', () =>
+      this.db.db.query.users.findFirst({ where: eq(users.email, email) }),
+    );
 
     let userId: string;
     if (existing) {
@@ -883,9 +896,9 @@ export class IdentityService {
   }> {
     const tokenHash = this.hashToken(refreshToken);
 
-    const session = await this.db.db.query.sessions.findFirst({
-      where: eq(sessions.tokenHash, tokenHash),
-    });
+    const session = await this.withAuthenticationDatabaseContext('refresh_token', () =>
+      this.db.db.query.sessions.findFirst({ where: eq(sessions.tokenHash, tokenHash) }),
+    );
 
     if (!session || session.revokedAt) {
       // Reuse detected — revoke entire chain
@@ -988,9 +1001,9 @@ export class IdentityService {
 
     // Resolve the owner first: credential revocation must be ownership-bound,
     // so a logout cannot be used to revoke someone else's credential.
-    const session = await this.db.db.query.sessions.findFirst({
-      where: eq(sessions.tokenHash, tokenHash),
-    });
+    const session = await this.withAuthenticationDatabaseContext('logout', () =>
+      this.db.db.query.sessions.findFirst({ where: eq(sessions.tokenHash, tokenHash) }),
+    );
 
     await this.db.db
       .update(sessions)
@@ -1943,9 +1956,9 @@ export class IdentityService {
     }
 
     // Find user by email
-    const user = await this.db.db.query.users.findFirst({
-      where: eq(users.email, email),
-    });
+    const user = await this.withAuthenticationDatabaseContext('password_login', () =>
+      this.db.db.query.users.findFirst({ where: eq(users.email, email) }),
+    );
 
     if (!user) {
       // Equalize against the real compare path below, then give the same answer

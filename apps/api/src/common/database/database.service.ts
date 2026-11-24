@@ -10,11 +10,25 @@ import * as schema from '../../drizzle/schema';
 import { resolveDatabaseUrl } from '../../config/env-gate';
 import { PERMISSIONS, ROLES } from './rbac-seed.data';
 
-export type DatabaseActorKind = 'anonymous' | 'user' | 'worker' | 'system' | 'bootstrap' | 'audit';
+export type DatabaseActorKind = 'anonymous' | 'authentication' | 'user' | 'worker' | 'system' | 'bootstrap' | 'audit';
+export type DatabaseAuthenticationOperation =
+  | 'phone_otp_login'
+  | 'email_otp_login'
+  | 'password_login'
+  | 'refresh_token'
+  | 'logout';
 
 export type DatabaseActorContext =
   | {
       actorKind: 'anonymous';
+      actorId?: null;
+      actorRole?: null;
+      activeOrgId?: null;
+      workerId?: null;
+    }
+  | {
+      actorKind: 'authentication';
+      authOperation: DatabaseAuthenticationOperation;
       actorId?: null;
       actorRole?: null;
       activeOrgId?: null;
@@ -48,6 +62,7 @@ type NormalizedDatabaseActorContext = {
   actorRole: string | null;
   activeOrgId: string | null;
   workerId: string | null;
+  authOperation: DatabaseAuthenticationOperation | null;
 };
 
 
@@ -142,7 +157,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           set_config('app.actor_role', ${actor.actorRole ?? ''}, true),
           set_config('app.active_org_id', ${actor.activeOrgId ?? ''}, true),
           set_config('app.actor_kind', ${actor.actorKind}, true),
-          set_config('app.worker_id', ${actor.workerId ?? ''}, true)
+          set_config('app.worker_id', ${actor.workerId ?? ''}, true),
+          set_config('app.auth_operation', ${actor.authOperation ?? ''}, true)
       `);
 
       const scope = {
@@ -171,10 +187,22 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       typeof context.activeOrgId === 'string' ? context.activeOrgId.trim() : null;
     const workerId = typeof context.workerId === 'string' ? context.workerId.trim() : null;
 
+    let authOperation: DatabaseAuthenticationOperation | null = null;
     if (context.actorKind === 'anonymous') {
       if (actorId || actorRole || activeOrgId || workerId) {
         throw new TypeError('Anonymous database context cannot carry actor or tenant identity');
       }
+    } else if (context.actorKind === 'authentication') {
+      const allowedOperations: DatabaseAuthenticationOperation[] = [
+        'phone_otp_login', 'email_otp_login', 'password_login', 'refresh_token', 'logout',
+      ];
+      if (
+        actorId || actorRole || activeOrgId || workerId ||
+        !allowedOperations.includes(context.authOperation)
+      ) {
+        throw new TypeError('Authentication database context requires one approved operation and no user or tenant identity');
+      }
+      authOperation = context.authOperation;
     } else if (context.actorKind === 'user') {
       if (!actorId || !actorRole || workerId) {
         throw new TypeError('User database context requires actorId and actorRole only');
@@ -201,6 +229,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       actorRole,
       activeOrgId,
       workerId,
+      authOperation,
     };
   }
 
@@ -213,7 +242,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       left.actorId === right.actorId &&
       left.actorRole === right.actorRole &&
       left.activeOrgId === right.activeOrgId &&
-      left.workerId === right.workerId
+      left.workerId === right.workerId &&
+      left.authOperation === right.authOperation
     );
   }
 
