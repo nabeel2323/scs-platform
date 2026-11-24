@@ -204,7 +204,7 @@ describe('P2 — Identifier normalization', () => {
     const svc = makeService(mockDb);
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
-    await svc.updateProduct('p1', { gtin: '  1234567890123  ' }, actor);
+    await svc.updateProduct('p1', { gtin: '  1234567890123  ' }, undefined, actor);
 
     // The update.set should have been called with gtin = '1234567890123' (trimmed)
     const setCall = mockDb.db.update().set.mock.calls[0]?.[0] ?? mockDb.db.update.mock.results[0]?.value?.set.mock.calls[0]?.[0];
@@ -222,7 +222,7 @@ describe('P2 — Identifier normalization', () => {
     const svc = makeService(mockDb);
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
-    await svc.updateProduct('p1', { gtin: '' }, actor);
+    await svc.updateProduct('p1', { gtin: '' }, undefined, actor);
     expect(svc).toBeDefined();
   });
 
@@ -236,7 +236,7 @@ describe('P2 — Identifier normalization', () => {
     const svc = makeService(mockDb);
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
-    await svc.updateProduct('p1', { gtin: '   ' }, actor);
+    await svc.updateProduct('p1', { gtin: '   ' }, undefined, actor);
     expect(svc).toBeDefined();
   });
 
@@ -250,7 +250,7 @@ describe('P2 — Identifier normalization', () => {
     const svc = makeService(mockDb);
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
-    await svc.updateProduct('p1', { mpn: 'ABC 123' }, actor);
+    await svc.updateProduct('p1', { mpn: 'ABC 123' }, undefined, actor);
     expect(svc).toBeDefined();
   });
 
@@ -264,7 +264,7 @@ describe('P2 — Identifier normalization', () => {
     const svc = makeService(mockDb);
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
-    await svc.updateProduct('p1', { mpn: '123-456' }, actor);
+    await svc.updateProduct('p1', { mpn: '123-456' }, undefined, actor);
     expect(svc).toBeDefined();
   });
 
@@ -278,7 +278,7 @@ describe('P2 — Identifier normalization', () => {
     const svc = makeService(mockDb);
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
-    await svc.updateProduct('p1', { mpn: 'AbC-123' }, actor);
+    await svc.updateProduct('p1', { mpn: 'AbC-123' }, undefined, actor);
     expect(svc).toBeDefined();
   });
 });
@@ -300,7 +300,7 @@ describe('P2 — Identifier uniqueness', () => {
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
     await expect(
-      svc.updateProduct('p1', { gtin: 'DUPLICATE-GTIN' }, actor),
+      svc.updateProduct('p1', { gtin: 'DUPLICATE-GTIN' }, undefined, actor),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -315,7 +315,7 @@ describe('P2 — Identifier uniqueness', () => {
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
     await expect(
-      svc.updateProduct('p1', { ean: 'DUPLICATE-EAN' }, actor),
+      svc.updateProduct('p1', { ean: 'DUPLICATE-EAN' }, undefined, actor),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -330,7 +330,7 @@ describe('P2 — Identifier uniqueness', () => {
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
     // MPN update should succeed even if another product has the same MPN
-    await svc.updateProduct('p1', { mpn: 'SHARED-MPN' }, actor);
+    await svc.updateProduct('p1', { mpn: 'SHARED-MPN' }, undefined, actor);
     expect(svc).toBeDefined();
   });
 
@@ -348,7 +348,7 @@ describe('P2 — Identifier uniqueness', () => {
     const svc = makeService(mockDb);
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
-    await svc.updateProduct('p1', { gtin: '123' }, actor);
+    await svc.updateProduct('p1', { gtin: '123' }, undefined, actor);
     expect(svc).toBeDefined();
   });
 
@@ -363,7 +363,7 @@ describe('P2 — Identifier uniqueness', () => {
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
     // Setting GTIN to null should skip uniqueness check
-    await svc.updateProduct('p1', { gtin: null }, actor);
+    await svc.updateProduct('p1', { gtin: null }, undefined, actor);
     expect(svc).toBeDefined();
   });
 });
@@ -387,7 +387,7 @@ describe('P2 — Product type change guard', () => {
       .mockResolvedValueOnce(product as any)
       .mockResolvedValue({ ...product, productTypeId: 'pt-1' } as any);
 
-    const result = await svc.updateProduct('p1', { productTypeId: 'pt-1' }, actor);
+    const result = await svc.updateProduct('p1', { productTypeId: 'pt-1' }, undefined, actor);
     expect(result).toBeDefined();
     expect(mockDb.db.transaction).toHaveBeenCalled();
   });
@@ -404,7 +404,7 @@ describe('P2 — Product type change guard', () => {
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
     try {
-      await svc.updateProduct('p1', { productTypeId: 'pt-1' }, actor);
+      await svc.updateProduct('p1', { productTypeId: 'pt-1' }, undefined, actor);
       expect.fail('Should have thrown');
     } catch (err: any) {
       expect(err).toBeInstanceOf(BadRequestException);
@@ -424,7 +424,7 @@ describe('P2 — Product type change guard', () => {
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
     try {
-      await svc.updateProduct('p1', { productTypeId: 'pt-1' }, actor);
+      await svc.updateProduct('p1', { productTypeId: 'pt-1' }, undefined, actor);
       expect.fail('Should have thrown');
     } catch (err: any) {
       expect(err).toBeInstanceOf(BadRequestException);
@@ -445,7 +445,7 @@ describe('P2 — Product type change guard', () => {
       .mockResolvedValueOnce(product as any)
       .mockResolvedValue({ ...product, productTypeId: null } as any);
 
-    const result = await svc.updateProduct('p1', { productTypeId: null }, actor);
+    const result = await svc.updateProduct('p1', { productTypeId: null }, undefined, actor);
     expect(result).toBeDefined();
     expect(mockDb.db.transaction).toHaveBeenCalled();
   });
@@ -460,7 +460,7 @@ describe('P2 — Product type change guard', () => {
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
     await expect(
-      svc.updateProduct('p1', { productTypeId: 'nonexistent-uuid' }, actor),
+      svc.updateProduct('p1', { productTypeId: 'nonexistent-uuid' }, undefined, actor),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -474,7 +474,7 @@ describe('P2 — Product type change guard', () => {
     const svc = makeService(mockDb);
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
-    await svc.updateProduct('p1', { title: 'New Title' }, actor);
+    await svc.updateProduct('p1', { title: 'New Title' }, undefined, actor);
     expect(mockDb.db.transaction).not.toHaveBeenCalled();
   });
 
@@ -489,7 +489,7 @@ describe('P2 — Product type change guard', () => {
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
     // Sending the SAME productTypeId should NOT trigger the guard
-    await svc.updateProduct('p1', { productTypeId: 'pt-1' }, actor);
+    await svc.updateProduct('p1', { productTypeId: 'pt-1' }, undefined, actor);
     expect(mockDb.db.transaction).not.toHaveBeenCalled();
   });
 });
@@ -583,7 +583,7 @@ describe('P2 — Optimistic locking with identifiers', () => {
     const result = await svc.updateProduct('p1', {
       productTypeId: 'pt-new',
       gtin: 'NEW-GTIN',
-    }, actor);
+    }, undefined, actor);
     expect(result).toBeDefined();
     expect(mockDb.db.transaction).toHaveBeenCalled();
   });
@@ -627,7 +627,7 @@ describe('P2 — Lifecycle behavior', () => {
     const svc = makeService(mockDb);
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
-    await svc.updateProduct('p1', { gtin: 'NEW-GTIN' }, actor);
+    await svc.updateProduct('p1', { gtin: 'NEW-GTIN' }, undefined, actor);
     expect(svc).toBeDefined();
   });
 
@@ -641,7 +641,7 @@ describe('P2 — Lifecycle behavior', () => {
     const svc = makeService(mockDb);
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
-    await svc.updateProduct('p1', { gtin: 'NEW-GTIN' }, actor);
+    await svc.updateProduct('p1', { gtin: 'NEW-GTIN' }, undefined, actor);
     expect(svc).toBeDefined();
   });
 
@@ -655,7 +655,7 @@ describe('P2 — Lifecycle behavior', () => {
     const svc = makeService(mockDb);
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
-    await svc.updateProduct('p1', { gtin: 'CORRECTED-GTIN' }, actor);
+    await svc.updateProduct('p1', { gtin: 'CORRECTED-GTIN' }, undefined, actor);
     expect(svc).toBeDefined();
   });
 });
@@ -671,7 +671,7 @@ describe('P2 — Product not found', () => {
     vi.spyOn(svc, 'getProduct').mockRejectedValue(new NotFoundException('Product not found'));
 
     await expect(
-      svc.updateProduct('missing', { gtin: 'X' }, actor),
+      svc.updateProduct('missing', { gtin: 'X' }, undefined, actor),
     ).rejects.toThrow(NotFoundException);
   });
 });
