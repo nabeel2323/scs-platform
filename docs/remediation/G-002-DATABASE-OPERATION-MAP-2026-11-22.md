@@ -492,3 +492,9 @@ Additional Catalog operation-specific ownership checks are now in source:
 - Offer lifecycle updates compare the read status and merchant store; pricing writes compare updatedAt. Request review locks the PENDING request in the controller's active user transaction and uses a PENDING-only state transition.
 
 Controller coverage review found DB-only Catalog reads protected by method-level interceptors and taxonomy/offers/requests by controller-level interceptors; mixed media/detail/import/facet paths use explicit short actor scopes. Pricing and Reviews controllers also scope their Catalog lookup-service calls. This is source review only; no live catalog/predicate verification has occurred. Regression tests are authored but unexecuted. G-002 remains IN_PROGRESS / NOT VERIFIED.
+
+## 25 November 2026 — Admin-to-Catalog caller review
+
+AdminService is an additional CatalogService caller. The admin product update route now forwards the verified admin actor to CatalogService.updateProduct and is excluded from request-wide TenantDatabaseContextInterceptor so the CatalogService DB phases close before cache/audit side effects. Admin product media previews now load product/media/variant rows in a short user actor scope and generate presigned URLs after commit. Other inspected AdminService Catalog create/variant/typed-attribute operations remain on request-interceptor DB-only paths. The admin organization-update review path already scopes DB work and sends notification after commit.
+
+Admin regression specs cover these mixed route boundaries and actor forwarding; they remain unexecuted. This is source evidence only, not deployed runtime identity proof. G-002 remains IN_PROGRESS / NOT VERIFIED.
