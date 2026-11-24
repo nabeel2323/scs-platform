@@ -1187,3 +1187,10 @@ Next: locate the actual driver/store assignment consumer/write path, complete sh
 Commits `b1e5490`, `02edaa8` and `15d328c` enforce same-store order ownership at shipment creation, shipment detail authorization (including platform-privileged reads), and carrier worker processing before provider/storage side effects. The G-002 crosswalk and progress tracker document the exact invariant and regression cases.
 
 Next: locate the actual driver/store assignment consumer/write path and continue the remaining carrier/webhook/shipment relationship audit, then reconcile Drizzle declarations against migrations. Regression tests remain pending and unexecuted; commits use `[skip ci]`. G-002 remains NOT VERIFIED. Preserve all protected staging/database/RLS/grant/migration/deployment/worker/merge restrictions.
+
+
+## Latest continuation — shipment read paths — 24 November 2026
+
+The shipment/order/store consistency review now covers creation, detail, carrier worker operations, shipment lists/counts, OrdersService exception/RTS access, order-based shipment lookup and driver shipment listing. Source commits include `c916acd` and `56d605a`; see the G-002 migration FK crosswalk and implementation progress tracker for exact behavior and regression cases.
+
+Next: locate the actual driver-profile/store-assignment consumer/write path and complete the remaining carrier/webhook relationships, then reconcile Drizzle schema FKs with migrations. Regression coverage is documented but not executed. Do not run tests or intentionally trigger CI until implementation/integration is complete. G-002 remains NOT VERIFIED; all staging/database/RLS/grant/migration/deployment/worker/merge restrictions remain binding.
