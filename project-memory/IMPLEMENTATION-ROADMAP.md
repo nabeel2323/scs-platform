@@ -1,7 +1,7 @@
 # SCS Platform — Implementation Roadmap
 
 **Status source:** [Authoritative remediation plan](../docs/remediation/IMPLEMENTATION-PLAN.md) and [progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md).  
-**Last checkpoint:** 23 November 2026.
+**Last checkpoint:** 24 November 2026.
 
 This file is a compact navigation and sequencing view. The remediation plan owns phase definitions, finding scope, acceptance criteria and release gates. The progress tracker owns detailed finding status and evidence. Update this summary whenever those documents change.
 
@@ -734,3 +734,11 @@ External Vercel preview statuses continue to report the provider build-rate limi
 4. Continue G-002 source evidence and actual FK/method-predicate mapping. Protected staging/runtime identity inspection remains unavailable without authorization. G-001 independent review and G-036 focused security verification remain open; Phase 6 remains NOT STARTED.
 
 No migration, database grant/default-ACL change, RLS enablement, shared/staging database write, deployment, worker activation, merge or release was performed. PR #138 remains draft and unmerged.
+
+## G-002 — authenticated Identity/Profile actor-context slice — 24 November 2026
+
+Source checkpoint: `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`.
+
+The latest source group adds short user actor contexts to authenticated credential setup/change, OTP-proven email/phone linking, identifier unlinking and organization switching. The AuthController/ProfileController pass only verified JWT claims. Password hashing/comparison, OTP consumption, Redis denylisting, provider I/O and JWT signing remain outside the DB transactions. The password mutation, credential audit, trusted-device revocation and session revocation share a DB-only transaction; the general audit write uses a separate audit principal.
+
+**Next G-002 implementation sequence:** (1) design pre-authentication identity resolution for OTP/email-OTP login, password login, refresh-token rotation and logout; (2) continue DB-only Orders/Payments operations while excluding payment/refund side effects; (3) separate Merchant document metadata DB work from object-storage calls; (4) complete the physical table/operation ownership matrix and 114/116 reconciliation. Tests and CI remain deferred until implementation/integration is complete. No RLS or shared database changes are authorized.

@@ -1,0 +1,84 @@
+# G-002 Authenticated Identity Actor-Context Adoption — 24 November 2026
+
+## Status and source checkpoint
+
+**Status:** Implemented in source; automated verification pending.  
+**Source commit:** `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`.  
+**Branch:** `remediation/phase-0-1-tenant-security`.  
+**PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED to `develop`.
+
+This source group extends the existing opt-in, transaction-bound DatabaseService actor context. It does not add a global interceptor, schema migration, RLS policy or database privilege change.
+
+## Principal provenance
+
+AuthController and ProfileController are protected by JWT authentication. They forward only the verified user ID, role and active-organization claims from `request.user` to IdentityService. The service helper constructs the existing typed principal:
+
+- `actorKind: 'user'`
+- `actorId: userId`
+- `actorRole: verified JWT role`
+- `activeOrgId: verified JWT activeOrg`
+
+No request-body actor, organization or user identifier is used to manufacture the actor principal.
+
+## Adopted operation boundaries
+
+### Credential setup
+
+- The user lookup needed for password validation executes in a short user actor scope.
+- Password strength validation and bcrypt hashing stay outside the DB transaction.
+- A second user-scoped DB operation rechecks the account and email uniqueness, updates email/password/passwordSetAt and writes the credential audit row.
+- The existing OTP-authenticated setup session is preserved; setup does not revoke sessions.
+
+### Password change
+
+- The authenticated user read is scoped.
+- Current-password verification, strength validation and bcrypt hashing happen outside transactions.
+- One user actor transaction updates the password using an optimistic predicate on the previously-read password hash, writes the credential audit row, revokes trusted-device credentials and revokes sessions (all sessions, or sessions for the supplied device ID).
+- A lost optimistic race returns a conflict instead of overwriting a concurrently changed password.
+- The general non-throwing audit log entry for device-trust revocation is written later in a separate `audit` actor context; it is not part of the credential mutation transaction.
+
+### Email and phone account linking
+
+- The OTP challenge is consumed by the existing Redis-backed challenge flow before opening a database actor transaction. OTP consumption is not included in the DB transaction.
+- The user lookup, collision check, optimistic identifier update and hashed account-link audit insert run within one user actor transaction.
+- Existing uniqueness and last-usable-identifier database constraints remain authoritative; existing domain error translation is retained.
+
+### Email and phone account unlinking
+
+- The account read, last-authentication-method check, optimistic clear operation and hashed audit insertion run in one user actor transaction.
+- No external I/O occurs inside these transaction callbacks.
+
+### Organization switching
+
+- Membership for the target organization is resolved in a user actor transaction with `activeOrgId: null`, because the requested target organization is not yet trusted.
+- Only after the membership lookup succeeds does the service build role/permission claims for that organization in the same DB transaction.
+- Redis jti denylisting and JWT signing remain outside the DB transaction.
+
+## Test coverage added or updated
+
+- Updated AuthController tests for actor claim forwarding in switch/link/unlink handlers.
+- Updated ProfileController tests for actor claim forwarding in credential setup/change handlers.
+- Updated account-linking tests, including an assertion on the verified user actor context.
+- Updated email-OTP error-coverage test fixtures and calls.
+- Updated IdentityService organization N+1 tests to provide actor context to switchOrg.
+- Added `identity.credentials-context.spec.ts` for actor context values, bcrypt-outside-transaction boundaries, and password/device/session DB operations.
+
+**Tests were not run**, per the standing implementation-first instruction. No formatter, lint, typecheck, E6 or CI workflow was executed for this source commit. Source implementation is not RLS or runtime verification.
+
+## Explicit exclusions and next source work
+
+The following remain outside this authenticated slice because identity must first be safely established or because the method crosses non-database side effects:
+
+- Phone OTP login and email OTP login/verification.
+- Password login and trusted-device/OTP challenge flows.
+- Refresh-token rotation, refresh-token reuse handling and logout.
+- OTP Redis challenge creation/consumption, rate limiting, provider delivery, Redis token denylisting, bcrypt and JWT signing.
+- Payment/refund/checkout flows and Merchant file/object-storage flows.
+
+The next G-002 Identity task is to define a safe pre-authentication database-principal contract for OTP/password login and bearer refresh/logout. The initial lookup that resolves an account from a phone/email or refresh-token hash must not be wrapped in a user principal that has not yet been proven. Do not substitute untrusted request claims, and do not use a broad system principal without an approved design. Separate DB-only post-proof work from Redis/provider/bcrypt/JWT operations.
+
+Remaining G-002 gates also include actual API/migration runtime identity evidence, protected read-only catalog inventory, exact operation/ownership predicates, physical relation count reconciliation (114/116), independent review and eventual consolidated test/CI verification.
+
+## Safety
+
+No tests, formatter, lint, typecheck, E6 or CI were run. No migration, RLS enablement, grant/default-ACL change, shared/staging database write, deployment, worker activation, PR merge or release occurred. PR #138 remains draft and unmerged.

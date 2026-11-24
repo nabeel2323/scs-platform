@@ -7,7 +7,7 @@
 **Repository:** `nabeel2323/scs-platform`
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`
 <!-- prettier-ignore -->
-**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; latest source/test checkpoint before this tracker synchronization is `b9f9728659e71d3788cc58aa2b5ad9df29ab9731` (FIN-019 settlement-adjustment posting integrity; FIN-DSH-34/35 tests added but not executed). FIN-004–FIN-019 financial safeguards are IMPLEMENTED / TESTING_PENDING. CI #1437 on earlier SHA `9dc7d04469180807e65053fe51819afffb3b78c0` passed lint/typecheck and Flutter but failed changed-file Prettier (259 files); API/PostgreSQL/Web/Admin and dependent jobs skipped. No exact-head Actions verification exists for FIN-019. G-002 remains open: runtime identities, protected read-only catalog audit, exact FK/operation predicates and transaction-bound context proof remain outstanding. No staging deployment, shared database mutation, migration 0070/0071, grant/default-ACL change, RLS enablement or worker activation is authorized or claimed.
+**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`; latest source checkpoint is `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f` (G-002 authenticated Identity/Profile DB-only actor-context adoption; focused regression tests added but not executed). FIN-004–FIN-047 safeguards/features remain IMPLEMENTED / TESTING_PENDING where their individual entries say so. G-002 remains IN PROGRESS / NOT VERIFIED: pre-authentication identity resolution, runtime identities, protected read-only catalog audit, exact FK/operation predicates and transaction-context evidence remain outstanding. No staging deployment, shared database mutation, migration, grant/default-ACL change, RLS enablement or worker activation is authorized or claimed.
 
 ---
 
@@ -2422,3 +2422,18 @@ ReturnExpirationWorker actor wrapping was deliberately reverted to preserve its 
 - ReturnExpirationWorker's existing granular worker scopes were preserved; no full-batch transaction was added.
 
 **Status:** IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Tests, lint, typecheck, formatter, E6 and CI remain deferred until implementation/integration are complete. No RLS, migration, grants/default ACLs, shared DB or staging changes occurred.
+
+## G-002 authenticated Identity/Profile actor-context adoption — 24 November 2026
+
+Source commit: `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`.
+
+- Added a private IdentityService helper that uses DatabaseService.withActorContext with a user principal populated only from claims forwarded by JWT-protected AuthController/ProfileController handlers.
+- Added actor context around credential setup reads and the final DB-only credential write/audit unit. Password strength checks and bcrypt hashing are outside the transaction.
+- Added actor context around password-change reads and an atomic DB-only mutation unit. The prior-password-hash predicate prevents concurrent password changes from both winning. Password update, credential audit, device-trust revocation and session revocation share the user actor transaction; the general audit record uses a separate audit actor scope.
+- Added actor context for email/phone account linking after the OTP has been consumed in Redis. Identifier lookup, duplicate checks, optimistic update and hashed account-link audit insertion are inside the actor transaction. Account unlink reads, last-identifier checks, optimistic updates and audit rows are scoped similarly.
+- Added actor context around target organization membership verification and buildClaims during switchOrg, initially with no active organization selected. Redis jti denylisting and JWT signing remain outside the transaction.
+- Updated AuthController/ProfileController call sites and their tests, account-linking tests, email-OTP error-coverage tests and the identity N+1 switchOrg tests. Added `identity.credentials-context.spec.ts`.
+- **Verification:** tests were added/updated but not executed. No formatter, lint, typecheck, E6 or CI was run. Exact source SHA has zero GitHub Actions runs. Vercel Web/Admin success statuses are preview-only, not test evidence.
+- No schema, migration, grant/default ACL, RLS, database, staging, deployment or worker change occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+**Next:** safely design pre-authentication principal resolution for phone/email OTP login, password login, refresh-token rotation and logout; preserve Redis/provider/bcrypt/JWT boundaries. Then finish safe Orders/Payments and Merchant document-metadata slices and complete ownership/runtime evidence.

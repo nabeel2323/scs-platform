@@ -1,6 +1,6 @@
 # SCS Platform — Open Issues and Next Work
 
-**Last reconciled:** 23 November 2026  
+**Last reconciled:** 24 November 2026  
 **Authoritative detail:** [Implementation progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md).
 
 ## Immediate blockers and high-priority work
@@ -949,3 +949,11 @@ G-002 remains IN PROGRESS. Uncovered paths include Auth/Profile, file/import/upl
 Orders actor-context coverage now includes bounded authenticated read routes, checkout preview, reorder and DB-only lifecycle operations. Reject/refund, cancel/payment and actual checkout execution remain excluded pending explicit payment/provider boundary design.
 
 Merchant actor-context coverage includes bounded store/customer/warehouse/verification reads and DB-only store/warehouse/verification writes. Document listing/presign and upload/storage routes remain excluded until their DB metadata and storage phases are separated.
+
+## G-002 authenticated Identity/Profile DB-only adoption — 24 November 2026
+
+**Implemented in source; not verified.** Source commit `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f` adds explicit actor contexts to credential setup/change, OTP-proven email/phone linking, identifier unlinking and authenticated organization switching. Verified JWT claims are forwarded from AuthController/ProfileController. Password and OTP/provider/Redis/JWT work remains outside the DB transaction. Password change atomically persists the password, credential audit, trusted-device revocation and session revocation; external/general audit logging is separated under an audit actor.
+
+Focused tests were added/updated in the controller, account-linking, email-OTP error coverage and organization N+1 suites, plus a new credential-context service spec. They were **not run** under the implementation-first instruction.
+
+**Next:** safely resolve the database principal for pre-authentication OTP/email-OTP login, password login, refresh-token rotation and logout before adding any actor context. Do not trust unverified request claims or wrap Redis/provider/bcrypt/JWT operations. Keep G-002 IN PROGRESS / NOT VERIFIED; runtime identity, protected read-only catalog evidence, complete ownership predicates and the 114/116 reconciliation remain open.

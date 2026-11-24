@@ -31,6 +31,7 @@ Then read the relevant authoritative technical documents linked below. Do not du
 - [G-002 database operation map](../docs/remediation/G-002-DATABASE-OPERATION-MAP-2026-11-22.md) — source map covering 53 service/worker/provider candidates and 28 module controllers; raw SQL, actor handoffs and unverified runtime identities are distinguished.
 - [G-002 table ownership and predicate candidates](../docs/remediation/G-002-TABLE-OWNERSHIP-AND-PREDICATE-CANDIDATES-2026-11-22.md) — schema-backed candidate ownership paths for identity, store, catalog, order, financial, user-private and system rows; not an approved policy.
 - [G-002 migration foreign-key crosswalk](../docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md) — migration-defined FKs, deferred relationships, non-FK org_id metadata, system-table scope and migration 0070/0071 boundaries.
+- [G-002 authenticated identity actor-context adoption](../docs/remediation/G-002-AUTHENTICATED-IDENTITY-ACTOR-CONTEXT-2026-11-24.md) — method boundaries and exclusions for credentials, account linking/unlinking and organization switching.
 - [G-002 supplemental audit note](../docs/remediation/G-002-ADDITIONAL-AUDIT-NOTE-2026-11-23.md) — preserves the user-uploaded 111-table/function/role/worker/OTP observations and explicitly reconciles them as unverified supplemental evidence against the 114/116-table history.
 - [Remediation documentation directory](../docs/remediation/) — detailed audits, database access evidence and finding-specific records.
 - [Implementation Completion Gap Register](./IMPLEMENTATION-GAP-REGISTER.md) — programme phases, evidence-backed implementation gaps, statuses and completion rules.
@@ -77,34 +78,32 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live GitHub reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-platform`, work branch `remediation/phase-0-1-tenant-security`, and PR #138 OPEN / DRAFT / UNMERGED against `develop`. The latest source implementation extends the opt-in actor transaction context across bounded JWT-protected endpoints in Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Admin/Catalog read handlers, Cart, Returns and Organizations/Roles. The actor-context foundation and expired-scope fence are in `d810ee852aa8ea5b79fef4236a91c81ebd50c7ef` and `464b1c857a113489822ba3345aabe59b0a0be4b2`. The latest branch head is `5c14ad71ad24b8812b7cd1607052a5d79fbc2bf4`. Exact-head GitHub Actions lookup is zero due to `[skip ci]`; preview statuses must be rechecked for the current head and are not application-test results.
+Live reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) OPEN / DRAFT / UNMERGED against `develop`. The latest source implementation commit is `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`. It extends the existing transaction-bound actor-context rollout into authenticated identity and credential flows; the detailed method boundary is recorded in [G-002 authenticated identity actor-context adoption](../docs/remediation/G-002-AUTHENTICATED-IDENTITY-ACTOR-CONTEXT-2026-11-24.md).
 
 ### Exact stopping point
 
-- G-002 DB-002 now has an opt-in transaction-bound actor-context primitive and its first controller integration: NotificationsController. The interceptor is controller-scoped, reads only the JWT-authenticated `request.user` after guards, and awaits the handler observable inside the transaction. It is intentionally limited to bounded DB-only handlers; do not apply it to streaming or external side-effect routes without explicit review. Commit `108c60c668827065e6fcb29499860c8febdae984`. Tests are deferred.
-
-- FIN-047 settlement-history pagination and its source audit remain implemented / TESTING_PENDING; do not repeat the work.
-- The prior G-015 source batch at `0a023175ea5cfd7bd24c4fb36ee8c0b32f531adb` already moved Pricing, Operations, Reviews and Realtime imports behind module contracts. This continuation handles the residual Returns/Shipping boundary findings: common P13 lease/raw-result helpers, Identity's PLATFORM organization lookup, Merchant's system store ownership contract, and Orders' credential-scoped shipment lookup contract.
-- Shipping webhook routing now runs through an injectable service only after the credential is authenticated. The shipment search is scoped to store IDs owned by that credential organization and returns at most two candidates to preserve fail-closed ambiguity handling.
-- Focused API tests were added/updated for the new service/query contracts, provider mismatch, empty store scope, ambiguous match, pre-auth routing and worker outbox tenant checks. They have **not** been executed.
-- The code commit is `93844d781ff50cd3ba325c0d9e3ffe209bc128cc`; the following documentation commit synchronizes this handoff. No exact-head formatter, lint, typecheck, E6 or test campaign has yet validated this code.
+- G-002 now has scoped DB-only actor context for credential setup/change, OTP-proven email/phone linking, account identifier unlinking, and authenticated organization switching.
+- JWT-protected AuthController/ProfileController handlers forward only verified user ID, role and active-organization claims. The service uses those values for explicit user actor contexts.
+- Password hashing and comparison, OTP challenge consumption, Redis denylisting, provider traffic and JWT signing remain outside the database transactions. Password change atomically updates the password, writes the credential audit row, revokes trusted-device credentials and revokes sessions; the general audit entry is a separate audit actor write.
+- Regression coverage was added/updated in the Profile/Auth controller, account-linking, email-OTP error-coverage and organization N+1 suites, plus a new credential actor-context service spec. Tests have **not** been executed.
+- FIN-047 remains implemented / TESTING_PENDING; do not repeat its pagination implementation.
 
 ### Live PR and CI
 
 - PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) is OPEN / DRAFT / UNMERGED to `develop`; do not merge.
-- Current exact-head GitHub Actions count is **0** due to `[skip ci]`. The immediately preceding documentation head `4c74a92` had Vercel Web/Admin FAILURE contexts due to the external provider build-rate limit. The current head has no combined-status contexts; neither result substitutes for API, integration or boundary checks.
-- The latest broad historical Actions failure remains CI #45257284797 on the pre-refactor source checkpoint. It reported 14 new E6 boundary violations, migration-audit inability to SELECT `_migration_log` as `scs_audit`, API coverage failures, PostgreSQL integration assertions and Web failures. Those results predate the 23/24 November boundary changes and must not be reported as current-head failures or as passes.
-- G-015 remains PARTIAL until E6 is run on the current source. Do not modify its 193-entry reviewed legacy baseline or weaken the gate.
+- On source commit `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`, GitHub Actions returned zero workflow runs. The Vercel Admin and Web status contexts were SUCCESS, but they are preview statuses, not API, PostgreSQL, boundary or test evidence.
+- The latest broad historical Actions failures predate this actor-context source commit. Do not report historical failures or skipped jobs as current-head results or passes.
+- G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Source adoption alone is not proof of RLS enforcement.
 
 ### Remaining project gates
 
-- G-001 remains PARTIAL pending independent security review.
-- G-002 remains IN PROGRESS: actual API/migration identities, protected read-only catalog evidence, transaction-bound tenant context, table-specific ownership/predicate design, cross-parent integrity and the 111/114/116 relation-count discrepancy remain unresolved.
-- G-036 remains IN PROGRESS pending exact-head verification and independent review.
-- Phases 0–5 remain IN PROGRESS; Phase 6 consolidated verification is NOT STARTED.
-- Keep PR #138 draft/open/unmerged. Do not deploy, use protected staging writes, mutate shared databases, apply migrations 0070/0071/0075, change grants/default ACLs, enable RLS, change Render configuration, invoke external carriers/SMS/OTP, or activate workers.
+- Next G-002 source task: review pre-authentication OTP/email-OTP login, password login, refresh-token rotation and logout. Define how a principal is safely resolved before user identity is known; do not use unverified request claims or wrap Redis/provider/bcrypt/JWT work in DB transactions.
+- Then complete remaining safe Orders/Payments DB-only reads and mutations, keeping payment/refund/provider phases excluded.
+- Separate Merchant document metadata operations from object-storage I/O before adding actor context.
+- Complete the physical table/operation/ownership-predicate matrix and reconcile the 114/116 relation-count discrepancy; obtain runtime API/migration identity and protected read-only catalog evidence only through the authorized process.
+- G-001 independent review and G-036 verification remain open. Phases 0–5 remain IN PROGRESS; Phase 6 remains NOT STARTED.
 
-**Next task:** continue G-002 with bounded, controller-scoped actor-context adoption only after reviewing each request path for nested transactions, detached async work, streaming, external I/O and module provider wiring. Define explicit worker, carrier-webhook, bootstrap and audit context contracts; finish the method-level ownership/predicate map and protected live identity evidence. Do not run tests or trigger CI until implementation and cross-component integration are complete. Do not add a global request interceptor or enable RLS. Fix concrete correctness/security defects immediately.
+**Standing restriction:** do not run tests, formatter, lint, typecheck, E6 or CI while implementation/integration is still in progress. Keep PR #138 draft/open/unmerged. No migrations, grants/default ACL changes, RLS enablement, shared/staging database writes, deployment or worker activation without the recorded authorization.
 
 ## Safety reminder
 

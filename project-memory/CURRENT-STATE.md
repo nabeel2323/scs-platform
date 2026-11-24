@@ -3,10 +3,10 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source checkpoint:** `12ae73c7ddc6dd3e59485918ada316b7088cdd3b` — Orders/Merchant and worker actor-context coverage expanded.  
+**Latest source checkpoint:** `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f` — authenticated Identity/Profile actor-context adoption.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop` (`f74eb588cc58fc99b105e749d39dbfbacb4f9775`).  
 **Exact-head GitHub Actions:** zero workflow runs; source commits intentionally include `[skip ci]`.  
-**Exact-head preview status:** Vercel Web FAILURE and Vercel Admin FAILURE due to external provider build-rate-limit pages. These are not application-test results.
+**Exact-head preview status:** Vercel Web SUCCESS and Vercel Admin SUCCESS on source commit `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`. These are preview statuses, not application-test results.
 
 > **Standing user instruction:** complete implementation and cross-component integration first, then run tests. Do not execute test commands or trigger CI during implementation. Proceed autonomously without asking for approval for routine steps; group related changes and synchronize project memory.
 
@@ -40,8 +40,8 @@ Orders reject/cancel and actual checkout remain excluded where payment/refund/pr
 
 ## Remaining implementation priorities
 
-1. Review Auth/OTP and credential/password setup/change paths for short DB-only actor scopes without wrapping Redis/provider I/O.
-2. Complete safe Orders/Payments read and mutation coverage while excluding external payment/refund phases from DB transactions.
+1. Review pre-authentication OTP/email-OTP login, password login, refresh-token rotation and logout. Define safe principal resolution before user identity is known; keep Redis/provider/bcrypt/JWT work outside DB transactions. Authenticated credential setup/change, account linking/unlinking and organization switching now have scoped DB phases.
+2. Complete remaining safe Orders/Payments read and mutation coverage while excluding external payment/refund phases from DB transactions.
 3. Complete Merchant document metadata paths only after separating storage I/O from DB-only registration.
 4. Finish the G-002 physical table/operation/ownership matrix and reconcile the 114/116 relation inventory.
 5. Obtain actual API/migration runtime identity and protected read-only catalog evidence through the authorized staging process.
@@ -51,3 +51,11 @@ Orders reject/cancel and actual checkout remain excluded where payment/refund/pr
 No tests, formatter, lint, typecheck, E6 boundary check or GitHub Actions workflow was run for this implementation batch. The consolidated testing campaign is deferred until implementation and integration are complete. Do not mark G-002 VERIFIED from source implementation alone.
 
 No shared database mutation, migration, grant/default-ACL change, RLS enablement, staging action, deployment, worker activation, merge or release occurred. PR #138 remains draft and unmerged.
+
+## 24 November 2026 — authenticated identity actor-context adoption
+
+Source commit: `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`.
+
+The authenticated Profile/Auth handlers now forward verified JWT user ID, role and active organization to IdentityService. Explicit user actor contexts cover credential setup/change, OTP-proven email/phone linking, account identifier unlinking and organization switching. Bcrypt, OTP Redis consumption, Redis token denylisting, provider I/O and JWT signing remain outside DB transactions. Password mutation, credential audit, device-trust revocation and session revocation share one DB-only transaction; the non-throwing general audit log uses a separate audit actor context.
+
+Tests were added/updated but not executed. G-002 remains NOT VERIFIED; the next Identity task is pre-authentication principal resolution for OTP/password login and refresh/logout.
