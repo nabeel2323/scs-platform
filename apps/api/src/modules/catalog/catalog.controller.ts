@@ -70,6 +70,15 @@ export class CatalogController {
     private readonly governance: ProductGovernanceService,
   ) {}
 
+  private async assertCategoryReadable(user: JwtPayload, categoryId: string): Promise<void> {
+    const category = await this.catalogService.getCategory(categoryId);
+    if (!category.storeId) return;
+
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, category.storeId);
+    await assertStoreMember(this.db, caller, category.storeId);
+  }
+
   // ── Categories ───────────────────────────────────────────────
 
   @Post('categories')
@@ -84,11 +93,17 @@ export class CatalogController {
   @Get('categories')
   @UseInterceptors(TenantDatabaseContextInterceptor)
   async listCategories(
+    @CurrentUser() user: JwtPayload,
     @Query('storeId') storeId?: string,
     @Query('parentId') parentId?: string,
     @Query('all') all?: string,
     @Query('includeInactive') includeInactive?: string,
   ) {
+    if (storeId) {
+      const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+      await assertStoreInOrg(this.db, caller, storeId);
+      await assertStoreMember(this.db, caller, storeId);
+    }
     return this.catalogService.listCategories({
       storeId,
       parentId,
@@ -111,7 +126,8 @@ export class CatalogController {
 
   @Get('categories/:id')
   @UseInterceptors(TenantDatabaseContextInterceptor)
-  async getCategory(@Param('id') id: string) {
+  async getCategory(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    await this.assertCategoryReadable(user, id);
     return this.catalogService.getCategoryContents(id);
   }
 
@@ -121,7 +137,8 @@ export class CatalogController {
    */
   @Get('categories/:id/product-types')
   @UseInterceptors(TenantDatabaseContextInterceptor)
-  async listCategoryProductTypes(@Param('id') id: string) {
+  async listCategoryProductTypes(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    await this.assertCategoryReadable(user, id);
     return this.catalogService.listCategoryProductTypes(id);
   }
 
@@ -134,8 +151,10 @@ export class CatalogController {
   @UseInterceptors(TenantDatabaseContextInterceptor)
   async listCategoryProducts(
     @Param('id') id: string,
-    @Query('scope') scope?: 'DIRECT' | 'DESCENDANT' | 'BOTH',
+    @Query('scope') scope: 'DIRECT' | 'DESCENDANT' | 'BOTH' | undefined,
+    @CurrentUser() user: JwtPayload,
   ) {
+    await this.assertCategoryReadable(user, id);
     return this.catalogService.getCategoryProducts(id, { scope });
   }
 
