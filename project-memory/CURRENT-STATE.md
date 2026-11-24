@@ -572,3 +572,7 @@ Regression coverage added for AdminService actor forwarding and media preview DB
 ## 25 November 2026 — ProfileController Catalog caller
 
 ProfileController's favorites and saved-supplier routes are now actor-aware end to end. The controller forwards the JWT actor; CatalogService scopes all six methods and verifies the requested userId matches actor.sub. Favorites only return readable products and cannot add unreadable products. Saved suppliers only include ACTIVE/VERIFIED stores and use a safe public projection. All six routes retain TenantDatabaseContextInterceptor. Tests are authored but unexecuted; G-002 remains IN_PROGRESS / NOT VERIFIED.
+
+## 25 November 2026 — Pricing/Reviews Catalog lookup actor guards
+
+CatalogPricingLookupService and CatalogReviewLookupService now require an active user DatabaseService actor context before non-empty DB lookups. Their legitimate PricingController/ReviewsController consumers already run under controller-level actor interceptors. Regression specs cover actor-context requirement; tests remain unexecuted.
