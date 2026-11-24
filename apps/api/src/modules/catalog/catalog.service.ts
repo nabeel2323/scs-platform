@@ -4004,7 +4004,9 @@ export class CatalogService {
       }
 
       // Validate rows (read-only)
-      const result = await this.importValidation.validateRows(job.storeId, mapping, rows, 1);
+      const result = await this.withUserActorContext(actor, () =>
+        this.importValidation.validateRows(job.storeId, mapping, rows, 1),
+      );
 
       // Store preview results
       const previewErrors = result.errors.slice(0, 5000); // Cap stored errors
