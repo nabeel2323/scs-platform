@@ -349,6 +349,7 @@ describe('SearchService — cached facet actor boundary (G-002)', () => {
     const valuesWhere = new PgDialect().sqlToQuery(whereConditions[2] as any);
     expect(valuesWhere.params).toContain('attribute-ram');
     expect(valuesWhere.params).toContain('ACTIVE');
+    expect(valuesWhere.params).toContain('platform-category');
     expect(valuesWhere.sql.toLowerCase()).toContain('deleted_at');
     expect(valuesWhere.sql.toLowerCase()).toContain('is null');
     expect(valuesWhere.sql.toLowerCase()).toContain('product_type_id');
