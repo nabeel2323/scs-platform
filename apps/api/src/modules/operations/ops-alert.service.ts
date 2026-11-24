@@ -32,6 +32,12 @@ import { resolveP13OpsConfig, type P13OpsConfig } from './p13-ops.config';
 
 export type OpsSeverity = 'INFO' | 'WARN' | 'CRITICAL';
 
+type OpsAlertCaller = {
+  sub: string;
+  role: string;
+  activeOrg?: string | null;
+};
+
 export interface OpsAlertInput {
   /** Stable machine-readable id for the condition, e.g. `p13.worker.poll_failures`. */
   conditionKey: string;
@@ -96,6 +102,25 @@ export class OpsAlertService {
     this.config = resolveP13OpsConfig();
   }
 
+  private withUserActor<T>(caller: OpsAlertCaller, operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext({
+      actorKind: 'user',
+      actorId: caller.sub,
+      actorRole: caller.role,
+      activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
+    }, operation);
+  }
+
+  private withSystemActor<T>(operation: () => Promise<T>): Promise<T> {
+    // Alert rows are platform-owned. Reuse an existing verified operation
+    // context when nested; otherwise use the dedicated alert-service principal.
+    if (this.db.currentActorContext) return operation();
+    return this.db.withActorContext(
+      { actorKind: 'system', actorId: 'p13-ops-alert-service' },
+      operation,
+    );
+  }
+
   /** Whether an external sink is configured (drives SENT vs SUPPRESSED). */
   get hasSink(): boolean {
     return !!this.config.alertWebhookUrl;
@@ -127,7 +152,7 @@ export class OpsAlertService {
     let inserted = false;
     try {
       const rows = readRows<{ id: string }>(
-        await this.db.db.execute(sql`
+        await this.withSystemActor(() => this.db.db.execute(sql`
         INSERT INTO ops_alerts (
           id, dedup_key, condition_key, severity, title, detail, status,
           fire_count, suppressed_count, attempt_count, org_id,
@@ -142,7 +167,7 @@ export class OpsAlertService {
         )
         ON CONFLICT (dedup_key) DO NOTHING
         RETURNING id
-      `),
+      `)),
       );
       inserted = rows.some((row) => row.id === id);
     } catch (err) {
@@ -173,7 +198,7 @@ export class OpsAlertService {
 
     // Record the recurrence unconditionally.
     const countAsNewFire = row.status !== 'SENDING';
-    await this.db.db.execute(sql`
+    await this.withSystemActor(() => this.db.db.execute(sql`
       UPDATE ops_alerts
       SET fire_count = fire_count + ${countAsNewFire ? 1 : 0},
           last_observed_at = now(),
@@ -184,7 +209,7 @@ export class OpsAlertService {
           status = ${recursedAfterResolve ? 'PENDING' : row.status},
           delivered_at = ${recursedAfterResolve ? null : row.delivered_at}
       WHERE dedup_key = ${dedupKey}
-    `);
+    `));
 
     const fireCount = row.fire_count + (countAsNewFire ? 1 : 0);
 
@@ -199,11 +224,11 @@ export class OpsAlertService {
         pastRepeatWindow(row.delivered_at, this.config.alertRepeatWindowMs));
 
     if (!needsDelivery) {
-      await this.db.db.execute(sql`
+      await this.withSystemActor(() => this.db.db.execute(sql`
         UPDATE ops_alerts
         SET suppressed_count = suppressed_count + 1, updated_at = now()
         WHERE dedup_key = ${dedupKey}
-      `);
+      `));
       return { id: row.id, status: row.status, notified: false, deduped: true, fireCount };
     }
 
@@ -225,7 +250,7 @@ export class OpsAlertService {
   ): Promise<OpsAlertResult> {
     const staleClaimMs = Math.max(60_000, this.config.alertDeliveryTimeoutMs * 2);
     const claim = readRows<{ id: string }>(
-      await this.db.db.execute(sql`
+      await this.withSystemActor(() => this.db.db.execute(sql`
       UPDATE ops_alerts
       SET status = 'SENDING', updated_at = now()
       WHERE id = ${alertId}
@@ -241,7 +266,7 @@ export class OpsAlertService {
           )
         )
       RETURNING id
-    `),
+    `)),
     );
 
     if (claim.length === 0) {
@@ -256,23 +281,23 @@ export class OpsAlertService {
     }
 
     const fireCountRow = firstRow<{ fire_count: number }>(
-      await this.db.db.execute(sql`
+      await this.withSystemActor(() => this.db.db.execute(sql`
       SELECT fire_count FROM ops_alerts WHERE id = ${alertId}
-    `),
+    `)),
     );
     const fireCount = Number(fireCountRow?.fire_count ?? 1);
 
     if (!this.hasSink) {
       // Documented limitation, not a silent drop: the row is durable and the
       // condition is emitted at ERROR level for log-based alerting to pick up.
-      await this.db.db.execute(sql`
+      await this.withSystemActor(() => this.db.db.execute(sql`
         UPDATE ops_alerts
         SET status = 'SUPPRESSED',
             delivery_channel = 'log-only',
             last_error = NULL,
             updated_at = now()
         WHERE id = ${alertId} AND status = 'SENDING'
-      `);
+      `));
       this.logger.error(
         `[P13-ALERT] ${input.severity} ${input.conditionKey} — ${input.title} ` +
           `detail=${safeJson(input.detail)} (no alert sink configured)`,
@@ -332,23 +357,23 @@ export class OpsAlertService {
     }
 
     if (ok) {
-      await this.db.db.execute(sql`
+      await this.withSystemActor(() => this.db.db.execute(sql`
         UPDATE ops_alerts
         SET status = 'SENT', delivery_channel = 'webhook', attempt_count = attempt_count + 1,
             delivered_at = now(), last_error = NULL, updated_at = now()
         WHERE id = ${alertId} AND status = 'SENDING'
-      `);
+      `));
       this.logger.warn(`Alert delivered: ${input.conditionKey} (${dedupKey}) [signed]`);
       return { id: alertId, status: 'SENT', notified: true, deduped, fireCount };
     }
 
     recordOpsCounter('alert_delivery_failures_total', 1, failure ?? 'unknown');
-    await this.db.db.execute(sql`
+    await this.withSystemActor(() => this.db.db.execute(sql`
       UPDATE ops_alerts
       SET status = 'FAILED', delivery_channel = 'webhook', attempt_count = attempt_count + 1,
           last_error = ${truncate(failure, 300)}, updated_at = now()
       WHERE id = ${alertId} AND status = 'SENDING'
-    `);
+    `));
     this.logger.error(`Alert delivery FAILED for ${input.conditionKey}: ${truncate(failure, 200)}`);
 
     // Alert 10: the alerting path itself is broken. Guard against recursion —
@@ -403,29 +428,29 @@ export class OpsAlertService {
 
   /** Mark an alert resolved once its underlying condition has cleared. */
   async resolve(dedupKey: string): Promise<boolean> {
-    const result = await this.db.db.execute(sql`
+    const result = await this.withSystemActor(() => this.db.db.execute(sql`
       UPDATE ops_alerts
       SET status = 'RESOLVED', resolved_at = now(), updated_at = now()
       WHERE dedup_key = ${dedupKey}
         AND status <> 'RESOLVED'
-    `);
+    `));
     return affectedRows(result) > 0;
   }
 
   async findByDedupKey(dedupKey: string): Promise<OpsAlertRecord | null> {
     const row = firstRow<OpsAlertRecord>(
-      await this.db.db.execute(sql`
+      await this.withSystemActor(() => this.db.db.execute(sql`
       SELECT ${ALERT_COLUMNS}
       FROM ops_alerts
       WHERE dedup_key = ${dedupKey}
-    `),
+    `)),
     );
     return row ?? null;
   }
 
   /** Alerts that still need operator attention. */
-  async listOpen(limit = 50): Promise<OpsAlertRecord[]> {
-    const rows = readRows<OpsAlertRecord>(
+  async listOpen(caller: OpsAlertCaller, limit = 50): Promise<OpsAlertRecord[]> {
+    return this.withUserActor(caller, async () => readRows<OpsAlertRecord>(
       await this.db.db.execute(sql`
       SELECT ${ALERT_COLUMNS}
       FROM ops_alerts
@@ -435,36 +460,35 @@ export class OpsAlertService {
         last_observed_at DESC
       LIMIT ${limit}
     `),
-    );
-    return rows;
+    ));
   }
 
   async listByCondition(conditionKey: string, limit = 50): Promise<OpsAlertRecord[]> {
     const rows = readRows<OpsAlertRecord>(
-      await this.db.db.execute(sql`
+      await this.withSystemActor(() => this.db.db.execute(sql`
       SELECT ${ALERT_COLUMNS}
       FROM ops_alerts
       WHERE condition_key = ${conditionKey}
       ORDER BY last_observed_at DESC
       LIMIT ${limit}
-    `),
+    `)),
     );
     return rows;
   }
 
   /** Status x severity rollup for the ops status endpoint. */
-  async snapshot(): Promise<{
+  async snapshot(caller: OpsAlertCaller): Promise<{
     alerts: Record<string, number>;
     counters: ReturnType<typeof opsCounterSnapshot>;
     channel: string;
   }> {
-    const rows = readRows<{ status: string; cnt: number }>(
+    const rows = await this.withUserActor(caller, async () => readRows<{ status: string; cnt: number }>(
       await this.db.db.execute(sql`
       SELECT status, COUNT(*)::int AS cnt
       FROM ops_alerts
       GROUP BY status
     `),
-    );
+    ));
     const alerts: Record<string, number> = {};
     for (const row of rows) alerts[row.status] = Number(row.cnt);
 
