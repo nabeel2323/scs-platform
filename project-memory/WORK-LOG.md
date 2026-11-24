@@ -1602,3 +1602,8 @@ No migration, database grant/default-ACL change, RLS enablement, shared/staging 
 - No shared database, Supabase grants/RLS, migration, Render configuration, staging, external carrier, SMS/OTP, deployment, or worker activation action occurred.
 
 **Next:** run formatting and focused API typecheck/unit suites plus E6 boundary lint for this commit, then continue the remaining implementation-first gaps. Keep the full regression/migration campaign grouped at the planned Phase 3 checkpoint; do not merge or deploy PR #138.
+
+
+## 24 November 2026 — user reaffirmed implementation-first execution
+
+The user explicitly directed: finish implementation first, then do the tests; proceed autonomously without asking for approval for each routine step. This is now a standing next-session instruction. No tests or CI workflows are to be run during implementation. Continue source review, complete cross-component wiring, group related changes into cohesive commits, and update project memory. The consolidated testing campaign begins only after implementation/integration is complete. Existing security and release restrictions remain unchanged.

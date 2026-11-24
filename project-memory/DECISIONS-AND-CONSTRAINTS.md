@@ -123,3 +123,16 @@ The user reports that 90% of GitHub Actions action minutes have been consumed. G
 - Active-store resolution must match the selected `activeOrgIdProvider`; it must return null rather than fall back to a store from another organization.
 - At a user-session boundary (new login/logout), clear in-memory phone/email/active-org identity and invalidate all authenticated provider caches, including buyer orders/cart, notifications, organization detail/members and driver reads. New login clears persisted active-org selection before writing the new token. Logout clears persisted tokens and active-org through `AuthStorage.clearTokens`.
 - This is client-side cache/context hygiene only. Backend tenant authorization remains authoritative; do not treat client invalidation as a security boundary or as closure of RLS/grant findings.
+
+
+## User reaffirmation — implementation first, tests afterward — 24 November 2026
+
+The user has explicitly reaffirmed the required execution sequence for all subsequent SCS Platform sessions:
+
+1. Complete the planned implementation work first, including cross-module and cross-client integration; do not switch prematurely into test execution.
+2. Do not run test commands or trigger GitHub Actions/CI workflows during the implementation phase. Tests and comprehensive verification are deferred until the implementation/integration phase is complete. Existing test files or historical CI results do not change this sequencing instruction.
+3. Continue autonomously through routine implementation steps without asking the user for approval at each step.
+4. Batch related source and documentation changes into cohesive commits wherever practical, and keep project memory/handoff documents synchronized after meaningful work.
+5. Continue to inspect source and fix concrete security/correctness defects discovered during implementation. Preserve every existing safety, independent-review, protected-staging, database, no-merge, no-deploy and release gate. This sequencing instruction does not waive those restrictions.
+
+This is a standing instruction for future sessions unless the user changes it. The implementation author must not claim tests passed when they have not been run; report them as deferred/pending.

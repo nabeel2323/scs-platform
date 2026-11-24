@@ -47,9 +47,9 @@ At the start of a new conversation:
 3. Query GitHub for the active branch head, PR #138 state/head/base, recent commits and the latest CI run/checks. Never rely only on the recorded SHA or CI status below.
 4. Compare live state with `CURRENT-STATE.md`; reconcile any drift before implementation.
 5. Identify the highest-priority unfinished task and its dependencies. Continue autonomously without asking for approval for every small implementation step.
-6. Follow the user's implementation-first programme: complete implementation and integration gaps before the consolidated full testing campaign.
-7. During implementation, run only proportionate developer checks; add focused tests when needed for critical invariants or safe changes. Do not repeatedly run the full regression suite after each small enhancement.
-8. Never knowingly leave a concrete security or correctness defect exploitable until the later test phase; fix it when discovered.
+6. Follow the user's strict implementation-first instruction: finish planned implementation and cross-component integration before beginning the test phase.
+7. **Do not execute tests or trigger test/CI workflows during implementation.** Test authoring and the consolidated unit/API/PostgreSQL/migration/security/tenant/concurrency/web-admin-mobile E2E/performance campaign belong after implementation and integration are complete. Do not spend Actions minutes on incremental validation.
+8. Continue source-level review and implementation safeguards; immediately fix a concrete security or correctness defect discovered in the code. This does not authorize running the deferred test campaign.
 9. Group related implementation and documentation changes into cohesive commits where practical.
 10. Do not claim implementation, tests, review, approval, deployment or database changes without direct evidence.
 
@@ -69,7 +69,8 @@ After each meaningful implementation group, and before ending a work session:
 
 - The user expects ChatGPT to make repository changes directly, including commits and pushes when the GitHub connection permits; do not default to handing implementation to a coding agent.
 - Proceed through logical implementation steps without asking for permission at every small step.
-- Group related changes into fewer, cohesive commits where practical to reduce repeated validation overhead.
+- Group related implementation and documentation changes into fewer, cohesive commits where practical.
+- The user explicitly directs that implementation must be completed before tests are run; do not ask for approval for routine implementation steps.
 - Keep technical documentation synchronized with the actual implementation and verified behavior.
 - Provide detailed, truthful status and exact evidence. Never report a skipped job as passed.
 - A reviewer can be the user or a separately appointed qualified reviewer; the implementation author must not self-certify an independent security review.
