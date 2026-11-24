@@ -3,10 +3,9 @@
 **Live reconciliation:** 24 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — OPEN / DRAFT / UNMERGED.  
 **Branch:** `remediation/phase-0-1-tenant-security`.  
-**Current head:** `c58202e4b3ca26471b60553a647e629c62e0770e`.  
-**Latest source implementation:** `0eccaf90847bce0ca8039b6874a2053ce1412445` — bounded Profile/device/session routes joined the scoped actor-context rollout.  
+**Latest source checkpoint:** `12ae73c7ddc6dd3e59485918ada316b7088cdd3b`.  
 **Exact-head GitHub Actions:** zero workflow runs; source commits use `[skip ci]`.  
-**Combined status:** Vercel Web FAILURE and Vercel Admin FAILURE due to the external provider build-rate-limit page. These are preview statuses, not application-test evidence.
+**Combined status:** Vercel Web FAILURE and Vercel Admin FAILURE due to external provider build-rate-limit pages. These are preview statuses, not application-test evidence.
 
 ## Standing implementation-first instruction
 
@@ -14,9 +13,11 @@ The user explicitly requires implementation and cross-component integration to f
 
 ## G-002 source implementation checkpoint
 
-The opt-in actor-context foundation provides typed principals, transaction-local PostgreSQL settings, AsyncLocalStorage-backed Drizzle routing, same-actor nested reuse and an expired-scope fence. Explicit controller/method-scoped adoption covers bounded authenticated surfaces in Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Catalog/Admin reads, Cart, Returns, Organizations/Roles and bounded Profile/device/session routes.
+The opt-in actor-context foundation provides typed principals, transaction-local PostgreSQL settings, AsyncLocalStorage-backed Drizzle routing, same-actor nested reuse and an expired-scope fence. Explicit controller/method-scoped adoption covers bounded authenticated surfaces in Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Catalog/Admin reads, Cart, Returns, Organizations/Roles, bounded Profile/device/session routes, selected Orders reads/preview/reorder/lifecycle actions, and bounded Merchant store/warehouse/verification operations.
 
-No global interceptor is present. Auth/OTP, credential/password setup/change, file/import/upload, main Orders/Payments, carrier/shipping, bootstrap, deferred audit writes, workers/schedulers, realtime, CLI and migration paths remain outside pending their own context/transaction review.
+Worker contexts cover OutboxDispatcher, AutoCompleteWorker, ReturnExpirationWorker, CarrierTrackingPoller and ShippingCarrierWorker. Carrier webhook processing uses a credential-scoped principal after credential/HMAC authentication. Bootstrap status/provisioning and operator token CLI use anonymous/bootstrap contexts. Deferred AuditLogMiddleware writes use an audit actor transaction. RealtimeGateway room authorization uses the verified socket actor. External provider/storage operations remain outside database transactions.
+
+Remaining source-context work includes Auth/OTP, credential/password setup/change, main checkout/reject/cancel payment phases, Merchant file/document storage operations and any uncovered services. No global interceptor is present.
 
 ## Verification phase policy
 

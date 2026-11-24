@@ -945,3 +945,14 @@ The reviewed route allowlist currently covers bounded JWT-protected Notification
 AuthController, credential setup/password-change Profile handlers, file/import/upload, main Orders/Payments, carrier/shipping, bootstrap, deferred audit writes, workers/schedulers, realtime sockets, CLI and migrations remain outside the first rollout pending explicit principal/transaction contracts. G-002 remains IN PROGRESS; no tests/CI, RLS, shared database changes, migrations, staging actions, deployment or worker activation occurred.
 
 **Standing user instruction:** finish implementation and integration first; do not run tests or CI until that work is complete. Continue autonomously without asking for approval for routine steps.
+
+
+## Latest G-002 Orders/Merchant context expansion — 24 November 2026
+
+The current source checkpoint is `12ae73c7ddc6dd3e59485918ada316b7088cdd3b`. Orders uses user actor context for bounded master/sub-order reads, status history, tracking, order lists and driver shipment lists, checkout preview, reorder and DB-only lifecycle actions (accept, partial accept, item confirmation, status transition, prepare, ready, driver assignment, pickup, out-for-delivery, deliver and delivery confirmation). Reject/cancel and actual checkout remain excluded because they may invoke payment/refund/provider workflows.
+
+Merchant uses actor context for bounded store/customer/warehouse/verification reads and store/warehouse/verification writes. Document listing/presign and file upload operations remain excluded until DB metadata access is separated from storage I/O.
+
+ShippingCarrierWorker scopes its direct DB operations and supporting tenant/credential lookups to a worker actor; carrier API and object-storage operations remain outside the DB transaction. Carrier webhook processing is credential-scoped only after HMAC authentication. Realtime room authorization, bootstrap, deferred audit writes and the bounded worker set are also scoped.
+
+**Standing user instruction:** finish implementation and integration first; do not run tests or CI until that work is complete.
