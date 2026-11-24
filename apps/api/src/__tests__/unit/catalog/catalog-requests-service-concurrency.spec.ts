@@ -26,7 +26,10 @@ function makeHarness(request: Record<string, unknown>) {
   const set = vi.fn(() => ({ where: whereUpdate }));
   const update = vi.fn(() => ({ set }));
 
-  const db = { db: { select, update } };
+  const db = {
+    currentActorContext: { actorKind: 'user', actorId: 'admin-1', actorRole: 'ADMIN', activeOrgId: null },
+    db: { select, update },
+  };
   const catalogService = {
     createCategory: vi.fn().mockResolvedValue({ id: 'created-category' }),
     createBrand: vi.fn(),
