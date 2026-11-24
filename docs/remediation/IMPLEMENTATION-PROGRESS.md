@@ -2411,3 +2411,14 @@ Additional explicit actor-context entry points are now implemented:
 - `bootstrap-issue-token.ts`: transaction-local bootstrap principal is set after BEGIN and before CLI database reads/writes.
 
 ReturnExpirationWorker actor wrapping was deliberately reverted to preserve its existing lease/fencing/per-item transaction semantics. ShippingCarrierWorker remains outside until DB and provider/storage phases are split. These are still implementation checkpoints, not verified RLS coverage. No tests, formatting, lint, typecheck, E6 or CI were run, per user instruction.
+
+
+## G-002 actor-context adoption expansion — 24 November 2026
+
+- Expanded user actor context to bounded Orders reads, checkout preview, reorder and DB-only lifecycle actions; payment/refund and checkout execution paths remain excluded.
+- Expanded Merchant actor context to bounded store/customer/warehouse/verification reads and DB-only store/warehouse/verification writes; document/storage paths remain excluded.
+- ShippingCarrierWorker DB operations and tenant/credential routing lookups are individually worker-scoped; carrier API and object-storage I/O remain outside DB transactions.
+- Credential-authenticated carrier webhooks, bootstrap service/CLI, deferred audit writes and RealtimeGateway room authorization now use explicit actor contexts.
+- ReturnExpirationWorker's existing granular worker scopes were preserved; no full-batch transaction was added.
+
+**Status:** IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Tests, lint, typecheck, formatter, E6 and CI remain deferred until implementation/integration are complete. No RLS, migration, grants/default ACLs, shared DB or staging changes occurred.

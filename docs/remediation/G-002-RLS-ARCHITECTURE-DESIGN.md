@@ -235,3 +235,19 @@ This remains partial implementation. No RLS policy, migration, grants/default AC
 CarrierWebhookController performs credential lookup, secret decryption and HMAC verification before creating a tenant actor context. Once the signature is valid, each database phase is wrapped with a worker principal whose worker ID includes the credential ID and whose active organization comes from the verified credential row. The payload is never used to choose the organization. The context is scoped around deduplication, routing, event state and retry outbox operations; responses are sent after the DB phase commits.
 
 The system now also has explicit actor-context entry points for AutoCompleteWorker, OutboxDispatcher, CarrierTrackingPoller, AuditLogMiddleware and BootstrapService/CLI. External carrier calls remain outside transactions. ReturnExpirationWorker and ShippingCarrierWorker are not yet adopted; their lease/fencing and provider/storage lifetimes require separate designs. Realtime sockets remain a separate channel.
+
+
+## 12. Expanded bounded route and execution-context adoption — 24 November 2026
+
+The actor-context primitive is now applied beyond the initial request controllers. Bounded authenticated surfaces include Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Catalog/Admin reads, Cart, Returns, Organizations/Roles, bounded Profile/device/session routes, selected Orders reads/preview/reorder/DB-only lifecycle operations, and bounded Merchant store/customer/warehouse/verification operations.
+
+Execution-context adoption includes:
+- Worker contexts for OutboxDispatcher, AutoCompleteWorker, ReturnExpirationWorker, CarrierTrackingPoller and ShippingCarrierWorker. ShippingCarrierWorker's direct DB operations and tenant/credential routing lookups use short worker scopes; carrier API and object-storage calls remain outside transactions.
+- Credential-scoped carrier webhook context only after credential/HMAC authentication.
+- Anonymous/bootstrap contexts for BootstrapService status, post-OTP authorization persistence, initial Super Admin provisioning and operator token CLI.
+- A separate audit actor transaction for deferred AuditLogMiddleware response-finish writes.
+- Verified socket-user actor context for RealtimeGateway room authorization.
+
+Orders reject/cancel/refund and actual checkout remain excluded where payment/provider lifecycles are involved. Merchant document presign/list/upload operations remain excluded where storage I/O may be involved. Auth/OTP and credential/password setup/change remain pending a DB-only boundary design.
+
+The user instruction remains: finish implementation and integration before running tests. No tests/CI, RLS, shared DB mutation, migration, grant/default-ACL change, staging action, deployment or worker activation was performed. G-002 remains IN PROGRESS, not VERIFIED.
