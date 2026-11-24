@@ -49,6 +49,7 @@ const MIXED_DB_PHASE_MUTATIONS = [
   'previewImportJob',
   'getImportErrors',
   'listMedia',
+  'getSearchFacets',
 ] as const;
 
 describe('CatalogController mixed operation boundaries (G-002)', () => {
