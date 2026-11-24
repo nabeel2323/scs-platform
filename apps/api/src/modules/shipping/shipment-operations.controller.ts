@@ -881,11 +881,21 @@ export class ShipmentOperationsController {
    * Platform staff bypass; merchant users must match the store's org.
    */
   private async assertShipmentAccessible(shipment: any, caller: CallerContext): Promise<string> {
-    const store = await this.db.db.query.stores.findFirst({
-      where: eq(stores.id, shipment.storeId),
-      columns: { orgId: true },
-    });
-    if (!store?.orgId) throw new NotFoundException('Store not found for shipment');
+    // shipments.order_id and shipments.store_id are independent FKs. Enforce
+    // their same-store relationship before either privileged or tenant reads.
+    const [store, order] = await Promise.all([
+      this.db.db.query.stores.findFirst({
+        where: eq(stores.id, shipment.storeId),
+        columns: { orgId: true },
+      }),
+      this.db.db.query.orders.findFirst({
+        where: eq(orders.id, shipment.orderId),
+        columns: { storeId: true },
+      }),
+    ]);
+    if (!store?.orgId || !order || order.storeId !== shipment.storeId) {
+      throw new NotFoundException('Shipment not found');
+    }
     if (isTenantPrivileged(caller)) return store.orgId;
     if (store.orgId !== caller.activeOrg) {
       throw new BadRequestException('Shipment does not belong to your organization');
