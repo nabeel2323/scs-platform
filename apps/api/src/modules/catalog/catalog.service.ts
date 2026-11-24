@@ -4276,40 +4276,61 @@ export class CatalogService {
 
   // ── Favorites / Wishlist ───────────────────────────────────
 
-  async listFavorites(userId: string) {
-    const favs = await this.db.db.query.favorites.findMany({
-      where: eq(favorites.userId, userId),
-      orderBy: [desc(favorites.createdAt)],
-    });
-    // Enrich with product data
-    const result = [];
-    for (const fav of favs) {
-      const product = await this.db.db.query.products.findFirst({
-        where: and(eq(products.id, fav['productId']), isNull(products.deletedAt)),
+  async listFavorites(userId: string, actor: CatalogUserActor) {
+    return this.withUserActorContext(actor, async () => {
+      if (userId !== actor.sub) {
+        throw new ForbiddenException('Cannot access another user\'s favorites');
+      }
+
+      const favs = await this.db.db.query.favorites.findMany({
+        where: eq(favorites.userId, userId),
+        orderBy: [desc(favorites.createdAt)],
       });
-      if (product) result.push({ ...fav, product });
-    }
-    return result;
-  }
-
-  async addFavorite(userId: string, productId: string) {
-    await this.getProduct(productId); // ensure product exists
-    // Check for duplicate
-    const existing = await this.db.db.query.favorites.findFirst({
-      where: and(eq(favorites.userId, userId), eq(favorites.productId, productId)),
+      const result = [];
+      for (const fav of favs) {
+        try {
+          await assertProductReadable(this.db, actor, fav['productId']);
+        } catch (error) {
+          if (error instanceof ForbiddenException || error instanceof NotFoundException) continue;
+          throw error;
+        }
+        const product = await this.db.db.query.products.findFirst({
+          where: and(eq(products.id, fav['productId']), isNull(products.deletedAt)),
+        });
+        if (product) result.push({ ...fav, product });
+      }
+      return result;
     });
-    if (existing) return existing;
-
-    const id = crypto.randomUUID();
-    await this.db.db.insert(favorites).values({ id, userId, productId });
-    return { id, userId, productId, createdAt: new Date() };
   }
 
-  async removeFavorite(userId: string, productId: string) {
-    await this.db.db
-      .delete(favorites)
-      .where(and(eq(favorites.userId, userId), eq(favorites.productId, productId)));
-    return { success: true };
+  async addFavorite(userId: string, productId: string, actor: CatalogUserActor) {
+    return this.withUserActorContext(actor, async () => {
+      if (userId !== actor.sub) {
+        throw new ForbiddenException('Cannot modify another user\'s favorites');
+      }
+      await assertProductReadable(this.db, actor, productId);
+
+      const existing = await this.db.db.query.favorites.findFirst({
+        where: and(eq(favorites.userId, userId), eq(favorites.productId, productId)),
+      });
+      if (existing) return existing;
+
+      const id = crypto.randomUUID();
+      await this.db.db.insert(favorites).values({ id, userId, productId });
+      return { id, userId, productId, createdAt: new Date() };
+    });
+  }
+
+  async removeFavorite(userId: string, productId: string, actor: CatalogUserActor) {
+    return this.withUserActorContext(actor, async () => {
+      if (userId !== actor.sub) {
+        throw new ForbiddenException('Cannot modify another user\'s favorites');
+      }
+      await this.db.db
+        .delete(favorites)
+        .where(and(eq(favorites.userId, userId), eq(favorites.productId, productId)));
+      return { success: true };
+    });
   }
 
   // ── Saved Suppliers (§21.3) ──────────────────────────────────
@@ -4318,54 +4339,88 @@ export class CatalogService {
    * List the stores (suppliers) a retailer has saved, enriched with store data.
    * Stores are fetched in ONE batched query (inArray) to avoid an N+1 per save.
    */
-  async listSavedSuppliers(userId: string) {
-    const saved = await this.db.db.query.savedSuppliers.findMany({
-      where: eq(savedSuppliers.userId, userId),
-      orderBy: [desc(savedSuppliers.createdAt)],
+  async listSavedSuppliers(userId: string, actor: CatalogUserActor) {
+    return this.withUserActorContext(actor, async () => {
+      if (userId !== actor.sub) {
+        throw new ForbiddenException('Cannot access another user\'s saved suppliers');
+      }
+
+      const saved = await this.db.db.query.savedSuppliers.findMany({
+        where: eq(savedSuppliers.userId, userId),
+        orderBy: [desc(savedSuppliers.createdAt)],
+      });
+      if (saved.length === 0) return [];
+
+      const storeIds = saved.map((entry) => entry['storeId']);
+      const storeRows = await this.db.db
+        .select({
+          id: stores.id,
+          slug: stores.slug,
+          displayName: stores.displayName,
+          description: stores.description,
+          logoUrl: stores.logoUrl,
+          coverUrl: stores.coverUrl,
+          currency: stores.currency,
+          locale: stores.locale,
+          hidePopularityBadge: stores.hidePopularityBadge,
+        })
+        .from(stores)
+        .where(
+          and(
+            inArray(stores.id, storeIds),
+            eq(stores.status, 'ACTIVE'),
+            eq(stores.verificationStatus, 'VERIFIED'),
+          ),
+        );
+
+      const storeById: Record<string, (typeof storeRows)[number]> = {};
+      for (const store of storeRows) storeById[store.id] = store;
+
+      return saved
+        .map((entry) => ({ ...entry, store: storeById[entry['storeId']] ?? null }))
+        .filter((entry) => entry.store !== null);
     });
-    if (saved.length === 0) return [];
-
-    const storeIds = saved.map((s) => s['storeId']);
-    const storeRows = await this.db.db.select().from(stores).where(inArray(stores.id, storeIds));
-
-    const storeById: Record<string, (typeof storeRows)[number]> = {};
-    for (const st of storeRows) storeById[st['id']] = st;
-
-    return saved
-      .map((s) => ({ ...s, store: storeById[s['storeId']] ?? null }))
-      .filter((entry) => entry.store !== null);
   }
 
-  /**
-   * Save a store as a supplier for the user. Idempotent: re-saving returns the
-   * existing row. Throws NotFoundException if the store does not exist.
-   */
-  async saveSupplier(userId: string, storeId: string) {
-    const store = await this.db.db.query.stores.findFirst({
-      where: eq(stores.id, storeId),
-    });
-    if (!store) throw new NotFoundException('Store not found');
+  async saveSupplier(userId: string, storeId: string, actor: CatalogUserActor) {
+    return this.withUserActorContext(actor, async () => {
+      if (userId !== actor.sub) {
+        throw new ForbiddenException('Cannot modify another user\'s saved suppliers');
+      }
 
-    const existing = await this.db.db.query.savedSuppliers.findFirst({
-      where: and(eq(savedSuppliers.userId, userId), eq(savedSuppliers.storeId, storeId)),
-    });
-    if (existing) return existing;
+      const store = await this.db.db.query.stores.findFirst({
+        where: and(
+          eq(stores.id, storeId),
+          eq(stores.status, 'ACTIVE'),
+          eq(stores.verificationStatus, 'VERIFIED'),
+        ),
+        columns: { id: true },
+      });
+      if (!store) throw new NotFoundException('Store not found');
 
-    const id = crypto.randomUUID();
-    await this.db.db.insert(savedSuppliers).values({ id, userId, storeId });
-    return { id, userId, storeId, createdAt: new Date() };
+      const existing = await this.db.db.query.savedSuppliers.findFirst({
+        where: and(eq(savedSuppliers.userId, userId), eq(savedSuppliers.storeId, storeId)),
+      });
+      if (existing) return existing;
+
+      const id = crypto.randomUUID();
+      await this.db.db.insert(savedSuppliers).values({ id, userId, storeId });
+      return { id, userId, storeId, createdAt: new Date() };
+    });
   }
 
-  /**
-   * Remove a saved supplier. Idempotent: removing a store that was never saved
-   * is a no-op that still reports success.
-   */
-  async removeSavedSupplier(userId: string, storeId: string) {
-    await this.db.db
-      .delete(savedSuppliers)
-      .where(and(eq(savedSuppliers.userId, userId), eq(savedSuppliers.storeId, storeId)));
-    return { success: true };
+  async removeSavedSupplier(userId: string, storeId: string, actor: CatalogUserActor) {
+    return this.withUserActorContext(actor, async () => {
+      if (userId !== actor.sub) {
+        throw new ForbiddenException('Cannot modify another user\'s saved suppliers');
+      }
+      await this.db.db
+        .delete(savedSuppliers)
+        .where(and(eq(savedSuppliers.userId, userId), eq(savedSuppliers.storeId, storeId)));
+      return { success: true };
+    });
   }
+
 }
 
 // ── Input types ──────────────────────────────────────────────────
