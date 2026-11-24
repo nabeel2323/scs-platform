@@ -1646,3 +1646,11 @@ The user explicitly directed: finish implementation first, then do the tests; pr
 - The external `provider.getTrackingInfo()` call and circuit-breaker operations remain outside the transaction. The context is opened only around the DB phase after the provider response is received; no transaction is held across the carrier network call.
 - ShippingCarrierWorker remains outside because its create/cancel/label/track/webhook-retry paths mix database access with provider/storage operations and need a more granular DB/external-I/O split. ReturnExpirationWorker remains outside after its attempted wrapper was reverted to preserve lease/fencing semantics.
 - No tests, formatter, lint, typecheck, E6 or CI were run. No worker was newly activated; existing enablement gates remain unchanged. No RLS, migration, grant, shared DB, staging or deployment action occurred.
+
+
+## 24 November 2026 — explicit audit and bootstrap actor contexts
+
+- `AuditLogMiddleware` now gives deferred response-finish audit writes their own short transaction with `actorKind: 'audit'`, preserving the request actor ID/role/active organization when available and using a non-user audit principal for unauthenticated requests. The listener was registered before the request interceptor, and it no longer relies on the request transaction after response completion.
+- `BootstrapService.getStatus` runs under an anonymous actor context; the bootstrap authorization insert after OTP verification uses a bootstrap principal; initial Super Admin provisioning wraps its existing atomic transaction in a bootstrap context. OTP Redis/rate-limit/delivery work remains outside database transactions.
+- `bootstrap-issue-token.ts` now sets transaction-local bootstrap GUCs immediately after BEGIN and before the advisory lock and any reads/writes. The CLI continues to keep token plaintext out of persistence/audit.
+- No tests, formatter, lint, typecheck, E6 or CI were run. No shared database, migration, grants, RLS, staging, deployment, worker activation, merge or release occurred.
