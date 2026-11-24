@@ -81,6 +81,7 @@ export class OrdersController {
   @Post('orders/:id/accept')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async acceptOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.acceptOrder(id, user.sub, user);
   }
@@ -88,6 +89,7 @@ export class OrdersController {
   @Post('orders/:id/partial-accept')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async partiallyAcceptOrder(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -110,6 +112,7 @@ export class OrdersController {
   @Post('orders/:id/items/:itemId/confirm')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async confirmItem(
     @CurrentUser() user: JwtPayload,
     @Param('id') orderId: string,
@@ -124,6 +127,7 @@ export class OrdersController {
   @Post('orders/:id/status')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async transitionStatus(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -155,6 +159,7 @@ export class OrdersController {
   @Post('orders/:id/prepare')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async prepareOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.prepareOrder(id, user.sub, user);
   }
@@ -162,6 +167,7 @@ export class OrdersController {
   @Post('orders/:id/ready')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async readyOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.readyOrder(id, user.sub, user);
   }
@@ -169,6 +175,7 @@ export class OrdersController {
   @Post('orders/:id/assign-driver')
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:assign')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async assignDriver(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -180,6 +187,7 @@ export class OrdersController {
   @Post('orders/:id/pickup')
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:pickup')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async pickupOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.pickupOrder(id, user.sub, user);
   }
@@ -187,6 +195,7 @@ export class OrdersController {
   @Post('orders/:id/out-for-delivery')
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:pickup')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async outForDeliveryOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.outForDeliveryOrder(id, user.sub, user);
   }
@@ -194,6 +203,7 @@ export class OrdersController {
   @Post('orders/:id/deliver')
   @UseGuards(PermissionsGuard)
   @RequirePermission('fulfillment:shipments:deliver')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async deliverOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.deliverOrder(id, user.sub, user);
   }
@@ -203,6 +213,7 @@ export class OrdersController {
   @Post('orders/:id/confirm-delivery')
   @UseGuards(PermissionsGuard)
   @RequirePermission('orders:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async confirmDelivery(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.confirmDelivery(id, user.sub, user);
   }
