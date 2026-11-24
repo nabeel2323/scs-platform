@@ -1036,3 +1036,7 @@ Source commits: `b6dd8a7d731604be811301dd7168fc3faffde1b6` and `6e3b5a9716eeac51
 ## Import preview validation DB scope refinement — 24 November 2026
 
 Follow-up review confirmed `ImportValidationService.validateRows` performs database reads (catalog lookup/validation), not just in-memory validation. Its invocation is now inside the same short authenticated actor-context boundary; workbook parsing and Redis reads remain outside. Source commit: `9b6387597e8c02de076613b4f4a540a379362491`. Tests and CI remain deferred and G-002 remains NOT VERIFIED.
+
+## 25 November 2026 — Catalog mixed mutation phase update
+
+The mixed Catalog product update/delete actor-context slice is implemented. Keep both handlers outside request-wide TenantDatabaseContextInterceptor; the service owns short DB scopes and keeps Redis cache invalidation outside them. The caller is mandatory and verified from JWT claims. Continue with the remaining Catalog mixed operations and the G-002 source callsite/ownership-predicate audit. Do not begin deferred quality gates until implementation/integration is complete; do not change shared/staging DB state, RLS, grants, migrations or deployment configuration.
