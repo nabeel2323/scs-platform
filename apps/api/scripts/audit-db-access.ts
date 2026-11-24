@@ -3,7 +3,8 @@
  *
  * Runs through the same DATABASE_URL supplied to the API/migration runner and
  * reports the effective/login roles, role attributes, schema/table/sequence
- * privileges, default ACLs, RLS coverage and active connection identities.
+ * privileges, default ACLs, RLS coverage, non-system functions/triggers and active
+ * connection identities.
  *
  * It never reads application rows, prints connection strings, or mutates schema.
  */
