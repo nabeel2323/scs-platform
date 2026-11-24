@@ -38,3 +38,18 @@ describe('CatalogController database actor boundaries (G-002)', () => {
     );
   });
 });
+
+const MIXED_DB_PHASE_MUTATIONS = ['updateProduct', 'deleteProduct'] as const;
+
+describe('CatalogController mixed product mutation boundaries (G-002)', () => {
+  it.each(MIXED_DB_PHASE_MUTATIONS)(
+    '%s does not hold a request-wide actor transaction across cache/audit side effects',
+    (methodName) => {
+      const descriptor = Object.getOwnPropertyDescriptor(CatalogController.prototype, methodName);
+      expect(descriptor?.value).toBeDefined();
+      expect(Reflect.getMetadata(INTERCEPTORS_METADATA, descriptor!.value) ?? []).not.toContain(
+        TenantDatabaseContextInterceptor,
+      );
+    },
+  );
+});
