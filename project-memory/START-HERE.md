@@ -1180,3 +1180,10 @@ The next task is to locate the actual consumer/write path for `driver_store_assi
 Source commit `e9bf293dbdb8bde8ab2a7a409d37c2b411ee5b5d` adds refund order/currency equality checks to approval and idempotent request recovery. Return-refund transitions already validate the full return/payment/order/refund/buyer/currency chain. See the latest G-002 migration FK crosswalk and progress tracker entries.
 
 Next: locate the actual driver/store assignment consumer/write path, complete shipment/order and carrier/shipment cross-column checks, and reconcile Drizzle schema FKs with migrations. Regression cases remain pending; do not run tests or intentionally trigger CI before implementation/integration is complete. G-002 remains NOT VERIFIED and all existing staging/database/RLS/grant/migration/deployment/worker/merge restrictions remain binding.
+
+
+## Latest source continuation — shipment order/store integrity — 24 November 2026
+
+Commits `b1e5490`, `02edaa8` and `15d328c` enforce same-store order ownership at shipment creation, shipment detail authorization (including platform-privileged reads), and carrier worker processing before provider/storage side effects. The G-002 crosswalk and progress tracker document the exact invariant and regression cases.
+
+Next: locate the actual driver/store assignment consumer/write path and continue the remaining carrier/webhook/shipment relationship audit, then reconcile Drizzle declarations against migrations. Regression tests remain pending and unexecuted; commits use `[skip ci]`. G-002 remains NOT VERIFIED. Preserve all protected staging/database/RLS/grant/migration/deployment/worker/merge restrictions.
