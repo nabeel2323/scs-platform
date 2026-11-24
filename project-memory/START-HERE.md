@@ -1325,3 +1325,9 @@ Added/updated admin service and controller regression specs for actor forwarding
 Exact inspected head before the next documentation refresh: 9364f7ae1e7c6dc5fc046ba231a188f1954a779d. PR #138 is open/draft/unmerged, base develop, head matches this SHA, mergeable=true; branch is 2,658 ahead and 0 behind develop. Exact-head Vercel Admin/Web statuses are FAILURE due to the external build-rate-limit page; GitHub Actions returned no runs for this [skip ci] head. Do not merge.
 
 No shared/staging DB, RLS/grant/migration, deployment, worker activation, environment/secret change, merge or release occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Continue remaining cross-module Catalog caller/root-pool audit and then the outstanding FK/migration/operator evidence.
+
+## 25 November 2026 — Identity Profile Catalog caller boundaries
+
+The cross-module audit found ProfileController uses CatalogService for favorites and saved suppliers. All six routes already had TenantDatabaseContextInterceptor; they now also forward the authenticated JWT actor into CatalogService, whose favorites/supplier methods establish/reuse a short user actor context and require userId to equal actor.sub. Favorite creation checks product readability; favorite listing revalidates each product before returning it and skips private/deleted products. Saved-supplier creation/listing now expose only ACTIVE + VERIFIED stores and return a public-safe projection (no orgId, address or metadata). Delete operations remain constrained by both userId and target ID.
+
+Added/updated saved-supplier/favorites service tests and ProfileController actor-forwarding/interceptor metadata tests. Tests remain NOT EXECUTED. This closes the ProfileController caller path only; the broader cross-module inventory remains open.
