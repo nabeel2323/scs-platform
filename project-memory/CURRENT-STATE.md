@@ -2,7 +2,8 @@
 
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
-**Branch / PR head:** `remediation/phase-0-1-tenant-security` / `4d3488d7017439c1e756df4a595873dc9d590455`  
+**Branch:** `remediation/phase-0-1-tenant-security`  
+**Latest source/test commit before this documentation sync:** `47c27898447389de4809a861f19c7b37e54b7081`; documentation sync commits follow. Re-query the live PR head before continuing.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop`.  
 **Latest source commits:** `9906430459666effbd25f33148c3cdf01b976330`, `9a010db69c668432f2811c68094a367ad5c7684c`, `4d3488d7017439c1e756df4a595873dc9d590455`.  
 **Exact-head Actions:** no run. Latest automatic run #1501 on prior SHA `9a010db69c668432f2811c68094a367ad5c7684c` FAILED: API lint PASS, API typecheck FAIL on nullable caller role; Mobile Flutter analysis/tests PASS; dependent integration/unit/coverage/migration/Web/Admin/build/release jobs SKIPPED. The type error is corrected in `4d3488d`, not re-run.  
@@ -19,7 +20,7 @@
 - Carrier webhook credential resolution uses a dedicated worker principal. The legacy provider-only route rejects multiple active credentials with HTTP 401, returned outside the transaction. Subsequent webhook persistence uses the credential's org-bound context.
 - AuditLogMiddleware already establishes a separate audit actor in its response-finish callback; AuditService remains context-dependent to avoid actor switching inside an active transaction.
 - Migration runner, seed CLI, bootstrap-token CLI and BootstrapService retain distinct migration/seed/bootstrap/anonymous principal boundaries.
-- Regression coverage was updated/added but remains unexecuted. Commit `4d3488d` addresses the nullable caller-role typecheck failure seen in automatic run #1501; this is not yet verified.
+- Regression coverage was updated/added, including webhook tenant-routing harness support in `47c2789`; all remain unexecuted. Commit `4d3488d` addresses the nullable caller-role typecheck failure seen in automatic run #1501; this is not yet verified.
 
 ## G-002 physical table inventory
 
@@ -337,3 +338,8 @@ Source commits: `9906430459666effbd25f33148c3cdf01b976330` and `9a010db69c668432
 ## 24 November 2026 — carrier actor-context type correction
 
 Commit `4d3488d7017439c1e756df4a595873dc9d590455` makes carrier user actor creation fail closed when the caller role is missing/blank and performs the organization membership pre-check before credential encryption, then rechecks membership inside the insert transaction. This addresses the concrete nullable-role type error in automatic run #1501; the correction remains unverified because exact-head CI was not run.
+
+
+## 24 November 2026 — webhook actor-context test harness follow-up
+
+Latest source/test commit before this documentation sync: `47c27898447389de4809a861f19c7b37e54b7081`. It updates the CarrierWebhookController tenant-routing test harness to supply the new actor-context wrapper and assert the org-bound webhook-secret call signature. The test has not been executed.

@@ -2712,3 +2712,8 @@ Implemented source changes:
 ## 24 November 2026 — carrier actor-context typecheck correction
 
 Commit `4d3488d7017439c1e756df4a595873dc9d590455` requires a non-empty caller role before creating a user actor context and performs the organization membership pre-check before credential encryption, with a second check inside the insert transaction. This addresses the nullable `caller.role` type error in automatic Actions #1501 on the prior source SHA. The correction is not re-run; exact-head CI is empty because the commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — webhook actor-context fixture update
+
+Commit `47c27898447389de4809a861f19c7b37e54b7081` updates the CarrierWebhookController tenant-routing test harness for the new worker actor-context boundary and expected organization-bound webhook-secret decryption signature. Existing assertions continue to cover the ambiguous legacy route (HTTP 401, no decryption or event write), single-credential legacy route and token-specific route. The tests remain unexecuted.

@@ -243,3 +243,8 @@ The Catalog Import source slice and P13 operational principal slice are now impl
 - Exact-head Vercel Web/Admin contexts: SUCCESS / SKIPPED — NOT AFFECTED.
 - No tests, formatter, lint, typecheck, E6 or CI workflow were intentionally dispatched. Run #1501 was automatic from the source push. All later docs/correction commits use `[skip ci]` to preserve the implementation-first restriction.
 - No RLS, grant/default-ACL, migration, shared/staging database, deployment, worker activation, merge or release action occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — webhook test fixture follow-up
+
+Commit `47c27898447389de4809a861f19c7b37e54b7081` updates the tenant-routing unit-test harness with a no-op actor-context wrapper and asserts the new `decryptWebhookSecret(credentialId, orgId)` signature. Tests remain unexecuted; no verification status changed. Exact-head Actions remains empty due to `[skip ci]` commits.

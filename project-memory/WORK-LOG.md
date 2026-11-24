@@ -1958,3 +1958,8 @@ No tests, formatter, lint, typecheck or E6 were intentionally executed. Automati
 Source commit `4d3488d7017439c1e756df4a595873dc9d590455` follows the carrier credential/configuration actor-context implementation. It requires a non-empty caller role before creating the user actor context, resolving the exact API typecheck failure from automatic run #1501. Carrier credential create now authorizes organization membership before encryption and re-checks membership inside the insert transaction.
 
 Run #1501 on the prior source SHA failed API typecheck (nullable caller.role); API lint and Mobile Flutter tests passed; dependent integration/unit/coverage/migration/Web/Admin/build/release jobs were skipped. The correction is not re-run. Exact-head Actions lookup on 4d3488d is empty. No tests or CI were intentionally dispatched.
+
+
+## 24 November 2026 — webhook actor-context test fixture follow-up
+
+Commit `47c27898447389de4809a861f19c7b37e54b7081` updates the existing webhook tenant-routing tests to supply `DatabaseService.withActorContext` and expect the credential's organization ID to be passed to webhook-secret decryption. The ambiguous-credential test continues to assert HTTP 401 and no secret decryption/event persistence. The tests were not executed.
