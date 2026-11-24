@@ -978,3 +978,12 @@ Commit `7f56e5185cf1a7c7b6954845ca9151aac83c5ac6` adds the opt-in user actor int
 
 A follow-up controller audit confirmed that ProfileController's session list, revoke-by-device, trusted-device list and trusted-device revoke handlers already carry `TenantDatabaseContextInterceptor`. The interceptor derives the actor from the verified JWT after guards and scopes the complete awaited handler. These routes were therefore already covered; no redundant service-level wrapper or controller signature change was added. Credential setup/change remain explicitly scoped inside IdentityService because those handlers intentionally stay outside the interceptor for bcrypt separation.
 **Next:** continue method-level Payments write review and separate DB-only operations from payment/refund/provider/file-storage side effects; then Merchant document metadata. Eight DB-only Payments GET routes now use the user actor.
+
+## Payments DB-only mutation route actor context — 24 November 2026
+
+Source commit: `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50`.
+
+Added the verified user actor interceptor to four Payments POST handlers whose inspected service call graphs perform database transactions, append payment events and write outbox rows without calling payment/refund providers or object storage: COD cash confirmation, bank-transfer proof verification decision, settlement calculation and settlement-paid recording. Existing permission guards, service-level object/store authorization, row locks, optimistic state predicates and transactional outbox writes remain authoritative. The actor context wraps the complete awaited method; nested Drizzle transactions remain inside that scope.
+
+Explicitly excluded: bank-transfer proof upload (object storage), refund request/approval/retry (refund lifecycle), payment-provider operations, checkout and order cancellation/rejection paths. The controller metadata test now covers 12 Payments routes (eight GET and four DB-only POST); it remains unexecuted.
+**Next:** continue the remaining Orders lifecycle/payment-provider split and Merchant document metadata/storage separation.
