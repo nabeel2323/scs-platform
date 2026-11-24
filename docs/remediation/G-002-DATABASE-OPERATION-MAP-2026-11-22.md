@@ -468,3 +468,7 @@ These two routes deliberately do not use TenantDatabaseContextInterceptor becaus
 The mixed Catalog Import processing path now requires a verified CatalogUserActor. Controller persisted-job/store authorization reads run inside a short user actor context. CatalogService scopes import-job lookup/claim, default price-list reads/writes, chunk creation/listing, cancellation checks, each chunk claim and chunk transaction (including product/variant/price writes), final job aggregation/status and failure updates, and final reads. XLSX/object storage, CSV Redis reads and Redis cleanup remain outside DB actor transactions. Error-report job/chunk reads are grouped in one short user actor scope; CSV generation occurs after it closes. These mixed routes deliberately remain outside TenantDatabaseContextInterceptor.
 
 Added process-level and chunk-level actor-context tests, error-report tests and controller interceptor-exclusion coverage. Tests remain unexecuted. No worker registration/activation or quality gate was performed. P13Monitor review confirms its diagnostic SQL reads already use withMonitorActor; no P13 code change was required. G-002 remains IN_PROGRESS / NOT VERIFIED.
+
+## 25 November 2026 — dormant stale import recovery principal
+
+The dormant CatalogService.recoverStaleJobs entry point now scopes the stale-job query and job/chunk reset writes under worker principal catalog-import-recovery. No worker registration or schedule was added; it remains dormant and was not activated. A regression spec covers this source boundary. No tests/CI were run.
