@@ -1095,10 +1095,15 @@ Regression coverage was added but not executed. G-002 remains IMPLEMENTATION_IN_
 | --- | --- | --- |
 | Merchant reject authorization/read + optional SUBMITTED auto-advance | IMPLEMENTED — verified merchant actor | DB-only; no request interceptor |
 | Inventory release + REJECTED status/history/outbox | IMPLEMENTED — one transaction | Stock settlement receives the same tx client; optimistic status predicate rejects concurrent transition |
-| Refund request row/event/outbox | IMPLEMENTED — separate DB-only actor phase | Stable reject-refund:<orderId> key; provider remains downstream of outbox worker |
+| Refund request row/event/outbox | IMPLEMENTED — separate DB-only actor phase | Stable reject-refund:<orderId> key; the current generic outbox dispatcher only logs this event; no payment-provider refund is executed by this path |
 | Master-order recalculation/final read | IMPLEMENTED — separate short actor phase | Runs after rejection/refund phases commit |
 | Merchant/admin download presign metadata read + membership check | IMPLEMENTED — short actor phase | Ends before storage signing |
 | Object-storage URL signing | OUTSIDE actor transaction | No DB transaction remains open during storage I/O |
 | Signed URL metadata persistence | IMPLEMENTED — separate short actor phase | Starts after storage signing returns |
 
 Regression specs added but not executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## Refund-provider execution boundary correction — 24 November 2026
+
+The merchant-rejection flow creates a refund REQUESTED row, payment event and outbox record only. Source inspection of OutboxDispatcher.dispatch confirms generic events are currently logged and marked dispatched; this does not invoke a payment-provider refund. Automatic refund-provider execution is not implemented by this slice and remains outside the approved scope (no automatic gateway/payout expansion or worker activation). The durable refund request is still available for the existing review/approval workflow. Merchant-initiated rejection refunds now attribute requestedBy/paymentEvents.actorId to the authenticated merchant; PaymentsService permits the special MERCHANT_REJECTION reason only when the caller has a MERCHANT_* role and assertOrderAccessible confirms the order is in the caller's active organization. The service no longer impersonates the buyer for audit attribution.

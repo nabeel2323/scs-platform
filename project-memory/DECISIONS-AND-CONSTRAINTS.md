@@ -179,6 +179,11 @@ The authentication actor remains purpose-scoped and is not a general-purpose ide
 ## Orders rejection and document presign actor-context decision — 24 November 2026
 
 - Merchant rejection DB work may run under the verified merchant actor. Stock settlement, order status/history and rejection outbox insertion share one transaction; use the optional transaction client supported by settleStockForStatus and an optimistic status predicate.
-- Refund request creation is a separate DB-only phase after rejection commits. It persists a refund request, payment event and outbox event; the payment provider remains downstream of the outbox worker. Use a stable per-order idempotency key. Never call the provider inside the actor transaction.
+- Refund request creation is a separate DB-only phase after rejection commits. It persists a refund request, payment event and outbox event; the the current generic outbox dispatcher only logs this event; no payment-provider refund is executed by this path. Use a stable per-order idempotency key. Never call the provider inside the actor transaction.
 - Master-order recalculation/final read use a separate short actor scope after refund-request handling.
 - Document download presigning uses separate short actor scopes for metadata/membership reads and URL metadata persistence, with object-storage signing between them. Do not attach the transaction interceptor to either presign endpoint.
+
+
+## Refund-provider execution boundary correction — 24 November 2026
+
+The merchant-rejection flow creates a refund REQUESTED row, payment event and outbox record only. Source inspection of OutboxDispatcher.dispatch confirms generic events are currently logged and marked dispatched; this does not invoke a payment-provider refund. Automatic refund-provider execution is not implemented by this slice and remains outside the approved scope (no automatic gateway/payout expansion or worker activation). The durable refund request is still available for the existing review/approval workflow. Merchant-initiated rejection refunds now attribute requestedBy/paymentEvents.actorId to the authenticated merchant; PaymentsService permits the special MERCHANT_REJECTION reason only when the caller has a MERCHANT_* role and assertOrderAccessible confirms the order is in the caller's active organization. The service no longer impersonates the buyer for audit attribution.
