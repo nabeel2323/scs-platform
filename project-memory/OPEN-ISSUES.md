@@ -1332,3 +1332,7 @@ P13 note: the complete monitor source already uses withMonitorActor for all dire
 ## 25 November 2026 — dormant Catalog import recovery
 
 The stale-import recovery method now has a dedicated worker actor scope but remains unregistered and unscheduled. Do not activate it as part of source remediation. Remaining G-002 gaps include other Catalog root-pool paths, complete actor-nesting review, ownership predicates, migration FK reconciliation and protected live runtime/catalog evidence.
+
+## 25 November 2026 — Catalog product detail/media read status
+
+Product detail and media-list reads now scope authorization and database access while keeping Redis and storage URL resolution outside DB transactions. Tests are authored but unexecuted. Remaining Catalog work: inspect other service methods with mixed storage/cache/external calls and remaining root-pool database operations; complete the wider G-002 actor nesting and ownership/FK evidence review.
