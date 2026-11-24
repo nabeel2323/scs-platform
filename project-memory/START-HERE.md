@@ -78,7 +78,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live reconciliation on 24 November 2026 confirms repository nabeel2323/scs-platform, branch remediation/phase-0-1-tenant-security, and PR #138 OPEN / DRAFT / UNMERGED against develop. Latest source commit: 5de17d1880aa645a2efeccaf98eba959c6da7c8e. It corrects the worker-lease test fixture error found by run #1478. Exact-head Actions lookup returned zero workflow runs; Vercel Web/Admin statuses are FAILURE due to external deployment rate limiting, not application test results. Run #1478 failed typecheck on prior source SHA 98161b3 because of an undeclared fixture variable; the fix has not been re-run. Run #1476 failed formatting after its typecheck tasks and Mobile Flutter Tests succeeded. Re-query GitHub before the next action.
+Live reconciliation on 24 November 2026 confirms repository nabeel2323/scs-platform, branch remediation/phase-0-1-tenant-security, and PR #138 OPEN / DRAFT / UNMERGED against develop. Latest source head: 565ab94a678053a60ef9386fafe3d2615e177f93. CatalogImportController list/detail/errors now use verified-user actor context, and report errors are read under a short actor scope before in-memory workbook generation. Exact-head Actions lookup returned zero workflow runs; Vercel Web/Admin statuses are FAILURE due to external deployment rate limiting. Run #1478 failed typecheck on prior SHA 98161b3 due to the worker-lease fixture's missing helper binding; commit 5de17d1 fixes it, but the correction has not been re-run. Run #1476 failed formatting after its typecheck tasks and Mobile Flutter Tests succeeded. Re-query GitHub before the next action.
 
 ### Latest G-002 source implementation
 

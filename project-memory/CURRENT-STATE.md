@@ -3,9 +3,9 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Latest source implementation commits:** a78503a01f28de440b2ae8d9c3cafd1e754dfd93 (carrier recovery actor phases), 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f (worker lease actor phases), and 5de17d1880aa645a2efeccaf98eba959c6da7c8e (worker lease test-fixture correction).  
+**Latest source implementation commits:** c587ed46db9a4893f2fa0167a74e671bc9d3ae10 (actor-context type-safety), a78503a01f28de440b2ae8d9c3cafd1e754dfd93 (carrier recovery), 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f (worker leases), 5de17d1880aa645a2efeccaf98eba959c6da7c8e (worker-lease test fixture), 400acb3cb3c338e477bed180b64580b9b200dc0e (catalog-import read routes), and 565ab94a678053a60ef9386fafe3d2615e177f93 (report error-read phase).  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base develop.  
-**Latest exact branch/PR head:** 5de17d1880aa645a2efeccaf98eba959c6da7c8e. Exact-head Actions lookup: zero workflow runs. Vercel Web and Admin contexts both FAILURE due to external deployment rate limiting; these are preview-provider statuses, not application test outcomes.  
+**Latest exact branch/PR head:** 565ab94a678053a60ef9386fafe3d2615e177f93. Exact-head Actions lookup: zero workflow runs. Vercel Web and Admin contexts both FAILURE due to external deployment rate limiting; these are preview-provider statuses, not application test outcomes.  
 **Recent automatic runs:** #1476 failed the changed-file formatting gate after all 9 lint/typecheck tasks and Mobile Flutter Tests succeeded. #1477 was automatically cancelled by a newer push. #1478 failed API typecheck due only to an outdated worker-lease unit-fixture variable reference; that fixture was corrected in 5de17d1 and has not been re-run.  
 **Standing user instruction:** implementation and cross-component integration first; do not intentionally run tests or trigger CI during implementation. Keep PR #138 draft/open/unmerged.
 
@@ -20,6 +20,10 @@
 ## G-002 physical table inventory
 
 The source ownership matrix covers all 100 pgTable declarations across 25 module schema files; 98 are re-exported by apps/api/src/drizzle/schema.ts, while catalog_imports and catalog_import_errors are declared in catalog-import.schema.ts but not exported by that barrel. The previously omitted exported payment_proof_upload_intents table is included. The historical 99+15=114 source split is invalidated. The detailed 114 public relation snapshot and separate 116 count remain unresolved pending protected read-only catalog evidence; no subtraction-based delta or live relation total is claimed.
+
+## Latest Catalog Import actor-context slice
+
+CatalogImportController list/detail/errors database-only routes use the verified-user TenantDatabaseContextInterceptor. The report route reads persisted errors inside a short user actor context and builds the workbook after that scope closes. The in-memory preview route and mixed upload/execute/retry routes remain deliberately unwrapped. ExportCatalog, upload/validate, execution transactions and remaining import DB writes still need phase-by-phase actor-context adoption.
 
 ## Remaining implementation priorities
 

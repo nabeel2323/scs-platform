@@ -140,3 +140,14 @@ These source changes do not enable RLS and do not prove runtime identities or ta
 The carrier recovery service is no longer wholly unwrapped: its DB-only claim and persistence phases now use a worker actor; provider HTTP remains outside. CarrierAdminController's admin-triggered recovery and queue reads use verified-user actor contexts, with reconciliation after the user transaction and audit in a separate scope. WorkerLeaseService uses worker context for lease lifecycle DB operations and system context for runbook force-expire.
 
 Still outstanding in this operational area: P13MonitorService's global cross-tenant read-only scan, OpsAlertService durable alert/delivery state machine, OpsControlService pause/control operations, PilotControlService feature-flag/allowlist operations, and the runtime principal contract for manual recovery CLI. Catalog import also remains a mixed storage/database path requiring phase separation.
+
+## 24 November 2026 — Catalog Import read-only/report actor-context slice
+
+CatalogImportController list, detail and errors routes now use TenantDatabaseContextInterceptor after the class-level JWT, permission and role guards. Preview is intentionally excluded because it reads only the in-memory plan cache. Upload, execute and retry are intentionally excluded because they combine object-storage/workbook processing with multiple DB phases. The report route passes verified JWT sub/role/activeOrg to CatalogImportService; persisted errors are fetched in a short user actor context, then the XLSX workbook is generated after the DB scope closes. Regression metadata coverage was added for route interceptor selection; no test was run.
+
+Remaining import paths: upload/storage+insert+auto-validate, validation storage download/parser/resolver/plan/persist steps, executor per-entity transactions and status/error writes, retry, exportCatalog and TemplateGenerator DB reads. Next P13 operational services also remain: P13Monitor, OpsAlert, OpsControl and PilotControl principal separation.
+
+
+## Catalog Import actor-context boundary — 24 November 2026
+
+Implemented: list/detail/errors read endpoints use the verified-user context interceptor; report error rows are read in a short user actor transaction and workbook generation follows outside the transaction. Deliberately not wrapped: preview is in-memory only; upload, validate, execute and retry mix DB with object storage, parsing, cache state and/or nested entity transactions; export uses TemplateGeneratorService DB reads plus workbook generation. These require service-level DB phase separation rather than a request-wide interceptor.

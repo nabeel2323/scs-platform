@@ -100,3 +100,14 @@ The main OrdersController, PaymentsController, AuthController, carrier/shipping 
 CarrierAdminController POST recover scopes shipment read, tenant/membership authorization, ADMIN_TRIGGERED update and authoritative re-read under verified JWT claims. The call to CarrierReconciliationService happens after that transaction ends because reconciliation can call external carrier tracking. Audit persistence uses a separate audit principal. GET recovery queue store-membership/store-list/shipment reads use the verified admin actor. CarrierReconciliationService scopes durable claim/write phases under a worker actor, and WorkerLeaseService uses worker/system principals for lease lifecycle and manual force-expire.
 
 Credential/configuration service routes still require their own service-level principal/transaction review; this update does not assert blanket carrier-admin coverage.
+
+## 24 November 2026 — Catalog Import read-only/report actor-context slice
+
+CatalogImportController list, detail and errors routes now use TenantDatabaseContextInterceptor after the class-level JWT, permission and role guards. Preview is intentionally excluded because it reads only the in-memory plan cache. Upload, execute and retry are intentionally excluded because they combine object-storage/workbook processing with multiple DB phases. The report route passes verified JWT sub/role/activeOrg to CatalogImportService; persisted errors are fetched in a short user actor context, then the XLSX workbook is generated after the DB scope closes. Regression metadata coverage was added for route interceptor selection; no test was run.
+
+Remaining import paths: upload/storage+insert+auto-validate, validation storage download/parser/resolver/plan/persist steps, executor per-entity transactions and status/error writes, retry, exportCatalog and TemplateGenerator DB reads. Next P13 operational services also remain: P13Monitor, OpsAlert, OpsControl and PilotControl principal separation.
+
+
+## 24 November 2026 — Catalog Import controller callsite update
+
+CatalogImportController list, detail and errors handlers now apply the opt-in TenantDatabaseContextInterceptor. The route's class-level JwtAuthGuard, PermissionsGuard and RolesGuard run before the interceptor, so actor context is derived from verified JWT claims. The in-memory preview route is excluded. Report receives the verified caller and delegates persisted-error loading to a short actor context in CatalogImportService; XLSX generation occurs after that scope closes. Upload, execute, retry, export and template generation remain unwrapped due to mixed storage, parser, database and workbook phases and need explicit service-level boundaries.

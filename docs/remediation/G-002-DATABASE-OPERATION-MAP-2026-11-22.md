@@ -307,3 +307,14 @@ This corrects the source inventory only. It does not verify live database presen
 - WorkerLeaseService: lease-row ensure/acquire, renew, heartbeat/failure, release, read and readAll/liveHolderCounts use a worker actor keyed by the process holder. The runbook-only forceExpire method uses a system actor. Fencing predicates and lease semantics are unchanged.
 - Specs updated: m73b333-indeterminate-reconciliation, carrier-admin-recovery-queue-scope and worker-lease-expiry-fencing. Not executed.
 - This is source adoption only, not RLS verification or runtime-role evidence.
+
+## 24 November 2026 — Catalog Import read-only/report actor-context slice
+
+CatalogImportController list, detail and errors routes now use TenantDatabaseContextInterceptor after the class-level JWT, permission and role guards. Preview is intentionally excluded because it reads only the in-memory plan cache. Upload, execute and retry are intentionally excluded because they combine object-storage/workbook processing with multiple DB phases. The report route passes verified JWT sub/role/activeOrg to CatalogImportService; persisted errors are fetched in a short user actor context, then the XLSX workbook is generated after the DB scope closes. Regression metadata coverage was added for route interceptor selection; no test was run.
+
+Remaining import paths: upload/storage+insert+auto-validate, validation storage download/parser/resolver/plan/persist steps, executor per-entity transactions and status/error writes, retry, exportCatalog and TemplateGenerator DB reads. Next P13 operational services also remain: P13Monitor, OpsAlert, OpsControl and PilotControl principal separation.
+
+
+## Catalog Import read-only/report actor-context slice — 24 November 2026
+
+CatalogImportController listImports, getImportDetail and getErrors are now method-scoped to TenantDatabaseContextInterceptor; guards execute first and the interceptor derives user context from verified request.user. The in-memory getPreview route is not wrapped. downloadReport now receives verified caller claims, fetches persisted error rows inside a short user actor context, then builds the XLSX workbook after the transaction closes. upload, validate, execute, retry, exportCatalog and TemplateGenerator DB queries remain unscoped and are explicitly retained as the next phase-boundary work because they mix DB work with object storage, workbook parsing/generation or nested per-entity transactions.
