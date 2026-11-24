@@ -34,6 +34,7 @@ import { eq, and, sql, isNull } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { shipments, shipmentEvents } from '../orders/shipment.schema';
+import { orders } from '../orders/orders.schema';
 import { CarrierObservabilityService } from './carrier-observability';
 import { CarrierCircuitBreaker } from './carrier-circuit-breaker';
 import { randomUUID } from 'node:crypto';
@@ -228,7 +229,12 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
         SET last_carrier_sync_at = NOW(), updated_at = NOW()
         WHERE id IN (
           SELECT id FROM shipments
-          WHERE carrier_create_status = 'SUCCESS'
+          WHERE EXISTS (
+              SELECT 1 FROM orders o
+              WHERE o.id = shipments.order_id
+                AND o.store_id = shipments.store_id
+            )
+            AND carrier_create_status = 'SUCCESS'
             AND carrier_tracking_id IS NOT NULL
             AND (carrier_status_mapped IS NULL
                  OR carrier_status_mapped NOT IN ('DELIVERED', 'CANCELLED', 'COMPLETED'))
@@ -259,7 +265,24 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
    * Poll a single shipment for tracking updates.
    */
   private async pollShipment(shipment: any): Promise<void> {
-    const providerKey = shipment.shippingProviderKey || 'aramex';
+    const orderId = shipment.orderId ?? shipment.order_id;
+    const storeId = shipment.storeId ?? shipment.store_id;
+    if (typeof orderId !== 'string' || typeof storeId !== 'string') {
+      this.logger.error(`Tracking poll blocked for shipment ${shipment.id}: missing order/store lineage`);
+      return;
+    }
+    const order = await this.withWorkerContext(() =>
+      this.db.db.query.orders.findFirst({
+        where: eq(orders.id, orderId),
+        columns: { storeId: true },
+      }),
+    );
+    if (!order || order.storeId !== storeId) {
+      this.logger.error(`Tracking poll blocked for shipment ${shipment.id}: order does not belong to its store`);
+      return;
+    }
+
+    const providerKey = shipment.shippingProviderKey || shipment.shipping_provider_key || 'aramex';
     const provider = this.registry.findProvider(providerKey);
     if (!provider) return;
 
