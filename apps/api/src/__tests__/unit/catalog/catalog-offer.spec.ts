@@ -359,6 +359,22 @@ describe('CatalogOfferService — conditional ownership predicates (G-002)', () 
     expect(compiled.params).toContain('s1');
   });
 
+  it('uses the previously-read updatedAt value for merchant pricing writes', async () => {
+    const updatedAt = new Date('2026-11-25T10:00:00.000Z');
+    const offer = { id: 'o1', storeId: 's1', status: 'DRAFT', updatedAt };
+    const { svc, updateConditions } = makeHarness({
+      merchantOffers: { findFirst: [offer, offer, offer] },
+    });
+
+    await svc.updateOfferPricing('o1', { basePriceMinor: 1250 }, caller);
+
+    expect(updateConditions).toHaveLength(1);
+    const compiled = new PgDialect().sqlToQuery(updateConditions[0] as SQL);
+    expect(compiled.params).toContain('o1');
+    expect(compiled.params).toContain('s1');
+    expect(compiled.params).toContain(updatedAt);
+  });
+
   it('uses the previously-read lifecycle status as a compare-and-set predicate for governance transitions', async () => {
     const offer = { id: 'o1', storeId: 's1', status: 'PROPOSED' };
     const { svc, updateConditions } = makeHarness({
