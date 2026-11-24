@@ -57,10 +57,10 @@ export class OperationsController {
   @Get('status')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:returns:read')
-  async status() {
+  async status(@CurrentUser() user: JwtPayload) {
     const [lease, control, alertSnapshot, pilotSnapshot, holderCounts] = await Promise.all([
       this.leases.read(P13_LEASE_KEY),
-      this.controls.state(P13_PAUSE_CONTROL_KEY),
+      this.controls.state(P13_PAUSE_CONTROL_KEY, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }),
       this.alerts.snapshot(),
       this.pilot.snapshot(),
       this.leases.liveHolderCounts(),
@@ -116,7 +116,11 @@ export class OperationsController {
     if (!reason) {
       throw new BadRequestException('A reason is required to pause P13 processing');
     }
-    return this.controls.setPaused({ paused: true, reason, actorId: user.sub ?? null });
+    return this.controls.setPaused({
+      paused: true,
+      reason,
+      caller: { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+    });
   }
 
   @Post('worker/resume')
@@ -126,15 +130,19 @@ export class OperationsController {
     return this.controls.setPaused({
       paused: false,
       reason: (body?.reason ?? 'resumed').trim(),
-      actorId: user.sub ?? null,
+      caller: { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
     });
   }
 
   @Get('controls/history')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:returns:read')
-  async controlHistory(@Query('limit') limit?: string) {
-    return { changes: await this.controls.history(P13_PAUSE_CONTROL_KEY, clampLimit(limit)) };
+  async controlHistory(@CurrentUser() user: JwtPayload, @Query('limit') limit?: string) {
+    return { changes: await this.controls.history(
+      P13_PAUSE_CONTROL_KEY,
+      clampLimit(limit),
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+    ) };
   }
 
   @Get('pilot')
