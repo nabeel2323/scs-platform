@@ -1010,7 +1010,10 @@ export class IdentityService {
     );
 
     if (!session) {
-      return { success: true, deviceTrust: presentedCredential ? { clear: true } : undefined };
+      // Without a resolved owner, a presented credential is not revocable here.
+      // Do not claim it was cleared server-side; the controller may still clear
+      // transport state only under its explicit response policy.
+      return { success: true };
     }
 
     const logoutClaims = await this.withAuthenticationDatabaseContext('logout', () =>

@@ -27,7 +27,7 @@ function createMocks() {
       permissions: { findMany: vi.fn(), findFirst: vi.fn() },
     },
     update: vi.fn().mockReturnValue({
-      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: 'session-1' }]) }) }),
     }),
     insert: vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) }),
   };
