@@ -442,3 +442,8 @@ No database was inspected or repaired, and no tests/CI were run. These are sourc
 ## 24 November 2026 — migration FK source scan completion
 
 The 75-file numbered migration scan found 183 explicit REFERENCES clauses across 40 migration files; 35 files had none. The detailed migration/count/parent-table appendix is in `docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md`. This completes the static source-reference inventory, not live catalog verification. Remaining: reconcile with Drizzle declarations and protected staging pg_constraint evidence, then finish cross-column ownership consistency decisions (org/store, carrier config/credential/store, payment/refund/order/settlement, shipping driver/store, reconciliation parent/org). No database query was run.
+
+
+## 24 November 2026 — Orders cancel/reject actor context fail-closed review
+
+The `POST /orders/:id/cancel` and `POST /orders/:id/reject` handlers intentionally do not use `TenantDatabaseContextInterceptor`; their service methods create narrowly scoped user actor transactions around DB-only phases and keep post-commit realtime emission outside. Rejection additionally scopes its independent refund-request DB phase. The previous helper condition silently ran without actor context when a caller object was supplied without `sub` or `role`. Both helpers now allow context-free execution only when `caller` is truly absent (trusted internal call); malformed supplied caller context throws before DB work. Regression cases were added for missing subject and role in both methods. Tests not run.

@@ -486,3 +486,8 @@ Source follow-up through `6f3327a2039c65fb0f9578202d4bd76c75e7b426` adds a secon
 - Disposable shell verification target guard now also checks `inet_server_addr()` is a Unix socket or loopback address, in addition to explicit test environment, exact DB/user, local PGHOST/PGHOSTADDR and no PGSERVICE redirection.
 
 No database was inspected or repaired, and no tests/CI were run. These are source-level fail-closed checks only.
+
+
+## 24 November 2026 — Orders cancellation/rejection actor context
+
+The cancel and reject routes use service-level actor boundaries rather than the HTTP interceptor because their service call graphs split DB transactions from post-commit realtime work. Source review found that a non-null caller missing `sub` or `role` bypassed the actor context. The two helpers now fail closed for malformed supplied callers; only `caller === undefined` retains the trusted internal-call path. Regression tests cover missing subject and role. No test execution performed.

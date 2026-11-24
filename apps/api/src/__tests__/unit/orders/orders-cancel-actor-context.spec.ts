@@ -83,4 +83,22 @@ describe('OrdersService.cancelOrder actor-context boundary (G-002)', () => {
     expect(payments.getPaymentForOrder).toHaveBeenCalledWith('order-a');
     expect(service.recalculateMasterOrderStatus).toHaveBeenCalledWith('master-a');
   });
+  it('fails closed when an HTTP caller has no authenticated role', async () => {
+    const db = { withActorContext: vi.fn() };
+    const service = new OrdersService(db as any, {} as any, {} as any);
+    await expect(
+      service.cancelOrder('order-a', 'buyer-a', 'CUSTOMER_REQUEST', { sub: 'buyer-a' } as any),
+    ).rejects.toThrow('Authenticated database actor context is missing');
+    expect(db.withActorContext).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when an HTTP caller has no subject', async () => {
+    const db = { withActorContext: vi.fn() };
+    const service = new OrdersService(db as any, {} as any, {} as any);
+    await expect(
+      service.cancelOrder('order-a', 'buyer-a', 'CUSTOMER_REQUEST', { role: 'BUYER' } as any),
+    ).rejects.toThrow('Authenticated database actor context is missing');
+    expect(db.withActorContext).not.toHaveBeenCalled();
+  });
+
 });

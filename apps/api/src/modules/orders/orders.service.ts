@@ -1196,7 +1196,15 @@ export class OrdersService {
     caller?: CallerContext,
   ) {
     const runAsCaller = <T>(operation: () => Promise<T>): Promise<T> => {
-      if (!caller?.sub || !caller.role) return operation();
+      if (!caller) return operation();
+      if (
+        typeof caller.sub !== 'string' ||
+        caller.sub.trim().length === 0 ||
+        typeof caller.role !== 'string' ||
+        caller.role.trim().length === 0
+      ) {
+        throw new ForbiddenException('Authenticated database actor context is missing');
+      }
       return this.db.withActorContext(
         {
           actorKind: 'user',
@@ -1558,7 +1566,15 @@ export class OrdersService {
     }
 
     const runAsCaller = <T>(operation: () => Promise<T>): Promise<T> => {
-      if (!caller?.sub || !caller.role) return operation();
+      if (!caller) return operation();
+      if (
+        typeof caller.sub !== 'string' ||
+        caller.sub.trim().length === 0 ||
+        typeof caller.role !== 'string' ||
+        caller.role.trim().length === 0
+      ) {
+        throw new ForbiddenException('Authenticated database actor context is missing');
+      }
       return this.db.withActorContext(
         {
           actorKind: 'user',
