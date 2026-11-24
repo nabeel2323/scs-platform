@@ -735,22 +735,30 @@ export class CatalogTaxonomyService {
     return this.getProductType(newId);
   }
 
-  async listProductTypes(opts?: { categoryId?: string; status?: string }) {
+  async listProductTypes(opts?: {
+    categoryId?: string;
+    status?: string;
+    includeInvalidCategoryBindings?: boolean;
+  }) {
     // Product types are global taxonomy. Exclude legacy rows bound to tenant or
     // inactive categories even if those rows predate the current write guards.
-    const platformCategories = await this.db.db.query.categories.findMany({
-      where: and(isNull(categories.storeId), eq(categories.isActive, true)),
-      columns: { id: true },
-    });
-    const platformCategoryIds = platformCategories.map((category) => category.id);
-
     const conditions = [];
-    if (opts?.categoryId) {
-      if (!platformCategoryIds.includes(opts.categoryId)) return [];
+    if (!opts?.includeInvalidCategoryBindings) {
+      const platformCategories = await this.db.db.query.categories.findMany({
+        where: and(isNull(categories.storeId), eq(categories.isActive, true)),
+        columns: { id: true },
+      });
+      const platformCategoryIds = platformCategories.map((category) => category.id);
+
+      if (opts?.categoryId) {
+        if (!platformCategoryIds.includes(opts.categoryId)) return [];
+        conditions.push(eq(productTypes.categoryId, opts.categoryId));
+      } else {
+        if (platformCategoryIds.length === 0) return [];
+        conditions.push(inArray(productTypes.categoryId, platformCategoryIds));
+      }
+    } else if (opts?.categoryId) {
       conditions.push(eq(productTypes.categoryId, opts.categoryId));
-    } else {
-      if (platformCategoryIds.length === 0) return [];
-      conditions.push(inArray(productTypes.categoryId, platformCategoryIds));
     }
 
     if (opts?.status && opts.status !== 'ALL') conditions.push(eq(productTypes.status, opts.status));
