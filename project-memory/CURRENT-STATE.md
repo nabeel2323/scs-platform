@@ -3,12 +3,11 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source implementation checkpoint:** `f21dbe4aca75ba04e9173b1fc28a9591829af554`. **Current branch/PR head:** `bb193c7b52ed83bc6c0a6f72ce1a24ba4dcdd926` (documentation-only commit).  
+**Latest source implementation checkpoint:** `efa6349651b7f2b5083475e4bdaa9104ee3402cc` (driver eligibility source formatting follow-up; implementation commits `9d461e1` and `fca4c35`). **Latest regression-source checkpoint:** `5ab4c9358191f184d2e5917741e08263777ac72d`. **Current branch/PR head at this reconciliation:** `d6070e476e29d826b953f1874e12f757c736c222` (roadmap documentation update; re-query after this memory sync).  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop`.  
-**Latest source commits:** carrier actor-context commits `9906430`, `9a010db`, role correction `4d3488d`, webhook test fixture `47c2789`, and database/operator access continuation through `48b22ded255f514f4ccec55d58a604a1c41e7b8f`.  
-**Exact-head Actions:** no run. Latest automatic run #1501 on prior SHA `9a010db69c668432f2811c68094a367ad5c7684c` FAILED: API lint PASS, API typecheck FAIL on nullable caller role; Mobile Flutter analysis/tests PASS; dependent integration/unit/coverage/migration/Web/Admin/build/release jobs SKIPPED. The type error is corrected in `4d3488d`, not re-run.  
-**Exact-head Actions:** zero runs. **Exact-head Vercel:** Web and Admin FAILURE — “Deployment rate limited — retry in 24 hours.” These are external preview-provider failures, not application test evidence.  
-**Standing instruction:** implementation/integration first; do not intentionally run tests or trigger CI during implementation. Keep PR #138 draft/open/unmerged.
+**Latest source scope:** carrier credential/webhook actor-context and retry lineage; migration/operator access hardening; financial/refund/reconciliation/shipment/carrier ownership checks; and driver eligibility at the existing Orders shipment-assignment endpoint.  
+**Exact-head Actions/status at `d6070e4`:** zero workflow runs and zero combined status contexts. The prior code/test head `5ab4c9358191f184d2e5917741e08263777ac72d` had no Actions runs and only external Vercel Web/Admin build-rate-limit failures. Automatic CI #1503 failed on an earlier source checkpoint and does not verify any of the later source/test changes.  
+**Standing instruction:** implementation/integration first; do not intentionally run tests, formatter, lint, typecheck or CI during implementation. Keep PR #138 draft/open/unmerged.
 
 ## Latest implementation checkpoint
 
@@ -19,7 +18,8 @@
 - RBAC seed, catalog seed and development RBAC seed use transaction-local system principals. Staging bootstrap and local admin creation use bootstrap principals. The read-only DB access audit uses an audit principal.
 - Staging bootstrap diagnostics now require the same explicit target guard and read-only actor scope. RBAC post-commit verification is scoped. The seed mapping total no longer double-counts newly inserted mappings.
 - The read-only DB audit now enumerates functions/triggers in all non-system schemas, including partman, and reports pg_partman retention config plus pg_cron maintenance jobs when available.
-- Regression specs were updated/added for operator actor context and staging bootstrap actor context. Tests remain unexecuted.
+- Regression specs were updated/added for operator actor context, staging bootstrap actor context and driver/store assignment eligibility. Tests remain unexecuted.
+- The existing `POST /orders/:id/assign-driver` route was found in OrdersController/OrdersService. The service now validates an active driver profile and user, active DRIVER membership, profile-org/store-org equality, and migration 0041's zero-row unrestricted / explicit-row allowlist semantics before any fulfillment mutation. The mapping table itself still has no repository writer; no new API, migration or composite FK was introduced.
 
 ## G-002 physical table inventory
 
@@ -445,3 +445,12 @@ No tests or CI were run; commits use `[skip ci]`. G-002 remains IMPLEMENTATION_I
 Source commit `926c475fb9c59ffa1688dccee3d4f9dfbeea59e2` closes a remaining webhook retry relationship gap: every unprocessed credential-bound event now revalidates credential existence/active state and provider key, including already-linked events; the linked shipment's store organization must equal the credential organization before the event is marked processed. Unlinked legacy events without a credential fail closed; already-linked legacy rows with null credential remain compatible but still require shipment/order/store consistency.
 
 Crosswalk and progress tracker record the new invariants and regression cases. No tests or CI were run; commit uses `[skip ci]`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Next: finish Drizzle-to-migration FK reconciliation and locate any external driver assignment consumer before adding any API or database constraint.
+
+
+## 24 November 2026 — driver assignment eligibility continuation
+
+Source commits `9d461e1c25381d4528fc733059ee58afb320fa6b` and `fca4c3569976fd6e5a8b9db767e876f8f449c367` add the ShippingService driver eligibility contract and enforce it in `OrdersService.assignDriver` before order/shipment/event/history/outbox writes. The contract checks active profile/user, active DRIVER membership and profile organization = store organization. It preserves migration 0041's rule that zero explicit `driver_store_assignments` rows means unrestricted eligibility within the driver's organization; otherwise the target store must be listed.
+
+Unit and disposable PostgreSQL regression source was added; no tests, formatter, lint, typecheck, E6 or CI were run. The latest exact-head check on parent SHA `d6070e476e29d826b953f1874e12f757c736c222` returned zero Actions runs and zero status contexts. PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. No live/shared DB, migration, RLS/grant, protected staging, deployment, worker activation, merge or release action occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+**Next:** complete Drizzle-to-migration FK reconciliation and remaining source-level ownership/actor-context review; confirm whether an external process provisions optional driver-store allowlist rows; obtain actual API/migration runtime identities, pg_partman scheduler ownership and live catalog evidence only through the authorized read-only staging process. Keep G-001 independent review and G-036 verification open; defer consolidated tests/CI until implementation/integration is complete.
