@@ -486,7 +486,12 @@ async function main(): Promise<void> {
       SELECT to_regclass('partman.part_config') IS NOT NULL AS relation_exists
     `);
     const hasPartConfig = Boolean(partConfigExists.rows[0]?.['relation_exists']);
-    let partConfigReport: Record<string, unknown> = {
+    let partConfigReport: {
+      relation_exists: boolean;
+      can_select: boolean;
+      columns: string[];
+      rows: QueryResultRow[] | null;
+    } = {
       relation_exists: hasPartConfig,
       can_select: false,
       columns: [],
@@ -537,7 +542,11 @@ async function main(): Promise<void> {
       SELECT to_regclass('cron.job') IS NOT NULL AS relation_exists
     `);
     const hasCronJobs = Boolean(cronJobExists.rows[0]?.['relation_exists']);
-    let cronJobsReport: Record<string, unknown> = {
+    let cronJobsReport: {
+      relation_exists: boolean;
+      can_select: boolean;
+      matching_jobs: QueryResultRow[] | null;
+    } = {
       relation_exists: hasCronJobs,
       can_select: false,
       matching_jobs: null,
