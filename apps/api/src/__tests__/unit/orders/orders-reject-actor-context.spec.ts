@@ -101,8 +101,8 @@ describe('OrdersService.rejectOrder actor-context boundaries (G-002)', () => {
       'payment-a',
       12500,
       'MERCHANT_REJECTION',
-      'buyer-a',
-      { sub: 'buyer-a', role: 'BUYER', activeOrg: null },
+      'merchant-a',
+      { sub: 'merchant-a', role: 'MERCHANT', activeOrg: 'org-a' },
       { idempotencyKey: 'reject-refund:order-a' },
     );
     expect(service.recalculateMasterOrderStatus).toHaveBeenCalledWith('master-a');

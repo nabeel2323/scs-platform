@@ -1110,9 +1110,16 @@ export class PaymentsService {
     const payment = await this.getPaymentOrThrow(paymentId);
     const order = await this.getOrderForPayment(payment.orderId);
 
-    // Buyer can only refund own payment; admin can refund any
+    // Buyers may request refunds for their own payments. Platform staff may
+    // manage any payment. A merchant may create only the system-generated
+    // MERCHANT_REJECTION request for an order in the merchant's active org.
+    const merchantRejection =
+      reason === 'MERCHANT_REJECTION' && Boolean(caller.role?.startsWith('MERCHANT_'));
     if (!isTenantPrivileged(caller) && order.buyerId !== caller.sub) {
-      throw new ForbiddenException('You do not have access to this payment');
+      if (!merchantRejection) {
+        throw new ForbiddenException('You do not have access to this payment');
+      }
+      await assertOrderAccessible(this.db, caller, order);
     }
 
     // Use the caller key when supplied; a generated key preserves a unique
@@ -1239,7 +1246,7 @@ export class PaymentsService {
         fromStatus: lockedPayment.status,
         toStatus: lockedPayment.status,
         actorId: requestedBy,
-        actorType: isTenantPrivileged(caller) ? 'ADMIN' : 'BUYER',
+        actorType: isTenantPrivileged(caller) ? 'ADMIN' : merchantRejection ? 'MERCHANT' : 'BUYER',
         amountMinor,
         notes: `Refund requested: ${reason}`,
       });

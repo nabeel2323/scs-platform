@@ -1269,12 +1269,17 @@ export class OrdersService {
               payment.confirmedAmountMinor ?? payment.amountMinor,
             );
             if (refundableAmount > 0) {
+              const refundCaller: CallerContext = caller ?? {
+                sub: order['buyerId'] as string,
+                role: 'BUYER',
+                activeOrg: null,
+              };
               await this.payments!.requestRefund(
                 payment.id,
                 refundableAmount,
                 'MERCHANT_REJECTION',
-                order['buyerId'] as string,
-                { sub: order['buyerId'] as string, role: 'BUYER', activeOrg: null },
+                caller?.sub ?? (order['buyerId'] as string),
+                refundCaller,
                 { idempotencyKey: `reject-refund:${orderId}` },
               );
             }
