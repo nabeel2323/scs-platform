@@ -889,3 +889,10 @@ Source commits `9906430459666effbd25f33148c3cdf01b976330` and `9a010db69c668432f
 Tests were updated but not executed. Actions #1501 was automatically queued on the latest source commit and was in progress at last inspection; it was not intentionally dispatched. G-002 remains NOT VERIFIED.
 
 **Next sequence:** finish the raw SQL/function/trigger/partition inventory across migrations; review direct migration/seed/bootstrap/CLI PoolClient operations and their role/ownership contracts; complete exact table/operation predicates and migration FK crosswalk; verify actor-context reuse/nesting. Obtain actual API/migration identity and protected live catalog evidence only through authorized read-only staging. Then finish regression coverage and one consolidated verification campaign. G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.
+
+
+## 24 November 2026 — G-002 carrier caller-role correction and CI reconciliation
+
+Commit `4d3488d7017439c1e756df4a595873dc9d590455` adds fail-closed caller-role validation to carrier user actor contexts and moves the membership pre-check before credential encryption, with a second check inside the insert transaction. This corrects the typecheck failure seen in automatic run #1501 on the previous source SHA. The correction is not verified; exact-head Actions is empty because the commit uses `[skip ci]`.
+
+Next: continue the raw SQL/function/trigger/partition and migration/bootstrap/CLI access-path audit; finish exact ownership predicates and migration FK evidence; verify actor-context reuse/nesting; obtain protected read-only runtime identity/catalog evidence only through authorized staging. G-002 remains NOT VERIFIED. G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.

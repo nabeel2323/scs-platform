@@ -233,3 +233,13 @@ The Catalog Import source slice and P13 operational principal slice are now impl
 - PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No RLS/grant/default-ACL/migration/shared-staging/deployment/worker/merge/release action occurred.
 
 **Next:** complete raw SQL/function/trigger/partition and migration/bootstrap/CLI access-path reconciliation, exact operation ownership predicates and FK evidence. Obtain runtime identities and live catalog only through the authorized read-only staging process. Keep tests and CI deferred until implementation/integration is complete.
+
+
+## 24 November 2026 — automatic CI failure and unverified correction
+
+- Current source/PR head: `4d3488d7017439c1e756df4a595873dc9d590455`; PR #138 OPEN / DRAFT / UNMERGED to `develop`.
+- Exact-head Actions lookup: no run. The latest automatic run [#1501](https://github.com/nabeel2323/scs-platform/actions/runs/45422228217) ran on prior SHA `9a010db69c668432f2811c68094a367ad5c7684c` and FAILED. Mobile Flutter analysis/tests PASS; API lint PASS; API TypeScript typecheck FAIL because `caller.role` is optional (`string | null | undefined`) but DatabaseActorContext requires a string. Integration, boundary lint, unit/coverage, migration, Web/Admin, contract, build, smoke, k6 and staging release jobs were SKIPPED.
+- Commit `4d3488d7017439c1e756df4a595873dc9d590455` now fails closed on a missing/blank role before creating the user actor context and moves the org-membership pre-check before encryption, rechecking inside the insert transaction. This correction has not been re-run.
+- Exact-head Vercel Web/Admin contexts: SUCCESS / SKIPPED — NOT AFFECTED.
+- No tests, formatter, lint, typecheck, E6 or CI workflow were intentionally dispatched. Run #1501 was automatic from the source push. All later docs/correction commits use `[skip ci]` to preserve the implementation-first restriction.
+- No RLS, grant/default-ACL, migration, shared/staging database, deployment, worker activation, merge or release action occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.

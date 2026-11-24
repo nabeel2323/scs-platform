@@ -11,7 +11,7 @@ Carrier credential/configuration CRUD and internal resolution now use explicit v
 
 Still open: complete the source-backed raw SQL/function/trigger/partition inventory; reconcile remaining migration/bootstrap/CLI/direct PoolClient paths and exact table/ownership predicates; complete migration-defined FK evidence; verify actor-context reuse/nesting; obtain protected read-only live API/migration identity/catalog evidence only through the authorized process. The 100 source declarations, historical 114 public r/p snapshot and unexplained 116 count remain distinct.
 
-Exact source SHA `9a010db69c668432f2811c68094a367ad5c7684c` automatically queued Actions #1501, IN_PROGRESS at last inspection. No test/CI workflow was intentionally dispatched. G-002 remains NOT VERIFIED; no RLS, grants, migration, protected staging, deployment, worker activation or merge is authorized.
+Exact source SHA `4d3488d7017439c1e756df4a595873dc9d590455` has no Actions run. Automatic run #1501 on prior SHA `9a010db69c668432f2811c68094a367ad5c7684c` failed API typecheck on nullable caller.role; commit `4d3488d` corrects it but is unverified. No test/CI workflow was intentionally dispatched. G-002 remains NOT VERIFIED; no RLS, grants, migration, protected staging, deployment, worker activation or merge is authorized.
 
 
 ### G-002 continuation — 22 November 2026
@@ -1151,3 +1151,8 @@ The Catalog Import source slice and P13 operational principal slice are now impl
 ## 24 November 2026 — next G-002 source task
 
 Continue the migration/CLI/raw database object audit. Review SQL function/trigger/partition creation and maintenance, direct Pool/PoolClient scripts, and operation ownership predicates. Keep runtime identity and live catalog evidence gated to the authorized read-only staging process. Add remaining actor-context regression coverage only after source integration is complete; do not run the verification campaign during implementation.
+
+
+## 24 November 2026 — caller-role typecheck correction
+
+The source correction `4d3488d7017439c1e756df4a595873dc9d590455` rejects missing/blank caller roles before carrier user actor creation and checks organization membership before encryption, then revalidates inside the insert transaction. It addresses the exact type error from run #1501 but has not been re-run. Exact-head CI is empty because the correction commit uses `[skip ci]`; no verification pass is claimed.

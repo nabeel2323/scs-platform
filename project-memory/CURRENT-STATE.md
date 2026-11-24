@@ -2,25 +2,24 @@
 
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
-**Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source implementation commits:** `9906430459666effbd25f33148c3cdf01b976330` and `9a010db69c668432f2811c68094a367ad5c7684c`.  
+**Branch / PR head:** `remediation/phase-0-1-tenant-security` / `4d3488d7017439c1e756df4a595873dc9d590455`  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop`.  
-**Latest source head before this documentation sync:** `9a010db69c668432f2811c68094a367ad5c7684c`; re-query live branch HEAD before continuing after the documentation commits.  
-**Exact-source Actions run:** [#1501](https://github.com/nabeel2323/scs-platform/actions/runs/45422228217), ID `45422228217`, automatically queued on the latest source SHA and IN_PROGRESS at last inspection.  
-**Exact-source Vercel statuses:** Web and Admin SUCCESS / SKIPPED — NOT AFFECTED.  
+**Latest source commits:** `9906430459666effbd25f33148c3cdf01b976330`, `9a010db69c668432f2811c68094a367ad5c7684c`, `4d3488d7017439c1e756df4a595873dc9d590455`.  
+**Exact-head Actions:** no run. Latest automatic run #1501 on prior SHA `9a010db69c668432f2811c68094a367ad5c7684c` FAILED: API lint PASS, API typecheck FAIL on nullable caller role; Mobile Flutter analysis/tests PASS; dependent integration/unit/coverage/migration/Web/Admin/build/release jobs SKIPPED. The type error is corrected in `4d3488d`, not re-run.  
+**Exact-head Vercel:** Web/Admin SUCCESS / SKIPPED — NOT AFFECTED.  
 **Standing instruction:** implementation/integration first; do not intentionally run tests or trigger CI during implementation. Keep PR #138 draft/open/unmerged.
 
 ## Latest implementation checkpoint
 
 - Authenticated Identity/Profile, Payments, Orders/Merchant, Catalog Import, P13 monitoring/control and selected worker/system paths have the bounded actor-context adoption recorded in later entries.
-- CarrierCredentialsService list/get/create/deactivate operations now use a verified user actor. Encryption is performed before the DB transaction; membership is checked inside the transaction before insert. Deactivation repeats credential ID + organization in its UPDATE predicate.
-- CarrierConfigurationsService list/get/create/update operations now use a verified user actor. Internal store resolution uses an organization-bound worker context; store lookup repeats store ID + organization, configuration lookup repeats org/store/active predicates, and updates repeat configuration ID + org.
-- Internal carrier credential lookup/decryption requires expected org ID; credential and webhook-secret queries constrain credential ID + org. Decryption occurs after the short DB read transaction closes.
+- CarrierCredentialsService list/get/create/deactivate use verified user actors. Caller role is required and validated before opening the actor context. Create authorizes membership before encryption and re-checks membership inside the insert transaction. Deactivation repeats credential ID + org in its UPDATE predicate.
+- CarrierConfigurationsService list/get/create/update use verified user actors. Internal store resolution uses an organization-bound worker context; store lookup repeats store ID + org, configuration lookup repeats org/store/active predicates, and updates repeat config ID + org.
+- Internal credential lookup/decryption requires expected org ID; credential and webhook-secret queries constrain credential ID + org. Decryption occurs after the short DB read transaction closes.
 - Aramex provider credential lookup uses explicit worker contexts and retains expected organization, provider and active predicates. Platform credential lookup is restricted to the Identity-resolved PLATFORM organization.
-- Carrier webhook credential resolution uses a dedicated worker principal. The legacy provider-only route still rejects multiple active credentials with HTTP 401, returned outside the transaction. Subsequent webhook persistence uses the credential's org-bound context.
-- AuditLogMiddleware already establishes a separate audit actor in its response-finish callback; AuditService remains context-dependent to avoid an actor switch inside an active transaction.
-- Migration runner, seed CLI, bootstrap-token CLI and BootstrapService retain distinct migration/seed/bootstrap/anonymous principal boundaries. They are not wrapped in a generic HTTP user context.
-- Regression coverage was updated/added for carrier actor context and webhook lookup fixture compatibility. Tests remain unexecuted.
+- Carrier webhook credential resolution uses a dedicated worker principal. The legacy provider-only route rejects multiple active credentials with HTTP 401, returned outside the transaction. Subsequent webhook persistence uses the credential's org-bound context.
+- AuditLogMiddleware already establishes a separate audit actor in its response-finish callback; AuditService remains context-dependent to avoid actor switching inside an active transaction.
+- Migration runner, seed CLI, bootstrap-token CLI and BootstrapService retain distinct migration/seed/bootstrap/anonymous principal boundaries.
+- Regression coverage was updated/added but remains unexecuted. Commit `4d3488d` addresses the nullable caller-role typecheck failure seen in automatic run #1501; this is not yet verified.
 
 ## G-002 physical table inventory
 
@@ -40,9 +39,9 @@ CatalogImportController list/detail/errors database-only routes use the verified
 
 ## Verification and safety
 
-G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Actions run #1501 was automatically queued on source SHA `9a010db69c668432f2811c68094a367ad5c7684c` and was IN_PROGRESS at last inspection; it was not manually dispatched. The available GitHub connector exposes no workflow-cancel action. Exact-source Vercel Web/Admin contexts were SUCCESS / SKIPPED — NOT AFFECTED. No tests, formatter, lint, typecheck or E6 were intentionally run by this session. Do not infer a pass from an in-progress run.
+G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Exact branch head `4d3488d7017439c1e756df4a595873dc9d590455` has no Actions run. The preceding automatic run #1501 on `9a010db69c668432f2811c68094a367ad5c7684c` failed API typecheck because the new user actor context passed optional `caller.role`; API lint and Mobile Flutter tests passed, while dependent integration/unit/coverage/migration/Web/Admin/build/release jobs were skipped. Commit `4d3488d` now rejects a missing role before creating the context; not re-run. Exact-head Vercel statuses are SUCCESS / SKIPPED — NOT AFFECTED. No test/CI workflow was intentionally dispatched.
 
-No shared database mutation, migration, grant/default-ACL change, RLS enablement, protected staging action, deployment, worker activation, merge or release occurred.
+No shared DB mutation, migration, grant/default-ACL change, RLS enablement, protected staging action, deployment, worker activation, merge or release occurred.
 
 ## G-002 actor-context implementation checkpoint
 
@@ -333,3 +332,8 @@ The Catalog Import source slice and P13 operational principal slice are now impl
 ## 24 November 2026 — carrier credential/configuration actor-context continuation
 
 Source commits: `9906430459666effbd25f33148c3cdf01b976330` and `9a010db69c668432f2811c68094a367ad5c7684c`. Next task: migration/CLI/raw SQL function/trigger/partition reconciliation and exact ownership/FK evidence. No verification was executed; Actions #1501 is automatic and was in progress at last inspection.
+
+
+## 24 November 2026 — carrier actor-context type correction
+
+Commit `4d3488d7017439c1e756df4a595873dc9d590455` makes carrier user actor creation fail closed when the caller role is missing/blank and performs the organization membership pre-check before credential encryption, then rechecks membership inside the insert transaction. This addresses the concrete nullable-role type error in automatic run #1501; the correction remains unverified because exact-head CI was not run.

@@ -1951,3 +1951,10 @@ Carrier credential CRUD now uses verified user actors; configuration CRUD is lik
 AuditLogMiddleware already scopes its deferred response-finish write with an audit actor. Migration runner, seed CLI, bootstrap token CLI and BootstrapService retain separate migration/seed/bootstrap/anonymous principals. No generic HTTP context was applied to those paths.
 
 No tests, formatter, lint, typecheck or E6 were intentionally executed. Automatic Actions [#1501](https://github.com/nabeel2323/scs-platform/actions/runs/45422228217) was in progress at last inspection. No pass is claimed. Next: raw SQL/function/trigger/partition inventory, direct migration/bootstrap/CLI access-path reconciliation, exact ownership predicates and FK evidence, then protected read-only runtime identity/catalog evidence. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — carrier caller-role type correction
+
+Source commit `4d3488d7017439c1e756df4a595873dc9d590455` follows the carrier credential/configuration actor-context implementation. It requires a non-empty caller role before creating the user actor context, resolving the exact API typecheck failure from automatic run #1501. Carrier credential create now authorizes organization membership before encryption and re-checks membership inside the insert transaction.
+
+Run #1501 on the prior source SHA failed API typecheck (nullable caller.role); API lint and Mobile Flutter tests passed; dependent integration/unit/coverage/migration/Web/Admin/build/release jobs were skipped. The correction is not re-run. Exact-head Actions lookup on 4d3488d is empty. No tests or CI were intentionally dispatched.
