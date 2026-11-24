@@ -75,6 +75,8 @@ for file in "${files[@]}"; do
     echo "FAILED"
     printf '%s\n' "$output" | tail -20 >&2
     FAILED=$((FAILED + 1))
+    rm -f "$temp_sql"
+    break
   fi
   rm -f "$temp_sql"
 done

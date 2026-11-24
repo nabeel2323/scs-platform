@@ -48,7 +48,7 @@ function psql(query: string): string {
   return execFileSync(
     'docker',
     [
-      'exec', CONTAINER, 'psql', '-U', DB_USER, '-d', DB_NAME,
+      'exec', CONTAINER, 'psql', '-X', '-U', DB_USER, '-d', DB_NAME,
       // -v ON_ERROR_STOP=1 makes a failed statement exit non-zero, which is the only
       // way the caller can tell success from a partially applied script.
       '-v', 'ON_ERROR_STOP=1', '-t', '-A', '-c', query,
@@ -88,7 +88,7 @@ COMMIT;
   let output = '';
   try {
     output = execFileSync('docker', [
-      'exec', CONTAINER, 'psql', '-U', DB_USER, '-d', DB_NAME,
+      'exec', CONTAINER, 'psql', '-X', '-U', DB_USER, '-d', DB_NAME,
       '-v', 'ON_ERROR_STOP=1', '-f', tmpFile,
     ], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
   } finally {
