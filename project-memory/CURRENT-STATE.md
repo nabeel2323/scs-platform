@@ -3,18 +3,19 @@
 **Live reconciliation date:** 24 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Latest source checkpoint:** `7f56e5185cf1a7c7b6954845ca9151aac83c5ac6` — operation-scoped authentication and post-proof session phases plus eight bounded Payments GET actor contexts. Previous Identity checkpoint: `b939a335a5bc126241131ab48bb03c9ed3cfaea6`.  
+**Latest source checkpoint:** `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50` — adds four DB-only Payments confirmation/settlement write routes to eight bounded GET routes. Prior Payments GET checkpoint: `7f56e5185cf1a7c7b6954845ca9151aac83c5ac6`.  
+**Latest branch/documentation head:** `7cef8cbd5e0e68c08efacb2431f4f82ee012e189`.  
 **Latest test-only follow-up:** `c8405a33388731095ef08b64d744a36d7b079cd3` — corrected the Drizzle update-query mock used by the credential actor-context spec.  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138), OPEN / DRAFT / UNMERGED, base `develop` (`f74eb588cc58fc99b105e749d39dbfbacb4f9775`).  
 **Exact-head GitHub Actions:** zero workflow runs; source commits intentionally include `[skip ci]`.  
-**Source-commit preview status:** Vercel Web SUCCESS and Vercel Admin SUCCESS on source commit `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`. These are preview statuses, not application-test results; recheck the live PR head because later documentation-only commits can leave preview contexts pending.
+**Exact branch-head status (7cef8cbd5e0e68c08efacb2431f4f82ee012e189):** GitHub Actions zero workflow runs; Vercel Web and Admin PENDING. These are preview statuses, not application-test results.
 
 > **Standing user instruction:** complete implementation and cross-component integration first, then run tests. Do not execute test commands or trigger CI during implementation. Proceed autonomously without asking for approval for routine steps; group related changes and synchronize project memory.
 
 ## G-002 actor-context implementation checkpoint
 
 The opt-in DatabaseService actor-context foundation is implemented:
-- Typed principals: `anonymous`, `user`, `worker`, `system`, `bootstrap`, `audit`.
+- Typed principals: `anonymous`, operation-scoped `authentication`, `user`, `worker`, `system`, `bootstrap`, `audit`.
 - Parameterized transaction-local PostgreSQL settings use `set_config(..., true)` for actor ID, role, active organization, actor kind and worker ID.
 - AsyncLocalStorage routes existing `DatabaseService.db` calls through a transaction-bound Drizzle handle inside opted-in operations.
 - Same-actor nested calls reuse the active transaction; actor switching fails closed.

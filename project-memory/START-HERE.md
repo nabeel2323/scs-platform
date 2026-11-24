@@ -78,7 +78,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-Live reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) OPEN / DRAFT / UNMERGED against `develop`. The latest source implementation commit is `fe98b12f1f0ad9c6a24a48f02ceb5201c4cf3d4f`, with test-only follow-up `c8405a33388731095ef08b64d744a36d7b079cd3` correcting a chainable Drizzle query-builder mock. It extends the existing transaction-bound actor-context rollout into authenticated identity and credential flows; the detailed method boundary is recorded in [G-002 authenticated identity actor-context adoption](../docs/remediation/G-002-AUTHENTICATED-IDENTITY-ACTOR-CONTEXT-2026-11-24.md).
+Live reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-platform`, branch `remediation/phase-0-1-tenant-security`, and PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) OPEN / DRAFT / UNMERGED against `develop`. The latest source implementation commits include `fe98b12f` (authenticated Identity/Profile), `4e9e0475` (pre-authentication principal), `5a6eba90` and `b939a335` (post-proof OTP/password/session DB phases), `7f56e518` (Payments GET scopes) and `22f14b0e` (Payments DB-only confirmation/settlement write scopes). Latest branch/documentation head: `7cef8cbd5e0e68c08efacb2431f4f82ee012e189`. It extends the existing transaction-bound actor-context rollout into authenticated identity and credential flows; the detailed method boundary is recorded in [G-002 authenticated identity actor-context adoption](../docs/remediation/G-002-AUTHENTICATED-IDENTITY-ACTOR-CONTEXT-2026-11-24.md).
 
 ### Exact stopping point
 
@@ -92,7 +92,7 @@ Live reconciliation on 24 November 2026 confirms repository `nabeel2323/scs-plat
 ### Live PR and CI
 
 - PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) is OPEN / DRAFT / UNMERGED to `develop`; do not merge.
-- On test/code checkpoint `c8405a33388731095ef08b64d744a36d7b079cd3`, GitHub Actions returned zero workflow runs. The Vercel Admin and Web status contexts were SUCCESS, but they are preview statuses, not API, PostgreSQL, boundary or test evidence.
+- On live branch head `7cef8cbd5e0e68c08efacb2431f4f82ee012e189`, GitHub Actions returned zero workflow runs. Vercel Admin and Web statuses are PENDING; they are preview statuses, not API, PostgreSQL, boundary or test evidence.
 - The latest broad historical Actions failures predate this actor-context source commit. Do not report historical failures or skipped jobs as current-head results or passes.
 - G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Source adoption alone is not proof of RLS enforcement.
 
