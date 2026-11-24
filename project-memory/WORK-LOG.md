@@ -2089,3 +2089,14 @@ The 75-file numbered migration scan found 183 explicit REFERENCES clauses across
 - Updated the G-002 migration FK crosswalk, remediation progress tracker and open issues. Tests, formatter, lint, typecheck, E6 and CI were not run; commits use `[skip ci]`. Exact-head Actions lookup on source/test head `5ab4c9358191f184d2e5917741e08263777ac72d` returned zero workflow runs; combined statuses were only Vercel Web/Admin FAILURE for external build-rate limiting. These are not application test results.
 - PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. No live/shared DB, migration, RLS/grant, protected staging, deployment, worker activation, merge or release action occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
 - Next: finish Drizzle-to-migration FK reconciliation and remaining source ownership/actor-context review; determine whether an external provisioning process manages driver-store allowlist rows; then complete protected read-only identity/catalog evidence only through the authorized staging process. Consolidated verification remains deferred until implementation/integration is complete.
+
+
+## 24 November 2026 — targeted Drizzle/migration FK parity continuation
+
+- Reconciled the current payment, return and financial Drizzle declarations against the migration FK crosswalk.
+- Added the migration 0062 self-reference for `reconciliation_runs.superseded_by` to Drizzle using a typed lazy `AnyPgColumn` reference.
+- Documented the migration-owned deferred FKs for `refunds.return_request_id`, `return_requests.refund_id` and `return_request_items.inventory_item_id`, including the payments/returns module-cycle constraint and ON DELETE SET NULL behavior.
+- Added the targeted static comparison and explicit limits to `docs/remediation/G-002-MIGRATION-FOREIGN-KEY-CROSSWALK-2026-11-22.md`. Nullable financial/reconciliation `org_id` fields remain intentionally without organization FKs; no synthetic constraint was added.
+- Source commits: `b37f3386220b7148f2b326f9fd43b532b201a152`, `ef178d7af0d10b1ef80642aa5f6fe77b37cc55d4`, `e1d73e5270f8a815c537edf97f1ff8cc1d45fac4`. Crosswalk commit: `ad1547e781e0382bbd4ad6b6105c59dc3b19c0a3`.
+- No tests, formatter, lint, typecheck, E6 or CI were run. No migration, shared/staging DB, RLS/grant, deployment, worker activation, merge or release action occurred. PR #138 remains draft and unmerged. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+- Next: continue the table-by-table Drizzle/migration FK comparison, then finish the source operation/actor-context audit. Keep protected runtime identity/catalog and pg_partman scheduler evidence gated to the authorized read-only staging process.
