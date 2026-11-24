@@ -463,7 +463,7 @@ async function main(): Promise<void> {
              tg.tgname AS trigger_name,
              tg.tgenabled AS enabled_state,
              tg.tgisinternal AS is_internal,
-             pg_get_triggerdef(trigger.oid, true) AS trigger_definition,
+             pg_get_triggerdef(tg.oid, true) AS trigger_definition,
              function_ns.nspname AS function_schema,
              function_proc.proname AS function_name,
              function_proc.prosecdef AS function_security_definer,

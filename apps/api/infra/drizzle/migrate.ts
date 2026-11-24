@@ -121,6 +121,15 @@ async function main() {
   // Get already-applied migrations
   const appliedRaw = psql('SELECT name FROM _migration_log ORDER BY name');
   const applied = new Set(appliedRaw.split('\n').filter(Boolean));
+  const staleExcluded = [...DEV_MIGRATION_EXCLUSIONS.keys()].filter((file) => applied.has(file));
+  if (staleExcluded.length > 0) {
+    console.error(
+      '❌ Local migration ledger contains pg_partman-dependent migrations that this image skips: ' +
+        staleExcluded.join(', ') +
+        '. The database may contain partial migration state; recreate the local database explicitly.',
+    );
+    process.exit(1);
+  }
 
   // Read migration files from disk
   if (!fs.existsSync(MIGRATIONS_DIR)) {
@@ -145,6 +154,7 @@ async function main() {
   }
 
   let count = 0;
+  let alreadyApplied = applied.size;
   for (const file of files) {
     if (DEV_MIGRATION_EXCLUSIONS.has(file)) continue;
     if (applied.has(file)) {
@@ -164,6 +174,7 @@ async function main() {
         count++;
       } else {
         console.log(`   ✓ ${file} (applied by another migration runner)`);
+        alreadyApplied++;
       }
     } catch (err: any) {
       console.error(`\n❌ Migration ${file} FAILED (rolled back, not logged):`);

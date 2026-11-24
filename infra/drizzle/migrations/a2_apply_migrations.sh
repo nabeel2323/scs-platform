@@ -23,6 +23,14 @@ CREATE TABLE IF NOT EXISTS _migration_log (
 COMMIT;
 SQL
 
+stale_excluded=$("${PSQL[@]}" -tA -c "SELECT name FROM _migration_log WHERE name IN ('0013_analytics.sql', '0018_analytics_retention.sql') ORDER BY name")
+if [ -n "$stale_excluded" ]; then
+  echo "Refusing to continue: skipped pg_partman migrations are already in the ledger:" >&2
+  printf '%s\\n' "$stale_excluded" >&2
+  echo "The disposable database may contain partial migration state; recreate it explicitly." >&2
+  exit 1
+fi
+
 APPLIED=0
 SKIPPED=0
 ALREADY=0

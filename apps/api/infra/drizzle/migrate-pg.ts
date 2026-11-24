@@ -87,6 +87,51 @@ async function main(): Promise<void> {
       ? { rows: [] as { name: string }[] }
       : await client.query('SELECT name FROM _migration_log ORDER BY name');
     const applied = new Set(appliedRes.rows.map((r) => r.name));
+
+    // A legacy non-atomic runner could log analytics migrations after only part
+    // of the file applied. Never trust those ledger rows if pg_partman/config is absent.
+    if (applied.has('0013_analytics.sql')) {
+      const partmanState = await client.query<{
+        extension_installed: boolean;
+        config_relation_exists: boolean;
+      }>(`
+        SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_partman') AS extension_installed,
+               to_regclass('partman.part_config') IS NOT NULL AS config_relation_exists
+      `);
+      const state = partmanState.rows[0];
+      if (!state?.extension_installed || !state.config_relation_exists) {
+        throw new Error(
+          'Migration ledger lists 0013_analytics.sql but pg_partman or partman.part_config is missing. ' +
+          'Refusing to trust a possibly partial migration; reconcile this target through the approved database recovery procedure.',
+        );
+      }
+
+      const config = await client.query<{
+        retention: string | null;
+        retention_keep_table: boolean;
+        retention_keep_index: boolean;
+      }>(`
+        SELECT retention, retention_keep_table, retention_keep_index
+        FROM partman.part_config
+        WHERE parent_table = 'public.analytics_events'
+      `);
+      if (config.rowCount !== 1) {
+        throw new Error(
+          'Migration ledger lists 0013_analytics.sql but the public.analytics_events pg_partman configuration is missing.',
+        );
+      }
+      if (
+        applied.has('0018_analytics_retention.sql') &&
+        (config.rows[0].retention !== '12 months' ||
+          config.rows[0].retention_keep_table !== false ||
+          config.rows[0].retention_keep_index !== false)
+      ) {
+        throw new Error(
+          'Migration ledger lists 0018_analytics_retention.sql but the analytics_events retention configuration does not match the migration.',
+        );
+      }
+    }
+
     const pending = files.filter((f) => !applied.has(f));
 
     if (dryRun) {

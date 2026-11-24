@@ -385,11 +385,21 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
         const excluded = files.filter((file) => DEV_MIGRATION_EXCLUSIONS.has(file));
         for (const file of excluded) {
-          DatabaseService.logger.warn('Skipping extension-dependent migration: ' + file);
+          DatabaseService.logger.warn(
+            'Skipping ' + file + ': ' + DEV_MIGRATION_EXCLUSIONS.get(file),
+          );
         }
         const applicableFiles = files.filter((file) => !DEV_MIGRATION_EXCLUSIONS.has(file));
         const appliedRes = await client.query('SELECT name FROM _migration_log ORDER BY name');
         const applied = new Set(appliedRes.rows.map((r) => r.name));
+        const staleExcluded = excluded.filter((file) => applied.has(file));
+        if (staleExcluded.length > 0) {
+          throw new Error(
+            'Local migration ledger contains pg_partman-dependent files that this image skips: ' +
+              staleExcluded.join(', ') +
+              '. The local database may contain partial migration state; rebuild it explicitly before use.',
+          );
+        }
         const pending = applicableFiles.filter((f) => !applied.has(f));
 
         if (pending.length > 0) {
