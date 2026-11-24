@@ -1758,3 +1758,8 @@ Explicitly excluded: bank-transfer proof upload (object storage), refund request
 - Merchant document download presigning uses one short actor context for document/membership reads, calls object storage with no DB transaction open, then uses a second short actor context to persist the signed URL. Both admin-reviewer and merchant-member routes pass verified JWT identity. Upload presigning remains storage-only; registration/listing retain their existing scoped handlers.
 - Added Orders rejection and Merchant presign actor-context regression specs. They are authored but not executed under the implementation-first restriction.
 - No tests, formatter, lint, typecheck, E6 or CI were run. No RLS, migration, grants/default ACLs, shared/staging DB writes, deployment, worker activation, merge or release occurred. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+
+## 24 November 2026 — Orders rejection and Merchant presign implementation
+
+Source implementation commit: 7e2b2509292cfbcfe6f1f12ebae8d2fad25f8cf1. Documentation/progress synchronization: 17dcad59ea2b8bf636eca43b58d0c0a98c452976 and 84f57fd368ae0472251133adaa8029b01b777b49. Merchant rejection now atomically scopes stock release, optimistic order status, history and outbox; refund-request persistence uses a stable idempotency key in a separate DB actor phase, with provider execution downstream. Merchant download presigning scopes metadata/membership reads and URL persistence separately around storage signing. Regression specs added but not run. Exact HEAD 84f57fd368ae0472251133adaa8029b01b777b49 has zero Actions runs; Vercel Web/Admin show external build-rate-limit failures. No tests/CI or protected DB/deployment action occurred.

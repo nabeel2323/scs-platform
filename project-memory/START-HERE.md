@@ -993,3 +993,13 @@ Latest source implementation checkpoint: `ff8e4aebee01631023fad76eec9a8d98c25410
 ## Latest continuation — G-002 Orders rejection and Merchant document presign
 
 The latest source group extends bounded actor-context rollout to merchant order rejection and document download presigning (commit 7e2b2509292cfbcfe6f1f12ebae8d2fad25f8cf1). The rejection transaction includes stock settlement, optimistic status flip, history and outbox; refund request persistence is a separate idempotent DB phase, with provider execution left to the worker. Document presigning uses short actor contexts before and after storage signing. Regression specs are authored but unexecuted. G-002 remains IN PROGRESS / NOT VERIFIED.
+
+
+## Live GitHub reconciliation — 24 November 2026
+
+- Repository: nabeel2323/scs-platform. Branch: remediation/phase-0-1-tenant-security.
+- PR #138 is OPEN / DRAFT / UNMERGED against develop. Exact current HEAD: 84f57fd368ae0472251133adaa8029b01b777b49.
+- Latest source implementation commit: 7e2b2509292cfbcfe6f1f12ebae8d2fad25f8cf1. Latest remediation-plan/progress and project-memory sync commit: 84f57fd368ae0472251133adaa8029b01b777b49.
+- Exact-head GitHub Actions lookup returned zero workflow runs. Combined status reports Vercel Admin and Vercel Web FAILURE with the provider build-rate-limit URL. These are external preview-provider statuses, not application test outcomes.
+- The latest source group scopes Orders rejection DB phases and Merchant document download-presign metadata phases; two regression specs are authored but unexecuted. No formatter, lint, typecheck, E6 or CI was run. G-002 remains IN PROGRESS / NOT VERIFIED.
+- No merge, deployment, worker activation, RLS, migration, grant/default ACL change or shared/staging database action occurred. All standing restrictions remain in force.
