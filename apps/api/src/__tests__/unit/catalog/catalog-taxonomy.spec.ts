@@ -206,6 +206,61 @@ describe('CatalogTaxonomyService — product types', () => {
     );
   });
 
+  it('blocks publishing a legacy product type linked to a tenant category', async () => {
+    const { svc } = makeHarness({
+      productTypes: {
+        findFirst: {
+          id: 'pt-legacy',
+          code: 'legacy',
+          name: 'Legacy Type',
+          status: 'DRAFT',
+          categoryId: 'store-category',
+          variantDimensions: [],
+        },
+      },
+      categories: {
+        findFirst: {
+          id: 'store-category',
+          storeId: 'store-a',
+          name: 'Private category',
+          isActive: true,
+        },
+      },
+      productTypeAttributes: { findMany: [] },
+    });
+
+    const result = await svc.validateProductTypeForPublish('pt-legacy');
+
+    expect(result.canPublish).toBe(false);
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({
+        code: 'CATEGORY_NOT_PLATFORM',
+        severity: 'ERROR',
+      }),
+    );
+  });
+
+  it('does not duplicate a legacy product type with an invalid tenant category', async () => {
+    const { svc, inserted } = makeHarness({
+      productTypes: {
+        findFirst: {
+          id: 'pt-legacy',
+          code: 'legacy',
+          name: 'Legacy Type',
+          categoryId: 'store-category',
+          status: 'DRAFT',
+          variantDimensions: [],
+        },
+      },
+      categories: { findFirst: null },
+    });
+
+    await expect(svc.duplicateProductType('pt-legacy')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(inserted).toHaveLength(0);
+  });
+
   it('rejects a tenant-owned category when creating a global product type', async () => {
     const { svc, inserted, categoryFindFirstCalls } = makeHarness({
       productTypes: { findFirst: null },
