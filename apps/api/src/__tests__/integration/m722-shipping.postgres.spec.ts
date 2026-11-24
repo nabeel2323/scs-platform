@@ -368,8 +368,14 @@ describe('M7.2.2 — Shipping CRUD & Tenant Isolation', () => {
 
   describe('Driver-to-store assignment eligibility', () => {
     beforeEach(async () => {
-      await pool.query('DELETE FROM driver_store_assignments WHERE driver_profile_id = $1', [driverProfileA]);
-      await pool.query('UPDATE driver_profiles SET is_active = TRUE WHERE id = $1', [driverProfileA]);
+      await pool.query(
+        'DELETE FROM driver_store_assignments WHERE driver_profile_id = $1',
+        [driverProfileA],
+      );
+      await pool.query(
+        'UPDATE driver_profiles SET is_active = TRUE WHERE id = $1',
+        [driverProfileA],
+      );
       await pool.query(
         `UPDATE organization_members SET status = 'ACTIVE'
          WHERE org_id = $1 AND user_id = $2`,
@@ -404,12 +410,18 @@ describe('M7.2.2 — Shipping CRUD & Tenant Isolation', () => {
     });
 
     it('rejects inactive profiles and inactive DRIVER organization memberships', async () => {
-      await pool.query('UPDATE driver_profiles SET is_active = FALSE WHERE id = $1', [driverProfileA]);
+      await pool.query(
+        'UPDATE driver_profiles SET is_active = FALSE WHERE id = $1',
+        [driverProfileA],
+      );
       await expect(
         shippingService.assertDriverEligibleForStore(driverUserA, storeA),
       ).rejects.toThrow(/not eligible/);
 
-      await pool.query('UPDATE driver_profiles SET is_active = TRUE WHERE id = $1', [driverProfileA]);
+      await pool.query(
+        'UPDATE driver_profiles SET is_active = TRUE WHERE id = $1',
+        [driverProfileA],
+      );
       await pool.query(
         `UPDATE organization_members SET status = 'INACTIVE'
          WHERE org_id = $1 AND user_id = $2`,
