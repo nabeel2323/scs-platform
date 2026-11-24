@@ -102,7 +102,7 @@ describe('updateProduct — optimistic locking', () => {
     // getProduct is called at start and end; mock both
     vi.spyOn(svc, 'getProduct').mockResolvedValue(product as any);
 
-    const result = await svc.updateProduct('p1', { title: 'New' }, actor);
+    const result = await svc.updateProduct('p1', { title: 'New' }, undefined, actor);
     // Legacy path: no conflict, returns product
     expect(result).toBeDefined();
   });
