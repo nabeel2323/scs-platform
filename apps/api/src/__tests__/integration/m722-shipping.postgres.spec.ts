@@ -41,7 +41,10 @@ describe('M7.2.2 — Shipping CRUD & Tenant Isolation', () => {
   const merchantA = randomUUID();
   const merchantB = randomUUID();
   const storeA = randomUUID();
+  const storeA2 = randomUUID();
   const storeB = randomUUID();
+  const driverUserA = randomUUID();
+  const driverProfileA = randomUUID();
 
   const callerA = { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA, perms: ['merchant:shipping:read', 'merchant:shipping:write'] } as any;
   const callerB = { sub: merchantB, role: 'MERCHANT_OWNER', activeOrg: orgB, perms: ['merchant:shipping:read', 'merchant:shipping:write'] } as any;
@@ -76,10 +79,14 @@ describe('M7.2.2 — Shipping CRUD & Tenant Isolation', () => {
     await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org B', 'SA')`, [orgB]);
     await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant A', '+966500000011')`, [merchantA]);
     await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant B', '+966500000012')`, [merchantB]);
+    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Driver A', '+966500000013')`, [driverUserA]);
     await pool.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), orgA, merchantA, roleById.get('MERCHANT_OWNER')]);
     await pool.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), orgB, merchantB, roleById.get('MERCHANT_OWNER')]);
+    await pool.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), orgA, driverUserA, roleById.get('DRIVER')]);
     await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a', 'Store A', 'APPROVED')`, [storeA, orgA]);
+    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a-2', 'Store A2', 'APPROVED')`, [storeA2, orgA]);
     await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-b', 'Store B', 'APPROVED')`, [storeB, orgB]);
+    await pool.query(`INSERT INTO driver_profiles (id, user_id, org_id, is_active) VALUES ($1, $2, $3, TRUE)`, [driverProfileA, driverUserA, orgA]);
 
     const databaseService = { db } as any;
     const registry = new ShippingProviderRegistry();
@@ -354,6 +361,63 @@ describe('M7.2.2 — Shipping CRUD & Tenant Isolation', () => {
       await expect(
         shippingService.resolveAuthoritativeFee(storeB, methodId, 10000),
       ).rejects.toThrow(/not found/);
+    });
+  });
+
+  // ── Driver profile/store ownership (migration 0041) ─────────────────────
+
+  describe('Driver-to-store assignment eligibility', () => {
+    beforeEach(async () => {
+      await pool.query('DELETE FROM driver_store_assignments WHERE driver_profile_id = $1', [driverProfileA]);
+      await pool.query('UPDATE driver_profiles SET is_active = TRUE WHERE id = $1', [driverProfileA]);
+      await pool.query(
+        `UPDATE organization_members SET status = 'ACTIVE'
+         WHERE org_id = $1 AND user_id = $2`,
+        [orgA, driverUserA],
+      );
+    });
+
+    it('allows all stores in the driver organization when no explicit assignment rows exist', async () => {
+      await expect(
+        shippingService.assertDriverEligibleForStore(driverUserA, storeA),
+      ).resolves.toBeUndefined();
+      await expect(
+        shippingService.assertDriverEligibleForStore(driverUserA, storeA2),
+      ).resolves.toBeUndefined();
+      await expect(
+        shippingService.assertDriverEligibleForStore(driverUserA, storeB),
+      ).rejects.toThrow(/not eligible/);
+    });
+
+    it('restricts the driver to listed stores once explicit assignment rows exist', async () => {
+      await pool.query(
+        'INSERT INTO driver_store_assignments (driver_profile_id, store_id) VALUES ($1, $2)',
+        [driverProfileA, storeA],
+      );
+
+      await expect(
+        shippingService.assertDriverEligibleForStore(driverUserA, storeA),
+      ).resolves.toBeUndefined();
+      await expect(
+        shippingService.assertDriverEligibleForStore(driverUserA, storeA2),
+      ).rejects.toThrow(/not eligible/);
+    });
+
+    it('rejects inactive profiles and inactive DRIVER organization memberships', async () => {
+      await pool.query('UPDATE driver_profiles SET is_active = FALSE WHERE id = $1', [driverProfileA]);
+      await expect(
+        shippingService.assertDriverEligibleForStore(driverUserA, storeA),
+      ).rejects.toThrow(/not eligible/);
+
+      await pool.query('UPDATE driver_profiles SET is_active = TRUE WHERE id = $1', [driverProfileA]);
+      await pool.query(
+        `UPDATE organization_members SET status = 'INACTIVE'
+         WHERE org_id = $1 AND user_id = $2`,
+        [orgA, driverUserA],
+      );
+      await expect(
+        shippingService.assertDriverEligibleForStore(driverUserA, storeA),
+      ).rejects.toThrow(/not eligible/);
     });
   });
 });
