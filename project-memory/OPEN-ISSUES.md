@@ -1318,3 +1318,7 @@ Source commits: `b6dd8a7d731604be811301dd7168fc3faffde1b6` and `6e3b5a9716eeac51
 ## Import preview validation DB scope refinement — 24 November 2026
 
 Follow-up review confirmed `ImportValidationService.validateRows` performs database reads (catalog lookup/validation), not just in-memory validation. Its invocation is now inside the same short authenticated actor-context boundary; workbook parsing and Redis reads remain outside. Source commit: `9b6387597e8c02de076613b4f4a540a379362491`. Tests and CI remain deferred and G-002 remains NOT VERIFIED.
+
+## 25 November 2026 — Catalog mixed product update/delete status
+
+Closed the source implementation gap for PATCH /products/:id and DELETE /products/:id: verified-user authorization checks and service DB phases now use short actor scopes; cache invalidation remains outside the transaction; outbox insertion is separately scoped; standalone audit writes use the audit principal. Regression specs are authored but unexecuted. Do not mark Catalog or G-002 complete: remaining operation-callsite, actor-nesting, exact ownership-predicate, migration-FK and protected live runtime/catalog evidence work remains open.
