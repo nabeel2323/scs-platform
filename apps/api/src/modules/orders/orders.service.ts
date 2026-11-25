@@ -3938,16 +3938,17 @@ export class OrdersService {
    */
   async recalculateMasterOrderStatus(masterOrderId: string, txClient?: any): Promise<string> {
     const recalculate = async (tx: any): Promise<string> => {
-      // Lock the master order row
+      // Lock before reading the current status. Reading first can leave a stale
+      // status snapshot when concurrent sub-order completions serialize here,
+      // causing duplicate or out-of-order master transition events.
+      await tx.execute(
+        sql`SELECT id FROM master_orders WHERE id = ${masterOrderId} FOR UPDATE`,
+      );
+
       const master = await tx.query.masterOrders.findFirst({
         where: eq(masterOrders.id, masterOrderId),
       });
       if (!master) return 'SUBMITTED';
-
-      // Lock the row explicitly (Drizzle query may not FOR UPDATE)
-      await tx.execute(
-        sql`SELECT id FROM master_orders WHERE id = ${masterOrderId} FOR UPDATE`
-      );
 
       // Load sub-orders after acquiring the master lock.
       const subOrders = await tx.query.orders.findMany({
