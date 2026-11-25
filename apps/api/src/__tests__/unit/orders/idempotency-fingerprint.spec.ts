@@ -24,6 +24,7 @@ import { merchantOffers } from '../../../modules/catalog/catalog.offer.schema';
 const BUYER_ID = 'buyer-001';
 const CART_ID = 'cart-001';
 const STORE_1 = 'store-001';
+const BUYER_ACTOR = { sub: BUYER_ID, role: 'BUYER', activeOrg: null };
 const VARIANT_1 = 'variant-001';
 const VARIANT_2 = 'variant-002';
 
@@ -51,12 +52,13 @@ const mockCartItems = [
   },
 ];
 
-const mockVariant = { id: VARIANT_1, productId: 'prod-001', sku: 'SKU-001', title: 'Test' };
-const mockProduct = { id: 'prod-001', title: 'Test Product', moq: 1 };
+const mockVariant = { id: VARIANT_1, productId: 'prod-001', isActive: true, sku: 'SKU-001', title: 'Test' };
+const mockProduct = { id: 'prod-001', storeId: STORE_1, status: 'ACTIVE', deletedAt: null, title: 'Test Product', moq: 1 };
 
 function createMocks(existingMaster?: any, cartItemsOverride?: any[]) {
   const insertValues = vi.fn().mockResolvedValue(undefined);
-  const updateWhere = vi.fn().mockResolvedValue(undefined);
+  const updateReturning = vi.fn().mockResolvedValue([{ id: CART_ID }]);
+  const updateWhere = vi.fn().mockReturnValue({ returning: updateReturning });
   const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
   const resolvedCartItems = cartItemsOverride ?? [...mockCartItems];
 
@@ -83,6 +85,9 @@ function createMocks(existingMaster?: any, cartItemsOverride?: any[]) {
               status: 'ACTIVE',
               isAvailable: true,
               storeId: STORE_1,
+              productId: 'prod-001',
+              variantId: null,
+              isAvailable: true,
               currency: 'SAR',
               moq: 1,
               orderIncrement: null,
@@ -122,6 +127,9 @@ function createMocks(existingMaster?: any, cartItemsOverride?: any[]) {
               id: i.offerId,
               status: 'ACTIVE',
               storeId: 'store-001',
+              productId: 'prod-001',
+              variantId: null,
+              isAvailable: true,
               currency: 'SAR',
               moq: 1,
             }));
@@ -130,7 +138,10 @@ function createMocks(existingMaster?: any, cartItemsOverride?: any[]) {
     },
   };
 
-  const mockDbService = { db } as any;
+  const mockDbService = {
+    db,
+    withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()),
+  } as any;
   const mockOutbox = { publish: vi.fn().mockResolvedValue(undefined) } as any;
   const mockPromotions = {
     resolveApplicable: vi.fn().mockResolvedValue(null),
@@ -171,7 +182,7 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
       buyerId: BUYER_ID,
       deliveryAddress: { city: 'Riyadh' },
       idempotencyKey: 'first-key-001',
-    });
+    }, BUYER_ACTOR);
 
     expect(result).toBeDefined();
     expect(result.id).toBe('new-master');
@@ -211,7 +222,7 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
       buyerId: BUYER_ID,
       deliveryAddress: { city: 'Riyadh' },
       idempotencyKey: 'idem-key-001',
-    });
+    }, BUYER_ACTOR);
 
     expect(result.id).toBe('existing-master');
     // No new insert - returned existing order
@@ -252,7 +263,7 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
         buyerId: BUYER_ID,
         deliveryAddress: { city: 'Riyadh' },
         idempotencyKey: 'idem-key-001',
-      }),
+      }, BUYER_ACTOR),
     ).rejects.toThrow(ConflictException);
   });
 
@@ -290,7 +301,7 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
         buyerId: BUYER_ID,
         deliveryAddress: { city: 'Riyadh' },
         idempotencyKey: 'idem-key-001',
-      }),
+      }, BUYER_ACTOR),
     ).rejects.toThrow(ConflictException);
   });
 
@@ -328,7 +339,7 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
         buyerId: BUYER_ID,
         deliveryAddress: { city: 'Riyadh' },
         idempotencyKey: 'idem-key-001',
-      }),
+      }, BUYER_ACTOR),
     ).rejects.toThrow(ConflictException);
   });
 
@@ -353,7 +364,7 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
         deliveryAddress: { city: 'Riyadh' },
         idempotencyKey: 'idem-key-001',
         fulfillmentMethod: 'PICKUP',
-      }),
+      }, BUYER_ACTOR),
     ).rejects.toThrow(ConflictException);
   });
 
@@ -380,7 +391,7 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
       buyerId: BUYER_ID,
       deliveryAddress: { city: 'Riyadh' },
       idempotencyKey: 'determinism-key',
-    });
+    }, BUYER_ACTOR);
 
     expect(result.id).toBe('existing-master');
   });
@@ -418,7 +429,7 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
         buyerId: BUYER_ID,
         deliveryAddress: { city: 'Riyadh' },
         idempotencyKey: 'idem-key-001',
-      });
+      }, BUYER_ACTOR);
       expect.fail('Should have thrown');
     } catch (err: any) {
       expect(err).toBeInstanceOf(ConflictException);
