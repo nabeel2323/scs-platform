@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
-import { PgDialect, type SQL } from 'drizzle-orm/pg-core';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 import { CatalogService } from '../../../modules/catalog/catalog.service';
 

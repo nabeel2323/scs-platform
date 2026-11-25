@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PgDialect, type SQL } from 'drizzle-orm/pg-core';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
 import { CatalogRequestsService } from '../../../modules/catalog/catalog.requests.service';
 
 function makeHarness(request: Record<string, unknown>) {
@@ -18,7 +19,7 @@ function makeHarness(request: Record<string, unknown>) {
   const select = vi.fn(() => ({ from }));
 
   const updatePredicate: unknown[] = [];
-  const returning = vi.fn(async () => [{ id: request.id }]);
+  const returning = vi.fn(async () => [{ id: request['id'] }]);
   const whereUpdate = vi.fn((predicate: unknown) => {
     updatePredicate.push(predicate);
     return { returning };
