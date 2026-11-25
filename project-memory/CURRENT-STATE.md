@@ -13,7 +13,7 @@
 | Work branch | `fix/outbox-placeholder-dispatch-safety-2026-11-25` |
 | PR #153 | OPEN / DRAFT; current handoff includes open-PR portfolio review |
 | PR #154 | OPEN / DRAFT; atomic completion with buyer-confirmation rollback coverage |
-| Latest PR #153 handoff commit | `d15fa81d99a439f54f3f3a917d38363ec7ebf565` |
+| Latest PR #153 head | Refresh from live GitHub PR metadata before continuing |
 
 PR #147, #152 and #142 are merged into develop. PR #138 remains open/draft/unmerged and must not be merged wholesale.
 
