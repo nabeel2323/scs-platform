@@ -194,3 +194,33 @@ Commits: f9bfccf3ac11b7fbb0904634845c24a31d7c805a (service), 0b14f11c3fd6f787baa
 - PricingController also applies TenantDatabaseContextInterceptor at class level and explicitly checks store organization/membership, price-list ownership and variant/store equality before each exposed PricingService call. PricingModule exports PricingService; direct internal consumers remain to be inventoried.
 - CartController applies TenantDatabaseContextInterceptor and derives all cart operations from authenticated user.sub. It does not expose the raw getCart(cartId) helper as a route. OrdersModule exports CartService, so direct internal consumers of getCart/listCartItems and user-scoped operations still need mapping before changing method visibility or contracts.
 - These are route-level positive findings, not proof that every internal callsite is safe. Keep G-002 partial until exported-service consumers, raw SQL/function/trigger/partition callers and exact operation ownership predicates are reconciled. No source changes, tests, database access or CI were performed in this review.
+
+
+## 26 November 2026 — exported service direct-callsite map
+
+### InventoryService
+
+- Nest module graph: InventoryModule is imported by AppModule only; no feature module imports it. InventoryController is the sole production Nest consumer identified.
+- InventoryController has class-level TenantDatabaseContextInterceptor and passes the verified JwtPayload caller to all 15 exposed InventoryService operations (list/read, create/update, adjust/reserve/release/transfer, exports and low-stock operations).
+- InventoryService still has optional CallerContext parameters on tenant-sensitive operations. The assertions are conditional on caller presence. This is not an observed current cross-module bypass, because no other feature module imports InventoryModule, but it remains a fail-open contract if a future consumer is added.
+- Existing stock-lifecycle unit tests invoke service methods without CallerContext as low-level harness tests. Do not make the caller mandatory until those tests and any future worker/system execution path are migrated to an explicit privileged/system actor. The test-only direct calls are not production consumers.
+
+### PricingService
+
+- Nest module graph: PricingModule is imported by AppModule only; no feature module imports it. PricingController is the sole production Nest consumer identified.
+- PricingController has class-level TenantDatabaseContextInterceptor. Before service calls it validates store organization/membership, price-list ownership and variant/store consistency.
+- CartService does not inject PricingService; it uses the pure shared price-resolution functions. No direct internal PricingService consumer was found in the inspected module graph.
+- PricingService itself has no CallerContext parameter. This remains a future service-boundary hardening item if a non-controller consumer is introduced; no signature change is justified by the current graph.
+
+### CartService and OrdersModule
+
+- OrdersModule exports CartService, OrdersService and OrderRealtimeAccessService. CartController is class-level intercepted and derives cart operations from the authenticated user ID.
+- The only direct CartService call found outside CartController is OrdersService.reorder: it calls addItems and getActiveCartWithItems with buyerId after checking the master order belongs to that buyer. OrdersController applies TenantDatabaseContextInterceptor to POST /orders/master/:id/reorder.
+- ReviewsModule and ShippingModule import OrdersModule but their inspected consumers use OrdersService/OrderRealtimeAccess contracts, not CartService. ReviewsService uses getOrder/listPurchasedVariantIds; CarrierWebhookRoutingService uses findShipmentsByCarrierReference.
+- CartService.getCart(cartId) is not exposed as a route; it is used internally by getOrCreateCart. The HTTP cart read uses getActiveCartWithItems(user.sub).
+
+### Scope and remaining checks
+
+- This closes the module-graph and currently visible direct-callsite map for InventoryService, PricingService and CartService. It is a source-level review, not runtime proof.
+- Before tightening service signatures, still inspect the full worker/cron/bootstrap graph and all exported service consumers in other modules; preserve explicit system/worker actor semantics rather than passing fake user identities.
+- Raw SQL, stored functions, triggers, partitions, dynamic SQL and migration/operator execution paths remain outstanding. No source code, tests, database, migration, staging, worker or CI changes were made in this audit update.
