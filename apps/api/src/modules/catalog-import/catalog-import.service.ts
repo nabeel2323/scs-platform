@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { AuditService } from '../audit/audit.service';
@@ -85,10 +85,23 @@ export class CatalogImportService {
     private readonly taxonomyService: CatalogTaxonomyService,
   ) {}
 
+  private assertCaller(caller: CatalogImportCaller): void {
+    if (
+      !caller ||
+      typeof caller.sub !== 'string' ||
+      caller.sub.trim().length === 0 ||
+      typeof caller.role !== 'string' ||
+      caller.role.trim().length === 0
+    ) {
+      throw new ForbiddenException('Authenticated catalog import actor context is required');
+    }
+  }
+
   private withUserActor<T>(
     caller: CatalogImportCaller,
     operation: () => Promise<T>,
   ): Promise<T> {
+    this.assertCaller(caller);
     return this.db.withActorContext(
       {
         actorKind: 'user',
@@ -104,6 +117,7 @@ export class CatalogImportService {
     caller: CatalogImportCaller,
     operation: () => Promise<T>,
   ): Promise<T> {
+    this.assertCaller(caller);
     return this.db.withActorContext(
       {
         actorKind: 'audit',
@@ -121,6 +135,8 @@ export class CatalogImportService {
     file: { buffer: Buffer; originalName: string; size: number },
     caller: CatalogImportCaller,
   ) {
+    // Reject an untrusted/malformed actor before the object-storage side effect.
+    this.assertCaller(caller);
     const storageKey = `catalog-imports/${randomUUID()}/${file.originalName}`;
 
     await this.storage.putObject({
@@ -228,6 +244,7 @@ export class CatalogImportService {
     caller: CatalogImportCaller,
     overrides?: Record<string, Record<string, Record<string, string>>>,
   ): Promise<ImportExecutionResult> {
+    this.assertCaller(caller);
     const cached = this.planCache.get(importId);
     if (!cached) {
       throw new BadRequestException('No validated plan found. Please validate the import first.');
