@@ -7,7 +7,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import * as schema from '../../drizzle/schema';
-import { isProductionLikeEnv, resolveDatabaseUrl } from '../../config/env-gate';
+import { isProductionLikeEnv, resolveDatabaseUrl, resolveDeploymentNodeEnv } from '../../config/env-gate';
 import { PERMISSIONS, ROLES } from './rbac-seed.data';
 import { acquireMigrationLock, releaseMigrationLock } from '../../../infra/drizzle/migration-lock';
 import { DEV_MIGRATION_EXCLUSIONS } from '../../../infra/drizzle/migration-config';
