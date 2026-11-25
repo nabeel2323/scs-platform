@@ -315,6 +315,9 @@ export class OrdersService {
     if (actor.sub !== input.buyerId) {
       throw new ForbiddenException('Checkout buyer must match the authenticated user');
     }
+    // Capture the optional value before callbacks: TypeScript cannot preserve
+    // property narrowing for a mutable input object across async closures.
+    const idempotencyKey = input.idempotencyKey;
     // PHASE 1.1: Early return for matching idempotency key (before expensive
     // cart/offer work).
     // - Legacy orders (no fingerprint): return immediately on key match.
@@ -322,11 +325,11 @@ export class OrdersService {
     // - Non-legacy non-DRAFT + no active cart: return existing (retry path).
     // - Non-legacy non-DRAFT + active cart: fall through to compute fingerprint
     //   and compare, so same-key-different-cart → 409 Conflict.
-    if (input.idempotencyKey) {
+    if (idempotencyKey) {
       const existingByKey = await this.withUserActorContext(actor, () =>
         this.db.db.query.masterOrders.findFirst({
           where: and(
-            eq(masterOrders.idempotencyKey, input.idempotencyKey),
+            eq(masterOrders.idempotencyKey, idempotencyKey),
             eq(masterOrders.buyerId, input.buyerId),
           ),
         }),
@@ -356,11 +359,11 @@ export class OrdersService {
       // PHASE 1.1: If an idempotency key was provided, the cart may have been
       // CONVERTED by a concurrent request that already created the order.
       // Return the existing order instead of throwing.
-      if (input.idempotencyKey) {
+      if (idempotencyKey) {
         const existingByKey = await this.withUserActorContext(actor, () =>
           this.db.db.query.masterOrders.findFirst({
             where: and(
-              eq(masterOrders.idempotencyKey, input.idempotencyKey),
+              eq(masterOrders.idempotencyKey, idempotencyKey),
               eq(masterOrders.buyerId, input.buyerId),
             ),
           }),
@@ -588,14 +591,14 @@ export class OrdersService {
     // authoritative data (cart items, per-store shipping selections, delivery address).
     // If the same idempotency key was used for a DIFFERENT request, reject
     // with 409 Conflict instead of silently returning the first order.
-    const requestFingerprint = input.idempotencyKey
+    const requestFingerprint = idempotencyKey
       ? this.computeCheckoutFingerprint(items, input.deliveryAddress, selectionsByStore)
       : null;
-    if (input.idempotencyKey) {
+    if (idempotencyKey) {
       const existingByKey = await this.withUserActorContext(actor, () =>
         this.db.db.query.masterOrders.findFirst({
           where: and(
-            eq(masterOrders.idempotencyKey, input.idempotencyKey),
+            eq(masterOrders.idempotencyKey, idempotencyKey),
             eq(masterOrders.buyerId, input.buyerId),
           ),
         }),
@@ -799,7 +802,7 @@ export class OrdersService {
           status: 'SUBMITTED',
           deliveryAddress: input.deliveryAddress,
           notes: input.notes || null,
-          idempotencyKey: input.idempotencyKey || null,
+          idempotencyKey: idempotencyKey || null,
           requestFingerprint: requestFingerprint || null,
         });
 
@@ -890,7 +893,7 @@ export class OrdersService {
               fin.totalMinor,
               currencyByStore.get(storeId) || 'SYP',
               paymentMethod as any,
-              input.idempotencyKey ? `${input.idempotencyKey}:${storeId}` : crypto.randomUUID(),
+              idempotencyKey ? `${idempotencyKey}:${storeId}` : crypto.randomUUID(),
               input.buyerId,
             );
           }
@@ -988,11 +991,11 @@ export class OrdersService {
       // it and return the existing order instead of failing.
       // PHASE 1.1: Also compare fingerprints — if the concurrent request had a
       // different logical intent, throw 409 instead of silently returning.
-      if (input.idempotencyKey && err?.code === '23505') {
+      if (idempotencyKey && err?.code === '23505') {
         const existing = await this.withUserActorContext(actor, () =>
           this.db.db.query.masterOrders.findFirst({
             where: and(
-              eq(masterOrders.idempotencyKey, input.idempotencyKey),
+              eq(masterOrders.idempotencyKey, idempotencyKey),
               eq(masterOrders.buyerId, input.buyerId),
             ),
           }),
@@ -1179,6 +1182,16 @@ export class OrdersService {
   // ── Merchant Actions ─────────────────────────────────────────
 
   async acceptOrder(orderId: string, merchantUserId: string, caller?: CallerContext) {
+    if (
+      !caller ||
+      typeof caller.sub !== 'string' ||
+      caller.sub.trim().length === 0 ||
+      typeof caller.role !== 'string' ||
+      caller.role.trim().length === 0
+    ) {
+      throw new ForbiddenException('Authenticated database actor context is missing');
+    }
+    const actor = caller;
     // P2 concurrency fix: use optimistic locking via atomic UPDATE WHERE to
     // serialise concurrent accepts.  Only one caller can flip the status from
     // PENDING_CONFIRMATION to ACCEPTED; the other sees rowCount=0 and throws.
@@ -1187,7 +1200,7 @@ export class OrdersService {
 
     let currentStatus = order['status'];
     if (currentStatus === 'SUBMITTED') {
-      await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
+      await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId'], actor);
       currentStatus = 'PENDING_CONFIRMATION';
     }
     this.assertTransition(currentStatus, 'ACCEPTED');
@@ -1238,11 +1251,21 @@ export class OrdersService {
     confirmations: ItemConfirmation[],
     caller?: CallerContext,
   ) {
+    if (
+      !caller ||
+      typeof caller.sub !== 'string' ||
+      caller.sub.trim().length === 0 ||
+      typeof caller.role !== 'string' ||
+      caller.role.trim().length === 0
+    ) {
+      throw new ForbiddenException('Authenticated database actor context is missing');
+    }
+    const actor = caller;
     const order = await this.getOrder(orderId);
     if (caller) await assertOrderAccessible(this.db, caller, order);
     let currentStatus = order['status'];
     if (currentStatus === 'SUBMITTED') {
-      await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
+      await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId'], actor);
       currentStatus = 'PENDING_CONFIRMATION';
     }
     this.assertTransition(currentStatus, 'PARTIALLY_ACCEPTED');
@@ -1331,6 +1354,16 @@ export class OrdersService {
     reason: string,
     caller?: CallerContext,
   ) {
+    if (
+      !caller ||
+      typeof caller.sub !== 'string' ||
+      caller.sub.trim().length === 0 ||
+      typeof caller.role !== 'string' ||
+      caller.role.trim().length === 0
+    ) {
+      throw new ForbiddenException('Authenticated database actor context is missing');
+    }
+    const actor = caller;
     const runAsCaller = <T>(operation: () => Promise<T>): Promise<T> => {
       if (!caller) return operation();
       if (
@@ -1359,7 +1392,7 @@ export class OrdersService {
       if (caller) await assertOrderAccessible(this.db, caller, order);
       let currentStatus = order['status'];
       if (currentStatus === 'SUBMITTED') {
-        await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
+        await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId'], actor);
         currentStatus = 'PENDING_CONFIRMATION';
       }
       this.assertTransition(currentStatus, 'REJECTED');

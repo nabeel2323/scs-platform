@@ -80,6 +80,7 @@ export interface PublishValidationIssue {
     | 'CATEGORY_MISSING'
     | 'CATEGORY_NOT_FOUND'
     | 'CATEGORY_NOT_PLATFORM'
+    | 'CATEGORY_INACTIVE'
     | 'NO_ATTRIBUTES'
     | 'NO_REQUIRED_ATTRIBUTES'
     | 'VARIANT_DIMENSION_INVALID_REF'
