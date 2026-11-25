@@ -227,3 +227,13 @@ All changes are source/test authoring only. No test, lint, typecheck, formatter,
 - `develop` remains `fde20420bbb759d2e562f9ff747c9e824ac58e25` (correct exact SHA: `fde20420bbb759d2e562f9ff747c9e824ac58e25`); source is diverged 2,852 ahead / 3 behind from merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
 - Exact-head Actions has no runs. Combined statuses contain only Vercel Web/Admin build-rate-limit failures. Worker-fencing changes and all authored tests remain NOT TESTED / NOT CI-VERIFIED.
 - No DB/catalog access, migration, grant/default-ACL/RLS change, provider/storage call, worker activation, bootstrap, deployment or merge occurred.
+
+
+## 26 November 2026 — live checkpoint and migration review progress
+
+- Exact source head: `98694426f87ec3142042bbad221819968bdd5160`; preservation ref matches exactly. PR #138 OPEN / DRAFT / UNMERGED, mergeable=false, 1,940 changed paths.
+- `develop` `fde20420bbb759d2e562f9ff747c9e824ac58e25`; source compare 2,874 ahead / 3 behind; merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
+- Exact-head Actions lookup: no runs. Combined status: Vercel Web/Admin provider build-rate-limit failures only. No CI result is claimed.
+- Continued static review across migration 0007 and 0012–0053; the existing full static FK scan records 183 REFERENCES across 40 of 75 migrations. Cross-column service coverage, raw SQL/function/trigger/partition consumers and live catalog reconciliation remain open.
+- New review items: analytics partition retention and legacy-table copy/drop need preflight/recovery evidence; 0053 is one transaction despite progress notices every 500 rows; analytics global event counts require platform-only permission or org scope; promotions redemption should verify buyer/order/store lineage in service; catalog import and shipping actor boundaries have positive source evidence.
+- No tests/CI, SQL/catalog access, migration, grant/default-ACL/RLS change, staging/shared DB write, provider/storage call, worker activation, bootstrap, deployment or merge.
