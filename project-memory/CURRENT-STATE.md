@@ -74,3 +74,26 @@ The latest recorded startup logs show in-process OutboxDispatcher, AutoCompleteW
 - The buyer-confirmation race fix re-reads state after ConflictException and returns idempotent success only when the competing transition completed the order. Regression test added.
 - Next: obtain and inspect full exact-head CI for `9efc30a7a3c0f841890a1d0bae839590cf58f8f3`; keep PR draft pending CI and independent review.
 - PR #154 remains unmerged. No database/Render/deployment/worker action was taken.
+
+## Current state — 25 November 2026
+
+### GitHub
+- Develop remains `fde20420bbb759d2e562f9ff747c9e824ac58e25`; latest live Render deployment is that SHA.
+- PR #154 durable order-completion lease: latest head `68fb028f15d688a033c10d82b0343cbf35bdae68`; CI #1537 passed exact head (substantive jobs green; k6 and staging release skipped); draft, independent review outstanding.
+- PR #153 outbox delivery safety: head `5294698d8db78e21df972e8ce6213f21237789fa`; CI #1523 passed exact head; draft, independent review outstanding.
+- PR #155 read-only staging audit documentation: head `a311162e8fcbf0cc8f15c36cb023007892e57666`; CI #1542 in progress; draft.
+- PR #156 HTTP log credential redaction: latest head `e158c505f8f4758cce4e825cf4ea2dae52051ba4`; CI #1541 pending/in progress; draft.
+- PR #145 narrow normalize_arabic search_path migration 0070 remains pending; PR #138 has a conflicting broad 0070 and must not be merged wholesale.
+
+### Staging read-only findings
+- 114 public table relations (100 ordinary, one partitioned parent, 13 children); RLS enabled on zero. All 114 are owned by `postgres`.
+- `anon`, `authenticated`, and `service_role` have no effective CRUD on these relations, but do have TRUNCATE/REFERENCES/TRIGGER/MAINTAIN on all 114. Schema USAGE is granted; CREATE is not.
+- Runtime API identity is `postgres` with BYPASSRLS, CREATEROLE, CREATEDB and `ssl=false`. Do not enable RLS before a dedicated non-owner runtime role and transaction-local actor context are implemented.
+- Default ACLs for `postgres` grant the same non-CRUD privileges to those roles on future tables. `supabase_admin` has a broader platform default ACL; do not alter it without confirming object-creation paths.
+- Custom migration ledger has 69 entries and ends at 0069. Migrations 0070 and 0071 are not applied.
+- PR #152 OTP-provider log redaction is merged/deployed. Accessible OTP logs contain no six-digit values. A separate pino-http gap logs `res.headers["set-cookie"]`; four retained records contained the `scs_device_trust` cookie. Five active pre-deployment device-trust credentials exist across two users; none is hard-expired. No credential was revoked.
+- Render has one API service and no separate worker service. OutboxDispatcher and AutoCompleteWorker are active in-process; ReturnExpirationWorker is disabled. One `merchant.store.created` event was falsely marked DISPATCHED by the log-only generic poller; no outbox rows were changed. No orders are currently due for auto-completion.
+- Render production startup does not run migrations or seed; the separate staging release workflow does. Runtime DB diagnostic reports TLS false; confirm route/TLS before production.
+
+### Safety
+No staging SQL writes, grants, RLS changes, role changes, migrations, seeds, worker activation, Render configuration changes, deployment, restart, credential rotation, or business workflow was performed. See PR #155 for the full audit and PR #156 for the separate HTTP logging fix.

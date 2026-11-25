@@ -52,3 +52,13 @@
 - Updated `confirmDelivery()` to re-read the order after a completion conflict and return the completed order with items only when the competing transition has reached COMPLETED; all other conflicts still propagate.
 - Added a regression test for the competing auto-completion winner. Commits: `978a7b978e32e77b0a9b1752da60a7066f427fab` (service) and `9efc30a7a3c0f841890a1d0bae839590cf58f8f3` (test). Latest head requires a fresh exact-head CI run; #1533 does not validate these later commits.
 - PR #154 remains open/draft. No independent review submission/inline review thread is recorded. No merge, database operation, migration, Render change, worker activation, deployment, restart or business workflow was performed.
+
+### 25 November 2026 — staging audit and HTTP logging exposure
+
+- Completed a read-only staging security/deployment audit; full evidence and a table-classification/policy design are recorded in PR #155: `docs/remediation/STAGING-SECURITY-READONLY-AUDIT-2026-11-25.md`.
+- Confirmed 114 public table relations have RLS disabled and are owned by postgres; API runtime identity is postgres with BYPASSRLS/CREATEROLE/CREATEDB and ssl=false. Existing anon/authenticated/service_role grants include TRUNCATE/REFERENCES/TRIGGER/MAINTAIN but no CRUD. Migration ledger ends at 0069.
+- Confirmed PR #152 OTP-provider log redaction is deployed; current retained OTP-related logs contain no six-digit OTP values.
+- Found a separate pino-http leak: response `Set-Cookie` headers containing the `scs_device_trust` credential were recorded in four retained logs. Carrier webhook URL tokens and signature headers were also unredacted. Five active device-trust credentials issued before the latest deployment exist across two users; none is hard-expired. No credential was revoked.
+- Created PR #156 with response-cookie/header/path redaction and a Pino-output regression test. It remains draft pending exact-head CI and independent security review.
+- Updated PR #153, #154 and #145 descriptions with read-only runtime evidence. PR #154 exact-head CI #1537 passed; k6 and staging release were skipped.
+- No database writes, migrations, grants, RLS/role changes, Render changes, worker activation, deployment, restart, credential rotation, or business workflow was performed.

@@ -62,3 +62,12 @@ PR #154 CI run #1525 failed because 23 tests across the orders and stock-settlem
 PR #154 durable-lease implementation passed CI #1533 on exact head `d496b0616c9a0cdde2bd891ca47167d9b9dfbabc`. The substantive jobs listed in the PR work log passed; k6 smoke and staging release were skipped, and Vercel preview builds were blocked by provider quota.
 
 A follow-up code review found and fixed the buyer-confirmation/auto-completion race: if auto-completion wins after the buyer endpoint's initial DELIVERED read, the endpoint now re-reads state and returns idempotent success only if the order is COMPLETED. Regression coverage was added. The new latest head is `9efc30a7a3c0f841890a1d0bae839590cf58f8f3`; CI must run again on this exact head before PR #154 can advance. Keep it draft pending exact-head CI and independent review.
+
+## Current handoff — 25 November 2026
+
+- PR #154 latest head `68fb028f15d688a033c10d82b0343cbf35bdae68`; exact-head CI run #1537 passed all substantive jobs. k6 smoke and staging release were skipped. PR remains draft pending independent review.
+- PR #153 outbox delivery safety remains open/draft. Exact-head CI #1523 passed; staging runtime evidence confirms the deployed generic log-only dispatcher still falsely marks non-carrier events DISPATCHED.
+- PR #155 is the read-only staging security audit report. Latest head `a311162e8fcbf0cc8f15c36cb023007892e57666`; CI #1542 is in progress.
+- PR #156 is the HTTP request/response log-redaction fix. Latest head `e158c505f8f4758cce4e825cf4ea2dae52051ba4`; CI #1541 is pending/in progress.
+- PR #145 contains narrow `normalize_arabic` search_path hardening migration 0070; the staging ledger remains at 0069 and the broader conflicting PR #138 migration must not be merged.
+- Do not merge, deploy, restart services, activate workers, rotate credentials, change grants/RLS/roles, or run migrations without the applicable review and explicit authorization.
