@@ -8,7 +8,7 @@
 - PR #153: disabled the generic log-only outbox poller while retaining transactional writes as `PENDING`; added tests, event ownership inventory and project-memory handoff.
 - PR #153: fixed unknown `shipping.carrier.*` event acknowledgement. Unsupported event types now use `UnsupportedCarrierOperationError` and the existing terminal dead-letter path.
 - PR #153 latest observed status: open draft, three commits ahead of develop, mergeable false at last check because Vercel admin returned a build-rate-limit/plan response; Vercel web passed. No GitHub Actions run was created because commits use `[skip ci]`. Focused tests remain unexecuted.
-- PR #154: made `OrdersService.completeOrder()` transactional across order state, shipment timestamp/event, status history, order outbox event and master-order recalculation/outbox. Realtime emission now occurs after commit.
+- PR #154: opened as draft PR #154 at `b018aa6ea2e023d6f8006dc3bf121d85f1d54680`; made `OrdersService.completeOrder()` transactional across order state, shipment timestamp/event, status history, order outbox event and master-order recalculation/outbox. Realtime emission now occurs after commit.
 - PR #154: changed AutoCompleteWorker candidate selection from a no-op `UPDATE updated_at` to a read-only `SELECT ... FOR UPDATE SKIP LOCKED`; documented that optimistic order status transition is the final concurrency guard, not a durable worker lease.
 - Added focused tests for transaction executor use, post-commit realtime, and suppressing outbox/realtime when a transactional shipment write fails.
 - Tests are authored but not executed. Do not treat parent CI as verification of either PR. Run focused Vitest specs and consolidated API/CI campaign before merge.

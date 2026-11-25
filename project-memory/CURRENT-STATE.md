@@ -11,7 +11,7 @@
 | Latest develop CI at baseline | Run #1509 — SUCCESS |
 | `main` | `d3f4aefc41b37ad82f0aeb2eb78121342455eb21` at last inspected check |
 | PR #153 | OPEN / DRAFT; head `23a96506c835b604a6595f820aa34866172d40d6` at last check |
-| PR #154 | New order-completion atomicity branch; head SHA to be verified after push |
+| PR #154 | OPEN / DRAFT; head `b018aa6ea2e023d6f8006dc3bf121d85f1d54680` |
 
 PR #147, #152 and #142 are merged into develop. PR #138 remains open/draft/unmerged and must not be merged wholesale.
 
