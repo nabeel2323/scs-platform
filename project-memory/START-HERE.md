@@ -1,3 +1,37 @@
+## 26 November 2026 — PR #138 integration-priority checkpoint
+
+**User priority:** Prepare the safe integration of PR #138 into `develop` before addressing the remaining focused PRs. This is merge preparation, not authorization to merge unfinished work or to bypass required review/release gates.
+
+**Verified live GitHub state**
+- PR #138 is OPEN / DRAFT / UNMERGED; base `develop`; GitHub reports `mergeable=false`.
+- Exact PR head: `fc0fe5cda0245e1e4cad3b1fb6d354eba00cea0f`. Current `develop` head: `fde20420bbb759d2e562f9ff747c9e824ac58e25`.
+- Comparison: 2,779 commits ahead / 3 behind; merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
+- PR changed-file metadata: 1,934 paths, 104,172 additions, 414,508 deletions. 1,277 paths are under `.m73b6-scratch/`; three additional PostgreSQL suites are under `apps/api/src/__tests__/scratch/`. Treat scratch, token-like and test-artifact paths as excluded until individually reviewed; never print or extract secret/token contents.
+- The preservation ref `preservation/pr138-remediation-2026-11-25` was verified identical to the active PR branch at this checkpoint. Keep both refs; no reset, force-push, deletion or destructive rebase.
+- No GitHub Actions run is associated with this exact head. The only combined status contexts are Vercel Web/Admin build-rate-limit failures; these are external provider failures, not application CI results.
+- Six live migration files are present: 0070–0075. Migration 0070 collides by sequence number with PR #145's distinct 0070 migration; 0071 overlaps PR #154's auto-completion lease migration. Do not renumber/apply migrations ad hoc.
+
+**Required integration approach — do not merge PR #138 wholesale**
+1. Keep the original PR and preservation ref immutable except for normal append-only implementation/documentation commits.
+2. Start integration from the latest `develop`, not from the old PR base. Reconcile the three commits now on `develop` but absent from the PR branch.
+3. Build a file-by-file extraction ledger. Exclude all scratch trees and unresolved token-like artifacts. Review the six migrations as a single dependency sequence before extracting any migration.
+4. Consolidate overlaps into one canonical implementation before creating clean, bounded PRs. Current changed-file overlap counts against PR #138: #144 7/7; #154 9/13; #153 6/10; #151 5/12; #150 1/2; #156 1/3. #145 has no identical changed path but has a 0070 migration-number collision. #155 has no changed-path overlap.
+5. Preserve original source/test/docs evidence and commit history in PR #138; extraction must not imply that unextracted work is discarded or already integrated.
+6. Only after the bounded slices are reconciled, run one consolidated CI campaign per completed workstream, not CI for every small edit. Do not claim tests passed until run against the exact extracted head.
+7. Keep independent review and all staging/database/migration/RLS/worker/deployment gates intact.
+
+**Focused PR order after #138 reconciliation**
+- First reconcile tenant-boundary overlap (#144) with G-001 source/tests.
+- Consolidate worker/outbox/order-completion overlap (#153/#154), selecting one canonical lease and event-consumer implementation.
+- Reconcile HTTP log redaction (#156) and notification truthfulness (#150).
+- Reconcile country/currency UX (#151).
+- Resolve the migration 0070 sequence collision with #145 before any migration extraction.
+- Retain #155 as documentation-only evidence; verify its content against the reconciled source state.
+
+**Exact-head verification rule:** PR #138's current source/tests are NOT TESTED / NOT CI-VERIFIED. Historical CI and the Vercel quota checks do not validate this head. No merge, deployment, staging/shared-database write, migration, grant/default-ACL change, RLS enablement, worker activation or provider side effect was performed by this checkpoint.
+
+---
+
 ## 26 November 2026 — live continuation checkpoint
 
 **Current repository state**
