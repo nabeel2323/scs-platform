@@ -121,3 +121,18 @@ The initial FK-to-ownership source crosswalk is recorded in `docs/remediation/G-
 - `develop` remains `fde20420bbb759d2e562f9ff747c9e824ac58e25` (correct exact SHA: `fde20420bbb759d2e562f9ff747c9e824ac58e25`); source is diverged 2,852 ahead / 3 behind from merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
 - Exact-head Actions has no runs. Combined statuses contain only Vercel Web/Admin build-rate-limit failures. Worker-fencing changes and all authored tests remain NOT TESTED / NOT CI-VERIFIED.
 - No DB/catalog access, migration, grant/default-ACL/RLS change, provider/storage call, worker activation, bootstrap, deployment or merge occurred.
+
+
+## 26 November 2026 — expanded migration and application source review
+
+The source review now includes migration 0007 and 0012–0053, in addition to the previously reviewed 0001–0006, 0008–0011 and 0054–0075 groups. The repository contains 75 numbered migrations; the earlier static scan recorded 183 explicit REFERENCES clauses across 40 migration files. This is not a live catalog verification and does not close the full raw SQL/function/trigger/partition consumer audit.
+
+New high-priority evidence gates:
+- Analytics partitioning/retention (0013/0018) requires copy-count/checksum, partition coverage, pg_partman configuration and retention/recovery review before any migration approval.
+- Typed attribute backfill (0053) logs progress every 500 rows but does not commit batches; preflight actual JSONB data volume and transaction/lock impact.
+- Analytics event-count endpoint is globally aggregated without org predicate; confirm analytics:read is platform-only or scope it before tenant grants.
+- Promotions redemption is called by OrdersService inside buyer actor scope, but the service method itself does not validate order buyer/store against the promotion; add a service-level lineage guard before treating it as a general internal API.
+- Catalog import DB actor scopes and per-entity executor transactions were confirmed; storage/workbook operations remain outside DB actor transactions.
+- ShippingService checks delivery zone/method store equality and driver eligibility checks org membership/role/assignment; carrier config and worker cross-parent checks remain as previously recorded.
+
+The FK crosswalk and source-callsite inventory remain IN PROGRESS. Do not create the bounded release PR until method-level predicates, raw SQL consumers and develop-only commits are reconciled. CI remains deferred to one consolidated campaign after the bounded integration is assembled.
