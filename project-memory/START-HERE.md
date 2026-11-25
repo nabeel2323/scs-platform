@@ -112,3 +112,8 @@ OTP trace found a raw provider exception-message log in deployed SHA 9f5bc397/de
 Workers are registered inside the API process: OutboxDispatcher, ShippingCarrierWorker, CarrierTrackingPoller, CarrierReconciliationService, AutoCompleteWorker, P13MonitorService; ReturnExpirationWorker is gated by P13_WORKER_ENABLED. Render runtime configuration/logs have not been freshly checked. Ask the user to confirm the listed Render workspace before inspecting it. Do not activate workers or business workflows.
 
 Orders checkout was corrected to support canonical products with merchant seller offers and to preserve store/offer/variant ownership validation. New tests are authored but unexecuted. No quality gates were run.
+
+
+## PR #138 integration map
+
+See [`PR138-MERGE-EXTRACTION-MAP.md`](./PR138-MERGE-EXTRACTION-MAP.md) for the verified 1,927-path inventory, 1,277 scratch-artifact exclusion, focused-PR overlap matrix, bounded extraction groups, dependency order and no-wholesale-merge rule. Regenerate the overlap matrix after each focused PR merges into `develop`.
