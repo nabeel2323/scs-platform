@@ -79,7 +79,8 @@ beforeAll(async () => {
   await applyMigrations(pool);
 
   const drizzleDb = drizzle(pool, { schema: schema as any }) as any;
-  db = { db: drizzleDb } as any;
+  db = new DatabaseService();
+  db.db = drizzleDb;
 
   taxonomyService = new CatalogTaxonomyService(db);
   catalogService = new CatalogService(
@@ -192,6 +193,14 @@ afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
 // ═══════════════════════════════════════════════════════════════════════
 
 describe('P6 Remediation — Store-Level Authorization', () => {
+  function storeActor(userId: string) {
+    return {
+      sub: userId,
+      role: userId === userMemberA ? 'MERCHANT_STAFF' : 'MERCHANT_OWNER',
+      activeOrg: orgX,
+    };
+  }
+
   // ── §A–C: Store A members → Store A product → ALLOW ──────────────
 
   it('A: Store A OWNER → Store A product → ALLOW', async () => {
@@ -382,7 +391,7 @@ describe('Concurrency Regression', () => {
       const results = await Promise.allSettled(
         callers.map(async (uid) => {
           await assertProductEditableByMerchant(db, { sub: uid, role: 'MERCHANT_OWNER', activeOrg: orgX }, productA);
-          return catalogService.updateProduct(productA, { title: `Edit-${uid.slice(0, 8)}` }, baseTs);
+          return catalogService.updateProduct(productA, { title: `Edit-${uid.slice(0, 8)}` }, baseTs, storeActor(uid));
         }),
       );
       const successes = results.filter(r => r.status === 'fulfilled').length;
@@ -447,8 +456,8 @@ describe('Concurrency Regression', () => {
 
       // Two concurrent edits with same timestamp
       const [r1, r2] = await Promise.allSettled([
-        catalogService.updateProduct(productA, { title: 'Edit-1' }, ts),
-        catalogService.updateProduct(productA, { title: 'Edit-2' }, ts),
+        catalogService.updateProduct(productA, { title: 'Edit-1' }, ts, storeActor(userOwnerA)),
+        catalogService.updateProduct(productA, { title: 'Edit-2' }, ts, storeActor(userMemberA)),
       ]);
       if (r1.status === 'rejected' || r2.status === 'rejected') conflicts++;
     }

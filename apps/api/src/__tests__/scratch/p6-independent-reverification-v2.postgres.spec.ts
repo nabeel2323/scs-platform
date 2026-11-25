@@ -89,7 +89,8 @@ beforeAll(async () => {
   await applyMigrations(pool);
 
   const drizzleDb = drizzle(pool, { schema: schema as any }) as any;
-  db = { db: drizzleDb } as any;
+  db = new DatabaseService();
+  db.db = drizzleDb;
 
   taxonomyService = new CatalogTaxonomyService(db);
   catalogService = new CatalogService(
@@ -817,10 +818,10 @@ describe('§14 Concurrency 5×50', () => {
     let conflicts = 0;
     for (let i = 0; i < 50; i++) {
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
-      const result1 = await catalogService.updateProduct(productA, { title: `Conc5-${i}-a` }, ts);
+      const result1 = await catalogService.updateProduct(productA, { title: `Conc5-${i}-a` }, ts, caller(userOwnerA, 'MERCHANT_OWNER', orgX));
       expect(result1).toBeDefined();
       try {
-        await catalogService.updateProduct(productA, { title: `Conc5-${i}-b` }, ts);
+        await catalogService.updateProduct(productA, { title: `Conc5-${i}-b` }, ts, caller(userMemberA, 'MERCHANT_STAFF', orgX));
       } catch {
         conflicts++;
       }
@@ -836,10 +837,10 @@ describe('§14 Concurrency 5×50', () => {
 describe('§15 Authorization + Optimistic Locking', () => {
   it('two authorized Store A users with same timestamp → one wins, one gets 409', async () => {
     const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
-    const r1 = await catalogService.updateProduct(productA, { title: 'Lock-A' }, ts);
+    const r1 = await catalogService.updateProduct(productA, { title: 'Lock-A' }, ts, caller(userOwnerA, 'MERCHANT_OWNER', orgX));
     expect(r1).toBeDefined();
     await expect(
-      catalogService.updateProduct(productA, { title: 'Lock-B' }, ts)
+      catalogService.updateProduct(productA, { title: 'Lock-B' }, ts, caller(userMemberA, 'MERCHANT_STAFF', orgX))
     ).rejects.toThrow();
   });
 
