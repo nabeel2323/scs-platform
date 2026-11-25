@@ -117,3 +117,17 @@ Orders checkout was corrected to support canonical products with merchant seller
 ## PR #138 integration map
 
 See [`PR138-MERGE-EXTRACTION-MAP.md`](./PR138-MERGE-EXTRACTION-MAP.md) for the verified 1,927-path inventory, 1,277 scratch-artifact exclusion, focused-PR overlap matrix, bounded extraction groups, dependency order and no-wholesale-merge rule. Regenerate the overlap matrix after each focused PR merges into `develop`.
+
+
+## 25 November 2026 — current-source actor-context reconciliation
+
+This source review supersedes the earlier 24-November statements that ReturnExpirationWorker, ShippingCarrierWorker and realtime socket authorization were unwrapped. Current PR #138 code now shows:
+
+- `ReturnExpirationWorker` uses a dedicated worker principal for lease acquire/renew/fence, pause checks, claim SQL, each per-return processing operation, alerting and cycle recording. It scopes per item rather than wrapping the whole batch, preserving lease/fencing behavior.
+- `ShippingCarrierWorker` has a `withWorkerContext` wrapper around its database-only lease recovery, claim, shipment/credential lookup, persistence and acknowledgement operations. Provider HTTP and storage operations remain outside database transactions; tenant organization context is supplied where derived from authoritative shipment/store/credential rows.
+- `RealtimeGateway` uses a verified socket-user actor around store/order room authorization queries after connection authentication; room membership still requires permission plus the relevant ownership/membership/assignment checks.
+- `P13MonitorService`, `OpsAlertService`, `OpsControlService` and `PilotControlService` use explicit worker/system/user/audit scopes for their database operations. `IdentityService` uses operation-specific authentication contexts for OTP, email OTP, password login, refresh and logout. `ProfileController`, `OrdersController` and `PaymentsController` select the scoped tenant interceptor for authenticated routes.
+- `OrdersService` and `PaymentsService` also establish explicit user/worker scopes at their internal operation boundaries; service methods that rely on an enclosing verified HTTP/worker scope must be reviewed for every non-controller callsite.
+- Catalog import's DB-only phases use caller context; object storage, workbook parsing/generation and other external I/O remain outside actor transactions.
+
+This is static source evidence only. No tests or CI were run for PR #138 during this review. Do not infer that all 53 candidate paths are fully proven: the remaining work is a complete cached-handle/detached-task/nested-scope audit, method-level table/operation/ownership predicate review, FK cross-column consistency, and protected live API/migration identity plus relation-kind inventory. The historical 114 public relation snapshot, current 100 pgTable declarations and unexplained 116 count remain distinct. No RLS, grants, migration, shared/staging database or deployment action occurred.
