@@ -75,7 +75,7 @@ The application's `public._migration_log` contains 69 entries, from `0001_identi
 
 ## 2. Initial table classification for policy design
 
-This is a source/catalog-based classification, not approval to expose any table. The catalog heuristic found 101 base/parent tables (excluding the 13 partition children): 45 have a direct tenant-like key, 41 of the 56 without a direct tenant-like key have a foreign-key path to another public table, and 15 have neither a direct tenant-like key nor a public-table FK. Those groups need table-by-table review; the heuristic is not a substitute for inspecting every FK and workflow.
+This is a source/catalog-based classification, not approval to expose any table. The expanded catalog heuristic found 101 base/parent tables (excluding the 13 partition children): 49 have direct tenant/user/store/owner-like keys, 37 of the 52 without those keys have a foreign-key path to another public table, and 15 have neither a direct scope-like key nor a public-table FK. The query includes the schema's `org_id` naming; actor and creator columns are classified separately because they are not necessarily tenant keys. Those groups need table-by-table review; the heuristic is not a substitute for inspecting every FK and workflow.
 
 | Class | Representative tables | Intended posture |
 |---|---|---|
