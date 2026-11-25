@@ -117,7 +117,10 @@ function createMocks() {
     },
   };
 
-  const mockDbService = { db } as any;
+  const mockDbService = {
+    db,
+    withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()),
+  } as any;
   const mockOutbox = { publish: vi.fn().mockResolvedValue(undefined) } as any;
   const mockPromotions = {
     resolveApplicable: vi.fn().mockResolvedValue(null),
@@ -144,6 +147,12 @@ function createService(mocks: ReturnType<typeof createMocks>) {
   return new OrdersService(mocks.mockDbService, mocks.mockOutbox, mocks.mockPromotions);
 }
 
+function checkoutAsBuyer(service: OrdersService, input: any) {
+  return service.checkout(input, { sub: BUYER_ID, role: 'BUYER' });
+}
+
+
+
 // ═══════════════════════════════════════════════════════════════════
 // Tests
 // ═══════════════════════════════════════════════════════════════════
@@ -162,7 +171,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.carts.findFirst.mockResolvedValue(undefined);
 
       await expect(
-        service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
+        checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
       ).rejects.toThrow('No active cart found');
     });
 
@@ -171,7 +180,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.cartItems.findMany.mockResolvedValue([]);
 
       await expect(
-        service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
+        checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
       ).rejects.toThrow('Cart is empty');
     });
   });
@@ -184,7 +193,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.products.findFirst.mockResolvedValue({ ...mockProduct, moq: 50 });
 
       await expect(
-        service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
+        checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
       ).rejects.toThrow(/Minimum order quantity/);
     });
 
@@ -216,7 +225,7 @@ describe('Checkout Integration', () => {
       mocks.forUpdateRows.push([updatedOffer]);
 
       await expect(
-        service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
+        checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
       ).rejects.toThrow('increments of 4');
 
       expect(mocks.forUpdate).toHaveBeenCalledTimes(2);
@@ -236,7 +245,7 @@ describe('Checkout Integration', () => {
       });
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      const result = await service.checkout({
+      const result = await checkoutAsBuyer(service, {
         buyerId: BUYER_ID,
         deliveryAddress: { city: 'Riyadh' },
       });
@@ -250,7 +259,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.masterOrders.findFirst.mockResolvedValue(existingMaster);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      const result = await service.checkout({
+      const result = await checkoutAsBuyer(service, {
         buyerId: BUYER_ID,
         deliveryAddress: { city: 'Riyadh' },
         idempotencyKey: 'idem-key-001',
@@ -275,7 +284,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      await service.checkout({
+      await checkoutAsBuyer(service, {
         buyerId: BUYER_ID,
         deliveryAddress: { city: 'Riyadh' },
         idempotencyKey: 'idem-key-002',
@@ -299,7 +308,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      await service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
+      await checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
 
       // master order + 2 sub-orders + items + financials + history = many inserts
       expect(mocks.db.insert.mock.calls.length).toBeGreaterThan(2);
@@ -319,7 +328,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      await service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
+      await checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
 
       // Verify update was called (cart status → CONVERTED)
       expect(mocks.db.update).toHaveBeenCalled();
@@ -339,7 +348,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      await service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
+      await checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
 
       // Checkout now writes the outbox event inside the DB transaction
       // (transactional outbox pattern) rather than calling outbox.publish().
@@ -374,7 +383,7 @@ describe('Checkout Integration', () => {
       });
       mocks.mockPromotions.calculateDiscount.mockReturnValue(500);
 
-      await service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
+      await checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
 
       // netGoods = 1500; VAT = round(1500 * 0.15) = 225; total = 1725.
       const orderRow = findInsert(mocks.insertValues.mock.calls, 'totalMinor');
@@ -419,7 +428,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      await service.checkout({
+      await checkoutAsBuyer(service, {
         buyerId: BUYER_ID,
         deliveryAddress: { city: 'Riyadh' },
         fulfillmentMethod: 'PICKUP',
@@ -451,7 +460,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      return service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
+      return checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
     };
 
     const insertedOrders = () =>
