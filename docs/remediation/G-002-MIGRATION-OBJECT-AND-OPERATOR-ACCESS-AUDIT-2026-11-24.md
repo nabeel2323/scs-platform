@@ -95,3 +95,22 @@ The fail-closed stale-ledger correction and local temp-file isolation were compl
 The break-glass `apps/api/src/scripts/bootstrap-issue-token.ts` path previously set five transaction-local application context fields inline after `BEGIN`, but omitted an explicit reset of `app.auth_operation`. It now calls the shared `setOperatorActorContext(client, 'bootstrap', operatorId)` helper instead. This keeps the CLI bootstrap principal consistent with staging bootstrap scripts and explicitly clears actor role, active organization, worker ID and authentication-operation context in the same transaction-local statement.
 
 The existing helper unit test now asserts all six context settings are established/reset with transaction-local `set_config(..., true)`. This is source/test authoring only; no CLI was executed and no token was issued. The test, typecheck and CI remain unexecuted. This change does not authorize or perform bootstrap activity against staging or production.
+
+
+## 26 November 2026 — catalog import actor-context call-graph review
+
+Live verification before this review: PR #138 is OPEN / DRAFT / UNMERGED, head `af29841dc9f6e9668bf3630a2bd609c61f96bd8b`, base `develop`, GitHub mergeable=false; `develop` is `fde20420bbb759d2e562f9ff747c9e824ac58e25`; compare is diverged (2,805 ahead / 3 behind; merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`). Preservation ref is identical to the source head (0/0). Exact-head Actions has no workflow runs; combined statuses are only Vercel Web/Admin build-rate-limit failures.
+
+### Import route/service findings (source review only)
+
+Reviewed `catalog.controller.ts`, `catalog.service.ts` and `TenantDatabaseContextInterceptor` around all import routes and their service call paths.
+
+- `createImportJob`, list/get job, get chunks, mapping update, cancel and retry routes use the opt-in tenant DB interceptor. Their DB-only call paths run under the authenticated request actor.
+- Row staging, file upload, processing, preview and error-report routes intentionally do not use a request-wide interceptor. They first resolve the persisted job/store and verify organization/store membership inside a short explicit user actor scope. Service methods then scope their own DB reads, writes, claims, chunk operations and finalization with `withUserActorContext`.
+- Redis row staging/read, object-storage upload/read, XLSX parsing and CSV serialization occur outside DB actor transactions. Chunk product/variant/pricing writes run inside actor-scoped DB transactions. The worker-style stale-import recovery entry point uses a stable worker principal and is dormant/not scheduled by this remediation.
+- `updateImportMapping`, `cancelImport`, `retryFailedJob`, `getImportJob` and `getChunks` remain context-dependent service methods rather than accepting an actor argument themselves; current HTTP call sites are covered by the interceptor or an explicit actor wrapper. This is a maintainability boundary to preserve and test if new callers are added; do not infer the methods are safe for unscoped invocation.
+- No missing actor-context route was identified in the reviewed import route set. This is not a full catalog module sign-off: continue auditing the remaining catalog service call graph, other controllers and worker entry points before closing G-002.
+
+No code was changed in this review. No tests, typecheck, formatter, build or CI were run. No import job was created/processed, no object storage or Redis was touched, and no staging/shared DB writes, migrations, grants, RLS changes, worker activation, deployment or merge occurred.
+
+**Next:** continue catalog service and worker actor-context coverage; then complete the raw SQL/function/trigger and migration/operator boundaries and prepare a bounded G-002 extraction manifest from refreshed `develop`. Keep CI batched until that bounded workstream is complete.
