@@ -21,6 +21,8 @@ import { OrdersService } from '../../../modules/orders/orders.service';
  * The canonical FSM transition matrix used by OrdersService.
  * Kept in sync with orders.service.ts TRANSITIONS static field.
  */
+const CHECKOUT_ACTOR = { sub: 'buyer-1', role: 'BUYER', activeOrg: null };
+
 const TRANSITIONS: Record<string, string[]> = {
   DRAFT: ['SUBMITTED'],
   SUBMITTED: ['ACCEPTED', 'PARTIALLY_ACCEPTED', 'REJECTED', 'CANCELLED'],
@@ -378,6 +380,7 @@ describe('OrdersService.checkout MOQ and order-increment enforcement', () => {
       currency: 'SAR',
     };
     const db = {
+      withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()),
       query: {
         carts: { findFirst: vi.fn(async () => ({ id: 'cart-1' })) },
         cartItems: {
@@ -401,7 +404,7 @@ describe('OrdersService.checkout MOQ and order-increment enforcement', () => {
     };
     const service = new OrdersService({ db } as any, {} as any, {} as any);
 
-    await expect(service.checkout({ buyerId: 'buyer-1' } as any)).rejects.toThrow(
+    await expect(service.checkout({ buyerId: 'buyer-1' } as any, CHECKOUT_ACTOR)).rejects.toThrow(
       'increments of 3',
     );
     expect(db.query.productVariants.findFirst).toHaveBeenCalledTimes(1);
@@ -505,6 +508,7 @@ describe('OrdersService.previewCheckout', () => {
 describe('OrdersService.checkout payment method support', () => {
   it('rejects DIGITAL before opening the order transaction', async () => {
     const db = {
+      withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()),
       query: {
         carts: {
           findFirst: vi.fn(async () => ({
@@ -549,7 +553,7 @@ describe('OrdersService.checkout payment method support', () => {
         deliveryAddress: { street: 'Main St', city: 'Riyadh' },
         paymentMethod: 'DIGITAL',
         shippingSelections: [{ storeId: 'store-1', fulfillmentMethod: 'PICKUP' }],
-      }),
+      }, CHECKOUT_ACTOR),
     ).rejects.toThrow('Unsupported payment method: DIGITAL');
 
     expect(db.transaction).not.toHaveBeenCalled();
@@ -625,6 +629,7 @@ describe('OrdersService.checkout authoritative offer lock', () => {
         insert: vi.fn(),
       };
       const db = {
+        withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()),
         query: {
           carts: {
             findFirst: vi.fn(async () => ({
@@ -690,7 +695,7 @@ describe('OrdersService.checkout authoritative offer lock', () => {
               fulfillmentMethod: 'PICKUP',
             },
           ],
-        }),
+        }, CHECKOUT_ACTOR),
       ).rejects.toThrow('Widget:');
 
       expect(db.transaction).toHaveBeenCalledTimes(1);
