@@ -42,3 +42,9 @@ On run #1525, lint/typecheck, mobile, web/admin, migration full apply and bounda
 - No staging database, Render setting, service restart, worker activation, deployment or business workflow was touched.
 - The lease is adapted into PR #154's atomic transaction; PR #138 was used only as a reference and was not merged or cherry-picked.
 - Keep PR #154 draft pending fresh exact-head CI and independent review.
+
+## Follow-up: buyer confirmation idempotency race
+
+CI #1533 passed on exact head `d496b0616c9a0cdde2bd891ca47167d9b9dfbabc`. Subsequent code review identified a race where auto-completion could commit after `confirmDelivery()` initially read DELIVERED but before the buyer's guarded completion. The buyer endpoint now catches a completion conflict, re-reads the order, and returns the completed order with items only if the current status is COMPLETED; otherwise it rethrows the original conflict. A regression test covers the competing auto-completion winner.
+
+The implementation and test commits are `978a7b978e32e77b0a9b1752da60a7066f427fab` and `9efc30a7a3c0f841890a1d0bae839590cf58f8f3`. The latest head still needs a fresh exact-head CI run. Keep the PR draft pending that run and independent review.
