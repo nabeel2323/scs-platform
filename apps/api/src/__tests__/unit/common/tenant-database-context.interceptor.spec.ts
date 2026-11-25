@@ -94,4 +94,21 @@ describe('TenantDatabaseContextInterceptor active organization boundary', () => 
     expect(database.withActorContext).not.toHaveBeenCalled();
     expect(next.handle).not.toHaveBeenCalled();
   });
+  it('fails closed for an empty activeOrg claim instead of skipping membership validation', async () => {
+    const database = createDatabase();
+    const interceptor = new TenantDatabaseContextInterceptor(database);
+    const next = { handle: vi.fn(() => of('ok')) };
+
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          createContext({ sub: 'user-1', role: 'MERCHANT_OWNER', activeOrg: '' }),
+          next as any,
+        ),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+    expect(database.db.query.organizationMembers.findFirst).not.toHaveBeenCalled();
+    expect(next.handle).not.toHaveBeenCalled();
+  });
+
 });

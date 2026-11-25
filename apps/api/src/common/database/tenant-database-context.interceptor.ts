@@ -76,7 +76,7 @@ export class TenantDatabaseContextInterceptor implements NestInterceptor {
             // JWT activeOrg is a routing claim and can outlive membership revocation.
             // Revalidate the organization membership and active organization inside
             // the same transaction before allowing any controller query to run.
-            if (activeOrgId) {
+            if (activeOrgId !== null) {
               const caller: CallerContext = { sub: actorId, role: actorRole, activeOrg: activeOrgId };
               await assertActiveOrgMembership(this.database, caller, activeOrgId);
             }
