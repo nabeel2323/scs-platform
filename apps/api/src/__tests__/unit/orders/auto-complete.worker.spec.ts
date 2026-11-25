@@ -71,7 +71,7 @@ describe('AutoCompleteWorker durable claims', () => {
       expect(actorDepth).toBeGreaterThan(0);
       return results.shift() ?? { rows: [] };
     });
-    const completeOrder = vi.fn(async () => {
+    const completeOrder = vi.fn(async (..._args: any[]) => {
       expect(actorDepth).toBeGreaterThan(0);
       throw new Error('temporary failure');
     });
