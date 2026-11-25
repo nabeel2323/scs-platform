@@ -56,7 +56,7 @@ describe('CatalogService product/media read actor boundaries (G-002)', () => {
     );
     const resolveMediaRow = vi.spyOn(service as any, 'resolveMediaRow').mockImplementation(async (row) => {
       expect(activeActor).toBeNull();
-      return { ...row, displayUrl: 'https://cdn.example.test/image.jpg', thumbSrc: null };
+      return { ...(row as Record<string, unknown>), displayUrl: 'https://cdn.example.test/image.jpg', thumbSrc: null };
     });
 
     const result = await service.listMediaByProduct('product-1', actor);
@@ -219,7 +219,7 @@ describe('CatalogService product/media read actor boundaries (G-002)', () => {
     );
     const resolveMediaRow = vi.spyOn(service as any, 'resolveMediaRow').mockImplementation(async (row) => {
       expect(activeActor).toBeNull();
-      return { ...row, displayUrl: 'https://cdn.example.test/image.jpg', thumbSrc: null };
+      return { ...(row as Record<string, unknown>), displayUrl: 'https://cdn.example.test/image.jpg', thumbSrc: null };
     });
 
     const result = await service.getProductDetail('product-1', actor, false);

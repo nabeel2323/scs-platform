@@ -138,6 +138,8 @@ describe('CatalogController category tenant visibility (G-002)', () => {
       role: 'ADMIN',
       activeOrg: null,
       perms: ['catalog:categories:write'],
+      iat: 1_700_000_000,
+      exp: 1_800_000_000,
     };
 
     await h.controller.listCategories(admin, undefined, undefined, 'true', 'true');

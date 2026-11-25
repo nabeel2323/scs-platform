@@ -99,7 +99,7 @@ describe('CatalogService import processing actor boundaries (G-002)', () => {
     await f.service.processImportJob('import-1', actor);
 
     expect(f.withActorContext).toHaveBeenCalledTimes(8);
-    expect(f.contexts.every((context) => context.actorKind === 'user' && context.actorId === actor.sub)).toBe(true);
+    expect(f.contexts.every((context) => context['actorKind'] === 'user' && context['actorId'] === actor.sub)).toBe(true);
     expect(f.getImportJob).toHaveBeenCalledTimes(2);
     expect(f.resolveJobRows).toHaveBeenCalledOnce();
     expect(f.getOrCreateDefaultPriceList).toHaveBeenCalledOnce();
