@@ -187,3 +187,11 @@ Draft PR #157 now carries the bounded Slice A actor-context foundation from curr
 - Added direct service regression coverage for a matching order, a non-matching order and a missing order ID in apps/api/src/__tests__/unit/promotions/promotions.service.spec.ts.
 - This closes the identified buyer/order/store/promotion/discount lineage gap at the redemption boundary. It does not resolve the separate concurrent max/per-user redemption-limit race; that remains a distinct transactional/idempotency review item.
 - Source/test authoring only. The focused tests, typecheck, lint, formatter, build and CI have not been run. No database, migration, staging, provider, deployment or worker action occurred.
+
+
+## 26 November 2026 — Inventory/Pricing/Cart service boundary spot-check
+
+- InventoryController applies TenantDatabaseContextInterceptor at class level and passes the verified JWT caller to every exposed InventoryService route. InventoryService methods accept optional CallerContext and perform ownership/membership assertions when supplied. InventoryModule exports the service, so all direct internal callsites must be mapped before changing the optional-caller contract; no blanket service signature change is justified yet.
+- PricingController also applies TenantDatabaseContextInterceptor at class level and explicitly checks store organization/membership, price-list ownership and variant/store equality before each exposed PricingService call. PricingModule exports PricingService; direct internal consumers remain to be inventoried.
+- CartController applies TenantDatabaseContextInterceptor and derives all cart operations from authenticated user.sub. It does not expose the raw getCart(cartId) helper as a route. OrdersModule exports CartService, so direct internal consumers of getCart/listCartItems and user-scoped operations still need mapping before changing method visibility or contracts.
+- These are route-level positive findings, not proof that every internal callsite is safe. Keep G-002 partial until exported-service consumers, raw SQL/function/trigger/partition callers and exact operation ownership predicates are reconciled. No source changes, tests, database access or CI were performed in this review.
