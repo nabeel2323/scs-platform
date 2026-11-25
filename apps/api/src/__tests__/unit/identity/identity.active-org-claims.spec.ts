@@ -15,10 +15,7 @@ function createHarness() {
       permissions: { findMany: vi.fn() },
     },
   };
-  const mockDb = {
-    db,
-    withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()),
-  } as any;
+  const mockDb = { db } as any;
   const redis = { client: { set: vi.fn(), get: vi.fn(), del: vi.fn() } } as any;
   const jwt = { sign: vi.fn().mockReturnValue('signed.token'), verify: vi.fn() } as any;
   const rateLimit = { checkAndIncrement: vi.fn(), resetAttempts: vi.fn() } as any;
@@ -29,7 +26,7 @@ function createHarness() {
     getAvailableChannels: vi.fn().mockReturnValue([]),
   } as any;
   const service = new IdentityService(mockDb, redis, jwt, rateLimit, audit, otp, { getMockProvider: () => null } as any);
-  return { service, db, mockDb, jwt };
+  return { service, db, jwt };
 }
 
 describe('IdentityService active organization claims', () => {
@@ -46,9 +43,7 @@ describe('IdentityService active organization claims', () => {
       orgId: 'org-1',
     });
 
-    await expect(
-      harness.service.switchOrg('user-1', 'org-1', { role: 'BUYER', activeOrg: null }),
-    ).rejects.toThrow(ForbiddenException);
+    await expect(harness.service.switchOrg('user-1', 'org-1')).rejects.toThrow(ForbiddenException);
     expect(harness.jwt.sign).not.toHaveBeenCalled();
   });
 
@@ -60,9 +55,7 @@ describe('IdentityService active organization claims', () => {
     });
     harness.db.query.organizations.findFirst.mockResolvedValue(null);
 
-    await expect(
-      harness.service.switchOrg('user-1', 'org-1', { role: 'BUYER', activeOrg: null }),
-    ).rejects.toThrow(ForbiddenException);
+    await expect(harness.service.switchOrg('user-1', 'org-1')).rejects.toThrow(ForbiddenException);
     expect(harness.jwt.sign).not.toHaveBeenCalled();
   });
 
@@ -81,7 +74,7 @@ describe('IdentityService active organization claims', () => {
     harness.db.query.roles.findFirst.mockResolvedValue({ id: 'role-owner', key: 'MERCHANT_OWNER' });
     harness.db.query.rolePermissions.findMany.mockResolvedValue([]);
 
-    await harness.service.switchOrg('user-1', 'org-1', { role: 'BUYER', activeOrg: null });
+    await harness.service.switchOrg('user-1', 'org-1');
 
     const signed = harness.jwt.sign.mock.calls[0][0];
     expect(signed.activeOrg).toBe('org-1');

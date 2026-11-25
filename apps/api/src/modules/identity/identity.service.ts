@@ -9,7 +9,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { DatabaseService, type DatabaseAuthenticationOperation } from '../../common/database/database.service';
+import { DatabaseService } from '../../common/database/database.service';
 import { RedisService } from '../../common/redis/redis.service';
 import {
   users,
@@ -154,13 +154,6 @@ function getUnknownUserPasswordHash(): Promise<string> {
   return unknownUserPasswordHash;
 }
 
-type AuthenticatedIdentityActor = {
-  role: string;
-  activeOrg: string | null;
-};
-
-type AuthenticationOperation = DatabaseAuthenticationOperation;
-
 @Injectable()
 export class IdentityService {
   private readonly logger = new Logger(IdentityService.name);
@@ -182,38 +175,6 @@ export class IdentityService {
       nodeEnv: process.env['NODE_ENV'],
       secret: process.env['OTP_HMAC_SECRET'],
     });
-  }
-
-  /**
-   * Establish a short database actor scope for an authenticated identity action.
-   * Claims are forwarded only by JWT-guarded controllers. OTP, bcrypt, Redis
-   * and provider work must remain outside these database transactions.
-   */
-  private withUserDatabaseContext<T>(
-    userId: string,
-    actor: AuthenticatedIdentityActor,
-    operation: () => Promise<T>,
-  ): Promise<T> {
-    return this.db.withActorContext(
-      {
-        actorKind: 'user',
-        actorId: userId,
-        actorRole: actor.role,
-        activeOrgId: actor.activeOrg,
-      },
-      operation,
-    );
-  }
-
-  /**
-   * Resolve a minimal unauthenticated account/session record before a verified
-   * user principal exists. No user ID, role or tenant claim is carried.
-   */
-  private withAuthenticationDatabaseContext<T>(
-    authOperation: AuthenticationOperation,
-    operation: () => Promise<T>,
-  ): Promise<T> {
-    return this.db.withActorContext({ actorKind: 'authentication', authOperation }, operation);
   }
 
   /**
@@ -366,71 +327,77 @@ export class IdentityService {
     refreshToken: string;
     deviceTrust?: DeviceTrustTransportInstruction;
   }> {
+    // Steps 1-5 (challenge read, HMAC compare, atomic consume, failure-limit
+    // enforcement, rate-limit key cleanup) are delegated to consumePhoneChallenge
+    // so that this login path and the account-linking path can never drift apart
+    // (S1.37-F-05).
     const { phone: normalizedPhone } = await this.consumePhoneChallenge(phone, otp);
 
-    // Resolve or create the account only after the Redis OTP proof succeeds.
-    // The auth principal has no user/tenant identity and is operation-limited.
-    const identity = await this.withAuthenticationDatabaseContext('phone_otp_login', async () => {
-      const existing = await this.db.db.query.users.findFirst({
-        where: eq(users.phone, normalizedPhone),
-      });
-      let userId = existing?.id;
-      if (!userId) {
-        userId = crypto.randomUUID();
-        await this.db.db.insert(users).values({
-          id: userId,
-          phone: normalizedPhone,
-          fullName: 'New User',
-          locale: 'en',
-          status: 'ACTIVE',
-        });
-      }
-      const claims = await this.buildClaims(userId);
-      return { userId, claims };
+    const existing = await this.db.db.query.users.findFirst({
+      where: eq(users.phone, normalizedPhone),
     });
 
+    let userId: string;
+    if (existing) {
+      userId = existing.id;
+    } else {
+      userId = crypto.randomUUID();
+      await this.db.db.insert(users).values({
+        id: userId,
+        phone: normalizedPhone,
+        fullName: 'New User',
+        locale: 'en',
+        status: 'ACTIVE',
+      });
+    }
+
+    // Resolve user's org membership and permissions for JWT claims
+    const claims = await this.buildClaims(userId);
+
+    // Generate opaque refresh token
     const refreshToken = crypto.randomUUID();
     const tokenHash = this.hashToken(refreshToken);
+
+    // Mint the session id first so the access token can carry it as the `sid`
+    // claim (WEB-B3): the server can then tell which session a token belongs to.
     const sessionId = crypto.randomUUID();
+
+    // Sign JWT access token
     const accessToken = this.jwt.sign({
-      sub: identity.userId,
-      activeOrg: identity.claims.activeOrgId,
-      role: identity.claims.roleKey,
-      perms: identity.claims.permissions,
+      sub: userId,
+      activeOrg: claims.activeOrgId,
+      role: claims.roleKey,
+      perms: claims.permissions,
       sid: sessionId,
       jti: crypto.randomUUID(),
     });
 
-    // Persist the authenticated session and the second-factor device credential
-    // under the now-proven user principal. JWT signing remains outside the scope.
-    const issued = await this.withUserDatabaseContext(
-      identity.userId,
-      { role: identity.claims.roleKey, activeOrg: identity.claims.activeOrgId },
-      async () => {
-        await this.db.db.insert(sessions).values({
-          id: sessionId,
-          userId: identity.userId,
-          tokenHash,
-          device: deviceInfo?.platform || 'web',
-          deviceId: deviceId || null,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        });
-        return this.issueDeviceCredential(identity.userId, {
-          sessionId,
-          label: deviceInfo?.platform ?? 'web',
-        });
-      },
-    );
+    // Store session. deviceId is provenance for revoke-by-device; it does not
+    // establish trust (S-1) — the credential minted below does.
+    await this.db.db.insert(sessions).values({
+      id: sessionId,
+      userId,
+      tokenHash,
+      device: deviceInfo?.platform || 'web',
+      deviceId: deviceId || null,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
 
     await this.audit.record({
-      actorType: AuditService.actorTypeForRole(identity.claims.roleKey),
-      actorId: identity.userId,
-      orgId: identity.claims.activeOrgId,
+      actorType: AuditService.actorTypeForRole(claims.roleKey),
+      actorId: userId,
+      orgId: claims.activeOrgId,
       action: 'auth.login',
       resource: 'auth',
       metadata: { method: 'otp', phone: normalizedPhone, deviceId: deviceId ?? null, sessionId },
       ip: context?.ip,
       userAgent: context?.userAgent ?? deviceInfo?.userAgent,
+    });
+
+    // Second factor satisfied -> enrol this device for future password logins.
+    const issued = await this.issueDeviceCredential(userId, {
+      sessionId,
+      label: deviceInfo?.platform ?? 'web',
     });
 
     return {
@@ -795,73 +762,70 @@ export class IdentityService {
     refreshToken: string;
     deviceTrust?: DeviceTrustTransportInstruction;
   }> {
+    // Steps 1-5 (challenge read, HMAC compare, atomic consume, failure limits,
+    // rate-limit key cleanup) live in consumeEmailChallenge so linking proves
+    // mailbox control through exactly the same gate.
     const { email } = await this.consumeEmailChallenge(rawEmail, otp);
 
-    const identity = await this.withAuthenticationDatabaseContext('email_otp_login', async () => {
-      const existing = await this.db.db.query.users.findFirst({
-        where: eq(users.email, email),
-      });
-      let userId = existing?.id;
-      if (!userId) {
-        userId = crypto.randomUUID();
-        await this.db.db.insert(users).values({
-          id: userId,
-          email,
-          fullName: 'New User',
-          locale: 'en',
-          status: 'ACTIVE',
-          emailVerifiedAt: new Date(),
-        });
-      }
-      const claims = await this.buildClaims(userId);
-      return { userId, claims };
+    // 6. Resolve or create user by email
+    const existing = await this.db.db.query.users.findFirst({
+      where: eq(users.email, email),
     });
 
+    let userId: string;
+    if (existing) {
+      userId = existing.id;
+    } else {
+      // Email-only registration (D-1)
+      userId = crypto.randomUUID();
+      await this.db.db.insert(users).values({
+        id: userId,
+        email,
+        fullName: 'New User',
+        locale: 'en',
+        status: 'ACTIVE',
+        emailVerifiedAt: new Date(),
+      });
+    }
+
+    // 7. Issue JWT pair through existing session infrastructure
+    const claims = await this.buildClaims(userId);
     const refreshToken = crypto.randomUUID();
     const tokenHash = this.hashToken(refreshToken);
     const sessionId = crypto.randomUUID();
+
     const accessToken = this.jwt.sign({
-      sub: identity.userId,
-      activeOrg: identity.claims.activeOrgId,
-      role: identity.claims.roleKey,
-      perms: identity.claims.permissions,
+      sub: userId,
+      activeOrg: claims.activeOrgId,
+      role: claims.roleKey,
+      perms: claims.permissions,
       sid: sessionId,
       jti: crypto.randomUUID(),
     });
 
-    const issued = await this.withUserDatabaseContext(
-      identity.userId,
-      { role: identity.claims.roleKey, activeOrg: identity.claims.activeOrgId },
-      async () => {
-        await this.db.db.insert(sessions).values({
-          id: sessionId,
-          userId: identity.userId,
-          tokenHash,
-          device: deviceInfo?.platform || 'web',
-          deviceId: deviceId || null,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        });
-        return this.issueDeviceCredential(identity.userId, {
-          sessionId,
-          label: deviceInfo?.platform ?? 'web',
-        });
-      },
-    );
+    await this.db.db.insert(sessions).values({
+      id: sessionId,
+      userId,
+      tokenHash,
+      device: deviceInfo?.platform || 'web',
+      deviceId: deviceId || null,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
 
     await this.audit.record({
-      actorType: AuditService.actorTypeForRole(identity.claims.roleKey),
-      actorId: identity.userId,
-      orgId: identity.claims.activeOrgId,
+      actorType: AuditService.actorTypeForRole(claims.roleKey),
+      actorId: userId,
+      orgId: claims.activeOrgId,
       action: 'auth.login',
       resource: 'auth',
-      metadata: {
-        method: 'email_otp',
-        emailHash: hashIdentifier(email, this.hmacSecret, 'email'),
-        deviceId: deviceId ?? null,
-        sessionId,
-      },
+      metadata: { method: 'email_otp', emailHash: hashIdentifier(email, this.hmacSecret, 'email'), deviceId: deviceId ?? null, sessionId },
       ip: context?.ip,
       userAgent: context?.userAgent ?? deviceInfo?.userAgent,
+    });
+
+    const issued = await this.issueDeviceCredential(userId, {
+      sessionId,
+      label: deviceInfo?.platform ?? 'web',
     });
 
     return {
@@ -892,66 +856,44 @@ export class IdentityService {
     deviceTrust?: DeviceTrustTransportInstruction;
   }> {
     const tokenHash = this.hashToken(refreshToken);
-    const session = await this.withAuthenticationDatabaseContext('refresh_token', () =>
-      this.db.db.query.sessions.findFirst({ where: eq(sessions.tokenHash, tokenHash) }),
-    );
+
+    const session = await this.db.db.query.sessions.findFirst({
+      where: eq(sessions.tokenHash, tokenHash),
+    });
 
     if (!session || session.revokedAt) {
+      // Reuse detected — revoke entire chain
       if (session?.revokedAt) {
-        const reuseClaims = await this.withAuthenticationDatabaseContext('refresh_token', () =>
-          this.buildClaims(session.userId),
-        );
-        await this.withUserDatabaseContext(session.userId, {
-          role: reuseClaims.roleKey,
-          activeOrg: reuseClaims.activeOrgId,
-        }, async () => {
-          await this.revokeChain(session.userId);
-          await this.revokeAllDeviceCredentials(session.userId, 'ROTATION_REUSE');
-        });
+        await this.revokeChain(session.userId);
+        await this.revokeAllDeviceCredentials(session.userId, 'ROTATION_REUSE');
       }
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
+
     if (new Date() > session.expiresAt) {
       throw new UnauthorizedException('Refresh token expired');
     }
 
-    // Resolve the current role/permissions in the auth-only phase; the session
-    // owner is known, but no role claim is trusted from the refresh request.
-    const claims = await this.withAuthenticationDatabaseContext('refresh_token', () =>
-      this.buildClaims(session.userId),
-    );
+    // Rotate: revoke old, create new
+    await this.db.db
+      .update(sessions)
+      .set({ revokedAt: new Date() })
+      .where(eq(sessions.id, session.id));
+
+    const claims = await this.buildClaims(session.userId);
 
     const newRefreshToken = crypto.randomUUID();
     const newTokenHash = this.hashToken(newRefreshToken);
-    const newSessionId = crypto.randomUUID();
 
-    const trust = await this.withUserDatabaseContext(
-      session.userId,
-      { role: claims.roleKey, activeOrg: claims.activeOrgId },
-      async () => {
-        const revoked = await this.db.db
-          .update(sessions)
-          .set({ revokedAt: new Date() })
-          .where(and(eq(sessions.id, session.id), eq(sessions.userId, session.userId), isNull(sessions.revokedAt)))
-          .returning({ id: sessions.id });
-        if (revoked.length === 0) {
-          throw new UnauthorizedException('Refresh token has already been rotated');
-        }
-        await this.db.db.insert(sessions).values({
-          id: newSessionId,
-          userId: session.userId,
-          tokenHash: newTokenHash,
-          device: session.device,
-          deviceId: session.deviceId,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        });
-        const result = await this.validateDeviceCredential(presentedCredential, session.userId);
-        if (result.status === 'trusted') {
-          await this.anchorCredentialToSession(presentedCredential, session.userId, newSessionId);
-        }
-        return result;
-      },
-    );
+    const newSessionId = crypto.randomUUID();
+    await this.db.db.insert(sessions).values({
+      id: newSessionId,
+      userId: session.userId,
+      tokenHash: newTokenHash,
+      device: session.device,
+      deviceId: session.deviceId, // Provenance carried forward; trust is the credential, not this value
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
 
     const accessToken = this.jwt.sign({
       sub: session.userId,
@@ -961,6 +903,18 @@ export class IdentityService {
       sid: newSessionId,
       jti: crypto.randomUUID(),
     });
+
+    // Validate-and-slide the device credential the browser presented, so a
+    // rotation never costs a legitimate user their trusted-device status.
+    const trust = await this.validateDeviceCredential(presentedCredential, session.userId);
+
+    // Keep the session anchor pointing at the browser's LIVE session: rotation
+    // replaced the session row above, and a stale anchor would leave logout
+    // unable to find the credential this session earned (finding B6). Only a
+    // credential that just validated as trusted is moved.
+    if (trust.status === 'trusted') {
+      await this.anchorCredentialToSession(presentedCredential, session.userId, newSessionId);
+    }
 
     return {
       accessToken,
@@ -1005,38 +959,29 @@ export class IdentityService {
     presentedCredential?: string | null,
   ): Promise<{ success: boolean; deviceTrust?: DeviceTrustTransportInstruction }> {
     const tokenHash = this.hashToken(refreshToken);
-    const session = await this.withAuthenticationDatabaseContext('logout', () =>
-      this.db.db.query.sessions.findFirst({ where: eq(sessions.tokenHash, tokenHash) }),
-    );
 
-    if (!session) {
-      // Without a resolved owner, a presented credential is not revocable here.
-      // Do not claim it was cleared server-side; the controller may still clear
-      // transport state only under its explicit response policy.
-      return { success: true };
-    }
+    // Resolve the owner first: credential revocation must be ownership-bound,
+    // so a logout cannot be used to revoke someone else's credential.
+    const session = await this.db.db.query.sessions.findFirst({
+      where: eq(sessions.tokenHash, tokenHash),
+    });
 
-    const logoutClaims = await this.withAuthenticationDatabaseContext('logout', () =>
-      this.buildClaims(session.userId),
-    );
-    const cleared = await this.withUserDatabaseContext(
-      session.userId,
-      { role: logoutClaims.roleKey, activeOrg: logoutClaims.activeOrgId },
-      async () => {
-        // Session owner was resolved from the one-way refresh-token digest.
-        // Keep all owner-bound revocations atomic in the user-scoped transaction.
-        await this.db.db
-          .update(sessions)
-          .set({ revokedAt: new Date() })
-          .where(and(eq(sessions.id, session.id), eq(sessions.userId, session.userId)));
-        const anchored = (await this.revokeCredentialsBySession(session.id, session.userId)) > 0;
-        return (await this.revokePresentedCredential(
-          presentedCredential,
-          session.userId,
-          'LOGOUT',
-        )) || anchored;
-      },
-    );
+    await this.db.db
+      .update(sessions)
+      .set({ revokedAt: new Date() })
+      .where(eq(sessions.tokenHash, tokenHash));
+
+    // Path 2 first: what this session earned, whether or not anything was presented.
+    const anchored = session
+      ? (await this.revokeCredentialsBySession(session.id, session.userId)) > 0
+      : false;
+
+    const cleared =
+      (await this.revokePresentedCredential(
+        presentedCredential,
+        session?.userId ?? null,
+        'LOGOUT',
+      )) || anchored;
 
     return { success: true, deviceTrust: cleared ? { clear: true } : undefined };
   }
@@ -1047,35 +992,30 @@ export class IdentityService {
   async switchOrg(
     userId: string,
     orgId: string,
-    actor: AuthenticatedIdentityActor,
     currentSessionId?: string,
     priorToken?: { jti?: string; exp?: number },
   ): Promise<{ accessToken: string }> {
-    // The requested target organization is not trusted until membership is
-    // confirmed. Resolve membership and role/permissions in a user-private scope.
-    const claims = await this.withUserDatabaseContext(
-      userId,
-      { role: actor.role, activeOrg: null },
-      async () => {
-        const membership = await this.db.db.query.organizationMembers.findFirst({
-          where: and(
-            eq(organizationMembers.userId, userId),
-            eq(organizationMembers.orgId, orgId),
-            eq(organizationMembers.status, 'ACTIVE'),
-          ),
-        });
-        const organization = await this.db.db.query.organizations.findFirst({
-          where: and(eq(organizations.id, orgId), eq(organizations.isActive, true)),
-          columns: { id: true },
-        });
-        if (!membership || membership.status !== 'ACTIVE' || !organization) {
-          throw new ForbiddenException('Not an active member of this organization');
-        }
-        return this.buildClaims(userId, orgId);
-      },
-    );
+    const membership = await this.db.db.query.organizationMembers.findFirst({
+      where: and(
+        eq(organizationMembers.userId, userId),
+        eq(organizationMembers.orgId, orgId),
+        eq(organizationMembers.status, 'ACTIVE'),
+      ),
+    });
+    const organization = await this.db.db.query.organizations.findFirst({
+      where: and(eq(organizations.id, orgId), eq(organizations.isActive, true)),
+      columns: { id: true },
+    });
 
-    // Redis denylist work remains outside the database transaction.
+    if (!membership || membership.status !== 'ACTIVE' || !organization) {
+      throw new ForbiddenException('Not an active member of this organization');
+    }
+
+    const claims = await this.buildClaims(userId, orgId);
+
+    // API-B9: revoke the access token used to make this switch so its stale
+    // org/permission claims can't be replayed for the remainder of its 15-min
+    // life. Denylist its jti for exactly the token's remaining lifetime.
     if (priorToken?.jti) {
       const ttl = secondsUntilExp(priorToken.exp);
       if (ttl > 0) {
@@ -1083,6 +1023,9 @@ export class IdentityService {
       }
     }
 
+    // switchOrg re-mints an access token for the SAME session, so carry the
+    // existing `sid` claim forward (WEB-B3) to keep isCurrent detection stable.
+    // A fresh `jti` (API-B9) makes the new token independently revocable.
     const accessToken = this.jwt.sign({
       sub: userId,
       activeOrg: orgId,
@@ -1091,6 +1034,7 @@ export class IdentityService {
       sid: currentSessionId,
       jti: crypto.randomUUID(),
     });
+
     return { accessToken };
   }
 
@@ -1302,15 +1246,6 @@ export class IdentityService {
     });
     if (!org) throw new NotFoundException('Organization not found');
     return org;
-  }
-
-  /** Identity-owned PLATFORM organization lookup for trusted internal consumers. */
-  async getPlatformOrganizationId(): Promise<string | null> {
-    const organization = await this.db.db.query.organizations.findFirst({
-      where: eq(organizations.type, 'PLATFORM'),
-      columns: { id: true },
-    });
-    return organization?.id ?? null;
   }
 
   /**
@@ -1989,9 +1924,9 @@ export class IdentityService {
     }
 
     // Find user by email
-    const user = await this.withAuthenticationDatabaseContext('password_login', () =>
-      this.db.db.query.users.findFirst({ where: eq(users.email, email) }),
-    );
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
 
     if (!user) {
       // Equalize against the real compare path below, then give the same answer
@@ -2020,16 +1955,10 @@ export class IdentityService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // Resolve role/permission claims only after password proof, then validate
-    // the presented device credential under the verified account's actor.
-    const claims = await this.withAuthenticationDatabaseContext('password_login', () =>
-      this.buildClaims(user.id),
-    );
-    const trust = await this.withUserDatabaseContext(
-      user.id,
-      { role: claims.roleKey, activeOrg: claims.activeOrgId },
-      () => this.validateDeviceCredential(presentedCredential, user.id),
-    );
+    // Device trust is decided ONLY by a server-issued credential (S-1). The
+    // client-supplied deviceId is not consulted here: it is written to the
+    // session as provenance and used by revoke-by-device, nothing more.
+    const trust = await this.validateDeviceCredential(presentedCredential, user.id);
     const isTrustedDevice = trust.status === 'trusted';
 
     if (!isTrustedDevice) {
@@ -2123,6 +2052,8 @@ export class IdentityService {
     }
 
     // Device trusted - issue JWT pair
+    const claims = await this.buildClaims(user.id);
+
     const refreshToken = crypto.randomUUID();
     const tokenHash = this.hashToken(refreshToken);
 
@@ -2138,23 +2069,21 @@ export class IdentityService {
       jti: crypto.randomUUID(),
     });
 
-    await this.withUserDatabaseContext(
-      user.id,
-      { role: claims.roleKey, activeOrg: claims.activeOrgId },
-      async () => {
-        await this.db.db.insert(sessions).values({
-          id: sessionId,
-          userId: user.id,
-          tokenHash,
-          device: deviceInfo?.userAgent || 'unknown',
-          deviceId,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        });
-        // Move the trusted credential's server-side logout anchor atomically
-        // with the new session row.
-        await this.anchorCredentialToSession(presentedCredential, user.id, sessionId);
-      },
-    );
+    await this.db.db.insert(sessions).values({
+      id: sessionId,
+      userId: user.id,
+      tokenHash,
+      device: deviceInfo?.userAgent || 'unknown',
+      deviceId,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+
+    // This login was authenticated by the credential, so the credential's
+    // session anchor moves to the session just created. Without it, a browser
+    // that enrolled long ago would log out of a session its credential never
+    // named, and the session-anchored half of logout revocation (finding B6)
+    // would find nothing.
+    await this.anchorCredentialToSession(presentedCredential, user.id, sessionId);
 
     // Reset rate limit on successful login
     await this.rateLimitService.resetAttempts('password_login', email);
@@ -2205,57 +2134,67 @@ export class IdentityService {
     userId: string,
     rawEmail: string,
     password: string,
-    actor: AuthenticatedIdentityActor,
     deviceId?: string,
   ): Promise<{ success: boolean; message: string }> {
+    // Normalize email so the identity is stored in canonical form (trim + lowercase).
+    // Without this, a user who sets up "Alice@Example.com" could fail to log in later
+    // because loginWithPassword normalizes to "alice@example.com" before lookup.
     const email = normalizeEmail(rawEmail);
 
-    // Read the user under the authenticated actor. Password hashing is CPU work
-    // and stays outside the transaction rather than holding a database connection.
-    const user = await this.withUserDatabaseContext(userId, actor, () =>
-      this.db.db.query.users.findFirst({ where: eq(users.id, userId) }),
-    );
-    if (!user) throw new NotFoundException('User not found');
+    // Get user to check current state
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
 
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Check if email already exists (and belongs to different user)
+    const existingEmail = await this.db.db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+
+    if (existingEmail && existingEmail.id !== userId) {
+      throw new ConflictException('Email already in use');
+    }
+
+    // Validate password strength
     const passwordCheck = validatePasswordStrength(password, email, user.phone ?? undefined);
     if (!passwordCheck.valid) {
       throw new BadRequestException(passwordCheck.errors.join('; '));
     }
+
+    // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    try {
-      await this.withUserDatabaseContext(userId, actor, async () => {
-        const currentUser = await this.db.db.query.users.findFirst({
-          where: eq(users.id, userId),
-        });
-        if (!currentUser) throw new NotFoundException('User not found');
+    // Update user
+    await this.db.db
+      .update(users)
+      .set({
+        email,
+        passwordHash,
+        passwordSetAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
 
-        const existingEmail = await this.db.db.query.users.findFirst({
-          where: eq(users.email, email),
-        });
-        if (existingEmail && existingEmail.id !== userId) {
-          throw new ConflictException('Email already in use');
-        }
+    // Log audit entry
+    await this.logCredentialAudit(userId, 'CREDENTIAL_SETUP', deviceId);
 
-        const updated = await this.db.db
-          .update(users)
-          .set({
-            email,
-            passwordHash,
-            passwordSetAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(users.id, userId))
-          .returning({ id: users.id });
-        if (updated.length === 0) throw new NotFoundException('User not found');
+    // NOTE: Do NOT revoke existing sessions here.
+    //
+    // Corrected for the S-1 model: the comment used to justify this by saying the
+    // OTP session "established device trust (with deviceId)", which is the
+    // pre-remediation claim the audit rejected. Trust comes from the credential
+    // minted by that OTP verification (device_credentials.created_by_session), not
+    // from the session row or the client-supplied deviceId. What is still true, and
+    // is the reason the behaviour stays, is that the caller is authenticated by
+    // this very session — revoking it would kill the access and refresh tokens in
+    // use mid-request. Setting a password for the first time is not a compromise
+    // event, so neither sessions nor credentials are revoked here; contrast
+    // changePassword, which revokes both (finding B5).
 
-        await this.logCredentialAudit(userId, 'CREDENTIAL_SETUP', deviceId);
-      });
-    } catch (err) {
-      throw this.translateIdentifierConstraintError(err, 'Email already in use');
-    }
-
-    // Initial credential setup preserves the OTP-authenticated current session.
     return { success: true, message: 'Credentials set up successfully' };
   }
 
@@ -2266,81 +2205,97 @@ export class IdentityService {
     userId: string,
     currentPassword: string,
     newPassword: string,
-    actor: AuthenticatedIdentityActor,
     deviceId?: string,
   ): Promise<{ success: boolean; message: string }> {
-    // Read under actor context, then run bcrypt outside the transaction.
-    const user = await this.withUserDatabaseContext(userId, actor, () =>
-      this.db.db.query.users.findFirst({ where: eq(users.id, userId) }),
-    );
-    if (!user) throw new NotFoundException('User not found');
+    // Get user
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
     if (!user.passwordHash) {
       throw new ConflictException('No password set. Please set up credentials first.');
     }
-    const priorPasswordHash = user.passwordHash;
 
+    // Verify current password
     const currentValid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!currentValid) {
       throw new UnauthorizedException('Current password is incorrect');
     }
 
-    const passwordCheck = validatePasswordStrength(
-      newPassword,
-      user.email || undefined,
-      user.phone ?? undefined,
-    );
+    // Get user email for password validation
+    const userEmail = user.email || undefined;
+
+    // Validate new password strength
+    const passwordCheck = validatePasswordStrength(newPassword, userEmail, user.phone ?? undefined);
     if (!passwordCheck.valid) {
       throw new BadRequestException(passwordCheck.errors.join('; '));
     }
+
+    // Hash new password
     const newPasswordHash = await bcrypt.hash(newPassword, 12);
 
-    // Password, domain audit, trusted-device revocation and session revocation
-    // commit as one DB-only unit. The prior-hash predicate fences concurrent changes.
-    const deTrustedCount = await this.withUserDatabaseContext(userId, actor, async () => {
-      const changed = await this.db.db
-        .update(users)
-        .set({
-          passwordHash: newPasswordHash,
-          passwordSetAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(and(eq(users.id, userId), eq(users.passwordHash, priorPasswordHash)))
-        .returning({ id: users.id });
-      if (changed.length === 0) {
-        throw new ConflictException('Credentials changed during this request. Please retry.');
-      }
+    // Update user
+    await this.db.db
+      .update(users)
+      .set({
+        passwordHash: newPasswordHash,
+        passwordSetAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
 
-      await this.logCredentialAudit(userId, 'PASSWORD_CHANGE', deviceId);
-      const revokedCount = await this.revokeAllDeviceCredentials(userId, 'PASSWORD_CHANGE');
-      if (deviceId) {
-        await this.db.db
-          .update(sessions)
-          .set({ revokedAt: new Date() })
-          .where(and(eq(sessions.userId, userId), eq(sessions.deviceId, deviceId)));
-      } else {
-        await this.revokeChain(userId);
-      }
-      return revokedCount;
-    });
+    // Log audit entry
+    await this.logCredentialAudit(userId, 'PASSWORD_CHANGE', deviceId);
 
+    // Every device-trust credential this account holds is revoked (finding B5).
+    // The exemption means "this browser already completed the second factor",
+    // and that conclusion was reached using the secret that has just been
+    // replaced — including in the case that motivated the finding: an account
+    // whose owner changed the password because the device or the old password
+    // may have been compromised. Keeping the exemption alive there would let the
+    // next password-only login skip OTP exactly as before. A previously trusted
+    // browser therefore gets one OTP challenge on its next login.
+    //
+    // This runs only on the success path: an incorrect current password, a
+    // rejected strength check or an unknown user all throw above, so a failed
+    // password change revokes nothing.
+    const deTrustedCount = await this.revokeAllDeviceCredentials(
+      userId,
+      'PASSWORD_CHANGE',
+    );
     if (deTrustedCount > 0) {
-      // Keep the general audit write non-throwing and separate from the credential transaction.
-      await this.db.withActorContext(
-        {
-          actorKind: 'audit',
-          actorId: userId,
-          actorRole: actor.role,
-          activeOrgId: actor.activeOrg,
-        },
-        () =>
-          this.audit.record({
-            actorType: 'SYSTEM',
-            actorId: userId,
-            action: 'auth.device_trust_revoked',
-            resource: 'auth',
-            metadata: { revokedCount: deTrustedCount, reason: 'PASSWORD_CHANGE' },
-          }),
-      );
+      await this.audit.record({
+        actorType: 'SYSTEM',
+        actorId: userId,
+        action: 'auth.device_trust_revoked',
+        resource: 'auth',
+        metadata: { revokedCount: deTrustedCount, reason: 'PASSWORD_CHANGE' },
+      });
+    }
+
+    // Sessions (behaviour unchanged from the baseline; only the comment is
+    // corrected). Naming a device revokes the sessions recorded under that
+    // client-supplied `deviceId` — the caller's own device — and leaves other
+    // devices signed in; naming none revokes every session for the account. The
+    // previous comment ("keep current device if specified") described the
+    // opposite of the code below, which is why it is gone rather than the code.
+    //
+    // Known asymmetry, recorded rather than silently fixed: session revocation is
+    // `deviceId`-scoped while credential revocation above is account-wide, so a
+    // password change signs other browsers out of trust but not out of their
+    // access/refresh sessions. Changing that is a session-semantics change
+    // outside this finding's scope.
+    if (deviceId) {
+      await this.db.db
+        .update(sessions)
+        .set({ revokedAt: new Date() })
+        .where(and(eq(sessions.userId, userId), eq(sessions.deviceId, deviceId)));
+    } else {
+      await this.revokeChain(userId);
     }
 
     return { success: true, message: 'Password changed successfully' };
@@ -2502,56 +2457,53 @@ export class IdentityService {
     userId: string,
     rawEmail: string,
     otp: string,
-    actor: AuthenticatedIdentityActor,
   ): Promise<{ success: boolean }> {
     // 1. Proof of control — consumes the challenge, so a code cannot be replayed
     //    afterwards to log in.
     const { email } = await this.consumeEmailChallenge(rawEmail, otp);
 
-    return this.withUserDatabaseContext(userId, actor, async () => {
-      // 2. Resolve and lock in the decision we are about to base the write on.
-      const target = await this.db.db.query.users.findFirst({
-        where: eq(users.id, userId),
-      });
-      if (!target) throw new NotFoundException('User not found');
-
-      // Attaching the address the account already holds is a no-op.
-      if (target.email === email) return { success: true };
-
-      // 3. Check if email already belongs to another user
-      const existingByEmail = await this.db.db.query.users.findFirst({
-        where: eq(users.email, email),
-      });
-      if (existingByEmail && existingByEmail.id !== userId) {
-        throw new ConflictException('EMAIL_ALREADY_IN_USE');
-      }
-
-      // 4. Update user's email, guarded by optimistic locking on the value this
-      //    decision read. A concurrent link that beat step 3 surfaces either as
-      //    rowCount 0 or as a unique violation, never as a silent overwrite.
-      try {
-        const updated = await this.db.db
-          .update(users)
-          .set({ email, emailVerifiedAt: new Date(), updatedAt: new Date() })
-          .where(and(eq(users.id, userId), sql`${users.email} IS NOT DISTINCT FROM ${target.email}`));
-        if (((updated as any)['rowCount'] ?? 0) === 0) {
-          throw new ConflictException('LINK_CONFLICT_RETRY');
-        }
-      } catch (err) {
-        throw this.translateIdentifierConstraintError(err, 'EMAIL_ALREADY_IN_USE');
-      }
-
-      // 5. Audit log
-      await this.db.db.insert(accountLinkLog).values({
-        userId,
-        action: 'LINK',
-        identifierType: 'EMAIL',
-        identifierHash: hashIdentifier(email, this.hmacSecret, 'email'),
-        performedBy: userId,
-      });
-
-      return { success: true };
+    // 2. Resolve and lock in the decision we are about to base the write on.
+    const target = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
     });
+    if (!target) throw new NotFoundException('User not found');
+
+    // Attaching the address the account already holds is a no-op.
+    if (target.email === email) return { success: true };
+
+    // 3. Check if email already belongs to another user
+    const existingByEmail = await this.db.db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+    if (existingByEmail && existingByEmail.id !== userId) {
+      throw new ConflictException('EMAIL_ALREADY_IN_USE');
+    }
+
+    // 4. Update user's email, guarded by optimistic locking on the value this
+    //    decision read. A concurrent link that beat step 3 surfaces either as
+    //    rowCount 0 or as a unique violation, never as a silent overwrite.
+    try {
+      const updated = await this.db.db
+        .update(users)
+        .set({ email, emailVerifiedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(users.id, userId), sql`${users.email} IS NOT DISTINCT FROM ${target.email}`));
+      if (((updated as any)['rowCount'] ?? 0) === 0) {
+        throw new ConflictException('LINK_CONFLICT_RETRY');
+      }
+    } catch (err) {
+      throw this.translateIdentifierConstraintError(err, 'EMAIL_ALREADY_IN_USE');
+    }
+
+    // 5. Audit log
+    await this.db.db.insert(accountLinkLog).values({
+      userId,
+      action: 'LINK',
+      identifierType: 'EMAIL',
+      identifierHash: hashIdentifier(email, this.hmacSecret, 'email'),
+      performedBy: userId,
+    });
+
+    return { success: true };
   }
 
   /**
@@ -2570,56 +2522,53 @@ export class IdentityService {
     userId: string,
     rawPhone: string,
     otp: string,
-    actor: AuthenticatedIdentityActor,
   ): Promise<{ success: boolean }> {
     // 1. Proof of control — consumes the challenge, so the same code cannot be
     //    replayed afterwards to log in.
     const { phone } = await this.consumePhoneChallenge(rawPhone, otp);
 
-    return this.withUserDatabaseContext(userId, actor, async () => {
-      // 2. Resolve and lock in the decision we are about to base the write on.
-      const target = await this.db.db.query.users.findFirst({
-        where: eq(users.id, userId),
-      });
-      if (!target) throw new NotFoundException('User not found');
-
-      // Attaching the number the account already holds is a no-op.
-      if (target.phone === phone) return { success: true };
-
-      // 3. Check if phone already belongs to another user
-      const existingByPhone = await this.db.db.query.users.findFirst({
-        where: eq(users.phone, phone),
-      });
-      if (existingByPhone && existingByPhone.id !== userId) {
-        throw new ConflictException('PHONE_ALREADY_IN_USE');
-      }
-
-      // 4. Update user's phone, guarded by optimistic locking on the value this
-      //    decision read. A concurrent link that beat step 3 surfaces either as
-      //    rowCount 0 or as a unique violation, never as a silent overwrite.
-      try {
-        const updated = await this.db.db
-          .update(users)
-          .set({ phone, updatedAt: new Date() })
-          .where(and(eq(users.id, userId), sql`${users.phone} IS NOT DISTINCT FROM ${target.phone}`));
-        if (((updated as any)['rowCount'] ?? 0) === 0) {
-          throw new ConflictException('LINK_CONFLICT_RETRY');
-        }
-      } catch (err) {
-        throw this.translateIdentifierConstraintError(err, 'PHONE_ALREADY_IN_USE');
-      }
-
-      // 5. Audit log
-      await this.db.db.insert(accountLinkLog).values({
-        userId,
-        action: 'LINK',
-        identifierType: 'PHONE',
-        identifierHash: hashIdentifier(phone, this.hmacSecret, 'phone'),
-        performedBy: userId,
-      });
-
-      return { success: true };
+    // 2. Resolve and lock in the decision we are about to base the write on.
+    const target = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
     });
+    if (!target) throw new NotFoundException('User not found');
+
+    // Attaching the number the account already holds is a no-op.
+    if (target.phone === phone) return { success: true };
+
+    // 3. Check if phone already belongs to another user
+    const existingByPhone = await this.db.db.query.users.findFirst({
+      where: eq(users.phone, phone),
+    });
+    if (existingByPhone && existingByPhone.id !== userId) {
+      throw new ConflictException('PHONE_ALREADY_IN_USE');
+    }
+
+    // 4. Update user's phone, guarded by optimistic locking on the value this
+    //    decision read. A concurrent link that beat step 3 surfaces either as
+    //    rowCount 0 or as a unique violation, never as a silent overwrite.
+    try {
+      const updated = await this.db.db
+        .update(users)
+        .set({ phone, updatedAt: new Date() })
+        .where(and(eq(users.id, userId), sql`${users.phone} IS NOT DISTINCT FROM ${target.phone}`));
+      if (((updated as any)['rowCount'] ?? 0) === 0) {
+        throw new ConflictException('LINK_CONFLICT_RETRY');
+      }
+    } catch (err) {
+      throw this.translateIdentifierConstraintError(err, 'PHONE_ALREADY_IN_USE');
+    }
+
+    // 5. Audit log
+    await this.db.db.insert(accountLinkLog).values({
+      userId,
+      action: 'LINK',
+      identifierType: 'PHONE',
+      identifierHash: hashIdentifier(phone, this.hmacSecret, 'phone'),
+      performedBy: userId,
+    });
+
+    return { success: true };
   }
 
   /**
@@ -2647,52 +2596,48 @@ export class IdentityService {
    */
   async unlinkEmailFromAccount(
     userId: string,
-    actor: AuthenticatedIdentityActor,
   ): Promise<{ success: boolean }> {
-    return this.withUserDatabaseContext(userId, actor, async () => {
-      const user = await this.db.db.query.users.findFirst({
-        where: eq(users.id, userId),
-      });
-      if (!user) throw new NotFoundException('User not found');
-
-      // Cannot remove last auth method
-      if (!user.phone) {
-        throw new BadRequestException(
-          'Cannot remove email: no phone number linked. At least one authentication method is required.',
-        );
-      }
-
-      const oldEmail = user.email;
-      // Optimistic guard: only clear the email this decision was based on, and
-      // translate a concurrent last-identifier race (CHECK 23514) into a 400
-      // rather than an HTTP 500.
-      try {
-        const updated = await this.db.db
-          .update(users)
-          .set({ email: null, emailVerifiedAt: null, updatedAt: new Date() })
-          .where(and(eq(users.id, userId), sql`${users.email} IS NOT DISTINCT FROM ${user.email}`));
-        if (((updated as any)['rowCount'] ?? 0) === 0) {
-          throw new ConflictException('LINK_CONFLICT_RETRY');
-        }
-      } catch (err) {
-        throw this.translateIdentifierConstraintError(err, 'EMAIL_ALREADY_IN_USE');
-      }
-
-      // Audit log
-      if (oldEmail) {
-        await this.db.db.insert(accountLinkLog).values({
-          userId,
-          action: 'UNLINK',
-          identifierType: 'EMAIL',
-          identifierHash: hashIdentifier(oldEmail, this.hmacSecret, 'email'),
-          performedBy: userId,
-        });
-      }
-
-      return { success: true };
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
     });
-  }
+    if (!user) throw new NotFoundException('User not found');
 
+    // Cannot remove last auth method
+    if (!user.phone) {
+      throw new BadRequestException(
+        'Cannot remove email: no phone number linked. At least one authentication method is required.',
+      );
+    }
+
+    const oldEmail = user.email;
+    // Optimistic guard: only clear the email this decision was based on, and
+    // translate a concurrent last-identifier race (CHECK 23514) into a 400
+    // rather than an HTTP 500.
+    try {
+      const updated = await this.db.db
+        .update(users)
+        .set({ email: null, emailVerifiedAt: null, updatedAt: new Date() })
+        .where(and(eq(users.id, userId), sql`${users.email} IS NOT DISTINCT FROM ${user.email}`));
+      if (((updated as any)['rowCount'] ?? 0) === 0) {
+        throw new ConflictException('LINK_CONFLICT_RETRY');
+      }
+    } catch (err) {
+      throw this.translateIdentifierConstraintError(err, 'EMAIL_ALREADY_IN_USE');
+    }
+
+    // Audit log
+    if (oldEmail) {
+      await this.db.db.insert(accountLinkLog).values({
+        userId,
+        action: 'UNLINK',
+        identifierType: 'EMAIL',
+        identifierHash: hashIdentifier(oldEmail, this.hmacSecret, 'email'),
+        performedBy: userId,
+      });
+    }
+
+    return { success: true };
+  }
 
   /**
    * Unlink phone from an account.
@@ -2702,49 +2647,45 @@ export class IdentityService {
    */
   async unlinkPhoneFromAccount(
     userId: string,
-    actor: AuthenticatedIdentityActor,
   ): Promise<{ success: boolean }> {
-    return this.withUserDatabaseContext(userId, actor, async () => {
-      const user = await this.db.db.query.users.findFirst({
-        where: eq(users.id, userId),
-      });
-      if (!user) throw new NotFoundException('User not found');
-
-      // Cannot remove last auth method
-      if (!user.email) {
-        throw new BadRequestException(
-          'Cannot remove phone: no email linked. At least one authentication method is required.',
-        );
-      }
-
-      const oldPhone = user.phone;
-      try {
-        const updated = await this.db.db
-          .update(users)
-          .set({ phone: null, updatedAt: new Date() })
-          .where(and(eq(users.id, userId), sql`${users.phone} IS NOT DISTINCT FROM ${user.phone}`));
-        if (((updated as any)['rowCount'] ?? 0) === 0) {
-          throw new ConflictException('LINK_CONFLICT_RETRY');
-        }
-      } catch (err) {
-        throw this.translateIdentifierConstraintError(err, 'PHONE_ALREADY_IN_USE');
-      }
-
-      // Audit log
-      if (oldPhone) {
-        await this.db.db.insert(accountLinkLog).values({
-          userId,
-          action: 'UNLINK',
-          identifierType: 'PHONE',
-          identifierHash: hashIdentifier(oldPhone, this.hmacSecret, 'phone'),
-          performedBy: userId,
-        });
-      }
-
-      return { success: true };
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
     });
-  }
+    if (!user) throw new NotFoundException('User not found');
 
+    // Cannot remove last auth method
+    if (!user.email) {
+      throw new BadRequestException(
+        'Cannot remove phone: no email linked. At least one authentication method is required.',
+      );
+    }
+
+    const oldPhone = user.phone;
+    try {
+      const updated = await this.db.db
+        .update(users)
+        .set({ phone: null, updatedAt: new Date() })
+        .where(and(eq(users.id, userId), sql`${users.phone} IS NOT DISTINCT FROM ${user.phone}`));
+      if (((updated as any)['rowCount'] ?? 0) === 0) {
+        throw new ConflictException('LINK_CONFLICT_RETRY');
+      }
+    } catch (err) {
+      throw this.translateIdentifierConstraintError(err, 'PHONE_ALREADY_IN_USE');
+    }
+
+    // Audit log
+    if (oldPhone) {
+      await this.db.db.insert(accountLinkLog).values({
+        userId,
+        action: 'UNLINK',
+        identifierType: 'PHONE',
+        identifierHash: hashIdentifier(oldPhone, this.hmacSecret, 'phone'),
+        performedBy: userId,
+      });
+    }
+
+    return { success: true };
+  }
 
   // ── Helpers ────────────────────────────────────────────────
 

@@ -9,7 +9,6 @@ import { CatalogModule } from '../catalog/catalog.module';
 import { AuditModule } from '../audit/index';
 import { RateLimitService } from '../../common/services/rate-limit.service';
 import { resolveJwtAccessSecret } from '../../config/env-gate';
-import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 
 @Module({
   imports: [
@@ -29,7 +28,7 @@ import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-d
     AuditModule,
   ],
   controllers: [AuthController, ProfileController, OrganizationsController, RolesController],
-  providers: [IdentityService, RateLimitService, TenantDatabaseContextInterceptor],
+  providers: [IdentityService, RateLimitService],
   exports: [IdentityService],
 })
 export class IdentityModule {}

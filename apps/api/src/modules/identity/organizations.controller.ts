@@ -1,10 +1,9 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, UseInterceptors, Req, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Req, ParseUUIDPipe } from '@nestjs/common';
 import { IdentityService } from './identity.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
 import { OrgUpdateRequestDto } from './dto/org-update-request.dto';
-import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 
 /**
  * Organizations controller — CRUD for organizations and membership.
@@ -24,7 +23,6 @@ import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-d
  */
 @Controller('organizations')
 @UseGuards(JwtAuthGuard)
-@UseInterceptors(TenantDatabaseContextInterceptor)
 export class OrganizationsController {
   constructor(private readonly identityService: IdentityService) {}
 
@@ -120,7 +118,6 @@ export class OrganizationsController {
 
 @Controller('roles')
 @UseGuards(JwtAuthGuard)
-@UseInterceptors(TenantDatabaseContextInterceptor)
 export class RolesController {
   constructor(private readonly identityService: IdentityService) {}
 
