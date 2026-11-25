@@ -75,3 +75,36 @@ The repository tree contains 75 numbered SQL migrations (0001–0075). This pass
 ### Non-actions
 
 No migration execution, SQL/catalog access, staging/shared database write, grant/default-ACL change, RLS change, storage/provider call, worker activation, deployment, merge, test, lint, typecheck, build or CI occurred in this pass.
+
+
+## 26 November 2026 — foundational tenancy and commerce migration review (0001–0011)
+
+Static source review covered migrations 0001–0006 and 0008–0011. Migration 0007 (search) and later migrations remain to be reviewed in sequence. The findings below are schema-level relationship risks to reconcile with service guards; independent FKs are not by themselves proof of an exploitable defect.
+
+| Migration / relation | Independent references or missing relational invariant | Required callsite evidence |
+|---|---|---|
+| 0001 `organization_members` | org_id, user_id and role_id are independent FKs; uniqueness is (org_id,user_id). | Membership grant/revoke must ensure role is valid for organization type and actor authority; no FK proves user is eligible for that org. |
+| 0002 `audit_logs`, `outbox_events`, `analytics_events` | audit/org and analytics user/org are nullable scalar IDs without visible FKs in this migration. | Treat actor/resource/org as untrusted lineage; audit writers must derive org from authoritative resource and preserve actor context. Partitioned analytics parent/child RLS/access needs separate inventory. |
+| 0003 `business_documents`, `verification_requests` | business_documents.org_id and optional store_id are independent FKs; verification_requests.org_id and store_id are independent FKs. | Upload, review, list and status-transition paths must prove store.org_id = document/request.org_id; uploader/reviewer must be authorized in that org. |
+| 0003 `warehouses` | warehouse.store_id is the authoritative owner; downstream inventory rows do not carry org/store. | Inventory paths must derive store/org through warehouse and variant/product, not accept a caller-provided store as sufficient. |
+| 0004 `categories`, `products` | product.store_id and category_id are independent; categories can be store-scoped or platform-level. Parent category references are independent of store scope. | Product create/update must allow only platform categories or categories owned by the same store; category parent moves must preserve compatible scope and prevent cross-store trees. |
+| 0004 `product_media` | product_id and optional variant_id are independent FKs. | Media attach/update must prove variant belongs to product; media read/delete must derive ownership from product. |
+| 0004 `import_jobs` | store_id and created_by are independent FKs. | Import creation/processing must validate caller membership in store org and ensure job's actor remains authorized where required. |
+| 0005 `inventory_items` | variant_id and warehouse_id are independent FKs; uniqueness is (variant_id,warehouse_id). | Must prove variant.product.store_id equals warehouse.store_id on create, transfer and mutation. Stock movement inherits item ownership; reference_type/reference_id is polymorphic and has no FK. |
+| 0006 `price_lists`, `price_tiers` | price_list_id and variant_id are independent; list has store_id while variant resolves through product.store_id. | Price tier create/update/read must prove variant product belongs to price-list store. segment_id is an untyped scalar in this migration and requires validation against the intended buyer-segment relation. |
+| 0008 `promotions`, `promotion_redemptions` | promotion scope_id is polymorphic; redemption order_id is a scalar without FK in this migration. | Promotion scope must be resolved and tenant checked by scope type; redemption must validate user/order/promotion ownership and idempotency. |
+| 0009 `cart_items` | cart_id, store_id and variant_id are independent FKs. | Must prove variant's product belongs to cart_items.store_id and cart belongs to the acting user. This is a cross-tenant consistency boundary in multi-merchant carts. |
+| 0010 `orders`, `order_items` | orders.master_order_id, store_id, buyer_id and optional promotion_id are independent; order_items.order_id and variant_id are independent. | Checkout must prove each item variant belongs to that sub-order's store, master-order buyer matches sub-order buyer, and promotion scope/store is valid. Preserve snapshot/locking rules. |
+| 0011 trust/conversations | disputes.order_id and raised_by/against_id are independent; conversations.order_id and both participant IDs are independent; messages.sender_id is independent of conversation. | Must validate disputants/participants are permitted for the order and sender is a conversation participant, with tenant/order checks on every read/write. |
+
+### Highest-priority commerce consistency checks
+
+1. Product→category scope (store-owned category versus platform category) and product_media variant→product.
+2. Inventory variant→product.store_id equals warehouse.store_id.
+3. Price tier variant→product.store_id equals price_list.store_id.
+4. Cart item variant→product.store_id equals cart_items.store_id, and cart ownership matches caller.
+5. Order item variant→product.store_id equals orders.store_id; master order buyer equals sub-order buyer; promotion scope matches store/order.
+6. Business document / verification request store.org_id equals row.org_id; user roles/membership match the organization.
+7. Conversation sender and dispute participants are authorized for the linked order.
+
+Do not add composite constraints blindly: profile existing data first, inspect Drizzle schema and all service/internal callsites, and define repair/rollback for any inconsistent historical rows. Continue migration 0007 and 0012–0069 inventory; this still does not complete the 75-file audit.
