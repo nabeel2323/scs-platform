@@ -290,3 +290,9 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 - Reviewed auto-completion worker actor scope and confirmed releaseClaim runs in the surrounding worker context. Updated its unit-test harness to model DatabaseService.withActorContext and assert scoped claim, completion and release behavior (commits `983acb6b`, `82998dd8`, `7b98f585`). No tests/typecheck/CI run.
 - Reconciled worker dependencies: #154 atomic order-completion service and lease fencing plus #138 worker actor context; one migration 0071. #153 no-poller/no-false-ack outbox behavior is canonical; do not extract #138 log-only dispatcher. #154 exact-head Actions absent; #153 exact-head CI passed.
 - No worker activation, DB write, migration, provider call, deployment or merge occurred. Next: complete worker/DB access audit and prepare bounded G-002 extraction; keep CI consolidated.
+
+
+## 26 November 2026 — final worker-test typing cleanup
+
+- Replaced explicit `any[]` in the auto-completion worker test mock with `unknown[]`; behavior and assertions are unchanged. Commit: `2c412732dbbbbde742d43e60f5d2593552aea3cb`.
+- This remains unexecuted source/test authoring. No test runner, typecheck, formatter, build or CI was run.
