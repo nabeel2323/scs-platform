@@ -88,3 +88,10 @@ No tests or DB operations were run. Exact-head Actions is empty and Vercel Web/A
 ## Latest source follow-up — 24 November 2026
 
 The fail-closed stale-ledger correction and local temp-file isolation were completed through source checkpoint `f21dbe4aca75ba04e9173b1fc28a9591829af554`. The M7.3 runner now stops at the first failed migration. The disposable DB guard verifies the PostgreSQL server's actual address is a Unix socket or loopback. No tests or database commands were run. Current branch/PR head after documentation-only synchronization is `bb193c7b52ed83bc6c0a6f72ce1a24ba4dcdd926`; PR #138 remains OPEN / DRAFT / UNMERGED. Exact-head Actions is empty; Vercel Web/Admin rate-limit failures are external preview statuses.
+
+
+## 26 November 2026 — bootstrap CLI actor-context unification
+
+The break-glass `apps/api/src/scripts/bootstrap-issue-token.ts` path previously set five transaction-local application context fields inline after `BEGIN`, but omitted an explicit reset of `app.auth_operation`. It now calls the shared `setOperatorActorContext(client, 'bootstrap', operatorId)` helper instead. This keeps the CLI bootstrap principal consistent with staging bootstrap scripts and explicitly clears actor role, active organization, worker ID and authentication-operation context in the same transaction-local statement.
+
+The existing helper unit test now asserts all six context settings are established/reset with transaction-local `set_config(..., true)`. This is source/test authoring only; no CLI was executed and no token was issued. The test, typecheck and CI remain unexecuted. This change does not authorize or perform bootstrap activity against staging or production.
