@@ -254,11 +254,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     // Resolved through the production config gate (P13 Phase 4.1, finding F-4): the
     // development DSN is used only in development/test, and a deployed process that
     // has no DATABASE_URL refuses to boot instead of silently aiming at a local box.
-    const nodeEnv = (process.env['NODE_ENV'] ?? 'development').trim().toLowerCase();
-    // Render exposes RENDER_SERVICE_ID for deployed services. Treat it as a
-    // production boundary even if NODE_ENV was accidentally omitted/mis-set.
-    const isRenderService = Boolean(process.env['RENDER_SERVICE_ID']);
-    const requireSecureRuntime = isProductionLikeEnv(nodeEnv) || isRenderService;
+    const nodeEnv = resolveDeploymentNodeEnv(process.env);
+    const requireSecureRuntime = isProductionLikeEnv(nodeEnv);
     const connectionString = resolveDatabaseUrl({
       nodeEnv,
       url: process.env['DATABASE_URL'],
