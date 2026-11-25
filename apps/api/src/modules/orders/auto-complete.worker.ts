@@ -4,9 +4,10 @@
  * Polls for DELIVERED orders whose auto_complete_at has passed and
  * transitions them to COMPLETED.
  *
- * Multi-instance safe: uses FOR UPDATE SKIP LOCKED for atomic claiming.
- * Crash-safe: if the worker dies between claim and completion, the row
- * is released and re-claimed by the next cycle.
+ * Multi-instance behavior: FOR UPDATE SKIP LOCKED reduces overlapping
+ * candidate selection, while OrdersService.completeOrder's conditional
+ * status transition is the final concurrency guard. This is not a durable
+ * lease; if a process exits before completion, the order remains eligible.
  * Idempotent: buyer confirmation racing with auto-completion is handled
  * by the optimistic lock on the order status.
  */
@@ -62,25 +63,23 @@ export class AutoCompleteWorker implements OnModuleInit, OnModuleDestroy {
     this.running = true;
 
     try {
-      // Atomically claim eligible orders using FOR UPDATE SKIP LOCKED
+      // Select eligible candidates without touching updated_at. SKIP LOCKED
+      // reduces overlap during selection; the completion service's optimistic
+      // status flip remains the authoritative cross-instance concurrency guard.
       const now = new Date();
-      const claimed = await this.db.db.execute(sql`
-        UPDATE orders
-        SET updated_at = NOW()
-        WHERE id IN (
-          SELECT id FROM orders
-          WHERE status = 'DELIVERED'
-            AND auto_complete_at IS NOT NULL
-            AND auto_complete_at <= ${now}
-            AND buyer_confirmed_at IS NULL
-          ORDER BY auto_complete_at ASC
-          LIMIT ${AutoCompleteWorker.BATCH_SIZE}
-          FOR UPDATE SKIP LOCKED
-        )
-        RETURNING *
+      const selected = await this.db.db.execute(sql`
+        SELECT *
+        FROM orders
+        WHERE status = 'DELIVERED'
+          AND auto_complete_at IS NOT NULL
+          AND auto_complete_at <= ${now}
+          AND buyer_confirmed_at IS NULL
+        ORDER BY auto_complete_at ASC
+        LIMIT ${AutoCompleteWorker.BATCH_SIZE}
+        FOR UPDATE SKIP LOCKED
       `);
 
-      const rows = claimed.rows ?? [];
+      const rows = selected.rows ?? [];
       if (rows.length > 0) {
         this.logger.log(`Auto-complete: ${rows.length} order(s) eligible for completion.`);
       }
