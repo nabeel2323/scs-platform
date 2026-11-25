@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { BadRequestException } from '@nestjs/common';
+import { PromotionsService } from '../../../modules/promotions/promotions.service';
 
 /**
  * Promotions Service — Unit Tests
@@ -394,5 +396,80 @@ describe('Promotions Service — Redemption Limits', () => {
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain('maximum number of times');
     });
+  });
+});
+
+
+describe('PromotionsService redemption order lineage', () => {
+  const promotion = {
+    id: 'promotion-1',
+    storeId: 'store-1',
+    code: 'SAVE',
+    maxRedemptions: null,
+    redemptionCount: 0,
+    perUserLimit: 1,
+  };
+
+  function createService(matchingOrder: { id: string } | null) {
+    const insertValues = vi.fn().mockResolvedValue(undefined);
+    const updateWhere = vi.fn().mockResolvedValue(undefined);
+    const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
+    const orderFindFirst = vi.fn().mockResolvedValue(matchingOrder);
+    const database = {
+      db: {
+        query: {
+          promotions: { findFirst: vi.fn().mockResolvedValue(promotion) },
+          orders: { findFirst: orderFindFirst },
+          promotionRedemptions: { findMany: vi.fn().mockResolvedValue([]) },
+        },
+        insert: vi.fn().mockReturnValue({ values: insertValues }),
+        update: vi.fn().mockReturnValue({ set: updateSet }),
+      },
+    };
+
+    return {
+      service: new PromotionsService(database as any),
+      orderFindFirst,
+      insertValues,
+      updateWhere,
+    };
+  }
+
+  it('records redemption only after a matching buyer, store, promotion and discount order is found', async () => {
+    const { service, orderFindFirst, insertValues, updateWhere } = createService({
+      id: 'order-1',
+    });
+
+    await expect(
+      service.redeemPromotion('promotion-1', 'buyer-1', 'order-1', 250),
+    ).resolves.toEqual({ redemptionId: expect.any(String), discountMinor: 250 });
+
+    expect(orderFindFirst).toHaveBeenCalledTimes(1);
+    expect(insertValues).toHaveBeenCalledTimes(1);
+    expect(updateWhere).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an order that does not match the supplied buyer/store/promotion/discount before writing', async () => {
+    const { service, orderFindFirst, insertValues, updateWhere } = createService(null);
+
+    await expect(
+      service.redeemPromotion('promotion-1', 'buyer-1', 'foreign-order', 250),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(orderFindFirst).toHaveBeenCalledTimes(1);
+    expect(insertValues).not.toHaveBeenCalled();
+    expect(updateWhere).not.toHaveBeenCalled();
+  });
+
+  it('rejects redemption without an order before writing', async () => {
+    const { service, orderFindFirst, insertValues, updateWhere } = createService(null);
+
+    await expect(
+      service.redeemPromotion('promotion-1', 'buyer-1', null, 250),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(orderFindFirst).not.toHaveBeenCalled();
+    expect(insertValues).not.toHaveBeenCalled();
+    expect(updateWhere).not.toHaveBeenCalled();
   });
 });
