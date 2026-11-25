@@ -107,4 +107,26 @@ describe('NotificationsService — truthful delivery states (G-009)', () => {
     await expect((svc as any).fcmSend(['token'], 'Title', 'Body'))
       .rejects.toThrow('FCM_NOT_CONFIGURED');
   });
+
+  it('does not persist a successful push when device tokens exist but FCM is unconfigured', async () => {
+    let updateCalled = false;
+    const db = {
+      select: () => ({
+        from: () => ({
+          where: async () => [{ token: 'synthetic-device-token' }],
+        }),
+      }),
+      update: () => ({
+        set: () => {
+          updateCalled = true;
+          return { where: async () => undefined };
+        },
+      }),
+    };
+    const svc = new NotificationsService({ db } as any);
+    await expect((svc as any).sendPush('n-2', 'u-2', 'Title', 'Body'))
+      .rejects.toThrow('FCM_NOT_CONFIGURED');
+    expect(updateCalled).toBe(false);
+  });
+
 });
