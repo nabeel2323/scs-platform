@@ -275,3 +275,11 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 
 - Updated the operator actor-context unit test to use optional access when reading the first mock call, avoiding a possible strict TypeScript indexed-access warning. Commit: `55b88e6d4f410b93b568ae343e842cd27babd14d`.
 - This remains source/test authoring only; no test, typecheck, formatter or CI was run.
+
+
+## 26 November 2026 — catalog import actor-context call-graph review
+
+- Re-verified PR #138 head `af29841dc9f6e9668bf3630a2bd609c61f96bd8b` (open draft, unmerged, mergeable=false), develop `fde20420bbb759d2e562f9ff747c9e824ac58e25`, divergence 2,805 ahead / 3 behind from merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`, preservation identical, no exact-head Actions run. Vercel Web/Admin statuses are build-rate-limit failures only.
+- Reviewed import controller routes, CatalogService DB operations and TenantDatabaseContextInterceptor. Route context coverage and short actor-scoped service DB phases were found for the import route set. Redis, object storage, workbook parsing and CSV serialization remain outside DB actor transactions. A few service methods rely on current controller wrappers; documented that contract and follow-up requirement in the G-002 ledger.
+- No code changed and no tests/typecheck/formatter/build/CI ran. No DB, storage, Redis, worker, staging, migration, grant/RLS, deployment or merge side effect occurred.
+- Next: continue the remaining catalog service and worker call-graph audit, then complete G-002 extraction manifest from refreshed develop. Keep CI consolidated.
