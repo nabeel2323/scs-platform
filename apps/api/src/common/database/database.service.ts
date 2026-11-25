@@ -255,7 +255,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     // development DSN is used only in development/test, and a deployed process that
     // has no DATABASE_URL refuses to boot instead of silently aiming at a local box.
     const nodeEnv = (process.env['NODE_ENV'] ?? 'development').trim().toLowerCase();
-    const requireSecureRuntime = isProductionLikeEnv(nodeEnv);
+    // Render exposes RENDER_SERVICE_ID for deployed services. Treat it as a
+    // production boundary even if NODE_ENV was accidentally omitted/mis-set.
+    const isRenderService = Boolean(process.env['RENDER_SERVICE_ID']);
+    const requireSecureRuntime = isProductionLikeEnv(nodeEnv) || isRenderService;
     const connectionString = resolveDatabaseUrl({
       nodeEnv,
       url: process.env['DATABASE_URL'],
@@ -344,7 +347,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
       if (requireSecureRuntime) {
         throw new Error(
-          'Runtime database identity verification failed; refusing to start in a production-like environment.',
+          'Runtime database identity verification failed; refusing to start in a deployed environment.',
         );
       }
     }
