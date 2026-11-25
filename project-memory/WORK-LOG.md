@@ -310,3 +310,12 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 - Fixed ShippingCarrierWorker success and failure event finalization to require event ID + PROCESSING state + current locked_by worker, preventing an expired worker from overwriting a reclaimed event. Commit `d18a4954`.
 - Added regression specs for ack/failure lease fencing and corrected return/shipping worker test doubles to model DatabaseService.withActorContext. ReturnsService worker-escalation spec now invokes the service within the expected caller actor context. Commits: `7009e69d`, `e90276f7`, `7fc543a5`, `2abac268`.
 - Reviewed return worker nesting and atomic lease fence. No additional production change identified. No tests/lint/typecheck/build/CI run. No provider/storage/DB/migration/worker/deployment/merge side effect occurred.
+
+
+## 26 November 2026 — worker fencing and G-002 manifest
+
+- Added current-worker ownership predicates to ShippingCarrierWorker success ack and failure/retry updates (event ID + PROCESSING + locked_by); regression tests authored. Commit `d18a4954`.
+- Corrected return/shipping worker test doubles to include DatabaseService.withActorContext and exercised ReturnsService escalation under caller actor context. Commits `7009e69d`, `e90276f7`, `7fc543a5`, `2abac268`. Not executed.
+- Reviewed return-expiration nested actor scope and lease fencing; no further production change identified.
+- Added G-002 bounded integration manifest. PR #138 inventory now 1,939 paths: 1,280 scratch and 659 non-scratch; do not assume all non-scratch files belong in G-002.
+- No tests/lint/typecheck/build/CI or DB/migration/provider/storage/worker/deployment/merge side effect. Next: complete FK-to-ownership and raw SQL/function/trigger/partition review, then build bounded integration branches from refreshed develop.
