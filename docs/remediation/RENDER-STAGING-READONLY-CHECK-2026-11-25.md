@@ -24,12 +24,12 @@ No separate Render worker or cron service was returned by the service inventory.
 
 ## Runtime log observations
 
-The latest relevant startup logs inspected were from 24 November 2026:
+The latest relevant startup logs inspected were from 25 November 2026 (after the successful 12:06:17 UTC deployment of `fde20420bbb759d2e562f9ff747c9e824ac58e25`):
 
 - `OutboxDispatcher` registered with a one-second polling interval.
 - `AutoCompleteWorker` registered with a 60-second polling interval.
 - `ReturnExpirationWorker` explicitly logged that it was disabled because `P13_WORKER_ENABLED` was not set.
-- No runtime database identity diagnostic was found in the inspected logs. The live deployment is on `develop` SHA `f74eb588`; identity diagnostics present on the remediation branch are not proven to be deployed.
+- Fresh logs from the live API process at 10:21, 10:42, 11:26, 12:06 and 12:30 UTC report `session_user=current_user=postgres`, database `postgres`, `superuser=false`, `BYPASSRLS=true`, `CREATEROLE=true`, `CREATEDB=true`, and `ssl=false`. This confirms the API runtime identity; it is not just the Supabase management connection.
 - Three OTP delivery success log entries were found on 22–23 November. Recipients were masked, but provider message IDs and correlation IDs were logged. No matching `errorReason`, provider-error, or OTP delivery failure entries were found in the inspected window. This is limited log evidence, not proof that all failure paths are safe.
 
 ## Source remediation
@@ -49,3 +49,9 @@ The protected `db-access-audit.yml` workflow is the next evidence source for act
 The user explicitly authorized necessary changes to the staging database to prepare the first production launch. No production database has been provisioned or deployed. This authorization does not authorize production database provisioning, a Render service deployment/configuration change, worker activation, business workflows, or bypassing the protected staging approval gate.
 
 Before staging DDL, grant/default-ACL, RLS, or migration changes: establish the actual API and migration roles, reconcile object ownership/default ACLs, review the exact migration and rollback strategy, and use the controlled migration path. Do not enable RLS while the API role is a table owner or has `BYPASSRLS`.
+
+## 25 November 2026 — fresh Render runtime identity confirmation
+
+Read-only Render inspection confirmed the deployed `scs-api-staging` service is on `develop`, with latest successful deployment `fde20420bbb759d2e562f9ff747c9e824ac58e25` at 12:06:17 UTC. Five API-process `DatabaseService` diagnostics between 10:21 and 12:30 UTC consistently report `session_user=postgres`, `current_user=postgres`, database `postgres`, `superuser=false`, `BYPASSRLS=true`, `CREATEROLE=true`, `CREATEDB=true`, and `ssl=false`. This confirms the actual API runtime role and TLS state, not merely the Supabase management connection. No environment values were retrieved or changed.
+
+This is a hard RLS blocker: the API uses the table-owning `postgres` role with BYPASSRLS, so RLS would not constrain it. The database connection also has TLS disabled. The current DatabaseService only enables verified TLS when `PGSSLROOTCERT` is mounted. Migration-runner identity remains unverified; the protected read-only `db-access-audit.yml` workflow has not been dispatched. See `docs/remediation/STAGING-API-RUNTIME-ROLE-AND-TLS-REMEDIATION-PLAN-2026-11-25.md` for the least-privilege role/TLS rollout. No DB role/grant/RLS/migration, Render configuration, deployment, worker activation or production action occurred.
