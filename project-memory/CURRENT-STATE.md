@@ -277,3 +277,8 @@ PR #138 is OPEN / DRAFT / UNMERGED at `e410bf44b272eafb8e762636b66877f9e0c4b230`
 ## G-002 source audit — 26 November 2026
 
 PR #138 remains open/draft/unmerged at `a56a6bbe70ea5ed03f40a4278072dd81b1df556c`; `develop` remains `fde20420bbb759d2e562f9ff747c9e824ac58e25`; preservation ref is identical. No exact-head Actions run exists. The G-002 FK crosswalk was extended with static review of migrations 0054, 0058, 0059, 0061 and 0070–0075 and related service paths. Important open checks: default ACLs for every object-creating role (0070), consumers of legacy webhook rows with NULL credential_id (0072), and cross-scope/cyclic/duplicate reconciliation history before 0074. The numbered migration set is 75 files; audit remains partial. No tests, CI, database operations, migrations, deployment or merge occurred. See `docs/remediation/G-002-FK-OWNERSHIP-CROSSWALK-2026-11-26.md` for evidence and next actions.
+
+
+## G-002 audit progress — 26 November 2026 (foundational commerce schema)
+
+Reviewed migration source for 0001–0006 and 0008–0011. The FK crosswalk now includes org/store mismatch candidates in business documents and verification requests; category/product/media; inventory variant/warehouse; pricing list/variant; cart item cart/store/variant; order item order/variant and buyer/store; and dispute/conversation participant/order links. These are pending service-callsite reconciliation, not confirmed defects. Migration 0007 and migrations 0012–0069 remain unreviewed in this migration-by-migration pass. Full audit is not complete. No tests or CI, DB operations, migrations, grants/RLS, deployment or merge occurred. See the G-002 FK ownership crosswalk.
