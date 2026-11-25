@@ -11,8 +11,9 @@
 | Latest develop CI at baseline | Run #1509 — SUCCESS |
 | `main` | `d3f4aefc41b37ad82f0aeb2eb78121342455eb21` at last inspected check |
 | Work branch | `fix/outbox-placeholder-dispatch-safety-2026-11-25` |
-| PR | #153 — OPEN / DRAFT; see live PR head for latest inventory follow-up |
-| PR head before latest continuation | `aa5c2c3ff6054b52c3e94c8ff27779cc3693bf7d` |
+| PR #153 | OPEN / DRAFT; current handoff includes open-PR portfolio review |
+| PR #154 | OPEN / DRAFT; atomic completion with buyer-confirmation rollback coverage |
+| Latest PR #153 handoff commit | `d15fa81d99a439f54f3f3a917d38363ec7ebf565` |
 
 PR #147, #152 and #142 are merged into develop. PR #138 remains open/draft/unmerged and must not be merged wholesale.
 
@@ -28,9 +29,9 @@ The latest recorded startup logs show in-process OutboxDispatcher, AutoCompleteW
 
 - PR #147 gives `shipping.carrier.*` events one authoritative consumer: `ShippingCarrierWorker`.
 - The generic outbox provider had only logged non-carrier events and marked them `DISPATCHED` without a real publisher. PR #153 disables that placeholder poller; newly published non-carrier events remain `PENDING`.
-- The bounded producer scan explicitly inspected OrdersService, ReturnsService, PaymentsService, ReviewsService, InventoryService, MerchantService, StoreMembershipService and CatalogService, including direct outbox inserts. It records order/shipment, return, payment, review, inventory, merchant, store-membership and catalog event families with no generic outbox consumer found. Commission/settlement/dispute paths and persisted event history remain unverified; see [event ownership inventory](../docs/remediation/OUTBOX-EVENT-OWNERSHIP-INVENTORY.md).
+- The identified domain producer scan explicitly inspected OrdersService, ReturnsService, CommissionReversalService, SettlementAdjustmentService, PaymentsService, ReviewsService, DisputesService, InventoryService, MerchantService, StoreMembershipService and CatalogService, including direct outbox inserts. It records observed order/shipment, return, commission, settlement-adjustment, payment, review/dispute, inventory, merchant, store-membership and catalog events with no generic outbox consumer found; see [event ownership inventory](../docs/remediation/OUTBOX-EVENT-OWNERSHIP-INVENTORY.md). Persisted event history and any remaining helper/dynamic-SQL paths are not reconciled.
 - Unknown event types inside the `shipping.carrier.*` prefix previously fell through the worker switch and were marked `DISPATCHED`. PR #153's follow-up now classifies them as unsupported and routes them to the existing dead-letter path.
-- Generic event delivery remains **NOT IMPLEMENTED**. The inventory is a source scan, not yet a complete reconciliation against every repository producer and persisted database event.
+- Generic event delivery remains **NOT IMPLEMENTED**. The inventory is a source-based working map; persisted database event history and any remaining helper/dynamic-SQL paths are not reconciled.
 
 ## Evidence limits
 
@@ -39,3 +40,8 @@ The latest recorded startup logs show in-process OutboxDispatcher, AutoCompleteW
 - PR #153 is still a draft and has not been merged.
 - No deployment or staging runtime verification of the current branch has occurred.
 - No staging database or Render configuration changes were made by this work.
+
+
+## Open PR portfolio
+
+A full open-PR audit is recorded in [WORK-LOG.md](./WORK-LOG.md). In brief: #153/#154 are the new focused remediation slices but still need exact-head tests/CI; #150 is the preferred consolidation candidate over overlapping failing #146; #144 overlaps/diverges from #139; #145's migration 0070 conflicts with #138; #143 is stale documentation; #151/#148/#149 need base refresh and CI revalidation; #138 is a very large draft and must never be merged wholesale. No PRs were merged or closed during the audit.
