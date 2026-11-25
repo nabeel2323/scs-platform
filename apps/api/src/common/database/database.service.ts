@@ -7,7 +7,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import * as schema from '../../drizzle/schema';
-import { resolveDatabaseUrl } from '../../config/env-gate';
+import { isProductionLikeEnv, resolveDatabaseUrl } from '../../config/env-gate';
 import { PERMISSIONS, ROLES } from './rbac-seed.data';
 import { acquireMigrationLock, releaseMigrationLock } from '../../../infra/drizzle/migration-lock';
 import { DEV_MIGRATION_EXCLUSIONS } from '../../../infra/drizzle/migration-config';
@@ -254,44 +254,56 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     // Resolved through the production config gate (P13 Phase 4.1, finding F-4): the
     // development DSN is used only in development/test, and a deployed process that
     // has no DATABASE_URL refuses to boot instead of silently aiming at a local box.
+    const nodeEnv = (process.env['NODE_ENV'] ?? 'development').trim().toLowerCase();
+    const requireSecureRuntime = isProductionLikeEnv(nodeEnv);
     const connectionString = resolveDatabaseUrl({
-      nodeEnv: process.env['NODE_ENV'],
+      nodeEnv,
       url: process.env['DATABASE_URL'],
     });
 
     const sslCaFile = process.env['PGSSLROOTCERT'];
+    // Deployed environments must use verified TLS even when a CA file is not
+    // explicitly mounted; in that case Node's system trust store is used. A
+    // configured CA file takes precedence and is never allowed to disable checks.
+    const ssl = sslCaFile
+      ? {
+          ca: fs.readFileSync(sslCaFile, 'utf8'),
+          rejectUnauthorized: true,
+        }
+      : requireSecureRuntime
+        ? { rejectUnauthorized: true }
+        : undefined;
 
     this.pool = new Pool({
       connectionString,
       max: parseInt(process.env['DATABASE_POOL_MAX'] || '20', 10),
       idleTimeoutMillis: 20_000,
       connectionTimeoutMillis: 10_000,
-      ...(sslCaFile && {
-        ssl: {
-          ca: fs.readFileSync(sslCaFile, 'utf8'),
-          rejectUnauthorized: true,
-        },
-      }),
+      ...(ssl && { ssl }),
     });
 
     // Emit a non-secret identity fingerprint for the actual API pool connection.
-    // This lets operators verify the runtime login/effective role independently of
-    // the migration workflow credential. Never log the DSN, host, address, or query.
+    // A remote/staging/production API must never run as a table owner, BYPASSRLS
+    // role, DDL-capable role, or over an unverified/non-TLS connection.
+    type RuntimeDatabaseIdentity = {
+      session_user: string;
+      current_user: string;
+      database_name: string;
+      session_role_superuser: boolean;
+      session_role_bypassrls: boolean;
+      session_role_createrole: boolean;
+      session_role_createdb: boolean;
+      effective_role_superuser: boolean;
+      effective_role_bypassrls: boolean;
+      effective_role_createrole: boolean;
+      effective_role_createdb: boolean;
+      owns_public_tables: boolean;
+      owns_public_schema: boolean;
+      ssl: boolean | null;
+    };
+    let identity: RuntimeDatabaseIdentity | null = null;
     try {
-      const identityResult = await this.pool.query<{
-        session_user: string;
-        current_user: string;
-        database_name: string;
-        session_role_superuser: boolean;
-        session_role_bypassrls: boolean;
-        session_role_createrole: boolean;
-        session_role_createdb: boolean;
-        effective_role_superuser: boolean;
-        effective_role_bypassrls: boolean;
-        effective_role_createrole: boolean;
-        effective_role_createdb: boolean;
-        ssl: boolean | null;
-      }>(
+      const identityResult = await this.pool.query<RuntimeDatabaseIdentity>(
         `SELECT
           session_user::text AS session_user,
           current_user::text AS current_user,
@@ -304,30 +316,72 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           effective_role.rolbypassrls AS effective_role_bypassrls,
           effective_role.rolcreaterole AS effective_role_createrole,
           effective_role.rolcreatedb AS effective_role_createdb,
+          EXISTS (
+            SELECT 1
+            FROM pg_class AS relation
+            JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+            WHERE namespace.nspname = 'public'
+              AND relation.relkind IN ('r', 'p')
+              AND relation.relowner = effective_role.oid
+          ) AS owns_public_tables,
+          EXISTS (
+            SELECT 1
+            FROM pg_namespace AS namespace
+            WHERE namespace.nspname = 'public'
+              AND namespace.nspowner = effective_role.oid
+          ) AS owns_public_schema,
           pg_stat_ssl.ssl AS ssl
         FROM pg_roles AS session_role
         JOIN pg_roles AS effective_role ON effective_role.rolname = current_user
         LEFT JOIN pg_stat_ssl ON pg_stat_ssl.pid = pg_backend_pid()
         WHERE session_role.rolname = session_user`,
       );
-      const identity = identityResult.rows[0];
-      if (identity) {
-        DatabaseService.logger.log(`Runtime database identity: ${JSON.stringify(identity)}`);
-      } else {
-        DatabaseService.logger.warn(
-          'Runtime database identity query returned no role metadata; identity remains unverified.',
-        );
-      }
+      identity = identityResult.rows[0] ?? null;
     } catch {
-      // Diagnostics must never prevent API startup. Do not log the database error,
-      // which may contain connection details or other sensitive information.
+      // Never expose the connection error, DSN, host or credentials in logs.
       DatabaseService.logger.warn(
         'Runtime database identity diagnostics failed; identity remains unverified.',
       );
+      if (requireSecureRuntime) {
+        throw new Error(
+          'Runtime database identity verification failed; refusing to start in a production-like environment.',
+        );
+      }
+    }
+
+    if (!identity) {
+      DatabaseService.logger.warn(
+        'Runtime database identity query returned no role metadata; identity remains unverified.',
+      );
+      if (requireSecureRuntime) {
+        throw new Error(
+          'Runtime database identity is unavailable; refusing to start in a production-like environment.',
+        );
+      }
+    } else {
+      DatabaseService.logger.log(`Runtime database identity: ${JSON.stringify(identity)}`);
+      if (requireSecureRuntime) {
+        const unsafe: string[] = [];
+        if (identity.session_user !== identity.current_user) unsafe.push('session/effective role mismatch');
+        if (identity.session_role_superuser || identity.effective_role_superuser) unsafe.push('superuser');
+        if (identity.session_role_bypassrls || identity.effective_role_bypassrls) unsafe.push('BYPASSRLS');
+        if (identity.session_role_createrole || identity.effective_role_createrole) unsafe.push('CREATEROLE');
+        if (identity.session_role_createdb || identity.effective_role_createdb) unsafe.push('CREATEDB');
+        if (identity.owns_public_tables || identity.owns_public_schema) unsafe.push('owns public tables/schema');
+        if (identity.ssl !== true) unsafe.push('TLS disabled or unverified');
+
+        if (unsafe.length > 0) {
+          DatabaseService.logger.error(
+            `Unsafe runtime database identity (${unsafe.join(', ')}); refusing to start.`,
+          );
+          throw new Error(
+            'Unsafe runtime database role or TLS configuration; refusing to start in a production-like environment.',
+          );
+        }
+      }
     }
 
     // Auto-migrate and seed in development mode so debugging "just works".
-    const nodeEnv = (process.env['NODE_ENV'] ?? 'development').trim().toLowerCase();
     if (nodeEnv === 'development' || nodeEnv === 'test') {
       await this.runDevMigrationsAndSeed(connectionString, sslCaFile);
     }
