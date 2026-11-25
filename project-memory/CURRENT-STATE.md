@@ -282,3 +282,8 @@ PR #138 remains open/draft/unmerged at `a56a6bbe70ea5ed03f40a4278072dd81b1df556c
 ## G-002 audit progress — 26 November 2026 (foundational commerce schema)
 
 Reviewed migration source for 0001–0006 and 0008–0011. The FK crosswalk now includes org/store mismatch candidates in business documents and verification requests; category/product/media; inventory variant/warehouse; pricing list/variant; cart item cart/store/variant; order item order/variant and buyer/store; and dispute/conversation participant/order links. These are pending service-callsite reconciliation, not confirmed defects. Migration 0007 and migrations 0012–0069 remain unreviewed in this migration-by-migration pass. Full audit is not complete. No tests or CI, DB operations, migrations, grants/RLS, deployment or merge occurred. See the G-002 FK ownership crosswalk.
+
+
+## G-002 commerce service spot-check — 26 November 2026
+
+Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller paths found several positive ownership checks (category scope, variant↔warehouse store, variant↔price-list store, server-derived cart store/offer scope, checkout actor context). Remaining review is required for caller-optional inventory methods and internal callers, pricing methods relying on controller gates, cart ID helper exposure, checkout revalidation, and catalog update/import/media/category-parent paths. G-002 remains IN PROGRESS. No tests, CI, DB operations, migrations, grants/RLS, deployment or merge occurred. Details are in the FK ownership crosswalk.
