@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OrdersService } from '../../../modules/orders/orders.service';
 
@@ -109,6 +110,31 @@ describe('OrdersService.recalculateMasterOrderStatus concurrency', () => {
     expect(status).toBe('ACCEPTED');
     expect(tx.update).not.toHaveBeenCalled();
     expect(outbox.publish).not.toHaveBeenCalled();
+  });
+});
+
+describe('OrdersService.confirmDelivery idempotency', () => {
+  it('returns the completed order when auto-completion wins after the initial status read', async () => {
+    const service = new OrdersService(
+      { db: {} } as any,
+      {} as any,
+      {} as any,
+    );
+    const delivered = { id: 'order-1', status: 'DELIVERED', buyerId: 'buyer-1' };
+    const completed = { id: 'order-1', status: 'COMPLETED', buyerId: 'buyer-1' };
+    const getOrder = vi.spyOn(service, 'getOrder')
+      .mockResolvedValueOnce(delivered as any)
+      .mockResolvedValueOnce(completed as any);
+    const completedWithItems = { ...completed, items: [] };
+    const getOrderWithItems = vi.spyOn(service, 'getOrderWithItems')
+      .mockResolvedValue(completedWithItems as any);
+    vi.spyOn(service, 'completeOrder')
+      .mockRejectedValue(new ConflictException('Order status already changed'));
+
+    await expect(service.confirmDelivery('order-1', 'buyer-1'))
+      .resolves.toEqual(completedWithItems);
+    expect(getOrder).toHaveBeenCalledTimes(2);
+    expect(getOrderWithItems).toHaveBeenCalledWith('order-1', undefined);
   });
 });
 
