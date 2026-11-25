@@ -4040,7 +4040,9 @@ export class OrdersService {
     source: string,
     autoCompleteClaimOwner?: string,
   ) {
-    if (source === 'AUTO_COMPLETION' && !autoCompleteClaimOwner) throw new ConflictException('Auto-completion requires an active worker claim');
+    if (source === 'AUTO_COMPLETION' && !autoCompleteClaimOwner) {
+      throw new ConflictException('Auto-completion requires an active worker claim');
+    }
     const order = await this.getOrder(orderId);
     this.assertTransition(order['status'], 'COMPLETED');
 
@@ -4065,7 +4067,12 @@ export class OrdersService {
         .where(and(
           eq(orders.id, orderId),
           eq(orders.status, order['status']),
-          ...(autoCompleteClaimOwner ? [eq(orders.autoCompleteClaimedBy, autoCompleteClaimOwner), sql`${orders.autoCompleteClaimedAt} > NOW() - INTERVAL '5 minutes'`] : []),
+          ...(autoCompleteClaimOwner
+            ? [
+                eq(orders.autoCompleteClaimedBy, autoCompleteClaimOwner),
+                sql`${orders.autoCompleteClaimedAt} > NOW() - INTERVAL '5 minutes'`,
+              ]
+            : []),
         ))
         .returning({ id: orders.id });
 

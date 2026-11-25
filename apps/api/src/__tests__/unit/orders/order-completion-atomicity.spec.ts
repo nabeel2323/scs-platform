@@ -114,7 +114,7 @@ describe('OrdersService.completeOrder atomicity', () => {
   it('commits order, shipment, history, outbox and master status in one transaction before realtime', async () => {
     const fixture = makeService();
 
-    await fixture.service.completeOrder('order-1', 'system', 'SYSTEM', 'AUTO_COMPLETION');
+    await fixture.service.completeOrder('order-1', 'system', 'SYSTEM', 'AUTO_COMPLETION', 'worker-test');
 
     expect(fixture.transaction).toHaveBeenCalledTimes(1);
     expect(fixture.tx.update).toHaveBeenCalledTimes(2);
@@ -139,15 +139,23 @@ describe('OrdersService.completeOrder atomicity', () => {
 
   it('fences auto-completion by the active lease owner and clears the lease in the same transaction', async () => {
     const fixture = makeService();
-    await fixture.service.completeOrder('order-1', 'system', 'SYSTEM', 'AUTO_COMPLETION', 'auto-complete-worker-1');
-    expect(fixture.updateValues[0]).toEqual(expect.objectContaining({ status: 'COMPLETED', autoCompleteClaimedAt: null, autoCompleteClaimedBy: null }));
+    await fixture.service.completeOrder(
+      'order-1', 'system', 'SYSTEM', 'AUTO_COMPLETION', 'auto-complete-worker-1',
+    );
+    expect(fixture.updateValues[0]).toEqual(expect.objectContaining({
+      status: 'COMPLETED',
+      autoCompleteClaimedAt: null,
+      autoCompleteClaimedBy: null,
+    }));
     expect(fixture.transaction).toHaveBeenCalledTimes(1);
     expect(fixture.outbox.publish).toHaveBeenCalledTimes(1);
     expect(fixture.committed()).toBe(true);
   });
   it('rejects a worker whose lease was lost before the fenced status update', async () => {
     const fixture = makeService({ loseCompletionRace: true });
-    await expect(fixture.service.completeOrder('order-1', 'system', 'SYSTEM', 'AUTO_COMPLETION', 'stale-worker')).rejects.toThrow('Order status already changed — concurrent completion rejected');
+    await expect(
+      fixture.service.completeOrder('order-1', 'system', 'SYSTEM', 'AUTO_COMPLETION', 'stale-worker'),
+    ).rejects.toThrow('Order status already changed — concurrent completion rejected');
     expect(fixture.rolledBack()).toBe(true);
     expect(fixture.outbox.publish).not.toHaveBeenCalled();
     expect(fixture.recalculate).not.toHaveBeenCalled();
@@ -155,14 +163,16 @@ describe('OrdersService.completeOrder atomicity', () => {
   });
   it('rejects automatic completion without a lease owner', async () => {
     const fixture = makeService();
-    await expect(fixture.service.completeOrder('order-1', 'system', 'SYSTEM', 'AUTO_COMPLETION')).rejects.toThrow('Auto-completion requires an active worker claim');
+    await expect(
+      fixture.service.completeOrder('order-1', 'system', 'SYSTEM', 'AUTO_COMPLETION'),
+    ).rejects.toThrow('Auto-completion requires an active worker claim');
     expect(fixture.transaction).not.toHaveBeenCalled();
   });
   it('does not publish or emit realtime when a transactional shipment write fails', async () => {
     const fixture = makeService({ failShipmentEvent: true });
 
     await expect(
-      fixture.service.completeOrder('order-1', 'system', 'SYSTEM', 'AUTO_COMPLETION'),
+      fixture.service.completeOrder('order-1', 'system', 'SYSTEM', 'AUTO_COMPLETION', 'worker-test'),
     ).rejects.toThrow('shipment event write failed');
 
     expect(fixture.rolledBack()).toBe(true);

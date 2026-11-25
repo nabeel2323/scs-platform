@@ -63,18 +63,28 @@ export class AutoCompleteWorker implements OnModuleInit, OnModuleDestroy {
   private async claimNextOrder(): Promise<any | null> {
     const result = await this.db.db.execute(sql`
       WITH candidate AS (
-        SELECT id FROM orders
+        SELECT id
+        FROM orders
         WHERE status = 'DELIVERED'
           AND auto_complete_at IS NOT NULL
           AND auto_complete_at <= NOW()
           AND buyer_confirmed_at IS NULL
-          AND (auto_complete_claimed_at IS NULL OR auto_complete_claimed_at <= NOW() - (${AutoCompleteWorker.CLAIM_LEASE_MINUTES} * INTERVAL '1 minute'))
+          AND (
+            auto_complete_claimed_at IS NULL
+            OR auto_complete_claimed_at <= NOW() - (
+              ${AutoCompleteWorker.CLAIM_LEASE_MINUTES} * INTERVAL '1 minute'
+            )
+          )
         ORDER BY auto_complete_at ASC, id ASC
-        LIMIT 1 FOR UPDATE SKIP LOCKED
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
       )
       UPDATE orders AS target
-      SET auto_complete_claimed_at = NOW(), auto_complete_claimed_by = ${this.workerId}
-      FROM candidate WHERE target.id = candidate.id
+      SET
+        auto_complete_claimed_at = NOW(),
+        auto_complete_claimed_by = ${this.workerId}
+      FROM candidate
+      WHERE target.id = candidate.id
       RETURNING target.*
     `);
     return result.rows?.[0] ?? null;
@@ -83,8 +93,11 @@ export class AutoCompleteWorker implements OnModuleInit, OnModuleDestroy {
   /** Release only this worker's claim; never clear a claim reassigned elsewhere. */
   private async releaseClaim(orderId: string): Promise<void> {
     await this.db.db.execute(sql`
-      UPDATE orders SET auto_complete_claimed_at = NULL, auto_complete_claimed_by = NULL
-      WHERE id = ${orderId} AND auto_complete_claimed_by = ${this.workerId}
+      UPDATE orders
+      SET auto_complete_claimed_at = NULL,
+          auto_complete_claimed_by = NULL
+      WHERE id = ${orderId}
+        AND auto_complete_claimed_by = ${this.workerId}
     `);
   }
 
@@ -102,19 +115,33 @@ export class AutoCompleteWorker implements OnModuleInit, OnModuleDestroy {
       if (claimed > 0) this.logger.log(`Auto-complete: claimed ${claimed} order(s) for processing.`);
     } catch (err: any) {
       this.logger.error(`Auto-complete poll error: ${err?.message}`);
-    } finally { this.running = false; }
+    } finally {
+      this.running = false;
+    }
   }
 
   private async processCompletion(row: any) {
     try {
-      await this.ordersService.completeOrder(row.id, 'system', 'SYSTEM', 'AUTO_COMPLETION', this.workerId);
+      await this.ordersService.completeOrder(
+        row.id,
+        'system',
+        'SYSTEM',
+        'AUTO_COMPLETION',
+        this.workerId,
+      );
       this.logger.log(`Auto-completed order ${row.id}`);
     } catch (err: any) {
-      if (err?.status === 409 || err?.name === 'ConflictException') this.logger.debug(`Auto-complete skipped (status changed or claim lost): ${row.id}`);
-      else this.logger.error(`Auto-complete failed for ${row.id}: ${err?.message}`);
+      if (err?.status === 409 || err?.name === 'ConflictException') {
+        this.logger.debug(`Auto-complete skipped (status changed or claim lost): ${row.id}`);
+      } else {
+        this.logger.error(`Auto-complete failed for ${row.id}: ${err?.message}`);
+      }
     } finally {
-      try { await this.releaseClaim(row.id); }
-      catch (releaseError: any) { this.logger.error(`Auto-complete claim release failed for ${row.id}: ${releaseError?.message}`); }
+      try {
+        await this.releaseClaim(row.id);
+      } catch (releaseError: any) {
+        this.logger.error(`Auto-complete claim release failed for ${row.id}: ${releaseError?.message}`);
+      }
     }
   }
 
