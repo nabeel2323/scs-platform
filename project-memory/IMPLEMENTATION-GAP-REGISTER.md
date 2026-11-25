@@ -1173,3 +1173,11 @@ Migration 0041 defines a compatibility rule that remains intact: no `driver_stor
 Unit and disposable-PostgreSQL regression source was added but remains unexecuted. No writer for the optional allowlist table was found; no speculative API, composite FK or migration was introduced. The previous "no shipment assignment writer" note is superseded; the mapping-table writer remains unlocated.
 
 G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. Remaining gates include Drizzle/migration FK reconciliation, complete operation ownership predicates, actor-context nesting/reuse review, external allowlist provisioning confirmation, actual API/migration runtime identity, protected read-only catalog evidence, pg_partman scheduler ownership and 114/116 relation reconciliation. No tests, CI, shared DB, staging, RLS/grant, migration, deployment, worker activation, merge or release action occurred.
+
+## 25 November 2026 — staging authorization and exact-head implementation evidence
+
+The user explicitly authorizes necessary staging database changes to prepare the first production launch. No production database has been provisioned/deployed. The permission covers staging schema, privilege/default-ACL, RLS/policy, migration and controlled fixture/data work, subject to actual API/migration role identification, object-ownership reconciliation, reviewed migrations, rollback/recovery and protected staging approvals. It does not authorize production DB provisioning, Render service changes/deployment, worker activation, business workflows, PR merge or bypassing protected approvals.
+
+Render runtime configuration/log observations are recorded in `docs/remediation/RENDER-STAGING-READONLY-CHECK-2026-11-25.md`. OTP log redaction is implemented on the remediation branch in commit `ed685b0d0c9a1dd8e28009fa8fc208b766540061`; direct provider failure/exception tests are authored, not executed, and the code is not deployed.
+
+Exact-head Actions #45586306936 was unintentionally triggered by that commit. Lint passed, TypeScript typecheck failed with 250 diagnostic lines across tests and source, Flutter passed, and downstream jobs were skipped. The diagnostics are implementation backlog evidence, not a reason to run another CI campaign before implementation is complete.

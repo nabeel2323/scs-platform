@@ -10,3 +10,9 @@ OTP: deployed SHA 9f5bc397/develop OtpDeliveryService logs raw exception.message
 Worker source: multiple workers are registered inside API process; ReturnExpirationWorker is P13_WORKER_ENABLED-gated. Render configuration and live logs require user-confirmed workspace access. The current release.yml manual dispatch is mutating (migrate, seed, deploy); do not run. The separate db-access-audit.yml workflow is read-only and protected by the staging environment.
 
 No RLS/grant/policy/migration/seed/shared DB/deployment/worker activation/secret changes or quality gates were performed.
+
+## 25 November 2026 — current branch, CI and staging status
+
+Source commit `ed685b0d0c9a1dd8e28009fa8fc208b766540061` is on `remediation/phase-0-1-tenant-security`; PR #138 remains open, draft and unmerged to `develop`. Exact-head Actions run #45586306936 completed unexpectedly after the push: Lint passed, Typecheck failed, Flutter analyze/tests passed, and dependent Unit/Coverage, Integration, Web/Admin, Migration, E6, Build/Container, Contract, k6 and staging-release jobs were skipped. Typecheck produced 250 diagnostic lines across existing test fixtures and source files. No rerun is authorized during implementation. Vercel Web/Admin status checks were success with "Skipped - Not affected"; this is not a deployment.
+
+Render staging remains on `develop` SHA `f74eb588cc58fc99b105e749d39dbfbacb4f9775`; auto-deploy is disabled. No staging deploy or database mutation occurred. The user's staging-database authorization is recorded in DECISIONS-AND-CONSTRAINTS; no production database has been provisioned or deployed.

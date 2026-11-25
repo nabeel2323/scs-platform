@@ -35,17 +35,19 @@
 
 ## Explicit safety restrictions
 
-The following are prohibited unless the specifically required explicit authorization is obtained:
+The following restrictions remain binding except where a later explicit user authorization is recorded:
 
 - Do not merge PR #138 or treat it as release authorization.
 - Do not bypass or circumvent the protected GitHub `staging` environment approval.
-- Do not dispatch or approve protected staging operations on the user's behalf.
-- Do not deploy the remediation branch or modify Render staging/production configuration.
-- Do not change environment variables, restart services, activate workers or perform staging writes.
-- Do not modify shared database privileges, grants, default ACLs or ownership.
-- Do not apply migration 0070 (or related RLS/access-model migrations) to the shared database.
-- Do not enable RLS on live/shared tables.
+- Do not dispatch or approve protected staging operations on the user's behalf without explicit authorization for that exact protected workflow.
+- Do not deploy the remediation branch or modify Render staging/production service configuration without separate authorization.
+- Do not change Render environment variables, restart services, activate workers, or execute staging business workflows without separate authorization.
+- Do not modify shared database privileges, grants, default ACLs or ownership without explicit authorization. The user's 25 November 2026 authorization now permits necessary **staging-database-only** schema, grant/default-ACL, RLS, migration, and controlled test-fixture/data changes to prepare the first production launch.
+- Before any staging database write, establish the actual API and migration identities, reconcile object/default-ACL ownership, review the exact migration and rollback strategy, and use a controlled migration path. Do not perform ad-hoc destructive resets or bypass the migration ledger.
+- Do not apply migration 0070 or related access-model migrations until the actual migration identity and `supabase_admin` default-ACL scope are understood and the least-privilege design is reviewed.
+- Do not enable RLS while the API role is a table owner or has `BYPASSRLS`; use table-specific policies that match the verified application/worker access model.
 - Do not alter Supabase-managed extension ownership.
+- Do not provision or deploy a production database under the staging authorization. The user has stated that no production database is currently deployed.
 - Do not expose database connection strings, credentials, secrets or OTP values in logs or documentation.
 
 ## Evidence and status vocabulary
@@ -187,3 +189,9 @@ The authentication actor remains purpose-scoped and is not a general-purpose ide
 ## Refund-provider execution boundary correction — 24 November 2026
 
 The merchant-rejection flow creates a refund REQUESTED row, payment event and outbox record only. Source inspection of OutboxDispatcher.dispatch confirms generic events are currently logged and marked dispatched; this does not invoke a payment-provider refund. Automatic refund-provider execution is not implemented by this slice and remains outside the approved scope (no automatic gateway/payout expansion or worker activation). The durable refund request is still available for the existing review/approval workflow. Merchant-initiated rejection refunds now attribute requestedBy/paymentEvents.actorId to the authenticated merchant; PaymentsService permits the special MERCHANT_REJECTION reason only when the caller has a MERCHANT_* role and assertOrderAccessible confirms the order is in the caller's active organization. The service no longer impersonates the buyer for audit attribution.
+
+## User authorization — staging database preparation for first production launch — 25 November 2026
+
+The user explicitly authorized necessary changes to the staging database to prepare a good first production launch. No production database has been provisioned or deployed. This authorization covers staging-only schema changes, reviewed privilege/default-ACL corrections, RLS/policy work, migrations, and controlled test fixtures/data changes. It does not authorize provisioning a production database, deploying code or changing Render service configuration, restarting services, activating workers, executing business workflows, merging PR #138, or bypassing protected GitHub staging approvals.
+
+First identify actual API and migration roles, determine object ownership and default-ACL authority (including `supabase_admin`), review migration ordering and rollback/recovery, and preserve the staging migration ledger. Do not enable RLS while the API role is a table owner or has `BYPASSRLS`. Use a reviewed migration and protected staging release process once the relevant approval is explicitly obtained.
