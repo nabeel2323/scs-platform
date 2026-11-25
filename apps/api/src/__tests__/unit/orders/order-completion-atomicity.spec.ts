@@ -16,6 +16,7 @@ function makeService(options?: { failShipmentEvent?: boolean }) {
   let committed = false;
   let rolledBack = false;
 
+  const updateValues: Array<Record<string, unknown>> = [];
   const tx = {
     query: {
       shipments: {
@@ -24,7 +25,10 @@ function makeService(options?: { failShipmentEvent?: boolean }) {
     },
     update: vi.fn(() => {
       const builder: any = {
-        set: vi.fn(() => builder),
+        set: vi.fn((values: Record<string, unknown>) => {
+          updateValues.push(values);
+          return builder;
+        }),
         where: vi.fn(() => builder),
         returning: vi.fn().mockResolvedValue([{ id: order.id }]),
       };
@@ -63,7 +67,7 @@ function makeService(options?: { failShipmentEvent?: boolean }) {
   vi.spyOn(service, 'getOrder').mockResolvedValue(order as any);
   const recalculate = vi.spyOn(service, 'recalculateMasterOrderStatus').mockResolvedValue('COMPLETED');
 
-  return { service, db, tx, outbox, realtime, emit, transaction, recalculate, committed: () => committed, rolledBack: () => rolledBack, order };
+  return { service, db, tx, outbox, realtime, emit, transaction, recalculate, updateValues, committed: () => committed, rolledBack: () => rolledBack, order };
 }
 
 describe('OrdersService.completeOrder atomicity', () => {
@@ -103,6 +107,25 @@ describe('OrdersService.completeOrder atomicity', () => {
     expect(fixture.rolledBack()).toBe(true);
     expect(fixture.outbox.publish).not.toHaveBeenCalled();
     expect(fixture.recalculate).not.toHaveBeenCalled();
+    expect(fixture.realtime.server.to).not.toHaveBeenCalled();
+  });
+
+  it('records buyer confirmation in the same transaction as completion', async () => {
+    const fixture = makeService({ failShipmentEvent: true });
+
+    await expect(
+      fixture.service.confirmDelivery('order-1', 'buyer-1'),
+    ).rejects.toThrow('shipment event write failed');
+
+    expect(fixture.rolledBack()).toBe(true);
+    expect(fixture.db.db.update).not.toHaveBeenCalled();
+    expect(fixture.updateValues[0]).toEqual(
+      expect.objectContaining({
+        status: 'COMPLETED',
+        buyerConfirmedAt: expect.any(Date),
+      }),
+    );
+    expect(fixture.outbox.publish).not.toHaveBeenCalled();
     expect(fixture.realtime.server.to).not.toHaveBeenCalled();
   });
 });
