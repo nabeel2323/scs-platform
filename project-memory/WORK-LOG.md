@@ -340,3 +340,8 @@ undefined
 ## 26 November 2026 — foundational commerce migration crosswalk
 
 Continued G-002 static review across migrations 0001–0006 and 0008–0011. Added independent-FK consistency checks to the crosswalk for org/store document relationships, product/category/media, inventory variant/warehouse, pricing list/variant, cart item cart/store/variant, order item order/variant, buyer/store lineage and trust/conversation participants. These are candidates requiring service-callsite review and data profiling, not confirmed vulnerabilities. Migration 0007 and 0012–0069 remain outstanding; 75-file audit is still partial. No tests, CI, DB writes, migrations, grants/RLS, deployment or merge occurred.
+
+
+## 26 November 2026 — commerce service callsite spot-check
+
+Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller paths identified positive store/tenant guards and remaining internal-callsite gaps. Inventory caller-optional methods, pricing controller-dependent authorization, cart getCart-by-ID helper exposure, checkout lineage revalidation and catalog update/import/media/category-parent operations remain open. No source change, tests, CI, DB operation, migration, RLS/grant change, deployment or merge occurred. Full G-002 audit remains partial.
