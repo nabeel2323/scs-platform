@@ -298,3 +298,13 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - Static migration-reference inventory covers all 75 numbered migrations (183 explicit REFERENCES across 40 files). Service-level cross-column and raw SQL/trigger/partition consumer audit remains in progress.
 - Newly reviewed concerns: analytics global event-count query must be platform-only or tenant-scoped; promotions redemption should verify order buyer/store against promotion; 0013/0018 partition retention and 0053 backfill need data/rollback preflight before migration approval.
 - No tests, CI, database/catalog access, migration, grants/default-ACL/RLS change, provider/storage action, worker activation, bootstrap, deployment or merge occurred.
+
+
+## Current checkpoint — 26 November 2026 (bounded integration started)
+
+- PR #157 is the first bounded G-002 integration slice: `integration/g002-actor-context-foundation` → `develop`; head `e3bc1ba21d67ec4947824acf278529e543487eb1`; 17 files; OPEN / DRAFT / UNMERGED; mergeable=true at verification.
+- PR #157 starts from `develop` SHA `fde20420bbb759d2e562f9ff747c9e824ac58e25` and retains develop-only runtime identity, OTP log redaction and outbox ownership commits. It contains no migrations, RLS, grant/ACL, DB role or deployment changes.
+- PR #157 exact-head Actions: no runs; Vercel Web/Admin rate-limit failures only. No tests, lint, typecheck, build or CI run.
+- PR #138 remains OPEN / DRAFT / UNMERGED and preserved separately; do not merge it wholesale.
+- RBAC seed confirms `analytics:read` is assigned only to SUPER_ADMIN and ADMIN; the global analytics aggregate remains platform-admin scoped under seeded roles. Promotion redemption service-level order/store lineage remains a defense-in-depth follow-up.
+- Next: review PR #157 source/dependency composition, then build Slice B from refreshed develop. Keep workers/webhooks and operator/migration paths separate; one consolidated CI campaign after integration assembly.

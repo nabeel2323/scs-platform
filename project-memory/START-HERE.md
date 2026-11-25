@@ -404,3 +404,12 @@ PR #138 is OPEN / DRAFT / UNMERGED at `e410bf44b272eafb8e762636b66877f9e0c4b230`
 - No tests, CI, SQL/catalog access, migration, grants/default ACL/RLS, staging/shared DB write, storage/provider call, worker activation, bootstrap, deployment or merge occurred.
 
 **Next:** finish raw-query/function/trigger and internal-callsite coverage, resolve the analytics/promotion service-boundary questions, refresh the three develop-only commits and prepare the exact file-level extraction ledger. Preserve PR #138; no wholesale merge. Run one consolidated CI campaign only after the integration slice is assembled.
+
+
+## 26 November 2026 — PR #157 integration checkpoint
+
+- Created draft PR #157: `integration/g002-actor-context-foundation` → `develop`, head `e3bc1ba21d67ec4947824acf278529e543487eb1`, 17 files, OPEN / DRAFT / UNMERGED, mergeable=true.
+- PR #157 is the first bounded extraction from PR #138: DatabaseService actor context, runtime DB identity guard, tenant interceptor/scope helpers, env/OTP gates and required operator/local migration dependencies. No SQL migration, RLS, grants, staging DB or deployment changes.
+- Branch starts at `develop` SHA `fde20420bbb759d2e562f9ff747c9e824ac58e25` and retains develop-only commits `9530d87`, `d800e5b`, `fde2042`. Exactly 17 files in the slice.
+- Exact-head Actions: no runs. Vercel Web/Admin build-rate-limit failures only. Tests, lint, typecheck and build remain unrun.
+- PR #138 remains separate, preserved and unmerged. Continue application/worker/operator extraction only after the relevant method-level review.

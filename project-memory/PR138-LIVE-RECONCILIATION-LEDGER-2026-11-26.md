@@ -237,3 +237,11 @@ All changes are source/test authoring only. No test, lint, typecheck, formatter,
 - Continued static review across migration 0007 and 0012–0053; the existing full static FK scan records 183 REFERENCES across 40 of 75 migrations. Cross-column service coverage, raw SQL/function/trigger/partition consumers and live catalog reconciliation remain open.
 - New review items: analytics partition retention and legacy-table copy/drop need preflight/recovery evidence; 0053 is one transaction despite progress notices every 500 rows; analytics global event counts require platform-only permission or org scope; promotions redemption should verify buyer/order/store lineage in service; catalog import and shipping actor boundaries have positive source evidence.
 - No tests/CI, SQL/catalog access, migration, grant/default-ACL/RLS change, staging/shared DB write, provider/storage call, worker activation, bootstrap, deployment or merge.
+
+
+## 26 November 2026 — PR #157 created
+
+- Draft PR #157: `integration/g002-actor-context-foundation` → `develop`; head `e3bc1ba21d67ec4947824acf278529e543487eb1`; 17 files; OPEN / DRAFT / UNMERGED; mergeable=true at verification.
+- Exact-head Actions has no runs. Combined status has only Vercel Web/Admin provider build-rate-limit failures. No tests, lint, typecheck, build or CI are claimed.
+- The branch starts from develop and retains the three develop-only commits. It contains no SQL migration, RLS, grant/default ACL, DB role, staging write, worker activation, provider/storage action or deployment.
+- PR #138 remains open/draft/unmerged and separately preserved; continue bounded extraction only.

@@ -171,3 +171,10 @@ This continuation inspected the SQL bodies for migration 0007 and 0012–0053. C
 ### Non-actions
 
 No tests, lint, typecheck, build, SQL execution, database/catalog inspection, migration, staging/shared DB write, grant/default-ACL/RLS change, storage/provider call, worker activation, bootstrap, deployment or merge occurred in this continuation.
+
+
+## 26 November 2026 — analytics RBAC and bounded integration note
+
+The earlier concern about the unscoped analytics event-count aggregate is narrowed by the current source RBAC seed: `analytics:read` is assigned to `SUPER_ADMIN` (all permissions) and `ADMIN`, and is not assigned to merchant owner/staff, buyer or driver roles. The global aggregate is therefore platform-admin scoped under the seeded roles. Preserve that restriction; if future custom role assignment allows a tenant role to receive `analytics:read`, add org scoping before granting it.
+
+Draft PR #157 now carries the bounded Slice A actor-context foundation from current `develop` (17 files, exact head `e3bc1ba21d67ec4947824acf278529e543487eb1`). It retains develop-only runtime identity, OTP redaction and carrier outbox commits. Exact-head Actions has no runs; Vercel failures are provider build-rate-limit only. No tests/CI run. Promotions redemption service lineage remains a defense-in-depth follow-up; OrdersService calls it inside buyer actor context after creating the store-specific sub-order.

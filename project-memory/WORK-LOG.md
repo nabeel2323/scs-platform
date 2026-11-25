@@ -355,3 +355,12 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - No tests, CI, database/catalog access, migration, grants/default ACL/RLS, staging/shared DB write, storage/provider call, worker activation, bootstrap, deployment or merge occurred.
 
 **Next:** resolve these service-level questions, finish the internal-callsite/raw-query inventory, reconcile develop-only commits and build a file-by-file bounded extraction ledger. CI stays deferred until the slice is assembled.
+
+
+## 26 November 2026 — first bounded integration PR
+
+- Created draft PR #157, branch `integration/g002-actor-context-foundation`, base `develop` SHA `fde20420bbb759d2e562f9ff747c9e824ac58e25`, head `e3bc1ba21d67ec4947824acf278529e543487eb1`. PR has 17 files, 1,040 additions / 43 deletions, OPEN / DRAFT / UNMERGED, mergeable=true at verification.
+- Slice A includes actor-context foundation, runtime identity guard, tenant interceptor/scope, environment/OTP gates, local migration config/operator actor helper dependencies and focused tests. It starts from develop and retains develop-only commits 9530d87 (runtime identity diagnostics), d800e5b (OTP redaction), and fde2042 (carrier outbox ownership).
+- No tests/lint/typecheck/build/CI run for exact head; GitHub Actions returned no runs and Vercel Web/Admin failures are provider build-rate-limit only. No migration, DB, RLS/grant, worker/provider/storage or deployment action.
+- Reviewed RBAC seed: analytics:read belongs to SUPER_ADMIN and ADMIN only, so the global event-count aggregate is platform-admin scoped by default. Preserve this assignment restriction.
+- PR #138 remains OPEN / DRAFT / UNMERGED and is preserved separately. No wholesale merge. Next slices are application adoption, workers/webhooks, and operator/migration runner.

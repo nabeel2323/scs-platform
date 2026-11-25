@@ -99,3 +99,15 @@ The exact path manifest must be generated from the refreshed PR diff after #153/
 - No extraction of scratch artifacts or token-like files.
 - No migration, RLS enablement, grant/default-ACL change, shared/staging database write, Render configuration change, worker activation, credential rotation or deployment without the separately required authorization.
 - CI success is not independent security approval, live staging identity evidence, production acceptance or release approval.
+
+
+## 26 November 2026 — first bounded PR extraction
+
+Created draft PR #157, **G-002 Slice A: Database actor-context foundation**.
+
+- Source branch `integration/g002-actor-context-foundation` starts from current `develop` (`fde20420bbb759d2e562f9ff747c9e824ac58e25`).
+- PR #157 head `e3bc1ba21d67ec4947824acf278529e543487eb1`, 17 files, 1,040 additions / 43 deletions, OPEN / DRAFT / UNMERGED, mergeable=true at verification.
+- Slice contains the actor-context primitive, runtime identity guard, tenant interceptor/scope helpers, environment/OTP gates, required operator context/local migration config dependencies and focused tests. It contains no migration or RLS/grant changes.
+- It preserves the three commits present only on develop: `9530d87`, `d800e5b`, `fde2042`. No wholesale PR #138 merge or cherry-pick of unrelated paths occurred.
+- Exact-head Actions has no runs; Vercel Web/Admin show build-rate-limit failures only. No tests/lint/typecheck/build/CI run.
+- Next slices: (B) bounded application actor-context adoption, (C) workers/webhooks, (D) operator/migration runner. Keep each separate and run one consolidated CI campaign after the workstream is assembled.

@@ -136,3 +136,17 @@ New high-priority evidence gates:
 - ShippingService checks delivery zone/method store equality and driver eligibility checks org membership/role/assignment; carrier config and worker cross-parent checks remain as previously recorded.
 
 The FK crosswalk and source-callsite inventory remain IN PROGRESS. Do not create the bounded release PR until method-level predicates, raw SQL consumers and develop-only commits are reconciled. CI remains deferred to one consolidated campaign after the bounded integration is assembled.
+
+
+## 26 November 2026 — bounded integration Slice A created
+
+Draft PR #157: https://github.com/nabeel2323/scs-platform/pull/157
+
+- Branch: `integration/g002-actor-context-foundation`; base `develop` at `fde20420bbb759d2e562f9ff747c9e824ac58e25`; head `e3bc1ba21d67ec4947824acf278529e543487eb1`.
+- Exactly 17 files, 1,040 additions / 43 deletions. PR is OPEN / DRAFT / UNMERGED and currently mergeable=true.
+- The branch is based on current develop, so it retains the three develop-only commits: `9530d87` runtime identity diagnostics, `d800e5b` OTP delivery log redaction, and `fde2042` carrier outbox ownership. The copied runtime identity helper preserves the new develop diagnostic fields and adds public-table/schema ownership checks.
+- Slice includes DatabaseService actor-context foundation, runtime DB identity fail-closed startup gate, tenant interceptor/scope helpers, env/OTP gates, required local migration/operator-context dependencies, and focused tests.
+- Exact-head Actions lookup: no runs. Vercel Web/Admin statuses are provider build-rate-limit failures only. No tests, lint, typecheck, build or CI have run for PR #157.
+- No SQL migration, RLS policy, grant/default-ACL change, DB role, Render configuration, worker activation, provider/storage action or deployment is included or performed.
+
+The PR is intentionally draft. Application adoption, workers/webhooks and remaining operator/migration-runner work stay in separate bounded slices.
