@@ -123,6 +123,8 @@ A separate review of `main.ts` and retained Render request-completion logs found
 - The device-trust cookie is a remembered-device credential. Treat the historical logged values as potentially compromised until expiry/revocation is confirmed. This may permit OTP bypass after the separate primary authentication step; it is not an access JWT by itself.
 - A narrow source fix and Pino-output regression test are in PR #156. It is not merged/deployed and does not erase historical logs or revoke cookies. No credential rotation or revocation was performed.
 
+A read-only count found five active device-trust credentials issued before the latest staging deployment, associated with two users; none is hard-expired. This is an upper-bound revocation scope, not proof that all five values were present in logs. No user IDs, hashes, or cookie values are included here, and no credential was revoked.
+
 The OTP delivery service fix in PR #152 remains valid and separate: no six-digit OTP values were found in the accessible OTP-related log window, but the response-cookie exposure is still a security issue until PR #156 is reviewed, merged and deployed.
 
 ## 5. Worker and outbox runtime review
