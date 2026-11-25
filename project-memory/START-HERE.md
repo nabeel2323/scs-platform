@@ -1,3 +1,12 @@
+## 26 November 2026 — PR #158 defensive profile fallback refinement
+
+- PR #158 branch integration/g002-identity-membership-claims now requires a resolved organization row with isActive === true before projecting an active organization/merchant role from getProfile. This fails closed if an ACTIVE membership's organization cannot be resolved.
+- Added a regression test for the unresolved-organization case. Source commit 99e187146f5fda577a3984a11868113878cbdee2; test commit 2c294ac7f00e6c87fc741d59a709123dae6eb91b.
+- PR #158 remains OPEN / DRAFT / UNMERGED, stacked on PR #157 head 77145bc6262aba99cf7fdbd45139382bebc44fa7; exact PR #158 head is now 2c294ac7f00e6c87fc741d59a709123dae6eb91b (3 changed files; 7 commits total including stack). No exact-head Actions run; tests remain NOT RUN.
+- PR #157 exact-head run #1554 was last observed with four jobs passed (lint/typecheck/format, Flutter, Web/Admin tests, E6 boundary lint) and three running (API integration, full migration apply, API unit/coverage). Do not start another run.
+- PR #138 source and preservation refs remain protected and must be kept identical through expected-SHA fast-forwards. No merge, DB write, migration, RLS/grant change, staging mutation, worker activation or deployment occurred.
+
+
 ## 26 November 2026 — current integration and service-boundary checkpoint
 
 - PR #138 remains OPEN / DRAFT / UNMERGED at source head f7894abe85b9e9c053e51a730dbfd1c51f6adf21, base develop, mergeable=false. Preservation branch preservation/pr138-remediation-2026-11-25 is identical (0 ahead / 0 behind). Develop remains fde20420bbb759d2e562f9ff747c9e824ac58e25. No exact-head GitHub Actions run exists for #138; Vercel Web/Admin rate-limit failures are provider statuses only.
