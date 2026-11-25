@@ -272,3 +272,8 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 ## Final live checkpoint — 26 November 2026
 
 PR #138 is OPEN / DRAFT / UNMERGED at `e410bf44b272eafb8e762636b66877f9e0c4b230`, base develop, mergeable=false. Preservation branch is identical (0/0). PR changed paths: 1,940 total (1,280 scratch; 660 non-scratch; not all non-scratch belong to G-002). Develop is `fde20420bbb759d2e562f9ff747c9e824ac58e25`; branch is diverged 2,852 ahead / 3 behind from `f74eb588cc58fc99b105e749d39dbfbacb4f9775`. Exact-head Actions has no runs; only Vercel Web/Admin build-rate-limit failures are reported. All newly authored worker tests remain unexecuted. Next: finish full migration/FK and raw SQL/function/trigger/partition inventory, refresh develop, create bounded integration PRs from the manifest, then one consolidated CI campaign.
+
+
+## G-002 source audit — 26 November 2026
+
+PR #138 remains open/draft/unmerged at `a56a6bbe70ea5ed03f40a4278072dd81b1df556c`; `develop` remains `fde20420bbb759d2e562f9ff747c9e824ac58e25`; preservation ref is identical. No exact-head Actions run exists. The G-002 FK crosswalk was extended with static review of migrations 0054, 0058, 0059, 0061 and 0070–0075 and related service paths. Important open checks: default ACLs for every object-creating role (0070), consumers of legacy webhook rows with NULL credential_id (0072), and cross-scope/cyclic/duplicate reconciliation history before 0074. The numbered migration set is 75 files; audit remains partial. No tests, CI, database operations, migrations, deployment or merge occurred. See `docs/remediation/G-002-FK-OWNERSHIP-CROSSWALK-2026-11-26.md` for evidence and next actions.
