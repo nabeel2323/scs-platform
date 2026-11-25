@@ -397,9 +397,9 @@ describe('OrdersService.checkout MOQ and order-increment enforcement', () => {
         },
         merchantOffers: { findMany: vi.fn(async () => [offer]) },
         productVariants: {
-          findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1' })),
+          findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1', isActive: true })),
         },
-        products: { findFirst: vi.fn(async () => ({ id: 'product-1', title: 'Widget', moq: 1 })) },
+        products: { findFirst: vi.fn(async () => ({ id: 'product-1', storeId: null, status: 'ACTIVE', deletedAt: null, title: 'Widget', moq: 1 })) },
       },
     };
     const service = new OrdersService({ db } as any, {} as any, {} as any);
@@ -533,7 +533,7 @@ describe('OrdersService.checkout payment method support', () => {
           findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1' })),
         },
         products: {
-          findFirst: vi.fn(async () => ({ id: 'product-1', title: 'Widget', moq: 1 })),
+          findFirst: vi.fn(async () => ({ id: 'product-1', storeId: 'store-1', status: 'ACTIVE', deletedAt: null, title: 'Widget', moq: 1 })),
         },
         stores: {
           findMany: vi.fn(async () => [{ id: 'store-1', currency: 'SAR', orgId: 'org-1' }]),
@@ -584,6 +584,9 @@ describe('OrdersService.checkout authoritative offer lock', () => {
       const initialOffer = {
         id: 'offer-1',
         storeId: 'store-1',
+        productId: 'product-1',
+        variantId: 'variant-1',
+        isAvailable: true,
         status: 'ACTIVE',
         isAvailable: true,
         moq: initialMoq,
@@ -597,6 +600,8 @@ describe('OrdersService.checkout authoritative offer lock', () => {
       };
       const lockedOffer = {
         ...initialOffer,
+        productId: 'product-1',
+        variantId: 'variant-1',
         moq: lockedMoq,
         orderIncrement: lockedIncrement,
       };
@@ -609,6 +614,7 @@ describe('OrdersService.checkout authoritative offer lock', () => {
               {
                 id: 'variant-1',
                 productId: 'product-1',
+                isActive: true,
               },
             ]),
           },
@@ -662,6 +668,9 @@ describe('OrdersService.checkout authoritative offer lock', () => {
           products: {
             findFirst: vi.fn(async () => ({
               id: 'product-1',
+              storeId: null,
+              status: 'ACTIVE',
+              deletedAt: null,
               title: 'Widget',
               moq: 1,
             })),
