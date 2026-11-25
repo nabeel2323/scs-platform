@@ -58,3 +58,22 @@ END
 $migration$;
 
 ALTER FUNCTION public.normalize_arabic(text) SET search_path = pg_catalog;
+
+-- Keep the G-020 invariant self-verifying in the consolidated migration.
+-- This is the verification guard from focused PR #145; its separate 0070
+-- migration must not be installed alongside this migration.
+DO $verify$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'normalize_arabic'
+      AND pg_get_function_identity_arguments(p.oid) = 'input text'
+      AND COALESCE(p.proconfig, ARRAY[]::text[]) @> ARRAY['search_path=pg_catalog']
+  ) THEN
+    RAISE EXCEPTION 'G-020: normalize_arabic search_path was not pinned to pg_catalog';
+  END IF;
+END
+$verify$;
