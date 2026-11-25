@@ -76,3 +76,11 @@
 - PR #138 current head `16846152af71524f29047b704159f52ab0d73e75` has 1,927 changed files including 1,277 `.m73b6-scratch` files; it remains draft/unmerged and is not safe to merge wholesale. The preservation ref is 22 commits behind current PR head; reconcile before extraction.
 - PR #153/#154/#155/#156 remain draft and require independent review. PR #152 is merged.
 - main/develop divergence remains 11 develop-only and 4 main-only commits; do not promote until reconciled.
+
+
+## 25 November 2026 — consolidated PR #154 CI result
+
+- Exact code/test head `e4a5901102e474c3bdce63ca16431ad20f36a317` passed workflow run `45700713258`. Required jobs all succeeded: Lint & Typecheck; Mobile analyze/tests; Integration Tests (including the new real-PostgreSQL worker-claim and expired-lease/stale-owner tests); Migration Full Apply; Web & Admin tests; Unit Tests + Coverage Gates; Boundary Lint (E6); Contract Spec & Codegen; Build; Container Build & Smoke Test.
+- k6 Smoke Test and Trigger Staging Release were skipped by workflow design. This is not a staging deployment or load-test pass.
+- The source/test batch includes commit `b535140b3d88711457aedd204594c2ba7e56d3a9`; documentation-only commits followed. The full CI run validates the exact source/test head and the combined PR tree at `e4a590...`.
+- PR #154 remains OPEN / DRAFT / UNMERGED. Independent review is still required. Do not merge or mark release-ready based on CI alone. No staging DB, Render, worker, deployment or business workflow action occurred.
