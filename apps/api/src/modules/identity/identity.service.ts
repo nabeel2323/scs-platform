@@ -1061,7 +1061,7 @@ export class IdentityService {
 
     // Batch-fetch orgs in one query (avoids N+1: was 1 query per membership).
     const orgList = [];
-    const orgById = new Map<string, any>();
+    const activeOrgIds = new Set<string>();
     if (memberships.length > 0) {
       const orgs = await this.db.db.query.organizations.findMany({
         where: inArray(
@@ -1069,10 +1069,13 @@ export class IdentityService {
           memberships.map((m) => m.orgId),
         ),
       });
-      for (const org of orgs) orgById.set(org.id, org);
+      const orgById = new Map(orgs.map((org) => [org.id, org]));
       for (const m of memberships) {
         const org = orgById.get(m.orgId);
-        if (org) orgList.push({ ...org, membershipStatus: m.status });
+        if (org) {
+          orgList.push({ ...org, membershipStatus: m.status });
+          if (org.isActive === true) activeOrgIds.add(org.id);
+        }
       }
     }
 
@@ -1080,7 +1083,7 @@ export class IdentityService {
     // deactivation. Project a merchant role only from a currently ACTIVE
     // membership whose organization is still active.
     const activeMemberships = memberships.filter(
-      (m) => m.status === 'ACTIVE' && orgById.get(m.orgId)?.isActive === true,
+      (m) => m.status === 'ACTIVE' && activeOrgIds.has(m.orgId),
     );
     const resolvedActiveOrgId =
       activeOrgId == null
