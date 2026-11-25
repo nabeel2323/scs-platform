@@ -12,7 +12,7 @@ function createDb() {
   const query = {
     organizationMembers: { findFirst: vi.fn() },
     organizations: { findFirst: vi.fn() },
-    stores: { findFirst: vi.fn() },
+    stores: { findFirst: vi.fn(), findMany: vi.fn() },
   };
   return { db: { query } as any, query };
 }
@@ -93,4 +93,27 @@ describe('active organization ownership checks', () => {
     expect(query.stores.findFirst).not.toHaveBeenCalled();
     expect(query.organizationMembers.findFirst).not.toHaveBeenCalled();
   });
+
+  it('requires active organization membership for merchant master-order access', async () => {
+    const { db, query } = createDb();
+    query.stores.findMany.mockResolvedValue([{ orgId: 'org-1' }]);
+    query.organizationMembers.findFirst.mockResolvedValue({ id: 'membership-1' });
+    query.organizations.findFirst.mockResolvedValue({ id: 'org-1' });
+
+    await expect(
+      assertMasterOrderAccessible(db, caller, { buyerId: 'buyer-2' }, ['store-1']),
+    ).resolves.toBeUndefined();
+  });
+
+  it('rejects merchant master-order access after organization membership is inactive', async () => {
+    const { db, query } = createDb();
+    query.stores.findMany.mockResolvedValue([{ orgId: 'org-1' }]);
+    query.organizationMembers.findFirst.mockResolvedValue(null);
+    query.organizations.findFirst.mockResolvedValue({ id: 'org-1' });
+
+    await expect(
+      assertMasterOrderAccessible(db, caller, { buyerId: 'buyer-2' }, ['store-1']),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
 });

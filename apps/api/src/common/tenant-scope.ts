@@ -445,7 +445,10 @@ export async function assertMasterOrderAccessible(
       where: inArray(stores.id, subOrderStoreIds),
       columns: { orgId: true },
     });
-    if (rows.some((r) => r.orgId === caller.activeOrg)) return;
+    if (rows.some((r) => r.orgId === caller.activeOrg)) {
+      await assertActiveOrgMembership(db, caller, caller.activeOrg!);
+      return;
+    }
   }
   throw new ForbiddenException('You do not have access to this order');
 }
