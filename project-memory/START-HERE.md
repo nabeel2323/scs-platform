@@ -56,3 +56,9 @@ PR #154 CI run #1525 failed because 23 tests across the orders and stock-settlem
 - Do not enable RLS while the API role is a table owner or has `BYPASSRLS`; do not apply migration 0070 until its role/default-ACL assumptions are reviewed.
 - No production database has been provisioned or deployed.
 - Never expose credentials, connection strings, OTPs or customer secrets.
+
+## Latest update — 25 November 2026, 20:30 local
+
+PR #154 durable-lease implementation passed CI #1533 on exact head `d496b0616c9a0cdde2bd891ca47167d9b9dfbabc`. The substantive jobs listed in the PR work log passed; k6 smoke and staging release were skipped, and Vercel preview builds were blocked by provider quota.
+
+A follow-up code review found and fixed the buyer-confirmation/auto-completion race: if auto-completion wins after the buyer endpoint's initial DELIVERED read, the endpoint now re-reads state and returns idempotent success only if the order is COMPLETED. Regression coverage was added. The new latest head is `9efc30a7a3c0f841890a1d0bae839590cf58f8f3`; CI must run again on this exact head before PR #154 can advance. Keep it draft pending exact-head CI and independent review.
