@@ -48,21 +48,23 @@ export function sanitizeRequestUrl(url: unknown): string {
  * Keep useful request metadata while removing query values and redacting
  * credential-like route parameters before pino serializes the request.
  */
-export function sanitizeRequestLog<T extends {
-  url?: unknown;
-  query?: unknown;
-  params?: Record<string, unknown>;
-}>(request: T): T {
+export function sanitizeRequestLog(request: object): Record<string, unknown> {
+  const record = request as Record<string, unknown>;
+  const rawParams = record['params'];
+  const sourceParams =
+    rawParams !== null && typeof rawParams === 'object' && !Array.isArray(rawParams)
+      ? (rawParams as Record<string, unknown>)
+      : {};
   const params = Object.fromEntries(
-    Object.entries(request.params ?? {}).map(([name, value]) => [
+    Object.entries(sourceParams).map(([name, value]) => [
       name,
       SENSITIVE_PARAM_NAME.test(name) ? '[REDACTED]' : value,
     ]),
   );
 
   return {
-    ...request,
-    url: sanitizeRequestUrl(request.url),
+    ...record,
+    url: sanitizeRequestUrl(record['url']),
     query: {},
     params,
   };
