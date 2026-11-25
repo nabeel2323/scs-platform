@@ -13,8 +13,10 @@ The auto-completion worker also used an `UPDATE orders SET updated_at = NOW()` s
 - Extend `recalculateMasterOrderStatus()` with an optional transaction executor; existing callers retain the standalone transaction behavior.
 - Lock the master-order row before reading its current status. This ensures the status comparison and `previousStatus` event payload use the latest serialized master state.
 - Emit realtime `order:updated` only after the database transaction commits.
-- Change AutoCompleteWorker candidate selection to a read-only `SELECT ... FOR UPDATE SKIP LOCKED`; it no longer updates `orders.updated_at` while selecting candidates.
-- Document the actual concurrency model: row locks reduce overlap during selection, while the conditional order-status update inside `completeOrder()` is the authoritative cross-instance guard. This is not a durable lease.
+- Add migration `0071_auto_complete_claim_leases.sql` and matching Drizzle fields for a durable five-minute claim (`auto_complete_claimed_at`, `auto_complete_claimed_by`) plus a partial eligibility index. Migration 0071 is separate from the pending `0070` `normalize_arabic` hardening migration.
+- Claim one order at a time with an atomic CTE (`FOR UPDATE SKIP LOCKED` + `UPDATE`) that persists the worker ID and claim timestamp without mutating `orders.updated_at`.
+- Fence the `DELIVERED → COMPLETED` update inside the existing completion transaction by matching the worker owner and requiring an unexpired five-minute lease. The same update clears lease fields; buyer confirmation also clears outstanding claims while competing through the status guard.
+- Release claims conditionally by worker ID in `finally`; stale workers cannot clear a reassigned lease, and crashed-worker claims become reclaimable after five minutes.
 - Record buyer `buyerConfirmedAt` in the same guarded transaction as buyer-triggered completion.
 - Add regression specs for transactional writes, post-commit realtime, buyer-confirmation rollback and master-row lock/read ordering.
 
@@ -34,8 +36,9 @@ On run #1525, lint/typecheck, mobile, web/admin, migration full apply and bounda
 
 ## Safety and scope
 
-- No schema or migration is required.
+- Migration 0071 is additive and limited to two nullable lease columns and one partial index; it changes no grants, RLS, roles or default ACLs.
 - No inventory movement is added; stock was already consumed at `DELIVERED`.
 - Master status and its outbox event commit/roll back with the sub-order completion.
 - No staging database, Render setting, service restart, worker activation, deployment or business workflow was touched.
+- The lease is adapted into PR #154's atomic transaction; PR #138 was used only as a reference and was not merged or cherry-picked.
 - Keep PR #154 draft pending fresh exact-head CI and independent review.

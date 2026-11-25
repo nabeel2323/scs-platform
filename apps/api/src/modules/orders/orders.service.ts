@@ -4038,7 +4038,9 @@ export class OrdersService {
     userId: string,
     actorType: string,
     source: string,
+    autoCompleteClaimOwner?: string,
   ) {
+    if (source === 'AUTO_COMPLETION' && !autoCompleteClaimOwner) throw new ConflictException('Auto-completion requires an active worker claim');
     const order = await this.getOrder(orderId);
     this.assertTransition(order['status'], 'COMPLETED');
 
@@ -4057,8 +4059,14 @@ export class OrdersService {
           status: 'COMPLETED',
           updatedAt: new Date(),
           ...(source === 'BUYER_CONFIRMATION' ? { buyerConfirmedAt: new Date() } : {}),
+          autoCompleteClaimedAt: null,
+          autoCompleteClaimedBy: null,
         })
-        .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
+        .where(and(
+          eq(orders.id, orderId),
+          eq(orders.status, order['status']),
+          ...(autoCompleteClaimOwner ? [eq(orders.autoCompleteClaimedBy, autoCompleteClaimOwner), sql`${orders.autoCompleteClaimedAt} > NOW() - INTERVAL '5 minutes'`] : []),
+        ))
         .returning({ id: orders.id });
 
       if (flipResult.length === 0) {

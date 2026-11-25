@@ -5,7 +5,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function makeService(options?: { failShipmentEvent?: boolean }) {
+function makeService(options?: { failShipmentEvent?: boolean; loseCompletionRace?: boolean }) {
   const order = {
     id: 'order-1',
     status: 'DELIVERED',
@@ -30,7 +30,7 @@ function makeService(options?: { failShipmentEvent?: boolean }) {
           return builder;
         }),
         where: vi.fn(() => builder),
-        returning: vi.fn().mockResolvedValue([{ id: order.id }]),
+        returning: vi.fn().mockResolvedValue(options?.loseCompletionRace && updateValues.length === 1 ? [] : [{ id: order.id }]),
       };
       return builder;
     }),
@@ -137,6 +137,27 @@ describe('OrdersService.completeOrder atomicity', () => {
     });
   });
 
+  it('fences auto-completion by the active lease owner and clears the lease in the same transaction', async () => {
+    const fixture = makeService();
+    await fixture.service.completeOrder('order-1', 'system', 'SYSTEM', 'AUTO_COMPLETION', 'auto-complete-worker-1');
+    expect(fixture.updateValues[0]).toEqual(expect.objectContaining({ status: 'COMPLETED', autoCompleteClaimedAt: null, autoCompleteClaimedBy: null }));
+    expect(fixture.transaction).toHaveBeenCalledTimes(1);
+    expect(fixture.outbox.publish).toHaveBeenCalledTimes(1);
+    expect(fixture.committed()).toBe(true);
+  });
+  it('rejects a worker whose lease was lost before the fenced status update', async () => {
+    const fixture = makeService({ loseCompletionRace: true });
+    await expect(fixture.service.completeOrder('order-1', 'system', 'SYSTEM', 'AUTO_COMPLETION', 'stale-worker')).rejects.toThrow('Order status already changed — concurrent completion rejected');
+    expect(fixture.rolledBack()).toBe(true);
+    expect(fixture.outbox.publish).not.toHaveBeenCalled();
+    expect(fixture.recalculate).not.toHaveBeenCalled();
+    expect(fixture.realtime.server.to).not.toHaveBeenCalled();
+  });
+  it('rejects automatic completion without a lease owner', async () => {
+    const fixture = makeService();
+    await expect(fixture.service.completeOrder('order-1', 'system', 'SYSTEM', 'AUTO_COMPLETION')).rejects.toThrow('Auto-completion requires an active worker claim');
+    expect(fixture.transaction).not.toHaveBeenCalled();
+  });
   it('does not publish or emit realtime when a transactional shipment write fails', async () => {
     const fixture = makeService({ failShipmentEvent: true });
 

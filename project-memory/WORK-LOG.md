@@ -20,9 +20,17 @@
 - Main/develop diverged at last comparison: 11 commits unique to develop, 4 unique to main. Plan reconciliation after bounded PRs.
 - No database, migration, grant, RLS, Render setting, secret, worker activation, staging write, deployment, restart, provider call or business workflow was performed.
 
+### Durable auto-completion lease follow-up
+
+- Rechecked PR #154 head `a392c86e41bb8d777279010a57b98a76e02419af`, `develop` `fde20420bbb759d2e562f9ff747c9e824ac58e25`, and migration sequence (latest committed migration `0069`; PR #145 separately proposes `0070`).
+- Adapted lease mechanics from PR #138 without merging/cherry-picking it: atomic CTE claim, five-minute expiry, unique worker owner, owner-fenced completion inside PR #154's transaction, and owner-conditional release.
+- Added migration `0071_auto_complete_claim_leases.sql` with two nullable columns and a partial index; no grants, RLS, roles, default ACL or database operation is included.
+- Updated worker/service/schema, completion regression specs, remediation note and project-memory handoff. Exact commit/head and CI evidence will be appended after push and CI completion.
+- `DatabaseService` on PR #154 does not expose PR #138's `withActorContext` helper; it was not copied or referenced, avoiding an unsupported API.
+
 ### Next
 
-1. Run full exact-head CI for PR #154 after the fixture correction; inspect every failed job rather than relying only on the run conclusion.
+1. Run full exact-head CI for the durable-lease update to PR #154 and inspect every failed job rather than relying only on the run conclusion.
 2. Obtain independent review for #153 and #154. Merge #153 into develop first only after review/required approvals; then rebase/revalidate #154 against updated develop.
 3. Consolidate #150/#146 and #144/#139 after complete diff/scope review.
 4. Reconcile the migration-number collision between #145 and #138.

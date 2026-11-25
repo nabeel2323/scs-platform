@@ -31,13 +31,13 @@ The detailed remediation and product gap registers on the audit branch remain hi
 Two bounded implementation PRs are in progress:
 
 - PR #153, `fix(outbox): stop acknowledging events without delivery`, branch `fix/outbox-placeholder-dispatch-safety-2026-11-25`. Exact head `5294698d8db78e21df972e8ce6213f21237789fa`; CI run #1523 passed. Generic non-carrier event delivery is still NOT IMPLEMENTED; generic log-only acknowledgement is disabled and new non-carrier events remain PENDING. Vercel preview checks are blocked by the provider's build-rate-limit quota.
-- PR #154, `fix(orders): make order completion atomic`, branch `fix/order-completion-atomicity-2026-11-25`. It makes order/shipment/history/outbox/master-order writes atomic, records buyer confirmation in the same transaction, emits realtime only after commit, and removes the auto-complete worker's misleading updated_at mutation. It also locks the master-order row before reading its status. Latest implementation/test-fix head is recorded on the live PR; exact-head CI is pending after the test fixture correction.
+- PR #154, `fix(orders): make order completion atomic`, branch `fix/order-completion-atomicity-2026-11-25`. It makes order/shipment/history/outbox/master-order writes atomic, records buyer confirmation in the same transaction, emits realtime only after commit, and locks the master-order row before reading its status. Its durable-lease follow-up claims due orders atomically with a five-minute worker owner lease, fences completion by owner/expiry inside the transaction, and conditionally releases only the current worker's claim. Migration 0071 adds lease columns/index without changing grants or RLS. Latest implementation/test-fix head is recorded on the live PR; exact-head CI is pending after the test fixture correction.
 
 PR #154 CI run #1525 failed because 23 tests across the orders and stock-settlement integration fixtures used transaction mocks without an `execute()` method. The implementation's SQL row lock is intentional; both fixtures now provide a no-op execute mock so the existing mocked DB contract reflects the transaction API. Re-run full CI on the corrected exact head before considering merge. The previous green run #1524 does not validate later commits.
 
 ## Next actions
 
-1. Finish exact-head CI and review PR #154; keep it draft until all mandatory checks pass.
+1. Run full exact-head CI for the durable-lease update to PR #154 and inspect every failed job; keep it draft until all mandatory checks pass.
 2. PR #153 has passed exact-head CI but still needs independent review before merge.
 3. Merge PR #153 into develop only after review/required approvals; then rebase and revalidate PR #154 against the updated develop.
 4. Reconcile overlapping PRs #150/#146 (notifications) and #144/#139 (merchant offer tenant scope); do not merge both sides blindly.

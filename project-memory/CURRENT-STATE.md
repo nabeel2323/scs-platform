@@ -27,7 +27,9 @@ PR #147, #152 and #142 are merged into develop. PR #138 remains open/draft/unmer
 
 - Order state, shipment completion, shipment event, order status history, `order.completed` outbox event, buyer-confirmation timestamp (for buyer-confirmation source), and master-order recalculation/outbox are in one transaction.
 - Realtime `order:updated` is emitted only after commit.
-- AutoCompleteWorker candidate selection no longer mutates `orders.updated_at`; conditional status transition remains the authoritative cross-instance guard. This is not a durable worker lease.
+- AutoCompleteWorker persists a five-minute owner/timestamp lease using an atomic CTE claim (`FOR UPDATE SKIP LOCKED` + `UPDATE`); it does not mutate `orders.updated_at`.
+- `completeOrder()` requires the lease owner for `AUTO_COMPLETION`, checks matching owner plus unexpired lease in the same transaction as the status transition, and clears lease fields atomically. Buyer confirmation also clears claims while competing through the status guard.
+- Migration `0071_auto_complete_claim_leases.sql` adds two nullable columns and a partial claimability index; it is separate from the pending `0070` function `search_path` hardening migration.
 - Master-order row is locked before reading its current status, preventing stale pre-lock status snapshots in concurrent sub-order completion flows.
 - CI #1524 passed on earlier head `40e7d6891b625e524d1ddd0354fedfa91dd1c8f1`; it does not validate later changes.
 - CI #1525 on head `fb68724bcc67ecfc02c1a92edeff41bc1a697954` failed: 23 tests across `orders.integration.spec.ts` and `stock-settlement.integration.spec.ts` failed because mock transaction objects lacked `execute()`. Both fixture files were corrected to provide `execute: vi.fn().mockResolvedValue({ rows: [] })`.
