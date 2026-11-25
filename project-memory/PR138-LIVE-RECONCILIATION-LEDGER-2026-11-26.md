@@ -74,3 +74,26 @@ Do not extract/apply this sequence yet. Migration 0070 collides with PR #145's d
 - This ledger is a source reconciliation record, not a claim that code was integrated, tested, reviewed, deployed or approved.
 - PR #138 remains draft and unmerged. Keep its source and preservation refs intact.
 - Keep independent security review and staging/database/migration/RLS/worker/deployment gates in force.
+
+
+## Reconciliation implementation update — 26 November 2026
+
+A first develop-only delta has now been composed into the preserved PR #138 source branch without rebasing or replacing its actor-context implementation:
+
+- Added `apps/api/src/common/database/runtime-database-identity.ts` and the develop-side unit/PostgreSQL tests to the PR #138 branch.
+- Critical review found that develop's original helper query omitted `owns_public_tables` and `owns_public_schema`, even though PR #138's fail-closed startup guard checks both. The helper has been extended to query and return both ownership flags. This prevents the refactor from silently weakening the production startup guard.
+- `logRuntimeDatabaseIdentity` now returns the identity or `null`; it remains non-throwing and redacts connection errors. The production-like startup gate in DatabaseService remains authoritative and refuses startup when the identity is unavailable or unsafe.
+- DatabaseService now uses the shared helper/query while preserving the PR #138 checks for session/effective role mismatch, superuser, BYPASSRLS, CREATEROLE, CREATEDB, public table/schema ownership and verified TLS.
+- Unit and PostgreSQL integration fixtures now assert ownership flags and the helper's return contract.
+
+Commits on `remediation/phase-0-1-tenant-security`:
+- `87b274f34c68a8068959dd9caf2900372d7353c7` — add shared runtime identity helper with ownership checks.
+- `c1039fcb59fe14769e89708d9876e9016fd2894c` — extend unit tests for identity result/null behavior.
+- `deaf43df388d75a334c51c798116849237797b72` — extend PostgreSQL login/effective-role and ownership assertions.
+- `3f09bb084542431d1ab87345110ac973fe072691` — compose shared helper into DatabaseService while retaining strict startup checks.
+
+**Verification:** no test runner, formatter, typecheck, build or CI was run; this source change is NOT TESTED / NOT CI-VERIFIED. All four commits use `[skip ci]` in keeping with the agreed CI budget. The preservation branch was fast-forwarded from `dc6bf34b33851af5b542a44774a3fd0434e4e606` to `3f09bb084542431d1ab87345110ac973fe072691` using expected-SHA protection.
+
+## Outbox canonicalization finding
+
+PR #153 head `5294698d8db78e21df972e8ce6213f21237789fa` uses the safer current behavior: it disables the generic placeholder poller and leaves events PENDING because no generic delivery adapter exists. Its test explicitly asserts that no timer/poller starts and that writes remain PENDING. Therefore, do not extract PR #138's log-only poller/worker-claim loop as the canonical generic outbox implementation. Retain the worker actor-context design as a future integration requirement for a real adapter, and reconcile it with PR #153 and carrier-worker ownership before enabling any polling. PR #154 remains the separate auto-completion lease workstream.
