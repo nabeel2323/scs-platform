@@ -38,7 +38,7 @@ PR #154 moves the order flip, shipment completion record, order status history, 
 ## Evidence limits
 
 - CI #1509 verifies the develop baseline only, not PR #153 or #154.
-- Focused regression specs for the outbox and order completion changes, including the buyer-confirmation rollback case, are authored but not yet executed.
+- Focused regression specs for the outbox and order completion changes, including the buyer-confirmation rollback case, are authored but not yet executed. CI run #1514 on the previous PR #154 head failed typecheck at the master-order sub-order status mapping; the implicit-any mapping has been explicitly typed in the latest commit. The new head requires fresh CI.
 - PR #153 had Vercel web success and Vercel admin failure due to a reported build-rate-limit/plan response at the last check; GitHub Actions had no run for its `[skip ci]` commits.
 - No deployment or staging runtime verification of either branch has occurred.
 - No staging database or Render configuration changes were made by this work.
