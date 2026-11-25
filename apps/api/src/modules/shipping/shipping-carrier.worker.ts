@@ -273,7 +273,11 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           lockedAt: null,
           lockedBy: null,
         })
-        .where(eq(outboxEvents.id, eventId)));
+        .where(and(
+          eq(outboxEvents.id, eventId),
+          eq(outboxEvents.status, 'PROCESSING'),
+          eq(outboxEvents.lockedBy, this.workerId),
+        )));
     } catch (err: any) {
       await this.handleFailure(eventId, event, err);
     }
@@ -1332,7 +1336,11 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         lockedAt: null,
         lockedBy: null,
       })
-      .where(eq(outboxEvents.id, eventId)));
+      .where(and(
+        eq(outboxEvents.id, eventId),
+        eq(outboxEvents.status, 'PROCESSING'),
+        eq(outboxEvents.lockedBy, this.workerId),
+      )));
 
     this.logger.error(
       `Carrier event ${event.eventType} failed (attempt ${attempts}): ` +
