@@ -307,3 +307,11 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 - Tests/typecheck/CI have not been run for this source batch. It remains implementation-in-progress; do not merge or deploy based on source review alone.
 - The currently deployed staging API remains on develop SHA `fde20420...` and continues to report `postgres`, `BYPASSRLS=true`, `ssl=false`. The new guard is not deployed. Deploying it before the dedicated runtime role is provisioned will intentionally fail startup. Do not deploy until the role and TLS secret-file configuration are ready.
 - No database role/grant/RLS/migration or Render environment setting has been changed. The user authorized staging DB changes, but Render environment changes remain unapproved.
+
+
+## 26 November 2026 — catalog import actor-context review
+
+- Re-verified PR #138 OPEN/DRAFT/UNMERGED at `af29841dc9f6e9668bf3630a2bd609c61f96bd8b`, `develop` at `fde20420bbb759d2e562f9ff747c9e824ac58e25`, compare 2,805 ahead / 3 behind from merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`, preservation ref identical, and no exact-head Actions run. Only Vercel Web/Admin build-rate-limit statuses are present.
+- Reviewed the catalog import controller routes, service methods and tenant DB interceptor. Authenticated import routes either use the interceptor or explicitly establish a short user actor scope; service DB phases are actor-scoped, while Redis/object storage/XLSX parsing/CSV serialization remain outside DB transactions. No missing actor context was identified in the reviewed import route set.
+- Several service methods rely on their current controller call sites to provide context (`updateImportMapping`, `cancelImport`, `retryFailedJob`, `getImportJob`, `getChunks`); preserve this contract and test any future non-controller caller.
+- This was source review only. No code or external state was changed; no tests/typecheck/build/CI were run. Continue the broader catalog and worker call-graph audit before declaring G-002 complete.
