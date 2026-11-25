@@ -131,7 +131,7 @@ async function bootstrap() {
           ? { target: 'pino-pretty', options: { colorize: true, translateTime: 'SYS:standard' } }
           : undefined,
       redact: {
-        paths: HTTP_LOG_REDACT_PATHS,
+        paths: [...HTTP_LOG_REDACT_PATHS],
         censor: '[REDACTED]',
       },
       serializers: {
