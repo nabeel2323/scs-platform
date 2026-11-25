@@ -238,8 +238,8 @@ describe('IdentityService — N+1 elimination (P2)', () => {
         },
       ]);
       mocks.db.query.organizations.findMany.mockResolvedValue([
-        { id: 'org-1', name: 'Alpha' },
-        { id: 'org-2', name: 'Beta' },
+        { id: 'org-1', name: 'Alpha', isActive: true },
+        { id: 'org-2', name: 'Beta', isActive: true },
       ]);
       // getProfile also resolves the active role's permission keys (RBAC GAP-6).
       mocks.db.query.roles.findFirst.mockResolvedValue({ id: 'role-1', key: 'MERCHANT_OWNER' });
