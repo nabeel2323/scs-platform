@@ -1,3 +1,16 @@
+## 25 November 2026 — continuation update (latest source commit b535140b3d88711457aedd204594c2ba7e56d3a9)
+
+- PR #154 remains OPEN / DRAFT / UNMERGED against develop. Its previous exact-head CI run #1548 passed on source head cd1735c0cad7c36f6f6096cec6b719844c09b0d5; the newly authored PostgreSQL concurrency tests are not included in that CI result.
+- Added two real PostgreSQL integration scenarios to m73a-delivery-completion.postgres.spec.ts: (1) two independent AutoCompleteWorker instances concurrently claim one due order and exactly one persists ownership; (2) a simulated crashed worker's expired lease is reclaimed by another worker, the stale owner is rejected by completeOrder, and the new owner completes while the lease fields are cleared.
+- New source/test commit: b535140b3d88711457aedd204594c2ba7e56d3a9. Commit uses [skip ci] intentionally so this related implementation/documentation batch can be completed before one consolidated verification run. Tests have NOT been executed; no exact-head CI result exists for b535140 yet.
+- PR #154's reviewer-identified concurrency gap is now addressed in test source, pending full CI and independent review. Keep PR draft until both are complete.
+- PR #138 audit: current PR head 16846152af71524f29047b704159f52ab0d73e75, OPEN / DRAFT / UNMERGED, 1,927 changed files (1,277 under .m73b6-scratch, plus a root test-token.txt path). It is 3 commits behind develop and the branch comparison reports 2,742 commits ahead; no CI Actions run is associated with the current head. The preservation ref preservation/pr138-remediation-2026-11-25 is 22 commits behind the current PR branch, so the earlier “exact-head preservation” note is stale. Do not merge either ref wholesale, do not expose or copy token-like artifacts, and reconcile the refs before any extraction.
+- PR #153 exact-head Actions run #1523 passed, but independent review remains outstanding. Its discussion also records a mismatch between the PR head and the named branch ref; reconcile before any write or merge.
+- PR #155 exact-head run #1547 passed. PR #156 exact-head run #1541 passed. Both remain drafts pending independent review and their documented follow-up decisions. PR #152 is already merged; do not repeat OTP-provider log redaction.
+- main and develop remain diverged: last comparison showed 11 commits unique to develop and 4 unique to main. Release promotion remains blocked pending an explicit integration/reconciliation plan.
+- No merge, shared/staging database write, migration, grant/RLS/role/default-ACL change, Render setting change, restart, worker activation, credential rotation, deployment, or business workflow occurred.
+- CI policy reaffirmed: author and review related source/tests first; use local/targeted checks where available; batch docs with the implementation; use [skip ci] during the implementation batch; run one consolidated full CI on the resulting exact head. Never count skipped jobs as passes.
+
 # SCS Platform — Start Here
 
 **Last updated:** 25 November 2026  
