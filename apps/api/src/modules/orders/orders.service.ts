@@ -333,7 +333,7 @@ export class OrdersService {
       );
       if (existingByKey && existingByKey['status'] !== 'DRAFT') {
         const storedFp = existingByKey['requestFingerprint'] as string | null;
-        if (!storedFp) return this.getMasterOrder(existingByKey['id']);
+        if (!storedFp) return this.withUserActorContext(actor, () => this.getMasterOrder(existingByKey['id']));
         // Non-legacy: check if an active cart exists for fingerprint comparison.
         // No active cart → the cart was already converted → this is a retry.
         const activeCart = await this.withUserActorContext(actor, () =>
@@ -341,7 +341,7 @@ export class OrdersService {
             where: and(eq(carts.userId, input.buyerId), eq(carts.status, 'ACTIVE')),
           }),
         );
-        if (!activeCart) return this.getMasterOrder(existingByKey['id']);
+        if (!activeCart) return this.withUserActorContext(actor, () => this.getMasterOrder(existingByKey['id']));
         // Active cart exists → fall through to load items, compute fingerprint, compare.
       }
     }
@@ -610,8 +610,8 @@ export class OrdersService {
             detail: 'This idempotency key was already used for a different checkout operation',
           });
         }
-        if (!storedFp) return this.getMasterOrder(existingByKey['id']); // Legacy
-        return this.getMasterOrder(existingByKey['id']); // Fingerprint matches
+        if (!storedFp) return this.withUserActorContext(actor, () => this.getMasterOrder(existingByKey['id'])); // Legacy
+        return this.withUserActorContext(actor, () => this.getMasterOrder(existingByKey['id'])); // Fingerprint matches
       }
     }
 
@@ -952,9 +952,14 @@ export class OrdersService {
       // PHASE 1.1: Also compare fingerprints — if the concurrent request had a
       // different logical intent, throw 409 instead of silently returning.
       if (input.idempotencyKey && err?.code === '23505') {
-        const existing = await this.db.db.query.masterOrders.findFirst({
-          where: eq(masterOrders.idempotencyKey, input.idempotencyKey),
-        });
+        const existing = await this.withUserActorContext(actor, () =>
+          this.db.db.query.masterOrders.findFirst({
+            where: and(
+              eq(masterOrders.idempotencyKey, input.idempotencyKey),
+              eq(masterOrders.buyerId, input.buyerId),
+            ),
+          }),
+        );
         if (existing && existing['status'] !== 'DRAFT') {
           const storedFp = existing['requestFingerprint'] as string | null;
           if (storedFp && requestFingerprint && storedFp !== requestFingerprint) {
@@ -965,7 +970,7 @@ export class OrdersService {
               detail: 'This idempotency key was already used for a different checkout operation',
             });
           }
-          return this.getMasterOrder(existing['id']);
+          return this.withUserActorContext(actor, () => this.getMasterOrder(existing['id']));
         }
       }
       throw err; // Re-throw if not an idempotency conflict
@@ -979,7 +984,9 @@ export class OrdersService {
       const sub = subOrderData.find((s) => s.storeId === storeId);
       if (promo && discount > 0 && sub) {
         try {
-          await this.promotions.redeemPromotion(promo['id'], input.buyerId, sub.id, discount);
+          await this.withUserActorContext(actor, () =>
+            this.promotions.redeemPromotion(promo['id'], input.buyerId, sub.id, discount),
+          );
         } catch {
           /* best-effort — order is already committed */
         }
@@ -991,7 +998,7 @@ export class OrdersService {
     // checkout above, so no best-effort state mutation remains after commit.
     for (const sub of subOrderData) {
       if (paymentMethod !== 'BANK_TRANSFER') {
-        await this.autoAdvanceToPendingConfirmation(sub.id, input.buyerId, sub.storeId);
+        await this.autoAdvanceToPendingConfirmation(sub.id, input.buyerId, sub.storeId, actor);
       }
     }
 
@@ -1016,9 +1023,9 @@ export class OrdersService {
         /* realtime is best-effort — never fail a placed order */
       }
     }
-    await this.notifyStoreMerchants(masterId, subOrderData, orgIdByStore);
+    await this.notifyStoreMerchants(masterId, subOrderData, orgIdByStore, actor);
 
-    return this.getMasterOrder(masterId);
+    return this.withUserActorContext(actor, () => this.getMasterOrder(masterId));
   }
 
   /**
