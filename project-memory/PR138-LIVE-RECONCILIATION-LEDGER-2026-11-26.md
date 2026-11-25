@@ -217,3 +217,13 @@ All changes are source/test authoring only. No test, lint, typecheck, formatter,
 - Financial reconciliation intentionally supports null/global scope for platform roles; non-platform HTTP callers are denied without activeOrg by `financialOrgScope` and the ReturnsController has class-level tenant actor interception. Preserve that distinction in the RLS/policy design.
 - Full 75-migration/schema FK inventory and remaining catalog/inventory/document/settlement ownership chains remain open. This crosswalk is partial source evidence only.
 - No tests or DB/catalog/migration/provider/storage/worker/deployment actions occurred.
+
+
+## Final checkpoint — 26 November 2026
+
+- PR #138 source head at this checkpoint: `e410bf44b272eafb8e762636b66877f9e0c4b230`; OPEN / DRAFT / UNMERGED, base `develop`, GitHub mergeable=false.
+- Preservation ref `preservation/pr138-remediation-2026-11-25` is identical to this exact head (0 ahead / 0 behind).
+- Changed paths: 1,940 total, 1,280 scratch, 660 non-scratch. The non-scratch set still contains unrelated work; the G-002 manifest selects only bounded dependencies.
+- `develop` remains `fde20420bbb759d2e562f9f747c9e824ac58e25` (correct exact SHA: `fde20420bbb759d2e562f9f747c9e824ac58e25`); source is diverged 2,852 ahead / 3 behind from merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
+- Exact-head Actions has no runs. Combined statuses contain only Vercel Web/Admin build-rate-limit failures. Worker-fencing changes and all authored tests remain NOT TESTED / NOT CI-VERIFIED.
+- No DB/catalog access, migration, grant/default-ACL/RLS change, provider/storage call, worker activation, bootstrap, deployment or merge occurred.
