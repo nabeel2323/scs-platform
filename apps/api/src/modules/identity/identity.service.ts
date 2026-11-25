@@ -1080,7 +1080,7 @@ export class IdentityService {
     // deactivation. Project a merchant role only from a currently ACTIVE
     // membership whose organization is still active.
     const activeMemberships = memberships.filter(
-      (m) => m.status === 'ACTIVE' && orgById.get(m.orgId)?.isActive !== false,
+      (m) => m.status === 'ACTIVE' && orgById.get(m.orgId)?.isActive === true,
     );
     const resolvedActiveOrgId =
       activeOrgId == null
