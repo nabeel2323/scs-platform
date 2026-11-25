@@ -170,7 +170,8 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     }
 
     // ── Instantiate services ────────────────────────────────────────
-    database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
     conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
     catalog = new CatalogService(
@@ -587,7 +588,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   describe('Scenario F — Buyer search', () => {
     beforeAll(async () => {
       // Publish the product so search can find it (PUBLISHED required for buyer visibility)
-      await catalog.updateProduct(productId, { status: 'ACTIVE' });
+      await catalog.updateProduct(productId, { status: 'ACTIVE' }, undefined, callerA());
     });
 
     it('finds Laptop Pro X via text search', async () => {
@@ -621,7 +622,11 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
 
   describe('Scenario G — Buyer product detail', () => {
     it('resolves the canonical product with variants and attribute values', async () => {
-      const detail = await catalog.getProductDetail(productId);
+      const detail = await catalog.getProductDetail(productId, {
+        sub: buyerUser,
+        role: 'BUYER',
+        activeOrg: null,
+      });
       expect(detail.id).toBe(productId);
       expect(detail.title).toBe('Laptop Pro X');
       expect(detail.variants).toHaveLength(3);
@@ -690,7 +695,9 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       ]);
 
       // Attempt to publish → should fail
-      await expect(catalog.updateProduct(badProduct.id, { status: 'ACTIVE' })).rejects.toThrow();
+      await expect(
+        catalog.updateProduct(badProduct.id, { status: 'ACTIVE' }, undefined, callerA()),
+      ).rejects.toThrow();
     });
 
     it('succeeds when warranty_period is provided', async () => {
@@ -712,7 +719,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       ]);
 
       // Should succeed
-      const result = await catalog.updateProduct(goodProduct.id, { status: 'ACTIVE' });
+      const result = await catalog.updateProduct(goodProduct.id, { status: 'ACTIVE' }, undefined, callerA());
       expect(result.status).toBe('ACTIVE');
     });
 
@@ -734,7 +741,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
         // warranty_period intentionally missing — should be OK
       ]);
 
-      const result = await catalog.updateProduct(noWarrantyProduct.id, { status: 'ACTIVE' });
+      const result = await catalog.updateProduct(noWarrantyProduct.id, { status: 'ACTIVE' }, undefined, callerA());
       expect(result.status).toBe('ACTIVE');
     });
   });
