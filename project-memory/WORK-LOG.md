@@ -296,3 +296,10 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 
 - Replaced explicit `any[]` in the auto-completion worker test mock with `unknown[]`; behavior and assertions are unchanged. Commit: `2c412732dbbbbde742d43e60f5d2593552aea3cb`.
 - This remains unexecuted source/test authoring. No test runner, typecheck, formatter, build or CI was run.
+
+
+## 26 November 2026 — migration reconciliation
+
+- Consolidated PR #145's `normalize_arabic` search_path postcondition into PR #138 migration 0070. Keep one 0070; standalone #145 migration is excluded from the integration slice. PR #138/#154 0071 DDL is duplicate and must appear once.
+- Reviewed migration runner: advisory lock across ledger/apply sequence; each migration plus ledger insert is atomic per file; dry-run only checks nonempty SQL. 0072–0075 remain source-only pending isolated PostgreSQL validation and data/rollback review.
+- No SQL, migration, DB write, grant/default-ACL/RLS change, deployment or worker action occurred. No tests/typecheck/CI run. Next: complete G-002 migration manifest and validation plan.
