@@ -335,7 +335,6 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 - Develop `fde20420bbb759d2e562f9ff747c9e824ac58e25`; divergence 2,852 ahead / 3 behind from merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
 - No exact-head Actions run; Vercel Web/Admin build-rate-limit statuses only. No tests or CI run for current worker-fencing/test-fixture changes.
 - No database/migration/grant/RLS/provider/storage/worker/deployment/merge action. Next: finish the full FK and raw SQL/function/trigger/partition inventory, then build bounded integration branches from refreshed develop and run one consolidated CI campaign.
-undefined
 
 ## 26 November 2026 — foundational commerce migration crosswalk
 
@@ -345,3 +344,14 @@ Continued G-002 static review across migrations 0001–0006 and 0008–0011. Add
 ## 26 November 2026 — commerce service callsite spot-check
 
 Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller paths identified positive store/tenant guards and remaining internal-callsite gaps. Inventory caller-optional methods, pricing controller-dependent authorization, cart getCart-by-ID helper exposure, checkout lineage revalidation and catalog update/import/media/category-parent operations remain open. No source change, tests, CI, DB operation, migration, RLS/grant change, deployment or merge occurred. Full G-002 audit remains partial.
+
+
+## 26 November 2026 — migration and service-boundary audit continuation
+
+- Reverified PR #138 at `98694426f87ec3142042bbad221819968bdd5160`, OPEN / DRAFT / UNMERGED, mergeable=false; `develop` `fde20420bbb759d2e562f9ff747c9e824ac58e25`; 2,874 ahead / 3 behind from merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`; preservation branch identical; exact-head Actions no runs; Vercel Web/Admin rate-limit failures only.
+- Reviewed migrations 0007 and 0012–0053, completing the remaining source-review sequence when combined with the earlier reviewed groups and the existing 75-migration static FK scan (183 REFERENCES across 40 files). This is not a live catalog verification.
+- Added crosswalk findings for analytics partitions/retention, catalog import actor scopes, merchant offer lineage, cart/order offer revalidation, shipping zone/method and driver/store checks, and 0053 backfill transaction semantics.
+- Open questions: analytics event counts have no org predicate (verify analytics:read is platform-only or add tenant scope); promotion redemption service should independently validate buyer/order/store against promotion; internal caller inventory remains open for optional inventory helpers and pricing controller-dependent authorization. Continue raw SQL/function/trigger/partition consumer audit.
+- No tests, CI, database/catalog access, migration, grants/default ACL/RLS, staging/shared DB write, storage/provider call, worker activation, bootstrap, deployment or merge occurred.
+
+**Next:** resolve these service-level questions, finish the internal-callsite/raw-query inventory, reconcile develop-only commits and build a file-by-file bounded extraction ledger. CI stays deferred until the slice is assembled.
