@@ -1,3 +1,5 @@
+import { P13_RETURN_EXPIRATION_LEASE_KEY } from '../../common/worker/worker-lease.constants';
+
 /**
  * P13 Phase 4 — Operational configuration.
  *
@@ -15,7 +17,7 @@
  */
 
 /** The single protected P13 background job guarded by the lease. */
-export const P13_LEASE_KEY = 'p13-return-expiration';
+export const P13_LEASE_KEY = P13_RETURN_EXPIRATION_LEASE_KEY;
 
 /** The single durable control that pauses P13 background processing. */
 export const P13_PAUSE_CONTROL_KEY = 'p13.worker.paused';

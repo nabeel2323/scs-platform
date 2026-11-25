@@ -2,9 +2,29 @@
 # P12 Migration verification runner — applies 0001..0058 to scs_p12_verify
 # Skips 0013_analytics.sql and 0018_analytics_retention.sql (require pg_partman)
 set -e
+. "$(dirname "$0")/assert-verification-target.sh"
+assert_verification_target scs_p12_verify scs
 DB=scs_p12_verify
 USR=scs
 DIR=/tmp/p12verify-migrations
+
+apply_transactionally() {
+  source_file="$1"
+  temp_sql=$(mktemp)
+  {
+    printf '%s\n' 'BEGIN;' 'SELECT pg_advisory_xact_lock(5456723, 1);'
+    cat "$source_file"
+    printf '%s\n' 'COMMIT;'
+  } > "$temp_sql"
+  output=$(psql -X -U "$USR" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$temp_sql" 2>&1)
+  result=$?
+  rm -f "$temp_sql"
+  if [ "$result" -ne 0 ]; then
+    printf '%s\n' "$output" >&2
+    return "$result"
+  fi
+  return 0
+}
 
 echo "=== FRESH DATABASE: applying 0001 -> 0058 ==="
 FAILED=0
@@ -17,11 +37,11 @@ for f in $(ls "$DIR"/*.sql | sort); do
       continue
       ;;
   esac
-  if psql -U "$USR" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f" >/dev/null 2>&1; then
+  if output=$(apply_transactionally "$f" 2>&1); then
     APPLIED=$((APPLIED + 1))
   else
     echo "FAIL: $name"
-    psql -U "$USR" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$f" 2>&1 | tail -5
+    printf '%s\n' "$output" | tail -10
     FAILED=$((FAILED + 1))
   fi
 done
@@ -29,11 +49,11 @@ echo "APPLIED=$APPLIED FAILED=$FAILED"
 
 echo ""
 echo "=== IDEMPOTENT RERUN: applying 0058 again ==="
-if psql -U "$USR" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$DIR/0058_payment_financial_architecture.sql" >/dev/null 2>&1; then
+if output=$(apply_transactionally "$DIR/0058_payment_financial_architecture.sql" 2>&1); then
   echo "RERUN_0058=OK"
 else
   echo "RERUN_0058=FAIL"
-  psql -U "$USR" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$DIR/0058_payment_financial_architecture.sql" 2>&1 | tail -10
+  printf '%s\n' "$output" | tail -10
 fi
 
 echo ""

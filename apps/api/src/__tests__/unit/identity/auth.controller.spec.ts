@@ -147,10 +147,13 @@ describe('AuthController', () => {
       payload({ sub: 'u9', sid: 'sess-9', jti: 'jti-9', exp: 42 }),
       { orgId: 'org-2' } as any,
     );
-    expect(svc.switchOrg).toHaveBeenCalledWith('u9', 'org-2', 'sess-9', {
-      jti: 'jti-9',
-      exp: 42,
-    });
+    expect(svc.switchOrg).toHaveBeenCalledWith(
+      'u9',
+      'org-2',
+      { role: 'OWNER', activeOrg: 'org-1' },
+      'sess-9',
+      { jti: 'jti-9', exp: 42 },
+    );
   });
 
   it('loginPassword forwards credentials + device + context + presented credential', async () => {
@@ -373,7 +376,10 @@ describe('AuthController', () => {
         payload({ sub: 'u7' }),
         { email: 'new@example.com', otp: '654321' } as any,
       );
-      expect(svc.linkEmailToAccount).toHaveBeenCalledWith('u7', 'new@example.com', '654321');
+      expect(svc.linkEmailToAccount).toHaveBeenCalledWith('u7', 'new@example.com', '654321', {
+        role: 'OWNER',
+        activeOrg: 'org-1',
+      });
     });
 
     it('linkPhone forwards the caller sub plus the OTP proof of control (S1.37-F-05)', async () => {
@@ -381,15 +387,24 @@ describe('AuthController', () => {
         payload({ sub: 'u8' }),
         { phone: '+966500000001', otp: '654321' } as any,
       );
-      expect(svc.linkPhoneToAccount).toHaveBeenCalledWith('u8', '+966500000001', '654321');
+      expect(svc.linkPhoneToAccount).toHaveBeenCalledWith('u8', '+966500000001', '654321', {
+        role: 'OWNER',
+        activeOrg: 'org-1',
+      });
     });
 
     it('remaining account routes forward the caller sub only', async () => {
       await controller.unlinkEmail(payload({ sub: 'u8' }));
-      expect(svc.unlinkEmailFromAccount).toHaveBeenCalledWith('u8');
+      expect(svc.unlinkEmailFromAccount).toHaveBeenCalledWith('u8', {
+        role: 'OWNER',
+        activeOrg: 'org-1',
+      });
 
       await controller.unlinkPhone(payload({ sub: 'u8' }));
-      expect(svc.unlinkPhoneFromAccount).toHaveBeenCalledWith('u8');
+      expect(svc.unlinkPhoneFromAccount).toHaveBeenCalledWith('u8', {
+        role: 'OWNER',
+        activeOrg: 'org-1',
+      });
     });
   });
 

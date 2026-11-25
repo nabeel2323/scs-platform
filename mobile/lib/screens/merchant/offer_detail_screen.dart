@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -29,50 +30,53 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
   Widget build(BuildContext context) {
     final offerAsync = ref.watch(merchantOfferDetailProvider(widget.offerId));
     final analyticsAsync = ref.watch(merchantOfferAnalyticsProvider);
+    final canWriteOffers = ref.watch(profileProvider).valueOrNull
+            ?.hasPermission('catalog:offers:write') ??
+        false;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Offer Detail'),
         actions: [
           IconButton(
+            tooltip: 'Refresh offer',
             icon: const Icon(Icons.refresh),
-            onPressed: () {
-              ref.invalidate(merchantOfferDetailProvider(widget.offerId));
-              ref.invalidate(merchantOfferAnalyticsProvider);
-            },
+            onPressed: _refreshOffer,
           ),
         ],
       ),
       body: offerAsync.when(
+        skipLoadingOnRefresh: true,
+        skipLoadingOnReload: true,
+        skipError: true,
         loading: () => const LoadingSpinner(),
         error: (e, _) => AppErrorState(
           title: 'Could not load offer',
           message: ApiService.errorMessage(e),
-          onRetry: () =>
-              ref.invalidate(merchantOfferDetailProvider(widget.offerId)),
+          onRetry: () => ref.invalidate(
+            merchantOfferDetailProvider(widget.offerId),
+          ),
         ),
         data: (offer) {
-          // Find matching analytics row for this offer.
-          OfferAnalyticsRow? analytics;
-          analyticsAsync.whenData((rows) {
-            for (final r in rows) {
-              if (r.offerId == offer.id) {
-                analytics = r;
-                return;
-              }
-            }
-          });
-
+          final analytics = _analyticsFor(
+            analyticsAsync.valueOrNull,
+            offer.id,
+          );
           return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(merchantOfferDetailProvider(widget.offerId));
-              ref.invalidate(merchantOfferAnalyticsProvider);
-              await ref
-                  .read(merchantOfferDetailProvider(widget.offerId).future);
-            },
+            onRefresh: _refreshOffer,
             child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
               children: [
+                if (offerAsync.isRefreshing || offerAsync.hasError)
+                  _readNotice(
+                    offerAsync.isRefreshing
+                        ? 'Refreshing offer… showing the last successfully loaded offer.'
+                        : 'Could not refresh offer: ${ApiService.errorMessage(offerAsync.error!)}. Showing the last successfully loaded offer.',
+                    () => ref.invalidate(
+                      merchantOfferDetailProvider(widget.offerId),
+                    ),
+                  ),
                 // Status + product header
                 _header(offer, analytics),
                 const SizedBox(height: 16),
@@ -86,7 +90,7 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
                 const SizedBox(height: 12),
 
                 // Analytics card
-                _analyticsCard(offer, analytics),
+                _analyticsStateCard(offer, analyticsAsync),
                 const SizedBox(height: 12),
 
                 // Trend chart
@@ -98,7 +102,7 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
                 const SizedBox(height: 16),
 
                 // Action buttons
-                _actionBar(offer),
+                _actionBar(offer, canWriteOffers),
               ],
             ),
           );
@@ -106,6 +110,64 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
       ),
     );
   }
+
+  Future<void> _refreshRead<T>(Future<T> read) async {
+    try {
+      await read;
+    } catch (_) {
+      // Offer and analytics are independent reads; preserve each provider's
+      // last successful value when one source is unavailable.
+    }
+  }
+
+  Future<void> _refreshOffer() async {
+    await Future.wait<void>([
+      _refreshRead(
+        ref.refresh(merchantOfferDetailProvider(widget.offerId).future),
+      ),
+      _refreshRead(ref.refresh(merchantOfferAnalyticsProvider.future)),
+      _refreshRead(
+        ref.refresh(merchantOfferTrendProvider((
+          offerId: widget.offerId,
+          granularity: _trendGranularity,
+          days: _trendDays,
+        )).future),
+      ),
+    ]);
+  }
+
+  OfferAnalyticsRow? _analyticsFor(
+    List<OfferAnalyticsRow>? rows,
+    String offerId,
+  ) {
+    if (rows == null) return null;
+    for (final row in rows) {
+      if (row.offerId == offerId) return row;
+    }
+    return null;
+  }
+
+  Widget _readNotice(String message, VoidCallback onRetry) => Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: TaifTokens.err.withValues(alpha: 0.06),
+          border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+              ),
+            ),
+            TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
+      );
 
   // ── Header ──────────────────────────────────────────────────────
 
@@ -216,13 +278,99 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
           if (offer.warehouseId != null)
             _row('Warehouse', offer.warehouseId!.substring(0, 8)),
           if (offer.priceListId != null)
-            _row('Price List', offer.priceListId!.substring(0, 8)),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.price_change_outlined, color: TaifTokens.info),
+              title: const Text('Manage linked price list'),
+              subtitle: Text(offer.priceListId!.substring(0, 8)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/merchant/pricing/${offer.priceListId}'),
+            ),
           if (offer.externalRef != null)
             _row('External Ref', offer.externalRef!),
         ],
       );
 
   // ── Analytics ───────────────────────────────────────────────────
+
+  Widget _analyticsStateCard(
+      MerchantOffer offer, AsyncValue<List<OfferAnalyticsRow>> analyticsAsync) {
+    return analyticsAsync.when(
+      skipLoadingOnRefresh: true,
+      skipError: true,
+      loading: () => _sectionCard(
+        title: 'PERFORMANCE',
+        icon: Icons.analytics_outlined,
+        children: const [
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ],
+      ),
+      error: (error, _) => _sectionCard(
+        title: 'PERFORMANCE',
+        icon: Icons.analytics_outlined,
+        children: [
+          const Text(
+            'Performance metrics are unavailable. No zero-sales result is assumed.',
+            style: TextStyle(fontSize: 13, color: TaifTokens.muted),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => ref.invalidate(merchantOfferAnalyticsProvider),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Retry performance'),
+            ),
+          ),
+        ],
+      ),
+      data: (rows) {
+        OfferAnalyticsRow? analytics;
+        for (final row in rows) {
+          if (row.offerId == offer.id) {
+            analytics = row;
+            break;
+          }
+        }
+        if (analytics == null) {
+          return _sectionCard(
+            title: 'PERFORMANCE',
+            icon: Icons.analytics_outlined,
+            children: [
+              const Text(
+                'No performance record was returned for this offer. Sales are not assumed to be zero.',
+                style: TextStyle(fontSize: 13, color: TaifTokens.muted),
+              ),
+              TextButton.icon(
+                onPressed: () => ref.invalidate(merchantOfferAnalyticsProvider),
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Retry performance'),
+              ),
+            ],
+          );
+        }
+        final card = _analyticsCard(offer, analytics);
+        if (!analyticsAsync.isRefreshing && !analyticsAsync.hasError) {
+          return card;
+        }
+        return Column(
+          children: [
+            _readNotice(
+              analyticsAsync.isRefreshing
+                  ? 'Refreshing offer performance… showing the last successful metrics.'
+                  : 'Could not refresh offer performance: ${ApiService.errorMessage(analyticsAsync.error!)}. Showing the last successful metrics.',
+              () => ref.invalidate(merchantOfferAnalyticsProvider),
+            ),
+            card,
+          ],
+        );
+      },
+    );
+  }
 
   Widget _analyticsCard(MerchantOffer offer, OfferAnalyticsRow? analytics) {
     final orders = analytics?.ordersCount ?? 0;
@@ -289,17 +437,56 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
         const SizedBox(height: 12),
         // Chart
         trendAsync.when(
+          skipLoadingOnRefresh: true,
+          skipError: true,
           loading: () => const SizedBox(
             height: 160,
             child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
           ),
-          error: (e, _) => const Text('Trend unavailable',
-              style: TextStyle(fontSize: 13, color: TaifTokens.muted)),
-          data: (points) => TrendChart(
-            points: points,
-            metric: _trendMetric,
-            currency: offer.currency,
+          error: (e, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Trend unavailable: ${ApiService.errorMessage(e)}',
+                style: const TextStyle(fontSize: 13, color: TaifTokens.muted),
+              ),
+              TextButton.icon(
+                onPressed: () => ref.invalidate(merchantOfferTrendProvider((
+                  offerId: offer.id,
+                  granularity: _trendGranularity,
+                  days: _trendDays,
+                ))),
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Retry trend'),
+              ),
+            ],
           ),
+          data: (points) {
+            final chart = TrendChart(
+              points: points,
+              metric: _trendMetric,
+              currency: offer.currency,
+            );
+            if (!trendAsync.isRefreshing && !trendAsync.hasError) {
+              return chart;
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _readNotice(
+                  trendAsync.isRefreshing
+                      ? 'Refreshing trend… showing the last successful chart.'
+                      : 'Could not refresh trend: ${ApiService.errorMessage(trendAsync.error!)}. Showing the last successful chart.',
+                  () => ref.invalidate(merchantOfferTrendProvider((
+                    offerId: offer.id,
+                    granularity: _trendGranularity,
+                    days: _trendDays,
+                  ))),
+                ),
+                chart,
+              ],
+            );
+          },
         ),
       ],
     );
@@ -439,7 +626,16 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
 
   // ── Action Bar ──────────────────────────────────────────────────
 
-  Widget _actionBar(MerchantOffer offer) {
+  Widget _actionBar(MerchantOffer offer, bool canWriteOffers) {
+    if (!canWriteOffers) {
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: Text(
+          'Read-only: offer changes require catalog:offers:write',
+          style: TextStyle(fontSize: 12, color: TaifTokens.muted),
+        ),
+      );
+    }
     final actions = <Widget>[];
 
     if (offer.canPropose) {
@@ -498,6 +694,7 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
   // ── Actions ─────────────────────────────────────────────────────
 
   Future<void> _propose(MerchantOffer offer) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('catalog:offers:write') != true) return;
     final confirmed = await _confirmDialog(
       title: 'Propose Offer',
       message:
@@ -528,6 +725,7 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
   }
 
   Future<void> _withdraw(MerchantOffer offer) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('catalog:offers:write') != true) return;
     final confirmed = await _confirmDialog(
       title: 'Withdraw Offer',
       message:
@@ -558,6 +756,7 @@ class _OfferDetailScreenState extends ConsumerState<OfferDetailScreen> {
   }
 
   Future<void> _updatePricing(MerchantOffer offer) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('catalog:offers:write') != true) return;
     // Navigate to pricing update form (Phase 5 will provide the full form).
     // For now, show a simple dialog with the key pricing fields.
     final priceCtrl = TextEditingController(

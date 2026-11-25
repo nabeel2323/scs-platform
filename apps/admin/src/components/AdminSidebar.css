@@ -27,7 +27,9 @@
   align-items: center;
   gap: 10px;
   text-decoration: none;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
   position: relative;
 }
 
@@ -35,11 +37,11 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
-.admin-sidebar-link[data-active="true"] {
+.admin-sidebar-link[data-active='true'] {
   background: rgba(255, 255, 255, 0.12);
 }
 
-.admin-sidebar-link[data-active="true"]::before {
+.admin-sidebar-link[data-active='true']::before {
   content: '';
   position: absolute;
   left: 0;
@@ -69,4 +71,20 @@
 
 .admin-sidebar-collapsed .admin-sidebar-link:hover .admin-sidebar-tooltip {
   display: block;
+}
+
+.admin-sidebar-group-label {
+  padding: 14px 20px 6px;
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.admin-sidebar-group-divider {
+  height: 1px;
+  margin: 8px 12px;
+  background: rgba(255, 255, 255, 0.12);
 }

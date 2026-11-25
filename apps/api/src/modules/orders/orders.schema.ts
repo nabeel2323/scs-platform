@@ -1,4 +1,14 @@
-import { pgTable, uuid, varchar, char, text, integer, bigint, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  char,
+  text,
+  integer,
+  bigint,
+  jsonb,
+  timestamp,
+} from 'drizzle-orm/pg-core';
 import { users } from '../identity/identity.schema';
 import { stores } from '../merchant/merchant.schema';
 import { productVariants } from '../catalog/catalog.schema';
@@ -21,7 +31,9 @@ import { merchantOffers } from '../catalog/catalog.offer.schema';
 
 export const masterOrders = pgTable('master_orders', {
   id: uuid('id').primaryKey(),
-  buyerId: uuid('buyer_id').notNull().references(() => users.id),
+  buyerId: uuid('buyer_id')
+    .notNull()
+    .references(() => users.id),
   status: varchar('status', { length: 24 }).notNull().default('DRAFT'),
   deliveryAddress: jsonb('delivery_address').notNull().default({}),
   notes: text('notes'),
@@ -40,11 +52,19 @@ export const masterOrders = pgTable('master_orders', {
 
 export const orders = pgTable('orders', {
   id: uuid('id').primaryKey(),
-  masterOrderId: uuid('master_order_id').notNull().references(() => masterOrders.id),
-  storeId: uuid('store_id').notNull().references(() => stores.id),
-  buyerId: uuid('buyer_id').notNull().references(() => users.id),
+  masterOrderId: uuid('master_order_id')
+    .notNull()
+    .references(() => masterOrders.id),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id),
+  buyerId: uuid('buyer_id')
+    .notNull()
+    .references(() => users.id),
   status: varchar('status', { length: 24 }).notNull().default('SUBMITTED'),
-  fulfillmentMethod: varchar('fulfillment_method', { length: 24 }).notNull().default('PLATFORM_DELIVERY'),
+  fulfillmentMethod: varchar('fulfillment_method', { length: 24 })
+    .notNull()
+    .default('PLATFORM_DELIVERY'),
   promoCode: varchar('promo_code', { length: 40 }),
   promotionId: uuid('promotion_id').references(() => promotions.id),
   subtotalMinor: bigint('subtotal_minor', { mode: 'number' }).notNull().default(0),
@@ -61,6 +81,9 @@ export const orders = pgTable('orders', {
   // M7.3-A: delivery completion tracking
   buyerConfirmedAt: timestamp('buyer_confirmed_at', { withTimezone: true }),
   autoCompleteAt: timestamp('auto_complete_at', { withTimezone: true }),
+  // G-011: durable, expiring ownership claim for the auto-completion worker.
+  autoCompleteClaimedAt: timestamp('auto_complete_claimed_at', { withTimezone: true }),
+  autoCompleteClaimedBy: varchar('auto_complete_claimed_by', { length: 128 }),
   // M7.3-B.2: cancellation audit metadata (0048)
   cancellationReason: varchar('cancellation_reason', { length: 40 }),
   cancellationActorType: varchar('cancellation_actor_type', { length: 16 }),
@@ -76,8 +99,12 @@ export const orders = pgTable('orders', {
 
 export const orderItems = pgTable('order_items', {
   id: uuid('id').primaryKey(),
-  orderId: uuid('order_id').notNull().references(() => orders.id),
-  variantId: uuid('variant_id').notNull().references(() => productVariants.id),
+  orderId: uuid('order_id')
+    .notNull()
+    .references(() => orders.id),
+  variantId: uuid('variant_id')
+    .notNull()
+    .references(() => productVariants.id),
   sku: varchar('sku', { length: 100 }).notNull(),
   title: varchar('title', { length: 500 }).notNull(),
   quantity: integer('quantity').notNull(),
@@ -104,7 +131,10 @@ export const orderItems = pgTable('order_items', {
 
 export const orderFinancialBreakdown = pgTable('order_financial_breakdown', {
   id: uuid('id').primaryKey(),
-  orderId: uuid('order_id').notNull().references(() => orders.id).unique(),
+  orderId: uuid('order_id')
+    .notNull()
+    .references(() => orders.id)
+    .unique(),
   productsMinor: bigint('products_minor', { mode: 'number' }).notNull().default(0),
   discountMinor: bigint('discount_minor', { mode: 'number' }).notNull().default(0),
   deliveryFeeMinor: bigint('delivery_fee_minor', { mode: 'number' }).notNull().default(0),
@@ -119,7 +149,9 @@ export const orderFinancialBreakdown = pgTable('order_financial_breakdown', {
 
 export const orderStatusHistory = pgTable('order_status_history', {
   id: uuid('id').primaryKey(),
-  orderId: uuid('order_id').notNull().references(() => orders.id),
+  orderId: uuid('order_id')
+    .notNull()
+    .references(() => orders.id),
   fromStatus: varchar('from_status', { length: 24 }),
   toStatus: varchar('to_status', { length: 24 }).notNull(),
   changedBy: uuid('changed_by').references(() => users.id),

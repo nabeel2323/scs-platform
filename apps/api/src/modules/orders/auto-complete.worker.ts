@@ -1,34 +1,32 @@
 /**
  * Auto-Complete Worker — M7.3-A
  *
- * Polls for DELIVERED orders whose auto_complete_at has passed and
- * transitions them to COMPLETED.
+ * Claims due DELIVERED orders with a durable five-minute lease and completes
+ * them through the canonical OrdersService transition.
  *
- * Multi-instance safe: uses FOR UPDATE SKIP LOCKED for atomic claiming.
- * Crash-safe: if the worker dies between claim and completion, the row
- * is released and re-claimed by the next cycle.
- * Idempotent: buyer confirmation racing with auto-completion is handled
- * by the optimistic lock on the order status.
+ * Multi-instance safe: claims are persisted atomically using
+ * FOR UPDATE SKIP LOCKED. A lease can be recovered after a process crash.
+ * Fenced: OrdersService verifies the claim owner and lease expiry in the
+ * same atomic status update, so an expired worker cannot complete an order
+ * after another worker has reclaimed it.
  */
-
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { eq, and, lte, isNull, or, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../../common/database/database.service';
-import { orders } from './orders.schema';
-import { shipments } from './shipment.schema';
 import { OrdersService } from './orders.service';
 
 @Injectable()
 export class AutoCompleteWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AutoCompleteWorker.name);
+  private readonly workerId = `auto-complete-${randomUUID()}`;
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
 
   /** Poll interval: 60 seconds (configurable). */
   private readonly intervalMs: number;
-
-  /** Maximum orders to process per cycle. */
   private static readonly BATCH_SIZE = 20;
+  private static readonly CLAIM_LEASE_MINUTES = 5;
 
   constructor(
     private readonly db: DatabaseService,
@@ -57,36 +55,68 @@ export class AutoCompleteWorker implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async claimNextOrder(): Promise<any | null> {
+    const result = await this.db.db.execute(sql`
+      WITH candidate AS (
+        SELECT id
+        FROM orders
+        WHERE status = 'DELIVERED'
+          AND auto_complete_at IS NOT NULL
+          AND auto_complete_at <= NOW()
+          AND buyer_confirmed_at IS NULL
+          AND (
+            auto_complete_claimed_at IS NULL
+            OR auto_complete_claimed_at <= NOW() - INTERVAL '5 minutes'
+          )
+        ORDER BY auto_complete_at ASC, id ASC
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+      )
+      UPDATE orders AS target
+      SET auto_complete_claimed_at = NOW(),
+          auto_complete_claimed_by = ${this.workerId},
+          updated_at = NOW()
+      FROM candidate
+      WHERE target.id = candidate.id
+      RETURNING target.*
+    `);
+
+    return result.rows?.[0] ?? null;
+  }
+
+  private async releaseClaim(orderId: string) {
+    // Conditional release cannot clear a claim that has since been reassigned.
+    await this.db.db.execute(sql`
+      UPDATE orders
+      SET auto_complete_claimed_at = NULL,
+          auto_complete_claimed_by = NULL,
+          updated_at = NOW()
+      WHERE id = ${orderId}
+        AND auto_complete_claimed_by = ${this.workerId}
+    `);
+  }
+
   private async poll() {
     if (this.running) return;
     this.running = true;
 
     try {
-      // Atomically claim eligible orders using FOR UPDATE SKIP LOCKED
-      const now = new Date();
-      const claimed = await this.db.db.execute(sql`
-        UPDATE orders
-        SET updated_at = NOW()
-        WHERE id IN (
-          SELECT id FROM orders
-          WHERE status = 'DELIVERED'
-            AND auto_complete_at IS NOT NULL
-            AND auto_complete_at <= ${now}
-            AND buyer_confirmed_at IS NULL
-          ORDER BY auto_complete_at ASC
-          LIMIT ${AutoCompleteWorker.BATCH_SIZE}
-          FOR UPDATE SKIP LOCKED
-        )
-        RETURNING *
-      `);
-
-      const rows = claimed.rows ?? [];
-      if (rows.length > 0) {
-        this.logger.log(`Auto-complete: ${rows.length} order(s) eligible for completion.`);
+      let processed = 0;
+      while (processed < AutoCompleteWorker.BATCH_SIZE) {
+        const row = await this.db.withActorContext(
+          { actorKind: 'worker', workerId: this.workerId },
+          () => this.claimNextOrder(),
+        );
+        if (!row) break;
+        processed += 1;
+        await this.db.withActorContext(
+          { actorKind: 'worker', workerId: this.workerId },
+          () => this.processCompletion(row),
+        );
       }
 
-      for (const row of rows) {
-        await this.processCompletion(row);
+      if (processed > 0) {
+        this.logger.log(`Auto-complete: processed ${processed} claimed order(s).`);
       }
     } catch (err: any) {
       this.logger.error(`Auto-complete poll error: ${err?.message}`);
@@ -97,28 +127,28 @@ export class AutoCompleteWorker implements OnModuleInit, OnModuleDestroy {
 
   private async processCompletion(row: any) {
     try {
-      // Verify the order is still DELIVERED (may have been confirmed by buyer)
-      const order = await this.db.db.query.orders.findFirst({
-        where: eq(orders.id, row.id),
-      });
-      if (!order || order['status'] !== 'DELIVERED') return;
-
-      // Use the canonical completion method
       await this.ordersService.completeOrder(
         row.id,
         'system',
         'SYSTEM',
         'AUTO_COMPLETION',
+        this.workerId,
       );
-
       this.logger.log(`Auto-completed order ${row.id}`);
     } catch (err: any) {
-      // ConflictException means buyer already confirmed — not an error
       if (err?.status === 409 || err?.name === 'ConflictException') {
-        this.logger.debug(`Auto-complete skipped (already processed): ${row.id}`);
-        return;
+        this.logger.debug(`Auto-complete skipped (status changed or claim lost): ${row.id}`);
+      } else {
+        this.logger.error(`Auto-complete failed for ${row.id}: ${err?.message}`);
       }
-      this.logger.error(`Auto-complete failed for ${row.id}: ${err?.message}`);
+    } finally {
+      try {
+        await this.releaseClaim(row.id);
+      } catch (releaseError: any) {
+        this.logger.error(
+          `Auto-complete claim release failed for ${row.id}: ${releaseError?.message}`,
+        );
+      }
     }
   }
 }

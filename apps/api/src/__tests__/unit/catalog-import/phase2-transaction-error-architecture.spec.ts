@@ -23,6 +23,12 @@ import type { ResolvedReferences } from '../../../modules/catalog-import/excel-r
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
+const importCaller = {
+  sub: '00000000-0000-4000-8000-000000000001',
+  role: 'SUPER_ADMIN',
+  activeOrg: null,
+};
+
 function entry(entityType: string, externalKey: string, action: 'CREATE' | 'UPDATE' | 'UNCHANGED' = 'CREATE', data: Record<string, unknown> = {}): PlanEntry {
   return { entityType, externalKey, action, data };
 }
@@ -70,7 +76,11 @@ function buildExecutor(): { executor: ExcelExecutorService; mockDb: any } {
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
     }),
   };
-  const dbService = { db: mockDbObj } as any;
+  const dbService = {
+    db: mockDbObj,
+    currentActorContext: null,
+    withActorContext: async (_actor: unknown, operation: () => Promise<unknown>) => operation(),
+  } as any;
   return { executor: new ExcelExecutorService(dbService), mockDb: mockDbObj };
 }
 
@@ -103,7 +113,7 @@ describe('Phase 2 — A. Transaction isolation', () => {
   it('executes 12 separate transactions (one per entity type)', async () => {
     const { executor, mockDb } = buildExecutor();
     setupPassthroughTx(mockDb);
-    const result = await executor.execute(emptyPlan(), emptyRefs());
+    const result = await executor.execute(emptyPlan(), emptyRefs(), importCaller);
     expect(mockDb.transaction).toHaveBeenCalledTimes(12);
     expect(Object.keys(result.entityBreakdown).length).toBe(12);
   });
@@ -159,7 +169,7 @@ describe('Phase 2 — B. Product failure dependency propagation', () => {
       return cb(tx);
     });
 
-    const result = await executor.execute(plan, refs);
+    const result = await executor.execute(plan, refs, importCaller);
 
     expect(result.entityBreakdown['products']!.rejected).toBe(1);
     expect(result.entityBreakdown['variants']!.skipped).toBe(2);
@@ -220,7 +230,7 @@ describe('Phase 2 — C. Variant failure', () => {
       return cb(tx);
     });
 
-    const result = await executor.execute(plan, refs);
+    const result = await executor.execute(plan, refs, importCaller);
 
     expect(result.entityBreakdown['variants']!.rejected).toBe(1);
     expect(result.entityBreakdown['variants']!.created).toBe(1); // SKU-OK succeeds
@@ -266,7 +276,7 @@ describe('Phase 2 — D. Category failure isolation', () => {
       return cb(tx);
     });
 
-    const result = await executor.execute(plan, refs);
+    const result = await executor.execute(plan, refs, importCaller);
 
     expect(result.entityBreakdown['categories']!.rejected).toBe(1);
     expect(result.entityBreakdown['brands']!.created).toBe(1);
@@ -280,7 +290,7 @@ describe('Phase 2 — F. No cascade explosion', () => {
   it('no 25P02 CASCADE_ERROR in structured errors for normal failures', async () => {
     const { executor, mockDb } = buildExecutor();
     setupPassthroughTx(mockDb);
-    const result = await executor.execute(emptyPlan(), emptyRefs());
+    const result = await executor.execute(emptyPlan(), emptyRefs(), importCaller);
     const cascadeErrors = result.structuredErrors.filter((e: any) => e.errorCode === 'CASCADE_ERROR' || e.errorCode === 'PG_25P02');
     expect(cascadeErrors.length).toBe(0);
   });
@@ -318,7 +328,7 @@ describe('Phase 2 — G. Result breakdown', () => {
     plan.categories = [entry('categories', 'c1', 'UNCHANGED'), entry('categories', 'c2', 'UNCHANGED')];
     plan.brands = [entry('brands', 'b1', 'UNCHANGED')];
 
-    const result = await executor.execute(plan, emptyRefs());
+    const result = await executor.execute(plan, emptyRefs(), importCaller);
 
     expect(Object.keys(result.entityBreakdown).length).toBe(12);
     expect(result.entityBreakdown['categories']!.unchanged).toBe(2);
@@ -339,7 +349,7 @@ describe('Phase 2 — H/I. Retry and idempotency', () => {
     plan.brands = [entry('brands', 'b1', 'UNCHANGED')];
     plan.products = [entry('products', 'p1', 'UNCHANGED', { slug: 'p1' })];
 
-    const result = await executor.execute(plan, emptyRefs());
+    const result = await executor.execute(plan, emptyRefs(), importCaller);
 
     expect(result.unchanged).toBe(3);
     expect(result.created).toBe(0);
@@ -354,8 +364,8 @@ describe('Phase 2 — H/I. Retry and idempotency', () => {
     const plan = emptyPlan();
     plan.brands = [entry('brands', 'b1', 'UNCHANGED')];
 
-    const r1 = await executor.execute(plan, emptyRefs());
-    const r2 = await executor.execute(plan, emptyRefs());
+    const r1 = await executor.execute(plan, emptyRefs(), importCaller);
+    const r2 = await executor.execute(plan, emptyRefs(), importCaller);
 
     expect(r1.unchanged).toBe(r2.unchanged);
     expect(r1.created).toBe(r2.created);
@@ -392,7 +402,7 @@ describe('Phase 2 — J. Phase 1 regression', () => {
       return cb(tx);
     });
 
-    await executor.execute(plan, refs);
+    await executor.execute(plan, refs, importCaller);
     expect(insertedWeight).toBe('9.7');
     expect(typeof insertedWeight).toBe('string');
   });
@@ -417,13 +427,13 @@ describe('Phase 2 — K. Integration', () => {
     const { executor } = buildExecutor();
     const plan = emptyPlan();
     plan.categories = [entry('categories', 'x'.repeat(200), 'CREATE', { slug: 'x'.repeat(200), name: 'T' })];
-    await expect(executor.execute(plan, emptyRefs())).rejects.toThrow('field-length violation');
+    await expect(executor.execute(plan, emptyRefs(), importCaller)).rejects.toThrow('field-length violation');
   });
 
   it('empty plan produces zero counts and 12 entity types in breakdown', async () => {
     const { executor, mockDb } = buildExecutor();
     setupPassthroughTx(mockDb);
-    const result = await executor.execute(emptyPlan(), emptyRefs());
+    const result = await executor.execute(emptyPlan(), emptyRefs(), importCaller);
     expect(result.created).toBe(0);
     expect(result.rejected).toBe(0);
     expect(Object.keys(result.entityBreakdown).length).toBe(12);

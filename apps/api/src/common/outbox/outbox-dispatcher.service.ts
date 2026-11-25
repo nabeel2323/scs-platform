@@ -1,7 +1,8 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { outboxEvents } from '../../modules/audit/audit.schema';
-import { eq, and, or, isNull, lte } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
+import crypto from 'node:crypto';
 
 /**
  * Outbox Dispatcher — polls outbox_events for PENDING events and dispatches them.
@@ -23,6 +24,7 @@ import { eq, and, or, isNull, lte } from 'drizzle-orm';
 export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
+  private readonly workerId = crypto.randomUUID();
 
   constructor(private readonly db: DatabaseService) {}
 
@@ -79,57 +81,83 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
     this.running = true;
 
     try {
-      // Fetch up to 10 pending events (oldest first)
-      // M7.2.3-A: Respect next_attempt_at for delayed retry
-      const now = new Date();
-      const pending = await this.db.db
-        .select()
-        .from(outboxEvents)
-        .where(
-          and(
-            eq(outboxEvents.status, 'PENDING'),
-            or(
-              isNull(outboxEvents.nextAttemptAt),
-              lte(outboxEvents.nextAttemptAt, now),
-            ),
-          ),
-        )
-        .orderBy(outboxEvents.createdAt)
-        .limit(10);
+      // Claim rows atomically across API instances. A five-minute lease allows
+      // another worker to recover an event if this process exits mid-dispatch.
+      const claimed = await this.db.withActorContext(
+        { actorKind: 'worker', workerId: this.workerId },
+        () =>
+          this.db.db.execute(sql`
+            WITH candidates AS (
+              SELECT id
+              FROM outbox_events
+              WHERE status = 'PENDING'
+                AND event_type NOT LIKE 'shipping.carrier.%'
+                AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+                AND (locked_at IS NULL OR locked_at < now() - INTERVAL '5 minutes')
+              ORDER BY created_at
+              FOR UPDATE SKIP LOCKED
+              LIMIT 10
+            )
+            UPDATE outbox_events AS event
+            SET locked_at = now(), locked_by = ${this.workerId}
+            FROM candidates
+            WHERE event.id = candidates.id
+            RETURNING
+              event.id,
+              event.event_type AS "eventType",
+              event.aggregate_id AS "aggregateId",
+              event.payload,
+              event.metadata,
+              event.attempts
+          `),
+      );
+      const pending = ((claimed as any).rows ?? []) as any[];
 
       for (const event of pending) {
         try {
           await this.dispatch(event);
-
-          // Mark as dispatched
-          await this.db.db
-            .update(outboxEvents)
-            .set({ status: 'DISPATCHED', dispatchedAt: new Date() })
-            .where(eq(outboxEvents.id, event['id']));
+          await this.db.withActorContext(
+            { actorKind: 'worker', workerId: this.workerId },
+            async () => {
+              await this.db.db
+                .update(outboxEvents)
+                .set({
+                  status: 'DISPATCHED',
+                  dispatchedAt: new Date(),
+                  lockedAt: null,
+                  lockedBy: null,
+                })
+                .where(and(eq(outboxEvents.id, event.id), eq(outboxEvents.lockedBy, this.workerId)));
+            },
+          );
         } catch (err: any) {
-          // Mark as failed with error
-          // M7.2.3-A: Exponential backoff with jitter
-          const attempts = (event['attempts'] || 0) + 1;
+          const attempts = (event.attempts || 0) + 1;
           const isFinal = attempts >= 5;
           const status = isFinal ? 'FAILED' : 'PENDING';
-
-          // Backoff schedule: 30s, 2m, 10m, 1h (with ±20% jitter)
           const backoffSeconds = [0, 30, 120, 600, 3600];
           const baseSec = backoffSeconds[attempts] ?? 3600;
           const jitter = baseSec * 0.2 * (Math.random() * 2 - 1);
           const nextAttemptAt = isFinal ? null : new Date(Date.now() + (baseSec + jitter) * 1000);
 
-          await this.db.db
-            .update(outboxEvents)
-            .set({
-              status,
-              attempts,
-              lastError: err?.message || 'Unknown error',
-              nextAttemptAt,
-            })
-            .where(eq(outboxEvents.id, event['id']));
-
-          console.error(`[OutboxDispatcher] Failed to dispatch ${event['eventType']}:`, err?.message);
+          // Only the current lease owner may change retry state. If the lease
+          // expired and another worker reclaimed it, this update is a no-op.
+          await this.db.withActorContext(
+            { actorKind: 'worker', workerId: this.workerId },
+            async () => {
+              await this.db.db
+                .update(outboxEvents)
+                .set({
+                  status,
+                  attempts,
+                  lastError: err?.message || 'Unknown error',
+                  nextAttemptAt,
+                  lockedAt: null,
+                  lockedBy: null,
+                })
+                .where(and(eq(outboxEvents.id, event.id), eq(outboxEvents.lockedBy, this.workerId)));
+            },
+          );
+          console.error(`[OutboxDispatcher] Failed to dispatch ${event.eventType}:`, err?.message);
         }
       }
     } catch (err: any) {
@@ -138,7 +166,6 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
       this.running = false;
     }
   }
-
   private async dispatch(event: any) {
     // In production: publish to event bus (Kafka, RabbitMQ, SNS, etc.)
     // For now: log the dispatch

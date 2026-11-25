@@ -24,18 +24,46 @@ import { ExcelExecutorService } from '../../modules/catalog-import/excel-executo
 import { CatalogValidationService } from '../../modules/catalog/catalog.validation-service';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 // Schemas
-import { products, productVariants, categories, brands, productMedia } from '../../modules/catalog/catalog.schema';
-import { attributeDefinitions, attributeOptions, attributeGroups, productTypes, productTypeAttributes, productAttributeValues, variantAttributeValues } from '../../modules/catalog/catalog.taxonomy.schema';
+import {
+  products,
+  productVariants,
+  categories,
+  brands,
+  productMedia,
+} from '../../modules/catalog/catalog.schema';
+import {
+  attributeDefinitions,
+  attributeOptions,
+  attributeGroups,
+  productTypes,
+  productTypeAttributes,
+  productAttributeValues,
+  variantAttributeValues,
+} from '../../modules/catalog/catalog.taxonomy.schema';
 import { merchantOffers } from '../../modules/catalog/catalog.offer.schema';
-import { users, organizations, organizationMembers, roles } from '../../modules/identity/identity.schema';
-import { stores, warehouses } from '../../modules/merchant/merchant.schema';
+import {
+  users,
+  organizations,
+  organizationMembers,
+  roles,
+} from '../../modules/identity/identity.schema';
+import { stores, warehouses, storeMembers } from '../../modules/merchant/merchant.schema';
 import { priceLists, priceTiers } from '../../modules/pricing/pricing.schema';
 import { inventoryItems, stockMovements } from '../../modules/inventory/inventory.schema';
 import { carts, cartItems } from '../../modules/orders/cart.schema';
-import { masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory } from '../../modules/orders/orders.schema';
+import {
+  masterOrders,
+  orders,
+  orderItems,
+  orderFinancialBreakdown,
+  orderStatusHistory,
+} from '../../modules/orders/orders.schema';
 import { outboxEvents, auditLogs } from '../../modules/audit/audit.schema';
 import { searchQueries } from '../../modules/catalog/search.schema';
-import { catalogImports, catalogImportErrors } from '../../modules/catalog-import/catalog-import.schema';
+import {
+  catalogImports,
+  catalogImportErrors,
+} from '../../modules/catalog-import/catalog-import.schema';
 
 /**
  * Phase 4 — Import → Catalog → Offer → Commerce
@@ -48,12 +76,15 @@ import { catalogImports, catalogImportErrors } from '../../modules/catalog-impor
  */
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
-const storage = { createPresignedGetUrl: vi.fn(async (_b: string, key: string) => `https://cdn.test/${key}`) } as any;
+const storage = {
+  createPresignedGetUrl: vi.fn(async (_b: string, key: string) => `https://cdn.test/${key}`),
+} as any;
 const outbox = { publish: vi.fn().mockResolvedValue(undefined) } as any;
 const audit = { record: vi.fn().mockResolvedValue(undefined) } as any;
 const redis = { get: vi.fn(), set: vi.fn(), del: vi.fn() } as any;
 const realtime = { emitNewOrder: vi.fn(), emitOrderStatusChanged: vi.fn() } as any;
 const notifications = { send: vi.fn().mockResolvedValue(undefined) } as any;
+const importCaller = { sub: randomUUID(), role: 'SUPER_ADMIN', activeOrg: null };
 
 // ── Test identity IDs ──────────────────────────────────────────────────────
 let orgA: string;
@@ -63,6 +94,8 @@ let adminUser: string;
 let storeA: string;
 let warehouseA: string;
 let merchantOwnerRoleId: string, buyerRoleId: string;
+
+const callerA = () => ({ sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA });
 
 // ── Imported entity tracking ───────────────────────────────────────────────
 let importedProductId: string;
@@ -116,7 +149,13 @@ async function buildImportWorkbook(): Promise<Buffer> {
   // Products
   const prodWs = wb.addWorksheet('Products');
   prodWs.addRow(['slug', 'title', 'brand_slug', 'product_type_code', 'category_slug']);
-  prodWs.addRow(['imported-laptop-p4', 'Imported Laptop P4', 'testbrand-p4', 'laptop-p4', 'laptops-p4']);
+  prodWs.addRow([
+    'imported-laptop-p4',
+    'Imported Laptop P4',
+    'testbrand-p4',
+    'laptop-p4',
+    'laptops-p4',
+  ]);
 
   // Variants
   const varWs = wb.addWorksheet('Variants');
@@ -155,15 +194,40 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, {
       schema: {
-        products, productVariants, categories, brands, productMedia,
-        attributeDefinitions, attributeOptions, attributeGroups,
-        productTypes, productTypeAttributes, productAttributeValues, variantAttributeValues,
-        merchantOffers, stores, warehouses, users, organizations,
-        priceLists, priceTiers,
-        inventoryItems, stockMovements, carts, cartItems,
-        masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory,
-        outboxEvents, auditLogs, searchQueries,
-        catalogImports, catalogImportErrors,
+        products,
+        productVariants,
+        categories,
+        brands,
+        productMedia,
+        attributeDefinitions,
+        attributeOptions,
+        attributeGroups,
+        productTypes,
+        productTypeAttributes,
+        productAttributeValues,
+        variantAttributeValues,
+        merchantOffers,
+        stores,
+        storeMembers,
+        warehouses,
+        users,
+        organizations,
+        priceLists,
+        priceTiers,
+        inventoryItems,
+        stockMovements,
+        carts,
+        cartItems,
+        masterOrders,
+        orders,
+        orderItems,
+        orderFinancialBreakdown,
+        orderStatusHistory,
+        outboxEvents,
+        auditLogs,
+        searchQueries,
+        catalogImports,
+        catalogImportErrors,
       },
     }) as unknown as DatabaseService['db'];
 
@@ -171,24 +235,47 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
     const migrationsDir = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
     const excluded = ['0013_analytics.sql', '0018_analytics_retention.sql'];
     for (const file of (await readdir(migrationsDir))
-      .filter(f => f.endsWith('.sql') && !excluded.includes(f))
+      .filter((f) => f.endsWith('.sql') && !excluded.includes(f))
       .sort()) {
       await pool.query(await readFile(path.join(migrationsDir, file), 'utf8'));
     }
 
     // ── Seed RBAC ─────────────────────────────────────────────────
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
     // ── Instantiate services ──────────────────────────────────────
-    database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
     const conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
-    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy, {} as any, {} as any, {} as any);
+    catalog = new CatalogService(
+      database,
+      redis as any,
+      outbox,
+      storage,
+      audit,
+      conditionalRules,
+      taxonomy,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
     offerService = new CatalogOfferService(database, audit);
     const promotionsService = new PromotionsService(database);
     cartService = new CartService(database, promotionsService);
-    ordersService = new OrdersService(database, outbox, promotionsService, realtime, cartService, notifications);
+    ordersService = new OrdersService(
+      database,
+      outbox,
+      promotionsService,
+      realtime,
+      cartService,
+      notifications,
+    );
     inventoryService = new InventoryService(database, outbox);
     parser = new ExcelParserService();
     validator = new ExcelValidatorService(new CatalogValidationService());
@@ -209,27 +296,39 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
     merchantOwnerRoleId = roleMap.get('MERCHANT_OWNER')!;
     buyerRoleId = roleMap.get('BUYER')!;
 
-    await db.insert(organizations).values([
-      { id: orgA, name: 'Org P4', type: 'WHOLESALER', country: 'SA' },
-    ]);
+    await db
+      .insert(organizations)
+      .values([{ id: orgA, name: 'Org P4', type: 'WHOLESALER', country: 'SA' }]);
     await db.insert(users).values([
       { id: adminUser, fullName: 'Admin P4', phone: '+10400000001' },
       { id: merchantOwnerA, fullName: 'Merchant Owner P4', phone: '+10400000002' },
       { id: buyerA, fullName: 'Buyer P4', phone: '+10400000003' },
     ]);
-    await db.insert(stores).values([
-      { id: storeA, orgId: orgA, slug: 'p4-store', displayName: 'P4 Store' },
-    ]);
-    await db.insert(warehouses).values([
-      { id: warehouseA, storeId: storeA, name: 'P4 Warehouse' },
-    ]);
+    await db
+      .insert(stores)
+      .values([
+        { id: storeA, orgId: orgA, slug: 'p4-store', displayName: 'P4 Store', status: 'ACTIVE' },
+      ]);
+    await db.insert(warehouses).values([{ id: warehouseA, storeId: storeA, name: 'P4 Warehouse' }]);
     await db.insert(organizationMembers).values([
       { id: randomUUID(), orgId: orgA, userId: merchantOwnerA, roleId: merchantOwnerRoleId },
       { id: randomUUID(), orgId: orgA, userId: buyerA, roleId: buyerRoleId },
     ]);
+    await db.insert(storeMembers).values([
+      {
+        id: randomUUID(),
+        storeId: storeA,
+        userId: merchantOwnerA,
+        role: 'OWNER',
+        status: 'ACTIVE',
+      },
+    ]);
   }, 180_000);
 
-  afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
+  afterAll(async () => {
+    await pool?.end();
+    await container?.stop();
+  }, 30_000);
 
   // ═══════════════════════════════════════════════════════════════════
   // 1. IMPORT PIPELINE
@@ -259,10 +358,14 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
       const buf = await buildImportWorkbook();
       const workbook = await parser.parse(buf, 'import-p4.xlsx');
       const errors = validator.validate(workbook, {
-        categorySlugs: [], brandSlugs: [], attributeMap: [],
-        productTypeCodes: [], productSlugs: [], variantSkus: [],
+        categorySlugs: [],
+        brandSlugs: [],
+        attributeMap: [],
+        productTypeCodes: [],
+        productSlugs: [],
+        variantSkus: [],
       });
-      const hardErrors = errors.filter(e => e.severity === 'ERROR');
+      const hardErrors = errors.filter((e) => e.severity === 'ERROR');
       expect(hardErrors).toHaveLength(0);
     });
 
@@ -285,13 +388,15 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
       const workbook = await parser.parse(buf, 'import-p4.xlsx');
       const refs = await resolver.resolve(workbook);
       const plan = planner.buildPlan(workbook, refs, {
-        categories: new Map(), brands: new Map(), products: new Map(),
+        categories: new Map(),
+        brands: new Map(),
+        products: new Map(),
       });
       expect(plan.summary.totalCreate).toBeGreaterThan(0);
-      expect(plan.categories.every(e => e.action === 'CREATE')).toBe(true);
-      expect(plan.brands.every(e => e.action === 'CREATE')).toBe(true);
-      expect(plan.products.every(e => e.action === 'CREATE')).toBe(true);
-      expect(plan.variants.every(e => e.action === 'CREATE')).toBe(true);
+      expect(plan.categories.every((e) => e.action === 'CREATE')).toBe(true);
+      expect(plan.brands.every((e) => e.action === 'CREATE')).toBe(true);
+      expect(plan.products.every((e) => e.action === 'CREATE')).toBe(true);
+      expect(plan.variants.every((e) => e.action === 'CREATE')).toBe(true);
     });
 
     it('executes the import and creates all entities in the DB', async () => {
@@ -300,7 +405,7 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
       const refs = await resolver.resolve(workbook);
       const existingEntities = { categories: new Map(), brands: new Map(), products: new Map() };
       const plan = planner.buildPlan(workbook, refs, existingEntities);
-      const result = await executor.execute(plan, refs);
+      const result = await executor.execute(plan, refs, importCaller);
 
       expect(result.created).toBeGreaterThan(0);
       expect(result.rejected).toBe(0);
@@ -313,19 +418,25 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
   // ═══════════════════════════════════════════════════════════════════
   describe('2. Catalog DB Verification After Import', () => {
     it('imported category exists with correct slug', async () => {
-      const rows = await pool.query(`SELECT id, slug, name FROM categories WHERE slug = 'laptops-p4'`);
+      const rows = await pool.query(
+        `SELECT id, slug, name FROM categories WHERE slug = 'laptops-p4'`,
+      );
       expect(rows.rows.length).toBe(1);
       expect(rows.rows[0].name).toBe('Laptops P4');
     });
 
     it('imported brand exists with correct slug', async () => {
-      const rows = await pool.query(`SELECT id, slug, name FROM brands WHERE slug = 'testbrand-p4'`);
+      const rows = await pool.query(
+        `SELECT id, slug, name FROM brands WHERE slug = 'testbrand-p4'`,
+      );
       expect(rows.rows.length).toBe(1);
       expect(rows.rows[0].name).toBe('TestBrand P4');
     });
 
     it('imported attributes exist with correct codes', async () => {
-      const rows = await pool.query(`SELECT code, name, type, scope FROM attribute_definitions WHERE code IN ('color-p4', 'ram-gb-p4') ORDER BY code`);
+      const rows = await pool.query(
+        `SELECT code, name, type, scope FROM attribute_definitions WHERE code IN ('color-p4', 'ram-gb-p4') ORDER BY code`,
+      );
       expect(rows.rows.length).toBe(2);
       expect(rows.rows[0].code).toBe('color-p4');
       expect(rows.rows[0].type).toBe('SELECT');
@@ -335,16 +446,23 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
     });
 
     it('imported attribute options exist', async () => {
-      const attrRes = await pool.query(`SELECT id FROM attribute_definitions WHERE code = 'color-p4'`);
+      const attrRes = await pool.query(
+        `SELECT id FROM attribute_definitions WHERE code = 'color-p4'`,
+      );
       const attrId = attrRes.rows[0].id;
-      const rows = await pool.query(`SELECT value FROM attribute_options WHERE attribute_id = $1 ORDER BY value`, [attrId]);
+      const rows = await pool.query(
+        `SELECT value FROM attribute_options WHERE attribute_id = $1 ORDER BY value`,
+        [attrId],
+      );
       expect(rows.rows.length).toBe(2);
       expect(rows.rows.map((r: any) => r.value)).toContain('Silver');
       expect(rows.rows.map((r: any) => r.value)).toContain('Black');
     });
 
     it('imported product type exists and links to category', async () => {
-      const ptRes = await pool.query(`SELECT id, code, name, category_id FROM product_types WHERE code = 'laptop-p4'`);
+      const ptRes = await pool.query(
+        `SELECT id, code, name, category_id FROM product_types WHERE code = 'laptop-p4'`,
+      );
       expect(ptRes.rows.length).toBe(1);
       expect(ptRes.rows[0].name).toBe('Laptop P4');
       // Category should be linked (not null)
@@ -407,14 +525,20 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
       const refs = await resolver.resolve(workbook);
       // Load existing entity map from DB
       const [catRows, brandRows, prodRows] = await Promise.all([
-        db.select({ slug: categories.slug, name: categories.name }).from(categories).where(isNull(categories.storeId)),
+        db
+          .select({ slug: categories.slug, name: categories.name })
+          .from(categories)
+          .where(isNull(categories.storeId)),
         db.select({ slug: brands.slug, name: brands.name }).from(brands),
-        db.select({ slug: products.slug, title: products.title }).from(products).where(isNull(products.storeId)),
+        db
+          .select({ slug: products.slug, title: products.title })
+          .from(products)
+          .where(isNull(products.storeId)),
       ]);
       const existingEntities = {
-        categories: new Map(catRows.map(r => [r.slug, { name: r.name }])),
-        brands: new Map(brandRows.map(r => [r.slug, { name: r.name }])),
-        products: new Map(prodRows.map(r => [r.slug, { title: r.title }])),
+        categories: new Map(catRows.map((r) => [r.slug, { name: r.name }])),
+        brands: new Map(brandRows.map((r) => [r.slug, { name: r.name }])),
+        products: new Map(prodRows.map((r) => [r.slug, { title: r.title }])),
       };
       const plan = planner.buildPlan(workbook, refs, existingEntities);
 
@@ -429,10 +553,14 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
     });
 
     it('no duplicate entities are created after re-import', async () => {
-      const beforeRes = await pool.query(`SELECT COUNT(*)::int AS cnt FROM products WHERE slug = 'imported-laptop-p4'`);
+      const beforeRes = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM products WHERE slug = 'imported-laptop-p4'`,
+      );
       expect(beforeRes.rows[0].cnt).toBe(1);
 
-      const beforeVar = await pool.query(`SELECT COUNT(*)::int AS cnt FROM product_variants WHERE sku = 'IMP-LAPTOP-P4-SILVER-16'`);
+      const beforeVar = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM product_variants WHERE sku = 'IMP-LAPTOP-P4-SILVER-16'`,
+      );
       expect(beforeVar.rows[0].cnt).toBe(1);
     });
   });
@@ -442,16 +570,19 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
   // ═══════════════════════════════════════════════════════════════════
   describe('4. Offer Creation on Imported Product', () => {
     it('merchant can create an offer for the imported canonical product', async () => {
-      const offer = await offerService.createOffer({
-        storeId: storeA,
-        productId: importedProductId,
-        variantId: importedVariantId,
-        currency: 'SAR',
-        basePriceMinor: 350000,
-        moq: 1,
-        leadTimeDays: 5,
-        proposedBy: merchantOwnerA,
-      });
+      const offer = await offerService.createOffer(
+        {
+          storeId: storeA,
+          productId: importedProductId,
+          variantId: importedVariantId,
+          currency: 'SAR',
+          basePriceMinor: 350000,
+          moq: 1,
+          leadTimeDays: 5,
+          proposedBy: 'forged-user',
+        },
+        callerA(),
+      );
       expect(offer.id).toBeTruthy();
       expect(offer.status).toBe('DRAFT');
       expect(offer.storeId).toBe(storeA);
@@ -461,7 +592,7 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
     });
 
     it('offer can be proposed and approved', async () => {
-      await offerService.proposeOffer(offerId, merchantOwnerA);
+      await offerService.proposeOffer(offerId, callerA());
       const proposed = await offerService.getOffer(offerId);
       expect(proposed.status).toBe('PROPOSED');
 
@@ -531,7 +662,9 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
       });
       expect(cart.id).toBeTruthy();
       expect(cart.items.length).toBeGreaterThan(0);
-      const lineItem = cart.items.find((i: any) => i.sku === importedVariantSku || i.variantId === importedVariantId) as any;
+      const lineItem = cart.items.find(
+        (i: any) => i.sku === importedVariantSku || i.variantId === importedVariantId,
+      ) as any;
       expect(lineItem).toBeTruthy();
       expect(lineItem!.quantity).toBe(2);
     });
@@ -620,17 +753,27 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
       const wb = new ExcelJS.Workbook();
       const prodWs = wb.addWorksheet('Products');
       prodWs.addRow(['slug', 'title', 'brand_slug', 'product_type_code', 'category_slug']);
-      prodWs.addRow(['bad-prod', 'Bad Product', 'nonexistent-brand', 'nonexistent-pt', 'nonexistent-cat']);
+      prodWs.addRow([
+        'bad-prod',
+        'Bad Product',
+        'nonexistent-brand',
+        'nonexistent-pt',
+        'nonexistent-cat',
+      ]);
 
       const buf = Buffer.from(await wb.xlsx.writeBuffer());
       const workbook = await parser.parse(buf, 'bad-refs.xlsx');
       const errors = validator.validate(workbook, {
-        categorySlugs: [], brandSlugs: [], attributeMap: [],
-        productTypeCodes: [], productSlugs: [], variantSkus: [],
+        categorySlugs: [],
+        brandSlugs: [],
+        attributeMap: [],
+        productTypeCodes: [],
+        productSlugs: [],
+        variantSkus: [],
       });
-      const hardErrors = errors.filter(e => e.severity === 'ERROR');
+      const hardErrors = errors.filter((e) => e.severity === 'ERROR');
       expect(hardErrors.length).toBeGreaterThan(0);
-      expect(hardErrors.some(e => e.errorCode === 'UNKNOWN_REFERENCE')).toBe(true);
+      expect(hardErrors.some((e) => e.errorCode === 'UNKNOWN_REFERENCE')).toBe(true);
     });
 
     it('detects duplicate keys within the same workbook', async () => {
@@ -643,10 +786,14 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
       const buf = Buffer.from(await wb.xlsx.writeBuffer());
       const workbook = await parser.parse(buf, 'dup.xlsx');
       const errors = validator.validate(workbook, {
-        categorySlugs: [], brandSlugs: [], attributeMap: [],
-        productTypeCodes: [], productSlugs: [], variantSkus: [],
+        categorySlugs: [],
+        brandSlugs: [],
+        attributeMap: [],
+        productTypeCodes: [],
+        productSlugs: [],
+        variantSkus: [],
       });
-      expect(errors.some(e => e.errorCode === 'DUPLICATE_KEY')).toBe(true);
+      expect(errors.some((e) => e.errorCode === 'DUPLICATE_KEY')).toBe(true);
     });
 
     it('detects invalid attribute type values', async () => {
@@ -658,10 +805,14 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
       const buf = Buffer.from(await wb.xlsx.writeBuffer());
       const workbook = await parser.parse(buf, 'bad-attr.xlsx');
       const errors = validator.validate(workbook, {
-        categorySlugs: [], brandSlugs: [], attributeMap: [],
-        productTypeCodes: [], productSlugs: [], variantSkus: [],
+        categorySlugs: [],
+        brandSlugs: [],
+        attributeMap: [],
+        productTypeCodes: [],
+        productSlugs: [],
+        variantSkus: [],
       });
-      expect(errors.some(e => e.errorCode === 'INVALID_VALUE' && e.field === 'type')).toBe(true);
+      expect(errors.some((e) => e.errorCode === 'INVALID_VALUE' && e.field === 'type')).toBe(true);
     });
   });
 
@@ -673,18 +824,24 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
 
     it('can still create a store-scoped product via catalog service', async () => {
       // Ensure the taxonomy prerequisites exist
-      const catId = (await pool.query(`SELECT id FROM categories WHERE slug = 'laptops-p4'`)).rows[0].id;
-      const brandId = (await pool.query(`SELECT id FROM brands WHERE slug = 'testbrand-p4'`)).rows[0].id;
-      const ptId = (await pool.query(`SELECT id FROM product_types WHERE code = 'laptop-p4'`)).rows[0].id;
+      const catId = (await pool.query(`SELECT id FROM categories WHERE slug = 'laptops-p4'`))
+        .rows[0].id;
+      const brandId = (await pool.query(`SELECT id FROM brands WHERE slug = 'testbrand-p4'`))
+        .rows[0].id;
+      const ptId = (await pool.query(`SELECT id FROM product_types WHERE code = 'laptop-p4'`))
+        .rows[0].id;
 
-      const p = await catalog.createProduct({
-        storeId: storeA,
-        title: 'Regression Test Product',
-        categoryId: catId,
-        brandId,
-        productTypeId: ptId,
-        images: ['reg.png'],
-      }, merchantOwnerA);
+      const p = await catalog.createProduct(
+        {
+          storeId: storeA,
+          title: 'Regression Test Product',
+          categoryId: catId,
+          brandId,
+          productTypeId: ptId,
+          images: ['reg.png'],
+        },
+        merchantOwnerA,
+      );
       regProduct = p.id;
       await catalog.updateProduct(regProduct, { status: 'ACTIVE' });
 
@@ -695,17 +852,20 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
     });
 
     it('can create an offer on a non-imported product', async () => {
-      const o = await offerService.createOffer({
-        storeId: storeA,
-        productId: regProduct,
-        variantId: regVariant,
-        currency: 'SAR',
-        basePriceMinor: 10000,
-        moq: 1,
-        proposedBy: merchantOwnerA,
-      });
+      const o = await offerService.createOffer(
+        {
+          storeId: storeA,
+          productId: regProduct,
+          variantId: regVariant,
+          currency: 'SAR',
+          basePriceMinor: 10000,
+          moq: 1,
+          proposedBy: 'forged-user',
+        },
+        callerA(),
+      );
       regOffer = o.id;
-      await offerService.proposeOffer(regOffer, merchantOwnerA);
+      await offerService.proposeOffer(regOffer, callerA());
       await offerService.approveOffer(regOffer, adminUser);
       const active = await offerService.getOffer(regOffer);
       expect(active.status).toBe('ACTIVE');
@@ -714,7 +874,9 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
     it('can add non-imported variant to cart and checkout', async () => {
       // createVariant auto-creates a base price tier (price=0) via ensureVariantPricing,
       // so UPDATE the existing tier rather than inserting a duplicate.
-      const plRes = await pool.query(`SELECT id FROM price_lists WHERE store_id = $1 LIMIT 1`, [storeA]);
+      const plRes = await pool.query(`SELECT id FROM price_lists WHERE store_id = $1 LIMIT 1`, [
+        storeA,
+      ]);
       await pool.query(
         `UPDATE price_tiers SET unit_price_minor = 10000 WHERE price_list_id = $1 AND variant_id = $2 AND min_qty = 1`,
         [plRes.rows[0].id, regVariant],

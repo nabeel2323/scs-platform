@@ -16,7 +16,14 @@ class CartScreen extends ConsumerStatefulWidget {
 class _CartScreenState extends ConsumerState<CartScreen> {
   final _promoCtrl = TextEditingController();
   bool _applyingPromo = false;
+  bool _removingPromo = false;
   bool _clearing = false;
+  bool _itemActionBusy = false;
+  String? _busyItemId;
+  int _cartMutationRevision = 0;
+
+  bool get _cartActionsDisabled =>
+      _itemActionBusy || _clearing || _applyingPromo || _removingPromo;
 
   @override
   void dispose() {
@@ -25,18 +32,37 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   }
 
   Future<void> _setQty(CartItem item, int qty) async {
+    if (_cartActionsDisabled) return;
+    setState(() {
+      _itemActionBusy = true;
+      _busyItemId = item.id;
+    });
     try {
       await ref.read(apiServiceProvider).updateCartItem(item.id, qty);
       ref.invalidate(cartProvider);
     } catch (e) {
+      // Rebuild the stepper from the last provider value so a failed optimistic
+      // text entry cannot remain visible as if the server accepted it.
+      if (mounted) setState(() => _cartMutationRevision++);
+      ref.invalidate(cartProvider);
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(ApiService.errorMessage(e))));
       }
+    } finally {
+      if (mounted) setState(() {
+        _itemActionBusy = false;
+        _busyItemId = null;
+      });
     }
   }
 
   Future<void> _removeItem(CartItem item) async {
+    if (_cartActionsDisabled) return;
+    setState(() {
+      _itemActionBusy = true;
+      _busyItemId = item.id;
+    });
     try {
       await ref.read(apiServiceProvider).removeCartItem(item.id);
       ref.invalidate(cartProvider);
@@ -45,12 +71,17 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(ApiService.errorMessage(e))));
       }
+    } finally {
+      if (mounted) setState(() {
+        _itemActionBusy = false;
+        _busyItemId = null;
+      });
     }
   }
 
   Future<void> _applyPromo() async {
     final code = _promoCtrl.text.trim();
-    if (code.isEmpty) return;
+    if (code.isEmpty || _cartActionsDisabled) return;
     setState(() => _applyingPromo = true);
     try {
       await ref.read(apiServiceProvider).applyPromo(code);
@@ -70,17 +101,86 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     }
   }
 
+  Future<void> _removePromo() async {
+    if (_cartActionsDisabled) return;
+    setState(() => _removingPromo = true);
+    try {
+      await ref.read(apiServiceProvider).removePromo();
+      ref.invalidate(cartProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Promo code removed')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ApiService.errorMessage(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _removingPromo = false);
+    }
+  }
+
   /// MOQ floor for a line: the seller's minimum order quantity when the offer
   /// carries one, else 1. [QuantityStepper] refuses to go below it (audit 4.3
   /// row 151: "Use QuantityStepper + MOQ floor" — the raw ± buttons let a buyer
   /// decrement under the MOQ, which checkout would then reject).
   int _floorFor(CartItem item) {
-    final moq = item.offer?.moq ?? 1;
+    final moq = item.offer?.moq ?? item.moq;
     return moq > 1 ? moq : 1;
+  }
+
+  int _stepFor(CartItem item) {
+    final increment = item.offer?.orderIncrement ?? 1;
+    return increment > 0 ? increment : 1;
+  }
+
+  Widget _cartReadStatus(AsyncValue<Cart> cart) {
+    if (cart.isRefreshing) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(children: [
+          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+          SizedBox(width: 8),
+          Text('Refreshing cart… showing the last successful cart.',
+              style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+        ]),
+      );
+    }
+    if (cart.hasError) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: TaifTokens.err.withValues(alpha: 0.06),
+            border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+            borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+          ),
+          child: Row(children: [
+            Expanded(
+              child: Text(
+                'Could not refresh cart: ${ApiService.errorMessage(cart.error!)}. Showing the last successfully loaded cart.',
+                style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+              ),
+            ),
+            TextButton(
+              onPressed: () => ref.invalidate(cartProvider),
+              child: const Text('Retry'),
+            ),
+          ]),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
   }
 
   Widget _cartLine(CartItem item) {
     final floor = _floorFor(item);
+    final actionsDisabled = _cartActionsDisabled;
+    final itemBusy = _busyItemId == item.id;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Padding(
@@ -102,23 +202,29 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                       '${formatMinor(item.priceMinor, item.currency)} each'
                       '${item.offer != null ? '  ·  Offer ${item.offer!.status.toLowerCase()}' : ''}'
                       '${item.offer?.leadTimeDays != null ? '  ·  Lead ${item.offer!.leadTimeDays}d' : ''}'
-                      '${floor > 1 ? '  ·  MOQ $floor' : ''}',
+                      '${floor > 1 ? '  ·  MOQ $floor' : ''}'
+                      '${item.offer?.orderIncrement != null ? '  ·  Step ${_stepFor(item)}' : ''}',
                       style: const TextStyle(
                           fontSize: 12, color: TaifTokens.muted),
                     ),
                   ]),
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline,
-                  size: 20, color: TaifTokens.err),
-              onPressed: () => _removeItem(item),
+              tooltip: 'Remove ${item.title ?? item.sku ?? 'item'}',
+              onPressed: actionsDisabled ? null : () => _removeItem(item),
+              icon: itemBusy
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.delete_outline, size: 20, color: TaifTokens.err),
             ),
           ]),
           const SizedBox(height: 8),
           Row(children: [
             QuantityStepper(
+              key: ValueKey('cart-qty-${item.id}-$_cartMutationRevision'),
+              enabled: !actionsDisabled,
               value: item.quantity,
               minQty: floor,
+              step: _stepFor(item),
               onChanged: (q) => _setQty(item, q),
             ),
             const Spacer(),
@@ -132,10 +238,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
   }
 
-  /// Promo code input (audit 4.3 row 153: `applyPromo()` existed but had no
-  /// UI). Apply-only — the API exposes no remove-promo route, so an applied
-  /// code renders as a confirmation chip rather than a removable one.
+  /// Promo code input and applied-promotion removal (finding G-019).
   Widget _promoSection(Cart c) {
+    final actionsDisabled = _cartActionsDisabled;
     final applied = c.promoCode != null && c.promoCode!.isNotEmpty;
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -153,6 +258,16 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                           fontWeight: FontWeight.w600,
                           color: TaifTokens.ok)),
                 ),
+                TextButton(
+                  onPressed: actionsDisabled ? null : _removePromo,
+                  child: _removingPromo
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Remove'),
+                ),
               ])
             : Row(children: [
                 Expanded(
@@ -165,13 +280,13 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                       prefixIcon: Icon(Icons.local_offer_outlined, size: 18),
                       border: OutlineInputBorder(),
                     ),
-                    enabled: !_applyingPromo,
+                    enabled: !actionsDisabled,
                     onSubmitted: (_) => _applyPromo(),
                   ),
                 ),
                 const SizedBox(width: 8),
                 TextButton(
-                  onPressed: _applyingPromo ? null : _applyPromo,
+                  onPressed: actionsDisabled ? null : _applyPromo,
                   child: _applyingPromo
                       ? const SizedBox(
                           width: 16,
@@ -191,8 +306,13 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     final validation = ref.watch(cartValidationProvider);
     return Scaffold(
         appBar: AppBar(title: const Text('Cart'), actions: [
+          IconButton(
+            tooltip: 'Refresh cart',
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.invalidate(cartProvider),
+          ),
           TextButton(
-              onPressed: _clearing
+              onPressed: _cartActionsDisabled
                   ? null
                   : () async {
                       setState(() => _clearing = true);
@@ -213,14 +333,22 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   style: const TextStyle(color: TaifTokens.err))),
         ]),
         body: cart.when(
+          skipLoadingOnRefresh: true,
+          skipError: true,
           data: (c) {
             if (c.items.isEmpty) {
-              return EmptyState(
-                  title: 'Cart is empty',
-                  description: 'Browse products and add items to your cart',
-                  icon: Icons.shopping_cart_outlined,
-                  onAction: () => context.go('/search'),
-                  actionLabel: 'Browse Products');
+              return Column(children: [
+                if (cart.isRefreshing || cart.hasError) _cartReadStatus(cart),
+                Expanded(
+                  child: EmptyState(
+                    title: 'Cart is empty',
+                    description: 'Browse products and add items to your cart',
+                    icon: Icons.shopping_cart_outlined,
+                    onAction: () => context.go('/search'),
+                    actionLabel: 'Browse Products',
+                  ),
+                ),
+              ]);
             }
             final grouped = <String, List<CartItem>>{};
             for (final item in c.items) {
@@ -237,6 +365,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 currencies.length == 1 ? currencies.first : null;
             final isMixedCurrency = currencies.length > 1;
             return Column(children: [
+              if (cart.isRefreshing || cart.hasError) _cartReadStatus(cart),
               // PHASE 11/12: show stale/repriced banner
               if (validation.hasValue &&
                   (validation.value!['stale'] as List?)?.isNotEmpty == true)

@@ -35,50 +35,38 @@ class MainShell extends ConsumerWidget {
     // Live item count for the Cart tab badge. cartProvider is autoDispose, so
     // watching it here also keeps it alive for as long as the shell is mounted.
     final cartCount = ref.watch(cartProvider).valueOrNull?.items.length ?? 0;
-
+    final profile = ref.watch(profileProvider).valueOrNull;
+    final branchIndices = <int>[0];
+    final destinations = <NavigationDestination>[
+      const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+    ];
+    if (profile?.hasPermission('catalog:products:read') ?? false) {
+      branchIndices.add(1);
+      destinations.add(const NavigationDestination(icon: Icon(Icons.search), label: 'Search'));
+    }
+    if (profile?.hasPermission('orders:write') ?? false) {
+      branchIndices.add(2);
+      destinations.add(NavigationDestination(
+        icon: Badge(isLabelVisible: cartCount > 0, label: Text(cartCount > 99 ? '99+' : '$cartCount'), backgroundColor: TaifTokens.brandAccent, child: const Icon(Icons.shopping_cart_outlined)),
+        selectedIcon: Badge(isLabelVisible: cartCount > 0, label: Text(cartCount > 99 ? '99+' : '$cartCount'), backgroundColor: TaifTokens.brandAccent, child: const Icon(Icons.shopping_cart)),
+        label: 'Cart',
+      ));
+    }
+    if (profile?.hasPermission('orders:read') ?? false) {
+      branchIndices.add(3);
+      destinations.add(const NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Orders'));
+    }
+    branchIndices.add(4);
+    destinations.add(const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Account'));
+    final visibleIndex = branchIndices.indexOf(navigationShell.currentIndex);
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: _goBranch,
+        selectedIndex: visibleIndex < 0 ? 0 : visibleIndex,
+        onDestinationSelected: (index) => _goBranch(branchIndices[index]),
         backgroundColor: TaifTokens.surface,
         indicatorColor: TaifTokens.brandPrimary.withValues(alpha: 0.12),
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.search),
-            label: 'Search',
-          ),
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: cartCount > 0,
-              label: Text(cartCount > 99 ? '99+' : '$cartCount'),
-              backgroundColor: TaifTokens.brandAccent,
-              child: const Icon(Icons.shopping_cart_outlined),
-            ),
-            selectedIcon: Badge(
-              isLabelVisible: cartCount > 0,
-              label: Text(cartCount > 99 ? '99+' : '$cartCount'),
-              backgroundColor: TaifTokens.brandAccent,
-              child: const Icon(Icons.shopping_cart),
-            ),
-            label: 'Cart',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long),
-            label: 'Orders',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Account',
-          ),
-        ],
+        destinations: destinations,
       ),
     );
   }

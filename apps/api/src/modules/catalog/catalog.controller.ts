@@ -11,10 +11,14 @@ import {
   Req,
   Res,
   UseGuards,
+  UseInterceptors,
   ParseUUIDPipe,
   ForbiddenException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
+import { and, eq } from 'drizzle-orm';
+import { productVariants } from './catalog.schema';
 import {
   CatalogService,
   CreateCategoryInput,
@@ -39,7 +43,15 @@ import {
 } from '../../common/guards/current-user.decorator';
 import { StorageService } from '../../common/storage/storage.service';
 import { DatabaseService } from '../../common/database/database.service';
-import { assertProductEditableByMerchant, assertStoreMember, assertStoreInOrg } from '../../common/tenant-scope';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
+import {
+  assertProductEditableByMerchant,
+  assertStoreMember,
+  assertStoreInOrg,
+  assertProductReadable,
+  canManageStoreCatalog,
+  canManageProductCatalog,
+} from '../../common/tenant-scope';
 import { AuditService } from '../audit/index';
 import { ProductGovernanceService } from './product-governance.service';
 /**
@@ -58,28 +70,62 @@ export class CatalogController {
     private readonly governance: ProductGovernanceService,
   ) {}
 
+  private async assertCategoryReadable(user: JwtPayload, categoryId: string): Promise<void> {
+    const category = await this.catalogService.getCategory(categoryId);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+
+    if (category.storeId) {
+      try {
+        await assertStoreInOrg(this.db, caller, category.storeId);
+        await assertStoreMember(this.db, caller, category.storeId);
+      } catch (error) {
+        if (error instanceof ForbiddenException) throw new NotFoundException('Category not found');
+        throw error;
+      }
+    }
+
+    // Inactive categories are a governance surface, not public catalog data.
+    if (
+      !category.isActive &&
+      user.role !== 'SUPER_ADMIN' &&
+      !user.perms?.includes('catalog:categories:write')
+    ) {
+      throw new NotFoundException('Category not found');
+    }
+  }
+
   // ── Categories ───────────────────────────────────────────────
 
   @Post('categories')
   @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermission('catalog:categories:write')
   @RequireRole('ADMIN', 'MODERATOR')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async createCategory(@Body() input: CreateCategoryInput) {
     return this.catalogService.createCategory(input);
   }
 
   @Get('categories')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listCategories(
+    @CurrentUser() user: JwtPayload,
     @Query('storeId') storeId?: string,
     @Query('parentId') parentId?: string,
     @Query('all') all?: string,
     @Query('includeInactive') includeInactive?: string,
   ) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    if (storeId) {
+      await assertStoreInOrg(this.db, caller, storeId);
+      await assertStoreMember(this.db, caller, storeId);
+    }
+    const canViewInactive =
+      user.role === 'SUPER_ADMIN' || user.perms?.includes('catalog:categories:write') === true;
     return this.catalogService.listCategories({
       storeId,
       parentId,
       all: all === 'true',
-      isActive: includeInactive === 'true' ? undefined : true,
+      isActive: includeInactive === 'true' && canViewInactive ? undefined : true,
     });
   }
 
@@ -90,12 +136,15 @@ export class CatalogController {
    * NestJS matches literal path segments ahead of parameterized siblings.
    */
   @Get('categories/tree')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getCategoryTree() {
     return this.catalogService.getCategoryTree();
   }
 
   @Get('categories/:id')
-  async getCategory(@Param('id') id: string) {
+  @UseInterceptors(TenantDatabaseContextInterceptor)
+  async getCategory(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    await this.assertCategoryReadable(user, id);
     return this.catalogService.getCategoryContents(id);
   }
 
@@ -104,7 +153,9 @@ export class CatalogController {
    * manager can show which templates reference a given node.
    */
   @Get('categories/:id/product-types')
-  async listCategoryProductTypes(@Param('id') id: string) {
+  @UseInterceptors(TenantDatabaseContextInterceptor)
+  async listCategoryProductTypes(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    await this.assertCategoryReadable(user, id);
     return this.catalogService.listCategoryProductTypes(id);
   }
 
@@ -114,10 +165,13 @@ export class CatalogController {
    * or omits for BOTH (default).
    */
   @Get('categories/:id/products')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listCategoryProducts(
     @Param('id') id: string,
-    @Query('scope') scope?: 'DIRECT' | 'DESCENDANT' | 'BOTH',
+    @Query('scope') scope: 'DIRECT' | 'DESCENDANT' | 'BOTH' | undefined,
+    @CurrentUser() user: JwtPayload,
   ) {
+    await this.assertCategoryReadable(user, id);
     return this.catalogService.getCategoryProducts(id, { scope });
   }
 
@@ -127,6 +181,7 @@ export class CatalogController {
    * `GET /categories/:id/product-types` used by merchant/buyer surfaces.
    */
   @Get('admin/categories/:id/product-types')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermission('catalog:categories:write')
   @RequireRole('ADMIN', 'MODERATOR')
@@ -138,6 +193,7 @@ export class CatalogController {
   @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermission('catalog:categories:write')
   @RequireRole('ADMIN', 'MODERATOR')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async updateCategory(@Param('id') id: string, @Body() input: UpdateCategoryInput) {
     return this.catalogService.updateCategory(id, input);
   }
@@ -146,6 +202,7 @@ export class CatalogController {
   @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermission('catalog:categories:write')
   @RequireRole('ADMIN', 'MODERATOR')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async deleteCategory(@Param('id') id: string) {
     return this.catalogService.deleteCategory(id);
   }
@@ -155,6 +212,7 @@ export class CatalogController {
   @Post('brands')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:brands:manage')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async createBrand(@Body() input: CreateBrandInput) {
     return this.catalogService.createBrand(input);
   }
@@ -164,6 +222,7 @@ export class CatalogController {
    * Gated by catalog:brands:manage so only admins see the analytics.
    */
   @Get('admin/brands')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:brands:manage')
   async listBrandsEnriched(@Query('includeInactive') includeInactive?: string) {
@@ -171,11 +230,13 @@ export class CatalogController {
   }
 
   @Get('brands')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listBrands(@Query('includeInactive') includeInactive?: string) {
     return this.catalogService.listBrands(includeInactive === 'true');
   }
 
   @Get('brands/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getBrand(@Param('id') id: string) {
     return this.catalogService.getBrand(id);
   }
@@ -183,6 +244,7 @@ export class CatalogController {
   @Patch('brands/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:brands:manage')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async updateBrand(@Param('id') id: string, @Body() input: Record<string, unknown>) {
     return this.catalogService.updateBrand(id, input as any);
   }
@@ -190,6 +252,7 @@ export class CatalogController {
   @Delete('brands/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:brands:manage')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async deactivateBrand(@Param('id') id: string) {
     return this.catalogService.deactivateBrand(id);
   }
@@ -199,6 +262,7 @@ export class CatalogController {
   @Post('products')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async createProduct(@CurrentUser() user: JwtPayload, @Body() input: CreateProductInput) {
     // P6 remediation: verify store membership before creating product.
     // Merchants must specify a valid storeId and be ACTIVE members of that store.
@@ -213,16 +277,21 @@ export class CatalogController {
   }
 
   @Get('stores/:storeId/products')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listProducts(
     @Param('storeId') storeId: string,
+    @CurrentUser() user: JwtPayload,
     @Query('status') status?: string,
     @Query('categoryId') categoryId?: string,
     @Query('q') search?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    const canManage = await canManageStoreCatalog(this.db, caller, storeId);
     return this.catalogService.listProductsByStore(storeId, {
-      status,
+      // Never trust a buyer-supplied status filter to expose unpublished rows.
+      status: canManage ? status : 'ACTIVE',
       categoryId,
       search,
       limit: limit ? parseInt(limit, 10) : undefined,
@@ -231,30 +300,65 @@ export class CatalogController {
   }
 
   @Get('products/:id')
-  async getProduct(@Param('id', ParseUUIDPipe) id: string) {
-    return this.catalogService.getProductDetail(id);
+  async getProduct(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: JwtPayload) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    const includeInactiveVariants = await this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: caller.sub,
+        actorRole: caller.role,
+        activeOrgId: caller.activeOrg ?? null,
+      },
+      async () => {
+        await assertProductReadable(this.db, caller, id);
+        return canManageProductCatalog(this.db, caller, id);
+      },
+    );
+    // Redis caching and storage URL resolution happen outside the service DB actor scope.
+    return this.catalogService.getProductDetail(id, caller, includeInactiveVariants);
   }
 
   @Patch('products/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  // These mixed operations intentionally avoid a request-wide interceptor:
+  // their database phases are scoped in CatalogService, while cache invalidation,
+  // outbox publication and audit recording happen after those short scopes close.
   async updateProduct(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
     @Body() input: UpdateProductInput,
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+    const actor = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: actor.sub,
+        actorRole: actor.role,
+        activeOrgId: actor.activeOrg ?? null,
+      },
+      () => assertProductEditableByMerchant(this.db, actor, id),
+    );
     // PHASE 4 P1: Extract optimistic-locking timestamp from body before passing to service.
     const { updatedAt: clientUpdatedAt, ...rest } = input;
-    return this.catalogService.updateProduct(id, rest, clientUpdatedAt);
+    return this.catalogService.updateProduct(id, rest, clientUpdatedAt, actor);
   }
 
   @Delete('products/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async deleteProduct(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
-    return this.catalogService.deleteProduct(id);
+    const actor = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: actor.sub,
+        actorRole: actor.role,
+        activeOrgId: actor.activeOrg ?? null,
+      },
+      () => assertProductEditableByMerchant(this.db, actor, id),
+    );
+    return this.catalogService.deleteProduct(id, actor);
   }
 
   // ── P11 Product Governance (Merchant) ─────────────────────────
@@ -266,6 +370,7 @@ export class CatalogController {
   @Post('merchant/products/:id/submit')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async submitProduct(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -290,6 +395,7 @@ export class CatalogController {
   @Post('merchant/products/:id/withdraw')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async withdrawProduct(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -314,6 +420,7 @@ export class CatalogController {
   @Post('merchant/products/:id/publish')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async publishProduct(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -338,6 +445,7 @@ export class CatalogController {
   @Post('merchant/products/:id/unpublish')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async unpublishProduct(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
@@ -360,13 +468,18 @@ export class CatalogController {
    * Only the owning store's members can access it.
    */
   @Get('merchant/products/:id/moderation-history')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
-  @RequirePermission('merchant:products:read')
+  @RequirePermission('catalog:products:read')
   async getMerchantModerationHistory(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      id,
+    );
     return this.governance.getModerationHistory(id);
   }
 
@@ -377,13 +490,15 @@ export class CatalogController {
    * Used by Product Studio edit mode to load existing attribute values.
    */
   @Get('products/:id/attribute-values')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async getProductAttributeValues(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+  async getProductAttributeValues(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      id,
+    );
     return this.taxonomyService.getProductAttributeValues(id);
   }
 
@@ -395,12 +510,17 @@ export class CatalogController {
   @Put('products/:id/attribute-values')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async setProductAttributeValues(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
     @Body() body: { values: AttributeValueInput[] },
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      id,
+    );
     const result = await this.taxonomyService.setProductAttributeValues(id, body.values);
     // PHASE 4 P6: Audit — product attributes updated
     await this.audit.record({
@@ -417,37 +537,57 @@ export class CatalogController {
 
   // PHASE 7: literal path declared before parameterized :variantId siblings
   @Get('products/:productId/variant-matrix')
-  async getVariantMatrix(@Param('productId') productId: string) {
+  @UseInterceptors(TenantDatabaseContextInterceptor)
+  async getVariantMatrix(@Param('productId') productId: string, @CurrentUser() user: JwtPayload) {
+    await assertProductReadable(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
     return this.catalogService.getVariantMatrix(productId);
   }
 
   @Post('products/:productId/variants')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async createVariant(
     @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
     @Body() input: CreateVariantInput,
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
     return this.catalogService.createVariant(productId, input);
   }
 
   @Get('products/:productId/variants')
-  async listVariants(@Param('productId') productId: string) {
-    return this.catalogService.listVariantsByProduct(productId);
+  @UseInterceptors(TenantDatabaseContextInterceptor)
+  async listVariants(@Param('productId') productId: string, @CurrentUser() user: JwtPayload) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertProductReadable(this.db, caller, productId);
+    const canManage = await canManageProductCatalog(this.db, caller, productId);
+    return this.catalogService.listVariantsByProduct(productId, canManage);
   }
 
   @Patch('products/:productId/variants/:variantId')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async updateVariant(
     @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
     @Param('variantId') variantId: string,
     @Body() input: Partial<CreateVariantInput> & { updatedAt?: string },
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
     // PHASE 4 P1: Extract optimistic-locking timestamp from body before passing to service.
     const { updatedAt: clientUpdatedAt, ...rest } = input;
     return this.catalogService.updateVariant(productId, variantId, rest, clientUpdatedAt);
@@ -458,6 +598,7 @@ export class CatalogController {
    * Used by Product Studio edit mode to load existing variant attribute values.
    */
   @Get('products/:productId/variants/:variantId/attribute-values')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async getVariantAttributeValues(
@@ -465,7 +606,23 @@ export class CatalogController {
     @Param('productId') productId: string,
     @Param('variantId') variantId: string,
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
+
+    // The product path segment is part of the authorization boundary. Do not
+    // let a merchant who owns product A read attribute values for product B's
+    // variant by supplying B's variant UUID alongside A's product UUID.
+    const variant = await this.db.db.query.productVariants.findFirst({
+      where: and(eq(productVariants.id, variantId), eq(productVariants.productId, productId)),
+      columns: { id: true },
+    });
+    if (!variant) {
+      throw new NotFoundException('Variant not found for this product');
+    }
+
     return this.taxonomyService.getVariantAttributeValues(variantId);
   }
 
@@ -477,14 +634,23 @@ export class CatalogController {
   @Put('products/:productId/variants/:variantId/attribute-values')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async setVariantAttributeValues(
     @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
     @Param('variantId') variantId: string,
     @Body() body: { values: AttributeValueInput[] },
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
-    const result = await this.taxonomyService.setVariantAttributeValues(productId, variantId, body.values);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
+    const result = await this.taxonomyService.setVariantAttributeValues(
+      productId,
+      variantId,
+      body.values,
+    );
     // PHASE 4 P6: Audit — variant attributes updated
     await this.audit.record({
       actorType: 'MERCHANT',
@@ -499,36 +665,47 @@ export class CatalogController {
   @Post('products/:productId/variants/bulk')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async bulkVariantOperations(
     @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
-    @Body() body: {
+    @Body()
+    body: {
       create?: CreateVariantInput[];
       deleteIds?: string[];
       toggleActive?: Array<{ id: string; isActive: boolean }>;
     },
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
     return this.catalogService.bulkVariantOperations(productId, body);
   }
 
   @Post('stores/:storeId/products/bulk')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async bulkProductOperations(
     @Param('storeId') storeId: string,
+    @CurrentUser() user: JwtPayload,
     @Body() body: { ids: string[]; action: 'delete' | 'archive' | 'draft' },
   ) {
+    // Bind the supplied store scope to both the caller's active organization
+    // and active store membership before any bulk mutation reaches the service.
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
+    await assertStoreMember(this.db, caller, storeId);
     return this.catalogService.bulkProductOperations(storeId, body.ids, body.action);
   }
 
   @Get('stores/:storeId/products/export')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async exportProducts(
-    @Param('storeId') storeId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async exportProducts(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     // P7 Phase 1 — F-SEC-01: require store membership for export.
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, storeId);
@@ -537,19 +714,27 @@ export class CatalogController {
   }
 
   @Get('stores/:storeId/variants')
-  async listStoreVariants(@Param('storeId') storeId: string) {
-    return this.catalogService.listVariantsByStore(storeId);
+  @UseInterceptors(TenantDatabaseContextInterceptor)
+  async listStoreVariants(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    const canManage = await canManageStoreCatalog(this.db, caller, storeId);
+    return this.catalogService.listVariantsByStore(storeId, canManage);
   }
 
   @Post('products/:productId/media/reorder')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async reorderMedia(
     @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
     @Body() body: { order: string[] },
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
     return this.catalogService.reorderMedia(productId, body.order);
   }
 
@@ -563,24 +748,48 @@ export class CatalogController {
     @Param('productId') productId: string,
     @Body() input: AddMediaInput,
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
-    return this.catalogService.addMedia(productId, input);
+    const actor = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: actor.sub,
+        actorRole: actor.role,
+        activeOrgId: actor.activeOrg ?? null,
+      },
+      () => assertProductEditableByMerchant(this.db, actor, productId),
+    );
+    return this.catalogService.addMedia(productId, input, actor);
   }
 
   @Get('products/:productId/media')
-  async listMedia(@Param('productId') productId: string) {
-    return this.catalogService.listMediaByProduct(productId);
+  async listMedia(@Param('productId') productId: string, @CurrentUser() user: JwtPayload) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: caller.sub,
+        actorRole: caller.role,
+        activeOrgId: caller.activeOrg ?? null,
+      },
+      () => assertProductReadable(this.db, caller, productId),
+    );
+    return this.catalogService.listMediaByProduct(productId, caller);
   }
 
   @Delete('products/:productId/media/:mediaId')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async removeMedia(
     @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
     @Param('mediaId') mediaId: string,
   ) {
-    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(
+      this.db,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
+      productId,
+    );
     return this.catalogService.removeMedia(productId, mediaId);
   }
 
@@ -608,6 +817,7 @@ export class CatalogController {
   @Post('stores/:storeId/imports')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async createImportJob(
     @Param('storeId') storeId: string,
     @CurrentUser() user: JwtPayload,
@@ -621,12 +831,10 @@ export class CatalogController {
   }
 
   @Get('stores/:storeId/imports')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
-  @RequirePermission('merchant:products:read')
-  async listImportJobs(
-    @Param('storeId') storeId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  @RequirePermission('catalog:products:read')
+  async listImportJobs(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, storeId);
     await assertStoreMember(this.db, caller, storeId);
@@ -634,12 +842,10 @@ export class CatalogController {
   }
 
   @Get('imports/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
-  @RequirePermission('merchant:products:read')
-  async getImportJob(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  @RequirePermission('catalog:products:read')
+  async getImportJob(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, job.storeId);
@@ -656,11 +862,16 @@ export class CatalogController {
     @Body() body: { rows: Record<string, string>[]; append?: boolean },
   ) {
     // P7 Phase 1 — F-SEC-01: resolve storeId from persisted import job.
-    const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, job.storeId);
-    await assertStoreMember(this.db, caller, job.storeId);
-    return this.catalogService.stageImportRows(id, body.rows || [], body.append !== false);
+    await this.db.withActorContext(
+      { actorKind: 'user', actorId: caller.sub, actorRole: caller.role, activeOrgId: caller.activeOrg ?? null },
+      async () => {
+        const job = await this.catalogService.getImportJob(id);
+        await assertStoreInOrg(this.db, caller, job.storeId);
+        await assertStoreMember(this.db, caller, job.storeId);
+      },
+    );
+    return this.catalogService.stageImportRows(id, body.rows || [], body.append !== false, caller);
   }
 
   @Post('imports/:id/upload')
@@ -674,18 +885,24 @@ export class CatalogController {
     // P10 Remediation (R1/R11): store scope is resolved from the persisted job,
     // never from the client. Bytes arrive as a raw octet-stream body (no multer
     // dependency, no client-supplied storage key) and are capped at 25 MB.
-    const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, job.storeId);
-    await assertStoreMember(this.db, caller, job.storeId);
+    await this.db.withActorContext(
+      { actorKind: 'user', actorId: caller.sub, actorRole: caller.role, activeOrgId: caller.activeOrg ?? null },
+      async () => {
+        const job = await this.catalogService.getImportJob(id);
+        await assertStoreInOrg(this.db, caller, job.storeId);
+        await assertStoreMember(this.db, caller, job.storeId);
+      },
+    );
     const buffer = await readRawBody(req, 25 * 1024 * 1024);
     const contentType = req.headers['content-type'] as string | undefined;
-    return this.catalogService.uploadImportFile(id, buffer, contentType);
+    return this.catalogService.uploadImportFile(id, buffer, caller, contentType);
   }
 
   @Post('imports/:id/mapping')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async updateImportMapping(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
@@ -701,27 +918,28 @@ export class CatalogController {
   @Post('imports/:id/process')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async processImportJob(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
-    // P7 Phase 1 — F-SEC-01: resolve storeId from persisted import job.
-    const job = await this.catalogService.getImportJob(id);
+  async processImportJob(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    // Resolve and authorize the persisted store under a short caller actor scope.
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, job.storeId);
-    await assertStoreMember(this.db, caller, job.storeId);
-    return this.catalogService.processImportJob(id);
+    await this.db.withActorContext(
+      { actorKind: 'user', actorId: caller.sub, actorRole: caller.role, activeOrgId: caller.activeOrg ?? null },
+      async () => {
+        const job = await this.catalogService.getImportJob(id);
+        await assertStoreInOrg(this.db, caller, job.storeId);
+        await assertStoreMember(this.db, caller, job.storeId);
+      },
+    );
+    // The service scopes each DB phase independently; workbook/Redis work stays outside.
+    return this.catalogService.processImportJob(id, caller);
   }
 
   // ── P8: Chunk management, cancellation, retry ────────────────
 
   @Get('imports/:id/chunks')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
-  @RequirePermission('merchant:products:read')
-  async getImportChunks(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  @RequirePermission('catalog:products:read')
+  async getImportChunks(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, job.storeId);
@@ -732,10 +950,8 @@ export class CatalogController {
   @Post('imports/:id/cancel')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async cancelImport(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  @UseInterceptors(TenantDatabaseContextInterceptor)
+  async cancelImport(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, job.storeId);
@@ -746,10 +962,8 @@ export class CatalogController {
   @Post('imports/:id/retry')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async retryImportJob(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  @UseInterceptors(TenantDatabaseContextInterceptor)
+  async retryImportJob(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const job = await this.catalogService.getImportJob(id);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, job.storeId);
@@ -762,30 +976,33 @@ export class CatalogController {
   @Post('imports/:id/preview')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async previewImportJob(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
-    const job = await this.catalogService.getImportJob(id);
+  async previewImportJob(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, job.storeId);
-    await assertStoreMember(this.db, caller, job.storeId);
-    return this.catalogService.previewImportJob(id);
+    await this.db.withActorContext(
+      { actorKind: 'user', actorId: caller.sub, actorRole: caller.role, activeOrgId: caller.activeOrg ?? null },
+      async () => {
+        const job = await this.catalogService.getImportJob(id);
+        await assertStoreInOrg(this.db, caller, job.storeId);
+        await assertStoreMember(this.db, caller, job.storeId);
+      },
+    );
+    return this.catalogService.previewImportJob(id, caller);
   }
 
   @Get('imports/:id/errors')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('merchant:products:read')
-  async getImportErrors(
-    @Param('id') id: string,
-    @CurrentUser() user: JwtPayload,
-    @Res() res: any,
-  ) {
-    const job = await this.catalogService.getImportJob(id);
+  @RequirePermission('catalog:products:read')
+  async getImportErrors(@Param('id') id: string, @CurrentUser() user: JwtPayload, @Res() res: any) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, job.storeId);
-    await assertStoreMember(this.db, caller, job.storeId);
-    const csv = await this.catalogService.getErrorReport(id);
+    await this.db.withActorContext(
+      { actorKind: 'user', actorId: caller.sub, actorRole: caller.role, activeOrgId: caller.activeOrg ?? null },
+      async () => {
+        const job = await this.catalogService.getImportJob(id);
+        await assertStoreInOrg(this.db, caller, job.storeId);
+        await assertStoreMember(this.db, caller, job.storeId);
+      },
+    );
+    const csv = await this.catalogService.getErrorReport(id, caller);
     res.set({
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="import-errors-${id}.csv"`,
@@ -796,6 +1013,7 @@ export class CatalogController {
   // ── Search ───────────────────────────────────────────────────
 
   @Get('search')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async search(
     @Query('q') q: string,
     @Query('storeId') storeId?: string,
@@ -808,10 +1026,15 @@ export class CatalogController {
     @Query('priceMax') priceMaxRaw?: string,
     @Query('availability') availability?: string,
     @Query('sort') sort?: string,
+    @Query('hasOffers') hasOffersRaw?: string,
   ) {
     let attributeFilters: Record<string, string[]> | undefined;
     if (attrFiltersRaw) {
-      try { attributeFilters = JSON.parse(attrFiltersRaw); } catch { /* ignore malformed */ }
+      try {
+        attributeFilters = JSON.parse(attrFiltersRaw);
+      } catch {
+        /* ignore malformed */
+      }
     }
 
     // P9: validate and convert price parameters (major → minor units)
@@ -837,19 +1060,28 @@ export class CatalogController {
 
     // P9: validate availability
     if (availability != null && availability !== '' && availability !== 'inStock') {
-      throw new BadRequestException(`Invalid availability value '${availability}'. Supported: inStock`);
+      throw new BadRequestException(
+        `Invalid availability value '${availability}'. Supported: inStock`,
+      );
     }
 
     // P9: validate sort
     const validSorts = ['price_asc', 'price_desc', 'newest', 'name'] as const;
-    type SortValue = typeof validSorts[number];
+    type SortValue = (typeof validSorts)[number];
     let sortValue: SortValue | undefined;
     if (sort != null && sort !== '') {
       if (!validSorts.includes(sort as SortValue)) {
-        throw new BadRequestException(`Invalid sort value '${sort}'. Supported: ${validSorts.join(', ')}`);
+        throw new BadRequestException(
+          `Invalid sort value '${sort}'. Supported: ${validSorts.join(', ')}`,
+        );
       }
       sortValue = sort as SortValue;
     }
+
+    if (hasOffersRaw != null && hasOffersRaw !== '' && !['true', 'false'].includes(hasOffersRaw)) {
+      throw new BadRequestException('hasOffers must be true or false');
+    }
+    const hasOffers = hasOffersRaw === 'true';
 
     return this.searchService.search(q, {
       storeId,
@@ -862,22 +1094,37 @@ export class CatalogController {
       priceMax,
       availability: availability === 'inStock' ? 'inStock' : undefined,
       sort: sortValue,
+      hasOffers,
     });
   }
 
   @Get('search/categories')
-  async getTopCategories(@Query('storeId') storeId?: string) {
+  @UseInterceptors(TenantDatabaseContextInterceptor)
+  async getTopCategories(
+    @Query('storeId') storeId: string | undefined,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    if (storeId) {
+      const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+      await assertStoreInOrg(this.db, caller, storeId);
+      await assertStoreMember(this.db, caller, storeId);
+    }
     return this.searchService.getTopCategories(storeId);
   }
 
   @Get('search/brands')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getPopularBrands() {
     return this.searchService.getPopularBrands();
   }
 
   @Get('search/facets')
-  async getSearchFacets(@Query('categoryId') categoryId?: string) {
-    return this.searchService.getFacetsCached(categoryId);
+  async getSearchFacets(
+    @Query('categoryId') categoryId: string | undefined,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const actor = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    return this.searchService.getFacetsCached(categoryId, actor);
   }
 
   // ── PHASE 7: Data Quality / Deduplication ──────────────────────
@@ -887,6 +1134,7 @@ export class CatalogController {
    * Used by merchants during product creation to avoid duplicates.
    */
   @Get('canonical/match')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async findByIdentifiers(
     @Query('gtin') gtin?: string,
     @Query('ean') ean?: string,
@@ -901,6 +1149,7 @@ export class CatalogController {
    * Used by the merchant "Existing Product Selector" on web and mobile.
    */
   @Get('canonical/search')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async searchCanonical(
     @Query('search') search?: string,
     @Query('brandId') brandId?: string,
@@ -921,6 +1170,7 @@ export class CatalogController {
    * Admin: scan for potential duplicate products (same title + category).
    */
   @Get('canonical/duplicates')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission('catalog:product-types:manage')
   async findDuplicates(@Query('categoryId') categoryId?: string) {
@@ -931,6 +1181,7 @@ export class CatalogController {
    * PHASE COS-14: Admin data-quality dashboard metrics.
    */
   @Get('admin/data-quality')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission('catalog:product-types:manage')
   getDataQuality() {
@@ -941,6 +1192,7 @@ export class CatalogController {
    * Catalog Governance §26: identify variants with corrupted SKU-[...] patterns.
    */
   @Get('admin/corrupted-variants')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission('catalog:product-types:manage')
   findCorruptedVariants() {
@@ -959,7 +1211,11 @@ function readRawBody(req: any, maxBytes: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const declared = Number(req.headers['content-length'] || 0);
     if (declared > maxBytes) {
-      reject(new BadRequestException(`FILE_TOO_LARGE: exceeds the ${Math.round(maxBytes / 1024 / 1024)} MB limit.`));
+      reject(
+        new BadRequestException(
+          `FILE_TOO_LARGE: exceeds the ${Math.round(maxBytes / 1024 / 1024)} MB limit.`,
+        ),
+      );
       return;
     }
     // If a body parser already consumed the stream, fall back to what it buffered.
@@ -975,7 +1231,11 @@ function readRawBody(req: any, maxBytes: number): Promise<Buffer> {
       if (total > maxBytes) {
         if (!settled) {
           settled = true;
-          reject(new BadRequestException(`FILE_TOO_LARGE: exceeds the ${Math.round(maxBytes / 1024 / 1024)} MB limit.`));
+          reject(
+            new BadRequestException(
+              `FILE_TOO_LARGE: exceeds the ${Math.round(maxBytes / 1024 / 1024)} MB limit.`,
+            ),
+          );
         }
         req.removeAllListeners();
         return;

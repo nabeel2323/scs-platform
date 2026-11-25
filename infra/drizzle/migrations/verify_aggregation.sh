@@ -1,5 +1,7 @@
 #!/bin/bash
 PSQL="psql -U postgres -d m73a_verify"
+source "$(dirname "$0")/assert-verification-target.sh"
+assert_verification_target m73a_verify postgres
 
 echo "=== Exhaustive Aggregation Tests ==="
 echo ""

@@ -1,4 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { sql } from 'drizzle-orm';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool, PoolClient } from 'pg';
 import * as fs from 'node:fs';
@@ -7,6 +9,65 @@ import { randomUUID } from 'node:crypto';
 import * as schema from '../../drizzle/schema';
 import { resolveDatabaseUrl } from '../../config/env-gate';
 import { PERMISSIONS, ROLES } from './rbac-seed.data';
+import { acquireMigrationLock, releaseMigrationLock } from '../../../infra/drizzle/migration-lock';
+import { DEV_MIGRATION_EXCLUSIONS } from '../../../infra/drizzle/migration-config';
+import { setOperatorActorContext } from '../../../infra/drizzle/operator-actor-context';
+
+export type DatabaseActorKind = 'anonymous' | 'authentication' | 'user' | 'worker' | 'system' | 'bootstrap' | 'audit';
+export type DatabaseAuthenticationOperation =
+  | 'phone_otp_login'
+  | 'email_otp_login'
+  | 'password_login'
+  | 'refresh_token'
+  | 'logout';
+
+export type DatabaseActorContext =
+  | {
+      actorKind: 'anonymous';
+      actorId?: null;
+      actorRole?: null;
+      activeOrgId?: null;
+      workerId?: null;
+    }
+  | {
+      actorKind: 'authentication';
+      authOperation: DatabaseAuthenticationOperation;
+      actorId?: null;
+      actorRole?: null;
+      activeOrgId?: null;
+      workerId?: null;
+    }
+  | {
+      actorKind: 'user';
+      actorId: string;
+      actorRole: string;
+      activeOrgId?: string | null;
+      workerId?: null;
+    }
+  | {
+      actorKind: 'worker';
+      actorId?: null;
+      actorRole?: null;
+      activeOrgId?: string | null;
+      workerId: string;
+    }
+  | {
+      actorKind: 'system' | 'bootstrap' | 'audit';
+      actorId: string;
+      actorRole?: string | null;
+      activeOrgId?: string | null;
+      workerId?: null;
+    };
+
+type NormalizedDatabaseActorContext = {
+  actorKind: DatabaseActorKind;
+  actorId: string | null;
+  actorRole: string | null;
+  activeOrgId: string | null;
+  workerId: string | null;
+  authOperation: DatabaseAuthenticationOperation | null;
+};
+
 
 /**
  * Resolve the migrations directory. Works for both:
@@ -24,7 +85,170 @@ function resolveMigrationsDir(): string {
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private static readonly logger = new Logger('DatabaseService');
   private pool!: Pool;
-  public db!: NodePgDatabase<typeof schema>;
+  private rootDb!: NodePgDatabase<typeof schema>;
+  private readonly actorContextStorage = new AsyncLocalStorage<{
+    db: NodePgDatabase<typeof schema>;
+    actor: NormalizedDatabaseActorContext;
+    active: boolean;
+  }>();
+
+  /**
+   * All existing services continue to use DatabaseService.db. During an explicitly
+   * scoped operation this getter resolves to the transaction-bound Drizzle handle;
+   * outside that operation it resolves to the process-wide pool handle.
+   *
+   * The setter preserves the existing bootstrap/test injection contract.
+   */
+  get db(): NodePgDatabase<typeof schema> {
+    const scope = this.actorContextStorage.getStore();
+    if (scope && !scope.active) {
+      throw new Error('Database actor context has already completed');
+    }
+    const handle = scope?.db ?? this.rootDb;
+    if (!handle) throw new Error('DatabaseService has not initialized its database handle');
+    return handle;
+  }
+
+  set db(handle: NodePgDatabase<typeof schema>) {
+    this.rootDb = handle;
+  }
+
+  get currentActorContext(): Readonly<NormalizedDatabaseActorContext> | null {
+    const scope = this.actorContextStorage.getStore();
+    return scope?.active ? scope.actor : null;
+  }
+
+  /**
+   * Run an explicitly selected operation on one transaction-bound connection and
+   * establish transaction-local PostgreSQL context before application queries.
+   *
+   * This is an opt-in primitive only: it does not install a global HTTP interceptor,
+   * does not automatically wrap controllers/workers, and does not enable RLS.
+   * Callers must pass context derived from authenticated server-side identity or a
+   * reviewed worker/system principal; never pass client-supplied tenant headers.
+   *
+   * Existing service calls to DatabaseService.db resolve to this transaction handle
+   * for the lifetime of the async operation, including raw Drizzle execute() calls.
+   * A nested call with the identical actor reuses the current transaction. Attempting
+   * to switch actors inside an active transaction fails closed.
+   */
+  async withActorContext<T>(
+    context: DatabaseActorContext,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const actor = this.normalizeActorContext(context);
+    const active = this.actorContextStorage.getStore();
+
+    if (active) {
+      if (!active.active) {
+        throw new Error('Cannot reuse a completed database actor context');
+      }
+      if (!this.sameActor(active.actor, actor)) {
+        throw new Error('Cannot change database actor context inside an active transaction');
+      }
+      return operation();
+    }
+
+    if (!this.rootDb) throw new Error('DatabaseService has not initialized its database handle');
+
+    return this.rootDb.transaction(async (tx) => {
+      // The third argument MUST be true: every setting is transaction-local and is
+      // cleared by commit/rollback before this pool connection can serve another task.
+      await tx.execute(sql`
+        SELECT
+          set_config('app.actor_id', ${actor.actorId ?? ''}, true),
+          set_config('app.actor_role', ${actor.actorRole ?? ''}, true),
+          set_config('app.active_org_id', ${actor.activeOrgId ?? ''}, true),
+          set_config('app.actor_kind', ${actor.actorKind}, true),
+          set_config('app.worker_id', ${actor.workerId ?? ''}, true),
+          set_config('app.auth_operation', ${actor.authOperation ?? ''}, true)
+      `);
+
+      const scope = {
+        db: tx as unknown as NodePgDatabase<typeof schema>,
+        actor,
+        active: true,
+      };
+      try {
+        return await this.actorContextStorage.run(scope, operation);
+      } finally {
+        // Detached async work inherits the ALS store. Mark it closed so it cannot
+        // issue queries on a transaction after its callback has committed/rolled back.
+        scope.active = false;
+      }
+    });
+  }
+
+  private normalizeActorContext(context: DatabaseActorContext): NormalizedDatabaseActorContext {
+    if (!context || typeof context !== 'object') {
+      throw new TypeError('A database actor context is required');
+    }
+
+    const actorId = typeof context.actorId === 'string' ? context.actorId.trim() : null;
+    const actorRole = typeof context.actorRole === 'string' ? context.actorRole.trim() : null;
+    const activeOrgId =
+      typeof context.activeOrgId === 'string' ? context.activeOrgId.trim() : null;
+    const workerId = typeof context.workerId === 'string' ? context.workerId.trim() : null;
+
+    let authOperation: DatabaseAuthenticationOperation | null = null;
+    if (context.actorKind === 'anonymous') {
+      if (actorId || actorRole || activeOrgId || workerId) {
+        throw new TypeError('Anonymous database context cannot carry actor or tenant identity');
+      }
+    } else if (context.actorKind === 'authentication') {
+      const allowedOperations: DatabaseAuthenticationOperation[] = [
+        'phone_otp_login', 'email_otp_login', 'password_login', 'refresh_token', 'logout',
+      ];
+      if (
+        actorId || actorRole || activeOrgId || workerId ||
+        !allowedOperations.includes(context.authOperation)
+      ) {
+        throw new TypeError('Authentication database context requires one approved operation and no user or tenant identity');
+      }
+      authOperation = context.authOperation;
+    } else if (context.actorKind === 'user') {
+      if (!actorId || !actorRole || workerId) {
+        throw new TypeError('User database context requires actorId and actorRole only');
+      }
+    } else if (context.actorKind === 'worker') {
+      if (!workerId || actorId || actorRole) {
+        throw new TypeError('Worker database context requires workerId and no user identity');
+      }
+    } else if (
+      context.actorKind === 'system' ||
+      context.actorKind === 'bootstrap' ||
+      context.actorKind === 'audit'
+    ) {
+      if (!actorId || workerId) {
+        throw new TypeError(`${context.actorKind} database context requires actorId`);
+      }
+    } else {
+      throw new TypeError('Unsupported database actor kind');
+    }
+
+    return {
+      actorKind: context.actorKind,
+      actorId,
+      actorRole,
+      activeOrgId,
+      workerId,
+      authOperation,
+    };
+  }
+
+  private sameActor(
+    left: NormalizedDatabaseActorContext,
+    right: NormalizedDatabaseActorContext,
+  ): boolean {
+    return (
+      left.actorKind === right.actorKind &&
+      left.actorId === right.actorId &&
+      left.actorRole === right.actorRole &&
+      left.activeOrgId === right.activeOrgId &&
+      left.workerId === right.workerId &&
+      left.authOperation === right.authOperation
+    );
+  }
 
   async onModuleInit() {
     // Resolved through the production config gate (P13 Phase 4.1, finding F-4): the
@@ -49,6 +273,58 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         },
       }),
     });
+
+    // Emit a non-secret identity fingerprint for the actual API pool connection.
+    // This lets operators verify the runtime login/effective role independently of
+    // the migration workflow credential. Never log the DSN, host, address, or query.
+    try {
+      const identityResult = await this.pool.query<{
+        session_user: string;
+        current_user: string;
+        database_name: string;
+        session_role_superuser: boolean;
+        session_role_bypassrls: boolean;
+        session_role_createrole: boolean;
+        session_role_createdb: boolean;
+        effective_role_superuser: boolean;
+        effective_role_bypassrls: boolean;
+        effective_role_createrole: boolean;
+        effective_role_createdb: boolean;
+        ssl: boolean | null;
+      }>(
+        `SELECT
+          session_user::text AS session_user,
+          current_user::text AS current_user,
+          current_database()::text AS database_name,
+          session_role.rolsuper AS session_role_superuser,
+          session_role.rolbypassrls AS session_role_bypassrls,
+          session_role.rolcreaterole AS session_role_createrole,
+          session_role.rolcreatedb AS session_role_createdb,
+          effective_role.rolsuper AS effective_role_superuser,
+          effective_role.rolbypassrls AS effective_role_bypassrls,
+          effective_role.rolcreaterole AS effective_role_createrole,
+          effective_role.rolcreatedb AS effective_role_createdb,
+          pg_stat_ssl.ssl AS ssl
+        FROM pg_roles AS session_role
+        JOIN pg_roles AS effective_role ON effective_role.rolname = current_user
+        LEFT JOIN pg_stat_ssl ON pg_stat_ssl.pid = pg_backend_pid()
+        WHERE session_role.rolname = session_user`,
+      );
+      const identity = identityResult.rows[0];
+      if (identity) {
+        DatabaseService.logger.log(`Runtime database identity: ${JSON.stringify(identity)}`);
+      } else {
+        DatabaseService.logger.warn(
+          'Runtime database identity query returned no role metadata; identity remains unverified.',
+        );
+      }
+    } catch {
+      // Diagnostics must never prevent API startup. Do not log the database error,
+      // which may contain connection details or other sensitive information.
+      DatabaseService.logger.warn(
+        'Runtime database identity diagnostics failed; identity remains unverified.',
+      );
+    }
 
     // Auto-migrate and seed in development mode so debugging "just works".
     const nodeEnv = (process.env['NODE_ENV'] ?? 'development').trim().toLowerCase();
@@ -86,9 +362,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     });
 
     let client: PoolClient | undefined;
+    let migrationLockAcquired = false;
     try {
       client = await bootstrapPool.connect();
       await client.query('SELECT 1'); // prove connectivity
+      await acquireMigrationLock(client);
+      migrationLockAcquired = true;
 
       // ── Migrations ──────────────────────────────────────────────────────
       const migrationsDir = resolveMigrationsDir();
@@ -104,9 +383,24 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )`);
 
+        const excluded = files.filter((file) => DEV_MIGRATION_EXCLUSIONS.has(file));
+        for (const file of excluded) {
+          DatabaseService.logger.warn(
+            'Skipping ' + file + ': ' + DEV_MIGRATION_EXCLUSIONS.get(file),
+          );
+        }
+        const applicableFiles = files.filter((file) => !DEV_MIGRATION_EXCLUSIONS.has(file));
         const appliedRes = await client.query('SELECT name FROM _migration_log ORDER BY name');
         const applied = new Set(appliedRes.rows.map((r) => r.name));
-        const pending = files.filter((f) => !applied.has(f));
+        const staleExcluded = excluded.filter((file) => applied.has(file));
+        if (staleExcluded.length > 0) {
+          throw new Error(
+            'Local migration ledger contains pg_partman-dependent files that this image skips: ' +
+              staleExcluded.join(', ') +
+              '. The local database may contain partial migration state; rebuild it explicitly before use.',
+          );
+        }
+        const pending = applicableFiles.filter((f) => !applied.has(f));
 
         if (pending.length > 0) {
           DatabaseService.logger.log(`Applying ${pending.length} pending migration(s)...`);
@@ -126,7 +420,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           }
           DatabaseService.logger.log(`Migrations complete (${pending.length} applied).`);
         } else {
-          DatabaseService.logger.log(`Database up-to-date — all ${files.length} migration(s) applied.`);
+          DatabaseService.logger.log(
+            'Database up-to-date — all ' + applicableFiles.length + ' eligible migration(s) applied' +
+              (excluded.length > 0 ? '; ' + excluded.length + ' extension-dependent migration(s) skipped.' : '.'),
+          );
         }
       } else {
         DatabaseService.logger.warn(`Migrations directory not found: ${migrationsDir}`);
@@ -139,7 +436,18 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       // Don't crash — let the app try to start anyway (tables may already exist).
     } finally {
       if (client) {
-        try { await client.release(); } catch { /* ignore */ }
+        if (migrationLockAcquired) {
+          try {
+            await releaseMigrationLock(client);
+          } catch {
+            DatabaseService.logger.warn('Could not explicitly release development migration lock.');
+          }
+        }
+        try {
+          await client.release();
+        } catch {
+          /* ignore */
+        }
       }
       await bootstrapPool.end();
     }
@@ -152,6 +460,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private async runDevSeed(client: PoolClient): Promise<void> {
     await client.query('BEGIN');
     try {
+      await setOperatorActorContext(client, 'system', 'dev-bootstrap:rbac-seed');
       // 1. Permissions
       let newPerms = 0;
       for (const key of PERMISSIONS) {
@@ -207,7 +516,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         DatabaseService.logger.log('Seed: RBAC data up-to-date.');
       }
     } catch (err: any) {
-      try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* ignore */
+      }
       DatabaseService.logger.error(`Seed failed: ${err.message}`);
     }
   }

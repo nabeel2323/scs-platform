@@ -1,19 +1,20 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   fetchAdminPayments,
   fetchPaymentVerificationQueue,
   verifyPayment,
   fetchStalePayments,
+  fetchRequestedRefunds,
+  approveRefund,
   type AdminPayment,
+  type AdminRefund,
 } from '../../lib/api';
-import { useRequirePerms } from '../../hooks/useRequirePerms';
-import {
-  PageHeader, Card, Button, colors, typeScale, radii,
-} from '@scs/ui-kit';
+import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
+import { PageHeader, Card, Button, colors, radii } from '@scs/ui-kit';
 
-type Tab = 'queue' | 'all' | 'stale';
+type Tab = 'queue' | 'all' | 'stale' | 'refunds';
 
 const STATUS_COLORS: Record<string, string> = {
   AWAITING_VERIFICATION: '#f59e0b',
@@ -27,12 +28,20 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function PaymentStatusBadge({ status }: { status: string }) {
-  const bg = STATUS_COLORS[status] || '#6b7280';
   return (
-    <span style={{
-      display: 'inline-block', padding: '2px 8px', borderRadius: 12,
-      fontSize: 11, fontWeight: 600, color: '#fff', background: bg,
-    }}>{status.replace(/_/g, ' ')}</span>
+    <span
+      style={{
+        display: 'inline-block',
+        padding: '2px 8px',
+        borderRadius: 12,
+        fontSize: 11,
+        fontWeight: 600,
+        color: '#fff',
+        background: STATUS_COLORS[status] || '#6b7280',
+      }}
+    >
+      {status.replace(/_/g, ' ')}
+    </span>
   );
 }
 
@@ -42,74 +51,261 @@ function formatMinor(minor: number | null, currency?: string) {
 }
 
 export default function AdminPaymentsPage() {
-  useRequirePerms(['admin:payments:read']);
-  const [tab, setTab] = useState<Tab>('queue');
+  const { hasAccess } = useRequirePerms(['admin:payments:read']);
+  const { hasAccess: canVerifyPayments } = useRequirePerms(['admin:payments:verify']);
+  const { hasAccess: canApproveRefunds } = useRequirePerms(['admin:refunds:approve']);
+  const hasAnyPaymentAccess = hasAccess || canVerifyPayments || canApproveRefunds;
+  const missingPaymentPermissions = [
+    ...(!hasAccess ? ['admin:payments:read'] : []),
+    ...(!canVerifyPayments ? ['admin:payments:verify'] : []),
+    ...(!canApproveRefunds ? ['admin:refunds:approve'] : []),
+  ];
+  const [tab, setTab] = useState<Tab>(canVerifyPayments ? 'queue' : hasAccess ? 'all' : 'refunds');
   const [payments, setPayments] = useState<AdminPayment[]>([]);
+  const [refunds, setRefunds] = useState<AdminRefund[]>([]);
+  const [loadedTab, setLoadedTab] = useState<Tab | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const requestVersion = useRef(0);
   const [acting, setActing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      let data: AdminPayment[];
-      if (tab === 'queue') data = await fetchPaymentVerificationQueue();
-      else if (tab === 'stale') data = await fetchStalePayments();
-      else data = await fetchAdminPayments();
-      setPayments(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load payments');
-    } finally {
-      setLoading(false);
+    const canReadCurrentTab =
+      tab === 'queue' ? canVerifyPayments : tab === 'refunds' ? canApproveRefunds : hasAccess;
+    if (!canReadCurrentTab) {
+      const fallbackTab: Tab | null = canVerifyPayments
+        ? 'queue'
+        : hasAccess
+          ? 'all'
+          : canApproveRefunds
+            ? 'refunds'
+            : null;
+      if (fallbackTab && fallbackTab !== tab) setTab(fallbackTab);
+      return;
     }
-  }, [tab]);
 
-  useEffect(() => { load(); }, [load]);
+    const requestId = ++requestVersion.current;
+    setLoading(true);
+    setLoadError('');
+    setActionError('');
+    try {
+      if (tab === 'refunds') {
+        const data = await fetchRequestedRefunds();
+        if (requestId === requestVersion.current) {
+          setRefunds(data);
+          setLoadedTab(tab);
+        }
+      } else {
+        let data: AdminPayment[];
+        if (tab === 'queue') data = await fetchPaymentVerificationQueue();
+        else if (tab === 'stale') data = await fetchStalePayments();
+        else data = await fetchAdminPayments();
+        if (requestId === requestVersion.current) {
+          setPayments(data);
+          setLoadedTab(tab);
+        }
+      }
+    } catch (err: any) {
+      if (requestId === requestVersion.current) {
+        setLoadError(err.message || 'Failed to load payments');
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
+  }, [tab, hasAccess, canVerifyPayments, canApproveRefunds]);
+
+  useEffect(() => {
+    if (hasAnyPaymentAccess) void load();
+    return () => {
+      requestVersion.current += 1;
+    };
+  }, [load, hasAnyPaymentAccess, tab]);
 
   const handleVerify = async (paymentId: string, decision: 'CONFIRMED' | 'REJECTED') => {
+    if (!canVerifyPayments) return;
     setActing(paymentId);
-    setError('');
+    setActionError('');
     try {
       await verifyPayment(paymentId, decision);
       await load();
     } catch (err: any) {
-      setError(err.message || 'Verification failed');
+      setActionError(err.message || 'Verification failed');
+    } finally {
+      setActing(null);
+    }
+  };
+
+  const handleApproveRefund = async (refund: AdminRefund) => {
+    const amount = formatMinor(refund.amountMinor, refund.currency);
+    if (
+      !canApproveRefunds ||
+      !window.confirm(`Approve refund of ${amount} for order ${refund.orderId.slice(0, 8)}?`)
+    ) {
+      return;
+    }
+
+    setActing(refund.id);
+    setActionError('');
+    try {
+      await approveRefund(refund.id);
+      await load();
+    } catch (err: any) {
+      setActionError(err.message || 'Refund approval failed');
     } finally {
       setActing(null);
     }
   };
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'queue', label: 'Verification Queue' },
-    { key: 'all', label: 'All Payments' },
-    { key: 'stale', label: 'Stale / Expiring' },
+    ...(canVerifyPayments ? [{ key: 'queue' as const, label: 'Verification Queue' }] : []),
+    ...(hasAccess
+      ? [
+          { key: 'all' as const, label: 'All Payments' },
+          { key: 'stale' as const, label: 'Stale / Expiring' },
+        ]
+      : []),
+    ...(canApproveRefunds ? [{ key: 'refunds' as const, label: 'Refund Requests' }] : []),
   ];
+
+  const hasLoadedCurrentTab = loadedTab === tab;
+
+  if (!hasAnyPaymentAccess) {
+    return (
+      <AccessDenied
+        requiredPerms={['admin:payments:read', 'admin:payments:verify', 'admin:refunds:approve']}
+        missingPerms={missingPaymentPermissions}
+      />
+    );
+  }
 
   return (
     <div style={{ padding: '24px 28px' }}>
-      <PageHeader title="Payments" subtitle="P12 — Manual verification & payment management" />
+      <PageHeader
+        title="Payments"
+        subtitle="P12 — Manual verification, refunds & payment management"
+      />
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{
-            padding: '8px 16px', borderRadius: radii.sm, border: 'none', cursor: 'pointer',
-            fontWeight: 600, fontSize: 13,
-            background: tab === t.key ? colors.brand[700] : colors.bgSubtle,
-            color: tab === t.key ? '#fff' : colors.brand[700],
-          }}>{t.label}</button>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, flexWrap: 'wrap' }}>
+        {tabs.map((item) => (
+          <button
+            key={item.key}
+            onClick={() => setTab(item.key)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: radii.sm,
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: 13,
+              background: tab === item.key ? colors.brand[700] : colors.bgSubtle,
+              color: tab === item.key ? '#fff' : colors.brand[700],
+            }}
+          >
+            {item.label}
+          </button>
         ))}
       </div>
 
-      {error && (
-        <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.sm, color: '#dc2626', marginBottom: 12, fontSize: 13 }}>
-          {error}
+      {loadError && (
+        <div
+          role="alert"
+          style={{
+            padding: '10px 14px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: radii.sm,
+            color: '#dc2626',
+            marginBottom: 12,
+            fontSize: 13,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <span>
+            {loadError}
+            {hasLoadedCurrentTab ? ' Showing the last successfully loaded results.' : ''}
+          </span>
+          <Button size="sm" variant="secondary" onClick={() => void load()}>
+            Retry payments
+          </Button>
+        </div>
+      )}
+      {actionError && (
+        <div
+          role="alert"
+          style={{
+            padding: '10px 14px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: radii.sm,
+            color: '#dc2626',
+            marginBottom: 12,
+            fontSize: 13,
+          }}
+        >
+          {actionError}
         </div>
       )}
 
-      {loading ? (
+      {loading && hasLoadedCurrentTab && (
+        <div role="status" style={{ padding: '6px 0', color: colors.muted, fontSize: 12 }}>
+          Refreshing this view…
+        </div>
+      )}
+      {loading && !hasLoadedCurrentTab ? (
         <div style={{ padding: 40, textAlign: 'center', color: colors.muted }}>Loading…</div>
+      ) : !hasLoadedCurrentTab ? null : tab === 'refunds' ? (
+        refunds.length === 0 ? (
+          <Card style={{ padding: 32, textAlign: 'center', color: colors.muted }}>
+            No refund requests awaiting approval.
+          </Card>
+        ) : (
+          <Card style={{ overflow: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: `2px solid ${colors.border}` }}>
+                  <th style={{ textAlign: 'left', padding: '10px 8px' }}>Order</th>
+                  <th style={{ textAlign: 'left', padding: '10px 8px' }}>Payment</th>
+                  <th style={{ textAlign: 'right', padding: '10px 8px' }}>Refund amount</th>
+                  <th style={{ textAlign: 'left', padding: '10px 8px' }}>Reason</th>
+                  <th style={{ textAlign: 'left', padding: '10px 8px' }}>Requested</th>
+                  <th style={{ textAlign: 'center', padding: '10px 8px' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {refunds.map((refund) => (
+                  <tr key={refund.id} style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                    <td style={{ padding: '10px 8px', fontFamily: 'monospace', fontSize: 11 }}>
+                      {refund.orderId.slice(0, 8)}
+                    </td>
+                    <td style={{ padding: '10px 8px', fontFamily: 'monospace', fontSize: 11 }}>
+                      {refund.paymentRecordId.slice(0, 8)}
+                    </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 600 }}>
+                      {formatMinor(refund.amountMinor, refund.currency)}
+                    </td>
+                    <td style={{ padding: '10px 8px' }}>{refund.reason.replace(/_/g, ' ')}</td>
+                    <td style={{ padding: '10px 8px', fontSize: 11 }}>
+                      {new Date(refund.createdAt).toLocaleString()}
+                    </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={acting === refund.id}
+                        onClick={() => handleApproveRefund(refund)}
+                      >
+                        Approve refund
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        )
       ) : payments.length === 0 ? (
         <Card style={{ padding: 32, textAlign: 'center', color: colors.muted }}>
           No payments found in this view.
@@ -125,28 +321,50 @@ export default function AdminPaymentsPage() {
                 <th style={{ textAlign: 'right', padding: '10px 8px' }}>Amount</th>
                 <th style={{ textAlign: 'left', padding: '10px 8px' }}>Reference</th>
                 <th style={{ textAlign: 'left', padding: '10px 8px' }}>Created</th>
-                {tab === 'queue' && <th style={{ textAlign: 'center', padding: '10px 8px' }}>Actions</th>}
+                {tab === 'queue' && canVerifyPayments && (
+                  <th style={{ textAlign: 'center', padding: '10px 8px' }}>Actions</th>
+                )}
               </tr>
             </thead>
             <tbody>
-              {payments.map(p => (
-                <tr key={p.id} style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+              {payments.map((payment) => (
+                <tr key={payment.id} style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
                   <td style={{ padding: '10px 8px', fontFamily: 'monospace', fontSize: 11 }}>
-                    {(p.orderId || '').slice(0, 8)}
+                    {(payment.orderId || '').slice(0, 8)}
                   </td>
-                  <td style={{ padding: '10px 8px' }}>{p.paymentMethod?.replace(/_/g, ' ')}</td>
-                  <td style={{ padding: '10px 8px' }}><PaymentStatusBadge status={p.status} /></td>
-                  <td style={{ padding: '10px 8px', textAlign: 'right' }}>{formatMinor(p.amountMinor, p.currency)}</td>
+                  <td style={{ padding: '10px 8px' }}>
+                    {payment.paymentMethod?.replace(/_/g, ' ')}
+                  </td>
+                  <td style={{ padding: '10px 8px' }}>
+                    <PaymentStatusBadge status={payment.status} />
+                  </td>
+                  <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                    {formatMinor(payment.amountMinor, payment.currency)}
+                  </td>
                   <td style={{ padding: '10px 8px', fontSize: 11, color: colors.muted }}>
-                    {p.receiptReference || '—'}
+                    {payment.receiptReference || '—'}
                   </td>
-                  <td style={{ padding: '10px 8px', fontSize: 11 }}>{new Date(p.createdAt).toLocaleDateString()}</td>
-                  {tab === 'queue' && (
+                  <td style={{ padding: '10px 8px', fontSize: 11 }}>
+                    {new Date(payment.createdAt).toLocaleDateString()}
+                  </td>
+                  {tab === 'queue' && canVerifyPayments && (
                     <td style={{ padding: '10px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                      <Button size="sm" variant="primary" disabled={acting === p.id}
-                        onClick={() => handleVerify(p.id, 'CONFIRMED')}>Confirm</Button>{' '}
-                      <Button size="sm" variant="danger" disabled={acting === p.id}
-                        onClick={() => handleVerify(p.id, 'REJECTED')}>Reject</Button>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={acting === payment.id}
+                        onClick={() => handleVerify(payment.id, 'CONFIRMED')}
+                      >
+                        Confirm
+                      </Button>{' '}
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={acting === payment.id}
+                        onClick={() => handleVerify(payment.id, 'REJECTED')}
+                      >
+                        Reject
+                      </Button>
                     </td>
                   )}
                 </tr>

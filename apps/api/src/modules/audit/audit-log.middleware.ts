@@ -1,7 +1,8 @@
-import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 import { AuditService } from './audit.service';
 import { JwtPayload } from '../../common/guards/current-user.decorator';
+import { DatabaseService, type DatabaseActorContext } from '../../common/database/database.service';
 
 /**
  * Audit log middleware — persists an audit trail entry for every mutating
@@ -69,7 +70,11 @@ const PAST_TENSE: Record<string, string> = {
 
 @Injectable()
 export class AuditLogMiddleware implements NestMiddleware {
-  constructor(private readonly audit: AuditService) {}
+  private readonly logger = new Logger(AuditLogMiddleware.name);
+  constructor(
+    private readonly audit: AuditService,
+    private readonly db: DatabaseService,
+  ) {}
 
   use(req: Request, res: Response, next: NextFunction): void {
     const method = req.method;
@@ -93,23 +98,43 @@ export class AuditLogMiddleware implements NestMiddleware {
       const user = (req as Request & { user?: JwtPayload }).user;
       const { action, resource, resourceId } = this.describe(method, path);
 
-      void this.audit.record({
-        actorType: AuditService.actorTypeForRole(user?.role),
-        actorId: user?.sub ?? null,
-        orgId: user?.activeOrg ?? null,
-        action,
-        resource,
-        resourceId,
-        ip: req.ip,
-        userAgent: req.get('user-agent'),
-        metadata: {
-          method,
-          path,
-          status: res.statusCode,
-          requestId: (req as Request & { requestId?: string }).requestId ?? null,
-          role: user?.role ?? null,
-        },
-      });
+      const actorContext: DatabaseActorContext = {
+        actorKind: 'audit',
+        actorId: user?.sub ?? 'audit:anonymous',
+        actorRole: user?.role ?? null,
+        activeOrgId: user?.activeOrg ?? null,
+      };
+
+      // The response-finish listener was registered before guards/interceptors,
+      // so it cannot inherit the request transaction. Give this deferred audit
+      // write its own explicit audit principal and short transaction.
+      void this.db
+        .withActorContext(actorContext, () =>
+          this.audit.record({
+            actorType: AuditService.actorTypeForRole(user?.role),
+            actorId: user?.sub ?? null,
+            orgId: user?.activeOrg ?? null,
+            action,
+            resource,
+            resourceId,
+            ip: req.ip,
+            userAgent: req.get('user-agent'),
+            metadata: {
+              method,
+              path,
+              status: res.statusCode,
+              requestId: (req as Request & { requestId?: string }).requestId ?? null,
+              role: user?.role ?? null,
+            },
+          }),
+        )
+        .catch((error) => {
+          // AuditService owns write-failure metrics; this catch prevents an
+          // unexpected context/connection failure becoming an unhandled promise.
+          this.logger.error(
+            `Audit actor-context failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
     });
 
     next();

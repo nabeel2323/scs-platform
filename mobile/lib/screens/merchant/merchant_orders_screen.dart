@@ -31,7 +31,8 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
 
   /// Runs a merchant action with busy-state + error handling + refresh.
   Future<void> _run(String orderId, Future<void> Function() action,
-      {String? success}) async {
+      {String? success, String requiredPermission = 'merchant:orders:write'}) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission(requiredPermission) != true) return;
     setState(() => _busyOrderId = orderId);
     try {
       await action();
@@ -96,6 +97,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
   /// full order first, let the merchant confirm a quantity per line (default =
   /// ordered), then post `{itemId, qtyConfirmed}` confirmations.
   Future<void> _partialAccept(SubOrder o) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('merchant:orders:write') != true) return;
     setState(() => _busyOrderId = o.id);
     List<OrderItem> items;
     try {
@@ -232,6 +234,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
   }
 
   Future<void> _assignDriver(SubOrder o) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('fulfillment:shipments:assign') != true) return;
     final driverCtrl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
@@ -260,66 +263,168 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
     driverCtrl.dispose();
     if (ok != true || driverId.isEmpty) return;
     await _run(o.id, () => _api.assignDriver(o.id, driverId),
-        success: 'Driver assigned');
+        success: 'Driver assigned', requiredPermission: 'fulfillment:shipments:assign');
+  }
+
+  Future<void> _refreshOrders() async {
+    try {
+      await ref.refresh(activeStoreProvider.future).then<void>((_) {});
+    } catch (_) {
+      // Keep the last successful store/order context; the provider exposes the
+      // read failure without replacing previously loaded rows.
+      return;
+    }
+    try {
+      // The order provider depends on activeStoreProvider and is recomputed by
+      // that refresh. Await the resulting read instead of issuing a duplicate.
+      await ref.read(merchantOrdersProvider.future);
+    } catch (_) {
+      // The AsyncValue below retains the last successful order queue.
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final orders = ref.watch(merchantOrdersProvider);
+    final profile = ref.watch(profileProvider).valueOrNull;
+    final canWrite = profile?.hasPermission('merchant:orders:write') ?? false;
+    final canAssignDriver = profile?.hasPermission('fulfillment:shipments:assign') ?? false;
     return Scaffold(
-        appBar: AppBar(title: const Text('Merchant Orders'), actions: [
+      appBar: AppBar(
+        title: const Text('Merchant Orders'),
+        actions: [
           IconButton(
-              tooltip: 'Refresh',
-              icon: const Icon(Icons.refresh),
-              onPressed: () => ref.invalidate(merchantOrdersProvider)),
-        ]),
-        body: orders.when(
-          data: (list) {
-            final pending = list
-                .where((o) =>
-                    o.status == 'SUBMITTED' ||
-                    o.status == 'PENDING_CONFIRMATION')
-                .toList();
-            final active = list
-                .where((o) => ![
-                      'SUBMITTED',
-                      'PENDING_CONFIRMATION',
-                      'COMPLETED',
-                      'CANCELLED',
-                      'REJECTED'
-                    ].contains(o.status))
-                .toList();
-            final done = list
-                .where((o) =>
-                    ['COMPLETED', 'CANCELLED', 'REJECTED'].contains(o.status))
-                .toList();
-            if (list.isEmpty) {
-              return const EmptyState(
-                  title: 'No orders',
-                  description: 'Orders from buyers will appear here',
-                  icon: Icons.receipt_long_outlined);
-            }
-            return ListView(children: [
-              if (pending.isNotEmpty) ...[
-                _section('Pending (${pending.length})', TaifTokens.warn),
-                ...pending.map(_pendingCard)
-              ],
-              if (active.isNotEmpty) ...[
-                _section('Active (${active.length})', TaifTokens.info),
-                ...active.map(_activeCard)
-              ],
-              if (done.isNotEmpty) ...[
-                _section('Completed (${done.length})', TaifTokens.muted),
-                ...done.map(_doneCard)
-              ],
-            ]);
-          },
-          loading: () => const LoadingSpinner(),
-          error: (e, _) => EmptyState(
-              title: 'Error',
-              description: ApiService.errorMessage(e),
-              onAction: () => ref.invalidate(merchantOrdersProvider)),
-        ));
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh),
+            onPressed: _refreshOrders,
+          ),
+        ],
+      ),
+      body: orders.when(
+        skipLoadingOnRefresh: true,
+
+        skipLoadingOnReload: true,
+        skipError: true,
+        data: (list) {
+          final pending = list
+              .where((o) =>
+                  o.status == 'SUBMITTED' ||
+                  o.status == 'PENDING_CONFIRMATION')
+              .toList();
+          final active = list
+              .where((o) => ![
+                    'SUBMITTED',
+                    'PENDING_CONFIRMATION',
+                    'COMPLETED',
+                    'CANCELLED',
+                    'REJECTED'
+                  ].contains(o.status))
+              .toList();
+          final done = list
+              .where((o) =>
+                  ['COMPLETED', 'CANCELLED', 'REJECTED'].contains(o.status))
+              .toList();
+
+          final content = RefreshIndicator(
+            onRefresh: _refreshOrders,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: list.isEmpty
+                  ? const [
+                      SizedBox(
+                        height: 280,
+                        child: EmptyState(
+                          title: 'No orders',
+                          description: 'Orders from buyers will appear here',
+                          icon: Icons.receipt_long_outlined,
+                        ),
+                      ),
+                    ]
+                  : [
+                      if (pending.isNotEmpty) ...[
+                        _section('Pending (${pending.length})', TaifTokens.warn),
+                        ...pending.map((order) => _pendingCard(order, canWrite)),
+                      ],
+                      if (active.isNotEmpty) ...[
+                        _section('Active (${active.length})', TaifTokens.info),
+                        ...active.map((order) => _activeCard(order, canWrite, canAssignDriver)),
+                      ],
+                      if (done.isNotEmpty) ...[
+                        _section('Completed (${done.length})', TaifTokens.muted),
+                        ...done.map(_doneCard),
+                      ],
+                    ],
+            ),
+          );
+
+          if (!orders.isRefreshing && !orders.hasError) return content;
+          return Column(
+            children: [
+              if (orders.isRefreshing)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Refreshing orders… showing the last successful results.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: TaifTokens.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (orders.hasError)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: TaifTokens.err.withValues(alpha: 0.06),
+                      border: Border.all(
+                        color: TaifTokens.err.withValues(alpha: 0.3),
+                      ),
+                      borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Could not refresh orders: ${ApiService.errorMessage(orders.error!)}. Showing the last successfully loaded results.',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: TaifTokens.err,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _refreshOrders,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              Expanded(child: content),
+            ],
+          );
+        },
+        loading: () => const LoadingSpinner(),
+        error: (e, _) => EmptyState(
+          title: 'Could not load orders',
+          description: ApiService.errorMessage(e),
+          actionLabel: 'Retry orders',
+          onAction: _refreshOrders,
+        ),
+      ),
+    );
   }
 
   Widget _section(String title, Color color) => Padding(
@@ -328,7 +433,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
           style: TextStyle(
               fontWeight: FontWeight.w600, color: color, fontSize: 14)));
 
-  Widget _pendingCard(SubOrder o) {
+  Widget _pendingCard(SubOrder o, bool canWrite) {
     final busy = _busyOrderId == o.id;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -345,7 +450,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
               '${formatMinor(o.totalMinor, o.currency)} · ${o.itemCount} ${o.itemCount == 1 ? 'item' : 'items'}',
               style: const TextStyle(color: TaifTokens.muted, fontSize: 13)),
           const SizedBox(height: 12),
-          Row(children: [
+          if (canWrite) Row(children: [
             Expanded(
               child: ElevatedButton.icon(
                 onPressed: busy ? null : () => _accept(o),
@@ -375,6 +480,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
               ),
             ),
           ]),
+          if (!canWrite) const Text('Read-only: order changes require merchant:orders:write', style: TextStyle(color: TaifTokens.muted, fontSize: 12)),
         ]),
       ),
     );
@@ -387,7 +493,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
       : Icon(icon, size: 16, color: color);
 
-  Widget _activeCard(SubOrder o) {
+  Widget _activeCard(SubOrder o, bool canWrite, bool canAssignDriver) {
     final busy = _busyOrderId == o.id;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -406,7 +512,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
               style: const TextStyle(color: TaifTokens.muted, fontSize: 13)),
           const SizedBox(height: 12),
           // M7.1: fulfillment-specific actions per status.
-          _fulfillmentActions(o, busy),
+          _fulfillmentActions(o, busy, canWrite, canAssignDriver),
         ]),
       ),
     );
@@ -415,10 +521,11 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
   /// M7.1: Merchant fulfillment action buttons based on order status.
   /// Merchant can: Prepare (ACCEPTED→PREPARING), Ready (PREPARING→READY),
   /// Assign Driver (READY→ASSIGNED). Driver-only actions are NOT exposed here.
-  Widget _fulfillmentActions(SubOrder o, bool busy) {
+  Widget _fulfillmentActions(SubOrder o, bool busy, bool canWrite, bool canAssignDriver) {
     switch (o.status) {
       case 'ACCEPTED':
       case 'PARTIALLY_ACCEPTED':
+        if (!canWrite) return const Text('Read-only: order changes require merchant:orders:write', style: TextStyle(color: TaifTokens.muted, fontSize: 12));
         return SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -429,6 +536,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
           ),
         );
       case 'PREPARING':
+        if (!canWrite) return const Text('Read-only: order changes require merchant:orders:write', style: TextStyle(color: TaifTokens.muted, fontSize: 12));
         return SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -439,6 +547,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
           ),
         );
       case 'READY':
+        if (!canAssignDriver) return const Text('Driver assignment requires fulfillment:shipments:assign', style: TextStyle(color: TaifTokens.muted, fontSize: 12));
         return SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -463,6 +572,7 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
         );
       default:
         // Fallback for any other active status — show generic transitions.
+        if (!canWrite) return const Text('Read-only: fulfillment changes require merchant:orders:write', style: TextStyle(color: TaifTokens.muted, fontSize: 12));
         final next = _nextStatuses(o.status);
         if (next.isEmpty) return const SizedBox.shrink();
         return Row(children: [

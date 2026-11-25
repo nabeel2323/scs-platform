@@ -4,15 +4,20 @@ import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'rea
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
-  searchProducts, fetchCategories, fetchBrands, fetchProductVariants, addToCart,
-  Product, Category, FacetEntry,
+  searchProducts,
+  fetchCategories,
+  fetchBrands,
+  fetchProductVariants,
+  addToCart,
+  Product,
+  Category,
+  FacetEntry,
 } from '../../lib/buyer-api';
 import { formatMinor, EmptyState, ErrorBanner, ProductCardImage } from '../../components/Shared';
-import {
-  colors, typeScale, radii, shadows, transitions,
-} from '@scs/ui-kit';
+import { colors, typeScale, radii, shadows, transitions } from '@scs/ui-kit';
 import { useCompareList } from '../../hooks/useProductComparison';
 import { analytics } from '../../lib/analytics';
+import { getSearchCardDisplay } from '../../lib/search-card-offer';
 
 type SortOption = 'featured' | 'price-asc' | 'price-desc' | 'newest' | 'title-asc';
 
@@ -20,12 +25,15 @@ const LIMIT_OPTIONS = [20, 40, 60];
 
 export default function SearchPageClient() {
   return (
-    <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: '#555' }}>Loading search…</div>}>
+    <Suspense
+      fallback={
+        <div style={{ padding: 40, textAlign: 'center', color: '#555' }}>Loading search…</div>
+      }
+    >
       <SearchPageContent />
     </Suspense>
   );
 }
-
 
 function SearchPageContent() {
   const router = useRouter();
@@ -37,13 +45,16 @@ function SearchPageContent() {
     searchParams.get('cat') ? searchParams.get('cat')!.split(',').filter(Boolean) : [],
   );
   const [selectedBrand, setSelectedBrand] = useState(searchParams.get('brand') || '');
-  const [sort, setSort] = useState<SortOption>((searchParams.get('sort') as SortOption) || 'featured');
+  const [sort, setSort] = useState<SortOption>(
+    (searchParams.get('sort') as SortOption) || 'featured',
+  );
   const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
   const [limit, setLimit] = useState(Number(searchParams.get('limit')) || 20);
   const [priceMin, setPriceMin] = useState(searchParams.get('pmin') || '');
   const [priceMax, setPriceMax] = useState(searchParams.get('pmax') || '');
   const [verifiedOnly, setVerifiedOnly] = useState(searchParams.get('verified') === '1');
   const [inStockOnly, setInStockOnly] = useState(searchParams.get('instock') === '1');
+  const [offersOnly, setOffersOnly] = useState(searchParams.get('offers') === '1');
 
   // PHASE COS-13: compare list
   const compareList = useCompareList();
@@ -65,8 +76,12 @@ function SearchPageContent() {
 
   // Load categories and brands once
   useEffect(() => {
-    fetchCategories().then(setCategories).catch(() => {});
-    fetchBrands().then(setBrands).catch(() => {});
+    fetchCategories()
+      .then(setCategories)
+      .catch(() => {});
+    fetchBrands()
+      .then(setBrands)
+      .catch(() => {});
   }, []);
 
   // Sync URL params
@@ -82,9 +97,23 @@ function SearchPageContent() {
     if (priceMax) params.set('pmax', priceMax);
     if (verifiedOnly) params.set('verified', '1');
     if (inStockOnly) params.set('instock', '1');
+    if (offersOnly) params.set('offers', '1');
     const qs = params.toString();
     router.replace(`/search${qs ? `?${qs}` : ''}`, { scroll: false });
-  }, [query, selectedCategories, selectedBrand, sort, page, limit, priceMin, priceMax, verifiedOnly, inStockOnly, router]);
+  }, [
+    query,
+    selectedCategories,
+    selectedBrand,
+    sort,
+    page,
+    limit,
+    priceMin,
+    priceMax,
+    verifiedOnly,
+    inStockOnly,
+    offersOnly,
+    router,
+  ]);
 
   const doSearch = useCallback(async () => {
     setLoading(true);
@@ -95,17 +124,25 @@ function SearchPageContent() {
       // multi-category is handled client-side after the API returns results.
       const categoryId = selectedCategories.length === 1 ? selectedCategories[0] : undefined;
       // P9: map UI sort values to server sort values
-      const serverSort = sort === 'price-asc' ? 'price_asc' as const
-        : sort === 'price-desc' ? 'price_desc' as const
-        : sort === 'newest' ? 'newest' as const
-        : sort === 'title-asc' ? 'name' as const
-        : undefined;
+      const serverSort =
+        sort === 'price-asc'
+          ? ('price_asc' as const)
+          : sort === 'price-desc'
+            ? ('price_desc' as const)
+            : sort === 'newest'
+              ? ('newest' as const)
+              : sort === 'title-asc'
+                ? ('name' as const)
+                : undefined;
       // P9: validate price inputs before sending to API
       const minNum = priceMin ? parseFloat(priceMin) : NaN;
       const maxNum = priceMax ? parseFloat(priceMax) : NaN;
-      const hasPriceError = (priceMin && isNaN(minNum)) || (priceMax && isNaN(maxNum))
-        || (priceMin && minNum < 0) || (priceMax && maxNum < 0)
-        || (priceMin && priceMax && !isNaN(minNum) && !isNaN(maxNum) && minNum > maxNum);
+      const hasPriceError =
+        (priceMin && isNaN(minNum)) ||
+        (priceMax && isNaN(maxNum)) ||
+        (priceMin && minNum < 0) ||
+        (priceMax && maxNum < 0) ||
+        (priceMin && priceMax && !isNaN(minNum) && !isNaN(maxNum) && minNum > maxNum);
       const res = await searchProducts({
         q: query || undefined,
         categoryId,
@@ -115,32 +152,53 @@ function SearchPageContent() {
         attrFilters: Object.keys(selectedAttrFilters).length > 0 ? selectedAttrFilters : undefined,
         priceMin: !hasPriceError && priceMin && !isNaN(minNum) ? minNum : undefined,
         priceMax: !hasPriceError && priceMax && !isNaN(maxNum) ? maxNum : undefined,
-        availability: inStockOnly ? 'inStock' as const : undefined,
+        availability: inStockOnly ? ('inStock' as const) : undefined,
+        hasOffers: offersOnly || undefined,
         sort: serverSort,
       });
       setResults(res.items || []);
       setTotal(res.total || 0);
       if (res.facets) setFacets(res.facets);
       // PHASE COS-14: track search
-      analytics.searchPerformed(query || '', res.total || 0, selectedCategories.length === 1 ? selectedCategories[0] : undefined);
+      analytics.searchPerformed(
+        query || '',
+        res.total || 0,
+        selectedCategories.length === 1 ? selectedCategories[0] : undefined,
+      );
     } catch (err: any) {
       setError(err.message || 'Search failed');
     } finally {
       setLoading(false);
     }
-  }, [query, selectedCategories, selectedBrand, page, limit, selectedAttrFilters, priceMin, priceMax, inStockOnly, sort]);
+  }, [
+    query,
+    selectedCategories,
+    selectedBrand,
+    page,
+    limit,
+    selectedAttrFilters,
+    priceMin,
+    priceMax,
+    inStockOnly,
+    offersOnly,
+    sort,
+  ]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(doSearch, 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [doSearch]);
 
   // Reset page when filters change
   const resetPage = () => setPage(1);
 
   const handleCategoryToggle = (id: string) => {
-    setSelectedCategories(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
+    setSelectedCategories((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
+    );
     analytics.filterUsed('category', id);
     resetPage();
   };
@@ -149,9 +207,20 @@ function SearchPageContent() {
     setSelectedCategories(id ? [id] : []);
     resetPage();
   };
-  const handleBrandChange = (id: string) => { setSelectedBrand(selectedBrand === id ? '' : id); analytics.filterUsed('brand', id); resetPage(); };
-  const handleSortChange = (s: SortOption) => { setSort(s); analytics.filterUsed('sort', s); resetPage(); };
-  const handleLimitChange = (l: number) => { setLimit(l); setPage(1); };
+  const handleBrandChange = (id: string) => {
+    setSelectedBrand(selectedBrand === id ? '' : id);
+    analytics.filterUsed('brand', id);
+    resetPage();
+  };
+  const handleSortChange = (s: SortOption) => {
+    setSort(s);
+    analytics.filterUsed('sort', s);
+    resetPage();
+  };
+  const handleLimitChange = (l: number) => {
+    setLimit(l);
+    setPage(1);
+  };
 
   // Price input sanitizers — strip non-numeric, prevent negatives
   const handlePriceMinChange = (raw: string) => {
@@ -173,6 +242,7 @@ function SearchPageContent() {
     !!priceMax,
     verifiedOnly,
     inStockOnly,
+    offersOnly,
   ].filter(Boolean).length;
 
   // Client-side filtering (multi-category + verified only — P9 price/availability/sort are server-side)
@@ -193,12 +263,14 @@ function SearchPageContent() {
 
     // Multi-category filter (client-side when >1 selected; API handles 0 or 1)
     if (selectedCategories.length > 1) {
-      filtered = filtered.filter(p => p.categoryId && selectedCategories.includes(p.categoryId));
+      filtered = filtered.filter((p) => p.categoryId && selectedCategories.includes(p.categoryId));
     }
 
     // Verified only (client-side — not a P9 concern)
     if (verifiedOnly) {
-      filtered = filtered.filter(p => p.store?.verificationStatus === 'VERIFIED');
+      filtered = filtered.filter(
+        (p) => getSearchCardDisplay(p).seller?.verificationStatus === 'VERIFIED',
+      );
     }
 
     return { displayedResults: filtered.slice(0, limit), priceErrorMsg: errorMsg };
@@ -206,34 +278,65 @@ function SearchPageContent() {
 
   const handleAddToCart = async (product: Product) => {
     setCartError('');
-    // Canonical products (no storeId) require an explicit offer/seller
-    // selection — the backend will reject a bare add. Navigate to the PDP
-    // where the buyer can pick a merchant offer.
-    if (!product.storeId) {
+    const display = getSearchCardDisplay(product);
+
+    // If no unambiguous, priced seller is available on the card, let the buyer
+    // choose from the full offer comparison on the product detail page.
+    if (!display.usesOffer && (!product.storeId || display.priceMinor == null)) {
       router.push(`/products/${product.id}`);
       return;
     }
+
     try {
       const variants = await fetchProductVariants(product.id);
-      const variant = variants.find(v => v.isActive);
+      const variant =
+        display.usesOffer && display.offerVariantId
+          ? variants.find((v) => v.id === display.offerVariantId && v.isActive)
+          : variants.find((v) => v.isActive);
       if (!variant) {
-        setCartError(`"${product.title}" has no orderable variant yet.`);
+        setCartError(`"${product.title}" has no orderable variant for the selected seller.`);
         return;
       }
-      await addToCart({ variantId: variant.id, storeId: product.storeId, quantity: product.moq || 1 });
-      setAddedItems(prev => new Set(prev).add(product.id));
-      setTimeout(() => setAddedItems(prev => { const n = new Set(prev); n.delete(product.id); return n; }), 2000);
+
+      const storeId = display.usesOffer ? display.offerStoreId : product.storeId;
+      const offerId = display.usesOffer ? display.offerId : null;
+      const quantity = display.usesOffer
+        ? (display.offerMoq ?? product.moq ?? 1)
+        : product.moq || 1;
+
+      await addToCart({
+        variantId: variant.id,
+        ...(storeId ? { storeId } : {}),
+        quantity,
+        ...(offerId ? { offerId } : {}),
+      });
+      setAddedItems((prev) => new Set(prev).add(product.id));
+      setTimeout(
+        () =>
+          setAddedItems((prev) => {
+            const n = new Set(prev);
+            n.delete(product.id);
+            return n;
+          }),
+        2000,
+      );
     } catch (err) {
-      setCartError(err instanceof Error ? err.message : `Could not add "${product.title}" to your cart.`);
+      setCartError(
+        err instanceof Error ? err.message : `Could not add "${product.title}" to your cart.`,
+      );
     }
   };
 
   const totalPages = Math.ceil(total / limit);
-  const filteredBrands = brands.filter(b => b.name.toLowerCase().includes(brandSearch.toLowerCase()));
-  const selectedCatNames = selectedCategories.map(id => categories.find(c => c.id === id)?.name).filter(Boolean);
-  const selectedBrandName = brands.find(b => b.id === selectedBrand)?.name;
+  const filteredBrands = brands.filter((b) =>
+    b.name.toLowerCase().includes(brandSearch.toLowerCase()),
+  );
+  const selectedCatNames = selectedCategories
+    .map((id) => categories.find((c) => c.id === id)?.name)
+    .filter(Boolean);
+  const selectedBrandName = brands.find((b) => b.id === selectedBrand)?.name;
   // Currency label from first priced result (for price filter context)
-  const resultCurrency = results.find(r => r.priceCurrency)?.priceCurrency || '';
+  const resultCurrency = results.map(getSearchCardDisplay).find((r) => r.currency)?.currency || '';
 
   return (
     <>
@@ -255,28 +358,80 @@ function SearchPageContent() {
         }
       `}</style>
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 16px' }}>
-
         {/* ── Amazon-style Search Header ── */}
-        <div style={{ background: `linear-gradient(135deg, ${colors.brand[900]} 0%, ${colors.brand[500]} 100%)`, padding: '20px 24px', margin: '0 -16px' }}>
+        <div
+          style={{
+            background: `linear-gradient(135deg, ${colors.brand[900]} 0%, ${colors.brand[500]} 100%)`,
+            padding: '20px 24px',
+            margin: '0 -16px',
+          }}
+        >
           <div style={{ maxWidth: 900, margin: '0 auto' }}>
-            <div style={{ display: 'flex', gap: 0, borderRadius: radii.md, overflow: 'hidden', boxShadow: shadows.md }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: 0,
+                borderRadius: radii.md,
+                overflow: 'hidden',
+                boxShadow: shadows.md,
+              }}
+            >
               <select
                 value={selectedCategories.length === 1 ? selectedCategories[0] : ''}
-                onChange={e => handleHeaderCategoryChange(e.target.value)}
-                style={{ padding: '12px 14px', fontSize: 13, border: 'none', background: colors.bgSubtle, color: colors.brand[700], fontWeight: 600, minWidth: 140, cursor: 'pointer', outline: 'none' }}
+                onChange={(e) => handleHeaderCategoryChange(e.target.value)}
+                style={{
+                  padding: '12px 14px',
+                  fontSize: 13,
+                  border: 'none',
+                  background: colors.bgSubtle,
+                  color: colors.brand[700],
+                  fontWeight: 600,
+                  minWidth: 140,
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
               >
-                <option value="">{selectedCategories.length > 1 ? `${selectedCategories.length} selected` : 'All Departments'}</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <option value="">
+                  {selectedCategories.length > 1
+                    ? `${selectedCategories.length} selected`
+                    : 'All Departments'}
+                </option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
               </select>
               <input
                 type="text"
                 placeholder="Search products, brands, SKU, barcode..."
                 value={query}
-                onChange={e => setQuery(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && doSearch()}
-                style={{ flex: 1, padding: '12px 18px', fontSize: 15, border: 'none', outline: 'none', minWidth: 0 }}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && doSearch()}
+                style={{
+                  flex: 1,
+                  padding: '12px 18px',
+                  fontSize: 15,
+                  border: 'none',
+                  outline: 'none',
+                  minWidth: 0,
+                }}
               />
-              <button onClick={doSearch} style={{ padding: '12px 28px', fontSize: 15, fontWeight: 600, background: colors.amber, color: colors.brand[700], border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button
+                onClick={doSearch}
+                style={{
+                  padding: '12px 28px',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  background: colors.amber,
+                  color: colors.brand[700],
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
                 <span style={{ fontSize: 18 }}>⌕</span> Search
               </button>
             </div>
@@ -284,39 +439,139 @@ function SearchPageContent() {
         </div>
 
         {/* ── Breadcrumb ── */}
-        <div style={{ padding: '12px 0', fontSize: 12, color: colors.muted, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <Link href="/search" style={{ color: colors.brand[500], textDecoration: 'none' }}>Home</Link>
+        <div
+          style={{
+            padding: '12px 0',
+            fontSize: 12,
+            color: colors.muted,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            flexWrap: 'wrap',
+          }}
+        >
+          <Link href="/search" style={{ color: colors.brand[500], textDecoration: 'none' }}>
+            Home
+          </Link>
           <span>›</span>
-          {selectedCatNames.length === 1 && <><span style={{ color: colors.brand[500] }}>{selectedCatNames[0]}</span><span>›</span></>}
-          {selectedCatNames.length > 1 && <><span style={{ color: colors.brand[500] }}>{selectedCatNames.length} departments</span><span>›</span></>}
-          {selectedBrandName && <><span>{selectedBrandName}</span><span>›</span></>}
+          {selectedCatNames.length === 1 && (
+            <>
+              <span style={{ color: colors.brand[500] }}>{selectedCatNames[0]}</span>
+              <span>›</span>
+            </>
+          )}
+          {selectedCatNames.length > 1 && (
+            <>
+              <span style={{ color: colors.brand[500] }}>
+                {selectedCatNames.length} departments
+              </span>
+              <span>›</span>
+            </>
+          )}
+          {selectedBrandName && (
+            <>
+              <span>{selectedBrandName}</span>
+              <span>›</span>
+            </>
+          )}
           <span style={{ color: colors.brand[700], fontWeight: 500 }}>
-            {query ? `Results for "${query}"` : selectedCatNames.length > 0 ? 'Category' : 'All Products'}
+            {query
+              ? `Results for "${query}"`
+              : selectedCatNames.length > 0
+                ? 'Category'
+                : 'All Products'}
           </span>
         </div>
 
         {/* ── Results count + sort bar ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 16,
+            flexWrap: 'wrap',
+            gap: 12,
+          }}
+        >
           <div style={{ ...typeScale.bodySm, color: colors.muted }}>
             {total > 0 ? (
               <>
-                <span style={{ fontWeight: 600, color: colors.brand[700] }}>{total.toLocaleString()}</span> result{total !== 1 ? 's' : ''}
-                {query && <> for "<strong style={{ color: colors.brand[700] }}>{query}</strong>"</>}
+                <span style={{ fontWeight: 600, color: colors.brand[700] }}>
+                  {total.toLocaleString()}
+                </span>{' '}
+                result{total !== 1 ? 's' : ''}
+                {query && (
+                  <>
+                    {' '}
+                    for "<strong style={{ color: colors.brand[700] }}>{query}</strong>"
+                  </>
+                )}
               </>
-            ) : !loading && <span>No results found</span>}
+            ) : (
+              !loading && <span>No results found</span>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {/* Mobile filter toggle */}
             <button
               className="sr-filter-toggle"
               onClick={() => setMobileFiltersOpen(true)}
-              style={{ display: 'none', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 13, fontWeight: 600, background: activeFilterCount > 0 ? colors.brand[700] : colors.surface, border: '1px solid ' + (activeFilterCount > 0 ? colors.brand[700] : colors.border), borderRadius: radii.sm, cursor: 'pointer', color: activeFilterCount > 0 ? '#fff' : colors.brand[700] }}
+              style={{
+                display: 'none',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                fontSize: 13,
+                fontWeight: 600,
+                background: activeFilterCount > 0 ? colors.brand[700] : colors.surface,
+                border: '1px solid ' + (activeFilterCount > 0 ? colors.brand[700] : colors.border),
+                borderRadius: radii.sm,
+                cursor: 'pointer',
+                color: activeFilterCount > 0 ? '#fff' : colors.brand[700],
+              }}
             >
-              ☰ Filters{activeFilterCount > 0 && <span style={{ background: colors.amber, color: colors.brand[700], fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: radii.full, marginLeft: 2 }}>{activeFilterCount}</span>}
+              ☰ Filters
+              {activeFilterCount > 0 && (
+                <span
+                  style={{
+                    background: colors.amber,
+                    color: colors.brand[700],
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: '1px 6px',
+                    borderRadius: radii.full,
+                    marginLeft: 2,
+                  }}
+                >
+                  {activeFilterCount}
+                </span>
+              )}
             </button>
-            <label style={{ ...typeScale.bodySm, color: colors.muted, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label
+              style={{
+                ...typeScale.bodySm,
+                color: colors.muted,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
               Sort by:
-              <select value={sort} onChange={e => handleSortChange(e.target.value as SortOption)} style={{ padding: '6px 10px', fontSize: 13, border: `1px solid ${colors.border}`, borderRadius: radii.sm, background: colors.surface, color: colors.brand[700], fontWeight: 500, cursor: 'pointer' }}>
+              <select
+                value={sort}
+                onChange={(e) => handleSortChange(e.target.value as SortOption)}
+                style={{
+                  padding: '6px 10px',
+                  fontSize: 13,
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: radii.sm,
+                  background: colors.surface,
+                  color: colors.brand[700],
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
                 <option value="featured">Featured</option>
                 <option value="price-asc">Price: Low to High</option>
                 <option value="price-desc">Price: High to Low</option>
@@ -324,10 +579,34 @@ function SearchPageContent() {
                 <option value="title-asc">Name: A to Z</option>
               </select>
             </label>
-            <label style={{ ...typeScale.bodySm, color: colors.muted, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label
+              style={{
+                ...typeScale.bodySm,
+                color: colors.muted,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
               Show:
-              <select value={limit} onChange={e => handleLimitChange(Number(e.target.value))} style={{ padding: '6px 10px', fontSize: 13, border: `1px solid ${colors.border}`, borderRadius: radii.sm, background: colors.surface, color: colors.brand[700], cursor: 'pointer' }}>
-                {LIMIT_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+              <select
+                value={limit}
+                onChange={(e) => handleLimitChange(Number(e.target.value))}
+                style={{
+                  padding: '6px 10px',
+                  fontSize: 13,
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: radii.sm,
+                  background: colors.surface,
+                  color: colors.brand[700],
+                  cursor: 'pointer',
+                }}
+              >
+                {LIMIT_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -335,25 +614,65 @@ function SearchPageContent() {
 
         {/* ── Main Layout: Sidebar + Results ── */}
         <div style={{ display: 'flex', gap: 24 }}>
-
           {/* ── Left Sidebar Filters ── */}
-          <aside className={`sr-sidebar${mobileFiltersOpen ? ' sr-sidebar-open' : ''}`} style={{ width: 240, flexShrink: 0 }}>
+          <aside
+            className={`sr-sidebar${mobileFiltersOpen ? ' sr-sidebar-open' : ''}`}
+            style={{ width: 240, flexShrink: 0 }}
+          >
             {mobileFiltersOpen && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 16,
+                }}
+              >
                 <h3 style={{ ...typeScale.h2, color: colors.brand[700], margin: 0 }}>Filters</h3>
-                <button onClick={() => setMobileFiltersOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: colors.muted }}>✕</button>
+                <button
+                  onClick={() => setMobileFiltersOpen(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 20,
+                    cursor: 'pointer',
+                    color: colors.muted,
+                  }}
+                >
+                  ✕
+                </button>
               </div>
             )}
 
             {/* Department */}
             <div className="sr-filter-section">
-              <h4 style={{ ...typeScale.caption, fontWeight: 700, color: colors.brand[700], marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Department</h4>
+              <h4
+                style={{
+                  ...typeScale.caption,
+                  fontWeight: 700,
+                  color: colors.brand[700],
+                  marginBottom: 10,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Department
+              </h4>
               <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                {categories.map(c => (
+                {categories.map((c) => (
                   <label key={c.id} className="sr-checkbox">
-                    <input type="checkbox" checked={selectedCategories.includes(c.id)} onChange={() => handleCategoryToggle(c.id)} style={{ accentColor: colors.brand[700] }} />
+                    <input
+                      type="checkbox"
+                      checked={selectedCategories.includes(c.id)}
+                      onChange={() => handleCategoryToggle(c.id)}
+                      style={{ accentColor: colors.brand[700] }}
+                    />
                     <span>{c.name}</span>
-                    <span style={{ marginLeft: 'auto', ...typeScale.caption, color: colors.disabled }}>({c.productCount})</span>
+                    <span
+                      style={{ marginLeft: 'auto', ...typeScale.caption, color: colors.disabled }}
+                    >
+                      ({c.productCount})
+                    </span>
                   </label>
                 ))}
               </div>
@@ -361,45 +680,133 @@ function SearchPageContent() {
 
             {/* Brand */}
             <div className="sr-filter-section">
-              <h4 style={{ ...typeScale.caption, fontWeight: 700, color: colors.brand[700], marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Brand</h4>
+              <h4
+                style={{
+                  ...typeScale.caption,
+                  fontWeight: 700,
+                  color: colors.brand[700],
+                  marginBottom: 10,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Brand
+              </h4>
               <input
                 type="text"
                 placeholder="Search brands..."
                 value={brandSearch}
-                onChange={e => setBrandSearch(e.target.value)}
-                style={{ width: '100%', padding: '6px 10px', fontSize: 12, border: `1px solid ${colors.border}`, borderRadius: radii.sm, marginBottom: 8, boxSizing: 'border-box' as const }}
+                onChange={(e) => setBrandSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '6px 10px',
+                  fontSize: 12,
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: radii.sm,
+                  marginBottom: 8,
+                  boxSizing: 'border-box' as const,
+                }}
               />
               <div style={{ maxHeight: 180, overflowY: 'auto' }}>
-                {filteredBrands.slice(0, 20).map(b => (
+                {filteredBrands.slice(0, 20).map((b) => (
                   <label key={b.id} className="sr-checkbox">
-                    <input type="checkbox" checked={selectedBrand === b.id} onChange={() => handleBrandChange(b.id)} style={{ accentColor: colors.brand[700] }} />
+                    <input
+                      type="checkbox"
+                      checked={selectedBrand === b.id}
+                      onChange={() => handleBrandChange(b.id)}
+                      style={{ accentColor: colors.brand[700] }}
+                    />
                     <span>{b.name}</span>
                   </label>
                 ))}
-                {filteredBrands.length > 20 && <div style={{ ...typeScale.caption, color: colors.brand[500], padding: '4px 0', cursor: 'pointer' }}>See more...</div>}
+                {filteredBrands.length > 20 && (
+                  <div
+                    style={{
+                      ...typeScale.caption,
+                      color: colors.brand[500],
+                      padding: '4px 0',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    See more...
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Price Range */}
             <div className="sr-filter-section">
-              <h4 style={{ ...typeScale.caption, fontWeight: 700, color: colors.brand[700], marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Price{resultCurrency && <span style={{ fontWeight: 400, textTransform: 'none', marginLeft: 6, fontSize: 11, color: colors.muted }}>({resultCurrency})</span>}
+              <h4
+                style={{
+                  ...typeScale.caption,
+                  fontWeight: 700,
+                  color: colors.brand[700],
+                  marginBottom: 10,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Price
+                {resultCurrency && (
+                  <span
+                    style={{
+                      fontWeight: 400,
+                      textTransform: 'none',
+                      marginLeft: 6,
+                      fontSize: 11,
+                      color: colors.muted,
+                    }}
+                  >
+                    ({resultCurrency})
+                  </span>
+                )}
               </h4>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input
-                  type="text" inputMode="decimal" placeholder="Min" value={priceMin}
-                  onChange={e => handlePriceMinChange(e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid ' + (priceErrorMsg && priceMin ? colors.err : colors.border), borderRadius: radii.sm, boxSizing: 'border-box' as const }}
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Min"
+                  value={priceMin}
+                  onChange={(e) => handlePriceMinChange(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '6px 8px',
+                    fontSize: 12,
+                    border: '1px solid ' + (priceErrorMsg && priceMin ? colors.err : colors.border),
+                    borderRadius: radii.sm,
+                    boxSizing: 'border-box' as const,
+                  }}
                 />
                 <span style={{ color: colors.disabled }}>–</span>
                 <input
-                  type="text" inputMode="decimal" placeholder="Max" value={priceMax}
-                  onChange={e => handlePriceMaxChange(e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid ' + (priceErrorMsg && priceMax ? colors.err : colors.border), borderRadius: radii.sm, boxSizing: 'border-box' as const }}
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Max"
+                  value={priceMax}
+                  onChange={(e) => handlePriceMaxChange(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '6px 8px',
+                    fontSize: 12,
+                    border: '1px solid ' + (priceErrorMsg && priceMax ? colors.err : colors.border),
+                    borderRadius: radii.sm,
+                    boxSizing: 'border-box' as const,
+                  }}
                 />
               </div>
               {priceErrorMsg && (
-                <div role="alert" style={{ marginTop: 6, padding: '4px 8px', background: colors.errBg, color: colors.err, fontSize: 11, borderRadius: radii.sm, fontWeight: 500 }}>
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: 6,
+                    padding: '4px 8px',
+                    background: colors.errBg,
+                    color: colors.err,
+                    fontSize: 11,
+                    borderRadius: radii.sm,
+                    fontWeight: 500,
+                  }}
+                >
                   {priceErrorMsg}
                 </div>
               )}
@@ -407,77 +814,207 @@ function SearchPageContent() {
 
             {/* Availability */}
             <div className="sr-filter-section">
-              <h4 style={{ ...typeScale.caption, fontWeight: 700, color: colors.brand[700], marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Availability</h4>
+              <h4
+                style={{
+                  ...typeScale.caption,
+                  fontWeight: 700,
+                  color: colors.brand[700],
+                  marginBottom: 10,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Availability
+              </h4>
               <label className="sr-checkbox">
-                <input type="checkbox" checked={inStockOnly} onChange={e => { setInStockOnly(e.target.checked); resetPage(); }} style={{ accentColor: colors.brand[700] }} />
+                <input
+                  type="checkbox"
+                  checked={inStockOnly}
+                  onChange={(e) => {
+                    setInStockOnly(e.target.checked);
+                    resetPage();
+                  }}
+                  style={{ accentColor: colors.brand[700] }}
+                />
                 <span>In Stock Only</span>
               </label>
               <label className="sr-checkbox" style={{ marginTop: 4 }}>
-                <input type="checkbox" checked={verifiedOnly} onChange={e => { setVerifiedOnly(e.target.checked); resetPage(); }} style={{ accentColor: colors.brand[700] }} />
+                <input
+                  type="checkbox"
+                  checked={verifiedOnly}
+                  onChange={(e) => {
+                    setVerifiedOnly(e.target.checked);
+                    resetPage();
+                  }}
+                  style={{ accentColor: colors.brand[700] }}
+                />
                 <span style={{ color: colors.ok, fontWeight: 500 }}>Verified Sellers Only</span>
               </label>
             </div>
 
+            {/* Active merchant offers */}
+            <div className="sr-filter-section">
+              <h4
+                style={{
+                  ...typeScale.caption,
+                  fontWeight: 700,
+                  color: colors.brand[700],
+                  marginBottom: 10,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Offers
+              </h4>
+              <label className="sr-checkbox">
+                <input
+                  type="checkbox"
+                  checked={offersOnly}
+                  onChange={(e) => {
+                    setOffersOnly(e.target.checked);
+                    resetPage();
+                  }}
+                  style={{ accentColor: colors.brand[700] }}
+                />
+                <span>Active merchant offers only</span>
+              </label>
+            </div>
+
             {/* Dynamic attribute facets (PHASE 6) */}
-            {facets.length > 0 && facets.map(facet => (
-              <div key={facet.code} style={{ marginBottom: 16 }}>
-                <h4 style={{ ...typeScale.caption, fontWeight: 700, color: colors.brand[700], textTransform: 'uppercase', marginBottom: 6 }}>{facet.label}</h4>
-                {facet.values.slice(0, 8).map(fv => {
-                  const checked = (selectedAttrFilters[facet.code] ?? []).includes(fv.value);
-                  return (
-                    <label key={fv.value} className="sr-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => {
-                          setSelectedAttrFilters(prev => {
-                            const cur = prev[facet.code] ?? [];
-                            const next = checked ? cur.filter(v => v !== fv.value) : [...cur, fv.value];
-                            const copy = { ...prev };
-                            if (next.length === 0) delete copy[facet.code]; else copy[facet.code] = next;
-                            return copy;
-                          });
-                          resetPage();
-                        }}
-                        style={{ accentColor: colors.brand[700] }}
-                      />
-                      <span>{fv.value} <small style={{ color: colors.muted }}>({fv.count})</small></span>
-                    </label>
-                  );
-                })}
-              </div>
-            ))}
+            {facets.length > 0 &&
+              facets.map((facet) => (
+                <div key={facet.code} style={{ marginBottom: 16 }}>
+                  <h4
+                    style={{
+                      ...typeScale.caption,
+                      fontWeight: 700,
+                      color: colors.brand[700],
+                      textTransform: 'uppercase',
+                      marginBottom: 6,
+                    }}
+                  >
+                    {facet.label}
+                  </h4>
+                  {facet.values.slice(0, 8).map((fv) => {
+                    const checked = (selectedAttrFilters[facet.code] ?? []).includes(fv.value);
+                    return (
+                      <label key={fv.value} className="sr-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setSelectedAttrFilters((prev) => {
+                              const cur = prev[facet.code] ?? [];
+                              const next = checked
+                                ? cur.filter((v) => v !== fv.value)
+                                : [...cur, fv.value];
+                              const copy = { ...prev };
+                              if (next.length === 0) delete copy[facet.code];
+                              else copy[facet.code] = next;
+                              return copy;
+                            });
+                            resetPage();
+                          }}
+                          style={{ accentColor: colors.brand[700] }}
+                        />
+                        <span>
+                          {fv.value} <small style={{ color: colors.muted }}>({fv.count})</small>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ))}
 
             {/* Clear filters */}
             {(activeFilterCount > 0 || Object.keys(selectedAttrFilters).length > 0) && (
-              <button onClick={() => { setSelectedCategories([]); setSelectedBrand(''); setPriceMin(''); setPriceMax(''); setVerifiedOnly(false); setInStockOnly(false); setSelectedAttrFilters({}); resetPage(); }}
-                style={{ width: '100%', padding: '8px 12px', fontSize: 12, fontWeight: 600, background: colors.errBg, color: colors.err, border: `1px solid ${colors.err}`, borderRadius: radii.sm, cursor: 'pointer', marginTop: 12 }}>
+              <button
+                onClick={() => {
+                  setSelectedCategories([]);
+                  setSelectedBrand('');
+                  setPriceMin('');
+                  setPriceMax('');
+                  setVerifiedOnly(false);
+                  setInStockOnly(false);
+                  setOffersOnly(false);
+                  setSelectedAttrFilters({});
+                  resetPage();
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  background: colors.errBg,
+                  color: colors.err,
+                  border: `1px solid ${colors.err}`,
+                  borderRadius: radii.sm,
+                  cursor: 'pointer',
+                  marginTop: 12,
+                }}
+              >
                 Clear All Filters ({activeFilterCount})
               </button>
             )}
           </aside>
 
           {/* Mobile overlay backdrop */}
-          {mobileFiltersOpen && <div onClick={() => setMobileFiltersOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 199 }} />}
+          {mobileFiltersOpen && (
+            <div
+              onClick={() => setMobileFiltersOpen(false)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 199 }}
+            />
+          )}
 
           {/* ── Results Area ── */}
           <div style={{ flex: 1, minWidth: 0 }}>
             {error && <ErrorBanner message={error} onRetry={doSearch} />}
             {cartError && (
-              <div role="alert" style={{ marginBottom: 16, padding: '10px 14px', background: colors.errBg, border: `1px solid ${colors.err}`, borderRadius: radii.md, ...typeScale.bodySm, color: colors.err }}>
+              <div
+                role="alert"
+                style={{
+                  marginBottom: 16,
+                  padding: '10px 14px',
+                  background: colors.errBg,
+                  border: `1px solid ${colors.err}`,
+                  borderRadius: radii.md,
+                  ...typeScale.bodySm,
+                  color: colors.err,
+                }}
+              >
                 {cartError}
               </div>
             )}
 
             {/* Skeleton loading */}
             {loading && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                  gap: 16,
+                }}
+              >
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radii.md, overflow: 'hidden' }}>
+                  <div
+                    key={i}
+                    style={{
+                      background: colors.surface,
+                      border: `1px solid ${colors.border}`,
+                      borderRadius: radii.md,
+                      overflow: 'hidden',
+                    }}
+                  >
                     <div className="sr-skeleton" style={{ height: 180 }} />
                     <div style={{ padding: 14 }}>
-                      <div className="sr-skeleton" style={{ height: 14, marginBottom: 8, width: '80%' }} />
-                      <div className="sr-skeleton" style={{ height: 12, marginBottom: 8, width: '50%' }} />
+                      <div
+                        className="sr-skeleton"
+                        style={{ height: 14, marginBottom: 8, width: '80%' }}
+                      />
+                      <div
+                        className="sr-skeleton"
+                        style={{ height: 12, marginBottom: 8, width: '50%' }}
+                      />
                       <div className="sr-skeleton" style={{ height: 18, width: '40%' }} />
                     </div>
                   </div>
@@ -489,18 +1026,54 @@ function SearchPageContent() {
             {!loading && displayedResults.length === 0 && !error && (
               <EmptyState
                 title="No products found"
-                description={query
-                  ? `No results for "${query}". Try different keywords or remove some filters.`
-                  : 'Try adjusting your filters or browse categories.'}
+                description={
+                  query
+                    ? `No results for "${query}". Try different keywords or remove some filters.`
+                    : 'Try adjusting your filters or browse categories.'
+                }
                 action={
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <div
+                    style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}
+                  >
                     {(selectedCategories.length > 0 || selectedBrand || priceMin || priceMax) && (
-                      <button onClick={() => { setSelectedCategories([]); setSelectedBrand(''); setPriceMin(''); setPriceMax(''); setVerifiedOnly(false); setInStockOnly(false); }}
-                        style={{ padding: '8px 20px', background: colors.brand[700], color: '#fff', borderRadius: radii.sm, textDecoration: 'none', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}>
+                      <button
+                        onClick={() => {
+                          setSelectedCategories([]);
+                          setSelectedBrand('');
+                          setPriceMin('');
+                          setPriceMax('');
+                          setVerifiedOnly(false);
+                          setInStockOnly(false);
+                        }}
+                        style={{
+                          padding: '8px 20px',
+                          background: colors.brand[700],
+                          color: '#fff',
+                          borderRadius: radii.sm,
+                          textDecoration: 'none',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          border: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
                         Clear Filters
                       </button>
                     )}
-                    <Link href="/stores" style={{ display: 'inline-block', padding: '8px 20px', background: colors.surface, color: colors.brand[700], border: `1px solid ${colors.border}`, borderRadius: radii.sm, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>
+                    <Link
+                      href="/stores"
+                      style={{
+                        display: 'inline-block',
+                        padding: '8px 20px',
+                        background: colors.surface,
+                        color: colors.brand[700],
+                        border: `1px solid ${colors.border}`,
+                        borderRadius: radii.sm,
+                        textDecoration: 'none',
+                        fontSize: 13,
+                        fontWeight: 600,
+                      }}
+                    >
                       Browse Stores
                     </Link>
                   </div>
@@ -511,13 +1084,44 @@ function SearchPageContent() {
             {/* Product Grid */}
             {!loading && displayedResults.length > 0 && (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
-                  {displayedResults.map(product => {
-                    const isVerified = product.store?.verificationStatus === 'VERIFIED';
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                    gap: 16,
+                  }}
+                >
+                  {displayedResults.map((product) => {
+                    const display = getSearchCardDisplay(product);
+                    const isVerified = display.seller?.verificationStatus === 'VERIFIED';
                     return (
-                      <div key={product.id} className="sr-card" style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radii.md, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        <Link href={`/products/${product.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-                          <div style={{ height: 180, background: colors.bgSubtle, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+                      <div
+                        key={product.id}
+                        className="sr-card"
+                        style={{
+                          background: colors.surface,
+                          border: `1px solid ${colors.border}`,
+                          borderRadius: radii.md,
+                          overflow: 'hidden',
+                          display: 'flex',
+                          flexDirection: 'column',
+                        }}
+                      >
+                        <Link
+                          href={`/products/${product.id}`}
+                          style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+                        >
+                          <div
+                            style={{
+                              height: 180,
+                              background: colors.bgSubtle,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              overflow: 'hidden',
+                              position: 'relative',
+                            }}
+                          >
                             <ProductCardImage
                               product={product}
                               alt={product.title}
@@ -525,55 +1129,122 @@ function SearchPageContent() {
                               placeholderStyle={{ color: colors.disabled, fontSize: 40 }}
                             />
                             {isVerified && (
-                              <span style={{ position: 'absolute', top: 8, left: 8, padding: '2px 8px', borderRadius: radii.sm, fontSize: 10, fontWeight: 700, background: colors.brand[700], color: '#fff', letterSpacing: '0.5px' }}>
+                              <span
+                                style={{
+                                  position: 'absolute',
+                                  top: 8,
+                                  left: 8,
+                                  padding: '2px 8px',
+                                  borderRadius: radii.sm,
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  background: colors.brand[700],
+                                  color: '#fff',
+                                  letterSpacing: '0.5px',
+                                }}
+                              >
                                 ✓ VERIFIED
                               </span>
                             )}
                             {product.condition && product.condition !== 'NEW' && (
-                              <span style={{ position: 'absolute', top: 8, right: 8, padding: '2px 8px', borderRadius: radii.sm, fontSize: 10, fontWeight: 600, background: colors.warnBg, color: colors.warn }}>
+                              <span
+                                style={{
+                                  position: 'absolute',
+                                  top: 8,
+                                  right: 8,
+                                  padding: '2px 8px',
+                                  borderRadius: radii.sm,
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  background: colors.warnBg,
+                                  color: colors.warn,
+                                }}
+                              >
                                 {product.condition}
                               </span>
                             )}
                           </div>
                           <div style={{ padding: '12px 14px 8px' }}>
-                            <div style={{ ...typeScale.body, fontWeight: 500, color: colors.brand[700], lineHeight: 1.4, marginBottom: 6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 36 }}>
+                            <div
+                              style={{
+                                ...typeScale.body,
+                                fontWeight: 500,
+                                color: colors.brand[700],
+                                lineHeight: 1.4,
+                                marginBottom: 6,
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                minHeight: 36,
+                              }}
+                            >
                               {product.title}
                             </div>
                             <div style={{ marginBottom: 6 }}>
                               {(() => {
                                 const offerCount = product.activeOfferCount ?? 0;
-                                const lowestOffer = product.lowestOfferPriceMinor;
                                 const hasOffers = offerCount > 0;
-                                // Use the lowest offer price when it is cheaper
-                                // than the product-owner's price — the buyer
-                                // cares about the best deal, not the source.
-                                const displayPrice = (lowestOffer != null && (product.priceFromMinor == null || lowestOffer < product.priceFromMinor))
-                                  ? lowestOffer
-                                  : product.priceFromMinor;
-                                const displayCurrency = (lowestOffer != null && lowestOffer < (product.priceFromMinor ?? Infinity))
-                                  ? (product.lowestOfferCurrency || product.priceCurrency || 'SAR')
-                                  : (product.priceCurrency || 'SAR');
+                                const offerPrice = product.lowestOfferPriceMinor;
+                                const offerCurrency = product.lowestOfferCurrency;
+                                const offerSeller = product.lowestOfferStore?.name;
                                 return (
                                   <>
-                                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                                      {displayPrice != null ? (
+                                    <div
+                                      style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}
+                                    >
+                                      {display.priceMinor != null ? (
                                         <>
-                                          <span style={{ fontSize: 11, color: colors.muted, fontWeight: 500 }}>{displayCurrency}</span>
-                                          <span style={{ fontSize: 18, fontWeight: 700, color: colors.brand[700] }}>
-                                            {(displayPrice / 100).toFixed(2)}
+                                          <span
+                                            style={{
+                                              fontSize: 11,
+                                              color: colors.muted,
+                                              fontWeight: 500,
+                                            }}
+                                          >
+                                            {display.currency || 'SAR'}
+                                          </span>
+                                          <span
+                                            style={{
+                                              fontSize: 18,
+                                              fontWeight: 700,
+                                              color: colors.brand[700],
+                                            }}
+                                          >
+                                            {(display.priceMinor / 100).toFixed(2)}
                                           </span>
                                         </>
                                       ) : (
-                                        <span style={{ ...typeScale.bodySm, color: colors.warn, fontWeight: 500 }}>Price on request</span>
+                                        <span
+                                          style={{
+                                            ...typeScale.bodySm,
+                                            color: colors.warn,
+                                            fontWeight: 500,
+                                          }}
+                                        >
+                                          Price on request
+                                        </span>
                                       )}
                                     </div>
                                     {hasOffers && (
-                                      <div style={{ fontSize: 11, color: colors.ok, fontWeight: 500, marginTop: 2 }}>
-                                        {offerCount} offer{offerCount !== 1 ? 's' : ''}{lowestOffer != null ? ` · From ${displayCurrency} ${(lowestOffer / 100).toFixed(2)}` : ''}
+                                      <div
+                                        style={{
+                                          fontSize: 11,
+                                          color: colors.ok,
+                                          fontWeight: 500,
+                                          marginTop: 2,
+                                        }}
+                                      >
+                                        {offerCount} offer{offerCount !== 1 ? 's' : ''}
+                                        {offerPrice != null && offerCurrency
+                                          ? ` · ${offerSeller || 'Seller'}: ${offerCurrency} ${(offerPrice / 100).toFixed(2)}`
+                                          : ' · Compare sellers'}
                                       </div>
                                     )}
                                     {!hasOffers && (
-                                      <div style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                                      <div
+                                        style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}
+                                      >
                                         No active offers
                                       </div>
                                     )}
@@ -582,25 +1253,81 @@ function SearchPageContent() {
                               })()}
                             </div>
                             {/* Stock status badge */}
-                            {(product as any).stockStatus && (product as any).stockStatus !== 'UNKNOWN' && (
-                              <div style={{ marginBottom: 6 }}>
-                                {(product as any).stockStatus === 'IN_STOCK' && (
-                                  <span style={{ padding: '1px 8px', borderRadius: radii.sm, fontSize: 10, fontWeight: 600, background: colors.okBg, color: colors.ok }}>In Stock</span>
-                                )}
-                                {(product as any).stockStatus === 'LOW_STOCK' && (
-                                  <span style={{ padding: '1px 8px', borderRadius: radii.sm, fontSize: 10, fontWeight: 600, background: colors.warnBg, color: colors.warn }}>Low Stock</span>
-                                )}
-                                {(product as any).stockStatus === 'OUT_OF_STOCK' && (
-                                  <span style={{ padding: '1px 8px', borderRadius: radii.sm, fontSize: 10, fontWeight: 600, background: colors.errBg, color: colors.err }}>Out of Stock</span>
-                                )}
-                              </div>
-                            )}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...typeScale.caption, color: colors.muted }}>
-                              <span>MOQ: {product.moq}</span>
-                              {product.store && (
+                            {(product as any).stockStatus &&
+                              (product as any).stockStatus !== 'UNKNOWN' && (
+                                <div style={{ marginBottom: 6 }}>
+                                  {(product as any).stockStatus === 'IN_STOCK' && (
+                                    <span
+                                      style={{
+                                        padding: '1px 8px',
+                                        borderRadius: radii.sm,
+                                        fontSize: 10,
+                                        fontWeight: 600,
+                                        background: colors.okBg,
+                                        color: colors.ok,
+                                      }}
+                                    >
+                                      In Stock
+                                    </span>
+                                  )}
+                                  {(product as any).stockStatus === 'LOW_STOCK' && (
+                                    <span
+                                      style={{
+                                        padding: '1px 8px',
+                                        borderRadius: radii.sm,
+                                        fontSize: 10,
+                                        fontWeight: 600,
+                                        background: colors.warnBg,
+                                        color: colors.warn,
+                                      }}
+                                    >
+                                      Low Stock
+                                    </span>
+                                  )}
+                                  {(product as any).stockStatus === 'OUT_OF_STOCK' && (
+                                    <span
+                                      style={{
+                                        padding: '1px 8px',
+                                        borderRadius: radii.sm,
+                                        fontSize: 10,
+                                        fontWeight: 600,
+                                        background: colors.errBg,
+                                        color: colors.err,
+                                      }}
+                                    >
+                                      Out of Stock
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                ...typeScale.caption,
+                                color: colors.muted,
+                              }}
+                            >
+                              <span>
+                                MOQ:{' '}
+                                {display.usesOffer
+                                  ? (display.offerMoq ?? product.moq)
+                                  : product.moq}
+                              </span>
+                              {display.seller && (
                                 <>
                                   <span style={{ color: colors.border }}>|</span>
-                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }}>{product.store.name}</span>
+                                  <span
+                                    style={{
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                      maxWidth: 120,
+                                    }}
+                                  >
+                                    {display.seller.name}
+                                  </span>
                                 </>
                               )}
                             </div>
@@ -608,12 +1335,26 @@ function SearchPageContent() {
                         </Link>
                         <div style={{ padding: '8px 14px 14px', marginTop: 'auto' }}>
                           {/* PHASE COS-13: Compare checkbox */}
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 12, color: colors.muted, cursor: 'pointer' }}>
+                          <label
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              marginBottom: 8,
+                              fontSize: 12,
+                              color: colors.muted,
+                              cursor: 'pointer',
+                            }}
+                          >
                             <input
                               type="checkbox"
                               checked={compareList.ids.includes(product.id)}
                               disabled={!compareList.ids.includes(product.id) && compareList.isFull}
-                              onChange={() => compareList.ids.includes(product.id) ? compareList.remove(product.id) : compareList.add(product.id)}
+                              onChange={() =>
+                                compareList.ids.includes(product.id)
+                                  ? compareList.remove(product.id)
+                                  : compareList.add(product.id)
+                              }
                               style={{ accentColor: colors.brand[700] }}
                             />
                             Compare
@@ -632,7 +1373,12 @@ function SearchPageContent() {
                               transition: `background ${transitions.normal}`,
                             }}
                           >
-                            {addedItems.has(product.id) ? '✓ Added to Cart' : 'Add to Cart'}
+                            {addedItems.has(product.id)
+                              ? '✓ Added to Cart'
+                              : !display.usesOffer &&
+                                  (!product.storeId || display.priceMinor == null)
+                                ? 'Choose Seller'
+                                : 'Add to Cart'}
                           </button>
                         </div>
                       </div>
@@ -642,11 +1388,20 @@ function SearchPageContent() {
 
                 {/* ── Pagination ── */}
                 {totalPages > 1 && (
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 32, flexWrap: 'wrap' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: 6,
+                      marginTop: 32,
+                      flexWrap: 'wrap',
+                    }}
+                  >
                     <button
                       className="sr-page-btn"
                       disabled={page <= 1}
-                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
                       style={{ opacity: page <= 1 ? 0.4 : 1 }}
                     >
                       ‹ Prev
@@ -675,7 +1430,7 @@ function SearchPageContent() {
                     <button
                       className="sr-page-btn"
                       disabled={page >= totalPages}
-                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                       style={{ opacity: page >= totalPages ? 0.4 : 1 }}
                     >
                       Next ›
@@ -693,27 +1448,51 @@ function SearchPageContent() {
 
       {/* PHASE COS-13: Floating compare bar */}
       {compareList.ids.length >= 2 && (
-        <div style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0,
-          background: colors.brand[700], color: '#fff',
-          padding: '10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16,
-          boxShadow: '0 -4px 12px rgba(0,0,0,0.15)', zIndex: 100,
-        }}>
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            background: colors.brand[700],
+            color: '#fff',
+            padding: '10px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16,
+            boxShadow: '0 -4px 12px rgba(0,0,0,0.15)',
+            zIndex: 100,
+          }}
+        >
           <span style={{ fontSize: 13, fontWeight: 500 }}>
             {compareList.ids.length} product{compareList.ids.length !== 1 ? 's' : ''} selected
           </span>
           <Link
             href={`/compare?ids=${compareList.ids.join(',')}`}
             style={{
-              padding: '6px 18px', background: '#fff', color: colors.brand[700],
-              borderRadius: radii.sm, textDecoration: 'none', fontWeight: 600, fontSize: 13,
+              padding: '6px 18px',
+              background: '#fff',
+              color: colors.brand[700],
+              borderRadius: radii.sm,
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: 13,
             }}
           >
             Compare Now
           </Link>
           <button
             onClick={() => compareList.clear()}
-            style={{ background: 'none', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', padding: '5px 12px', borderRadius: radii.sm, cursor: 'pointer', fontSize: 12 }}
+            style={{
+              background: 'none',
+              border: '1px solid rgba(255,255,255,0.4)',
+              color: '#fff',
+              padding: '5px 12px',
+              borderRadius: radii.sm,
+              cursor: 'pointer',
+              fontSize: 12,
+            }}
           >
             Clear
           </button>

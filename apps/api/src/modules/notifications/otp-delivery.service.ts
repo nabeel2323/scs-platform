@@ -102,9 +102,7 @@ export class OtpDeliveryService {
    * Deliver an OTP challenge via a specific internal channel (including mock).
    * Used by test infrastructure for deterministic OTP delivery.
    */
-  async deliverToTestChannel(
-    request: ChallengeDeliveryRequest,
-  ): Promise<OtpDeliveryResult> {
+  async deliverToTestChannel(request: ChallengeDeliveryRequest): Promise<OtpDeliveryResult> {
     return this.deliverChallenge(request);
   }
 
@@ -125,9 +123,7 @@ export class OtpDeliveryService {
   /**
    * Core delivery method — routes through the provider registry.
    */
-  private async deliverChallenge(
-    request: ChallengeDeliveryRequest,
-  ): Promise<OtpDeliveryResult> {
+  private async deliverChallenge(request: ChallengeDeliveryRequest): Promise<OtpDeliveryResult> {
     const channel = request.channel;
 
     // Reject unknown channels explicitly (backward compat)
@@ -147,8 +143,13 @@ export class OtpDeliveryService {
       // email-only phase even if Twilio credentials happen to be present, and
       // it is reported distinctly from "permitted but misconfigured" so an
       // operator is not sent chasing credentials they deliberately never set.
-      if (this.isPublicChannel(channel) && !this.registry.isChannelPermitted(channel as OtpDeliveryChannel)) {
-        this.logger.warn(`Channel '${channel}' is not permitted by OTP_CHANNELS — delivery refused`);
+      if (
+        this.isPublicChannel(channel) &&
+        !this.registry.isChannelPermitted(channel as OtpDeliveryChannel)
+      ) {
+        this.logger.warn(
+          `Channel '${channel}' is not permitted by OTP_CHANNELS — delivery refused`,
+        );
         return {
           success: false,
           status: 'failed',
@@ -178,18 +179,24 @@ export class OtpDeliveryService {
 
       if (result.success) {
         this.logger.log(
-          `OTP delivered via ${channel} to ${request.subject} (message: ${result.messageId || 'unknown'}, correlation: ${request.correlationId || 'none'})`,
+          `OTP delivery accepted via ${channel}`,
         );
       } else {
         this.logger.warn(
-          `OTP delivery failed via ${channel} to ${request.subject}: ${result.errorReason} (retryable: ${result.retryable || false})`,
+          `OTP delivery failed via ${channel} (retryable: ${result.retryable === true})`,
         );
       }
 
       return result;
     } catch (error) {
+      // Provider exceptions can contain SMTP URLs, credentials, recipient data,
+      // or request payloads. Log only a stable error class; never the raw message.
+      const errorType =
+        error instanceof Error && error.name
+          ? error.name.replace(/[^A-Za-z0-9_]/g, '').slice(0, 48)
+          : 'UnknownError';
       this.logger.error(
-        `Unexpected error during OTP delivery via ${channel} to ${request.subject}: ${error instanceof Error ? error.message : 'unknown'}`,
+        `Unexpected error during OTP delivery via ${channel} [${errorType}]`,
       );
 
       return {

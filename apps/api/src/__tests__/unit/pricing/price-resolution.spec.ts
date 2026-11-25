@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import { priceForQty, resolveVariantPrices } from '../../../modules/pricing/price-resolution';
+import {
+  priceForQty,
+  resolveVariantPrices,
+  resolveSelectedOfferPrices,
+  selectedOfferPriceKey,
+  type OfferPriceSource,
+} from '../../../modules/pricing/price-resolution';
 
 /**
  * Price resolution (A5-1) — the rule shared by `CartService.addItem` and the
@@ -34,10 +40,8 @@ function fakeDb(queries: TierRow[][]) {
           innerJoin: () => builder,
           where: () => builder,
           orderBy: () => builder,
-          then: (
-            resolve: (rows: TierRow[]) => unknown,
-            reject: (err: unknown) => unknown,
-          ) => Promise.resolve(queries[call++] ?? []).then(resolve, reject),
+          then: (resolve: (rows: TierRow[]) => unknown, reject: (err: unknown) => unknown) =>
+            Promise.resolve(queries[call++] ?? []).then(resolve, reject),
         };
         return builder;
       },
@@ -61,13 +65,45 @@ describe('resolveVariantPrices', () => {
     const db = fakeDb([
       [
         { variantId: 'v-rice', minQty: 10, unitPriceMinor: 900, ...WHOLESALE },
-        { variantId: 'v-rice', minQty: 1, unitPriceMinor: 1000, priceListId: 'pl-retail', priceListName: 'Retail', currency: 'SAR' },
-        { variantId: 'v-oil', minQty: 5, unitPriceMinor: 2500, priceListId: 'pl-retail', priceListName: 'Retail', currency: 'USD' },
+        {
+          variantId: 'v-rice',
+          minQty: 1,
+          unitPriceMinor: 1000,
+          priceListId: 'pl-retail',
+          priceListName: 'Retail',
+          currency: 'SAR',
+        },
+        {
+          variantId: 'v-oil',
+          minQty: 5,
+          unitPriceMinor: 2500,
+          priceListId: 'pl-retail',
+          priceListName: 'Retail',
+          currency: 'USD',
+        },
       ],
       [
-        { variantId: 'v-rice', priceListId: 'pl-wholesale', minQty: 10, maxQty: 50, unitPriceMinor: 900 },
-        { variantId: 'v-rice', priceListId: 'pl-wholesale', minQty: 50, maxQty: null, unitPriceMinor: 800 },
-        { variantId: 'v-oil', priceListId: 'pl-retail', minQty: 5, maxQty: null, unitPriceMinor: 2500 },
+        {
+          variantId: 'v-rice',
+          priceListId: 'pl-wholesale',
+          minQty: 10,
+          maxQty: 50,
+          unitPriceMinor: 900,
+        },
+        {
+          variantId: 'v-rice',
+          priceListId: 'pl-wholesale',
+          minQty: 50,
+          maxQty: null,
+          unitPriceMinor: 800,
+        },
+        {
+          variantId: 'v-oil',
+          priceListId: 'pl-retail',
+          minQty: 5,
+          maxQty: null,
+          unitPriceMinor: 2500,
+        },
       ],
     ]);
 
@@ -96,16 +132,20 @@ describe('resolveVariantPrices', () => {
     // more reads than the inline query it replaced.
     const db = fakeDb([
       [{ variantId: 'v-rice', minQty: 10, unitPriceMinor: 900, ...WHOLESALE }],
-      [{ variantId: 'v-rice', priceListId: 'pl-wholesale', minQty: 10, maxQty: null, unitPriceMinor: 900 }],
+      [
+        {
+          variantId: 'v-rice',
+          priceListId: 'pl-wholesale',
+          minQty: 10,
+          maxQty: null,
+          unitPriceMinor: 900,
+        },
+      ],
     ]);
 
-    const prices = await resolveVariantPrices(
-      asDb(db.db),
-      'store-1',
-      ['v-rice'],
-      12,
-      { ladder: false },
-    );
+    const prices = await resolveVariantPrices(asDb(db.db), 'store-1', ['v-rice'], 12, {
+      ladder: false,
+    });
 
     expect(prices.get('v-rice')?.unitPriceMinor).toBe(900);
     expect(prices.get('v-rice')?.minQty).toBe(10);
@@ -134,15 +174,216 @@ describe('resolveVariantPrices', () => {
   it('short-circuits an empty variant list instead of issuing IN ()', async () => {
     const select = vi.fn();
 
-    const prices = await resolveVariantPrices(
-      asDb({ select }),
-      'store-1',
-      [],
-      5,
-    );
+    const prices = await resolveVariantPrices(asDb({ select }), 'store-1', [], 5);
 
     expect(prices.size).toBe(0);
     expect(select).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolveSelectedOfferPrices', () => {
+  const baseOffer: OfferPriceSource = {
+    id: 'offer-selected',
+    storeId: 'store-a',
+    productId: 'product-a',
+    variantId: null,
+    status: 'ACTIVE',
+    isAvailable: true,
+    orderIncrement: 3,
+    currency: 'SAR',
+    basePriceMinor: 1250,
+    moq: 5,
+    priceListId: 'pl-selected',
+  };
+
+  function selectedOfferDb(rows: any[]) {
+    let calls = 0;
+    const builder: Record<string, any> = {};
+    builder['from'] = () => builder;
+    builder['innerJoin'] = () => builder;
+    builder['where'] = () => builder;
+    builder['then'] = (resolve: (value: any[]) => unknown) => Promise.resolve(rows).then(resolve);
+    return {
+      select: () => {
+        calls++;
+        return builder;
+      },
+      calls: () => calls,
+    };
+  }
+
+  it('prices the exact selected offer from its own active price list and quantity tier', async () => {
+    const db = selectedOfferDb([
+      {
+        priceListId: 'pl-selected',
+        priceListStoreId: 'store-a',
+        priceListName: 'Offer A',
+        currency: 'SAR',
+        variantId: 'variant-a',
+        minQty: 1,
+        maxQty: 5,
+        unitPriceMinor: 1400,
+      },
+      {
+        priceListId: 'pl-selected',
+        priceListStoreId: 'store-a',
+        priceListName: 'Offer A',
+        currency: 'SAR',
+        variantId: 'variant-a',
+        minQty: 5,
+        maxQty: null,
+        unitPriceMinor: 1100,
+      },
+      // A cheaper variant-specific offer in the same store must not replace
+      // the product-default offer explicitly selected by the buyer.
+      {
+        priceListId: 'pl-variant',
+        priceListStoreId: 'store-a',
+        priceListName: 'Variant override',
+        currency: 'SAR',
+        variantId: 'variant-a',
+        minQty: 5,
+        maxQty: null,
+        unitPriceMinor: 500,
+      },
+    ]);
+
+    const prices = await resolveSelectedOfferPrices(
+      db as any,
+      [
+        baseOffer,
+        { ...baseOffer, id: 'offer-variant', variantId: 'variant-a', priceListId: 'pl-variant' },
+      ],
+      [{ offerId: 'offer-selected', variantId: 'variant-a', quantity: 5 }],
+    );
+
+    expect(prices.get(selectedOfferPriceKey('offer-selected', 'variant-a', 5))).toEqual({
+      offerId: 'offer-selected',
+      storeId: 'store-a',
+      productId: 'product-a',
+      variantId: 'variant-a',
+      priceListId: 'pl-selected',
+      unitPriceMinor: 1100,
+      currency: 'SAR',
+      minQty: 5,
+    });
+    expect(db.calls()).toBe(1);
+  });
+
+  it('keeps multiple variant prices for the same product-level offer distinct', async () => {
+    const db = selectedOfferDb([
+      {
+        priceListId: 'pl-selected',
+        priceListStoreId: 'store-a',
+        priceListName: 'Offer A',
+        currency: 'SAR',
+        variantId: 'variant-a',
+        minQty: 5,
+        maxQty: null,
+        unitPriceMinor: 1100,
+      },
+      {
+        priceListId: 'pl-selected',
+        priceListStoreId: 'store-a',
+        priceListName: 'Offer A',
+        currency: 'SAR',
+        variantId: 'variant-b',
+        minQty: 5,
+        maxQty: null,
+        unitPriceMinor: 1250,
+      },
+    ]);
+
+    const prices = await resolveSelectedOfferPrices(
+      db as any,
+      [baseOffer],
+      [
+        { offerId: baseOffer.id, variantId: 'variant-a', quantity: 5 },
+        { offerId: baseOffer.id, variantId: 'variant-b', quantity: 5 },
+      ],
+    );
+
+    expect(prices.get(selectedOfferPriceKey(baseOffer.id, 'variant-a', 5))?.unitPriceMinor).toBe(
+      1100,
+    );
+    expect(prices.get(selectedOfferPriceKey(baseOffer.id, 'variant-b', 5))?.unitPriceMinor).toBe(
+      1250,
+    );
+    expect(prices.size).toBe(2);
+  });
+
+  it('uses the offer base price when the selected offer has no price list', async () => {
+    const db = selectedOfferDb([]);
+    const offer = { ...baseOffer, priceListId: null, basePriceMinor: 875, currency: 'USD' };
+
+    const prices = await resolveSelectedOfferPrices(
+      db as any,
+      [offer],
+      [{ offerId: offer.id, variantId: 'variant-a', quantity: 5 }],
+    );
+
+    expect(prices.get(selectedOfferPriceKey(offer.id, 'variant-a', 5))).toMatchObject({
+      offerId: offer.id,
+      unitPriceMinor: 875,
+      currency: 'USD',
+      minQty: 5,
+      priceListId: null,
+    });
+    expect(db.calls()).toBe(0);
+  });
+
+  it('does not price an offer at a quantity that violates its MOQ increment', async () => {
+    const db = selectedOfferDb([]);
+    const prices = await resolveSelectedOfferPrices(
+      db as any,
+      [baseOffer],
+      [{ offerId: baseOffer.id, variantId: 'variant-a', quantity: 7 }],
+    );
+    expect(prices.size).toBe(0);
+    expect(db.calls()).toBe(0);
+  });
+
+  it('does not price inactive, unavailable, below-MOQ, or non-applicable offers', async () => {
+    const db = selectedOfferDb([]);
+    const offers = [
+      { ...baseOffer, id: 'inactive', status: 'SUSPENDED' },
+      { ...baseOffer, id: 'unavailable', isAvailable: false },
+      { ...baseOffer, id: 'below-moq' },
+      { ...baseOffer, id: 'wrong-variant', variantId: 'variant-b' },
+    ];
+
+    const prices = await resolveSelectedOfferPrices(db as any, offers, [
+      { offerId: 'inactive', variantId: 'variant-a', quantity: 5 },
+      { offerId: 'unavailable', variantId: 'variant-a', quantity: 5 },
+      { offerId: 'below-moq', variantId: 'variant-a', quantity: 4 },
+      { offerId: 'wrong-variant', variantId: 'variant-a', quantity: 5 },
+    ]);
+
+    expect(prices.size).toBe(0);
+    expect(db.calls()).toBe(0);
+  });
+
+  it('does not use a price list belonging to a different store', async () => {
+    const db = selectedOfferDb([
+      {
+        priceListId: 'pl-selected',
+        priceListStoreId: 'store-b',
+        priceListName: 'Foreign',
+        currency: 'SAR',
+        variantId: 'variant-a',
+        minQty: 1,
+        maxQty: null,
+        unitPriceMinor: 100,
+      },
+    ]);
+
+    const prices = await resolveSelectedOfferPrices(
+      db as any,
+      [baseOffer],
+      [{ offerId: baseOffer.id, variantId: 'variant-a', quantity: 5 }],
+    );
+
+    expect(prices.size).toBe(0);
   });
 });
 

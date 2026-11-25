@@ -1,14 +1,28 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { eq, and, or, isNull, lt, lte, sql } from 'drizzle-orm';
+import { eq, and, or, isNull, lt, lte, like, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
+import { StorageService } from '../../common/storage/storage.service';
+import { MerchantService } from '../merchant/index';
+import { CarrierWebhookRoutingService } from './carrier-webhook-routing';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { CarrierCredentialsService } from './carrier-credentials.service';
 import { CarrierConfigurationsService } from './carrier-configurations.service';
 import { outboxEvents } from '../audit/audit.schema';
 import { shipments } from '../orders/shipment.schema';
-import { carrierWebhookEvents } from './shipping.schema';
-import { generateIdempotencyKey, CarrierCreateStatus, CreateShipmentRequest, CancelPickupRequest } from './shipping.types';
-import { classifyCarrierError, RetryableCarrierError } from './carrier-errors';
+import { orders } from '../orders/orders.schema';
+import { carrierWebhookEvents, carrierCredentials, shipmentLabels } from './shipping.schema';
+import {
+  generateIdempotencyKey,
+  CarrierCreateStatus,
+  CreateShipmentRequest,
+  CancelPickupRequest,
+} from './shipping.types';
+import {
+  classifyCarrierError,
+  NonRetryableCarrierError,
+  RetryableCarrierError,
+} from './carrier-errors';
+import { carrierEndpointAllowlistRegistry } from './ssrf-protection';
 import { CarrierObservabilityService } from './carrier-observability';
 import { CarrierEmailResolver } from './carrier-email-resolver';
 import { CarrierRetryPolicy } from './carrier-retry-policy';
@@ -64,7 +78,17 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     private readonly emailResolver: CarrierEmailResolver,
     private readonly retryPolicy: CarrierRetryPolicy,
     private readonly circuitBreaker: CarrierCircuitBreaker,
+    private readonly storage: StorageService,
+    private readonly merchant: MerchantService,
+    private readonly webhookRouting: CarrierWebhookRoutingService,
   ) {}
+
+  private withWorkerContext<T>(operation: () => Promise<T>, activeOrgId?: string): Promise<T> {
+    return this.db.withActorContext(
+      { actorKind: 'worker', workerId: this.workerId, activeOrgId },
+      operation,
+    );
+  }
 
   onModuleInit() {
     setTimeout(() => this.startPolling(), 8000);
@@ -128,7 +152,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     try {
       const cutoff = new Date(Date.now() - ShippingCarrierWorker.LEASE_TIMEOUT_MS);
 
-      const recovered = await this.db.db
+      const recovered = await this.withWorkerContext(() => this.db.db
         .update(outboxEvents)
         .set({
           status: 'PENDING',
@@ -141,14 +165,15 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           and(
             eq(outboxEvents.status, 'PROCESSING'),
             lt(outboxEvents.lockedAt, cutoff),
+            // Lease recovery is part of this worker's ownership boundary too.
+            // Never reset another worker's PROCESSING events.
+            like(outboxEvents.eventType, ShippingCarrierWorker.CARRIER_EVENT_PREFIX + '%'),
           ),
         )
-        .returning({ id: outboxEvents.id });
+        .returning({ id: outboxEvents.id }));
 
       if (recovered.length > 0) {
-        this.logger.warn(
-          `Recovered ${recovered.length} stale lease (crashed worker events)`,
-        );
+        this.logger.warn(`Recovered ${recovered.length} stale lease (crashed worker events)`);
       }
     } catch (err: any) {
       this.logger.error(`Lease recovery error: ${err?.message}`);
@@ -168,7 +193,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       const now = new Date();
 
       // Use raw SQL for FOR UPDATE SKIP LOCKED — Drizzle ORM doesn't support this pattern
-      const result = await this.db.db.execute(sql`
+      const result = await this.withWorkerContext(() => this.db.db.execute(sql`
         UPDATE outbox_events
         SET status = 'PROCESSING',
             locked_at = NOW(),
@@ -182,8 +207,23 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           LIMIT ${ShippingCarrierWorker.CLAIM_BATCH_SIZE}
           FOR UPDATE SKIP LOCKED
         )
-        RETURNING *
-      `);
+        RETURNING
+          id,
+          event_type AS "eventType",
+          aggregate_id AS "aggregateId",
+          payload,
+          metadata,
+          status,
+          attempts,
+          last_error AS "lastError",
+          dispatched_at AS "dispatchedAt",
+          created_at AS "createdAt",
+          next_attempt_at AS "nextAttemptAt",
+          locked_at AS "lockedAt",
+          locked_by AS "lockedBy",
+          organization_id AS "organizationId",
+          store_id AS "storeId"
+      `));
 
       return result.rows ?? [];
     } catch (err: any) {
@@ -218,11 +258,14 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           await this.handleWebhookRetry(event);
           break;
         default:
-          this.logger.warn(`Unknown carrier event type: ${eventType}`);
+          // Unknown events in the carrier namespace must never be acknowledged.
+          // Throwing routes them through retry/dead-letter handling instead of
+          // silently marking an unhandled event DISPATCHED.
+          throw new Error(`Unsupported carrier event type: ${eventType}`);
       }
 
       // Mark as dispatched
-      await this.db.db
+      await this.withWorkerContext(() => this.db.db
         .update(outboxEvents)
         .set({
           status: 'DISPATCHED',
@@ -230,14 +273,69 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           lockedAt: null,
           lockedBy: null,
         })
-        .where(eq(outboxEvents.id, eventId));
-
+        .where(eq(outboxEvents.id, eventId)));
     } catch (err: any) {
       await this.handleFailure(eventId, event, err);
     }
   }
 
   // ── Event Handlers ────────────────────────────────────────────────────────
+
+  /**
+   * Verify optional outbox tenant metadata against the shipment's authoritative
+   * store → organization relationship before any provider side effect.
+   */
+  private async assertOutboxTenantMatchesShipment(
+    event: any,
+    shipment: any,
+    expectedOrgId?: string,
+  ): Promise<string> {
+    const eventStoreId = event.storeId || event.metadata?.storeId;
+    const providerKey = shipment.shippingProviderKey || 'unknown';
+    if (eventStoreId && eventStoreId !== shipment.storeId) {
+      throw new NonRetryableCarrierError('Carrier outbox event store does not match its shipment', {
+        providerKey,
+        operation: 'validateTenant',
+      });
+    }
+
+    const store = await this.withWorkerContext(() => this.merchant.getStoreTenantContextForSystem(shipment.storeId));
+    if (!store?.orgId) {
+      throw new NonRetryableCarrierError('Carrier shipment has no valid owning organization', {
+        providerKey,
+        operation: 'validateTenant',
+      });
+    }
+
+    // The shipment's order and store are separate FKs. Verify they describe
+    // the same merchant before any carrier/provider side effect or webhook retry.
+    const order = await this.withWorkerContext(
+      () => this.db.db.query.orders.findFirst({
+        where: eq(orders.id, shipment.orderId),
+        columns: { storeId: true },
+      }),
+      store.orgId,
+    );
+    if (!order || order.storeId !== shipment.storeId) {
+      throw new NonRetryableCarrierError('Carrier shipment order does not belong to its store', {
+        providerKey,
+        operation: 'validateTenant',
+      });
+    }
+
+    const eventOrgId = event.organizationId || event.metadata?.organizationId;
+    if (
+      (eventOrgId && eventOrgId !== store.orgId) ||
+      (expectedOrgId && expectedOrgId !== store.orgId)
+    ) {
+      throw new NonRetryableCarrierError(
+        'Carrier outbox event organization does not match its shipment',
+        { providerKey, operation: 'validateTenant' },
+      );
+    }
+
+    return store.orgId;
+  }
 
   /**
    * Handle shipping.carrier.create.
@@ -252,10 +350,11 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     const shipmentId = event.aggregateId;
     if (!shipmentId) throw new Error('shipping.carrier.create requires aggregateId (shipmentId)');
 
-    const shipment = await this.db.db.query.shipments.findFirst({
+    const shipment = await this.withWorkerContext(() => this.db.db.query.shipments.findFirst({
       where: eq(shipments.id, shipmentId),
-    });
+    }));
     if (!shipment) throw new Error(`Shipment ${shipmentId} not found`);
+    const activeOrgId = await this.assertOutboxTenantMatchesShipment(event, shipment);
 
     // Guard: already created
     if (shipment.carrierCreateStatus === 'SUCCESS' && shipment.carrierShipmentId) {
@@ -273,13 +372,13 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
     // Manual provider — no carrier creation needed
     if (provider.type === 'MANUAL') {
-      await this.db.db
+      await this.withWorkerContext(() => this.db.db
         .update(shipments)
         .set({
           carrierCreateStatus: 'SUCCESS' as any,
           updatedAt: new Date(),
         })
-        .where(eq(shipments.id, shipmentId));
+        .where(eq(shipments.id, shipmentId)), activeOrgId);
 
       this.logger.log(`Shipment ${shipmentId} — manual provider, no carrier creation needed.`);
       return;
@@ -299,7 +398,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     }
 
     // Mark as IN_PROGRESS
-    await this.db.db
+    await this.withWorkerContext(() => this.db.db
       .update(shipments)
       .set({
         carrierCreateStatus: 'IN_PROGRESS' as any,
@@ -307,12 +406,15 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         idempotencyKey: shipment.idempotencyKey || generateIdempotencyKey(shipmentId),
         updatedAt: new Date(),
       })
-      .where(eq(shipments.id, shipmentId));
+      .where(eq(shipments.id, shipmentId)), activeOrgId);
 
     // Resolve consignee email
     let consigneeEmail: string | undefined;
     try {
-      const resolved = await this.emailResolver.tryResolve(shipmentId);
+      const resolved = await this.withWorkerContext(
+        () => this.emailResolver.tryResolve(shipmentId),
+        activeOrgId,
+      );
       if (resolved) consigneeEmail = resolved.email;
     } catch {
       // Email resolution failure is not fatal
@@ -334,13 +436,19 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         recipientName: deliveryAddr?.['recipientName'] as string | undefined,
       },
       serviceType: undefined,
-      weightGrams: typeof deliveryAddr?.['weightGrams'] === 'number'
-        ? deliveryAddr['weightGrams'] as number : undefined,
+      weightGrams:
+        typeof deliveryAddr?.['weightGrams'] === 'number'
+          ? (deliveryAddr['weightGrams'] as number)
+          : undefined,
       currency: (deliveryAddr?.['currency'] as string) || undefined,
-      codAmountMinor: typeof deliveryAddr?.['codAmountMinor'] === 'number'
-        ? deliveryAddr['codAmountMinor'] as number : undefined,
-      declaredValueMinor: typeof deliveryAddr?.['declaredValueMinor'] === 'number'
-        ? deliveryAddr['declaredValueMinor'] as number : undefined,
+      codAmountMinor:
+        typeof deliveryAddr?.['codAmountMinor'] === 'number'
+          ? (deliveryAddr['codAmountMinor'] as number)
+          : undefined,
+      declaredValueMinor:
+        typeof deliveryAddr?.['declaredValueMinor'] === 'number'
+          ? (deliveryAddr['declaredValueMinor'] as number)
+          : undefined,
       idempotencyKey: shipment.idempotencyKey || generateIdempotencyKey(shipmentId),
       consigneeEmail,
       metadata: shipment.metadata as Record<string, unknown>,
@@ -352,7 +460,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       // Success — record in circuit breaker
       this.circuitBreaker.recordSuccess(cbScope);
 
-      await this.db.db
+      await this.withWorkerContext(() => this.db.db
         .update(shipments)
         .set({
           carrierCreateStatus: 'SUCCESS' as any,
@@ -367,13 +475,12 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           nextReconciliationAt: null,
           updatedAt: new Date(),
         })
-        .where(eq(shipments.id, shipmentId));
+        .where(eq(shipments.id, shipmentId)), activeOrgId);
 
       this.logger.log(
         `Shipment ${shipmentId} — carrier creation SUCCESS ` +
-        `(carrier ID: ${result.carrierShipmentId || 'none'})`,
+          `(carrier ID: ${result.carrierShipmentId || 'none'})`,
       );
-
     } catch (err: any) {
       // Record failure in circuit breaker
       this.circuitBreaker.recordFailure(cbScope);
@@ -383,7 +490,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
       // UNCERTAIN RESULT (timeout): do NOT mark as FAILED → RECOVERY_REQUIRED
       if (isTimeout) {
-        await this.db.db
+        await this.withWorkerContext(() => this.db.db
           .update(shipments)
           .set({
             carrierCreateStatus: 'RECOVERY_REQUIRED' as any,
@@ -394,7 +501,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
             carrierCreateRetries: (shipment.carrierCreateRetries || 0) + 1,
             updatedAt: new Date(),
           })
-          .where(eq(shipments.id, shipmentId));
+          .where(eq(shipments.id, shipmentId)), activeOrgId);
 
         this.logger.warn(
           `Shipment ${shipmentId} — uncertain result (timeout), marked RECOVERY_REQUIRED`,
@@ -405,7 +512,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
       // TERMINAL errors: mark FAILED immediately
       if (classification.decision === 'terminal' || classification.decision === 'unsupported') {
-        await this.db.db
+        await this.withWorkerContext(() => this.db.db
           .update(shipments)
           .set({
             carrierCreateStatus: 'FAILED' as any,
@@ -413,7 +520,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
             carrierCreateErrorClass: classification.decision,
             updatedAt: new Date(),
           })
-          .where(eq(shipments.id, shipmentId));
+          .where(eq(shipments.id, shipmentId)), activeOrgId);
 
         this.logger.error(
           `Shipment ${shipmentId} — terminal carrier error: ${classification.safeMessage}`,
@@ -423,7 +530,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       }
 
       // RETRYABLE errors: update retry count, let handleFailure manage outbox
-      await this.db.db
+      await this.withWorkerContext(() => this.db.db
         .update(shipments)
         .set({
           carrierCreateStatus: 'PENDING' as any,
@@ -432,7 +539,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           carrierCreateRetries: (shipment.carrierCreateRetries || 0) + 1,
           updatedAt: new Date(),
         })
-        .where(eq(shipments.id, shipmentId));
+        .where(eq(shipments.id, shipmentId)), activeOrgId);
 
       // Re-throw so handleFailure manages the outbox event
       throw err;
@@ -464,18 +571,12 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     if (!shipmentId) throw new Error('shipping.carrier.cancel requires aggregateId (shipmentId)');
 
     // 1. Load shipment
-    const shipment = await this.db.db.query.shipments.findFirst({
+    const shipment = await this.withWorkerContext(() => this.db.db.query.shipments.findFirst({
       where: eq(shipments.id, shipmentId),
-    });
+    }));
     if (!shipment) throw new Error(`Shipment ${shipmentId} not found`);
 
-    // Tenant verification: event storeId must match shipment storeId
-    const eventStoreId = event.storeId || event.metadata?.storeId;
-    if (eventStoreId && eventStoreId !== shipment.storeId) {
-      throw new Error(
-        `Tenant mismatch: event storeId ${eventStoreId} ≠ shipment storeId ${shipment.storeId}`,
-      );
-    }
+    const activeOrgId = await this.assertOutboxTenantMatchesShipment(event, shipment);
 
     // 2. Idempotent guard
     const cancelStatus = shipment.carrierCancelStatus as string | null;
@@ -497,28 +598,28 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
     // 4. Manual provider → NOT_REQUIRED
     if (provider.type === 'MANUAL') {
-      await this.db.db
+      await this.withWorkerContext(() => this.db.db
         .update(shipments)
         .set({
           carrierCancelStatus: 'NOT_REQUIRED' as any,
           carrierCancelAttemptedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(shipments.id, shipmentId));
+        .where(eq(shipments.id, shipmentId)), activeOrgId);
       this.logger.log(`Shipment ${shipmentId} — manual provider, cancel NOT_REQUIRED.`);
       return;
     }
 
     // 5. Check provider capability
     if (!provider.capabilities.canCancelPickup) {
-      await this.db.db
+      await this.withWorkerContext(() => this.db.db
         .update(shipments)
         .set({
           carrierCancelStatus: 'NOT_REQUIRED' as any,
           carrierCancelAttemptedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(shipments.id, shipmentId));
+        .where(eq(shipments.id, shipmentId)), activeOrgId);
       this.logger.log(
         `Shipment ${shipmentId} — provider ${providerKey} cannot cancel pickup → NOT_REQUIRED.`,
       );
@@ -527,7 +628,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
     // 6. Verify carrierPickupId exists
     if (!shipment.carrierPickupId) {
-      await this.db.db
+      await this.withWorkerContext(() => this.db.db
         .update(shipments)
         .set({
           carrierCancelStatus: 'FAILED' as any,
@@ -536,7 +637,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           carrierCancelAttemptedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(shipments.id, shipmentId));
+        .where(eq(shipments.id, shipmentId)), activeOrgId);
       this.logger.warn(`Shipment ${shipmentId} — no carrierPickupId for cancel.`);
       return;
     }
@@ -554,7 +655,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     }
 
     // 8. Transition PENDING → IN_PROGRESS
-    await this.db.db
+    await this.withWorkerContext(() => this.db.db
       .update(shipments)
       .set({
         carrierCancelStatus: 'IN_PROGRESS' as any,
@@ -562,7 +663,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         carrierCancelIdempotencyKey: `carrier-cancel:${shipmentId}`,
         updatedAt: new Date(),
       })
-      .where(eq(shipments.id, shipmentId));
+      .where(eq(shipments.id, shipmentId)), activeOrgId);
 
     // 9. Build CancelPickupRequest
     const cancelRequest: CancelPickupRequest = {
@@ -576,23 +677,21 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
       // Unsupported result → NOT_REQUIRED
       if (!result.supported) {
-        await this.db.db
+        await this.withWorkerContext(() => this.db.db
           .update(shipments)
           .set({
             carrierCancelStatus: 'NOT_REQUIRED' as any,
             carrierCancelAttemptedAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(eq(shipments.id, shipmentId));
-        this.logger.log(
-          `Shipment ${shipmentId} — cancelPickup unsupported → NOT_REQUIRED.`,
-        );
+          .where(eq(shipments.id, shipmentId)), activeOrgId);
+        this.logger.log(`Shipment ${shipmentId} — cancelPickup unsupported → NOT_REQUIRED.`);
         return;
       }
 
       // Success → SUCCEEDED
       if (result.cancelled) {
-        await this.db.db
+        await this.withWorkerContext(() => this.db.db
           .update(shipments)
           .set({
             carrierCancelStatus: 'SUCCEEDED' as any,
@@ -603,7 +702,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
             cancellationReason: 'Carrier pickup cancelled via worker',
             updatedAt: new Date(),
           })
-          .where(eq(shipments.id, shipmentId));
+          .where(eq(shipments.id, shipmentId)), activeOrgId);
 
         this.circuitBreaker.recordSuccess(cbScope);
         this.logger.log(`Shipment ${shipmentId} — carrier cancel SUCCEEDED.`);
@@ -611,7 +710,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       }
 
       // Business failure → FAILED (deterministic, no blind retry)
-      await this.db.db
+      await this.withWorkerContext(() => this.db.db
         .update(shipments)
         .set({
           carrierCancelStatus: 'FAILED' as any,
@@ -620,12 +719,10 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           carrierCancelAttemptedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(shipments.id, shipmentId));
+        .where(eq(shipments.id, shipmentId)), activeOrgId);
 
       this.circuitBreaker.recordFailure(cbScope);
-      this.logger.warn(
-        `Shipment ${shipmentId} — carrier cancel FAILED: ${result.reason}`,
-      );
+      this.logger.warn(`Shipment ${shipmentId} — carrier cancel FAILED: ${result.reason}`);
     } catch (err: any) {
       this.circuitBreaker.recordFailure(cbScope);
       const classification = classifyCarrierError(err);
@@ -644,7 +741,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         const isPureTimeout = errMsg.includes('timeout') || errMsg.includes('etimedout');
         const recoveryToken = isPureTimeout ? 'CANCEL_TIMEOUT' : 'CANCEL_UNKNOWN';
 
-        await this.db.db
+        await this.withWorkerContext(() => this.db.db
           .update(shipments)
           .set({
             carrierCancelStatus: 'UNKNOWN' as any,
@@ -656,10 +753,10 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
             carrierCancelRetries: 0,
             updatedAt: new Date(),
           })
-          .where(eq(shipments.id, shipmentId));
+          .where(eq(shipments.id, shipmentId)), activeOrgId);
         this.logger.warn(
           `Shipment ${shipmentId} — indeterminate cancel (${recoveryToken}), ` +
-          `marked UNKNOWN. Reconciliation scheduled.`,
+            `marked UNKNOWN. Reconciliation scheduled.`,
         );
         return;
       }
@@ -668,7 +765,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       //   Auth, validation, 404, business failure, malformed response, etc.
       //   B3.3.1 behavior preserved — FAILED, no re-throw.
       if (classification.decision === 'terminal' || classification.decision === 'unsupported') {
-        await this.db.db
+        await this.withWorkerContext(() => this.db.db
           .update(shipments)
           .set({
             carrierCancelStatus: 'FAILED' as any,
@@ -677,7 +774,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
             carrierCancelAttemptedAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(eq(shipments.id, shipmentId));
+          .where(eq(shipments.id, shipmentId)), activeOrgId);
 
         this.logger.error(
           `Shipment ${shipmentId} — cancel terminal error (${classification.decision}): ${classification.safeMessage}`,
@@ -690,7 +787,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       //   set status back to PENDING, re-throw for handleFailure() →
       //   CarrierRetryPolicy → outbox PENDING + nextAttemptAt.
       //   Follows the same pattern as handleCreate() retryable path.
-      await this.db.db
+      await this.withWorkerContext(() => this.db.db
         .update(shipments)
         .set({
           carrierCancelStatus: 'PENDING' as any,
@@ -700,11 +797,11 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           carrierCancelAttemptedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(shipments.id, shipmentId));
+        .where(eq(shipments.id, shipmentId)), activeOrgId);
 
       this.logger.warn(
         `Shipment ${shipmentId} — cancel retryable error (${classification.decision}), ` +
-        `retries: ${(shipment.carrierCancelRetries || 0) + 1}. Re-throwing for outbox retry.`,
+          `retries: ${(shipment.carrierCancelRetries || 0) + 1}. Re-throwing for outbox retry.`,
       );
       throw err;
     }
@@ -714,8 +811,267 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
    * Handle shipping.carrier.label.
    */
   private async handleLabel(event: any): Promise<void> {
-    const shipmentId = event.aggregateId;
-    this.logger.log(`Carrier label requested for shipment ${shipmentId} — not yet implemented.`);
+    const shipmentId = event.aggregateId as string | undefined;
+    const eventId = event.id as string | undefined;
+    if (!shipmentId) {
+      throw new NonRetryableCarrierError(
+        'shipping.carrier.label requires aggregateId (shipmentId)',
+        { providerKey: 'unknown', operation: 'generateLabel' },
+      );
+    }
+    if (
+      !eventId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(eventId)
+    ) {
+      throw new NonRetryableCarrierError(
+        'shipping.carrier.label requires a UUID outbox event id for idempotent persistence',
+        { providerKey: 'unknown', operation: 'generateLabel' },
+      );
+    }
+
+    const shipment = await this.withWorkerContext(() => this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, shipmentId),
+    }));
+    if (!shipment) {
+      throw new NonRetryableCarrierError(`Shipment ${shipmentId} not found`, {
+        providerKey: 'unknown',
+        operation: 'generateLabel',
+      });
+    }
+    const activeOrgId = await this.assertOutboxTenantMatchesShipment(event, shipment);
+
+    // The outbox event ID is the stable identity for both the object key and
+    // shipment_labels row. A retry after an S3 upload/DB insert interruption
+    // overwrites the same object and cannot create duplicate label rows.
+    const existingLabel = await this.withWorkerContext(() => this.db.db.query.shipmentLabels.findFirst({
+      where: eq(shipmentLabels.id, eventId),
+    }), activeOrgId);
+    if (existingLabel) {
+      this.logger.log(`Shipment label event ${eventId} already persisted — skipping.`);
+      return;
+    }
+
+    const providerKey = shipment.shippingProviderKey || 'manual-driver';
+    const provider = this.registry.findProvider(providerKey);
+    if (!provider) {
+      throw new NonRetryableCarrierError(
+        `Provider '${providerKey}' is not registered for label generation`,
+        { providerKey, operation: 'generateLabel' },
+      );
+    }
+    if (!provider.capabilities.canGenerateLabel) {
+      throw new NonRetryableCarrierError(
+        `Provider '${providerKey}' does not support label generation`,
+        { providerKey, operation: 'generateLabel' },
+      );
+    }
+
+    const result = await provider.generateLabel(shipmentId);
+    if (!result.supported) {
+      throw new NonRetryableCarrierError(
+        result.reason ?? 'Carrier provider declined label generation',
+        { providerKey, operation: 'generateLabel' },
+      );
+    }
+
+    // Provider label URLs are untrusted input. Reuse the carrier-specific
+    // HTTPS/host/DNS allowlist before downloading; redirects are rejected below.
+    let labelUrl: URL;
+    try {
+      labelUrl = new URL(result.labelData);
+    } catch {
+      throw new NonRetryableCarrierError('Carrier label URL is invalid', {
+        providerKey,
+        operation: 'downloadLabel',
+      });
+    }
+    if (labelUrl.username || labelUrl.password) {
+      throw new NonRetryableCarrierError(
+        'Carrier label URL must not contain embedded credentials',
+        { providerKey, operation: 'downloadLabel' },
+      );
+    }
+    const validation = await carrierEndpointAllowlistRegistry.validateForProvider(
+      result.labelData,
+      providerKey,
+      true,
+    );
+    if (!validation.valid) {
+      // Never include the provider URL or validator reason in logs/errors: a
+      // temporary label URL may contain a signed query token.
+      throw new NonRetryableCarrierError('Carrier label URL failed SSRF validation', {
+        providerKey,
+        operation: 'downloadLabel',
+      });
+    }
+
+    const maxLabelBytes = 10 * 1024 * 1024;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    let pdf: Buffer;
+    try {
+      const response = await fetch(result.labelData, {
+        method: 'GET',
+        headers: { Accept: 'application/pdf, application/octet-stream' },
+        redirect: 'error',
+        signal: controller.signal,
+      });
+
+      if (response.status === 429 || response.status >= 500) {
+        try {
+          await response.body?.cancel();
+        } catch {
+          /* Ignore response cleanup errors. */
+        }
+        throw new RetryableCarrierError(`Carrier label download returned HTTP ${response.status}`, {
+          providerKey,
+          operation: 'downloadLabel',
+        });
+      }
+      if (!response.ok) {
+        try {
+          await response.body?.cancel();
+        } catch {
+          /* Ignore response cleanup errors. */
+        }
+        throw new NonRetryableCarrierError(
+          `Carrier label download returned HTTP ${response.status}`,
+          { providerKey, operation: 'downloadLabel' },
+        );
+      }
+
+      const contentType = ((response.headers.get('content-type') || '').split(';')[0] ?? '')
+        .trim()
+        .toLowerCase();
+      if (!['application/pdf', 'application/octet-stream'].includes(contentType)) {
+        try {
+          await response.body?.cancel();
+        } catch {
+          /* Ignore response cleanup errors. */
+        }
+        throw new NonRetryableCarrierError('Carrier label response is not a PDF document', {
+          providerKey,
+          operation: 'downloadLabel',
+        });
+      }
+
+      const declaredLength = Number(response.headers.get('content-length') || 0);
+      if (declaredLength > maxLabelBytes) {
+        try {
+          await response.body?.cancel();
+        } catch {
+          /* Ignore response cleanup errors. */
+        }
+        throw new NonRetryableCarrierError('Carrier label exceeds the 10 MiB size limit', {
+          providerKey,
+          operation: 'downloadLabel',
+        });
+      }
+      if (!response.body) {
+        throw new NonRetryableCarrierError('Carrier label response has no body', {
+          providerKey,
+          operation: 'downloadLabel',
+        });
+      }
+
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let totalBytes = 0;
+      try {
+        while (true) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          totalBytes += chunk.value.byteLength;
+          if (totalBytes > maxLabelBytes) {
+            try {
+              await reader.cancel();
+            } catch {
+              /* Preserve the size-limit error. */
+            }
+            throw new NonRetryableCarrierError('Carrier label exceeds the 10 MiB size limit', {
+              providerKey,
+              operation: 'downloadLabel',
+            });
+          }
+          chunks.push(chunk.value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      pdf = Buffer.concat(
+        chunks.map((chunk) => Buffer.from(chunk)),
+        totalBytes,
+      );
+      if (pdf.length < 5 || pdf.subarray(0, 5).toString('ascii') !== '%PDF-') {
+        throw new NonRetryableCarrierError(
+          'Carrier label payload does not have a valid PDF signature',
+          { providerKey, operation: 'downloadLabel' },
+        );
+      }
+    } catch (error) {
+      if (error instanceof NonRetryableCarrierError || error instanceof RetryableCarrierError) {
+        throw error;
+      }
+      if (controller.signal.aborted) {
+        throw new RetryableCarrierError('Carrier label download timed out', {
+          providerKey,
+          operation: 'downloadLabel',
+        });
+      }
+      throw new RetryableCarrierError('Carrier label download failed', {
+        providerKey,
+        operation: 'downloadLabel',
+      });
+    } finally {
+      // Keep the timeout active through response-body streaming, not just headers.
+      clearTimeout(timeout);
+    }
+
+    const bucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
+    const storageKey = `shipping-labels/${shipmentId}/${eventId}.pdf`;
+    await this.storage
+      .putObject({
+        bucket,
+        key: storageKey,
+        body: pdf,
+        contentType: 'application/pdf',
+        metadata: {
+          'shipment-id': shipmentId,
+          'provider-key': providerKey,
+          'outbox-event-id': eventId,
+        },
+      })
+      .catch(() => {
+        throw new RetryableCarrierError('Could not persist carrier label object to storage', {
+          providerKey,
+          operation: 'persistLabel',
+        });
+      });
+
+    await this.withWorkerContext(() => this.db.db
+      .insert(shipmentLabels)
+      .values({
+        id: eventId,
+        shipmentId,
+        labelNumber: shipment.carrierShipmentId?.slice(0, 120) || null,
+        storageKey,
+        mimeType: 'application/pdf',
+        sizeBytes: pdf.length,
+        trackingUrl: null,
+        isVoid: false,
+        providerKey,
+        labelType: 'SHIPPING',
+        createdAt: new Date(),
+      })
+      .catch(() => {
+        throw new RetryableCarrierError('Could not persist carrier label metadata', {
+          providerKey,
+          operation: 'persistLabel',
+        });
+      }), activeOrgId);
+
+    this.logger.log(`Persisted carrier PDF label for shipment ${shipmentId} (${pdf.length} bytes)`);
   }
 
   /**
@@ -726,10 +1082,11 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     const shipmentId = event.aggregateId;
     if (!shipmentId) throw new Error('shipping.carrier.track requires aggregateId (shipmentId)');
 
-    const shipment = await this.db.db.query.shipments.findFirst({
+    const shipment = await this.withWorkerContext(() => this.db.db.query.shipments.findFirst({
       where: eq(shipments.id, shipmentId),
-    });
+    }));
     if (!shipment) throw new Error(`Shipment ${shipmentId} not found`);
+    const activeOrgId = await this.assertOutboxTenantMatchesShipment(event, shipment);
 
     if (!shipment.carrierTrackingId) {
       this.logger.warn(`Shipment ${shipmentId} has no tracking ID — skipping track poll.`);
@@ -751,22 +1108,23 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      const trackingInfo = await provider.getTrackingInfo(shipment.carrierTrackingId);
+      const trackingInfo = await provider.getTrackingInfo(
+        shipment.carrierTrackingId,
+        shipment.storeId,
+      );
       this.circuitBreaker.recordSuccess(cbScope);
 
       if (trackingInfo) {
-        await this.db.db
+        await this.withWorkerContext(() => this.db.db
           .update(shipments)
           .set({
             carrierStatusRaw: trackingInfo.status || null,
             lastCarrierSyncAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(eq(shipments.id, shipmentId));
+          .where(eq(shipments.id, shipmentId)), activeOrgId);
 
-        this.logger.log(
-          `Shipment ${shipmentId} tracking updated: ${trackingInfo.status}`,
-        );
+        this.logger.log(`Shipment ${shipmentId} tracking updated: ${trackingInfo.status}`);
       }
     } catch (err: any) {
       this.circuitBreaker.recordFailure(cbScope);
@@ -793,100 +1151,166 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
    */
   private async handleWebhookRetry(event: any): Promise<void> {
     const webhookEventId = event.aggregateId;
-    if (!webhookEventId) throw new Error('shipping.carrier.webhook.retry requires aggregateId (webhookEventId)');
+    if (!webhookEventId) {
+      throw new Error('shipping.carrier.webhook.retry requires aggregateId (webhookEventId)');
+    }
 
-    // 1. Load the original webhook event
-    const webhookEvent = await this.db.db.query.carrierWebhookEvents.findFirst({
-      where: eq(carrierWebhookEvents.id, webhookEventId),
-    });
+    // This first lookup is a system-worker operation. Tenant context is only
+    // selected after a credential or previously linked shipment establishes it.
+    const webhookEvent = await this.withWorkerContext(() =>
+      this.db.db.query.carrierWebhookEvents.findFirst({
+        where: eq(carrierWebhookEvents.id, webhookEventId),
+      }),
+    );
 
     if (!webhookEvent) {
       this.logger.warn(`Webhook retry: event ${webhookEventId} not found — skipping.`);
-      return; // non-retryable: event row doesn't exist
+      return;
     }
-
-    // 2. Idempotent guard: already processed → no-op
     if (webhookEvent.processed) {
-      this.logger.log(
-        `Webhook retry: event ${webhookEventId} already processed — skipping.`,
-      );
+      this.logger.log(`Webhook retry: event ${webhookEventId} already processed — skipping.`);
       return;
     }
 
     this.logger.log(
       `Webhook retry: re-processing event ${webhookEventId} ` +
-      `(provider: ${webhookEvent.providerKey}, external: ${webhookEvent.externalDeliveryId})`,
+        `(provider: ${webhookEvent.providerKey}, external: ${webhookEvent.externalDeliveryId})`,
     );
 
-    // 3. Re-attempt shipment linkage (may have failed on first attempt)
-    if (!webhookEvent.shipmentId) {
-      const shipment = await this.db.db.query.shipments.findFirst({
-        where: eq(shipments.carrierShipmentId, webhookEvent.externalDeliveryId),
-      });
+    let activeOrgId: string | undefined;
+    try {
+      // A persisted shipment link does not replace credential ownership. When
+      // the event has a credential binding, validate that credential on every
+      // retry, including already-linked events.
+      const credential = webhookEvent.credentialId
+        ? await this.withWorkerContext(() =>
+            this.db.db.query.carrierCredentials.findFirst({
+              where: eq(carrierCredentials.id, webhookEvent.credentialId!),
+            }),
+          )
+        : null;
 
-      if (shipment) {
-        await this.db.db
-          .update(carrierWebhookEvents)
-          .set({ shipmentId: shipment.id })
-          .where(eq(carrierWebhookEvents.id, webhookEventId));
-
-        this.logger.log(
-          `Webhook retry: linked event ${webhookEventId} to shipment ${shipment.id}`,
-        );
-      } else {
-        this.logger.warn(
-          `Webhook retry: no shipment found for carrier ID ${webhookEvent.externalDeliveryId}`,
+      if (webhookEvent.credentialId && (!credential || !credential.isActive)) {
+        throw new NonRetryableCarrierError(
+          'Webhook credential is missing, inactive or was deleted',
+          { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
         );
       }
-    }
+      if (credential && credential.providerKey !== webhookEvent.providerKey) {
+        throw new NonRetryableCarrierError(
+          'Webhook event provider does not match its bound credential',
+          { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
+        );
+      }
 
-    // 4. Mark as processed — the actual "processing" for a webhook is
-    //    the linkage + persistence that already happened at ingest time.
-    //    The retry ensures the event is not silently lost.
-    try {
-      await this.db.db
-        .update(carrierWebhookEvents)
-        .set({
-          processed: true,
-          processedAt: new Date(),
-          processingError: null,
-        })
-        .where(eq(carrierWebhookEvents.id, webhookEventId));
+      if (!webhookEvent.shipmentId) {
+        if (!credential) {
+          throw new NonRetryableCarrierError(
+            'Unlinked legacy webhook event has no unambiguous credential binding',
+            { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
+          );
+        }
+
+        const resolution = await this.withWorkerContext(
+          () =>
+            this.webhookRouting.resolveShipmentForCredential(
+              credential,
+              webhookEvent.providerKey,
+              webhookEvent.externalDeliveryId,
+            ),
+          credential.orgId,
+        );
+
+        if (resolution.status === 'AMBIGUOUS') {
+          throw new NonRetryableCarrierError(
+            'Ambiguous carrier shipment reference within credential organization',
+            { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
+          );
+        }
+        if (resolution.status === 'NOT_FOUND') {
+          throw new RetryableCarrierError(
+            'No matching shipment found yet for this credential and provider reference',
+            { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
+          );
+        }
+
+        activeOrgId = await this.assertOutboxTenantMatchesShipment(
+          { organizationId: credential.orgId },
+          resolution.shipment,
+          credential.orgId,
+        );
+        await this.withWorkerContext(
+          async () => {
+            await this.db.db
+              .update(carrierWebhookEvents)
+              .set({ shipmentId: resolution.shipment.id })
+              .where(eq(carrierWebhookEvents.id, webhookEventId));
+          },
+          activeOrgId,
+        );
+
+        this.logger.log(
+          `Webhook retry: linked event ${webhookEventId} to shipment ${resolution.shipment.id}`,
+        );
+      } else {
+        const shipment = await this.withWorkerContext(() =>
+          this.db.db.query.shipments.findFirst({
+            where: eq(shipments.id, webhookEvent.shipmentId!),
+          }),
+        );
+        if (!shipment) {
+          throw new NonRetryableCarrierError(
+            'Previously linked webhook shipment no longer exists',
+            { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
+          );
+        }
+        activeOrgId = await this.assertOutboxTenantMatchesShipment(
+          credential ? { organizationId: credential.orgId } : {},
+          shipment,
+          credential?.orgId,
+        );
+      }
+
+      await this.withWorkerContext(
+        async () => {
+          await this.db.db
+            .update(carrierWebhookEvents)
+            .set({
+              processed: true,
+              processedAt: new Date(),
+              processingError: null,
+            })
+            .where(eq(carrierWebhookEvents.id, webhookEventId));
+        },
+        activeOrgId,
+      );
 
       this.observability.incrementCounter('carrier_webhook_total', webhookEvent.providerKey);
-
-      this.logger.log(
-        `Webhook retry: event ${webhookEventId} processed successfully.`,
-      );
+      this.logger.log(`Webhook retry: event ${webhookEventId} processed successfully.`);
     } catch (processingErr: any) {
-      // Mark the error but re-throw so the outbox retry policy handles backoff
-      await this.db.db
-        .update(carrierWebhookEvents)
-        .set({
-          processingError: (processingErr?.message || 'Unknown retry processing error').slice(0, 2000),
-        })
-        .where(eq(carrierWebhookEvents.id, webhookEventId));
-
-      this.observability.incrementCounter('carrier_webhook_failures_total', webhookEvent.providerKey);
-
-      this.logger.error(
-        `Webhook retry: event ${webhookEventId} failed: ${processingErr?.message}`,
+      const safeMessage = classifyCarrierError(processingErr).safeMessage;
+      await this.withWorkerContext(
+        async () => {
+          await this.db.db
+            .update(carrierWebhookEvents)
+            .set({
+              processed: false,
+              processingError: safeMessage.slice(0, 2000),
+            })
+            .where(eq(carrierWebhookEvents.id, webhookEventId));
+        },
+        activeOrgId,
       );
 
-      // Re-throw so handleFailure manages the outbox retry/backoff/dead-letter
+      this.observability.incrementCounter(
+        'carrier_webhook_failures_total',
+        webhookEvent.providerKey,
+      );
+      this.logger.error(`Webhook retry: event ${webhookEventId} failed: ${safeMessage}`);
       throw processingErr;
     }
   }
 
-  // ── Failure Handling ──────────────────────────────────────────────────────
-
-  /**
-   * Handle a processing failure using the centralized retry policy.
-   *
-   * - Terminal errors: mark FAILED/DEAD_LETTER immediately
-   * - Retryable errors: schedule retry with exponential backoff
-   * - Budget exhausted: mark DEAD_LETTER
-   */
   private async handleFailure(eventId: string, event: any, err: any): Promise<void> {
     const attempts = (event.attempts || 0) + 1;
     const classification = this.retryPolicy.classify(err, attempts);
@@ -898,7 +1322,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       newStatus = 'PENDING';
     }
 
-    await this.db.db
+    await this.withWorkerContext(() => this.db.db
       .update(outboxEvents)
       .set({
         status: newStatus,
@@ -908,11 +1332,11 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         lockedAt: null,
         lockedBy: null,
       })
-      .where(eq(outboxEvents.id, eventId));
+      .where(eq(outboxEvents.id, eventId)));
 
     this.logger.error(
       `Carrier event ${event.eventType} failed (attempt ${attempts}): ` +
-      `${classification.safeMessage} → ${newStatus}`,
+        `${classification.safeMessage} → ${newStatus}`,
     );
   }
 

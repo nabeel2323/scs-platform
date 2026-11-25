@@ -79,6 +79,8 @@ function injectKnownPhoneOtp(phone: string, otp: string) {
 
 let mockRedis: ReturnType<typeof createMockRedisStore>;
 
+const TEST_IDENTITY_ACTOR = { role: 'BUYER', activeOrg: null };
+
 describe('Registration Flows Integration (S1.35 Phase 1)', () => {
   let container: StartedPostgreSqlContainer;
   let pool: Pool;
@@ -217,7 +219,7 @@ describe('Registration Flows Integration (S1.35 Phase 1)', () => {
       // Proof of mailbox control is mandatory: request then consume an OTP.
       enableMockProvider();
       await service.requestEmailOtp('added@example.com');
-      const result = await service.linkEmailToAccount(userId, 'added@example.com', captureEmailOtp());
+      const result = await service.linkEmailToAccount(userId, 'added@example.com', captureEmailOtp(), TEST_IDENTITY_ACTOR);
       expect(result.success).toBe(true);
 
       const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
@@ -238,7 +240,7 @@ describe('Registration Flows Integration (S1.35 Phase 1)', () => {
       // Proof of control over the number is mandatory too (S1.37-F-05): inject a
       // challenge the link is then allowed to consume.
       injectKnownPhoneOtp('+966500000066', '135790');
-      const result = await service.linkPhoneToAccount(userId, '+966500000066', '135790');
+      const result = await service.linkPhoneToAccount(userId, '+966500000066', '135790', TEST_IDENTITY_ACTOR);
       expect(result.success).toBe(true);
 
       const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
@@ -258,7 +260,7 @@ describe('Registration Flows Integration (S1.35 Phase 1)', () => {
       // No challenge exists for this number, so the link must be refused before
       // the identifier is written (S1.37-F-05).
       await expect(
-        service.linkPhoneToAccount(userId, '+966500000065', '111222'),
+        service.linkPhoneToAccount(userId, '+966500000065', '111222', TEST_IDENTITY_ACTOR),
       ).rejects.toThrow(/OTP|expired|not found/i);
 
       const user = await db.query.users.findFirst({ where: eq(users.id, userId) });

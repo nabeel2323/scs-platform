@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { useProductStudio, STEPS } from '../../../hooks/useProductStudio';
+import { useProductStudio, STEPS, type Step } from '../../../hooks/useProductStudio';
 import { ProductTypeSummary, fetchProductTypes } from '../../../lib/buyer-api';
 import { PageHeader } from '@scs/ui-kit';
 import ProgressIndicator from './components/ProgressIndicator';
@@ -12,12 +12,58 @@ import StepVariants from './steps/StepVariants';
 import StepOffer from './steps/StepOffer';
 import StepMedia from './steps/StepMedia';
 import StepReview from './steps/StepReview';
+import { continueProductStudioStep } from '../../../lib/product-studio-flow';
 
 export default function ProductStudioPage() {
   const router = useRouter();
   const studio = useProductStudio();
-  const { step, setStep, stepIndex, state, setState, stores, categories, brands, error, saving, success, goNext, goPrev, handleSaveProduct, completeness, canonicalMatches, canonicalSearchResults, searchCanonical, searchCanonicalFreeText, existingVariants, loadExistingVariants } = studio;
+  const {
+    step,
+    setStep,
+    stepIndex,
+    state,
+    setState,
+    stores,
+    categories,
+    brands,
+    error,
+    setError,
+    saving,
+    success,
+    goNext,
+    goPrev,
+    handleSaveProduct,
+    completeness,
+    canonicalMatches,
+    canonicalSearchResults,
+    searchCanonical,
+    searchCanonicalFreeText,
+    existingVariants,
+    loadExistingVariants,
+  } = studio;
   const [productTypes, setProductTypes] = useState<ProductTypeSummary[]>([]);
+
+  const handleStepClick = (targetStep: Step) => {
+    const targetIndex = STEPS.findIndex((item) => item.key === targetStep);
+    if (success || saving) return;
+    if (targetIndex <= stepIndex) {
+      setStep(targetStep);
+      return;
+    }
+    // Allow only the next sequential step. The Offer -> Media transition
+    // must use the same persistence gate as the Next button.
+    if (targetIndex !== stepIndex + 1) return;
+    void continueProductStudioStep({
+      step,
+      saving,
+      productId: state.productId,
+      title: state.title,
+      storeId: state.storeId,
+      saveProduct: handleSaveProduct,
+      setError,
+      goNext: () => setStep(targetStep),
+    });
+  };
 
   // Load product types
   useEffect(() => {
@@ -41,12 +87,41 @@ export default function ProductStudioPage() {
       />
 
       {/* Progress Indicator */}
-      <ProgressIndicator currentStep={step} onStepClick={setStep} stepIndex={stepIndex} />
+      <ProgressIndicator
+        currentStep={step}
+        onStepClick={handleStepClick}
+        stepIndex={stepIndex}
+        disabled={saving || Boolean(success)}
+      />
 
       {/* Step Content */}
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
-        {error && <div style={{ padding: 12, background: '#fbeeec', color: '#991b1b', borderRadius: 6, marginBottom: 16 }}>{error}</div>}
-        {success && <div style={{ padding: 12, background: '#eaf5ef', color: '#1b7a4b', borderRadius: 6, marginBottom: 16 }}>{success}</div>}
+        {error && (
+          <div
+            style={{
+              padding: 12,
+              background: '#fbeeec',
+              color: '#991b1b',
+              borderRadius: 6,
+              marginBottom: 16,
+            }}
+          >
+            {error}
+          </div>
+        )}
+        {success && (
+          <div
+            style={{
+              padding: 12,
+              background: '#eaf5ef',
+              color: '#1b7a4b',
+              borderRadius: 6,
+              marginBottom: 16,
+            }}
+          >
+            {success}
+          </div>
+        )}
 
         {/* Step 1: Identity */}
         {step === 'identity' && (
@@ -65,9 +140,7 @@ export default function ProductStudioPage() {
         )}
 
         {/* Step 2: Specifications */}
-        {step === 'specifications' && (
-          <StepSpecifications state={state} setState={setState} />
-        )}
+        {step === 'specifications' && <StepSpecifications state={state} setState={setState} />}
 
         {/* Step 3: Variants */}
         {step === 'variants' && (
@@ -90,9 +163,7 @@ export default function ProductStudioPage() {
         )}
 
         {/* Step 5: Media */}
-        {step === 'media' && (
-          <StepMedia state={state} setState={setState} />
-        )}
+        {step === 'media' && <StepMedia state={state} setState={setState} />}
 
         {/* Step 6: Review */}
         {step === 'review' && (
@@ -107,33 +178,70 @@ export default function ProductStudioPage() {
 
         {/* Navigation */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, gap: 12 }}>
-          <button type="button" onClick={goPrev} disabled={stepIndex === 0}
+          <button
+            type="button"
+            onClick={goPrev}
+            disabled={stepIndex === 0}
             style={{
-              padding: '10px 20px', borderRadius: 6, border: '1px solid #d9e2e6',
+              padding: '10px 20px',
+              borderRadius: 6,
+              border: '1px solid #d9e2e6',
               cursor: stepIndex === 0 ? 'not-allowed' : 'pointer',
-              opacity: stepIndex === 0 ? 0.5 : 1, background: '#fff',
-            }}>
+              opacity: stepIndex === 0 ? 0.5 : 1,
+              background: '#fff',
+            }}
+          >
             Previous
           </button>
           <div style={{ display: 'flex', gap: 8 }}>
             {step === 'review' ? (
-              <button type="button" onClick={async () => {
-                const pid = await handleSaveProduct();
-                if (pid) router.push('/merchant/catalog');
-              }} disabled={saving}
-                style={{ padding: '10px 24px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#22c55e', color: '#fff', fontWeight: 600 }}>
+              <button
+                type="button"
+                onClick={async () => {
+                  const pid = await handleSaveProduct();
+                  if (pid) router.push('/merchant/catalog');
+                }}
+                disabled={saving || Boolean(success)}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: 6,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: '#22c55e',
+                  color: '#fff',
+                  fontWeight: 600,
+                }}
+              >
                 {saving ? 'Saving…' : 'Save Product'}
               </button>
             ) : (
-              <button type="button" onClick={async () => {
-                // Auto-save on step 4 (offer) to create the product before configuring offer
-                if (step === 'offer' && !state.productId && state.title && state.storeId) {
-                  await handleSaveProduct();
+              <button
+                type="button"
+                onClick={() =>
+                  continueProductStudioStep({
+                    step,
+                    saving,
+                    productId: state.productId,
+                    title: state.title,
+                    storeId: state.storeId,
+                    saveProduct: handleSaveProduct,
+                    setError,
+                    goNext,
+                  })
                 }
-                goNext();
-              }}
-                style={{ padding: '10px 20px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#0f3340', color: '#fff', fontWeight: 600 }}>
-                Next
+                disabled={saving || Boolean(success)}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 6,
+                  border: 'none',
+                  cursor: saving ? 'wait' : 'pointer',
+                  opacity: saving ? 0.65 : 1,
+                  background: '#0f3340',
+                  color: '#fff',
+                  fontWeight: 600,
+                }}
+              >
+                {saving ? 'Saving…' : 'Next'}
               </button>
             )}
           </div>

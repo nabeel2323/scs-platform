@@ -47,6 +47,16 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
   private scanning = false;
   private readonly config: P13OpsConfig;
 
+  private withMonitorActor<T>(operation: () => PromiseLike<T>): Promise<T> {
+    // Reuse an already-established request/worker actor if this read-only
+    // collector is invoked from a scoped operation; otherwise use its worker ID.
+    if (this.db.currentActorContext) return Promise.resolve(operation());
+    return this.db.withActorContext(
+      { actorKind: 'worker', workerId: 'p13-monitor' },
+      async () => await operation(),
+    );
+  }
+
   constructor(
     private readonly db: DatabaseService,
     private readonly alerts: OpsAlertService,
@@ -56,9 +66,9 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit(): void {
-    // The monitor is safe to run on every instance: alert dedup is enforced by
-    // the unique dedup_key in Postgres, so N monitors still produce one
-    // notification per condition per resource.
+    // The monitor is safe to run on every instance: unique dedup keys protect
+    // row identity and OpsAlertService's atomic SENDING claim gives one active
+    // delivery owner per condition/resource, with stale-claim recovery.
     this.timer = setInterval(() => {
       void this.runQuietly();
     }, this.config.monitorIntervalMs);
@@ -169,7 +179,7 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
 
     // ── 2. Return stuck in REQUESTED past its escalation trigger ─────────
     const staleRequested = readRows<{ id: string; org_id: string | null; expires_at: unknown }>(
-      await this.db.db.execute(sql`
+      await this.withMonitorActor(() => this.db.db.execute(sql`
         SELECT rr.id, s.org_id, rr.expires_at
         FROM return_requests rr
         JOIN orders o ON o.id = rr.sub_order_id
@@ -179,7 +189,7 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
           AND rr.expires_at < now() - (${this.config.thresholds.requestedStaleMs} * interval '1 millisecond')
         ORDER BY rr.expires_at
         LIMIT 50
-      `),
+      `)),
     );
     for (const row of staleRequested) {
       findings.push({
@@ -205,14 +215,18 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
     clears.push(...workerCount.clears);
 
     // ── 4. Missing worker heartbeat ──────────────────────────────────────
-    const staleHeartbeat = readRows<{ lease_key: string; holder_id: string; heartbeat_at: unknown }>(
-      await this.db.db.execute(sql`
+    const staleHeartbeat = readRows<{
+      lease_key: string;
+      holder_id: string;
+      heartbeat_at: unknown;
+    }>(
+      await this.withMonitorActor(() => this.db.db.execute(sql`
         SELECT lease_key, holder_id, heartbeat_at
         FROM worker_leases
         WHERE holder_id IS NOT NULL
           AND (heartbeat_at IS NULL
                OR heartbeat_at < now() - (${this.config.thresholds.heartbeatStaleMs} * interval '1 millisecond'))
-      `),
+      `)),
     );
     for (const row of staleHeartbeat) {
       findings.push({
@@ -239,9 +253,14 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
 
     // ── 5. Refunds failed / stuck / needing manual review ────────────────
     const refundRows = readRows<{
-      id: string; return_request_id: string | null; status: string;
-      amount_minor: string; created_at: unknown; org_id: string | null;
-    }>(await this.db.db.execute(sql`
+      id: string;
+      return_request_id: string | null;
+      status: string;
+      amount_minor: string;
+      created_at: unknown;
+      org_id: string | null;
+    }>(
+      await this.withMonitorActor(() => this.db.db.execute(sql`
       SELECT r.id, r.return_request_id, r.status, r.amount_minor, r.created_at, s.org_id
       FROM refunds r
       LEFT JOIN orders o ON o.id = r.order_id
@@ -251,7 +270,8 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
              AND r.created_at < now() - (${this.config.thresholds.refundStuckMs} * interval '1 millisecond'))
       ORDER BY r.created_at
       LIMIT 50
-    `));
+    `)),
+    );
     for (const row of refundRows) {
       const failed = row.status === 'FAILED';
       findings.push({
@@ -273,7 +293,8 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
       });
     }
 
-    const manualReview = readRows<{ id: string; org_id: string | null }>(await this.db.db.execute(sql`
+    const manualReview = readRows<{ id: string; org_id: string | null }>(
+      await this.withMonitorActor(() => this.db.db.execute(sql`
       SELECT rr.id, s.org_id
       FROM return_requests rr
       JOIN orders o ON o.id = rr.sub_order_id
@@ -281,7 +302,8 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
       WHERE rr.status = 'REFUND_FAILED'
       ORDER BY rr.updated_at
       LIMIT 50
-    `));
+    `)),
+    );
     for (const row of manualReview) {
       findings.push({
         conditionKey: 'p13.refund.manual_review',
@@ -306,14 +328,18 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
     }
 
     // ── 6. Commission reversal failures / duplicate attempts ─────────────
-    const failedReversals = readRows<{ id: string; return_request_id: string; org_id: string | null }>(
-      await this.db.db.execute(sql`
+    const failedReversals = readRows<{
+      id: string;
+      return_request_id: string;
+      org_id: string | null;
+    }>(
+      await this.withMonitorActor(() => this.db.db.execute(sql`
         SELECT cr.id, cr.return_request_id, cr.org_id
         FROM commission_reversals cr
         WHERE cr.status = 'FAILED'
         ORDER BY cr.created_at
         LIMIT 50
-      `),
+      `)),
     );
     for (const row of failedReversals) {
       findings.push({
@@ -335,7 +361,8 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
         title: `${reversalFailures} commission reversal(s) threw outside the idempotency guard`,
         detail: {
           reversalFailures,
-          lastReason: opsCounterSnapshot()['commission_reversal_failures_total']?.lastReason ?? null,
+          lastReason:
+            opsCounterSnapshot()['commission_reversal_failures_total']?.lastReason ?? null,
           since: 'process-start',
         },
         resourceType: 'commission_reversal',
@@ -355,7 +382,7 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
 
     // ── 7. Authoritative financial invariants ────────────────────────────
     const overReversed = readRows<{ return_request_id: string; total: string; original: string }>(
-      await this.db.db.execute(sql`
+      await this.withMonitorActor(() => this.db.db.execute(sql`
         SELECT return_request_id,
                SUM(reversal_minor) AS total,
                MAX(original_commission_minor) AS original
@@ -363,7 +390,7 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
         WHERE status = 'POSTED'
         GROUP BY return_request_id
         HAVING SUM(reversal_minor) > MAX(original_commission_minor)
-      `),
+      `)),
     );
     for (const row of overReversed) {
       findings.push({
@@ -382,7 +409,7 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
     }
 
     const overRefunded = readRows<{ payment_record_id: string; refunded: string; paid: string }>(
-      await this.db.db.execute(sql`
+      await this.withMonitorActor(() => this.db.db.execute(sql`
         SELECT r.payment_record_id,
                SUM(r.amount_minor) AS refunded,
                MAX(p.amount_minor) AS paid
@@ -391,7 +418,7 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
         WHERE r.status IN ('REQUESTED', 'APPROVED', 'PROCESSING', 'SUCCEEDED')
         GROUP BY r.payment_record_id
         HAVING SUM(r.amount_minor) > MAX(p.amount_minor)
-      `),
+      `)),
     );
     for (const row of overRefunded) {
       findings.push({
@@ -410,19 +437,23 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
     }
 
     const fxBypassed = readRows<{ id: string; org_id: string | null; fx_status: string }>(
-      await this.db.db.execute(sql`
+      await this.withMonitorActor(() => this.db.db.execute(sql`
         SELECT id, org_id, fx_status
         FROM settlement_adjustments
         WHERE status = 'POSTED'
           AND fx_status IN ('BLOCKED', 'PENDING_REVIEW')
-      `),
+      `)),
     );
     for (const row of fxBypassed) {
       findings.push({
         conditionKey: 'p13.financial.invariant_violation',
         severity: 'CRITICAL',
         title: `Settlement adjustment ${row.id} posted while FX is ${row.fx_status}`,
-        detail: { violation: 'posted_without_authoritative_fx', adjustmentId: row.id, fxStatus: row.fx_status },
+        detail: {
+          violation: 'posted_without_authoritative_fx',
+          adjustmentId: row.id,
+          fxStatus: row.fx_status,
+        },
         orgId: row.org_id,
         resourceType: 'settlement_adjustment',
         resourceId: row.id,
@@ -431,7 +462,7 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
 
     // ── 8. Tenant-isolation violations on financial records ──────────────
     const misplacedAdjustments = readRows<{ id: string; adj_org: string; owner_org: string }>(
-      await this.db.db.execute(sql`
+      await this.withMonitorActor(() => this.db.db.execute(sql`
         SELECT sa.id, sa.org_id AS adj_org, s.org_id AS owner_org
         FROM settlement_adjustments sa
         JOIN orders o ON o.id = sa.sub_order_id
@@ -439,7 +470,7 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
         WHERE sa.org_id IS NOT NULL
           AND s.org_id IS NOT NULL
           AND sa.org_id <> s.org_id
-      `),
+      `)),
     );
     for (const row of misplacedAdjustments) {
       findings.push({
@@ -453,7 +484,8 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
       });
     }
 
-    const misplacedReversals = readRows<{ id: string; owner_org: string }>(await this.db.db.execute(sql`
+    const misplacedReversals = readRows<{ id: string; owner_org: string }>(
+      await this.withMonitorActor(() => this.db.db.execute(sql`
       SELECT cr.id, s.org_id AS owner_org
       FROM commission_reversals cr
       JOIN return_requests rr ON rr.id = cr.return_request_id
@@ -462,7 +494,8 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
       WHERE cr.org_id IS NOT NULL
         AND s.org_id IS NOT NULL
         AND cr.org_id <> s.org_id
-    `));
+    `)),
+    );
     for (const row of misplacedReversals) {
       findings.push({
         conditionKey: 'p13.tenant.isolation_violation',
@@ -491,22 +524,32 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
       P13_OUTBOX_PREFIXES.map((prefix) => sql`event_type LIKE ${prefix + '%'}`),
       sql` OR `,
     );
-    const outboxFailed = readRows<{ id: string; event_type: string; attempts: number; status: string }>(
-      await this.db.db.execute(sql`
+    const outboxFailed = readRows<{
+      id: string;
+      event_type: string;
+      attempts: number;
+      status: string;
+    }>(
+      await this.withMonitorActor(() => this.db.db.execute(sql`
         SELECT id, event_type, attempts, status
         FROM outbox_events
         WHERE status IN ('FAILED', 'DEAD_LETTER')
           AND (${p13EventFilter})
         ORDER BY created_at
         LIMIT 50
-      `),
+      `)),
     );
     for (const row of outboxFailed) {
       findings.push({
         conditionKey: 'p13.outbox.delivery_failed',
         severity: 'CRITICAL',
         title: `P13 outbox event ${row.event_type} is ${row.status} after ${row.attempts} attempt(s)`,
-        detail: { outboxId: row.id, eventType: row.event_type, status: row.status, attempts: row.attempts },
+        detail: {
+          outboxId: row.id,
+          eventType: row.event_type,
+          status: row.status,
+          attempts: row.attempts,
+        },
         resourceType: 'outbox_event',
         resourceId: row.id,
       });
@@ -528,12 +571,14 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
     }
 
     // ── 10. Alert-delivery failure ──────────────────────────────────────
-    const undelivered = readRows<{ condition_key: string; cnt: number }>(await this.db.db.execute(sql`
+    const undelivered = readRows<{ condition_key: string; cnt: number }>(
+      await this.withMonitorActor(() => this.db.db.execute(sql`
       SELECT condition_key, COUNT(*)::int AS cnt
       FROM ops_alerts
       WHERE status = 'FAILED'
       GROUP BY condition_key
-    `));
+    `)),
+    );
     for (const row of undelivered) {
       if (row.condition_key === ALERT_DELIVERY_FAILURE_CONDITION) {
         // The failure alert itself could not be delivered: the log line is the

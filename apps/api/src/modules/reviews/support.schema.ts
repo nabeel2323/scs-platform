@@ -1,6 +1,7 @@
 import { pgTable, uuid, varchar, text, boolean, jsonb, timestamp } from 'drizzle-orm/pg-core';
 import { users } from '../identity/identity.schema';
 import { orders } from '../orders/orders.schema';
+import { returnRequests } from '../returns/returns.schema';
 
 /**
  * Support/disputes schema (migration 0011_trust)
@@ -21,8 +22,9 @@ export const disputes = pgTable('disputes', {
   resolution: text('resolution'),
   resolvedBy: uuid('resolved_by').references(() => users.id),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
-  // P13: link to return request (nullable FK, added by migration 0059)
-  returnRequestId: uuid('return_request_id'),
+  // P13: migration 0059 adds the nullable return_requests FK. Support depends
+  // on returns; returns does not import support, so this reference is acyclic.
+  returnRequestId: uuid('return_request_id').references(() => returnRequests.id, { onDelete: 'set null' }),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

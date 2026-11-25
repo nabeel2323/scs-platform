@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import type { Offer, RankedProductOffer } from '../lib/buyer-api';
+import type { BuyerProductOffer, RankedProductOffer } from '../lib/buyer-api';
 
 /** A single row in the offer comparison table, merging base + ranked data. */
 export interface OfferComparisonRow {
@@ -14,6 +14,7 @@ export interface OfferComparisonRow {
   currency: string;
   basePriceMinor: number;
   moq: number;
+  orderIncrement: number | null;
   leadTimeDays: number | null;
   /** Popularity data — null when the ranked endpoint hasn't returned this offer. */
   rank: RankedProductOffer | null;
@@ -45,7 +46,7 @@ interface UseOfferComparisonResult {
  * competing offers.
  */
 export function useOfferComparison(
-  offers: Offer[],
+  offers: BuyerProductOffer[],
   ranked: RankedProductOffer[],
   currentStoreId: string | null,
 ): UseOfferComparisonResult {
@@ -53,9 +54,9 @@ export function useOfferComparison(
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   const toggleSort = useCallback((key: OfferSortKey) => {
-    setSortKey(prev => {
+    setSortKey((prev) => {
       if (prev === key) {
-        setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
         return key;
       }
       setSortDir(key === 'price' ? 'asc' : 'asc');
@@ -63,13 +64,10 @@ export function useOfferComparison(
     });
   }, []);
 
-  const rankedByOffer = useMemo(
-    () => new Map(ranked.map(r => [r.offerId, r])),
-    [ranked],
-  );
+  const rankedByOffer = useMemo(() => new Map(ranked.map((r) => [r.offerId, r])), [ranked]);
 
   const { competing, currentSellerRow } = useMemo(() => {
-    const activeOffers = offers.filter(o => o.status === 'ACTIVE');
+    const activeOffers = offers.filter((o) => o.status === 'ACTIVE');
     let currentSellerRow: OfferComparisonRow | null = null;
     const competing: OfferComparisonRow[] = [];
 
@@ -85,6 +83,7 @@ export function useOfferComparison(
         currency: o.currency,
         basePriceMinor: o.basePriceMinor,
         moq: o.moq,
+        orderIncrement: o.orderIncrement,
         leadTimeDays: o.leadTimeDays,
         rank: r ?? null,
         isCurrentSeller: o.storeId === currentStoreId,

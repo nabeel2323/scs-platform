@@ -1,6 +1,6 @@
 import {
   pgTable, uuid, varchar, text, bigint, integer, boolean, jsonb,
-  timestamp, date, numeric, char,
+  timestamp, date, numeric, char, type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { users } from '../identity/identity.schema';
 import { returnRequests } from './returns.schema';
@@ -88,7 +88,11 @@ export const reconciliationRuns = pgTable('reconciliation_runs', {
   discrepancyCount: integer('discrepancy_count').notNull().default(0),
   executedBy: uuid('executed_by').references(() => users.id),
   orgId: uuid('org_id'),
-  supersededBy: uuid('superseded_by'),
+  // Migration 0062 adds the self-referential FK; mirror it in Drizzle so
+  // schema metadata and migration-defined lineage stay aligned.
+  supersededBy: uuid('superseded_by').references(
+    (): AnyPgColumn => reconciliationRuns.id,
+  ),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
 });

@@ -21,7 +21,10 @@ import {
   Req,
   BadRequestException,
   ForbiddenException,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -32,6 +35,8 @@ import {
 } from '../../common/guards/current-user.decorator';
 import { CallerContext, assertOrderAccessible } from '../../common/tenant-scope';
 import { DatabaseService } from '../../common/database/database.service';
+import { parseSettlementPagination } from './settlement-pagination';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -45,10 +50,8 @@ export class PaymentsController {
 
   /** GET /v1/payments/:id — view payment details (buyer owns it or admin). */
   @Get('payments/:id')
-  async getPayment(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  @UseInterceptors(TenantDatabaseContextInterceptor)
+  async getPayment(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const payment = await this.payments.getPaymentOrThrow(id);
     const order = await this.payments.getOrderForPayment(payment.orderId);
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
@@ -62,17 +65,43 @@ export class PaymentsController {
   @Post('payments/:id/proof')
   @UseGuards(PermissionsGuard)
   @RequirePermission('orders:write')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+        if (allowed.includes(file.mimetype)) callback(null, true);
+        else callback(new BadRequestException('Unsupported payment proof file type'), false);
+      },
+    }),
+  )
   async submitProof(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
     @Body() body: { receiptUrl?: string; receiptReference?: string; notes?: string },
+    @UploadedFile() file?: { buffer: Buffer; originalname: string; mimetype: string; size: number },
   ) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    return this.payments.submitProof(id, user.sub, body, caller);
+    return this.payments.submitProof(
+      id,
+      user.sub,
+      {
+        ...body,
+        ...(file
+          ? {
+              fileBuffer: file.buffer,
+              fileName: file.originalname,
+              contentType: file.mimetype,
+            }
+          : {}),
+      },
+      caller,
+    );
   }
 
   /** POST /v1/payments/:id/confirm-cash — merchant confirms COD cash collection. */
   @Post('payments/:id/confirm-cash')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:write')
   async confirmCash(
@@ -94,22 +123,24 @@ export class PaymentsController {
     @Body() body: { amountMinor: number; reason: string; idempotencyKey?: string; notes?: string },
   ) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    return this.payments.requestRefund(
-      id, body.amountMinor, body.reason, user.sub, caller,
-      { idempotencyKey: body.idempotencyKey, notes: body.notes },
-    );
+    return this.payments.requestRefund(id, body.amountMinor, body.reason, user.sub, caller, {
+      idempotencyKey: body.idempotencyKey,
+      notes: body.notes,
+    });
   }
 
   // ── Admin Endpoints ───────────────────────────────────────────
 
   /** POST /v1/admin/payments/:id/verify — admin confirms or rejects proof. */
   @Post('admin/payments/:id/verify')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:payments:verify')
   async verifyPayment(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
-    @Body() body: { decision: 'CONFIRMED' | 'REJECTED'; notes?: string; verifiedAmountMinor?: number },
+    @Body()
+    body: { decision: 'CONFIRMED' | 'REJECTED'; notes?: string; verifiedAmountMinor?: number },
   ) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.payments.verifyPayment(id, body.decision, user.sub, caller, {
@@ -118,20 +149,27 @@ export class PaymentsController {
     });
   }
 
+  /** GET /v1/admin/refunds — refund requests awaiting admin approval. */
+  @Get('admin/refunds')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('admin:refunds:approve')
+  async requestedRefunds() {
+    return this.payments.getRequestedRefunds();
+  }
+
   /** POST /v1/admin/refunds/:id/approve — admin approves a refund. */
   @Post('admin/refunds/:id/approve')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:refunds:approve')
-  async approveRefund(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async approveRefund(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.payments.approveRefund(id, user.sub, caller);
   }
 
   /** GET /v1/admin/payments — list all payments (admin). */
   @Get('admin/payments')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:payments:read')
   async listPayments(
@@ -143,6 +181,7 @@ export class PaymentsController {
 
   /** GET /v1/admin/payments/verification-queue — pending proofs. */
   @Get('admin/payments/verification-queue')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:payments:verify')
   async verificationQueue() {
@@ -151,6 +190,7 @@ export class PaymentsController {
 
   /** GET /v1/admin/payments/stale — reconciliation: stale payments. */
   @Get('admin/payments/stale')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:payments:read')
   async stalePayments() {
@@ -159,18 +199,17 @@ export class PaymentsController {
 
   /** POST /v1/admin/settlements/:id/calculate — calculate settlement. */
   @Post('admin/settlements/:id/calculate')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:settlements:write')
-  async calculateSettlement(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') orderId: string,
-  ) {
+  async calculateSettlement(@CurrentUser() user: JwtPayload, @Param('id') orderId: string) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.payments.calculateSettlement(orderId, user.sub, caller);
   }
 
   /** POST /v1/admin/settlements/:id/pay — mark settlement as paid. */
   @Post('admin/settlements/:id/pay')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:settlements:write')
   async markSettlementPaid(
@@ -184,37 +223,55 @@ export class PaymentsController {
 
   /** GET /v1/admin/settlements — list settlements. */
   @Get('admin/settlements')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:settlements:read')
   async listSettlements(
     @Query('storeId') storeId?: string,
     @Query('status') status?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
-    return this.payments.listSettlements({ storeId, status });
+    return this.payments.listSettlements({
+      storeId,
+      status,
+      ...parseSettlementPagination(limit, offset),
+    });
   }
 
   // ── Merchant Endpoints ────────────────────────────────────────
 
   /** GET /v1/merchant/payments — payments for merchant's stores. */
   @Get('merchant/payments')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:read')
   async merchantListPayments(
+    @CurrentUser() user: JwtPayload,
     @Query('storeId') storeId?: string,
     @Query('status') status?: string,
   ) {
-    return this.payments.listPayments({ storeId, status });
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    return this.payments.listMerchantPayments(caller, { storeId, status });
   }
 
   /** GET /v1/merchant/settlements — settlements for merchant's stores. */
   @Get('merchant/settlements')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:read')
   async merchantSettlements(
     @CurrentUser() user: JwtPayload,
     @Query('storeId') storeId?: string,
     @Query('status') status?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
-    return this.payments.listSettlements({ storeId, status });
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    return this.payments.listMerchantSettlements(caller, {
+      storeId,
+      status,
+      ...parseSettlementPagination(limit, offset),
+    });
   }
 }

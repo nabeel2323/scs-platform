@@ -87,6 +87,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -97,17 +99,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
-      # Advisory only. This repo predates Prettier enforcement: it has repo-wide
-      # formatting debt plus CRLF line endings (core.autocrlf on Windows, no
-      # .gitattributes) while .prettierrc requires endOfLine=lf. Normalizing 100+
-      # untouched files is out of scope for the Phase 1 gap fixes, so this step
-      # reports the debt without blocking PRs. New/changed files are expected to
-      # be Prettier-clean.
-      # TODO(repo-hygiene): add `.gitattributes` (`* text=auto eol=lf`), run
-      # `git add --renormalize .` and `prettier --write` in a dedicated commit,
-      # then drop `continue-on-error` to make this gate blocking.
-      - run: pnpm format:check
-        continue-on-error: true
+      # Enforce formatting on every file changed by this PR. The legacy full-repo
+      # formatting debt is tracked separately and must not hide new formatting regressions.
+      - run: pnpm format:check:changed
 
   # â”€â”€ Boundary Lint (E6) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   boundary-lint:
@@ -124,12 +118,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Advisory: eslint-plugin-boundaries is not yet wired into the flat config
-      # and some modules still cross-import (e.g. orders.service pulls other
-      # modules' schemas), so this gate is non-blocking until boundaries are
-      # cleaned up. The plain API lint (errors) still runs in the `lint` job.
-      - run: pnpm --filter @scs/api lint
-        continue-on-error: true
+      # Blocking regression gate against the reviewed legacy baseline.
+      # New cross-module imports fail CI; existing debt remains explicitly tracked.
+      - run: pnpm boundary-lint
 
   # â”€â”€ Unit Tests + Coverage Gates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test-unit:
@@ -198,7 +189,8 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - id: install
+        run: pnpm install --frozen-lockfile
       # Both apps import the generated client from @scs/contracts, whose
       # package.json resolves to ./dist/src/index.js -- the built output, not the
       # source (@scs/ui-kit and @scs/env resolve to src and need no build). These
@@ -206,7 +198,8 @@ jobs:
       # means the dependency build that turbo's `test` task would pull in through
       # `dependsOn: ['^build']` has to happen here instead. Same reasoning the
       # integration job documents at S1.28 D-CI-3.
-      - run: pnpm contracts:build
+      - id: contracts
+        run: pnpm contracts:build
       # apps/web: the whole suite runs. It was green at the Phase 1 baseline, and
       # Phase 1 added the Buyer document-root hydration specs to it.
       - run: pnpm --filter @scs/web test
@@ -219,6 +212,7 @@ jobs:
       # Phase 1's scope. Tracked as a remaining issue; when they are fixed,
       # replace this step with `pnpm --filter @scs/admin test`.
       - name: Admin hydration + global-styles regression tests
+        if: ${{ always() && steps.install.outcome == 'success' && steps.contracts.outcome == 'success' }}
         run: >
           pnpm --filter @scs/admin test --
           src/__tests__/hydration-document-root.test.tsx
@@ -227,6 +221,8 @@ jobs:
           src/__tests__/hydration-admin-clock.test.tsx
           src/__tests__/hydration-admin-session.test.tsx
           src/__tests__/hydration-admin-perms.test.tsx
+          src/__tests__/admin-settlements-recovery.test.tsx
+          src/__tests__/admin-settlement-adjustments-recovery.test.tsx
 
   # â”€â”€ Integration Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test-integration:
@@ -325,12 +321,12 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-  
+
       # Build the CI postgres image with PostGIS + pg_partman from the repo Dockerfile.
       # This ensures the migration gate uses the same extension set as production.
       - name: Build CI postgres image (PostGIS + pg_partman)
         run: docker build -t scs-ci-postgres:ci -f infra/deploy/ci-postgres.Dockerfile infra/deploy/
-  
+
       # Start a disposable postgres container from the custom image.
       - name: Start disposable postgres with pg_partman
         run: |
@@ -347,19 +343,97 @@ jobs:
       #    non-empty, and that the DB is reachable — without writing.
       - name: Dry-run (validate ordering)
         run: pnpm --filter @scs/api run db:migrate:ci -- --dry-run
-  
+
       # 2) ENFORCING: Full migration apply. All migration files must apply cleanly,
       #    including 0013 and 0018 which require pg_partman. No continue-on-error.
       #    If any migration fails, the gate fails and the PR cannot merge.
       - name: Full migration apply (enforcing — all discovered files)
         run: pnpm --filter @scs/api run db:migrate:ci
-  
+
+      # The migration owner is deliberately a superuser in this disposable fixture.
+      # Do not use that owner identity to validate the read-only audit: create a separate
+      # login with catalog visibility but no schema/table privileges or elevated role flags.
+      - name: Create least-privilege database audit login
+        run: |
+          set -euo pipefail
+          AUDIT_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$AUDIT_PASSWORD"
+          docker exec -i ci-migration-pg psql -U scs -d scs_test -v ON_ERROR_STOP=1 <<SQL
+          CREATE ROLE scs_audit LOGIN
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+          ALTER ROLE scs_audit PASSWORD '$AUDIT_PASSWORD';
+          GRANT CONNECT ON DATABASE scs_test TO scs_audit;
+          SQL
+          echo "AUDIT_DATABASE_URL=postgresql://scs_audit:${AUDIT_PASSWORD}@localhost:5433/scs_test" >> "$GITHUB_ENV"
+
+      # Run with the least-privilege login, not the migration owner. This proves the
+      # audit can inspect the security catalog without superuser/BYPASSRLS capability.
+      - name: Run read-only database access audit (PostgreSQL CI)
+        env:
+          DATABASE_URL: ${{ env.AUDIT_DATABASE_URL }}
+        run: pnpm db:audit-access
+
       # 3) Verify pg_partman is configured after migration
+      - name: Verify public schema access hardening
+        run: |
+          docker exec -i ci-migration-pg psql -U scs -d scs_test -v ON_ERROR_STOP=1 <<'SQL'
+          DO $verify$
+          BEGIN
+            IF EXISTS (
+              SELECT 1
+              FROM pg_tables t
+              WHERE t.schemaname = 'public'
+                AND (
+                  has_table_privilege('anon', format('%I.%I', t.schemaname, t.tablename), 'SELECT')
+                  OR has_table_privilege('anon', format('%I.%I', t.schemaname, t.tablename), 'INSERT')
+                  OR has_table_privilege('anon', format('%I.%I', t.schemaname, t.tablename), 'UPDATE')
+                  OR has_table_privilege('anon', format('%I.%I', t.schemaname, t.tablename), 'DELETE')
+                  OR has_table_privilege('anon', format('%I.%I', t.schemaname, t.tablename), 'TRUNCATE')
+                  OR has_table_privilege('anon', format('%I.%I', t.schemaname, t.tablename), 'REFERENCES')
+                  OR has_table_privilege('anon', format('%I.%I', t.schemaname, t.tablename), 'TRIGGER')
+                  OR has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'SELECT')
+                  OR has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'INSERT')
+                  OR has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'UPDATE')
+                  OR has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'DELETE')
+                  OR has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'TRUNCATE')
+                  OR has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'REFERENCES')
+                  OR has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'TRIGGER')
+                )
+            ) THEN
+              RAISE EXCEPTION 'anon/authenticated retain privileges on public tables';
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM pg_default_acl d
+              CROSS JOIN LATERAL aclexplode(d.defaclacl) acl
+              WHERE d.defaclrole = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+                AND d.defaclnamespace = 'public'::regnamespace
+                AND d.defaclobjtype IN ('r', 'S')
+                AND acl.grantee IN (
+                  SELECT oid FROM pg_roles WHERE rolname IN ('anon', 'authenticated')
+                )
+            ) THEN
+              RAISE EXCEPTION 'anon/authenticated retain default privileges on public objects';
+            END IF;
+
+            IF NOT EXISTS (
+              SELECT 1
+              FROM pg_proc p
+              WHERE p.oid = 'public.normalize_arabic(text)'::regprocedure
+                AND COALESCE(p.proconfig, ARRAY[]::text[]) @> ARRAY['search_path=pg_catalog']
+            ) THEN
+              RAISE EXCEPTION 'normalize_arabic search_path is not pinned to pg_catalog';
+            END IF;
+          END
+          $verify$;
+          SQL
+
       - name: Verify pg_partman partitioning
         run: |
           docker exec ci-migration-pg psql -U scs -d scs_test -c \
             "SELECT parent_table, partition_type, partition_interval FROM partman.part_config;"
-  
+
       - name: Cleanup
         if: always()
         run: docker rm -f ci-migration-pg 2>/dev/null || true

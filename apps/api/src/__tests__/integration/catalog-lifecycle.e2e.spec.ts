@@ -17,18 +17,31 @@ import { ConditionalRulesService } from '../../modules/catalog/conditional-rules
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 // Schemas
 import {
-  products, productMedia, productVariants, categories, brands,
+  products,
+  productMedia,
+  productVariants,
+  categories,
+  brands,
 } from '../../modules/catalog/catalog.schema';
 import {
-  attributeDefinitions, attributeOptions, attributeGroups,
-  productTypes, productTypeAttributes,
-  productAttributeValues, variantAttributeValues,
+  attributeDefinitions,
+  attributeOptions,
+  attributeGroups,
+  productTypes,
+  productTypeAttributes,
+  productAttributeValues,
+  variantAttributeValues,
 } from '../../modules/catalog/catalog.taxonomy.schema';
 import { merchantOffers } from '../../modules/catalog/catalog.offer.schema';
 import { catalogRequests } from '../../modules/catalog/catalog.requests.schema';
 import { searchQueries } from '../../modules/catalog/search.schema';
-import { users, organizations, organizationMembers, roles } from '../../modules/identity/identity.schema';
-import { stores, verificationRequests } from '../../modules/merchant/merchant.schema';
+import {
+  users,
+  organizations,
+  organizationMembers,
+  roles,
+} from '../../modules/identity/identity.schema';
+import { stores, storeMembers, verificationRequests } from '../../modules/merchant/merchant.schema';
 import { priceLists, priceTiers } from '../../modules/pricing/pricing.schema';
 import { auditLogs, outboxEvents } from '../../modules/audit/audit.schema';
 import { masterOrders, orders } from '../../modules/orders/orders.schema';
@@ -36,10 +49,11 @@ import { disputes } from '../../modules/reviews/support.schema';
 import { warehouses } from '../../modules/merchant/merchant.schema';
 import { inventoryItems } from '../../modules/inventory/inventory.schema';
 import {
-  assertProductInOrg, assertStoreInOrg,
+  assertProductInOrg,
+  assertStoreInOrg,
   type CallerContext,
 } from '../../common/tenant-scope';
-import { ForbiddenException, BadRequestException } from '@nestjs/common';
+import { ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
 
 /**
  * REAL E2E Catalog Lifecycle Test
@@ -70,6 +84,19 @@ let merchantA: string, merchantB: string, buyerUser: string, adminUser: string;
 let storeA: string, storeB: string;
 let roleIdMerchantA: string, roleIdMerchantB: string;
 
+// Caller factories are shared by lifecycle and tenant-isolation scenarios.
+// They read IDs populated by beforeAll, so they remain safe to declare here.
+const callerA = (): CallerContext => ({
+  sub: merchantA,
+  role: 'MERCHANT_OWNER',
+  activeOrg: orgA,
+});
+const callerB = (): CallerContext => ({
+  sub: merchantB,
+  role: 'MERCHANT_OWNER',
+  activeOrg: orgB,
+});
+
 describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   let container: StartedPostgreSqlContainer;
   let pool: Pool;
@@ -97,13 +124,31 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, {
       schema: {
-        products, productMedia, productVariants, categories, brands,
-        attributeDefinitions, attributeOptions, attributeGroups,
-        productTypes, productTypeAttributes,
-        productAttributeValues, variantAttributeValues,
-        merchantOffers, catalogRequests, searchQueries,
-        stores, verificationRequests, users, organizations, disputes,
-        priceLists, priceTiers, warehouses, inventoryItems,
+        products,
+        productMedia,
+        productVariants,
+        categories,
+        brands,
+        attributeDefinitions,
+        attributeOptions,
+        attributeGroups,
+        productTypes,
+        productTypeAttributes,
+        productAttributeValues,
+        variantAttributeValues,
+        merchantOffers,
+        catalogRequests,
+        searchQueries,
+        stores,
+        storeMembers,
+        verificationRequests,
+        users,
+        organizations,
+        disputes,
+        priceLists,
+        priceTiers,
+        warehouses,
+        inventoryItems,
       },
     }) as unknown as DatabaseService['db'];
 
@@ -111,20 +156,35 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     const migrations = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
     const excluded = ['0013_analytics.sql', '0018_analytics_retention.sql'];
     for (const file of (await readdir(migrations))
-      .filter(f => f.endsWith('.sql') && !excluded.includes(f))
+      .filter((f) => f.endsWith('.sql') && !excluded.includes(f))
       .sort()) {
       await pool.query(await readFile(path.join(migrations, file), 'utf8'));
     }
 
     // ── Seed RBAC ───────────────────────────────────────────────────
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
     // ── Instantiate services ────────────────────────────────────────
     database = { db } as DatabaseService;
     conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
-    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy, {} as any, {} as any, {} as any);
+    catalog = new CatalogService(
+      database,
+      redis as any,
+      outbox,
+      storage,
+      audit,
+      conditionalRules,
+      taxonomy,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
     offerService = new CatalogOfferService(database, audit);
     requestsService = new CatalogRequestsService(database, catalog, taxonomy);
     search = new SearchService(database, storage, redis as any);
@@ -157,8 +217,8 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
 
     // Stores (each org owns one store)
     await db.insert(stores).values([
-      { id: storeA, orgId: orgA, slug: 'store-a', displayName: 'Store A' },
-      { id: storeB, orgId: orgB, slug: 'store-b', displayName: 'Store B' },
+      { id: storeA, orgId: orgA, slug: 'store-a', displayName: 'Store A', status: 'ACTIVE' },
+      { id: storeB, orgId: orgB, slug: 'store-b', displayName: 'Store B', status: 'ACTIVE' },
     ]);
 
     // Fetch the MERCHANT_OWNER role ID for reference
@@ -172,9 +232,18 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       { id: randomUUID(), orgId: orgA, userId: merchantA, roleId: merchantRoleId },
       { id: randomUUID(), orgId: orgB, userId: merchantB, roleId: merchantRoleId },
     ]);
+
+    // Explicit active store memberships are required by merchant offer writes.
+    await db.insert(storeMembers).values([
+      { id: randomUUID(), storeId: storeA, userId: merchantA, role: 'OWNER', status: 'ACTIVE' },
+      { id: randomUUID(), storeId: storeB, userId: merchantB, role: 'OWNER', status: 'ACTIVE' },
+    ]);
   }, 180_000);
 
-  afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
+  afterAll(async () => {
+    await pool?.end();
+    await container?.stop();
+  }, 30_000);
 
   // ═══════════════════════════════════════════════════════════════════
   // SCENARIO A — Admin Taxonomy
@@ -183,7 +252,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   describe('Scenario A — Admin taxonomy', () => {
     it('creates category, brand, and attributes', async () => {
       // Category
-      const cat = await catalog.createCategory({ name: 'Computers' }, );
+      const cat = await catalog.createCategory({ name: 'Computers' });
       categoryId = cat.id;
       expect(cat.name).toBe('Computers');
 
@@ -193,23 +262,48 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(br.name).toBe('TestBrand');
 
       // Attributes with correct scopes
-      const cpu = await taxonomy.createAttribute({ code: 'cpu', name: 'CPU', type: 'TEXT', scope: 'PRODUCT' });
+      const cpu = await taxonomy.createAttribute({
+        code: 'cpu',
+        name: 'CPU',
+        type: 'TEXT',
+        scope: 'PRODUCT',
+      });
       attrCpu = cpu.id;
       expect(cpu.scope).toBe('PRODUCT');
 
-      const ram = await taxonomy.createAttribute({ code: 'ram', name: 'RAM', type: 'TEXT', scope: 'VARIANT' });
+      const ram = await taxonomy.createAttribute({
+        code: 'ram',
+        name: 'RAM',
+        type: 'TEXT',
+        scope: 'VARIANT',
+      });
       attrRam = ram.id;
       expect(ram.scope).toBe('VARIANT');
 
-      const stor = await taxonomy.createAttribute({ code: 'storage', name: 'Storage', type: 'TEXT', scope: 'VARIANT' });
+      const stor = await taxonomy.createAttribute({
+        code: 'storage',
+        name: 'Storage',
+        type: 'TEXT',
+        scope: 'VARIANT',
+      });
       attrStorage = stor.id;
       expect(stor.scope).toBe('VARIANT');
 
-      const warranty = await taxonomy.createAttribute({ code: 'warranty', name: 'Warranty', type: 'BOOLEAN', scope: 'PRODUCT' });
+      const warranty = await taxonomy.createAttribute({
+        code: 'warranty',
+        name: 'Warranty',
+        type: 'BOOLEAN',
+        scope: 'PRODUCT',
+      });
       attrWarranty = warranty.id;
       expect(warranty.scope).toBe('PRODUCT');
 
-      const wp = await taxonomy.createAttribute({ code: 'warranty_period', name: 'Warranty Period', type: 'TEXT', scope: 'PRODUCT' });
+      const wp = await taxonomy.createAttribute({
+        code: 'warranty_period',
+        name: 'Warranty Period',
+        type: 'TEXT',
+        scope: 'PRODUCT',
+      });
       attrWarrantyPeriod = wp.id;
       expect(wp.scope).toBe('PRODUCT');
     });
@@ -243,10 +337,12 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
           required: false,
           scope: 'PRODUCT',
           displayOrder: 4,
-          conditionalRules: [{
-            if: { attributeId: attrWarranty, operator: 'eq', value: 'true' },
-            then: { action: 'require', targetAttributeId: attrWarrantyPeriod },
-          }],
+          conditionalRules: [
+            {
+              if: { attributeId: attrWarranty, operator: 'eq', value: 'true' },
+              then: { action: 'require', targetAttributeId: attrWarrantyPeriod },
+            },
+          ],
         },
       ]);
 
@@ -261,11 +357,13 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       // Verify attribute config
       const schema = await taxonomy.getProductTypeSchema(productTypeId);
       expect(schema.attributes).toHaveLength(5);
-      const warrantyPeriodConfig = schema.attributes.find(a => a.attributeDefinitionId === attrWarrantyPeriod);
+      const warrantyPeriodConfig = schema.attributes.find(
+        (a) => a.attributeDefinitionId === attrWarrantyPeriod,
+      );
       expect(warrantyPeriodConfig?.conditionalRules).toHaveLength(1);
 
       // Verify variant dimensions
-      const dims = (published.variantDimensions as string[]);
+      const dims = published.variantDimensions as string[];
       expect(dims).toContain(attrRam);
       expect(dims).toContain(attrStorage);
     });
@@ -278,14 +376,17 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   describe('Scenario C — Merchant A creates canonical product', () => {
     it('creates Laptop Pro X with 3 variants and typed attributes', async () => {
       // Create product
-      const prod = await catalog.createProduct({
-        storeId: storeA,
-        title: 'Laptop Pro X',
-        categoryId,
-        brandId,
-        productTypeId,
-        images: ['products/laptop-pro-x.png'],
-      }, merchantA);
+      const prod = await catalog.createProduct(
+        {
+          storeId: storeA,
+          title: 'Laptop Pro X',
+          categoryId,
+          brandId,
+          productTypeId,
+          images: ['products/laptop-pro-x.png'],
+        },
+        merchantA,
+      );
 
       productId = prod.id;
       expect(prod.title).toBe('Laptop Pro X');
@@ -304,7 +405,10 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(prodAttrs).toHaveLength(3);
 
       // Create 3 variants (VARIANT-scope: RAM + Storage)
-      const v1 = await catalog.createVariant(productId, { sku: 'LPX-16-512', title: '16GB / 512GB' });
+      const v1 = await catalog.createVariant(productId, {
+        sku: 'LPX-16-512',
+        title: '16GB / 512GB',
+      });
       variant16_512 = v1.id;
       await taxonomy.setVariantAttributeValues(productId, variant16_512, [
         { attributeDefinitionId: attrRam, value: '16 GB' },
@@ -330,7 +434,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(variants).toHaveLength(3);
 
       // Verify combination keys are unique
-      const keys = variants.map(v => v.combinationKey).filter(Boolean);
+      const keys = variants.map((v) => v.combinationKey).filter(Boolean);
       expect(new Set(keys).size).toBe(3);
     });
   });
@@ -341,17 +445,21 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
 
   describe('Scenario D — Merchant A creates offer', () => {
     it('creates an offer for 16GB/512GB variant', async () => {
-      const offer = await offerService.createOffer({
-        storeId: storeA,
-        productId,
-        variantId: variant16_512,
-        currency: 'SAR',
-        basePriceMinor: 450000,
-        moq: 1,
-        leadTimeDays: 5,
-        externalRef: 'SKU-A-001',
-        proposedBy: merchantA,
-      });
+      const offer = await offerService.createOffer(
+        {
+          storeId: storeA,
+          productId,
+          variantId: variant16_512,
+          currency: 'SAR',
+          basePriceMinor: 450000,
+          moq: 1,
+          leadTimeDays: 5,
+          externalRef: 'SKU-A-001',
+          metadata: { merchantInternalNote: 'do-not-expose' },
+          proposedBy: 'forged-user',
+        },
+        callerA(),
+      );
       offerA = offer.id;
 
       expect(offer.storeId).toBe(storeA);
@@ -361,7 +469,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(offer.currency).toBe('SAR');
 
       // Activate the offer
-      const proposed = await offerService.proposeOffer(offerA, merchantA);
+      const proposed = await offerService.proposeOffer(offerA, callerA());
       expect(proposed.status).toBe('PROPOSED');
 
       const activated = await offerService.approveOffer(offerA, adminUser);
@@ -375,17 +483,20 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
 
   describe('Scenario E — Merchant B offers same variant', () => {
     it('creates a second offer on the same canonical product + variant', async () => {
-      const offer = await offerService.createOffer({
-        storeId: storeB,
-        productId,
-        variantId: variant16_512,
-        currency: 'SAR',
-        basePriceMinor: 430000,
-        moq: 2,
-        leadTimeDays: 7,
-        externalRef: 'SKU-B-001',
-        proposedBy: merchantB,
-      });
+      const offer = await offerService.createOffer(
+        {
+          storeId: storeB,
+          productId,
+          variantId: variant16_512,
+          currency: 'SAR',
+          basePriceMinor: 430000,
+          moq: 2,
+          leadTimeDays: 7,
+          externalRef: 'SKU-B-001',
+          proposedBy: 'forged-user',
+        },
+        callerB(),
+      );
       offerB = offer.id;
 
       expect(offer.storeId).toBe(storeB);
@@ -393,7 +504,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(offer.variantId).toBe(variant16_512);
 
       // Activate
-      await offerService.proposeOffer(offerB, merchantB);
+      await offerService.proposeOffer(offerB, callerB());
       await offerService.approveOffer(offerB, adminUser);
 
       // Verify: exactly ONE canonical product, TWO offers for same variant
@@ -401,14 +512,63 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(productRow).toBeTruthy();
 
       const offers = await offerService.listOffersForProduct(productId);
-      const offersForVariant = offers.filter(o => o.variantId === variant16_512);
+      const publicOffer = offers.find((o) => o.id === offerA);
+      expect(publicOffer).toBeDefined();
+      expect(publicOffer).not.toHaveProperty('externalRef');
+      expect(publicOffer).not.toHaveProperty('metadata');
+      expect(publicOffer).not.toHaveProperty('proposedBy');
+      expect(publicOffer).not.toHaveProperty('reviewedBy');
+      expect(publicOffer).not.toHaveProperty('reviewedAt');
+      expect(publicOffer).not.toHaveProperty('rejectionReason');
+      expect(publicOffer).not.toHaveProperty('priceListId');
+      expect(publicOffer).not.toHaveProperty('warehouseId');
+
+      const ranked = await offerService.listOffersForProductRanked(productId);
+      const rankedOffer = ranked.find((o) => o.offerId === offerA);
+      expect(rankedOffer).toBeDefined();
+      expect(rankedOffer).not.toHaveProperty('priceListId');
+
+      const offersForVariant = offers.filter((o) => o.variantId === variant16_512);
       expect(offersForVariant).toHaveLength(2);
 
       // Verify different stores
-      const storeIds = new Set(offersForVariant.map(o => o.storeId));
+      const storeIds = new Set(offersForVariant.map((o) => o.storeId));
       expect(storeIds.size).toBe(2);
       expect(storeIds.has(storeA)).toBe(true);
       expect(storeIds.has(storeB)).toBe(true);
+    });
+
+    it('hides buyer offers when a merchant store is DRAFT and restores them after activation', async () => {
+      await db.update(stores).set({ status: 'DRAFT' }).where(eq(stores.id, storeB));
+
+      try {
+        const listed = await offerService.listOffersForProduct(productId);
+        const ranked = await offerService.listOffersForProductRanked(productId);
+
+        expect(listed.some((offer) => offer.storeId === storeB)).toBe(false);
+        expect(ranked.some((offer) => offer.storeId === storeB)).toBe(false);
+        expect(listed.some((offer) => offer.storeId === storeA)).toBe(true);
+        expect(ranked.some((offer) => offer.storeId === storeA)).toBe(true);
+      } finally {
+        await db.update(stores).set({ status: 'ACTIVE' }).where(eq(stores.id, storeB));
+      }
+    });
+
+    // Buyer visibility is ACTIVE-store-only; restore the shared fixture even on assertion failure.
+    it('hides buyer offers for an INACTIVE store', async () => {
+      await db.update(stores).set({ status: 'INACTIVE' }).where(eq(stores.id, storeB));
+
+      try {
+        const listed = await offerService.listOffersForProduct(productId);
+        const ranked = await offerService.listOffersForProductRanked(productId);
+
+        expect(listed.some((offer) => offer.storeId === storeB)).toBe(false);
+        expect(ranked.some((offer) => offer.storeId === storeB)).toBe(false);
+        expect(listed.some((offer) => offer.storeId === storeA)).toBe(true);
+        expect(ranked.some((offer) => offer.storeId === storeA)).toBe(true);
+      } finally {
+        await db.update(stores).set({ status: 'ACTIVE' }).where(eq(stores.id, storeB));
+      }
     });
 
     it('does NOT create a second canonical product', async () => {
@@ -427,25 +587,25 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   describe('Scenario F — Buyer search', () => {
     beforeAll(async () => {
       // Publish the product so search can find it (PUBLISHED required for buyer visibility)
-      await catalog.updateProduct(productId, { status: 'PUBLISHED' });
+      await catalog.updateProduct(productId, { status: 'ACTIVE' });
     });
 
     it('finds Laptop Pro X via text search', async () => {
       const results = await search.search('Laptop Pro X');
       expect(results.items.length).toBeGreaterThanOrEqual(1);
-      const found = results.items.find(i => i.id === productId);
+      const found = results.items.find((i) => i.id === productId);
       expect(found).toBeTruthy();
     });
 
     it('filters by category', async () => {
       const results = await search.search('', { categoryId });
-      const found = results.items.find(i => i.id === productId);
+      const found = results.items.find((i) => i.id === productId);
       expect(found).toBeTruthy();
     });
 
     it('filters by brand', async () => {
       const results = await search.search('', { brandId });
-      const found = results.items.find(i => i.id === productId);
+      const found = results.items.find((i) => i.id === productId);
       expect(found).toBeTruthy();
     });
 
@@ -469,11 +629,11 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
 
     it('shows both merchant offers for the 16GB/512GB variant', async () => {
       const ranked = await offerService.listOffersForProductRanked(productId);
-      const variantOffers = ranked.filter(o => o.variantId === variant16_512);
+      const variantOffers = ranked.filter((o) => o.variantId === variant16_512);
       expect(variantOffers).toHaveLength(2);
 
       // Both stores represented
-      const storeNames = variantOffers.map(o => o.storeName).filter(Boolean);
+      const storeNames = variantOffers.map((o) => o.storeName).filter(Boolean);
       expect(storeNames.length).toBe(2);
     });
   });
@@ -485,7 +645,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   describe('Scenario H — Offer comparison', () => {
     it('buyer can compare Merchant A and Merchant B offers', async () => {
       const ranked = await offerService.listOffersForProductRanked(productId);
-      const variantOffers = ranked.filter(o => o.variantId === variant16_512);
+      const variantOffers = ranked.filter((o) => o.variantId === variant16_512);
 
       expect(variantOffers).toHaveLength(2);
 
@@ -493,7 +653,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(variantOffers[0]!.storeId).not.toBe(variantOffers[1]!.storeId);
 
       // Pricing differs
-      const prices = variantOffers.map(o => o.basePriceMinor).filter(Boolean);
+      const prices = variantOffers.map((o) => o.basePriceMinor).filter(Boolean);
       expect(prices).toHaveLength(2);
       expect(new Set(prices).size).toBe(2);
 
@@ -511,13 +671,16 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   describe('Scenario I — Conditional rule enforcement', () => {
     it('rejects publish when warranty=true but warranty_period is missing', async () => {
       // Create a new product with warranty=true but no warranty period
-      const badProduct = await catalog.createProduct({
-        storeId: storeA,
-        title: 'Laptop Bad Config',
-        categoryId,
-        brandId,
-        productTypeId,
-      }, merchantA);
+      const badProduct = await catalog.createProduct(
+        {
+          storeId: storeA,
+          title: 'Laptop Bad Config',
+          categoryId,
+          brandId,
+          productTypeId,
+        },
+        merchantA,
+      );
 
       // Set warranty=true but omit warranty_period
       await taxonomy.setProductAttributeValues(badProduct.id, [
@@ -527,19 +690,20 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       ]);
 
       // Attempt to publish → should fail
-      await expect(
-        catalog.updateProduct(badProduct.id, { status: 'ACTIVE' }),
-      ).rejects.toThrow();
+      await expect(catalog.updateProduct(badProduct.id, { status: 'ACTIVE' })).rejects.toThrow();
     });
 
     it('succeeds when warranty_period is provided', async () => {
-      const goodProduct = await catalog.createProduct({
-        storeId: storeA,
-        title: 'Laptop Good Config',
-        categoryId,
-        brandId,
-        productTypeId,
-      }, merchantA);
+      const goodProduct = await catalog.createProduct(
+        {
+          storeId: storeA,
+          title: 'Laptop Good Config',
+          categoryId,
+          brandId,
+          productTypeId,
+        },
+        merchantA,
+      );
 
       await taxonomy.setProductAttributeValues(goodProduct.id, [
         { attributeDefinitionId: attrCpu, value: 'AMD Ryzen 7' },
@@ -553,13 +717,16 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     });
 
     it('succeeds when warranty=false (warranty_period not required)', async () => {
-      const noWarrantyProduct = await catalog.createProduct({
-        storeId: storeA,
-        title: 'Laptop No Warranty',
-        categoryId,
-        brandId,
-        productTypeId,
-      }, merchantA);
+      const noWarrantyProduct = await catalog.createProduct(
+        {
+          storeId: storeA,
+          title: 'Laptop No Warranty',
+          categoryId,
+          brandId,
+          productTypeId,
+        },
+        merchantA,
+      );
 
       await taxonomy.setProductAttributeValues(noWarrantyProduct.id, [
         { attributeDefinitionId: attrCpu, value: 'Intel Celeron' },
@@ -581,10 +748,12 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       // Import the client-side evaluator
       const { evaluateConditionalRules } = await import('../../../../web/src/lib/conditionalRules');
 
-      const rules = [{
-        if: { attributeId: attrWarranty, operator: 'eq' as const, value: 'true' },
-        then: { action: 'require' as const, targetAttributeId: attrWarrantyPeriod },
-      }];
+      const rules = [
+        {
+          if: { attributeId: attrWarranty, operator: 'eq' as const, value: 'true' },
+          then: { action: 'require' as const, targetAttributeId: attrWarrantyPeriod },
+        },
+      ];
 
       // Warranty = true → warranty_period required
       const values1: Record<string, string> = { [attrWarranty]: 'true' };
@@ -605,21 +774,23 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   // ═══════════════════════════════════════════════════════════════════
 
   describe('Scenario K — Security / tenant isolation', () => {
-    // NOTE: caller contexts must be built AFTER beforeAll assigns UUIDs
-    const callerB = (): CallerContext => ({ sub: merchantB, role: 'MERCHANT_OWNER', activeOrg: orgB });
-    const callerA = (): CallerContext => ({ sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA });
-    const adminCaller = (): CallerContext => ({ sub: adminUser, role: 'SUPER_ADMIN', activeOrg: null });
+    // Caller factories above read the UUIDs populated by beforeAll.
+    const adminCaller = (): CallerContext => ({
+      sub: adminUser,
+      role: 'SUPER_ADMIN',
+      activeOrg: null,
+    });
 
     it('Merchant B cannot PATCH Merchant A product → 403', async () => {
-      await expect(
-        assertProductInOrg(database, callerB(), productId),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(assertProductInOrg(database, callerB(), productId)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('Merchant B cannot DELETE Merchant A product → 403', async () => {
-      await expect(
-        assertProductInOrg(database, callerB(), productId),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(assertProductInOrg(database, callerB(), productId)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('Merchant A CAN access their own product', async () => {
@@ -630,38 +801,95 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(storeRow.rows[0]?.org_id).toBe(orgA);
       expect(callerA().activeOrg).toBe(orgA);
 
-      await expect(
-        assertProductInOrg(database, callerA(), productId),
-      ).resolves.toBeUndefined();
+      await expect(assertProductInOrg(database, callerA(), productId)).resolves.toBeUndefined();
     });
 
     it('Admin bypasses tenant checks', async () => {
-      await expect(
-        assertProductInOrg(database, adminCaller(), productId),
-      ).resolves.toBeUndefined();
+      await expect(assertProductInOrg(database, adminCaller(), productId)).resolves.toBeUndefined();
     });
 
     it('Merchant B cannot create offer with Merchant A storeId → rejected', async () => {
-      await expect(
-        assertStoreInOrg(database, callerB(), storeA),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(assertStoreInOrg(database, callerB(), storeA)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
-    it('Merchant B cannot update Merchant A offer pricing → 403', async () => {
+    it('returns the same 404 for a foreign merchant and a same-organization non-member', async () => {
+      await expect(offerService.getOfferForMerchant(offerA, callerB())).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+
+      const sameOrgNonMember: CallerContext = {
+        sub: buyerUser,
+        role: 'MERCHANT',
+        activeOrg: orgA,
+      };
+      await expect(
+        offerService.getOfferForMerchant(offerA, sameOrgNonMember),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('allows an active MERCHANT_STAFF member to read the store offer', async () => {
+      const membershipId = randomUUID();
+      await db.insert(storeMembers).values({
+        id: membershipId,
+        storeId: storeA,
+        userId: buyerUser,
+        role: 'MEMBER',
+        status: 'ACTIVE',
+      });
+
+      try {
+        await expect(
+          offerService.getOfferForMerchant(offerA, {
+            sub: buyerUser,
+            role: 'MERCHANT_STAFF',
+            activeOrg: orgA,
+          }),
+        ).resolves.toMatchObject({ id: offerA });
+      } finally {
+        await db
+          .update(storeMembers)
+          .set({ status: 'INACTIVE' })
+          .where(eq(storeMembers.id, membershipId));
+      }
+    });
+
+    it('denies offer detail after store membership is revoked, then restores the fixture', async () => {
+      await db
+        .update(storeMembers)
+        .set({ status: 'INACTIVE' })
+        .where(and(eq(storeMembers.storeId, storeA), eq(storeMembers.userId, merchantA)));
+
+      try {
+        await expect(offerService.getOfferForMerchant(offerA, callerA())).rejects.toBeInstanceOf(
+          NotFoundException,
+        );
+      } finally {
+        await db
+          .update(storeMembers)
+          .set({ status: 'ACTIVE' })
+          .where(and(eq(storeMembers.storeId, storeA), eq(storeMembers.userId, merchantA)));
+      }
+    });
+
+    it('Merchant B cannot update Merchant A offer pricing → 404', async () => {
       await expect(
         offerService.updateOfferPricing(offerA, { basePriceMinor: 100 }, callerB()),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('Merchant B cannot withdraw Merchant A offer → 403', async () => {
-      await expect(
-        offerService.withdrawOffer(offerA, callerB()),
-      ).rejects.toThrow(ForbiddenException);
+    it('Merchant B cannot withdraw Merchant A offer → 404', async () => {
+      await expect(offerService.withdrawOffer(offerA, callerB())).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('Merchant A CAN update their own offer pricing', async () => {
       const result = await offerService.updateOfferPricing(
-        offerA, { basePriceMinor: 460000 }, callerA(),
+        offerA,
+        { basePriceMinor: 460000 },
+        callerA(),
       );
       expect(result.basePriceMinor).toBe(460000);
     });
@@ -674,27 +902,30 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   describe('Scenario L — Admin governance', () => {
     it('admin can approve/reject/suspend/reactivate offers', async () => {
       // Create a fresh offer to test the full lifecycle
-      const govOffer = await offerService.createOffer({
-        storeId: storeA,
-        productId,
-        variantId: variant16_1tb,
-        currency: 'SAR',
-        basePriceMinor: 500000,
-        moq: 1,
-        proposedBy: merchantA,
-      });
+      const govOffer = await offerService.createOffer(
+        {
+          storeId: storeA,
+          productId,
+          variantId: variant16_1tb,
+          currency: 'SAR',
+          basePriceMinor: 500000,
+          moq: 1,
+          proposedBy: 'forged-user',
+        },
+        callerA(),
+      );
 
       // Propose → Approve
-      await offerService.proposeOffer(govOffer.id, merchantA);
+      await offerService.proposeOffer(govOffer.id, callerA());
       const approved = await offerService.approveOffer(govOffer.id, adminUser);
       expect(approved.status).toBe('ACTIVE');
 
       // Suspend
-      const suspended = await offerService.suspendOffer(govOffer.id);
+      const suspended = await offerService.suspendOffer(govOffer.id, adminUser);
       expect(suspended.status).toBe('SUSPENDED');
 
       // Reactivate
-      const reactivated = await offerService.reactivateOffer(govOffer.id);
+      const reactivated = await offerService.reactivateOffer(govOffer.id, adminUser);
       expect(reactivated.status).toBe('ACTIVE');
     });
 
@@ -726,7 +957,12 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
         storeId: storeA,
         requestedBy: merchantA,
         type: 'ATTRIBUTE',
-        payload: { name: 'Screen Refresh Rate', code: 'refresh_rate', type: 'TEXT', scope: 'PRODUCT' },
+        payload: {
+          name: 'Screen Refresh Rate',
+          code: 'refresh_rate',
+          type: 'TEXT',
+          scope: 'PRODUCT',
+        },
       });
       requestId = req.id;
       expect(req.status).toBe('PENDING');
@@ -736,7 +972,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     it('admin lists pending requests', async () => {
       const pending = await requestsService.listAdminRequests({ status: 'PENDING' });
       expect(pending.length).toBeGreaterThanOrEqual(1);
-      expect(pending.find(r => r.id === requestId)).toBeTruthy();
+      expect(pending.find((r) => r.id === requestId)).toBeTruthy();
     });
 
     it('admin approves request → auto-creates attribute', async () => {
@@ -780,7 +1016,9 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(dupSchema.attributes).toHaveLength(5);
 
       // Verify conditional rules copied
-      const wpConfig = dupSchema.attributes.find(a => a.attributeDefinitionId === attrWarrantyPeriod);
+      const wpConfig = dupSchema.attributes.find(
+        (a) => a.attributeDefinitionId === attrWarrantyPeriod,
+      );
       expect(wpConfig?.conditionalRules).toHaveLength(1);
 
       // Verify variant dimensions copied
@@ -812,17 +1050,17 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   describe('Scenario O — Search regression', () => {
     it('finds product by text search', async () => {
       const results = await search.search('Laptop Pro X');
-      expect(results.items.find(i => i.id === productId)).toBeTruthy();
+      expect(results.items.find((i) => i.id === productId)).toBeTruthy();
     });
 
     it('filters by category', async () => {
       const results = await search.search('', { categoryId });
-      expect(results.items.find(i => i.id === productId)).toBeTruthy();
+      expect(results.items.find((i) => i.id === productId)).toBeTruthy();
     });
 
     it('filters by brand', async () => {
       const results = await search.search('', { brandId });
-      expect(results.items.find(i => i.id === productId)).toBeTruthy();
+      expect(results.items.find((i) => i.id === productId)).toBeTruthy();
     });
 
     it('returns facets', async () => {
@@ -854,7 +1092,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
         `SELECT combination_key FROM product_variants WHERE product_id = $1 AND combination_key IS NOT NULL`,
         [productId],
       );
-      const keys = result.rows.map(r => r.combination_key);
+      const keys = result.rows.map((r) => r.combination_key);
       expect(keys.length).toBe(3);
       expect(new Set(keys).size).toBe(3);
     });
@@ -865,7 +1103,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
         [productId, variant16_512],
       );
       expect(result.rows.length).toBe(2);
-      const storeIds = result.rows.map(r => r.store_id);
+      const storeIds = result.rows.map((r) => r.store_id);
       expect(new Set(storeIds).size).toBe(2);
     });
 
@@ -877,12 +1115,16 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     });
 
     it('product type is persisted with correct configuration', async () => {
-      const pt = await pool.query(`SELECT status, variant_dimensions FROM product_types WHERE id = $1`, [productTypeId]);
+      const pt = await pool.query(
+        `SELECT status, variant_dimensions FROM product_types WHERE id = $1`,
+        [productTypeId],
+      );
       expect(pt.rows[0].status).toBe('PUBLISHED');
       // pg auto-parses JSONB columns, so no JSON.parse needed
-      const dims = typeof pt.rows[0].variant_dimensions === 'string'
-        ? JSON.parse(pt.rows[0].variant_dimensions)
-        : pt.rows[0].variant_dimensions;
+      const dims =
+        typeof pt.rows[0].variant_dimensions === 'string'
+          ? JSON.parse(pt.rows[0].variant_dimensions)
+          : pt.rows[0].variant_dimensions;
       expect(dims).toContain(attrRam);
       expect(dims).toContain(attrStorage);
     });

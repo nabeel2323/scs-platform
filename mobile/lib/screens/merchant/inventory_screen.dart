@@ -21,6 +21,33 @@ class InventoryScreen extends ConsumerStatefulWidget {
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   int _page = 0;
 
+  Future<void> _ignoreReadFailure<T>(Future<T> read) async {
+    try {
+      await read;
+    } catch (_) {
+      // Each inventory surface reports its own read failure. A failed refresh
+      // must not turn another successful surface into an error state.
+    }
+  }
+
+  Future<void> _refreshInventory() async {
+    Store? store;
+    try {
+      store = await ref.refresh(activeStoreProvider.future);
+    } catch (_) {
+      // The screen retains the last successful store and displays this error.
+      return;
+    }
+    if (!mounted || store == null) return;
+
+    await Future.wait<void>([
+      _ignoreReadFailure(
+        ref.refresh(storeInventoryProvider((storeId: store.id, page: _page)).future),
+      ),
+      _ignoreReadFailure(ref.refresh(storeWarehousesProvider(store.id).future)),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final storeAsync = ref.watch(activeStoreProvider);
@@ -29,140 +56,276 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         title: const Text('Inventory'),
         actions: [
           IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () {
-                storeAsync.maybeWhen(
-                  data: (s) {
-                    if (s != null) {
-                      ref.invalidate(
-                          storeInventoryProvider((storeId: s.id, page: _page)));
-                      ref.invalidate(storeWarehousesProvider(s.id));
-                    }
-                  },
-                  orElse: () {},
-                );
-              }),
+            tooltip: 'Refresh inventory',
+            icon: const Icon(Icons.refresh),
+            onPressed: _refreshInventory,
+          ),
         ],
       ),
       body: storeAsync.when(
+        skipLoadingOnRefresh: true,
+        skipError: true,
         loading: () => const LoadingSpinner(),
         error: (e, _) => EmptyState(
-            title: 'Error',
-            description: ApiService.errorMessage(e),
-            onAction: () => ref.invalidate(activeStoreProvider)),
+          title: 'Could not load store',
+          description: ApiService.errorMessage(e),
+          actionLabel: 'Retry store',
+          onAction: () => ref.invalidate(activeStoreProvider),
+        ),
         data: (store) {
-          if (store == null) {
-            return const EmptyState(
-                title: 'No store',
-                description:
-                    'Complete merchant registration to manage inventory.',
-                icon: Icons.inventory_2_outlined);
+          final content = store == null
+              ? const EmptyState(
+                  title: 'No store',
+                  description:
+                      'Complete merchant registration to manage inventory.',
+                  icon: Icons.inventory_2_outlined,
+                )
+              : _InventoryBody(
+                  storeId: store.id,
+                  page: _page,
+                  onPageChanged: (p) => setState(() => _page = p),
+                );
+
+          if (!storeAsync.isRefreshing && !storeAsync.hasError) {
+            return content;
           }
-          return _InventoryBody(
-              storeId: store.id,
-              page: _page,
-              onPageChanged: (p) => setState(() => _page = p));
+
+          return Column(
+            children: [
+              _readNotice(
+                message: storeAsync.isRefreshing
+                    ? 'Refreshing store… showing the last successfully loaded store.'
+                    : 'Could not refresh store: ${ApiService.errorMessage(storeAsync.error!)}. Showing the last successfully loaded store.',
+                retryLabel: 'Retry store',
+                onRetry: _refreshInventory,
+                busy: storeAsync.isRefreshing,
+              ),
+              Expanded(child: content),
+            ],
+          );
         },
       ),
     );
   }
 }
 
+Widget _readNotice({
+  required String message,
+  required String retryLabel,
+  required VoidCallback onRetry,
+  bool busy = false,
+}) {
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+    child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: TaifTokens.err.withValues(alpha: 0.06),
+        border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+        borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+      ),
+      child: Row(
+        children: [
+          if (busy) ...[
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+            ),
+          ),
+          TextButton(onPressed: onRetry, child: Text(retryLabel)),
+        ],
+      ),
+    ),
+  );
+}
+
 class _InventoryBody extends ConsumerWidget {
   final String storeId;
   final int page;
   final ValueChanged<int> onPageChanged;
-  const _InventoryBody(
-      {required this.storeId, required this.page, required this.onPageChanged});
+  const _InventoryBody({
+    required this.storeId,
+    required this.page,
+    required this.onPageChanged,
+  });
+
+  Future<void> _refreshInventory(WidgetRef ref) async {
+    try {
+      await ref.refresh(
+        storeInventoryProvider((storeId: storeId, page: page)).future,
+      ).then<void>((_) {});
+    } catch (_) {
+      // Keep the last successful page visible; the AsyncValue below explains
+      // the refresh failure and provides a retry action.
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final inventory =
         ref.watch(storeInventoryProvider((storeId: storeId, page: page)));
+    final warehouses = ref.watch(storeWarehousesProvider(storeId));
 
-    return Column(children: [
-      _ActionBar(storeId: storeId),
-      const Divider(height: 1),
-      Expanded(
-        child: inventory.when(
-          loading: () => const LoadingSpinner(),
-          error: (e, _) => EmptyState(
-              title: 'Error',
+    return Column(
+      children: [
+        _ActionBar(storeId: storeId),
+        const Divider(height: 1),
+        if (warehouses.isRefreshing)
+          _readNotice(
+            message: 'Refreshing warehouses… showing the last successful list.',
+            retryLabel: 'Retry warehouses',
+            onRetry: () => ref.invalidate(storeWarehousesProvider(storeId)),
+            busy: true,
+          )
+        else if (warehouses.hasError)
+          _readNotice(
+            message: warehouses.hasValue
+                ? 'Could not refresh warehouses: ${ApiService.errorMessage(warehouses.error!)}. Showing the last successful list.'
+                : 'Could not load warehouses: ${ApiService.errorMessage(warehouses.error!)}. Stock transfers are unavailable until the warehouse list loads.',
+            retryLabel: 'Retry warehouses',
+            onRetry: () => ref.invalidate(storeWarehousesProvider(storeId)),
+          ),
+        Expanded(
+          child: inventory.when(
+            skipLoadingOnRefresh: true,
+            skipError: true,
+            loading: () => const LoadingSpinner(),
+            error: (e, _) => EmptyState(
+              title: 'Could not load inventory',
               description: ApiService.errorMessage(e),
+              actionLabel: 'Retry inventory',
               onAction: () => ref.invalidate(
-                  storeInventoryProvider((storeId: storeId, page: page)))),
-          data: (pag) {
-            final items = pag.data;
-            final total = pag.total;
-            const pageSize = 20;
-            final totalPages = (total / pageSize).ceil();
-            return items.isEmpty
-                ? const EmptyState(
-                    title: 'No inventory',
-                    description:
-                        'Assign variants to warehouses to start tracking stock.',
-                    icon: Icons.inventory_2_outlined)
-                : Column(children: [
-                    Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: () async => ref.invalidate(
-                            storeInventoryProvider(
-                                (storeId: storeId, page: page))),
-                        child: ListView.separated(
-                          padding: const EdgeInsets.all(12),
-                          itemCount: items.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 4),
-                          itemBuilder: (_, i) => _InventoryTile(
-                            item: items[i],
-                            storeId: storeId,
-                            page: page,
+                storeInventoryProvider((storeId: storeId, page: page)),
+              ),
+            ),
+            data: (pag) {
+              final items = pag.data;
+              final totalPages = (pag.total / 20).ceil();
+              final inventoryList = items.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(12),
+                      children: const [
+                        SizedBox(
+                          height: 260,
+                          child: EmptyState(
+                            title: 'No inventory',
+                            description:
+                                'Assign variants to warehouses to start tracking stock.',
+                            icon: Icons.inventory_2_outlined,
                           ),
+                        ),
+                      ],
+                    )
+                  : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(12),
+                      itemCount: items.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 4),
+                      itemBuilder: (_, i) => _InventoryTile(
+                        item: items[i],
+                        storeId: storeId,
+                        page: page,
+                      ),
+                    );
+
+              final content = Column(
+                children: [
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: () => _refreshInventory(ref),
+                      child: inventoryList,
+                    ),
+                  ),
+                  if (totalPages > 1)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 12,
+                      ),
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          TextButton.icon(
+                            icon: const Icon(Icons.chevron_left, size: 18),
+                            label: const Text('Prev'),
+                            onPressed: page > 0
+                                ? () => onPageChanged(page - 1)
+                                : null,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'Page ${page + 1} of $totalPages',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF5B6B74),
+                              ),
+                            ),
+                          ),
+                          TextButton.icon(
+                            icon: const Icon(Icons.chevron_right, size: 18),
+                            label: const Text('Next'),
+                            onPressed: (page + 1) < totalPages
+                                ? () => onPageChanged(page + 1)
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+
+              if (!inventory.isRefreshing && !inventory.hasError) {
+                return content;
+              }
+
+              return Column(
+                children: [
+                  if (inventory.isRefreshing)
+                    _readNotice(
+                      message:
+                          'Refreshing inventory… showing the last successful page.',
+                      retryLabel: 'Retry inventory',
+                      onRetry: () => ref.invalidate(
+                        storeInventoryProvider(
+                          (storeId: storeId, page: page),
+                        ),
+                      ),
+                      busy: true,
+                    ),
+                  if (inventory.hasError)
+                    _readNotice(
+                      message:
+                          'Could not refresh inventory: ${ApiService.errorMessage(inventory.error!)}. Showing the last successfully loaded page.',
+                      retryLabel: 'Retry inventory',
+                      onRetry: () => ref.invalidate(
+                        storeInventoryProvider(
+                          (storeId: storeId, page: page),
                         ),
                       ),
                     ),
-                    if (totalPages > 1)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 8, horizontal: 12),
-                        decoration: const BoxDecoration(
-                          border:
-                              Border(top: BorderSide(color: Color(0xFFE2E8F0))),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            TextButton.icon(
-                              icon: const Icon(Icons.chevron_left, size: 18),
-                              label: const Text('Prev'),
-                              onPressed: page > 0
-                                  ? () => onPageChanged(page - 1)
-                                  : null,
-                            ),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 12),
-                              child: Text(
-                                'Page ${page + 1} of $totalPages',
-                                style: const TextStyle(
-                                    fontSize: 13, color: Color(0xFF5B6B74)),
-                              ),
-                            ),
-                            TextButton.icon(
-                              icon: const Icon(Icons.chevron_right, size: 18),
-                              label: const Text('Next'),
-                              onPressed: (page + 1) < totalPages
-                                  ? () => onPageChanged(page + 1)
-                                  : null,
-                            ),
-                          ],
-                        ),
-                      ),
-                  ]);
-          },
+                  Expanded(child: content),
+                ],
+              );
+            },
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 }
 
@@ -172,10 +335,11 @@ class _ActionBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final canWrite = ref.watch(profileProvider).valueOrNull?.hasPermission('merchant:inventory:write') ?? false;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Wrap(spacing: 8, children: [
-        OutlinedButton.icon(
+        if (canWrite) OutlinedButton.icon(
           icon: const Icon(Icons.warning_amber, size: 16),
           label: const Text('Check Low Stock'),
           onPressed: () => _checkLowStock(context, ref),
@@ -195,6 +359,7 @@ class _ActionBar extends ConsumerWidget {
   }
 
   Future<void> _checkLowStock(BuildContext context, WidgetRef ref) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('merchant:inventory:write') != true) return;
     try {
       final alerted = await ref.read(apiServiceProvider).checkLowStock(storeId);
       if (context.mounted) {
@@ -268,6 +433,7 @@ class _InventoryTileState extends ConsumerState<_InventoryTile> {
   @override
   Widget build(BuildContext context) {
     final warehouses = ref.watch(storeWarehousesProvider(storeId));
+    final canWrite = ref.watch(profileProvider).valueOrNull?.hasPermission('merchant:inventory:write') ?? false;
     final isLow = item.lowStockAlert && item.available <= item.reorderPoint;
     final whName =
         _warehouseName(item.warehouseId, warehouses.valueOrNull ?? []);
@@ -303,7 +469,7 @@ class _InventoryTileState extends ConsumerState<_InventoryTile> {
           ],
         ),
         isThreeLine: true,
-        trailing: PopupMenuButton<String>(
+        trailing: canWrite ? PopupMenuButton<String>(
           onSelected: (v) =>
               _onAction(context, v, warehouses.valueOrNull ?? []),
           itemBuilder: (_) => [
@@ -311,7 +477,7 @@ class _InventoryTileState extends ConsumerState<_InventoryTile> {
             if ((warehouses.valueOrNull ?? []).length > 1)
               const PopupMenuItem(value: 'transfer', child: Text('Transfer')),
           ],
-        ),
+        ) : null,
       ),
     );
   }
@@ -349,6 +515,7 @@ class _InventoryTileState extends ConsumerState<_InventoryTile> {
   }
 
   Future<void> _showAdjustDialog(BuildContext context) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('merchant:inventory:write') != true) return;
     final qtyCtrl = TextEditingController();
     final reasonCtrl = TextEditingController();
     final result = await showDialog<Map<String, dynamic>>(
@@ -410,6 +577,7 @@ class _InventoryTileState extends ConsumerState<_InventoryTile> {
 
   Future<void> _showTransferDialog(
       BuildContext context, List<Map<String, dynamic>> warehouses) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('merchant:inventory:write') != true) return;
     final otherWarehouses =
         warehouses.where((w) => w['id'] != item.warehouseId).toList();
     if (otherWarehouses.isEmpty) return;

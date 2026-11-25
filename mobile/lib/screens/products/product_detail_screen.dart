@@ -30,8 +30,13 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   String _offerSort = 'price';
   bool _offersLoading = true;
 
-  // ── Add-to-cart feedback ──
+  // ── Read recovery and add-to-cart feedback ──
   String? _addedId;
+  String? _matrixError;
+  String? _offersError;
+  bool _matrixLoading = true;
+  int _matrixRequestVersion = 0;
+  int _offersRequestVersion = 0;
 
   // ── Image gallery state (Phase 2, §18) ──
   final PageController _galleryCtrl = PageController();
@@ -46,56 +51,123 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   @override
   void dispose() {
+    _matrixRequestVersion++;
+    _offersRequestVersion++;
     _galleryCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _loadVariantMatrix() async {
+    final productId = widget.productId;
+    final requestVersion = ++_matrixRequestVersion;
+    setState(() {
+      _matrixLoading = true;
+      _matrixError = null;
+    });
     try {
-      final matrix = await ref
-          .read(apiServiceProvider)
-          .fetchVariantMatrix(widget.productId);
-      if (!mounted) return;
+      final matrix =
+          await ref.read(apiServiceProvider).fetchVariantMatrix(productId);
+      if (!mounted ||
+          requestVersion != _matrixRequestVersion ||
+          productId != widget.productId) {
+        return;
+      }
       setState(() {
         _matrix = matrix;
+        _matrixLoading = false;
+        _matrixError = null;
         // Auto-select the first active combination so the PDP resolves to a
         // real price/stock/SKU immediately instead of an empty selector.
         if (_selectedDims.isEmpty && matrix.activeCombinations.isNotEmpty) {
           _selectedDims.addAll(matrix.activeCombinations.first.values);
         }
       });
-    } catch (_) {
-      if (!mounted) return;
+    } catch (e) {
+      if (!mounted ||
+          requestVersion != _matrixRequestVersion ||
+          productId != widget.productId) {
+        return;
+      }
+      setState(() {
+        _matrixLoading = false;
+        _matrixError = ApiService.errorMessage(e);
+      });
     }
   }
 
   Future<void> _loadOffers() async {
+    final productId = widget.productId;
+    final requestVersion = ++_offersRequestVersion;
+    setState(() {
+      _offersLoading = true;
+      _offersError = null;
+    });
     try {
       final api = ref.read(apiServiceProvider);
       final results = await Future.wait([
-        api.fetchProductOffers(widget.productId),
-        api.fetchProductOffersRanked(widget.productId),
+        api.fetchProductOffers(productId),
+        api.fetchProductOffersRanked(productId),
       ]);
-      if (!mounted) return;
+      if (!mounted ||
+          requestVersion != _offersRequestVersion ||
+          productId != widget.productId) {
+        return;
+      }
       final offers = results[0] as List<Offer>;
       final ranked = results[1] as List<RankedProductOffer>;
       setState(() {
         _offers = offers;
         _rankedById = {for (final r in ranked) r.offerId: r};
         _offersLoading = false;
+        _offersError = null;
       });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _offersLoading = false);
+    } catch (e) {
+      if (!mounted ||
+          requestVersion != _offersRequestVersion ||
+          productId != widget.productId) {
+        return;
+      }
+      setState(() {
+        _offersLoading = false;
+        _offersError = ApiService.errorMessage(e);
+      });
     }
   }
 
+  @override
+  void didUpdateWidget(covariant ProductDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.productId == widget.productId) return;
+    _matrixRequestVersion++;
+    _offersRequestVersion++;
+    _matrix = null;
+    _selectedDims.clear();
+    _offers = [];
+    _rankedById = {};
+    _matrixError = null;
+    _offersError = null;
+    _matrixLoading = true;
+    _offersLoading = true;
+    _loadVariantMatrix();
+    _loadOffers();
+  }
+
+  Future<void> _refreshProduct() async {
+    try {
+      await ref.refresh(productDetailProvider(widget.productId).future).then<void>((_) {});
+    } catch (_) {
+      // The provider retains the last successful product detail for display.
+    }
+    await Future.wait([_loadVariantMatrix(), _loadOffers()]);
+  }
+
   Future<void> _add(BuildContext context, WidgetRef ref, Product p,
-      {String? variantId, String? offerId}) async {
+      {String? variantId, String? offerId, int? quantity}) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('orders:write') != true) return;
     try {
       await ref
           .read(apiServiceProvider)
-          .addProductToCart(p, variantId: variantId, offerId: offerId);
+          .addProductToCart(p, variantId: variantId, offerId: offerId, quantity: quantity);
       ref.invalidate(cartProvider);
       if (!context.mounted) return;
       setState(() => _addedId = offerId ?? variantId ?? 'default');
@@ -169,18 +241,25 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canAddToCart =
+        ref.watch(profileProvider).valueOrNull?.hasPermission('orders:write') ??
+            false;
+    final productAsync = ref.watch(productDetailProvider(widget.productId));
     return Scaffold(
-      appBar: AppBar(title: const Text('Product')),
-      body: FutureBuilder<Product>(
-        future: ref.read(apiServiceProvider).fetchProduct(widget.productId),
-        builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done) {
-            return const LoadingSpinner();
-          }
-          if (snap.hasError) {
-            return EmptyState(title: 'Error', description: '${snap.error}');
-          }
-          final p = snap.data!;
+      appBar: AppBar(
+        title: const Text('Product'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh product',
+            icon: const Icon(Icons.refresh),
+            onPressed: _refreshProduct,
+          ),
+        ],
+      ),
+      body: productAsync.when(
+        skipLoadingOnRefresh: true,
+        skipError: true,
+        data: (p) {
           final currency = p.store?.currency ?? 'SAR';
           int? bestPrice;
           for (final v in p.variants) {
@@ -192,105 +271,178 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           final hasMatrix = _matrix != null && _matrix!.dimensions.isNotEmpty;
           final resolved = _resolvedCombination();
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Image gallery (§18) ──
-                _buildGallery(p),
-                const SizedBox(height: 16),
-                // ── Title ──
-                Text(p.title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w700)),
-                if (p.titleAr != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(p.titleAr!,
-                        style: const TextStyle(
-                            fontSize: 16, color: TaifTokens.muted),
-                        textDirection: TextDirection.rtl),
-                  ),
-                const SizedBox(height: 8),
-                Row(children: [
-                  StatusBadge(p.status),
-                  const SizedBox(width: 8),
-                  Text('MOQ: ${p.moq}',
-                      style: const TextStyle(color: TaifTokens.muted))
-                ]),
-                const SizedBox(height: 8),
-                // ── Price ──
-                Text(
-                  priced
-                      ? 'from ${formatMinor(bestPrice, currency)}'
-                      : 'Price on request',
-                  style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: priced ? TaifTokens.ok : TaifTokens.muted),
-                ),
-                // ── Seller ──
-                if (p.store != null) _buildSellerRow(p),
-                // ── Description ──
-                if (p.description != null) ...[
+          return RefreshIndicator(
+            onRefresh: _refreshProduct,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (productAsync.isRefreshing || productAsync.hasError)
+                    _inlineReadNotice(
+                      productAsync.isRefreshing
+                          ? 'Refreshing product details… showing the last successfully loaded product.'
+                          : 'Could not refresh product details: ${ApiService.errorMessage(productAsync.error!)}. Showing the last successfully loaded product.',
+                      _refreshProduct,
+                    ),
+                  // ── Image gallery (§18) ──
+                  _buildGallery(p),
                   const SizedBox(height: 16),
-                  Text(p.description!,
-                      style: const TextStyle(fontSize: 14, height: 1.5))
-                ],
-                // ── Specifications (PHASE COS-15) ──
-                if (p.attributeValues != null && p.attributeValues!.isNotEmpty)
-                  ..._buildSpecifications(p),
-                // ── Variant Selector (PHASE COS-15) ──
-                if (p.productTypeId != null &&
-                    _matrix != null &&
-                    _matrix!.dimensions.isNotEmpty) ...[
+                  // ── Title ──
+                  Text(p.title,
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  if (p.titleAr != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(p.titleAr!,
+                          style: const TextStyle(
+                              fontSize: 16, color: TaifTokens.muted),
+                          textDirection: TextDirection.rtl),
+                    ),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    StatusBadge(p.status),
+                    const SizedBox(width: 8),
+                    Text('MOQ: ${p.moq}',
+                        style: const TextStyle(color: TaifTokens.muted))
+                  ]),
+                  const SizedBox(height: 8),
+                  // ── Price ──
+                  Text(
+                    priced
+                        ? 'from ${formatMinor(bestPrice, currency)}'
+                        : 'Price on request',
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: priced ? TaifTokens.ok : TaifTokens.muted),
+                  ),
+                  // ── Seller ──
+                  if (p.store != null) _buildSellerRow(p),
+                  // ── Description ──
+                  if (p.description != null) ...[
+                    const SizedBox(height: 16),
+                    Text(p.description!,
+                        style: const TextStyle(fontSize: 14, height: 1.5))
+                  ],
+                  // ── Specifications (PHASE COS-15) ──
+                  if (p.attributeValues != null &&
+                      p.attributeValues!.isNotEmpty)
+                    ..._buildSpecifications(p),
+                  // ── Variant Selector (PHASE COS-15) ──
+                  if (p.productTypeId != null && _matrixError != null) ...[
+                    const SizedBox(height: 12),
+                    _inlineReadNotice(
+                      'Variant options unavailable: $_matrixError',
+                      _loadVariantMatrix,
+                    ),
+                  ] else if (p.productTypeId != null && _matrixLoading) ...[
+                    const SizedBox(height: 12),
+                    const LinearProgressIndicator(),
+                  ],
+                  if (p.productTypeId != null &&
+                      _matrix != null &&
+                      _matrix!.dimensions.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    _buildVariantSelector(p, currency),
+                  ],
+                  // ── Flat variant list (fallback) ──
+                  if (p.variants.isNotEmpty &&
+                      (_matrix == null || _matrix!.dimensions.isEmpty)) ...[
+                    const SizedBox(height: 24),
+                    _buildFlatVariants(p, currency),
+                  ],
+                  // ── Offer Comparison (PHASE COS-15) ──
+                  if (_offersError != null) ...[
+                    const SizedBox(height: 12),
+                    _inlineReadNotice(
+                      'Offer comparison unavailable: $_offersError',
+                      _loadOffers,
+                    ),
+                  ] else if (_offersLoading) ...[
+                    const SizedBox(height: 12),
+                    const LinearProgressIndicator(),
+                  ] else if (_offers.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    _buildOfferComparison(p, currency),
+                  ],
+                  // ── Seller reviews (§21) ──
                   const SizedBox(height: 24),
-                  _buildVariantSelector(p, currency),
-                ],
-                // ── Flat variant list (fallback) ──
-                if (p.variants.isNotEmpty &&
-                    (_matrix == null || _matrix!.dimensions.isEmpty)) ...[
+                  _buildReviews(p),
+                  // ── Add to Cart ──
                   const SizedBox(height: 24),
-                  _buildFlatVariants(p, currency),
-                ],
-                // ── Offer Comparison (PHASE COS-15) ──
-                if (!_offersLoading && _offers.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  _buildOfferComparison(p, currency),
-                ],
-                // ── Seller reviews (§21) ──
-                const SizedBox(height: 24),
-                _buildReviews(p),
-                // ── Add to Cart ──
-                const SizedBox(height: 24),
-                SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton.icon(
+                  if (canAddToCart)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
                         icon: const Icon(Icons.add_shopping_cart),
-                        onPressed: (hasMatrix &&
-                                (resolved == null || !resolved.inStock))
-                            ? null
-                            : () => _add(context, ref, p,
-                                variantId: resolved?.variantId),
-                        label: Text(!hasMatrix
-                            ? 'Add to Cart'
-                            : resolved == null
-                                ? 'Select options'
-                                : resolved.inStock
-                                    ? 'Add to Cart'
-                                    : 'Out of stock'))),
-                const SizedBox(height: 16),
-              ],
+                        onPressed:
+                            (hasMatrix && (resolved == null || !resolved.inStock))
+                                ? null
+                                : () => _add(
+                                      context,
+                                      ref,
+                                      p,
+                                      variantId: resolved?.variantId,
+                                    ),
+                        label: Text(
+                          !hasMatrix
+                              ? 'Add to Cart'
+                              : resolved == null
+                                  ? 'Select options'
+                                  : resolved.inStock
+                                      ? 'Add to Cart'
+                                      : 'Out of stock',
+                        ),
+                      ),
+                    )
+                  else
+                    const Text(
+                      'Adding items to cart requires orders:write.',
+                      style: TextStyle(color: TaifTokens.muted, fontSize: 12),
+                    ),
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
           );
         },
+        loading: () => const LoadingSpinner(),
+        error: (e, _) => EmptyState(
+          title: 'Error',
+          description: ApiService.errorMessage(e),
+          onAction: () => ref.invalidate(productDetailProvider(widget.productId)),
+        ),
       ),
     );
   }
+
+  Widget _inlineReadNotice(String message, VoidCallback onRetry) => Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: TaifTokens.err.withValues(alpha: 0.06),
+          border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+              ),
+            ),
+            TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
+      );
 
   // ── §18: swipeable image gallery backed by the product media endpoint ──
   //
@@ -462,7 +614,10 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             padding: EdgeInsets.symmetric(vertical: 16),
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (_, __) => const SizedBox.shrink(),
+          error: (e, _) => _inlineReadNotice(
+              'Seller reviews unavailable: ${ApiService.errorMessage(e)}',
+              () => ref.invalidate(storeReviewsProvider(p.storeId)),
+            ),
         ),
       ],
     );
@@ -696,6 +851,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   // ── Flat variant list (fallback when no product type) ──
   Widget _buildFlatVariants(Product p, String currency) {
+    final canAddToCart = ref.read(profileProvider).valueOrNull?.hasPermission('orders:write') ?? false;
     final activeVariants = p.variants.where((v) => v.isActive).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -717,7 +873,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           fontWeight: FontWeight.w700, fontSize: 16)),
                   IconButton(
                       tooltip: 'Add ${v.title ?? v.sku}',
-                      onPressed: () => _add(context, ref, p, variantId: v.id),
+                      onPressed: canAddToCart ? () => _add(context, ref, p, variantId: v.id) : null,
                       icon: const Icon(Icons.add_shopping_cart, size: 20)),
                 ])))),
       ],
@@ -726,6 +882,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   // ── PHASE COS-15: Offer comparison ──
   Widget _buildOfferComparison(Product p, String currency) {
+    final canAddToCart = ref.read(profileProvider).valueOrNull?.hasPermission('orders:write') ?? false;
     // Sort offers
     final sorted = List<Offer>.from(_offers);
     if (_offerSort == 'price') {
@@ -817,7 +974,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           ]),
                           const SizedBox(height: 4),
                           Text(
-                              'MOQ: ${offer.moq}${offer.leadTimeDays != null ? ' · ${offer.leadTimeDays}d lead' : ''}',
+                              'MOQ: ${offer.moq}${offer.orderIncrement != null ? ' · Step ${offer.orderIncrement}' : ''}${offer.leadTimeDays != null ? ' · ${offer.leadTimeDays}d lead' : ''}',
                               style: const TextStyle(
                                   fontSize: 12, color: TaifTokens.muted)),
                         ],
@@ -835,8 +992,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         SizedBox(
                           height: 32,
                           child: ElevatedButton(
-                            onPressed: () => _add(context, ref, p,
-                                variantId: offer.variantId, offerId: offer.id),
+                            onPressed: canAddToCart ? () => _add(context, ref, p,
+                                variantId: offer.variantId, offerId: offer.id, quantity: offer.moq) : null,
                             style: ElevatedButton.styleFrom(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 12),

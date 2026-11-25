@@ -73,6 +73,8 @@ const mockProduct = { id: 'prod-001', title: 'Test Product', moq: 1 };
 
 function createMocks() {
   const insertValues = vi.fn().mockResolvedValue(undefined);
+  const forUpdateRows: unknown[][] = [[mockProduct]];
+  const forUpdate = vi.fn().mockImplementation(async () => forUpdateRows.shift() ?? []);
   const updateWhere = vi.fn().mockResolvedValue(undefined);
   const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
 
@@ -82,6 +84,7 @@ function createMocks() {
     select: vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
+          for: forUpdate,
           orderBy: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }),
         }),
       }),
@@ -96,7 +99,14 @@ function createMocks() {
       orderItems: { findMany: vi.fn() },
       orderFinancialBreakdown: { findFirst: vi.fn() },
       orderStatusHistory: { findMany: vi.fn() },
-      productVariants: { findFirst: vi.fn() },
+      productVariants: {
+        findFirst: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([
+          { id: VARIANT_1, productId: 'prod-001' },
+          { id: VARIANT_2, productId: 'prod-001' },
+        ]),
+      },
+      merchantOffers: { findMany: vi.fn().mockResolvedValue([]) },
       products: { findFirst: vi.fn() },
       // A2-4: checkout snapshots each supplier's currency, and the read paths
       // name the seller. Default to "nothing readable" so a test that does not
@@ -117,7 +127,17 @@ function createMocks() {
       .mockResolvedValue({ redemptionId: 'redemption-001', discountMinor: 0 }),
   } as any;
 
-  return { db, mockDbService, mockOutbox, mockPromotions, insertValues, updateSet, updateWhere };
+  return {
+    db,
+    mockDbService,
+    mockOutbox,
+    mockPromotions,
+    insertValues,
+    updateSet,
+    updateWhere,
+    forUpdate,
+    forUpdateRows,
+  };
 }
 
 function createService(mocks: ReturnType<typeof createMocks>) {
@@ -166,6 +186,41 @@ describe('Checkout Integration', () => {
       await expect(
         service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
       ).rejects.toThrow(/Minimum order quantity/);
+    });
+
+    it('revalidates locked offer terms when they change after cart validation', async () => {
+      const cartLine = { ...mockCartItems[0], offerId: 'offer-001', quantity: 8 };
+      const originalOffer = {
+        id: 'offer-001',
+        storeId: STORE_1,
+        productId: 'prod-001',
+        variantId: VARIANT_1,
+        status: 'ACTIVE',
+        isAvailable: true,
+        moq: 5,
+        orderIncrement: 3,
+        currency: 'SAR',
+        priceListId: null,
+        warehouseId: null,
+        basePriceMinor: 200,
+        compareAtPriceMinor: null,
+        leadTimeDays: null,
+      };
+      const updatedOffer = { ...originalOffer, orderIncrement: 4 };
+      mocks.db.query.carts.findFirst.mockResolvedValue(mockCart);
+      mocks.db.query.cartItems.findMany.mockResolvedValue([cartLine]);
+      mocks.db.query.merchantOffers.findMany.mockResolvedValue([originalOffer]);
+      mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
+      mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
+      // First FOR UPDATE result is the product row; second is the current offer row.
+      mocks.forUpdateRows.push([updatedOffer]);
+
+      await expect(
+        service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
+      ).rejects.toThrow('increments of 4');
+
+      expect(mocks.forUpdate).toHaveBeenCalledTimes(2);
+      expect(mocks.db.insert).not.toHaveBeenCalled();
     });
 
     it('should pass when quantity meets MOQ', async () => {
@@ -404,7 +459,7 @@ describe('Checkout Integration', () => {
         .map((c: any[]) => c[0])
         .filter((v: any) => v && 'currency' in v);
 
-    it('records each supplier\'s own currency on its own sub-order', async () => {
+    it("records each supplier's own currency on its own sub-order", async () => {
       mocks.db.query.stores.findMany.mockResolvedValue([
         { id: STORE_1, currency: 'SAR' },
         { id: STORE_2, currency: 'AED' },

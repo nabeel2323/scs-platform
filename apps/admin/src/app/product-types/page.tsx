@@ -1,11 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  ProductType, ProductTypeSchema, AdminCategory,
-  fetchProductTypes, fetchProductTypeSchema, createProductType, publishProductType,
-  fetchAdminCategories, updateProductTypeCategory,
+  ProductType,
+  ProductTypeSchema,
+  AdminCategory,
+  fetchProductTypes,
+  fetchProductTypeSchema,
+  createProductType,
+  publishProductType,
+  fetchAdminCategories,
+  updateProductTypeCategory,
 } from '../../lib/api';
 import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 import { SkeletonTable } from '@scs/ui-kit';
@@ -33,8 +39,14 @@ export default function ProductTypesPage() {
   const [selected, setSelected] = useState<ProductType | null>(null);
   const [schema, setSchema] = useState<ProductTypeSchema | null>(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
+  const requestVersion = useRef(0);
+  const schemaRequestVersion = useRef(0);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const publishingIds = useRef(new Set<string>());
 
   const load = useCallback(async () => {
+    if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
     setError(null);
     try {
@@ -45,76 +57,137 @@ export default function ProductTypesPage() {
         }),
         fetchAdminCategories(),
       ]);
-      setTypes(typeData);
-      setCategories(catData);
+      if (requestId === requestVersion.current) {
+        setTypes(typeData);
+        setCategories(catData);
+      }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load product types');
+      if (requestId === requestVersion.current) {
+        setError(e instanceof Error ? e.message : 'Failed to load product types');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestVersion.current) setLoading(false);
     }
-  }, [categoryFilter, statusFilter]);
+  }, [ready, hasAccess, categoryFilter, statusFilter]);
 
-  useEffect(() => { if (ready && hasAccess) load(); }, [ready, hasAccess, load]);
-
-  // Load schema when a product type is selected
   useEffect(() => {
-    if (!selected) { setSchema(null); return; }
+    if (!ready || !hasAccess) return;
+    void load();
+    return () => {
+      requestVersion.current += 1;
+    };
+  }, [ready, hasAccess, load]);
+
+  // Load schema when a product type is selected; ignore stale selection responses.
+  useEffect(() => {
+    const requestId = ++schemaRequestVersion.current;
+    if (!selected) {
+      setSchema(null);
+      setSchemaLoading(false);
+      return () => {
+        schemaRequestVersion.current += 1;
+      };
+    }
     setSchemaLoading(true);
     fetchProductTypeSchema(selected.id)
-      .then(setSchema)
-      .catch(() => setSchema(null))
-      .finally(() => setSchemaLoading(false));
+      .then((data) => {
+        if (requestId === schemaRequestVersion.current) setSchema(data);
+      })
+      .catch(() => {
+        if (requestId === schemaRequestVersion.current) setSchema(null);
+      })
+      .finally(() => {
+        if (requestId === schemaRequestVersion.current) setSchemaLoading(false);
+      });
+    return () => {
+      schemaRequestVersion.current += 1;
+    };
   }, [selected]);
 
   const handlePublish = async (id: string) => {
-    if (!window.confirm('Publish this product type? It will become available for merchants.')) return;
+    if (!hasAccess || publishingIds.current.size > 0) return;
+    if (!window.confirm('Publish this product type? It will become available for merchants.'))
+      return;
+    if (!hasAccess || publishingIds.current.size > 0) return;
+    publishingIds.current.add(id);
+    setPublishingId(id);
     try {
       await publishProductType(id);
-      load();
+      await load();
       if (selected?.id === id) setSelected(null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Publish failed');
+    } finally {
+      publishingIds.current.delete(id);
+      setPublishingId(null);
     }
   };
 
-  const categoryById = new Map(categories.map(c => [c.id, c]));
+  const categoryById = new Map(categories.map((c) => [c.id, c]));
 
   if (!ready) return <p style={{ padding: 32 }}>Loading…</p>;
-  if (!hasAccess) return <AccessDenied requiredPerms={['catalog:product-types:manage']} missingPerms={missingPerms} />;
+  if (!hasAccess)
+    return (
+      <AccessDenied requiredPerms={['catalog:product-types:manage']} missingPerms={missingPerms} />
+    );
 
   return (
     <div className={styles['shell']}>
       <header className={styles['header']}>
         <h1>Product Types</h1>
-        <p>{types.length} type{types.length !== 1 ? 's' : ''} — templates defining attributes and variant dimensions for products</p>
+        <p>
+          {types.length} type{types.length !== 1 ? 's' : ''} — templates defining attributes and
+          variant dimensions for products
+        </p>
       </header>
 
       <div className={styles['content']}>
         {/* Toolbar */}
         <div className={styles['toolbar']}>
-          <label>Category
-            <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+          <label>
+            Category
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
               <option value="">All categories</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
             </select>
           </label>
-          <label>Status
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+          <label>
+            Status
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="">All statuses</option>
               <option value="DRAFT">DRAFT</option>
               <option value="PUBLISHED">PUBLISHED</option>
               <option value="DEPRECATED">DEPRECATED</option>
             </select>
           </label>
-          <button type="button" onClick={load}>Refresh</button>
-          <button type="button" onClick={() => setCreating(true)}>Create product type</button>
+          <button type="button" onClick={load}>
+            Refresh
+          </button>
+          <button type="button" onClick={() => setCreating(true)}>
+            Create product type
+          </button>
         </div>
 
-        {error && <div className={styles['error']}>{error} <button type="button" onClick={load} style={{ marginLeft: 8 }}>Retry</button></div>}
-        {loading ? <SkeletonTable rows={4} cols={7} /> : (
+        {error && (
+          <div className={styles['error']}>
+            {error}{' '}
+            <button type="button" onClick={load} style={{ marginLeft: 8 }}>
+              Retry
+            </button>
+          </div>
+        )}
+        {loading ? (
+          <SkeletonTable rows={4} cols={7} />
+        ) : (
           <div className={styles['tableWrap']}>
             <table>
-              <caption style={{ textAlign: 'left', padding: 12 }}>Product Types — {types.length} results</caption>
+              <caption style={{ textAlign: 'left', padding: 12 }}>
+                Product Types — {types.length} results
+              </caption>
               <thead>
                 <tr>
                   <th scope="col">Code</th>
@@ -128,33 +201,76 @@ export default function ProductTypesPage() {
                 </tr>
               </thead>
               <tbody>
-                {types.map(pt => (
-                  <tr key={pt.id} onClick={e => {
-                    if (e.target instanceof Element && !e.target.closest('button,a,input,select')) {
-                      setSelected(pt);
-                    }
-                  }}>
-                    <td><code style={{ fontSize: 12, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4 }}>{pt.code}</code></td>
+                {types.map((pt) => (
+                  <tr
+                    key={pt.id}
+                    onClick={(e) => {
+                      if (
+                        e.target instanceof Element &&
+                        !e.target.closest('button,a,input,select')
+                      ) {
+                        setSelected(pt);
+                      }
+                    }}
+                  >
+                    <td>
+                      <code
+                        style={{
+                          fontSize: 12,
+                          background: '#f0f4f6',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                        }}
+                      >
+                        {pt.code}
+                      </code>
+                    </td>
                     <td>
                       {pt.name}
-                      {pt.nameAr && <small className={styles['muted']} dir="rtl">{pt.nameAr}</small>}
+                      {pt.nameAr && (
+                        <small className={styles['muted']} dir="rtl">
+                          {pt.nameAr}
+                        </small>
+                      )}
                     </td>
-                    <td>{pt.categoryId ? (categoryById.get(pt.categoryId)?.name ?? pt.categoryId) : '—'}</td>
+                    <td>
+                      {pt.categoryId
+                        ? (categoryById.get(pt.categoryId)?.name ?? pt.categoryId)
+                        : '—'}
+                    </td>
                     <td>v{pt.version}</td>
-                    <td><TypeStatusBadge status={pt.status} /></td>
+                    <td>
+                      <TypeStatusBadge status={pt.status} />
+                    </td>
                     <td>{pt.variantDimensions?.length ?? 0}</td>
-                    <td><time dateTime={pt.updatedAt}>{new Date(pt.updatedAt).toLocaleDateString()}</time></td>
+                    <td>
+                      <time dateTime={pt.updatedAt}>
+                        {new Date(pt.updatedAt).toLocaleDateString()}
+                      </time>
+                    </td>
                     <td>
                       <div className={styles['actions']}>
-                        <Link href={`/product-types/${pt.id}`} className={styles['viewLink']}>View</Link>
+                        <Link href={`/product-types/${pt.id}`} className={styles['viewLink']}>
+                          View
+                        </Link>
                         {pt.status === 'DRAFT' && (
-                          <button type="button" onClick={() => handlePublish(pt.id)}>Publish</button>
+                          <button
+                            type="button"
+                            disabled={publishingId !== null}
+                            onClick={() => void handlePublish(pt.id)}
+                          >
+                            {publishingId === pt.id ? 'Publishing…' : 'Publish'}
+                          </button>
                         )}
                       </div>
                     </td>
                   </tr>
                 ))}
-                {!types.length && <tr><td colSpan={8}>No product types found.</td></tr>}
+                {!types.length && (
+                  <tr>
+                    <td colSpan={8}>No product types found.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -165,7 +281,11 @@ export default function ProductTypesPage() {
           <DetailDialog title="New Product Type" onClose={() => setCreating(false)}>
             <ProductTypeForm
               categories={categories}
-              onDone={() => { setCreating(false); load(); }}
+              canManage={hasAccess}
+              onDone={() => {
+                setCreating(false);
+                load();
+              }}
               onCancel={() => setCreating(false)}
             />
           </DetailDialog>
@@ -174,13 +294,20 @@ export default function ProductTypesPage() {
         {/* Detail / schema dialog */}
         {selected && (
           <DetailDialog title={`Product Type — ${selected.name}`} onClose={() => setSelected(null)}>
-            {schemaLoading ? <p role="status">Loading schema…</p> : (
+            {schemaLoading ? (
+              <p role="status">Loading schema…</p>
+            ) : (
               <ProductTypeDetail
                 productType={selected}
                 schema={schema}
                 categories={categories}
+                canManage={hasAccess}
+                publishing={publishingId === selected.id}
                 onPublish={() => handlePublish(selected.id)}
-                onUpdate={() => { load(); setSelected(null); }}
+                onUpdate={() => {
+                  load();
+                  setSelected(null);
+                }}
               />
             )}
           </DetailDialog>
@@ -200,7 +327,16 @@ function TypeStatusBadge({ status }: { status: string }) {
   };
   const c = colors[status] ?? colors['DRAFT']!;
   return (
-    <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: c.bg, color: c.fg }}>
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        padding: '2px 8px',
+        borderRadius: 10,
+        background: c.bg,
+        color: c.fg,
+      }}
+    >
       {status}
     </span>
   );
@@ -216,7 +352,16 @@ function ScopeTag({ scope }: { scope: string }) {
   };
   const c = colors[scope] ?? { bg: '#f0f4f6', fg: '#16232b' };
   return (
-    <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 8, background: c.bg, color: c.fg }}>
+    <span
+      style={{
+        fontSize: 10,
+        fontWeight: 600,
+        padding: '1px 6px',
+        borderRadius: 8,
+        background: c.bg,
+        color: c.fg,
+      }}
+    >
       {scope}
     </span>
   );
@@ -224,8 +369,14 @@ function ScopeTag({ scope }: { scope: string }) {
 
 /* ── Create Form ───────────────────────────────────────────── */
 
-function ProductTypeForm({ categories, onDone, onCancel }: {
+function ProductTypeForm({
+  categories,
+  canManage,
+  onDone,
+  onCancel,
+}: {
   categories: AdminCategory[];
+  canManage: boolean;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -238,8 +389,15 @@ function ProductTypeForm({ categories, onDone, onCancel }: {
   const [formError, setFormError] = useState<string | null>(null);
 
   const handleSave = async () => {
-    if (!code.trim()) { setFormError('Code is required'); return; }
-    if (!name.trim()) { setFormError('Name is required'); return; }
+    if (!canManage || busy) return;
+    if (!code.trim()) {
+      setFormError('Code is required');
+      return;
+    }
+    if (!name.trim()) {
+      setFormError('Name is required');
+      return;
+    }
     setBusy(true);
     setFormError(null);
     try {
@@ -265,37 +423,70 @@ function ProductTypeForm({ categories, onDone, onCancel }: {
         <div>
           <dt>Code *</dt>
           <dd>
-            <input value={code} onChange={e => setCode(e.target.value)} placeholder="e.g. laptop" maxLength={100} />
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="e.g. laptop"
+              maxLength={100}
+            />
             <small className={styles['muted']}>Unique identifier. Use snake_case.</small>
           </dd>
         </div>
         <div>
           <dt>Name *</dt>
-          <dd><input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Laptop" maxLength={200} /></dd>
+          <dd>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Laptop"
+              maxLength={200}
+            />
+          </dd>
         </div>
         <div>
           <dt>Name (Arabic)</dt>
-          <dd><input value={nameAr} onChange={e => setNameAr(e.target.value)} dir="rtl" placeholder="مثال: حاسوب محمول" maxLength={200} /></dd>
+          <dd>
+            <input
+              value={nameAr}
+              onChange={(e) => setNameAr(e.target.value)}
+              dir="rtl"
+              placeholder="مثال: حاسوب محمول"
+              maxLength={200}
+            />
+          </dd>
         </div>
         <div>
           <dt>Category</dt>
           <dd>
-            <select value={categoryId} onChange={e => setCategoryId(e.target.value)}>
+            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
               <option value="">— None —</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
             </select>
           </dd>
         </div>
         <div>
           <dt>Description</dt>
-          <dd><textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} maxLength={1000} /></dd>
+          <dd>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              maxLength={1000}
+            />
+          </dd>
         </div>
       </div>
       <div className={styles['actions']} style={{ marginTop: 20 }}>
-        <button type="button" disabled={busy} onClick={handleSave}>
+        <button type="button" disabled={!canManage || busy} onClick={handleSave}>
           {busy ? 'Creating…' : 'Create Draft'}
         </button>
-        <button type="button" onClick={onCancel}>Cancel</button>
+        <button type="button" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
     </div>
   );
@@ -303,10 +494,20 @@ function ProductTypeForm({ categories, onDone, onCancel }: {
 
 /* ── Detail View ───────────────────────────────────────────── */
 
-function ProductTypeDetail({ productType, schema, categories, onPublish, onUpdate }: {
+function ProductTypeDetail({
+  productType,
+  schema,
+  categories,
+  canManage,
+  publishing,
+  onPublish,
+  onUpdate,
+}: {
   productType: ProductType;
   schema: ProductTypeSchema | null;
   categories: AdminCategory[];
+  canManage: boolean;
+  publishing: boolean;
   onPublish: () => void;
   onUpdate: () => void;
 }) {
@@ -324,6 +525,7 @@ function ProductTypeDetail({ productType, schema, categories, onPublish, onUpdat
   }, [pt.id, pt.categoryId]);
 
   const handleSaveCategory = async () => {
+    if (!canManage || catBusy) return;
     setCatBusy(true);
     setCatError(null);
     try {
@@ -342,11 +544,15 @@ function ProductTypeDetail({ productType, schema, categories, onPublish, onUpdat
       <div className={styles['fields']}>
         <div>
           <dt>ID</dt>
-          <dd><code style={{ fontSize: 12 }}>{pt.id}</code></dd>
+          <dd>
+            <code style={{ fontSize: 12 }}>{pt.id}</code>
+          </dd>
         </div>
         <div>
           <dt>Code</dt>
-          <dd><code style={{ fontSize: 12 }}>{pt.code}</code></dd>
+          <dd>
+            <code style={{ fontSize: 12 }}>{pt.code}</code>
+          </dd>
         </div>
         <div>
           <dt>Name</dt>
@@ -362,23 +568,31 @@ function ProductTypeDetail({ productType, schema, categories, onPublish, onUpdat
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <select
                 value={editCatId}
-                onChange={e => setEditCatId(e.target.value)}
+                onChange={(e) => setEditCatId(e.target.value)}
                 disabled={catBusy}
                 style={{ minWidth: 160 }}
               >
                 <option value="">— None —</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
               </select>
               <button
                 type="button"
-                disabled={!catChanged || catBusy}
+                disabled={!canManage || !catChanged || catBusy}
                 onClick={handleSaveCategory}
                 style={{ fontSize: 12, padding: '4px 12px' }}
               >
                 {catBusy ? 'Saving…' : 'Save'}
               </button>
             </div>
-            {catError && <small className={styles['error']} style={{ display: 'block', marginTop: 4 }}>{catError}</small>}
+            {catError && (
+              <small className={styles['error']} style={{ display: 'block', marginTop: 4 }}>
+                {catError}
+              </small>
+            )}
           </dd>
         </div>
         <div>
@@ -387,15 +601,25 @@ function ProductTypeDetail({ productType, schema, categories, onPublish, onUpdat
         </div>
         <div>
           <dt>Status</dt>
-          <dd><TypeStatusBadge status={pt.status} /></dd>
+          <dd>
+            <TypeStatusBadge status={pt.status} />
+          </dd>
         </div>
         <div>
           <dt>Published</dt>
-          <dd>{pt.publishedAt ? <time dateTime={pt.publishedAt}>{new Date(pt.publishedAt).toLocaleString()}</time> : '—'}</dd>
+          <dd>
+            {pt.publishedAt ? (
+              <time dateTime={pt.publishedAt}>{new Date(pt.publishedAt).toLocaleString()}</time>
+            ) : (
+              '—'
+            )}
+          </dd>
         </div>
         <div>
           <dt>Created</dt>
-          <dd><time dateTime={pt.createdAt}>{new Date(pt.createdAt).toLocaleString()}</time></dd>
+          <dd>
+            <time dateTime={pt.createdAt}>{new Date(pt.createdAt).toLocaleString()}</time>
+          </dd>
         </div>
         <div>
           <dt>Description</dt>
@@ -408,11 +632,18 @@ function ProductTypeDetail({ productType, schema, categories, onPublish, onUpdat
         <div style={{ margin: '16px 0' }}>
           <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Variant Dimensions</h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {pt.variantDimensions.map(dim => (
-              <span key={dim} style={{
-                fontSize: 12, padding: '3px 10px', borderRadius: 6,
-                background: '#fef3c7', color: '#92400e', fontWeight: 500,
-              }}>
+            {pt.variantDimensions.map((dim) => (
+              <span
+                key={dim}
+                style={{
+                  fontSize: 12,
+                  padding: '3px 10px',
+                  borderRadius: 6,
+                  background: '#fef3c7',
+                  color: '#92400e',
+                  fontWeight: 500,
+                }}
+              >
                 {dim}
               </span>
             ))}
@@ -423,7 +654,9 @@ function ProductTypeDetail({ productType, schema, categories, onPublish, onUpdat
       {/* Actions */}
       <div className={styles['actions']} style={{ margin: '16px 0' }}>
         {pt.status === 'DRAFT' && (
-          <button type="button" onClick={onPublish}>Publish</button>
+          <button type="button" disabled={!canManage || publishing} onClick={onPublish}>
+            {publishing ? 'Publishing…' : 'Publish'}
+          </button>
         )}
       </div>
 
@@ -452,10 +685,14 @@ function ProductTypeDetail({ productType, schema, categories, onPublish, onUpdat
                     <td>{attr.displayOrder ?? i + 1}</td>
                     <td>
                       {attr.definition?.name ?? attr.attributeDefinitionId}
-                      {attr.definition?.unit && <small className={styles['muted']}>({attr.definition.unit})</small>}
+                      {attr.definition?.unit && (
+                        <small className={styles['muted']}>({attr.definition.unit})</small>
+                      )}
                     </td>
                     <td>{attr.definition?.type ?? '—'}</td>
-                    <td>{attr.definition?.scope ? <ScopeTag scope={attr.definition.scope} /> : '—'}</td>
+                    <td>
+                      {attr.definition?.scope ? <ScopeTag scope={attr.definition.scope} /> : '—'}
+                    </td>
                     <td>{attr.isRequired ? 'Yes' : 'No'}</td>
                     <td>{attr.isFilterable ? 'Yes' : 'No'}</td>
                     <td>{attr.isComparable ? 'Yes' : 'No'}</td>
@@ -473,11 +710,18 @@ function ProductTypeDetail({ productType, schema, categories, onPublish, onUpdat
             Attribute Groups ({schema.groups.length})
           </h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {schema.groups.map(g => (
-              <span key={g.id} style={{
-                fontSize: 12, padding: '3px 10px', borderRadius: 6,
-                background: '#e0f2fe', color: '#0369a1', fontWeight: 500,
-              }}>
+            {schema.groups.map((g) => (
+              <span
+                key={g.id}
+                style={{
+                  fontSize: 12,
+                  padding: '3px 10px',
+                  borderRadius: 6,
+                  background: '#e0f2fe',
+                  color: '#0369a1',
+                  fontWeight: 500,
+                }}
+              >
                 {g.name}
               </span>
             ))}

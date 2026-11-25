@@ -1,7 +1,8 @@
-import { Controller, Get, Patch, Post, Delete, Param, Query, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Delete, Param, Query, Body, UseGuards, UseInterceptors } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/guards/current-user.decorator';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 
 /**
  * Notifications controller — 8 endpoints
@@ -17,6 +18,7 @@ import { CurrentUser } from '../../common/guards/current-user.decorator';
  */
 @Controller()
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 

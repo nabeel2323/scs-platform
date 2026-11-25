@@ -134,7 +134,13 @@ describe('ProfileController', () => {
       { email: 'a@b.c', password: 'pw' } as any,
       'dev-1',
     );
-    expect(m.identity.setupCredentials).toHaveBeenCalledWith('u1', 'a@b.c', 'pw', 'dev-1');
+    expect(m.identity.setupCredentials).toHaveBeenCalledWith(
+      'u1',
+      'a@b.c',
+      'pw',
+      { role: 'OWNER', activeOrg: 'org-1' },
+      'dev-1',
+    );
   });
 
   it('changePassword forwards sub/current/new + device header', async () => {
@@ -143,7 +149,13 @@ describe('ProfileController', () => {
       { currentPassword: 'old', newPassword: 'new' } as any,
       'dev-1',
     );
-    expect(m.identity.changePassword).toHaveBeenCalledWith('u1', 'old', 'new', 'dev-1');
+    expect(m.identity.changePassword).toHaveBeenCalledWith(
+      'u1',
+      'old',
+      'new',
+      { role: 'OWNER', activeOrg: 'org-1' },
+      'dev-1',
+    );
   });
 
   it('getSessions forwards sub + the caller sid (WEB-B3, non-spoofable)', async () => {

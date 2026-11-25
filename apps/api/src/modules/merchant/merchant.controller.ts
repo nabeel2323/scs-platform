@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   MerchantService,
@@ -28,6 +29,9 @@ import {
   RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import crypto from 'node:crypto';
+import { DatabaseService } from '../../common/database/database.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
+import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 
 /**
  * Merchant API — store lifecycle, warehouses, documents, verification.
@@ -59,11 +63,19 @@ export class MerchantController {
   constructor(
     private readonly merchantService: MerchantService,
     private readonly storage: StorageService,
+    private readonly db: DatabaseService,
   ) {}
+
+  private async assertMerchantStoreAccess(user: JwtPayload, storeId: string): Promise<void> {
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
+    await assertStoreMember(this.db, caller, storeId);
+  }
 
   // ── Stores ─────────────────────────────────────────────────────
 
   @Post('stores')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async createStore(@CurrentUser() user: JwtPayload, @Body() input: CreateStoreInput) {
@@ -71,6 +83,7 @@ export class MerchantController {
   }
 
   @Get('stores')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listStores(
     @CurrentUser() user: JwtPayload,
     @Query('status') status?: string,
@@ -93,7 +106,11 @@ export class MerchantController {
 
     // Merchant: scope to their active org
     if (user.activeOrg) {
-      return this.merchantService.listStoresByOrg(user.activeOrg);
+      return this.merchantService.listStoresByOrg(user.activeOrg, {
+        sub: user.sub,
+        role: user.role,
+        activeOrg: user.activeOrg,
+      });
     }
 
     // Buyers/public: show verified stores only
@@ -105,61 +122,103 @@ export class MerchantController {
   }
 
   @Get('merchant/customers')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getMerchantCustomers(@CurrentUser() user: JwtPayload) {
     if (!user.activeOrg) {
       return [];
     }
-    return this.merchantService.getCustomersByOrg(user.activeOrg);
+    return this.merchantService.getCustomersByOrg(user.activeOrg, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Get('stores/:id')
-  async getStore(@Param('id') id: string) {
-    return this.merchantService.getStore(id);
+  @UseInterceptors(TenantDatabaseContextInterceptor)
+  @UseGuards(PermissionsGuard, ActiveOrgGuard)
+  @RequirePermission('merchant:stores:read')
+  async getStore(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    const storeId = await this.merchantService.resolveStoreId(id);
+    await this.assertMerchantStoreAccess(user, storeId);
+    return this.merchantService.getStore(storeId);
   }
 
   @Get('stores/slug/:slug')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getStoreBySlug(@Param('slug') slug: string) {
-    return this.merchantService.getStoreBySlug(slug);
+    return this.merchantService.getPublicStoreBySlug(slug);
   }
 
   @Patch('stores/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
-  async updateStore(@Param('id') id: string, @Body() input: UpdateStoreInput) {
+  async updateStore(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() input: UpdateStoreInput,
+  ) {
+    await this.assertMerchantStoreAccess(user, id);
     return this.merchantService.updateStore(id, input);
   }
 
   // ── Warehouses ─────────────────────────────────────────────────
 
   @Post('stores/:storeId/warehouses')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
-  async createWarehouse(@Param('storeId') storeId: string, @Body() input: CreateWarehouseInput) {
+  async createWarehouse(
+    @CurrentUser() user: JwtPayload,
+    @Param('storeId') storeId: string,
+    @Body() input: CreateWarehouseInput,
+  ) {
+    await this.assertMerchantStoreAccess(user, storeId);
     return this.merchantService.createWarehouse(storeId, input);
   }
 
   @Get('stores/:storeId/warehouses')
-  async listWarehouses(@Param('storeId') storeId: string) {
+  @UseInterceptors(TenantDatabaseContextInterceptor)
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:stores:read')
+  async listWarehouses(@CurrentUser() user: JwtPayload, @Param('storeId') storeId: string) {
+    await this.assertMerchantStoreAccess(user, storeId);
     return this.merchantService.listWarehousesByStore(storeId);
   }
 
   @Patch('warehouses/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
-  async updateWarehouse(@Param('id') id: string, @Body() input: CreateWarehouseInput) {
+  async updateWarehouse(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() input: CreateWarehouseInput,
+  ) {
+    const warehouse = await this.merchantService.getWarehouse(id);
+    await this.assertMerchantStoreAccess(user, warehouse.storeId);
     return this.merchantService.updateWarehouse(id, input);
   }
 
   // ── Documents ──────────────────────────────────────────────────
 
   @Post('documents')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async uploadDocument(@CurrentUser() user: JwtPayload, @Body() input: UploadDocumentInput) {
-    return this.merchantService.uploadDocument({
-      ...input,
-      uploadedBy: user.sub,
-    });
+    return this.merchantService.uploadDocument(
+      {
+        ...input,
+        uploadedBy: user.sub,
+      },
+      {
+        sub: user.sub,
+        role: user.role,
+        activeOrg: user.activeOrg,
+      },
+    );
   }
 
   @Post('documents/presign-upload')
@@ -171,8 +230,10 @@ export class MerchantController {
     // sent back by the client on POST /documents and persisted as storageKey,
     // so the upload and download keys always match.
     const safeName =
-      (body.fileName || 'document').replace(/\.\./g, '_').replace(/[\\/]+/g, '_').trim() ||
-      'document';
+      (body.fileName || 'document')
+        .replace(/\.\./g, '_')
+        .replace(/[\\/]+/g, '_')
+        .trim() || 'document';
     const key = `docs/${crypto.randomUUID()}/${safeName}`;
     const bucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
     const uploadUrl = await this.storage.createPresignedPutUrl(
@@ -184,11 +245,13 @@ export class MerchantController {
   }
 
   @Get('documents/org/:orgId')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listOrgDocuments(@Param('orgId') orgId: string, @CurrentUser() user: JwtPayload) {
     return this.merchantService.listDocumentsByOrg(orgId, user.sub, user.perms);
   }
 
   @Get('documents/store/:storeId')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listStoreDocuments(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     return this.merchantService.listDocumentsByStore(storeId, user.sub, user.perms);
   }
@@ -196,8 +259,12 @@ export class MerchantController {
   @Post('documents/:id/presign')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:verification:review')
-  async presignDocument(@Param('id') id: string) {
-    return this.merchantService.generatePresignedUrl(id);
+  async presignDocument(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.merchantService.generatePresignedUrl(id, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   /** Merchant-accessible document download (org-members only). */
@@ -205,19 +272,26 @@ export class MerchantController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:stores:write')
   async presignMerchantDocument(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    return this.merchantService.presignForMerchant(id, user.sub);
+    return this.merchantService.presignForMerchant(id, user.sub, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   // ── Verification ───────────────────────────────────────────────
 
   @Post('stores/:storeId/verify')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async submitVerification(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
+    await this.assertMerchantStoreAccess(user, storeId);
     return this.merchantService.submitVerification(storeId, user.sub);
   }
 
   @Get('verification/queue')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:verification:review')
   async getVerificationQueue(
@@ -237,11 +311,13 @@ export class MerchantController {
    * Must be declared BEFORE `verification/:id` so 'org' is not parsed as an id.
    */
   @Get('verification/org/:orgId')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listOrgVerifications(@Param('orgId') orgId: string, @CurrentUser() user: JwtPayload) {
     return this.merchantService.listVerificationsForOrg(orgId, user.sub);
   }
 
   @Get('verification/:id')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:verification:review')
   async getVerificationRequest(@Param('id') id: string) {
@@ -250,6 +326,7 @@ export class MerchantController {
 
   @Post('verification/:id/review')
   @HttpCode(HttpStatus.OK)
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:verification:review')
   async reviewVerification(

@@ -25,21 +25,43 @@ import { users, organizations, organizationMembers } from '../../modules/identit
 import { stores, warehouses, storeMembers } from '../../modules/merchant/merchant.schema';
 import { inventoryItems, stockMovements } from '../../modules/inventory/inventory.schema';
 import { carts, cartItems } from '../../modules/orders/cart.schema';
-import { masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory } from '../../modules/orders/orders.schema';
+import {
+  masterOrders,
+  orders,
+  orderItems,
+  orderFinancialBreakdown,
+  orderStatusHistory,
+} from '../../modules/orders/orders.schema';
 import { shipments, shipmentEvents } from '../../modules/orders/shipment.schema';
 import { outboxEvents } from '../../modules/audit/audit.schema';
 import { paymentRecords, refunds, settlementRecords } from '../../modules/payments/payments.schema';
-import { returnRequests, returnRequestItems, returnRequestEvents } from '../../modules/returns/returns.schema';
 import {
-  commissionReversals, settlementAdjustments, settlementAdjustmentApprovals,
-  reconciliationRuns, reconciliationDiscrepancies,
+  returnRequests,
+  returnRequestItems,
+  returnRequestEvents,
+} from '../../modules/returns/returns.schema';
+import {
+  commissionReversals,
+  settlementAdjustments,
+  settlementAdjustmentApprovals,
+  reconciliationRuns,
+  reconciliationDiscrepancies,
 } from '../../modules/returns/financial.schema';
-import { businessCalendars, businessCalendarHolidays, businessCalendarAudit } from '../../modules/returns/business-calendar.schema';
+import {
+  businessCalendars,
+  businessCalendarHolidays,
+  businessCalendarAudit,
+} from '../../modules/returns/business-calendar.schema';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
+import { PaymentsService } from '../../modules/payments/payments.service';
+import { seedTwoTenantIdentityFixture } from '../helpers/tenant-fixtures';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
-const outbox = { dispatch: vi.fn().mockResolvedValue(undefined), publish: vi.fn().mockResolvedValue(undefined) } as unknown as OutboxDispatcher;
+const outbox = {
+  dispatch: vi.fn().mockResolvedValue(undefined),
+  publish: vi.fn().mockResolvedValue(undefined),
+} as unknown as OutboxDispatcher;
 
 describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => {
   let container: StartedPostgreSqlContainer;
@@ -48,9 +70,10 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
   let settlementService: SettlementAdjustmentService;
   let reconciliationService: ReconciliationService;
   let commissionService: CommissionReversalService;
+  let paymentsService: PaymentsService;
 
-  const orgA = randomUUID();
-  const orgB = randomUUID();
+  let orgA: string;
+  let orgB: string;
   const adminA = randomUUID();
   const adminB = randomUUID();
   const buyerA = randomUUID();
@@ -59,6 +82,9 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
   let storeB: string;
   let orderA: string;
   let orderB: string;
+  let paymentA: string;
+  let paymentB: string;
+  let orgStaffA: string;
   let retA: string;
   let retB: string;
   let adjustmentA: string;
@@ -69,53 +95,99 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     pool = new Pool({ connectionString: container.getConnectionUri() });
     const db = drizzle(pool, {
       schema: {
-        products, productVariants, merchantOffers, users, organizations, organizationMembers,
-        stores, warehouses, storeMembers, inventoryItems, stockMovements, carts, cartItems,
-        masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory,
-        shipments, shipmentEvents, outboxEvents, paymentRecords, refunds, settlementRecords,
-        returnRequests, returnRequestItems, returnRequestEvents,
-        commissionReversals, settlementAdjustments, settlementAdjustmentApprovals,
-        reconciliationRuns, reconciliationDiscrepancies,
-        businessCalendars, businessCalendarHolidays, businessCalendarAudit,
+        products,
+        productVariants,
+        merchantOffers,
+        users,
+        organizations,
+        organizationMembers,
+        stores,
+        warehouses,
+        storeMembers,
+        inventoryItems,
+        stockMovements,
+        carts,
+        cartItems,
+        masterOrders,
+        orders,
+        orderItems,
+        orderFinancialBreakdown,
+        orderStatusHistory,
+        shipments,
+        shipmentEvents,
+        outboxEvents,
+        paymentRecords,
+        refunds,
+        settlementRecords,
+        returnRequests,
+        returnRequestItems,
+        returnRequestEvents,
+        commissionReversals,
+        settlementAdjustments,
+        settlementAdjustmentApprovals,
+        reconciliationRuns,
+        reconciliationDiscrepancies,
+        businessCalendars,
+        businessCalendarHolidays,
+        businessCalendarAudit,
       },
     }) as unknown as DatabaseService['db'];
 
     // Run all migrations
-    const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql') && !EXCLUDED.has(f)).sort();
-    await pool.query(`CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`);
+    const files = fs
+      .readdirSync(MIGRATIONS_DIR)
+      .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
+      .sort();
+    await pool.query(
+      `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`,
+    );
     for (const file of files) {
       const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
       await pool.query('BEGIN');
-      try { await pool.query(sql); await pool.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]); await pool.query('COMMIT'); }
-      catch { await pool.query('ROLLBACK'); }
+      try {
+        await pool.query(sql);
+        await pool.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]);
+        await pool.query('COMMIT');
+      } catch {
+        await pool.query('ROLLBACK');
+      }
     }
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
     database = { db } as any;
     settlementService = new SettlementAdjustmentService(database, outbox);
     reconciliationService = new ReconciliationService(database);
     commissionService = new CommissionReversalService(database, outbox);
+    paymentsService = new PaymentsService(database, outbox, {} as any);
 
-    // Create orgs and users
-    await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org A', 'SY')`, [orgA]);
-    await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org B', 'SY')`, [orgB]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Admin A', '+966500000003')`, [adminA]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Admin B', '+966500000004')`, [adminB]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer A', '+966500000005')`, [buyerA]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer B', '+966500000006')`, [buyerB]);
-
-    // Stores (one per org)
-    storeA = randomUUID();
-    storeB = randomUUID();
+    // Shared identity graph: two independent tenants, buyers and active store owners.
+    const identity = await seedTwoTenantIdentityFixture(pool, {
+      prefix: 'P311 Tenant',
+      currency: 'SYP',
+      users: {
+        buyerA: { id: buyerA, fullName: 'Buyer A' },
+        buyerB: { id: buyerB, fullName: 'Buyer B' },
+        ownerA: { id: adminA, fullName: 'Admin A' },
+        ownerB: { id: adminB, fullName: 'Admin B' },
+        additional: { orgStaffA: { fullName: 'Organization Staff A' } },
+      },
+    });
+    orgA = identity.orgA;
+    orgB = identity.orgB;
+    orgStaffA = identity.users['orgStaffA']!;
+    const merchantStaffRole = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_STAFF'`);
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, currency, status, verification_status) VALUES ($1, $2, 'org-a-store', 'Org A Store', 'SYP', 'ACTIVE', 'VERIFIED')`,
-      [storeA, orgA],
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status)
+       VALUES ($1, $2, $3, $4, 'ACTIVE')`,
+      [randomUUID(), orgA, orgStaffA, merchantStaffRole.rows[0]!.id],
     );
-    await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, currency, status, verification_status) VALUES ($1, $2, 'org-b-store', 'Org B Store', 'SYP', 'ACTIVE', 'VERIFIED')`,
-      [storeB, orgB],
-    );
+    storeA = identity.storeA;
+    storeB = identity.storeB;
 
     // Master orders
     const masterA = randomUUID();
@@ -144,15 +216,25 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     );
 
     // Payment records (needed for return_requests FK)
-    const payA = randomUUID();
-    const payB = randomUUID();
+    paymentA = randomUUID();
+    paymentB = randomUUID();
     await pool.query(
       `INSERT INTO payment_records (id, order_id, payment_method, status, amount_minor, currency) VALUES ($1, $2, 'CASH_ON_DELIVERY', 'CONFIRMED', 5500, 'SYP')`,
-      [payA, orderA],
+      [paymentA, orderA],
     );
     await pool.query(
       `INSERT INTO payment_records (id, order_id, payment_method, status, amount_minor, currency) VALUES ($1, $2, 'CASH_ON_DELIVERY', 'CONFIRMED', 8500, 'SYP')`,
-      [payB, orderB],
+      [paymentB, orderB],
+    );
+
+    // Settlements used to verify merchant listing isolation (G-030).
+    await pool.query(
+      `INSERT INTO settlement_records
+         (id, sub_order_id, payment_record_id, merchant_store_id, gross_minor, refund_minor, commission_minor, fee_minor, net_minor, currency, status)
+       VALUES
+         ($1, $2, $3, $4, 5500, 0, 200, 500, 4800, 'SYP', 'CALCULATED'),
+         ($5, $6, $7, $8, 8500, 0, 300, 500, 7700, 'SYP', 'CALCULATED')`,
+      [randomUUID(), orderA, paymentA, storeA, randomUUID(), orderB, paymentB, storeB],
     );
 
     // Return requests (needed for commission_reversals FK)
@@ -161,12 +243,12 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     await pool.query(
       `INSERT INTO return_requests (id, sub_order_id, payment_record_id, buyer_id, status, reason, requested_refund_minor)
        VALUES ($1, $2, $3, $4, 'REQUESTED', 'PRODUCT_NOT_AS_DESCRIBED', 5000)`,
-      [retA, orderA, payA, buyerA],
+      [retA, orderA, paymentA, buyerA],
     );
     await pool.query(
       `INSERT INTO return_requests (id, sub_order_id, payment_record_id, buyer_id, status, reason, requested_refund_minor)
        VALUES ($1, $2, $3, $4, 'REQUESTED', 'PRODUCT_NOT_AS_DESCRIBED', 8000)`,
-      [retB, orderB, payB, buyerB],
+      [retB, orderB, paymentB, buyerB],
     );
 
     // Insert settlement adjustments with real sub_order_id references
@@ -214,17 +296,18 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
   it('TISO-01: listing adjustments scoped by orgId returns only own data', async () => {
     const listA = await settlementService.listAdjustments(orgA);
     const listB = await settlementService.listAdjustments(orgB);
-    expect(listA.length).toBe(1); expect(listA[0]!.id).toBe(adjustmentA);
-    expect(listB.length).toBe(1); expect(listB[0]!.id).toBe(adjustmentB);
+    expect(listA.length).toBe(1);
+    expect(listA[0]!.id).toBe(adjustmentA);
+    expect(listB.length).toBe(1);
+    expect(listB[0]!.id).toBe(adjustmentB);
     expect(listA.some((a: any) => a.id === adjustmentB)).toBe(false);
   });
 
   it('TISO-02: getAdjustment with wrong orgId throws NotFoundException', async () => {
-    await expect(
-      settlementService.getAdjustment(adjustmentB, orgA),
-    ).rejects.toThrow();
+    await expect(settlementService.getAdjustment(adjustmentB, orgA)).rejects.toThrow();
     const own = await settlementService.getAdjustment(adjustmentA, orgA);
-    expect(own).toBeDefined(); expect(own!.id).toBe(adjustmentA);
+    expect(own).toBeDefined();
+    expect(own!.id).toBe(adjustmentA);
   });
 
   it('TISO-03: approveAdjustment with wrong orgId throws', async () => {
@@ -232,7 +315,13 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     await settlementService.submitForApproval(adjustmentB, adminB, orgB);
     // Org A tries to approve Org B's adjustment
     await expect(
-      settlementService.approveAdjustment(adjustmentB, adminA, 'ADMIN', { approverRole: 'ADMIN', notes: 'cross-org' }, orgA),
+      settlementService.approveAdjustment(
+        adjustmentB,
+        adminA,
+        'ADMIN',
+        { approverRole: 'ADMIN', notes: 'cross-org' },
+        orgA,
+      ),
     ).rejects.toThrow();
     // Verify Org B's adjustment was NOT modified
     const adj = await settlementService.getAdjustment(adjustmentB, orgB);
@@ -242,15 +331,19 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
   it('TISO-04: listReversals scoped by orgId returns only own data', async () => {
     const listA = await commissionService.listReversals(orgA);
     const listB = await commissionService.listReversals(orgB);
-    expect(listA.length).toBe(1); expect(listA[0]!.orgId).toBe(orgA);
-    expect(listB.length).toBe(1); expect(listB[0]!.orgId).toBe(orgB);
+    expect(listA.length).toBe(1);
+    expect(listA[0]!.orgId).toBe(orgA);
+    expect(listB.length).toBe(1);
+    expect(listB[0]!.orgId).toBe(orgB);
   });
 
   it('TISO-05: listReconciliationRuns scoped by orgId returns only own data', async () => {
     const runsA = await reconciliationService.listReconciliationRuns(orgA);
     const runsB = await reconciliationService.listReconciliationRuns(orgB);
-    expect(runsA.length).toBe(1); expect(runsA[0]!.orgId).toBe(orgA);
-    expect(runsB.length).toBe(1); expect(runsB[0]!.orgId).toBe(orgB);
+    expect(runsA.length).toBe(1);
+    expect(runsA[0]!.orgId).toBe(orgA);
+    expect(runsB.length).toBe(1);
+    expect(runsB[0]!.orgId).toBe(orgB);
   });
 
   it('TISO-06: resolveDiscrepancy with wrong orgId throws', async () => {
@@ -263,7 +356,10 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     await expect(
       reconciliationService.resolveDiscrepancy(discId, adminA, 'cross-org attempt', orgA),
     ).rejects.toThrow();
-    const disc = await pool.query(`SELECT resolved FROM reconciliation_discrepancies WHERE id = $1`, [discId]);
+    const disc = await pool.query(
+      `SELECT resolved FROM reconciliation_discrepancies WHERE id = $1`,
+      [discId],
+    );
     expect(disc.rows[0].resolved).toBe(false);
   });
 
@@ -278,9 +374,7 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
   });
 
   it('TISO-08: knowing UUID of another org adjustment does not grant read', async () => {
-    await expect(
-      settlementService.getAdjustment(adjustmentB, orgA),
-    ).rejects.toThrow();
+    await expect(settlementService.getAdjustment(adjustmentB, orgA)).rejects.toThrow();
   });
 
   it('TISO-09: concurrent cross-org listing returns isolated results', async () => {
@@ -290,6 +384,109 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     ]);
     const idsA = new Set(listA.map((a: any) => a.id));
     const idsB = new Set(listB.map((a: any) => a.id));
-    for (const id of idsA) { expect(idsB.has(id)).toBe(false); }
+    for (const id of idsA) {
+      expect(idsB.has(id)).toBe(false);
+    }
+  });
+
+  it('G-030: merchant payment listing returns only payments for active member stores', async () => {
+    const listA = await paymentsService.listMerchantPayments({
+      sub: adminA,
+      role: 'MERCHANT',
+      activeOrg: orgA,
+    });
+    const listB = await paymentsService.listMerchantPayments({
+      sub: adminB,
+      role: 'MERCHANT',
+      activeOrg: orgB,
+    });
+
+    expect(listA.map((payment) => payment.id)).toEqual([paymentA]);
+    expect(listB.map((payment) => payment.id)).toEqual([paymentB]);
+  });
+
+  it('G-030: same-org users remain org-scoped while foreign store IDs are denied', async () => {
+    // This user has ACTIVE organization membership but no store_members row.
+    // merchant:orders:read is organization-wide for this role.
+    const sameOrg = await paymentsService.listMerchantPayments({
+      sub: orgStaffA,
+      role: 'MERCHANT_STAFF',
+      activeOrg: orgA,
+    });
+    expect(sameOrg.map((payment) => payment.id)).toEqual([paymentA]);
+
+    await expect(
+      paymentsService.listMerchantPayments(
+        {
+          sub: adminA,
+          role: 'MERCHANT',
+          activeOrg: orgA,
+        },
+        { storeId: storeB },
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('G-030: merchant settlement listing is scoped to the active organization', async () => {
+    const listA = await paymentsService.listMerchantSettlements({
+      sub: adminA,
+      role: 'MERCHANT',
+      activeOrg: orgA,
+    });
+    const listB = await paymentsService.listMerchantSettlements({
+      sub: adminB,
+      role: 'MERCHANT',
+      activeOrg: orgB,
+    });
+
+    expect(listA.data).toHaveLength(1);
+    expect(listA.data[0]!.merchantStoreId).toBe(storeA);
+    expect(listB.data).toHaveLength(1);
+    expect(listB.data[0]!.merchantStoreId).toBe(storeB);
+  });
+
+  it('G-030: same-org settlement reads stay scoped and missing org context is denied', async () => {
+    const sameOrg = await paymentsService.listMerchantSettlements({
+      sub: orgStaffA,
+      role: 'MERCHANT_STAFF',
+      activeOrg: orgA,
+    });
+    expect(sameOrg.data).toHaveLength(1);
+    expect(sameOrg.data[0]!.merchantStoreId).toBe(storeA);
+
+    await expect(
+      paymentsService.listMerchantSettlements(
+        {
+          sub: adminA,
+          role: 'MERCHANT',
+          activeOrg: orgA,
+        },
+        { storeId: storeB },
+      ),
+    ).rejects.toThrow();
+
+    await expect(
+      paymentsService.listMerchantPayments({
+        sub: adminA,
+        role: 'MERCHANT',
+        activeOrg: null,
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      paymentsService.listMerchantSettlements({
+        sub: adminA,
+        role: 'MERCHANT',
+        activeOrg: null,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('G-030: admin payment filters are applied to the matching order set', async () => {
+    const listByStore = await paymentsService.listPayments({ storeId: storeA });
+    const listByBuyer = await paymentsService.listPayments({ buyerId: buyerB });
+
+    expect(listByStore.map((payment) => payment.id)).toEqual([paymentA]);
+    expect(listByBuyer.map((payment) => payment.id)).toEqual([paymentB]);
   });
 });

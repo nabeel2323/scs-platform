@@ -11,7 +11,20 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
  */
 
 const ctl = vi.hoisted(() => ({
-  auth: { user: { id: 'u-1', role: 'MERCHANT_OWNER', fullName: 'Merchant', perms: [] as string[] }, loading: false },
+  auth: {
+    user: {
+      id: 'u-1',
+      role: 'MERCHANT_OWNER',
+      fullName: 'Merchant',
+      perms: [
+        'fulfillment:shipments:read',
+        'fulfillment:shipments:write',
+        'fulfillment:shipments:return',
+        'fulfillment:labels:read',
+      ] as string[],
+    },
+    loading: false,
+  },
   replace: vi.fn(),
 }));
 
@@ -43,13 +56,28 @@ import MerchantDeliveriesPage from '../app/merchant/deliveries/page';
 import MerchantDeliveryDetailPage from '../app/merchant/deliveries/[id]/page';
 
 const row = {
-  id: 'ship-1', orderId: 'order-1', storeId: 'store-1', status: 'IN_TRANSIT',
-  carrierTrackingId: 'TRK-1', carrierShipmentId: 'cs-1', shippingProviderKey: 'aramex',
-  carrierStatusMapped: null, carrierCreateStatus: 'SUCCESS', carrierCancelStatus: null,
-  recoveryStatus: null, exceptionStatus: 'OPEN', exceptionType: 'DAMAGED', exceptionAt: null,
-  deliveryAttempts: 1, maxDeliveryAttempts: 3, cancelledAt: null, deliveredAt: null,
-  createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-02T00:00:00Z',
-  storeName: 'Acme Store', orderStatus: 'OUT_FOR_DELIVERY',
+  id: 'ship-1',
+  orderId: 'order-1',
+  storeId: 'store-1',
+  status: 'IN_TRANSIT',
+  carrierTrackingId: 'TRK-1',
+  carrierShipmentId: 'cs-1',
+  shippingProviderKey: 'aramex',
+  carrierStatusMapped: null,
+  carrierCreateStatus: 'SUCCESS',
+  carrierCancelStatus: null,
+  recoveryStatus: null,
+  exceptionStatus: 'OPEN',
+  exceptionType: 'DAMAGED',
+  exceptionAt: null,
+  deliveryAttempts: 1,
+  maxDeliveryAttempts: 3,
+  cancelledAt: null,
+  deliveredAt: null,
+  createdAt: '2026-09-01T00:00:00Z',
+  updatedAt: '2026-09-02T00:00:00Z',
+  storeName: 'Acme Store',
+  orderStatus: 'OUT_FOR_DELIVERY',
 };
 
 function detailFixture(over: Record<string, unknown> = {}) {
@@ -57,21 +85,69 @@ function detailFixture(over: Record<string, unknown> = {}) {
     shipment: { ...row, ...over },
     store: { id: 'store-1', displayName: 'Acme Store', orgId: 'org-1' },
     order: { id: 'order-1', status: 'OUT_FOR_DELIVERY' },
-    events: [{ id: 'e1', eventType: 'CREATED', actorType: 'SYSTEM', locationText: null, notes: null, sequence: 1, createdAt: '2026-09-01T00:00:00Z' }],
-    labels: [{ id: 'l1', labelNumber: 'LBL-9', storageKey: 'k', mimeType: 'application/pdf', trackingUrl: 'https://x/y', isVoid: false, labelType: 'SHIPPING', createdAt: '2026-09-01T00:00:00Z' }],
+    events: [
+      {
+        id: 'e1',
+        eventType: 'CREATED',
+        actorType: 'SYSTEM',
+        locationText: null,
+        notes: null,
+        sequence: 1,
+        createdAt: '2026-09-01T00:00:00Z',
+      },
+    ],
+    labels: [
+      {
+        id: 'l1',
+        labelNumber: 'LBL-9',
+        storageKey: 'k',
+        mimeType: 'application/pdf',
+        trackingUrl: 'https://x/y',
+        isVoid: false,
+        labelType: 'SHIPPING',
+        createdAt: '2026-09-01T00:00:00Z',
+      },
+    ],
   };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  ctl.auth = { user: { id: 'u-1', role: 'MERCHANT_OWNER', fullName: 'Merchant', perms: [] }, loading: false };
-  vi.mocked(shipops.listShipments).mockResolvedValue({ data: [row], total: 1, limit: 25, offset: 0 });
+  ctl.auth = {
+    user: {
+      id: 'u-1',
+      role: 'MERCHANT_OWNER',
+      fullName: 'Merchant',
+      perms: [
+        'fulfillment:shipments:read',
+        'fulfillment:shipments:write',
+        'fulfillment:shipments:return',
+        'fulfillment:labels:read',
+      ],
+    },
+    loading: false,
+  };
+  vi.mocked(shipops.listShipments).mockResolvedValue({
+    data: [row],
+    total: 1,
+    limit: 25,
+    offset: 0,
+  });
   vi.mocked(shipops.getShipmentDetail).mockResolvedValue(detailFixture() as never);
-  for (const fn of [shipops.createCarrierShipment, shipops.cancelShipment, shipops.reportException, shipops.retryShipment, shipops.requestRTS, shipops.completeRTS]) {
+  for (const fn of [
+    shipops.createCarrierShipment,
+    shipops.cancelShipment,
+    shipops.reportException,
+    shipops.retryShipment,
+    shipops.requestRTS,
+    shipops.completeRTS,
+  ]) {
     vi.mocked(fn as (...a: unknown[]) => Promise<unknown>).mockResolvedValue({} as never);
   }
 });
-afterEach(() => { cleanup(); });
+afterEach(() => {
+  cleanup();
+});
 
 describe('Merchant deliveries list', () => {
   it('renders the merchant shipments with exception state', async () => {
@@ -86,13 +162,27 @@ describe('Merchant deliveries list', () => {
     render(<MerchantDeliveriesPage />);
     await screen.findByText('TRK-1');
     fireEvent.click(screen.getByRole('tab', { name: 'Exceptions' }));
-    await waitFor(() => expect(shipops.listShipments).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'exceptions' })));
+    await waitFor(() =>
+      expect(shipops.listShipments).toHaveBeenLastCalledWith(
+        expect.objectContaining({ scope: 'exceptions' }),
+      ),
+    );
   });
 
   it('redirects non-merchant roles away from the delivery console', async () => {
     ctl.auth = { user: { id: 'u-2', role: 'BUYER', fullName: 'Buyer', perms: [] }, loading: false };
     render(<MerchantDeliveriesPage />);
     await waitFor(() => expect(ctl.replace).toHaveBeenCalledWith('/search'));
+  });
+
+  it('does not load the delivery queue without shipment-read permission', async () => {
+    ctl.auth = {
+      user: { id: 'u-3', role: 'MERCHANT_STAFF', fullName: 'Read denied', perms: [] },
+      loading: false,
+    };
+    render(<MerchantDeliveriesPage />);
+    expect((await screen.findByRole('alert')).textContent).toContain('fulfillment:shipments:read');
+    expect(shipops.listShipments).not.toHaveBeenCalled();
   });
 });
 
@@ -105,8 +195,50 @@ describe('Merchant delivery console', () => {
     expect(screen.getByText(/CREATED/)).toBeTruthy();
   });
 
+  it('keeps shipment details readable but hides operations from read-only merchants', async () => {
+    ctl.auth = {
+      user: {
+        id: 'u-4',
+        role: 'MERCHANT_STAFF',
+        fullName: 'Read only',
+        perms: ['fulfillment:shipments:read'],
+      },
+      loading: false,
+    };
+    vi.mocked(shipops.getShipmentDetail).mockResolvedValue(
+      detailFixture({
+        carrierShipmentId: null,
+        carrierCreateStatus: 'PENDING',
+        status: 'PREPARING',
+        exceptionStatus: 'OPEN',
+      }) as never,
+    );
+    render(<MerchantDeliveryDetailPage />);
+    expect(await screen.findByText('Overview')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Create carrier shipment' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Report exception' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Request RTS' })).toBeNull();
+  });
+
+  it('does not fetch shipment details without shipment-read permission', async () => {
+    ctl.auth = {
+      user: { id: 'u-5', role: 'MERCHANT_STAFF', fullName: 'No read', perms: [] },
+      loading: false,
+    };
+    render(<MerchantDeliveryDetailPage />);
+    expect((await screen.findByRole('alert')).textContent).toContain('fulfillment:shipments:read');
+    expect(shipops.getShipmentDetail).not.toHaveBeenCalled();
+  });
+
   it('queues a carrier shipment for a shipment not yet booked', async () => {
-    vi.mocked(shipops.getShipmentDetail).mockResolvedValue(detailFixture({ carrierShipmentId: null, carrierCreateStatus: 'PENDING', status: 'PREPARING' }) as never);
+    vi.mocked(shipops.getShipmentDetail).mockResolvedValue(
+      detailFixture({
+        carrierShipmentId: null,
+        carrierCreateStatus: 'PENDING',
+        status: 'PREPARING',
+      }) as never,
+    );
     render(<MerchantDeliveryDetailPage />);
     const btn = await screen.findByRole('button', { name: 'Create carrier shipment' });
     fireEvent.click(btn);
@@ -114,25 +246,45 @@ describe('Merchant delivery console', () => {
   });
 
   it('requires a reason before cancelling', async () => {
-    vi.mocked(shipops.getShipmentDetail).mockResolvedValue(detailFixture({ status: 'PREPARING' }) as never);
+    vi.mocked(shipops.getShipmentDetail).mockResolvedValue(
+      detailFixture({ status: 'PREPARING' }) as never,
+    );
     render(<MerchantDeliveryDetailPage />);
     const cancelBtn = await screen.findByRole('button', { name: 'Cancel' });
     expect(cancelBtn.hasAttribute('disabled')).toBe(true);
-    fireEvent.change(screen.getByPlaceholderText('Cancel reason'), { target: { value: 'out of stock' } });
+    fireEvent.change(screen.getByPlaceholderText('Cancel reason'), {
+      target: { value: 'out of stock' },
+    });
     expect(cancelBtn.hasAttribute('disabled')).toBe(false);
     fireEvent.click(cancelBtn);
-    await waitFor(() => expect(shipops.cancelShipment).toHaveBeenCalledWith('ship-1', 'out of stock'));
+    await waitFor(() =>
+      expect(shipops.cancelShipment).toHaveBeenCalledWith('ship-1', 'out of stock'),
+    );
   });
 
   it('reports an exception on a clean shipment', async () => {
-    vi.mocked(shipops.getShipmentDetail).mockResolvedValue(detailFixture({ exceptionStatus: null, exceptionType: null, status: 'OUT_FOR_DELIVERY' }) as never);
+    vi.mocked(shipops.getShipmentDetail).mockResolvedValue(
+      detailFixture({
+        exceptionStatus: null,
+        exceptionType: null,
+        status: 'OUT_FOR_DELIVERY',
+      }) as never,
+    );
     render(<MerchantDeliveryDetailPage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Report exception' }));
-    await waitFor(() => expect(shipops.reportException).toHaveBeenCalledWith('ship-1', expect.any(String), undefined));
+    await waitFor(() =>
+      expect(shipops.reportException).toHaveBeenCalledWith('ship-1', expect.any(String), undefined),
+    );
   });
 
   it('requests RTS on an open exception', async () => {
-    vi.mocked(shipops.getShipmentDetail).mockResolvedValue(detailFixture({ exceptionStatus: 'OPEN', exceptionType: 'RECIPIENT_UNAVAILABLE', status: 'OUT_FOR_DELIVERY' }) as never);
+    vi.mocked(shipops.getShipmentDetail).mockResolvedValue(
+      detailFixture({
+        exceptionStatus: 'OPEN',
+        exceptionType: 'RECIPIENT_UNAVAILABLE',
+        status: 'OUT_FOR_DELIVERY',
+      }) as never,
+    );
     render(<MerchantDeliveryDetailPage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Request RTS' }));
     await waitFor(() => expect(shipops.requestRTS).toHaveBeenCalledWith('ship-1', undefined));
@@ -140,7 +292,13 @@ describe('Merchant delivery console', () => {
 
   it('surfaces a failed action as an error banner', async () => {
     vi.mocked(shipops.createCarrierShipment).mockRejectedValue(new Error('Provider unavailable'));
-    vi.mocked(shipops.getShipmentDetail).mockResolvedValue(detailFixture({ carrierShipmentId: null, carrierCreateStatus: 'PENDING', status: 'PREPARING' }) as never);
+    vi.mocked(shipops.getShipmentDetail).mockResolvedValue(
+      detailFixture({
+        carrierShipmentId: null,
+        carrierCreateStatus: 'PENDING',
+        status: 'PREPARING',
+      }) as never,
+    );
     render(<MerchantDeliveryDetailPage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Create carrier shipment' }));
     expect(await screen.findByRole('alert')).toBeTruthy();

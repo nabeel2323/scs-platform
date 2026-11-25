@@ -6,7 +6,7 @@
  * Route: /catalog-import/[id]
  * Shows pipeline progress, summary counts, and error details.
  */
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { adminRequest, type AdminRecord } from '../../../lib/api';
 import { useRequirePerms } from '../../../hooks/useRequirePerms';
@@ -31,7 +31,8 @@ const PIPELINE_STEPS = ['UPLOADED', 'PARSING', 'VALIDATING', 'READY', 'IMPORTING
 function getPipelineStage(status: string): number {
   const idx = PIPELINE_STEPS.indexOf(status);
   if (status === 'COMPLETED_WITH_ERRORS') return PIPELINE_STEPS.length - 1;
-  if (status === 'FAILED' || status === 'CANCELLED') return PIPELINE_STEPS.indexOf(status) >= 0 ? PIPELINE_STEPS.indexOf(status) : -1;
+  if (status === 'FAILED' || status === 'CANCELLED')
+    return PIPELINE_STEPS.indexOf(status) >= 0 ? PIPELINE_STEPS.indexOf(status) : -1;
   return idx;
 }
 
@@ -43,28 +44,76 @@ function ImportJobDetailContent({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
+  const [errorsLoading, setErrorsLoading] = useState(false);
+  const [errorsError, setErrorsError] = useState('');
+  const requestVersion = useRef(0);
+  const errorsRequestVersion = useRef(0);
 
   useEffect(() => setReady(true), []);
-  useEffect(() => {
+
+  const load = useCallback(async () => {
     if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
-    adminRequest<AdminRecord>(`admin/catalog-imports/${encodeURIComponent(id)}`)
-      .then(data => { setJob(data); setLoading(false); })
-      .catch(err => { setError(err instanceof Error ? err.message : 'Failed to load import job'); setLoading(false); });
+    setError('');
+    try {
+      const data = await adminRequest<AdminRecord>(
+        `admin/catalog-imports/${encodeURIComponent(id)}`,
+      );
+      if (requestId === requestVersion.current) setJob(data);
+    } catch (err) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load import job');
+      }
+    } finally {
+      if (requestId === requestVersion.current) setLoading(false);
+    }
   }, [id, ready, hasAccess]);
 
-  // Load errors when errors tab is active
   useEffect(() => {
+    void load();
+    return () => {
+      requestVersion.current += 1;
+    };
+  }, [load]);
+
+  const loadErrors = useCallback(async () => {
     if (activeTab !== 'errors' || !ready || !hasAccess || !job) return;
-    adminRequest<AdminRecord[]>(`admin/catalog-imports/${encodeURIComponent(id)}/errors`)
-      .then(data => setErrors(Array.isArray(data) ? data : []))
-      .catch(() => { /* errors tab is optional */ });
+    const requestId = ++errorsRequestVersion.current;
+    setErrorsLoading(true);
+    setErrorsError('');
+    setErrors([]);
+    try {
+      const data = await adminRequest<AdminRecord[]>(
+        `admin/catalog-imports/${encodeURIComponent(id)}/errors`,
+      );
+      if (requestId === errorsRequestVersion.current) setErrors(Array.isArray(data) ? data : []);
+    } catch (err) {
+      if (requestId === errorsRequestVersion.current) {
+        setErrorsError(err instanceof Error ? err.message : 'Failed to load import errors');
+      }
+    } finally {
+      if (requestId === errorsRequestVersion.current) setErrorsLoading(false);
+    }
   }, [activeTab, id, ready, hasAccess, job]);
 
+  useEffect(() => {
+    void loadErrors();
+    return () => {
+      errorsRequestVersion.current += 1;
+    };
+  }, [loadErrors]);
+
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
-  if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: catalog:imports:manage</div>;
+  if (!hasAccess)
+    return (
+      <div style={{ padding: 32, color: '#991b1b' }}>
+        Access denied. Required: catalog:imports:manage
+      </div>
+    );
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
-  if (error) return <AdminErrorState title="Unable to load import job" message={error} />;
+  if (error)
+    return <AdminErrorState title="Unable to load import job" message={error} onRetry={load} />;
   if (!job) return null;
 
   const status = String(job['status'] || '');
@@ -78,14 +127,22 @@ function ImportJobDetailContent({ id }: { id: string }) {
   ];
 
   const overviewItems: KVItem[] = [
-    { key: 'id', label: 'Import ID', value: (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{id}</span>
-        <AdminCopyButton value={id} label="" />
-      </span>
-    )},
+    {
+      key: 'id',
+      label: 'Import ID',
+      value: (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{id}</span>
+          <AdminCopyButton value={id} label="" />
+        </span>
+      ),
+    },
     { key: 'fileName', label: 'File Name', value: fileName },
-    { key: 'fileSize', label: 'File Size', value: job['fileSize'] ? `${(Number(job['fileSize']) / 1024).toFixed(1)} KB` : '—' },
+    {
+      key: 'fileSize',
+      label: 'File Size',
+      value: job['fileSize'] ? `${(Number(job['fileSize']) / 1024).toFixed(1)} KB` : '—',
+    },
     { key: 'importType', label: 'Import Type', value: String(job['importType'] || 'Full') },
     { key: 'status', label: 'Status', value: <AdminStatusBadge status={status} /> },
     { key: 'totalRows', label: 'Total Rows', value: String(job['totalRows'] ?? '—') },
@@ -108,13 +165,19 @@ function ImportJobDetailContent({ id }: { id: string }) {
     { key: 'sheet', label: 'Sheet', render: (val) => String(val || '—') },
     { key: 'rowNumber', label: 'Row', render: (val) => String(val ?? '—') },
     { key: 'entityType', label: 'Entity', render: (val) => String(val || '—') },
-    { key: 'field', label: 'Field', render: (val) => (
-      <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{String(val || '—')}</span>
-    )},
+    {
+      key: 'field',
+      label: 'Field',
+      render: (val) => (
+        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{String(val || '—')}</span>
+      ),
+    },
     { key: 'errorMessage', label: 'Message', render: (val) => String(val || '—') },
-    { key: 'severity', label: 'Severity', render: (val) => (
-      <AdminStatusBadge status={String(val || 'ERROR')} />
-    )},
+    {
+      key: 'severity',
+      label: 'Severity',
+      render: (val) => <AdminStatusBadge status={String(val || 'ERROR')} />,
+    },
   ];
 
   return (
@@ -127,7 +190,12 @@ function ImportJobDetailContent({ id }: { id: string }) {
         subtitle={
           <>
             <span>{formatDate(job['createdAt'] as string)}</span>
-            {job['fileSize'] && <><span style={{ color: '#d9e2e6' }}> · </span><span>{(Number(job['fileSize']) / 1024).toFixed(1)} KB</span></>}
+            {job['fileSize'] && (
+              <>
+                <span style={{ color: '#d9e2e6' }}> · </span>
+                <span>{(Number(job['fileSize']) / 1024).toFixed(1)} KB</span>
+              </>
+            )}
           </>
         }
         status={status}
@@ -135,11 +203,18 @@ function ImportJobDetailContent({ id }: { id: string }) {
       />
 
       {/* Pipeline visualization */}
-      <div style={{
-        margin: '0 32px 16px', padding: '16px 20px', background: '#f7f9fa', borderRadius: 8,
-        border: '1px solid #e5ecf0',
-      }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Import Pipeline</div>
+      <div
+        style={{
+          margin: '0 32px 16px',
+          padding: '16px 20px',
+          background: '#f7f9fa',
+          borderRadius: 8,
+          border: '1px solid #e5ecf0',
+        }}
+      >
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>
+          Import Pipeline
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {PIPELINE_STEPS.map((step, i) => {
             const isComplete = i < currentStage;
@@ -147,17 +222,42 @@ function ImportJobDetailContent({ id }: { id: string }) {
             const isFailed = status === 'FAILED' && i === currentStage;
             return (
               <div key={step} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                <div style={{
-                  padding: '6px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                  whiteSpace: 'nowrap',
-                  background: isFailed ? '#fee2e2' : isComplete ? '#d1fae5' : isCurrent ? '#dbeafe' : '#f3f4f6',
-                  color: isFailed ? '#991b1b' : isComplete ? '#065f46' : isCurrent ? '#1e40af' : '#9ca3af',
-                  border: `1px solid ${isFailed ? '#fca5a5' : isComplete ? '#6ee7b7' : isCurrent ? '#93c5fd' : '#e5e7eb'}`,
-                }}>
-                  {isComplete ? '✓ ' : isFailed ? '✗ ' : isCurrent ? '● ' : ''}{step}
+                <div
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    background: isFailed
+                      ? '#fee2e2'
+                      : isComplete
+                        ? '#d1fae5'
+                        : isCurrent
+                          ? '#dbeafe'
+                          : '#f3f4f6',
+                    color: isFailed
+                      ? '#991b1b'
+                      : isComplete
+                        ? '#065f46'
+                        : isCurrent
+                          ? '#1e40af'
+                          : '#9ca3af',
+                    border: `1px solid ${isFailed ? '#fca5a5' : isComplete ? '#6ee7b7' : isCurrent ? '#93c5fd' : '#e5e7eb'}`,
+                  }}
+                >
+                  {isComplete ? '✓ ' : isFailed ? '✗ ' : isCurrent ? '● ' : ''}
+                  {step}
                 </div>
                 {i < PIPELINE_STEPS.length - 1 && (
-                  <div style={{ flex: 1, height: 2, background: isComplete ? '#6ee7b7' : '#e5e7eb', margin: '0 4px' }} />
+                  <div
+                    style={{
+                      flex: 1,
+                      height: 2,
+                      background: isComplete ? '#6ee7b7' : '#e5e7eb',
+                      margin: '0 4px',
+                    }}
+                  />
                 )}
               </div>
             );
@@ -182,10 +282,21 @@ function ImportJobDetailContent({ id }: { id: string }) {
 
         {activeTab === 'errors' && (
           <AdminDetailSection title={`Import Errors (${errors.length})`}>
-            {errors.length > 0 ? (
+            {errorsLoading ? (
+              <AdminLoadingSkeleton kvRows={4} />
+            ) : errorsError ? (
+              <AdminErrorState
+                title="Unable to load import errors"
+                message={errorsError}
+                onRetry={loadErrors}
+              />
+            ) : errors.length > 0 ? (
               <AdminRelatedTable columns={errorColumns} data={errors} />
             ) : (
-              <AdminEmptyState title="No errors" description="This import job has no recorded errors." />
+              <AdminEmptyState
+                title="No errors"
+                description="This import job has no recorded errors."
+              />
             )}
           </AdminDetailSection>
         )}
@@ -197,5 +308,9 @@ function ImportJobDetailContent({ id }: { id: string }) {
 export default function ImportJobDetailPage() {
   const params = useParams();
   const id = params['id'] as string;
-  return <Suspense fallback={<AdminLoadingSkeleton kvRows={6} />}><ImportJobDetailContent id={id} /></Suspense>;
+  return (
+    <Suspense fallback={<AdminLoadingSkeleton kvRows={6} />}>
+      <ImportJobDetailContent id={id} />
+    </Suspense>
+  );
 }

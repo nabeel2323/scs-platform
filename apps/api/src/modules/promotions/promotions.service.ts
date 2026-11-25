@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { promotions, promotionRedemptions } from './promotions.schema';
 import { eq, and, desc } from 'drizzle-orm';
 import crypto from 'node:crypto';
+import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 
 /**
  * Promotions service — create, validate, redeem promotions.
@@ -14,7 +15,11 @@ import crypto from 'node:crypto';
 export class PromotionsService {
   constructor(private readonly db: DatabaseService) {}
 
-  async createPromotion(input: CreatePromotionInput) {
+  async createPromotion(input: CreatePromotionInput, caller?: CallerContext) {
+    if (caller) {
+      await assertStoreInOrg(this.db, caller, input.storeId);
+      await assertStoreMember(this.db, caller, input.storeId);
+    }
     const id = crypto.randomUUID();
     await this.db.db.insert(promotions).values({
       id,
@@ -37,15 +42,31 @@ export class PromotionsService {
     return this.getPromotion(id);
   }
 
-  async getPromotion(id: string) {
+  async getPromotion(id: string, caller?: CallerContext) {
     const promo = await this.db.db.query.promotions.findFirst({
       where: eq(promotions.id, id),
     });
     if (!promo) throw new NotFoundException('Promotion not found');
+    if (caller) {
+      try {
+        await assertStoreInOrg(this.db, caller, promo.storeId);
+        await assertStoreMember(this.db, caller, promo.storeId);
+      } catch (error) {
+        // Keep foreign-store and same-org non-member identifiers indistinguishable.
+        if (error instanceof ForbiddenException) {
+          throw new NotFoundException('Promotion not found');
+        }
+        throw error;
+      }
+    }
     return promo;
   }
 
-  async listByStore(storeId: string) {
+  async listByStore(storeId: string, caller?: CallerContext) {
+    if (caller) {
+      await assertStoreInOrg(this.db, caller, storeId);
+      await assertStoreMember(this.db, caller, storeId);
+    }
     return this.db.db.query.promotions.findMany({
       where: eq(promotions.storeId, storeId),
       orderBy: [desc(promotions.createdAt)],
@@ -62,7 +83,11 @@ export class PromotionsService {
     return results.filter((p) => new Date(p['startsAt']) <= now && new Date(p['endsAt']) >= now);
   }
 
-  async findByCode(storeId: string, code: string) {
+  async findByCode(storeId: string, code: string, caller?: CallerContext) {
+    if (caller) {
+      await assertStoreInOrg(this.db, caller, storeId);
+      await assertStoreMember(this.db, caller, storeId);
+    }
     const promo = await this.db.db.query.promotions.findFirst({
       where: and(
         eq(promotions.storeId, storeId),
@@ -131,8 +156,8 @@ export class PromotionsService {
     return promo;
   }
 
-  async updatePromotion(id: string, input: UpdatePromotionInput) {
-    await this.getPromotion(id);
+  async updatePromotion(id: string, input: UpdatePromotionInput, caller?: CallerContext) {
+    const promo = await this.getPromotion(id, caller);
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
     if (input.name !== undefined) updates['name'] = input.name;
@@ -142,8 +167,11 @@ export class PromotionsService {
     if (input.endsAt !== undefined) updates['endsAt'] = input.endsAt;
     if (input.maxRedemptions !== undefined) updates['maxRedemptions'] = input.maxRedemptions;
 
-    await this.db.db.update(promotions).set(updates).where(eq(promotions.id, id));
-    return this.getPromotion(id);
+    await this.db.db
+      .update(promotions)
+      .set(updates)
+      .where(and(eq(promotions.id, id), eq(promotions.storeId, promo.storeId)));
+    return this.getPromotion(id, caller);
   }
 
   /**

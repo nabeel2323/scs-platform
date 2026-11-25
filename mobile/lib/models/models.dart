@@ -431,7 +431,7 @@ class Cart {
 
 class CartItem {
   final String id, cartId, storeId, variantId;
-  final int quantity, priceMinor, tierMinQty, lineTotalMinor;
+  final int quantity, priceMinor, tierMinQty, lineTotalMinor, moq;
   final String? title, sku, storeName;
   // A5-3: the supplier's currency for this line, so a cart is not assumed SAR.
   final String? currency;
@@ -448,6 +448,7 @@ class CartItem {
       required this.priceMinor,
       required this.tierMinQty,
       required this.lineTotalMinor,
+      this.moq = 1,
       this.title,
       this.sku,
       this.storeName,
@@ -463,6 +464,7 @@ class CartItem {
       priceMinor: j['priceMinor'] as int? ?? 0,
       tierMinQty: j['tierMinQty'] as int? ?? 1,
       lineTotalMinor: j['lineTotalMinor'] as int? ?? 0,
+      moq: j['moq'] as int? ?? 1,
       title: j['title'],
       sku: j['sku'],
       storeName: j['storeName'],
@@ -477,14 +479,14 @@ class CartItem {
 class CartItemOffer {
   final String id, status;
   final int? leadTimeDays;
-  final int? moq;
-  CartItemOffer(
-      {required this.id, required this.status, this.leadTimeDays, this.moq});
+  final int? moq, orderIncrement;
+  CartItemOffer({required this.id, required this.status, this.leadTimeDays, this.moq, this.orderIncrement});
   factory CartItemOffer.fromJson(Map<String, dynamic> j) => CartItemOffer(
       id: j['id'] as String,
       status: (j['status'] as String?) ?? 'UNKNOWN',
       leadTimeDays: j['leadTimeDays'] as int?,
-      moq: j['moq'] as int?);
+      moq: j['moq'] as int?,
+      orderIncrement: j['orderIncrement'] as int?);
 }
 
 class MasterOrder {
@@ -620,6 +622,101 @@ class OrderItem {
       lineTotalMinor: j['lineTotalMinor'] as int? ?? 0);
 }
 
+
+/** Buyer return request from the existing P13 lifecycle endpoints. */
+class ReturnRequest {
+  final String id, subOrderId, status, reason, createdAt, updatedAt;
+  final String? description, shippingTrackingNumber, shippingNotes;
+  final String? inspectionCondition, inspectionNotes, merchantNotes;
+  final int requestedRefundMinor;
+  final int? actualRefundMinor;
+  final List<ReturnRequestItem> items;
+  final List<ReturnRequestEvent> events;
+
+  ReturnRequest({
+    required this.id, required this.subOrderId, required this.status,
+    required this.reason, required this.createdAt, required this.updatedAt,
+    this.description, this.shippingTrackingNumber, this.shippingNotes,
+    this.inspectionCondition, this.inspectionNotes, this.merchantNotes,
+    this.requestedRefundMinor = 0, this.actualRefundMinor,
+    this.items = const [], this.events = const [],
+  });
+
+  factory ReturnRequest.fromJson(Map<String, dynamic> j) => ReturnRequest(
+    id: (j['id'] ?? '').toString(),
+    subOrderId: (j['subOrderId'] ?? '').toString(),
+    status: (j['status'] ?? '').toString(),
+    reason: (j['reason'] ?? '').toString(),
+    createdAt: (j['createdAt'] ?? '').toString(),
+    updatedAt: (j['updatedAt'] ?? '').toString(),
+    description: j['description'] as String?,
+    shippingTrackingNumber: j['shippingTrackingNumber'] as String?,
+    shippingNotes: j['shippingNotes'] as String?,
+    inspectionCondition: j['inspectionCondition'] as String?,
+    inspectionNotes: j['inspectionNotes'] as String?,
+    merchantNotes: j['merchantNotes'] as String?,
+    actualRefundMinor: j['actualRefundMinor'] == null
+        ? null
+        : j['actualRefundMinor'] is num
+            ? (j['actualRefundMinor'] as num).toInt()
+            : int.tryParse(j['actualRefundMinor'].toString()),
+    requestedRefundMinor: j['requestedRefundMinor'] is num
+        ? (j['requestedRefundMinor'] as num).toInt()
+        : int.tryParse(j['requestedRefundMinor']?.toString() ?? '') ?? 0,
+    items: (j['items'] as List? ?? [])
+        .map((e) => ReturnRequestItem.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList(),
+    events: (j['events'] as List? ?? [])
+        .map((e) => ReturnRequestEvent.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList(),
+  );
+}
+
+class ReturnRequestItem {
+  final String id, returnRequestId, orderItemId;
+  final int quantity;
+  final String? condition, inventoryItemId;
+
+  ReturnRequestItem({
+    required this.id, required this.returnRequestId, required this.orderItemId,
+    required this.quantity, this.condition, this.inventoryItemId,
+  });
+
+  factory ReturnRequestItem.fromJson(Map<String, dynamic> j) => ReturnRequestItem(
+    id: (j['id'] ?? '').toString(),
+    returnRequestId: (j['returnRequestId'] ?? '').toString(),
+    orderItemId: (j['orderItemId'] ?? '').toString(),
+    quantity: j['quantity'] is num
+        ? (j['quantity'] as num).toInt()
+        : int.tryParse(j['quantity']?.toString() ?? '') ?? 0,
+    condition: j['condition'] as String?,
+    inventoryItemId: j['inventoryItemId'] as String?,
+  );
+}
+
+class ReturnRequestEvent {
+  final String id, returnRequestId, eventType, toStatus, actorType, createdAt;
+  final String? fromStatus, actorId, notes;
+
+  ReturnRequestEvent({
+    required this.id, required this.returnRequestId, required this.eventType,
+    required this.toStatus, required this.actorType, required this.createdAt,
+    this.fromStatus, this.actorId, this.notes,
+  });
+
+  factory ReturnRequestEvent.fromJson(Map<String, dynamic> j) => ReturnRequestEvent(
+    id: (j['id'] ?? '').toString(),
+    returnRequestId: (j['returnRequestId'] ?? '').toString(),
+    eventType: (j['eventType'] ?? '').toString(),
+    fromStatus: j['fromStatus'] as String?,
+    toStatus: (j['toStatus'] ?? '').toString(),
+    actorId: j['actorId'] as String?,
+    actorType: (j['actorType'] ?? '').toString(),
+    notes: j['notes'] as String?,
+    createdAt: (j['createdAt'] ?? '').toString(),
+  );
+}
+
 class StatusHistoryEntry {
   final String id, orderId, toStatus, actorType, createdAt;
   final String? fromStatus, changedBy, reason;
@@ -720,6 +817,7 @@ class UserProfile {
   final String id, status, createdAt;
   final String? phone, email, fullName, locale, activeOrgId, role;
   final List<OrgMembership> organizations;
+  final List<String> perms;
   UserProfile({
     required this.id,
     required this.status,
@@ -731,6 +829,7 @@ class UserProfile {
     this.activeOrgId,
     this.role,
     this.organizations = const [],
+    this.perms = const [],
   });
   factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
         id: j['id'] ?? '',
@@ -742,10 +841,18 @@ class UserProfile {
         locale: j['locale'],
         activeOrgId: j['activeOrgId'],
         role: j['role'] as String?,
+        perms: (j['perms'] as List? ?? const <dynamic>[])
+            .map((permission) => permission.toString())
+            .where((permission) => permission.isNotEmpty)
+            .toList(growable: false),
         organizations: (j['organizations'] as List? ?? [])
             .map((e) => OrgMembership.fromJson(e))
             .toList(),
       );
+
+  bool hasPermission(String permission) => perms.contains(permission);
+  bool hasAnyPermission(Iterable<String> permissions) => permissions.any(perms.contains);
+  bool hasAllPermissions(Iterable<String> permissions) => permissions.every(perms.contains);
 }
 
 /// Response from account link/unlink endpoints (S1.35 Phase 1).
@@ -1025,21 +1132,33 @@ class MerchantKpis {
 
 /// Price list row returned by GET /v1/stores/:id/price-lists.
 class PriceList {
-  final String id, storeId, name, currency;
+  final String id, storeId, name, currency, channel, audience;
   final bool isActive;
+  final int priority;
+  final String? validFrom, validUntil;
   PriceList({
     required this.id,
     required this.storeId,
     required this.name,
     this.currency = 'SAR',
+    this.channel = 'B2B',
+    this.audience = 'PUBLIC',
     this.isActive = true,
+    this.priority = 0,
+    this.validFrom,
+    this.validUntil,
   });
   factory PriceList.fromJson(Map<String, dynamic> j) => PriceList(
         id: j['id'] ?? '',
         storeId: j['storeId'] ?? '',
         name: j['name'] ?? '',
         currency: j['currency'] ?? 'SAR',
-        isActive: j['isActive'] ?? true,
+        channel: j['channel'] ?? 'B2B',
+        audience: j['audience'] ?? 'PUBLIC',
+        isActive: j['isActive'] as bool? ?? true,
+        priority: (j['priority'] as num?)?.toInt() ?? 0,
+        validFrom: j['validFrom']?.toString(),
+        validUntil: j['validUntil']?.toString(),
       );
 }
 
@@ -1048,6 +1167,7 @@ class PriceTier {
   final String id, priceListId, variantId;
   final int minQty, unitPriceMinor;
   final int? maxQty;
+  final String? variantSku, variantTitle, productTitle;
   PriceTier({
     required this.id,
     required this.priceListId,
@@ -1055,14 +1175,20 @@ class PriceTier {
     this.minQty = 1,
     this.maxQty,
     required this.unitPriceMinor,
+    this.variantSku,
+    this.variantTitle,
+    this.productTitle,
   });
   factory PriceTier.fromJson(Map<String, dynamic> j) => PriceTier(
         id: j['id'] ?? '',
         priceListId: j['priceListId'] ?? '',
         variantId: j['variantId'] ?? '',
-        minQty: j['minQty'] as int? ?? 1,
-        maxQty: j['maxQty'] as int?,
-        unitPriceMinor: j['unitPriceMinor'] as int? ?? 0,
+        minQty: (j['minQty'] as num?)?.toInt() ?? 1,
+        maxQty: (j['maxQty'] as num?)?.toInt(),
+        unitPriceMinor: (j['unitPriceMinor'] as num?)?.toInt() ?? int.tryParse(j['unitPriceMinor']?.toString() ?? '') ?? 0,
+        variantSku: j['variantSku'] as String?,
+        variantTitle: j['variantTitle'] as String?,
+        productTitle: j['productTitle'] as String?,
       );
 }
 
@@ -1386,7 +1512,7 @@ class Offer {
   final int basePriceMinor;
   final String currency;
   final int moq;
-  final int? leadTimeDays;
+  final int? orderIncrement, leadTimeDays;
   final bool isActive;
   final String? variantId;
   final bool storeVerified;
@@ -1398,6 +1524,7 @@ class Offer {
       required this.basePriceMinor,
       required this.currency,
       this.moq = 1,
+      this.orderIncrement,
       this.leadTimeDays,
       required this.isActive,
       this.variantId,
@@ -1410,6 +1537,7 @@ class Offer {
         basePriceMinor: j['basePriceMinor'] as int? ?? 0,
         currency: j['currency'] ?? 'SAR',
         moq: j['moq'] as int? ?? 1,
+        orderIncrement: j['orderIncrement'] as int?,
         leadTimeDays: j['leadTimeDays'] as int?,
         isActive: j['isActive'] ?? true,
         variantId: j['variantId'] as String?,

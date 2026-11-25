@@ -4,9 +4,10 @@ import { ShippingProvider } from './shipping-provider';
 /**
  * ShippingProviderRegistry — manages all registered shipping providers.
  *
- * During module initialisation the ShippingModule registers the
- * ManualDeliveryProvider as the default.  External carrier providers
- * will be registered in later M7.2 phases.
+ * During module initialisation ShippingService registers ManualDeliveryProvider
+ * as the default and configured external adapters (currently Aramex) as
+ * non-default providers. Carrier credentials/configuration are resolved only
+ * when an operation is processed; registration itself performs no HTTP calls.
  */
 @Injectable()
 export class ShippingProviderRegistry {
@@ -39,7 +40,9 @@ export class ShippingProviderRegistry {
   getProvider(key: string): ShippingProvider {
     const provider = this.providers.get(key);
     if (!provider) {
-      throw new Error(`Unknown shipping provider: '${key}'. Registered: [${this.listProviderKeys().join(', ')}]`);
+      throw new Error(
+        `Unknown shipping provider: '${key}'. Registered: [${this.listProviderKeys().join(', ')}]`,
+      );
     }
     return provider;
   }

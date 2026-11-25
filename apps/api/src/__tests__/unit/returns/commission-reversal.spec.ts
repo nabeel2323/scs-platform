@@ -5,6 +5,10 @@
  * Uses integer minor-unit arithmetic throughout.
  */
 import { describe, it, expect } from 'vitest';
+import {
+  calculateProportionalCommissionReversalMinor,
+  roundProportionalMinorUnits,
+} from '../../../modules/returns/returns-financials';
 
 // ─── Pure calculation helpers (mirrors service logic) ────────────
 
@@ -21,11 +25,12 @@ function calculateReversal(
   returnNetGoods: number,
   alreadyReversed: number,
 ): number {
-  if (originalCommission <= 0 || orderNetGoods <= 0 || returnNetGoods <= 0) return 0;
-  const remaining = originalCommission - alreadyReversed;
-  if (remaining <= 0) return 0;
-  const raw = Math.floor((originalCommission * returnNetGoods) / orderNetGoods);
-  return Math.min(raw, remaining);
+  return calculateProportionalCommissionReversalMinor(
+    originalCommission,
+    orderNetGoods,
+    returnNetGoods,
+    alreadyReversed,
+  );
 }
 
 /** Categories that trigger commission reversal. */
@@ -173,6 +178,18 @@ describe('Commission Reversal — Edge Cases', () => {
     expect(calculateReversal(100, 1000, -500, 0)).toBe(0);
   });
 
+  it('uses exact BigInt multiplication when safe integer operands have an unsafe product', () => {
+    const reversal = calculateReversal(
+      5_587_381_164_843_962,
+      5_885_822_589_159_602,
+      5_071_543_078_211_164,
+      0,
+    );
+
+    // Number multiplication rounds this quotient up by one minor unit.
+    expect(reversal).toBe(4_814_389_805_782_071);
+  });
+
   it('very large numbers: no overflow in integer arithmetic', () => {
     // 1 billion minor units (10M in major)
     const commission = 50_000_000; // 5% of 1 billion
@@ -182,5 +199,19 @@ describe('Commission Reversal — Edge Cases', () => {
     // floor(50000000 * 333333333 / 1000000000) = floor(16666666.65) = 16666666
     expect(reversal).toBe(16_666_666);
     expect(reversal).toBeLessThanOrEqual(commission);
+  });
+});
+
+describe('Return refund minor-unit allocation', () => {
+  it('allocates discount and VAT with exact half-up integer arithmetic', () => {
+    expect(roundProportionalMinorUnits(1000n, 600, 3000)).toBe(200);
+    expect(roundProportionalMinorUnits(800n, 240, 2400)).toBe(80);
+    expect(roundProportionalMinorUnits(1n, 1, 2)).toBe(1);
+  });
+
+  it('keeps proportional allocation exact when the intermediate product exceeds safe Number precision', () => {
+    const amount = 5_071_543_078_211_164n;
+    const ratio = 5_885_822_589_159_602;
+    expect(roundProportionalMinorUnits(amount, ratio, ratio)).toBe(Number(amount));
   });
 });
