@@ -336,3 +336,7 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 - No exact-head Actions run; Vercel Web/Admin build-rate-limit statuses only. No tests or CI run for current worker-fencing/test-fixture changes.
 - No database/migration/grant/RLS/provider/storage/worker/deployment/merge action. Next: finish the full FK and raw SQL/function/trigger/partition inventory, then build bounded integration branches from refreshed develop and run one consolidated CI campaign.
 undefined
+
+## 26 November 2026 — foundational commerce migration crosswalk
+
+Continued G-002 static review across migrations 0001–0006 and 0008–0011. Added independent-FK consistency checks to the crosswalk for org/store document relationships, product/category/media, inventory variant/warehouse, pricing list/variant, cart item cart/store/variant, order item order/variant, buyer/store lineage and trust/conversation participants. These are candidates requiring service-callsite review and data profiling, not confirmed vulnerabilities. Migration 0007 and 0012–0069 remain outstanding; 75-file audit is still partial. No tests, CI, DB writes, migrations, grants/RLS, deployment or merge occurred.
