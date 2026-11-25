@@ -245,3 +245,10 @@ All changes are source/test authoring only. No test, lint, typecheck, formatter,
 - Exact-head Actions has no runs. Combined status has only Vercel Web/Admin provider build-rate-limit failures. No tests, lint, typecheck, build or CI are claimed.
 - The branch starts from develop and retains the three develop-only commits. It contains no SQL migration, RLS, grant/default ACL, DB role, staging write, worker activation, provider/storage action or deployment.
 - PR #138 remains open/draft/unmerged and separately preserved; continue bounded extraction only.
+
+
+## 26 November 2026 — CatalogImportService actor preflight hardening
+
+Source review found that CatalogImportService.upload performed the object-storage write before validating the caller through withUserActor. Added a fail-closed assertCaller requiring non-empty subject and role, applied it to user/audit actor helpers, and invoked it before upload storage and execute plan mutation. Added a focused unit spec for missing/blank caller identity proving rejection before object-storage or database actor-context calls.
+
+Commits: f9bfccf3ac11b7fbb0904634845c24a31d7c805a (service), 0b14f11c3fd6f787baa73765da7310bb553b24c4 (regression spec), 0f8586e9548a91ad4c56b410e60180ad080e6788 (import formatting). Tests and CI were not run. This is not runtime verification. No storage, database, migration, staging, worker, deployment or merge action occurred.
