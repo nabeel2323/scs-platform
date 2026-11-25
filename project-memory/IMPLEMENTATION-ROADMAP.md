@@ -1,3 +1,16 @@
+## 25 November 2026 — continuation priority (implementation phase)
+
+The live branch state is PR #138 (`remediation/phase-0-1-tenant-security`) at `8e2c08953442a6d0f67568f0c5567898f7eb12e7`, OPEN / DRAFT / UNMERGED, 2,725 ahead / 3 behind `develop`. Keep it unmerged; use bounded PRs for completed slices.
+
+1. **Next task — actor-context test-callsite migration.** Work through the 227 TS2554 errors identified in historical CI #45586306936 (SHA `ed685b0d`), grouped by the service method/signature change. Add correct actor fixtures and parameters to legacy test helpers, with explicit identity/tenant semantics. Never downgrade production method signatures or pass a generic privileged actor to tests whose purpose is tenant isolation.
+2. Continue G-002 source inventory and method-to-data ownership crosswalk: raw SQL/functions/triggers/partitions, every DB access predicate, migration FK mapping, nested actor context lifecycle/reuse, worker and operator contexts.
+3. Obtain actual API database runtime identity and TLS facts through an authorized diagnostic or safe operator evidence. Migration identity was confirmed `postgres` + BYPASSRLS/CREATEROLE/CREATEDB; this does not establish the current Render API identity. No Render config/deploy/restart is included in this step without separate authorization.
+4. Reconcile object ownership/default ACLs under postgres and supabase_admin without speculative changes to managed roles. Prepare a migration-only staging workflow with backup/restore, ledger, lock, rollback/recovery and explicit protected approval.
+5. Keep database changes blocked until steps 2–4 and actor coverage are complete. Then design least-privilege role transition and table-specific RLS as a separate, reviewed phase.
+6. Finish all implementation and cross-client integration before the consolidated validation campaign. Only afterwards run formatter, lint, typecheck, unit/integration/migration/E6/build/contract/Flutter and exact-head CI once.
+
+PR #152 OTP logging remediation is merged and must not be repeated. PRs #153–#156 are separate draft remediation slices. No DB mutation, RLS/grant/migration action, Render change/deploy, worker activation, business workflow, protected release or PR #138 merge was made in this continuation.
+
 ## 25 November 2026 — verified staging identity, CI and worker audit update
 
 - PR #142 (safe runtime database identity diagnostic) is merged into `develop` at `9530d87b3aa26efce5b5692b6bc575d899f8c716`. Its CI run #44953735602 completed successfully: lint/typecheck/format, Flutter, disposable full migration apply, integration tests, E6, unit/coverage, Web/Admin tests, container smoke, contract/codegen and build all passed. k6 smoke and protected staging release were skipped by workflow conditions.

@@ -1181,3 +1181,33 @@ The user explicitly authorizes necessary staging database changes to prepare the
 Render runtime configuration/log observations are recorded in `docs/remediation/RENDER-STAGING-READONLY-CHECK-2026-11-25.md`. OTP log redaction is implemented on the remediation branch in commit `ed685b0d0c9a1dd8e28009fa8fc208b766540061`; direct provider failure/exception tests are authored, not executed, and the code is not deployed.
 
 Exact-head Actions #45586306936 was unintentionally triggered by that commit. Lint passed, TypeScript typecheck failed with 250 diagnostic lines across tests and source, Flutter passed, and downstream jobs were skipped. The diagnostics are implementation backlog evidence, not a reason to run another CI campaign before implementation is complete.
+
+## 25 November 2026 — post-implementation continuation update
+
+This entry supersedes older 25-November snapshot statements below where commit/PR state has moved. See `START-HERE.md` for the full handoff.
+
+### Exact repository / CI state
+- Branch: `remediation/phase-0-1-tenant-security`; PR #138 OPEN / DRAFT / UNMERGED to `develop`; current code head at this update: `8e2c08953442a6d0f67568f0c5567898f7eb12e7`; 2,725 commits ahead and 3 behind `develop`; 1,909 files in the PR.
+- The current head has no Actions run because the last implementation commit deliberately uses `[skip ci]`. No tests, lint, typecheck, formatter, build or CI have been executed after the five implementation commits.
+- Prior run #45586306936 / CI #1505 was on `ed685b0d0c9a1dd8e28009fa8fc208b766540061`, not current head. It had lint success, typecheck failure (250 TypeScript diagnostics), Flutter analyze/tests success and downstream jobs skipped. Of those diagnostics, 227 were TS2554 missing-argument call sites after actor/context and other required method parameters were tightened; the rest included wrong Drizzle SQL imports, index-signature access, mocks, four idempotency key narrowing errors and one missing taxonomy error code. The current implementation corrects some bounded issues; the residual count is unknown until the deferred validation campaign.
+- PR #152 OTP log redaction merged at `a16a7ef6db3c57b2e335757cbf2897ceede5d199`; Actions #45598306657 / CI #1507 succeeded. Do not redo it.
+- PRs #153–#156 remain OPEN / DRAFT; their exact-head Actions #1523, #1548, #1547, #1541 respectively succeeded. Vercel preview rate-limit results are not app CI failures. Keep those changes in their separate bounded PRs.
+
+### Changes committed on the preserved remediation branch
+- `bc87ece`: checkout idempotency key capture for strict TypeScript narrowing; accept/partial accept/reject fail closed without valid verified actor; pass the actor into order auto-advance; declare `CATEGORY_INACTIVE` in publish validation.
+- `ee083c0`: missing-caller rejection and inactive-category regression source.
+- `8525fa7`, `8e8ce34`, `8e2c089`: focused Drizzle type imports, strict index-signature access, JWT fixture timestamps, mock object typing and optional mock-call access.
+- These are implementation commits, **not verified test results**. Preserve required service actor parameters; do not weaken security APIs to clear compile diagnostics.
+
+### Still open / next implementation order
+1. Continue converting the historical TS2554 call sites in old unit/integration/scratch suites to supply explicit authenticated principals and any new required method-specific context. Prefer shared fixture helpers where semantics match; do not give a fake generic actor to cross-tenant tests. Cover correct owner, wrong tenant and privileged/system cases explicitly.
+2. Continue G-002 source coverage: all raw SQL/functions/triggers/partition access, DB operation ownership predicates, migration FK-to-tenant ownership crosswalk, actor-context nesting/reuse, plus worker/bootstrap/CLI/audit/realtime principals.
+3. Resolve API DB runtime identity and TLS through an authorized, safe evidence path; migration login is `postgres` with BYPASSRLS/CREATEROLE/CREATEDB but is not proof of the current API `DATABASE_URL` identity.
+4. Reconcile object owners and defaults, including `postgres` vs `supabase_admin`; design a dedicated migration-only staging execution and rollback/recovery path. Do not alter Supabase-managed defaults without a reviewed supported mechanism.
+5. Only after all implementation/integration work is complete, perform the user-mandated consolidated tests, typecheck, lint, formatting, E6, build and CI campaign. Do not run those gates during implementation.
+
+### Non-negotiable environment gates
+The read-only catalog snapshot has 114 public table/partition relations, 0 RLS enabled, 0 policies. Existing `anon`/`authenticated` direct SELECT/INSERT/UPDATE/DELETE grants were zero, but TRUNCATE/MAINTAIN/REFERENCES/TRIGGER grants are excessive; defaults under `postgres` and `supabase_admin` differ. Do not overstate current DML exposure. No shared database mutation, RLS/grant/default ACL/migration/seed change, Render configuration/deploy/restart, worker activation, business workflow, production DB provisioning, protected approval, PR #138 merge or release occurred. Keep these actions blocked until the identity/context/ownership/rollback gates are closed.
+
+---
+

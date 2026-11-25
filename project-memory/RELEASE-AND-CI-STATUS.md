@@ -1,3 +1,12 @@
+## 25 November 2026 — latest exact-head status (supersedes earlier snapshots)
+
+- **Active branch / PR:** `remediation/phase-0-1-tenant-security`, PR #138 OPEN / DRAFT / UNMERGED to `develop`. Latest source head `8e2c08953442a6d0f67568f0c5567898f7eb12e7`; comparison 2,725 ahead / 3 behind; 1,909 changed files.
+- **Current head CI:** no Actions run exists for this commit because the implementation commit contains `[skip ci]`. This is intentional. No tests/typecheck/lint/formatter/build or CI were run after the current code updates.
+- **Historical failure:** run #45586306936 / CI #1505 ran on older SHA `ed685b0d0c9a1dd8e28009fa8fc208b766540061`. Lint passed, TypeScript typecheck failed with 250 diagnostics (227 TS2554 required-argument call sites plus stale strict types/mocks, optional-key narrowing and taxonomy issue union); Flutter analyze/tests passed; downstream API unit, integration, migration, E6, Web/Admin, Build/Container, Contract, k6 and staging release jobs were skipped. The five later commits correct bounded defects; no assertion is made that typecheck is now green.
+- **Merged independent fix:** PR #152 OTP log redaction merged at `a16a7ef6db3c57b2e335757cbf2897ceede5d199`; Actions #45598306657 / CI #1507 passed.
+- **Focused draft PRs:** #153 outbox placeholder dispatch safety (Actions #1523 success); #154 atomic order completion (#1548 success); #155 staging access-control audit docs (#1547 success); #156 HTTP log redaction (#1541 success). These PRs remain open/draft. Provider preview rate-limit failures are not GitHub application-test failures.
+- Continue to keep PR #138 draft/unmerged. Do not dispatch any workflow during implementation. The protected staging audit is read-only; release.yml mutates migrations + seed + deploy and is not a DB-only procedure.
+
 
 ## 25 November 2026 — source branch and staging audit status
 
