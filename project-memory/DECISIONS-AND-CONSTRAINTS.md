@@ -195,3 +195,10 @@ The merchant-rejection flow creates a refund REQUESTED row, payment event and ou
 The user explicitly authorized necessary changes to the staging database to prepare a good first production launch. No production database has been provisioned or deployed. This authorization covers staging-only schema changes, reviewed privilege/default-ACL corrections, RLS/policy work, migrations, and controlled test fixtures/data changes. It does not authorize provisioning a production database, deploying code or changing Render service configuration, restarting services, activating workers, executing business workflows, merging PR #138, or bypassing protected GitHub staging approvals.
 
 First identify actual API and migration roles, determine object ownership and default-ACL authority (including `supabase_admin`), review migration ordering and rollback/recovery, and preserve the staging migration ledger. Do not enable RLS while the API role is a table owner or has `BYPASSRLS`. Use a reviewed migration and protected staging release process once the relevant approval is explicitly obtained.
+
+## User reaffirmation — grouped CI and PR #138 preservation — 25 November 2026
+
+- Batch related source, test and documentation changes. Do not run CI for every small change; use narrow local checks where available and one consolidated full CI for a meaningful completed integration batch. This does not waive required checks or independent review.
+- PR #138 must remain OPEN / DRAFT / UNMERGED. Its full tree and history are source evidence only; extract bounded, reviewed slices into clean branches after file-level overlap and migration sequencing checks.
+- Keep its preservation ref synchronized to the current PR head using a fast-forward with expected-SHA protection. Never rewrite or discard the original remediation history.
+- Do not promote a historical CI result or an authored-but-unexecuted test to verified status.
