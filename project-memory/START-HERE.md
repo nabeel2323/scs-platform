@@ -31,7 +31,7 @@ The detailed remediation and product gap registers on the audit branch remain hi
 Two bounded implementation PRs are in progress:
 
 - PR #153, `fix(outbox): stop acknowledging events without delivery`: disables the generic log-only outbox poller, dead-letters unsupported carrier event types, and documents the producer/consumer inventory. Branch: `fix/outbox-placeholder-dispatch-safety-2026-11-25`.
-- PR #154, `fix(orders): make order completion atomic`: wraps order/shipment/history/outbox/master-order changes in one transaction, emits realtime after commit, and removes the auto-complete worker's unnecessary `updated_at` mutation during candidate selection. Branch: `fix/order-completion-atomicity-2026-11-25`.
+- PR #154 (including the follow-up buyer-confirmation atomicity correction), `fix(orders): make order completion atomic`: wraps order/shipment/history/outbox/master-order changes in one transaction, emits realtime after commit, and removes the auto-complete worker's unnecessary `updated_at` mutation during candidate selection. Branch: `fix/order-completion-atomicity-2026-11-25`.
 
 Both branches must be refreshed from GitHub before continuation. Their focused regression specs are authored but not yet executed. Parent CI #1509 verifies only the develop baseline, not either PR.
 
