@@ -332,6 +332,6 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 
 - PR #138 head `e410bf44b272eafb8e762636b66877f9e0c4b230`, open/draft/unmerged, mergeable=false. Preservation branch identical (0/0).
 - 1,940 changed paths: 1,280 scratch and 660 non-scratch. Do not treat the non-scratch count as the G-002 extraction set.
-- Develop `fde20420bbb759d2e562f9f747c9e824ac58e25`; divergence 2,852 ahead / 3 behind from merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
+- Develop `fde20420bbb759d2e562f9ff747c9e824ac58e25`; divergence 2,852 ahead / 3 behind from merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
 - No exact-head Actions run; Vercel Web/Admin build-rate-limit statuses only. No tests or CI run for current worker-fencing/test-fixture changes.
 - No database/migration/grant/RLS/provider/storage/worker/deployment/merge action. Next: finish the full FK and raw SQL/function/trigger/partition inventory, then build bounded integration branches from refreshed develop and run one consolidated CI campaign.
