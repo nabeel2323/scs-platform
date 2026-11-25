@@ -129,3 +129,14 @@ Reviewed the current PR #138 order auto-completion worker, its unit tests, the #
 No tests, typecheck, formatter, build or CI were run for the unit-test update. All source/test changes remain NOT TESTED / NOT CI-VERIFIED. No worker was activated, no outbox polling enabled, no provider call, database write, migration, deployment or merge occurred.
 
 **Next:** finish the remaining worker and database call-graph audit; prepare the bounded G-002 extraction as the composition of #154 atomic completion with #138 actor context, and #153's safe outbox behavior. Run the consolidated CI campaign only after that bounded slice is assembled.
+
+
+## 26 November 2026 — migration 0070 collision disposition and runner review
+
+- Compared PR #138 migration `0070_public_access_and_function_search_path_hardening.sql` with PR #145's `0070_normalize_arabic_search_path.sql`. They both alter the same `public.normalize_arabic(text)` function and therefore cannot coexist as two migration files with the same sequence/ledger position.
+- Consolidated PR #145's postcondition assertion (`pg_proc.proconfig` contains `search_path=pg_catalog`, with the expected `input text` identity arguments) into PR #138's broader 0070 migration. The single canonical 0070 now retains the existing anon/authenticated table/sequence grant and default-ACL revocations, the function-local search_path setting, and an explicit fail-fast verification block. PR #145's standalone migration is to be excluded from the bounded integration slice; retain its verification intent in the canonical file.
+- Reviewed `apps/api/infra/drizzle/migrate-pg.ts`: the runner serializes the ledger/apply sequence with a session advisory lock and wraps each individual migration plus its ledger insert in one BEGIN/COMMIT transaction, rolling back the file on failure. It does not make the whole 0070–0075 sequence one transaction. Dry-run only checks that files are nonempty; it does not parse or execute their SQL.
+- Migration 0071 is the same two-column/index DDL as PR #154 apart from comments; keep one canonical 0071. Migrations 0072–0075 remain source-only and require separate isolated PostgreSQL validation and reviewed data/rollback plans before any shared/staging application. In particular, 0072 performs historical webhook relinking/detachment with manual-review markers; 0074 rewrites reconciliation supersession pointers and uniqueness; 0075 creates durable payment-proof upload-intent state.
+- The 0070 edit is source-only. No migration runner, dry-run, SQL execution, staging/shared DB write, grant/default-ACL change, RLS change, deployment or worker activation occurred. No tests/typecheck/formatter/build/CI were run.
+
+**Next:** assemble the G-002 bounded migration manifest with explicit 0070 canonical disposition, single 0071 ownership, and validation/rollback evidence for 0072–0075. Do not apply any migration until the separately required database-access and deployment approvals are satisfied.
