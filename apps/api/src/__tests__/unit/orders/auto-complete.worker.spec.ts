@@ -5,13 +5,30 @@ import { AutoCompleteWorker } from '../../../modules/orders/auto-complete.worker
 describe('AutoCompleteWorker durable claims', () => {
   it('claims one order with a persisted lease and passes its owner to the fenced completion path', async () => {
     const order = { id: 'order-1', status: 'DELIVERED' };
-    const execute = vi
-      .fn()
-      .mockResolvedValueOnce({ rows: [order] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
-    const completeOrder = vi.fn().mockResolvedValue(order);
-    const worker = new AutoCompleteWorker({ db: { execute } } as any, { completeOrder } as any);
+    let actorDepth = 0;
+    const withActorContext = vi.fn(
+      async (_context: unknown, operation: () => Promise<unknown>) => {
+        actorDepth += 1;
+        try {
+          return await operation();
+        } finally {
+          actorDepth -= 1;
+        }
+      },
+    );
+    const results = [{ rows: [order] }, { rows: [] }, { rows: [] }];
+    const execute = vi.fn(async () => {
+      expect(actorDepth).toBeGreaterThan(0);
+      return results.shift() ?? { rows: [] };
+    });
+    const completeOrder = vi.fn(async () => {
+      expect(actorDepth).toBeGreaterThan(0);
+      return order;
+    });
+    const worker = new AutoCompleteWorker(
+      { db: { execute }, withActorContext } as any,
+      { completeOrder } as any,
+    );
 
     await (worker as any).poll();
 
@@ -24,6 +41,10 @@ describe('AutoCompleteWorker durable claims', () => {
       'AUTO_COMPLETION',
     ]);
     expect(owner).toMatch(/^auto-complete-/);
+    expect(withActorContext).toHaveBeenCalledTimes(3);
+    for (const [context] of withActorContext.mock.calls) {
+      expect(context).toMatchObject({ actorKind: 'worker', workerId: owner });
+    }
 
     const claimQuery = new PgDialect().sqlToQuery(execute.mock.calls[0]![0]);
     expect(claimQuery.sql).toContain('FOR UPDATE SKIP LOCKED');
@@ -32,15 +53,32 @@ describe('AutoCompleteWorker durable claims', () => {
     expect(claimQuery.params).toContain(owner);
   });
 
-  it('releases only its own claim after a failed completion attempt', async () => {
+  it('releases only its own claim after a failed completion attempt within the worker actor scope', async () => {
     const order = { id: 'order-2', status: 'DELIVERED' };
-    const execute = vi
-      .fn()
-      .mockResolvedValueOnce({ rows: [order] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
-    const completeOrder = vi.fn().mockRejectedValue(new Error('temporary failure'));
-    const worker = new AutoCompleteWorker({ db: { execute } } as any, { completeOrder } as any);
+    let actorDepth = 0;
+    const withActorContext = vi.fn(
+      async (_context: unknown, operation: () => Promise<unknown>) => {
+        actorDepth += 1;
+        try {
+          return await operation();
+        } finally {
+          actorDepth -= 1;
+        }
+      },
+    );
+    const results = [{ rows: [order] }, { rows: [] }, { rows: [] }];
+    const execute = vi.fn(async () => {
+      expect(actorDepth).toBeGreaterThan(0);
+      return results.shift() ?? { rows: [] };
+    });
+    const completeOrder = vi.fn(async () => {
+      expect(actorDepth).toBeGreaterThan(0);
+      throw new Error('temporary failure');
+    });
+    const worker = new AutoCompleteWorker(
+      { db: { execute }, withActorContext } as any,
+      { completeOrder } as any,
+    );
 
     await (worker as any).poll();
 
@@ -49,5 +87,6 @@ describe('AutoCompleteWorker durable claims', () => {
     expect(releaseQuery.sql).toContain('WHERE id =');
     expect(releaseQuery.params).toContain('order-2');
     expect(releaseQuery.params).toContain(completeOrder.mock.calls[0]![4]);
+    expect(withActorContext).toHaveBeenCalledTimes(3);
   });
 });
