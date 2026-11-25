@@ -64,7 +64,6 @@ function createService(mocks: ReturnType<typeof createMocks>) {
 }
 
 const USER_ID = 'user-1';
-const ACTOR = { role: 'MERCHANT_OWNER', activeOrg: null };
 
 describe('IdentityService — N+1 elimination (P2)', () => {
   let service: IdentityService;
@@ -291,7 +290,7 @@ describe('IdentityService — N+1 elimination (P2)', () => {
 
       mocks.db.query.organizations.findFirst.mockResolvedValue({ id: 'org-1', isActive: true });
       mocks.db.query.organizations.findMany.mockResolvedValue([{ id: 'org-1', isActive: true }]);
-      await service.switchOrg(USER_ID, 'org-1', ACTOR);
+      await service.switchOrg(USER_ID, 'org-1');
 
       // Permissions resolved with a single batched findMany, never per-row findFirst.
       expect(mocks.db.query.permissions.findMany).toHaveBeenCalledTimes(1);
@@ -324,7 +323,7 @@ describe('IdentityService — N+1 elimination (P2)', () => {
 
       mocks.db.query.organizations.findFirst.mockResolvedValue({ id: 'org-1', isActive: true });
       mocks.db.query.organizations.findMany.mockResolvedValue([{ id: 'org-1', isActive: true }]);
-      await service.switchOrg(USER_ID, 'org-1', ACTOR);
+      await service.switchOrg(USER_ID, 'org-1');
 
       expect(mocks.db.query.permissions.findMany).not.toHaveBeenCalled();
       expect(mocks.mockJwt.sign.mock.calls[0][0].perms).toEqual([]);
