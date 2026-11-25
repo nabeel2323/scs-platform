@@ -42,3 +42,36 @@ This is a focused source/schema review of high-risk shipping, payment, returns a
 ## Non-actions
 
 No tests, lint, typecheck, build, migration, SQL execution, live database/catalog inspection, staging/shared DB write, grant/default-ACL change, RLS change, provider/storage call, worker activation, deployment or merge occurred. Findings are static source evidence only.
+
+
+## 26 November 2026 — migration and financial lineage source-review addendum
+
+This pass inspected migrations 0054, 0058, 0059, 0061 and 0070–0075, plus the corresponding return, settlement-adjustment, commission-reversal and carrier-webhook routing service paths. This is static source evidence only; no SQL was executed and no tests were run.
+
+### Confirmed schema relationships and service checks
+
+- **0054 store membership:** `store_members` has independent FKs to `stores` and `users`, with unique `(store_id,user_id)`; it does not encode that the user is an organization member of the store's organization. The migration backfills from store-created outbox events, then falls back to the earliest ACTIVE `MERCHANT_OWNER` in the store organization; stores without a candidate remain unassigned. Membership grant/update paths must keep verifying both store organization and user membership/authority.
+- **0058 payments/refunds/settlements:** `refunds.payment_record_id` and `refunds.order_id` are independent FKs. `settlement_records.sub_order_id`, `payment_record_id` and `merchant_store_id` are three independent FKs. No composite FK proves payment.order_id=sub_order_id or order.store_id=merchant_store_id. These require explicit service checks and a data-profiled decision before any composite constraint is considered.
+- **0059 returns:** `return_requests.sub_order_id` and `payment_record_id` are independent FKs. `return_request_items.return_request_id` and `order_item_id` are also independent; the schema does not prove the item belongs to the return's sub-order. Return creation currently loads order items by the selected sub-order and rejects a submitted item ID outside that set. Refund creation and finalization revalidate payment/order/return/refund lineage under transaction locks. Continue auditing every transition and any internal caller, not just creation/finalization.
+- **0061 financial correctness:** commission reversals, settlement adjustments and reconciliation records add further independent links (return/refund/settlement/order/payment/store). Reviewed service paths derive organization from order→store, verify return→sub-order, and at posting verify settlement store and payment order against the adjustment sub-order. Preserve those checks; schema FKs alone do not establish lineage.
+- **0071 auto-completion:** adds durable claim owner/time columns and a claimable index. Retain one canonical migration with PR #154 and validate claim, expiry, reclaim and stale-owner fencing in PostgreSQL before rollout.
+- **0075 upload intents:** the new table links only to payment_records (plus a globally unique storage key); it has no direct organization/store FK. Payment→order→store→org is authoritative. Before storage I/O and cleanup, verify payment ownership and prove no payment references the exact object key; retain lease fencing and failure recovery.
+
+### New review blockers / questions — not yet confirmed defects
+
+1. **0070 default ACL scope:** existing-object revokes cover `anon` and `authenticated` tables/sequences, while default-ACL revocation is created only for `current_user` (the migration executor). It does not alter `PUBLIC`, `service_role`, or default ACLs belonging to other roles that may create public objects. Before treating G-002 as closed, inventory every object-creating role/default ACL and confirm the actual migration executor matches the intended owner/creator set. Do not broaden the migration without role-by-role evidence and a rollback plan.
+2. **0072 unresolved historical webhook links:** credential backfill is only performed when `provider_key` identifies exactly one credential. Revalidation/detachment updates require a non-NULL credential_id, so ambiguous/no-match legacy events can retain an existing shipment_id while credential_id remains NULL. This may be acceptable only if all replay/worker/administrative paths refuse to trust such a legacy association without authenticated credential context. Trace every consumer and decide whether a separately reviewed detach/manual-reconciliation step is required.
+3. **0074 reconciliation history rewrite:** the migration reverses legacy backward pointers and then creates a unique index on period/currency/version/org (NULLS NOT DISTINCT). Static review does not establish that predecessor/successor links always share period, currency and org, that histories are acyclic, or that existing duplicate versions are absent. Add isolated preflight fixtures/queries for cross-scope links, cycles, duplicate versions and NULL/global scope before migration approval; preserve a recovery snapshot because the rewrite is forward-only.
+4. **Cross-column constraints:** refunds, returns, return items, settlements, reversals and adjustments contain independent parent FKs. Current service checks are valuable but do not prove all direct/internal call paths. Complete the callsite matrix before deciding whether composite FKs are practical; any new constraint requires an existing-data profile and repair/rollback plan.
+
+### Carrier webhook routing source review
+
+The runtime router checks the authenticated credential's provider against the event provider, obtains store IDs for the credential organization, then resolves shipment references only within those stores and returns AMBIGUOUS for multiple matches. The 0072 migration's nullable credential_id history case remains open as described above. This review did not exercise the controller, persistence path or worker against PostgreSQL.
+
+### Remaining migration inventory
+
+The repository tree contains 75 numbered SQL migrations (0001–0075). This pass is a focused review of the financial/membership and latest G-002 migrations, not a completed line-by-line audit of all 75. Remaining migration-by-migration review must cover identity/auth, organization/merchant, catalog/product/offer, inventory/warehouse, cart/order, shipping, notification/outbox, and import/governance constraints; reconcile SQL-created constraints with Drizzle schema and service predicates. Do not report the full 75-file audit complete.
+
+### Non-actions
+
+No migration execution, SQL/catalog access, staging/shared database write, grant/default-ACL change, RLS change, storage/provider call, worker activation, deployment, merge, test, lint, typecheck, build or CI occurred in this pass.
