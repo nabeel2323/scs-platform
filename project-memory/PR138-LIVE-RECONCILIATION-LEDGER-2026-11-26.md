@@ -97,3 +97,16 @@ Commits on `remediation/phase-0-1-tenant-security`:
 ## Outbox canonicalization finding
 
 PR #153 head `5294698d8db78e21df972e8ce6213f21237789fa` uses the safer current behavior: it disables the generic placeholder poller and leaves events PENDING because no generic delivery adapter exists. Its test explicitly asserts that no timer/poller starts and that writes remain PENDING. Therefore, do not extract PR #138's log-only poller/worker-claim loop as the canonical generic outbox implementation. Retain the worker actor-context design as a future integration requirement for a real adapter, and reconcile it with PR #153 and carrier-worker ownership before enabling any polling. PR #154 remains the separate auto-completion lease workstream.
+
+
+## Order-completion worker dependency review — 26 November 2026
+
+Inspected the current #154 head `e421e21b1e66386a9d0c259fb83c99f1a05272cb` and #138 source.
+
+- #154's `AutoCompleteWorker` claims and releases rows using `this.db.db.execute` directly and does not establish a DatabaseService worker actor context. The #138 version wraps claim, completion processing and release in `withActorContext({ actorKind: 'worker', workerId })`.
+- #154's updated `OrdersService.completeOrder` adds the required claim-owner argument, five-minute lease-expiry fencing, and a single transaction for order/shipment/history/outbox/master-order changes. Preserve those improvements.
+- The safe canonical composition is therefore **#154's atomic completion/service implementation plus #138's worker actor-context boundary**, after the DatabaseService actor-context foundation is integrated. Do not integrate #154 worker/service ahead of the actor-context foundation or assume the focused PR alone is RLS-ready.
+- Both #138 and #154 migration 0071 have the same DDL: two claim columns and the partial claimable-order index. Their differences are comments only. Keep one canonical migration file and one migration-ledger entry; do not apply twice or renumber.
+- #154 exact-head workflow lookup returned no run. Its latest source/tests remain NOT CI-VERIFIED at the inspected SHA. The PostgreSQL lease concurrency tests need to be included in the consolidated campaign after the worker/actor composition is complete.
+
+No code was changed in #154 and no migration was applied.
