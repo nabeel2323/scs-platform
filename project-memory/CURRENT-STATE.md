@@ -7,13 +7,14 @@
 
 | Item | Verified value |
 |---|---|
-| `develop` parent SHA | `fde20420bbb759d2e562f9ff747c9e824ac58e25` |
-| Latest develop CI at parent | Run #1509 — SUCCESS |
-| `main` SHA | `d3f4aefc41b37ad82f0aeb2eb78121342455eb21` |
-| Current work branch | `fix/outbox-placeholder-dispatch-safety-2026-11-25` |
-| Work branch base | `fde20420bbb759d2e562f9ff747c9e824ac58e25` |
+| `develop` baseline | `fde20420bbb759d2e562f9ff747c9e824ac58e25` |
+| Latest develop CI at baseline | Run #1509 — SUCCESS |
+| `main` | `d3f4aefc41b37ad82f0aeb2eb78121342455eb21` at last inspected check |
+| Work branch | `fix/outbox-placeholder-dispatch-safety-2026-11-25` |
+| PR | #153 — OPEN / DRAFT |
+| PR head before latest continuation | `aa5c2c3ff6054b52c3e94c8ff27779cc3693bf7d` |
 
-PR #147, #152 and #142 are merged into develop. PR #138 remains open/draft/unmerged and must not be merged wholesale. PR #143 and several focused UX/security changes remain independently reviewable drafts.
+PR #147, #152 and #142 are merged into develop. PR #138 remains open/draft/unmerged and must not be merged wholesale.
 
 ## Staging/runtime evidence
 
@@ -26,13 +27,15 @@ The latest recorded startup logs show in-process OutboxDispatcher, AutoCompleteW
 ## Current outbox status
 
 - PR #147 gives `shipping.carrier.*` events one authoritative consumer: `ShippingCarrierWorker`.
-- The generic outbox provider had only logged non-carrier events and marked them `DISPATCHED` without a real publisher.
-- The current branch removes that false-success poller while preserving transactional outbox writes as `PENDING`.
-- Generic event delivery remains **NOT IMPLEMENTED** and must not be reported as delivered.
+- The generic outbox provider had only logged non-carrier events and marked them `DISPATCHED` without a real publisher. PR #153 disables that placeholder poller; newly published non-carrier events remain `PENDING`.
+- The producer scan identifies order, shipment, return, commission, settlement-adjustment, payment, review/dispute, inventory, merchant, store-membership and catalog event families with no generic outbox consumer found. See [event ownership inventory](../docs/remediation/OUTBOX-EVENT-OWNERSHIP-INVENTORY.md).
+- Unknown event types inside the `shipping.carrier.*` prefix previously fell through the worker switch and were marked `DISPATCHED`. PR #153's follow-up now classifies them as unsupported and routes them to the existing dead-letter path.
+- Generic event delivery remains **NOT IMPLEMENTED**. The inventory is a source scan, not yet a complete reconciliation against every repository producer and persisted database event.
 
 ## Evidence limits
 
-- CI #1509 verifies the parent develop SHA only, not the current work branch.
-- The current focused test is authored but not yet executed.
+- CI #1509 verifies the develop baseline only, not PR #153.
+- The outbox regression specs are authored but not yet executed in the current environment.
+- PR #153 is still a draft and has not been merged.
 - No deployment or staging runtime verification of the current branch has occurred.
 - No staging database or Render configuration changes were made by this work.

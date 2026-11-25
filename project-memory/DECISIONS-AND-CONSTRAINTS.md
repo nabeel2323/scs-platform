@@ -37,6 +37,8 @@
 
 - Keep `ShippingCarrierWorker` the sole consumer of `shipping.carrier.*` events.
 - Never mark an outbox event `DISPATCHED` unless a real consumer/publisher has acknowledged successful delivery.
+- Unknown event types must never be treated as successful delivery. Dedicated consumers must explicitly dead-letter or quarantine unsupported types.
 - A durable claim requires an explicit lease/ownership strategy and crash/concurrency tests; `FOR UPDATE SKIP LOCKED` alone is not a durable claim after the transaction commits.
+- A generic publisher must have explicit event-type ownership, idempotency, tenant/recipient resolution, bounded redacted errors, retry/backoff and dead-letter observability before it is enabled.
 - Never use session-level tenant context on pooled database connections. Any RLS design must use transaction-local context on the same connection as all scoped queries.
 - Do not force-push or rewrite history without explicit authorization. Use expected-SHA/lease checks for ref updates.

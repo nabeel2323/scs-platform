@@ -12,26 +12,31 @@
 3. [Work log](./WORK-LOG.md)
 4. [Audit-driven remediation plan](../docs/remediation/IMPLEMENTATION-PLAN.md)
 5. [Audit-driven implementation progress](../docs/remediation/IMPLEMENTATION-PROGRESS.md)
-6. [Outbox dispatch safety checkpoint](../docs/remediation/OUTBOX-DISPATCH-SAFETY-2026-11-25.md)
+6. [Outbox dispatch safety](../docs/remediation/OUTBOX-DISPATCH-SAFETY-2026-11-25.md)
+7. [Outbox event ownership inventory](../docs/remediation/OUTBOX-EVENT-OWNERSHIP-INVENTORY.md)
 
 The detailed remediation and product gap registers on the audit branch remain historical/source evidence. Do not merge PR #138 wholesale to obtain those documents; it is intentionally a large draft branch and must be split into bounded changes.
 
 ## Verified repository baseline
 
 - `develop`: `fde20420bbb759d2e562f9ff747c9e824ac58e25` — PR #147 merge, 25 November 2026.
-- Latest develop CI: run #1509, completed **successfully** on that exact SHA.
+- Latest develop CI at that baseline: run #1509, completed **successfully** on that exact SHA.
 - `main`: `d3f4aefc41b37ad82f0aeb2eb78121342455eb21` at the last inspected repository check.
 - PR #142 (runtime database identity diagnostics), PR #152 (OTP log redaction), and PR #147 (carrier outbox ownership) are merged to develop.
 - PR #138 remains **OPEN / DRAFT / UNMERGED**. Do not merge it as a single unit.
-- Other draft PRs must be assessed individually; green CI or a mergeable flag is not release authorization.
 
 ## Current continuation
 
-A clean implementation branch, `fix/outbox-placeholder-dispatch-safety-2026-11-25`, was created from the verified develop SHA.
+PR #153, `fix(outbox): stop acknowledging events without delivery`, is an open draft against `develop`. Its branch is `fix/outbox-placeholder-dispatch-safety-2026-11-25`.
 
-The current slice removes the generic outbox poller's false-success behavior: no delivery adapter exists, so the provider now writes durable `PENDING` events and does not poll or mark them `DISPATCHED`. See the linked safety checkpoint and work log for exact scope and verification limits.
+The branch:
+- removes the generic log-only poller while preserving transactional outbox writes as `PENDING`;
+- sends unknown `shipping.carrier.*` event types through the terminal/unsupported dead-letter path rather than marking them `DISPATCHED`;
+- adds regression specs and documents the current producer-to-consumer inventory.
 
-After this slice, continue the worker/event-delivery audit. Define the supported event families and their authoritative consumers before implementing a real generic publisher. Then address the remaining worker transaction/claim boundaries and the dedicated database runtime-role/RLS design in the documented order.
+The latest PR head and verification state must be refreshed from GitHub before continuing. Tests authored in the branch have not yet been executed. CI #1509 verifies only the parent develop SHA, not PR #153.
+
+Next, complete a repository-wide producer and persisted-event reconciliation, then design a real generic publisher with explicit event ownership, durable claims/leases, idempotent acknowledgement, retries and crash-recovery tests. Review worker transaction/side-effect boundaries next. Continue dedicated DB runtime-role/TLS and transaction-local tenant-context work only under the recorded security gates.
 
 ## Important safety gates
 
@@ -43,4 +48,3 @@ After this slice, continue the worker/event-delivery audit. Define the supported
 - Do not enable RLS while the API role is a table owner or has `BYPASSRLS`; do not apply migration 0070 until its role/default-ACL assumptions are reviewed.
 - No production database has been provisioned or deployed.
 - Never expose credentials, connection strings, OTPs or customer secrets in logs or documentation.
-
