@@ -111,3 +111,12 @@ No staging SQL writes, grants, RLS changes, role changes, migrations, seeds, wor
 - main and develop remain diverged: last comparison showed 11 commits unique to develop and 4 unique to main. Release promotion remains blocked pending an explicit integration/reconciliation plan.
 - No merge, shared/staging database write, migration, grant/RLS/role/default-ACL change, Render setting change, restart, worker activation, credential rotation, deployment, or business workflow occurred.
 - CI policy reaffirmed: author and review related source/tests first; use local/targeted checks where available; batch docs with the implementation; use [skip ci] during the implementation batch; run one consolidated full CI on the resulting exact head. Never count skipped jobs as passes.
+
+
+## 25 November 2026 — consolidated verification checkpoint
+
+- The PR #154 implementation/test batch is complete for this slice. Source/test commit: `b535140b3d88711457aedd204594c2ba7e56d3a9`; it adds real PostgreSQL concurrency, expiry/reclaim and stale-owner fencing coverage for AutoCompleteWorker.
+- Project-memory and technical documentation were synchronized in the following documentation commits. The current PR head before this final checkpoint is `5ed84c5e9162160c88f92411be9786dfc42ed7cc`.
+- This final checkpoint commit intentionally does not use `[skip ci]`; it is the single consolidated trigger for the PR's full CI workflow after the implementation and documentation batch. The new tests have not been run locally in this environment.
+- Previous CI #1548 passed only on `cd1735c0cad7c36f6f6096cec6b719844c09b0d5`; it does not validate the new test source or later documentation commits. Obtain the workflow result for the resulting exact head before advancing the PR.
+- PR #154 remains OPEN / DRAFT / UNMERGED pending exact-head CI and independent review. No merge, staging database write, migration, Render change, worker activation, deployment or restart is authorized by this checkpoint.
