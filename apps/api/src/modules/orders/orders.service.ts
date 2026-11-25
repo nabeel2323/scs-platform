@@ -690,7 +690,7 @@ export class OrdersService {
         const checkoutVariantIds = [...new Set(items.map((item) => item['variantId'] as string))];
         const checkoutVariants = await tx.query.productVariants.findMany({
           where: inArray(productVariants.id, checkoutVariantIds),
-          columns: { id: true, productId: true },
+          columns: { id: true, productId: true, isActive: true },
         });
         const checkoutProductIds = [
           ...new Set(checkoutVariants.map((variant) => variant.productId)),
@@ -746,12 +746,28 @@ export class OrdersService {
         for (const item of items) {
           const variant = checkoutVariantById.get(item['variantId'] as string);
           const product = variant ? checkoutProductById.get(variant.productId) : undefined;
-          if (!variant || !product) {
+          if (
+            !variant ||
+            !variant.isActive ||
+            !product ||
+            product.deletedAt ||
+            product.status !== 'ACTIVE' ||
+            product.storeId !== item['storeId']
+          ) {
             throw new BadRequestException('A product in your cart is no longer available');
           }
           const itemOfferId = item['offerId'] as string | null;
           const offer = itemOfferId ? checkoutOfferById.get(itemOfferId) : undefined;
-          if (itemOfferId && !offer) {
+          if (
+            itemOfferId &&
+            (!offer ||
+              offer.status !== 'ACTIVE' ||
+              !offer.isAvailable ||
+              offer.storeId !== item['storeId'] ||
+              offer.storeId !== product.storeId ||
+              offer.productId !== product.id ||
+              (offer.variantId && offer.variantId !== item['variantId']))
+          ) {
             throw new BadRequestException(
               "A seller's offer for one of your items is no longer available. Please review your cart.",
             );
@@ -922,10 +938,20 @@ export class OrdersService {
         }
 
         // Mark cart as CONVERTED
-        await tx
+        const convertedCart = await tx
           .update(carts)
           .set({ status: 'CONVERTED', updatedAt: new Date() })
-          .where(eq(carts.id, cart['id']));
+          .where(
+            and(
+              eq(carts.id, cart['id']),
+              eq(carts.userId, input.buyerId),
+              eq(carts.status, 'ACTIVE'),
+            ),
+          )
+          .returning({ id: carts.id });
+        if (convertedCart.length === 0) {
+          throw new ConflictException('Cart was already converted by another checkout');
+        }
 
         // Write outbox event inside the transaction (transactional outbox pattern)
         await tx.insert(outboxEvents).values({
