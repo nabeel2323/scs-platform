@@ -118,4 +118,28 @@ describe('IdentityService active organization claims', () => {
     expect(profile.activeOrgId).toBeNull();
     expect(profile.role).toBe('BUYER');
   });
+
+  it('fails closed when an active membership organization cannot be resolved', async () => {
+    harness.db.query.users.findFirst.mockResolvedValue({
+      id: 'user-1',
+      phone: null,
+      email: 'user@example.test',
+      fullName: 'Test User',
+      locale: 'en',
+      status: 'ACTIVE',
+      createdAt: new Date('2026-01-01'),
+    });
+    harness.db.query.organizationMembers.findMany.mockResolvedValue([
+      { id: 'membership-1', orgId: 'org-missing', status: 'ACTIVE', roleId: 'role-merchant' },
+    ]);
+    harness.db.query.organizations.findMany.mockResolvedValue([]);
+    harness.db.query.roles.findFirst.mockResolvedValue({ id: 'role-buyer', key: 'BUYER' });
+    harness.db.query.rolePermissions.findMany.mockResolvedValue([]);
+
+    const profile = await harness.service.getProfile('user-1', 'org-missing');
+
+    expect(profile.activeOrgId).toBeNull();
+    expect(profile.role).toBe('BUYER');
+  });
+
 });
