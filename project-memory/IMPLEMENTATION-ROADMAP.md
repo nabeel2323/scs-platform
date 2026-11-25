@@ -23,3 +23,15 @@ No RLS/grant/migration/deployment/worker activation or business workflow is auth
 6. Complete implementation and integration before the consolidated test/CI campaign. Do not rerun Actions during implementation.
 
 The Render audit is recorded in `docs/remediation/RENDER-STAGING-READONLY-CHECK-2026-11-25.md`. OTP source changes are committed but not deployed or runtime-verified.
+
+## 25 November 2026 — updated after protected audit
+
+The protected read-only audit is complete: [workflow #45590012595](https://github.com/nabeel2323/scs-platform/actions/runs/45590012595) confirms the staging migration credential is `postgres` (BYPASSRLS, CREATEROLE, CREATEDB). It does not establish the Render API's separate runtime identity; the live API remains on `f74eb588` and the identity diagnostic on PR #138 is not deployed.
+
+Next sequence:
+1. Keep PR #138 draft/open. Review the audit output and correct the evidence record: current anon/authenticated/service_role effective DML on existing tables is zero; non-DML privileges are excessive; postgres and supabase_admin default ACLs differ.
+2. Obtain actual Render API runtime identity through a separately authorized diagnostic deployment or equivalent safe operator evidence. Do not change Render service configuration or deploy without separate authorization.
+3. Complete the API/worker/bootstrap/audit transaction-context and DB operation matrix; RLS cannot protect queries executed as postgres/table owner/BYPASSRLS, and partial context coverage risks breaking workflows.
+4. Reconcile future-object ACLs under postgres and supabase_admin. Do not alter Supabase-managed ownership or defaults without an independently reviewed, supported mechanism.
+5. Prepare a dedicated migration-only staging execution path and rollback/recovery evidence. The existing release workflow is mutating (migrate + seed + deploy) and is not an audit/dry run. Do not dispatch it for a database-only change.
+6. Only after 2–5, finalize table-specific policies and a least-privilege runtime role, then run the approved staging migration and focused runtime checks. Preserve data; no reset.

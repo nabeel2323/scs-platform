@@ -1,3 +1,19 @@
+## 25 November 2026 — continuation after protected database audit
+
+Read `docs/remediation/STAGING-ACCESS-CONTROL-OTP-WORKER-AUDIT-2026-11-25.md`, `docs/remediation/RENDER-STAGING-READONLY-CHECK-2026-11-25.md`, and `docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md` before any access-control or database change.
+
+Latest branch head: `2e7ac31011eac303c45acadec4d839d02f63f2ec`; PR #138 remains OPEN / DRAFT / UNMERGED to `develop`. Protected read-only audit run [#45590012595](https://github.com/nabeel2323/scs-platform/actions/runs/45590012595) succeeded on this exact SHA at 10:01 UTC. It used `STAGING_DATABASE_URL`, which is also the migration credential consumed by the release workflow. The observed migration/audit identity is login/effective role `postgres`, PostgreSQL 17.6, non-superuser but BYPASSRLS, CREATEROLE and CREATEDB. This confirms the staging migration credential identity; it does **not** prove the Render API's separate `DATABASE_URL` identity.
+
+Live database facts rechecked after the workflow: 114 public table/partition relations (113 ordinary + 1 partitioned), plus one sequence; all public relations are owned by postgres; 0 RLS-enabled tables and 0 policies. Effective table privileges for anon/authenticated/service_role are SELECT/INSERT/UPDATE/DELETE = 0 on all 114, but TRUNCATE/MAINTAIN/REFERENCES/TRIGGER = 114 each. The postgres default ACL repeats these non-DML grants. The supabase_admin default ACL grants full DML and other privileges to API roles for objects created under that owner. Do not describe the existing relations as directly DML-exposed to anon/authenticated: direct catalog privilege checks do not support that claim. The excessive privileges/defaults and absence of RLS remain remediation items.
+
+The live `public._migration_log` contains 69 migrations through `0069_organization_onboarding_permission.sql`; branch migrations 0070–0075 remain unapplied. Render's live API remains on `develop` SHA `f74eb588`, auto-deploy off, one instance. The API source branch already contains a non-secret startup identity diagnostic, but it is not deployed and no runtime identity log exists. Therefore the actual API role remains unknown.
+
+User authorizes staging-database-only schema, privilege, default-ACL, RLS, migration and controlled fixture changes; no production database exists. This does not authorize Render service/environment changes, restart/deploy, worker activation, business workflows, production provisioning, or bypassing the protected staging approval. Do not apply migration 0070 or enable RLS yet: the API runtime identity and full non-owner transaction-context coverage remain unverified, and the proposed release workflow also seeds and deploys (it is not a migration-only dry run). Preserve existing data.
+
+Next: obtain actual API runtime identity through a separately authorized deployment/diagnostic path; complete DB operation-to-context coverage and least-privilege role/policy design; reconcile postgres and supabase_admin default-ACL ownership; prepare a migration-only, rollback-reviewed staging execution path. Do not dispatch release.yml or change the database ad hoc.
+
+---
+
 ## 25 November 2026 — current continuation checkpoint
 
 Read `docs/remediation/STAGING-ACCESS-CONTROL-OTP-WORKER-AUDIT-2026-11-25.md` and `docs/remediation/RENDER-STAGING-READONLY-CHECK-2026-11-25.md` before database or worker changes.
