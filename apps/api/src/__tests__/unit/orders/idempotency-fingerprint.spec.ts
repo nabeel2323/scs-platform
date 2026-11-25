@@ -58,7 +58,7 @@ const mockProduct = { id: 'prod-001', storeId: null, status: 'ACTIVE', deletedAt
 function createMocks(
   existingMaster?: any,
   cartItemsOverride?: any[],
-  overrides: { product?: any; offer?: any } = {},
+  overrides: { product?: any; offer?: any; cartUpdateRows?: any[] } = {},
 ) {
   const resolvedProduct = { ...mockProduct, ...overrides.product };
   const resolvedOffer = {
@@ -79,7 +79,7 @@ function createMocks(
     ...overrides.offer,
   };
   const insertValues = vi.fn().mockResolvedValue(undefined);
-  const updateReturning = vi.fn().mockResolvedValue([{ id: CART_ID }]);
+  const updateReturning = vi.fn().mockResolvedValue(overrides.cartUpdateRows ?? [{ id: CART_ID }]);
   const updateWhere = vi.fn().mockReturnValue({ returning: updateReturning });
   const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
   const resolvedCartItems = cartItemsOverride ?? [...mockCartItems];
@@ -146,7 +146,7 @@ function createMocks(
     redeemPromotion: vi.fn().mockResolvedValue({ redemptionId: 'r-1', discountMinor: 0 }),
   } as any;
 
-  return { db, mockDbService, mockOutbox, mockPromotions, insertValues };
+  return { db, mockDbService, mockOutbox, mockPromotions, insertValues, updateWhere, updateReturning };
 }
 
 function createService(mocks: ReturnType<typeof createMocks>) {
@@ -219,6 +219,38 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
     }, BUYER_ACTOR);
 
     expect(result.id).toBe('new-master');
+  });
+
+  it('rejects checkout when the selected offer belongs to a different product store', async () => {
+    const mocks = createMocks(undefined, undefined, {
+      product: { storeId: 'another-store' },
+    });
+    mocks.db.query.masterOrders.findFirst.mockResolvedValue(undefined);
+
+    const service = createService(mocks);
+    await expect(
+      service.checkout({
+        buyerId: BUYER_ID,
+        deliveryAddress: { city: 'Riyadh' },
+        idempotencyKey: 'wrong-store-offer',
+      }, BUYER_ACTOR),
+    ).rejects.toThrow('A product in your cart is no longer available');
+  });
+
+  it('rejects a concurrent cart conversion when the active-cart CAS affects no row', async () => {
+    const mocks = createMocks(undefined, undefined, { cartUpdateRows: [] });
+    mocks.db.query.masterOrders.findFirst.mockResolvedValue(undefined);
+
+    const service = createService(mocks);
+    await expect(
+      service.checkout({
+        buyerId: BUYER_ID,
+        deliveryAddress: { city: 'Riyadh' },
+        idempotencyKey: 'concurrent-cart-conversion',
+      }, BUYER_ACTOR),
+    ).rejects.toThrow('Cart was already converted by another checkout');
+
+    expect(mocks.updateReturning).toHaveBeenCalledOnce();
   });
 
   // -- Test 2: Same key, same request -> existing order --
