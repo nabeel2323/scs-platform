@@ -120,3 +120,11 @@ No staging SQL writes, grants, RLS changes, role changes, migrations, seeds, wor
 - This final checkpoint commit intentionally does not use `[skip ci]`; it is the single consolidated trigger for the PR's full CI workflow after the implementation and documentation batch. The new tests have not been run locally in this environment.
 - Previous CI #1548 passed only on `cd1735c0cad7c36f6f6096cec6b719844c09b0d5`; it does not validate the new test source or later documentation commits. Obtain the workflow result for the resulting exact head before advancing the PR.
 - PR #154 remains OPEN / DRAFT / UNMERGED pending exact-head CI and independent review. No merge, staging database write, migration, Render change, worker activation, deployment or restart is authorized by this checkpoint.
+
+
+## 25 November 2026 — consolidated PR #154 CI result
+
+- Exact code/test head `e4a5901102e474c3bdce63ca16431ad20f36a317` passed workflow run `45700713258`. Required jobs all succeeded: Lint & Typecheck; Mobile analyze/tests; Integration Tests (including the new real-PostgreSQL worker-claim and expired-lease/stale-owner tests); Migration Full Apply; Web & Admin tests; Unit Tests + Coverage Gates; Boundary Lint (E6); Contract Spec & Codegen; Build; Container Build & Smoke Test.
+- k6 Smoke Test and Trigger Staging Release were skipped by workflow design. This is not a staging deployment or load-test pass.
+- The source/test batch includes commit `b535140b3d88711457aedd204594c2ba7e56d3a9`; documentation-only commits followed. The full CI run validates the exact source/test head and the combined PR tree at `e4a590...`.
+- PR #154 remains OPEN / DRAFT / UNMERGED. Independent review is still required. Do not merge or mark release-ready based on CI alone. No staging DB, Render, worker, deployment or business workflow action occurred.
