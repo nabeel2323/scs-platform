@@ -1,3 +1,8 @@
+## 26 November 2026 — final small test-fixture correction
+
+- Updated the operator actor-context unit test to use optional access when reading the first mock call, avoiding a possible strict TypeScript indexed-access warning. Commit: `55b88e6d4f410b93b568ae343e842cd27babd14d`.
+- This remains source/test authoring only; no test, typecheck, formatter or CI was run.
+
 ## 26 November 2026 — latest continuation checkpoint
 
 - PR #138 remains OPEN / DRAFT / UNMERGED, base `develop`, mergeable=false. Exact current source head: `c0c1ba1828af940ad360b198f4c1bbd23298b98f` before this checkpoint documentation batch.
