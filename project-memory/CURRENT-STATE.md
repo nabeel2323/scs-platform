@@ -287,3 +287,14 @@ Reviewed migration source for 0001–0006 and 0008–0011. The FK crosswalk now 
 ## G-002 commerce service spot-check — 26 November 2026
 
 Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller paths found several positive ownership checks (category scope, variant↔warehouse store, variant↔price-list store, server-derived cart store/offer scope, checkout actor context). Remaining review is required for caller-optional inventory methods and internal callers, pricing methods relying on controller gates, cart ID helper exposure, checkout revalidation, and catalog update/import/media/category-parent paths. G-002 remains IN PROGRESS. No tests, CI, DB operations, migrations, grants/RLS, deployment or merge occurred. Details are in the FK ownership crosswalk.
+
+
+## Current checkpoint — 26 November 2026
+
+- PR #138: OPEN / DRAFT / UNMERGED; head `98694426f87ec3142042bbad221819968bdd5160`; 1,940 changed files; mergeable=false.
+- `develop`: `fde20420bbb759d2e562f9ff747c9e824ac58e25`; source is 2,874 commits ahead / 3 behind; merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
+- Preservation ref `preservation/pr138-remediation-2026-11-25` is identical to source head using non-force expected-SHA updates.
+- Exact-head GitHub Actions: no runs. Combined statuses: Vercel Web/Admin build-rate-limit failures only. No current CI verification.
+- Static migration-reference inventory covers all 75 numbered migrations (183 explicit REFERENCES across 40 files). Service-level cross-column and raw SQL/trigger/partition consumer audit remains in progress.
+- Newly reviewed concerns: analytics global event-count query must be platform-only or tenant-scoped; promotions redemption should verify order buyer/store against promotion; 0013/0018 partition retention and 0053 backfill need data/rollback preflight before migration approval.
+- No tests, CI, database/catalog access, migration, grants/default-ACL/RLS change, provider/storage action, worker activation, bootstrap, deployment or merge occurred.
