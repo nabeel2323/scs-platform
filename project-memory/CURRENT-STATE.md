@@ -357,3 +357,12 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - PR #158 is stacked on PR #157 at 2e57a2deed1efb5c02de05d23b7ec10b668271c0 and adds only IdentityService plus two focused test files for active organization membership and active organization claim/profile checks. No exact-head Actions run exists.
 - All newly authored promotion/catalog-import tests remain unexecuted. No database/catalog writes, migrations, grant/default-ACL/RLS changes, staging mutation, storage/provider calls, worker activation, bootstrap, deployment or merge occurred.
 - Next: complete source review of PR #157/#158 and their dependency relationship, inspect #157's active CI run, continue the FK ownership and raw SQL/function/trigger/partition audit, then prepare the next bounded application-adoption slice from refreshed develop. Keep worker/webhook and operator/migration slices separate; do not merge PR #138 wholesale.
+
+
+## 26 November 2026 — PR #158 fail-closed profile follow-up
+
+- PR #158 now uses an explicit positive predicate for profile projection: membership status must be ACTIVE and the referenced organization row must resolve with isActive === true. Added a missing/unresolved organization regression test.
+- Exact PR #158 head: 2c294ac7f00e6c87fc741d59a709123dae6eb91b; branch integration/g002-identity-membership-claims; base integration/g002-actor-context-foundation at 77145bc6262aba99cf7fdbd45139382bebc44fa7. PR is OPEN / DRAFT / UNMERGED, mergeable=true, 3 changed files, 7 commits including the stack. No exact-head Actions run; tests remain NOT RUN.
+- PR #157 exact head 77145bc6262aba99cf7fdbd45139382bebc44fa7; OPEN / DRAFT / UNMERGED, mergeable=true, 19 changed files. CI run #1554: five jobs passed (lint/typecheck/format, Flutter, Web/Admin, E6 boundary lint, migration full apply); API integration and API unit/coverage were still running at last check. Previous run #1553 was cancelled and is not a full pass.
+- PR #138 exact head at the start of this note: 285b38c8d02ad7cb94e42d1ee44074a775ae444c; OPEN / DRAFT / UNMERGED, mergeable=false, 1,942 changed files. Preservation branch was verified identical. Continue expected-SHA fast-forwards only.
+- No new tests were run locally or in CI for PR #138 or #158. No DB write, migration, RLS/grant change, staging mutation, provider/storage action, worker activation, bootstrap, deployment or merge occurred.
