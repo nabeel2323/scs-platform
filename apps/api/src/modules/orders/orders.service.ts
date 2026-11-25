@@ -1036,27 +1036,30 @@ export class OrdersService {
     orderId: string,
     buyerId: string,
     storeId: string,
+    actor: CallerContext,
   ) {
-    await this.db.db
-      .update(orders)
-      .set({ status: 'PENDING_CONFIRMATION', updatedAt: new Date() })
-      .where(eq(orders.id, orderId));
+    await this.withUserActorContext(actor, async () => {
+      await this.db.db
+        .update(orders)
+        .set({ status: 'PENDING_CONFIRMATION', updatedAt: new Date() })
+        .where(and(eq(orders.id, orderId), eq(orders.buyerId, buyerId)));
 
-    await this.recordStatusChange(
-      orderId,
-      'SUBMITTED',
-      'PENDING_CONFIRMATION',
-      buyerId,
-      'SYSTEM',
-      'Auto-advance: merchant notified, SLA timer started',
-    );
+      await this.recordStatusChange(
+        orderId,
+        'SUBMITTED',
+        'PENDING_CONFIRMATION',
+        buyerId,
+        'SYSTEM',
+        'Auto-advance: merchant notified, SLA timer started',
+      );
 
-    // Publish outbox event — merchant notification + SLA timer
-    await this.outbox.publish('order.pending_confirmation', orderId, {
-      orderId,
-      storeId,
-      buyerId,
-      slaDeadlineMinutes: 15, // 15-min SLA for merchant to respond
+      // Publish outbox event — merchant notification + SLA timer
+      await this.outbox.publish('order.pending_confirmation', orderId, {
+        orderId,
+        storeId,
+        buyerId,
+        slaDeadlineMinutes: 15,
+      });
     });
   }
 
@@ -1072,40 +1075,66 @@ export class OrdersService {
     masterOrderId: string,
     subOrders: { id: string; storeId: string; itemCount: number }[],
     orgIdByStore: Map<string, string>,
+    actor: CallerContext,
   ) {
     if (!this.notifications) return;
-    // Guard: isolated test mocks may not wire the full relational query surface.
-    if (!this.db.db.query?.organizationMembers) return;
+
+    // Read recipients in a short caller actor scope; notification delivery is
+    // external work and must happen after the database transaction has closed.
     try {
-      const membersByOrg = new Map<string, string[]>();
-      for (const s of subOrders) {
-        const orgId = orgIdByStore.get(s.storeId);
-        if (!orgId) continue;
-        let userIds = membersByOrg.get(orgId);
-        if (!userIds) {
-          const members = await this.db.db.query.organizationMembers.findMany({
-            where: and(
-              eq(organizationMembers.orgId, orgId),
-              eq(organizationMembers.status, 'ACTIVE'),
-            ),
-            columns: { userId: true },
-          });
-          userIds = members.map((m) => m['userId']);
-          membersByOrg.set(orgId, userIds);
+      const targets = await this.withUserActorContext(actor, async () => {
+        if (!this.db.db.query?.organizationMembers) return [];
+        const membersByOrg = new Map<string, string[]>();
+        const result: Array<{
+          userId: string;
+          orderId: string;
+          storeId: string;
+          itemCount: number;
+        }> = [];
+        for (const subOrder of subOrders) {
+          const orgId = orgIdByStore.get(subOrder.storeId);
+          if (!orgId) continue;
+          let userIds = membersByOrg.get(orgId);
+          if (!userIds) {
+            const members = await this.db.db.query.organizationMembers.findMany({
+              where: and(
+                eq(organizationMembers.orgId, orgId),
+                eq(organizationMembers.status, 'ACTIVE'),
+              ),
+              columns: { userId: true },
+            });
+            userIds = members.map((member) => member['userId']);
+            membersByOrg.set(orgId, userIds);
+          }
+          for (const userId of userIds) {
+            result.push({
+              userId,
+              orderId: subOrder.id,
+              storeId: subOrder.storeId,
+              itemCount: subOrder.itemCount,
+            });
+          }
         }
-        for (const userId of userIds) {
-          await this.notifications.send(userId, 'order.submitted', {
-            orderId: s.id,
-            storeId: s.storeId,
+        return result;
+      });
+
+      for (const target of targets) {
+        try {
+          await this.notifications.send(target.userId, 'order.submitted', {
+            orderId: target.orderId,
+            storeId: target.storeId,
             masterOrderId,
-            itemCount: s.itemCount,
+            itemCount: target.itemCount,
           });
+        } catch (error) {
+          this.logger.warn(
+            `Order notification delivery failed for ${target.userId}: ${(error as Error)?.message}`,
+          );
         }
       }
     } catch (err) {
-      console.warn(
-        '[Orders] new-order merchant notification fan-out failed (non-fatal):',
-        (err as Error)?.message,
+      this.logger.warn(
+        `[Orders] new-order merchant notification fan-out failed (non-fatal): ${(err as Error)?.message}`,
       );
     }
   }
