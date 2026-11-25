@@ -44,3 +44,11 @@
 6. Keep #138 as a source of individually reviewed changes only.
 7. Complete repository-wide outbox producer/persisted-event reconciliation before designing generic delivery.
 8. Continue G-002 dedicated API role/TLS and transaction-local tenant context design only under recorded security gates.
+
+### Exact-head CI and buyer-confirmation race follow-up — 25 November 2026
+
+- CI run #1533 passed on exact PR #154 head `d496b0616c9a0cdde2bd891ca47167d9b9dfbabc`. Successful substantive jobs: mobile analysis/tests, lint/typecheck/format, web/admin tests, boundary lint, migration full apply, API unit/coverage, API integration, build, container build/smoke, and contract/codegen. k6 smoke and staging release were skipped; Vercel previews remain blocked by provider daily build-rate limit.
+- Independent code review after CI identified a buyer-confirmation race: auto-completion could win after the endpoint's initial DELIVERED read, causing the buyer request to receive ConflictException rather than the documented idempotent success.
+- Updated `confirmDelivery()` to re-read the order after a completion conflict and return the completed order with items only when the competing transition has reached COMPLETED; all other conflicts still propagate.
+- Added a regression test for the competing auto-completion winner. Commits: `978a7b978e32e77b0a9b1752da60a7066f427fab` (service) and `9efc30a7a3c0f841890a1d0bae839590cf58f8f3` (test). Latest head requires a fresh exact-head CI run; #1533 does not validate these later commits.
+- PR #154 remains open/draft. No independent review submission/inline review thread is recorded. No merge, database operation, migration, Render change, worker activation, deployment, restart or business workflow was performed.
