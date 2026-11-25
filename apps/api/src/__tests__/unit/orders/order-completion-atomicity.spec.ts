@@ -30,7 +30,9 @@ function makeService(options?: { failShipmentEvent?: boolean; loseCompletionRace
           return builder;
         }),
         where: vi.fn(() => builder),
-        returning: vi.fn().mockResolvedValue(options?.loseCompletionRace && updateValues.length === 1 ? [] : [{ id: order.id }]),
+        returning: vi.fn(() => Promise.resolve(
+          options?.loseCompletionRace && updateValues.length === 1 ? [] : [{ id: order.id }],
+        )),
       };
       return builder;
     }),

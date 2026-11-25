@@ -367,8 +367,14 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
   describe('Idempotency', () => {
     it('IDE-M73A-01: Confirm after auto-complete returns success', async () => {
       const orderId = await createDeliveredOrder(buyerA, merchantA, storeA, variantA, offerA);
-      // Auto-complete first
-      await ordersService.completeOrder(orderId, 'system', 'SYSTEM', 'AUTO_COMPLETION');
+      // Simulate the durable claim made by AutoCompleteWorker before invoking
+      // the canonical completion transition.
+      const workerId = `integration-worker-${randomUUID()}`;
+      await pool.query(
+        `UPDATE orders SET auto_complete_claimed_at = NOW(), auto_complete_claimed_by = $2 WHERE id = $1`,
+        [orderId, workerId],
+      );
+      await ordersService.completeOrder(orderId, 'system', 'SYSTEM', 'AUTO_COMPLETION', workerId);
       const status1 = (await pool.query(`SELECT status FROM orders WHERE id = $1`, [orderId])).rows[0].status;
       expect(status1).toBe('COMPLETED');
       // Buyer confirms after — should be idempotent (returns success, order stays COMPLETED)
@@ -388,7 +394,7 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
       expect(status1).toBe('COMPLETED');
       // Auto-complete after — should fail (order is COMPLETED, not DELIVERED)
       await expect(
-        ordersService.completeOrder(orderId, 'system', 'SYSTEM', 'AUTO_COMPLETION'),
+        ordersService.completeOrder(orderId, 'system', 'SYSTEM', 'AUTO_COMPLETION', 'stale-worker'),
       ).rejects.toThrow();
     });
 
