@@ -11,6 +11,12 @@ describe('operator database actor context', () => {
       expect.stringContaining("set_config('app.actor_kind', $2, true)"),
       ['seed-cli:unit-test', 'system'],
     );
+    const [statement] = client.query.mock.calls[0];
+    expect(statement).toContain("set_config('app.actor_id', $1, true)");
+    expect(statement).toContain("set_config('app.actor_role', '', true)");
+    expect(statement).toContain("set_config('app.active_org_id', '', true)");
+    expect(statement).toContain("set_config('app.worker_id', '', true)");
+    expect(statement).toContain("set_config('app.auth_operation', '', true)");
   });
 
   it('rejects a blank operator identity before issuing SQL', async () => {
