@@ -365,3 +365,15 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 ## Final live checkpoint — 26 November 2026
 
 PR #138 is OPEN / DRAFT / UNMERGED at `e410bf44b272eafb8e762636b66877f9e0c4b230`, base develop, mergeable=false. Preservation branch is identical (0/0). PR changed paths: 1,940 total (1,280 scratch; 660 non-scratch; not all non-scratch belong to G-002). Develop is `fde20420bbb759d2e562f9ff747c9e824ac58e25`; branch is diverged 2,852 ahead / 3 behind from `f74eb588cc58fc99b105e749d39dbfbacb4f9775`. Exact-head Actions has no runs; only Vercel Web/Admin build-rate-limit failures are reported. All newly authored worker tests remain unexecuted. Next: finish full migration/FK and raw SQL/function/trigger/partition inventory, refresh develop, create bounded integration PRs from the manifest, then one consolidated CI campaign.
+
+
+## 26 November 2026 — G-002 migration lineage review
+
+- Re-verified PR #138 head `a56a6bbe70ea5ed03f40a4278072dd81b1df556c`, `develop` `fde20420bbb759d2e562f9ff747c9e824ac58e25`, and preservation branch equality. PR remains OPEN / DRAFT / UNMERGED; exact-head Actions has no runs. No tests or CI were run.
+- Continued the G-002 source audit across migrations 0054, 0058, 0059, 0061 and 0070–0075, plus return, settlement-adjustment, commission-reversal and carrier-webhook routing services. Detailed evidence and open questions are in `docs/remediation/G-002-FK-OWNERSHIP-CROSSWALK-2026-11-26.md`.
+- New review items: 0070 default ACLs are revoked only for the migration executor, so all object-creating roles must be inventoried; 0072 can leave legacy webhook rows with NULL credential_id but a retained shipment_id, so every consumer must refuse unauthenticated legacy association; 0074's forward-only reconciliation pointer rewrite needs cross-scope/cycle/duplicate-version preflight evidence.
+- Confirmed independent FK relationships remain important for refunds, returns, return items, settlements, reversals and adjustments. Reviewed service paths contain several lineage checks, but internal/direct callsite coverage is not complete.
+- Repository tree contains 75 numbered SQL migrations (0001–0075). This is a focused subset review, not a complete 75-file audit. Continue identity/auth, org/merchant, catalog, inventory, cart/order, shipping, outbox/notification and governance migrations.
+- No DB/catalog access, SQL execution, migration, grants/default ACL, RLS, staging/shared DB write, provider/storage call, worker activation, deployment, merge or CI occurred. No test/typecheck/lint/build result is claimed.
+
+**Next:** finish migration and callsite coverage, resolve the three migration review questions with isolated evidence, then refresh develop and construct the bounded file-level extraction ledger. Keep the single consolidated CI campaign deferred until integration is assembled.
