@@ -36,6 +36,8 @@ The branch:
 
 The latest PR head and verification state must be refreshed from GitHub before continuing. Tests authored in the branch have not yet been executed. CI #1509 verifies only the parent develop SHA, not PR #153.
 
+A full audit of every currently open PR, including overlaps, stale bases, CI results, and merge blockers, is recorded at the end of [WORK-LOG.md](./WORK-LOG.md). Read that section before choosing the next merge or remediation slice.
+
 Next, complete a repository-wide producer and persisted-event reconciliation, then design a real generic publisher with explicit event ownership, durable claims/leases, idempotent acknowledgement, retries and crash-recovery tests. Review worker transaction/side-effect boundaries next. Continue dedicated DB runtime-role/TLS and transaction-local tenant-context work only under the recorded security gates.
 
 ## Important safety gates
