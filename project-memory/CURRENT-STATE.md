@@ -323,3 +323,13 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - PR #138 remains OPEN / DRAFT / UNMERGED and preserved separately; do not merge it wholesale.
 - RBAC seed confirms `analytics:read` is assigned only to SUPER_ADMIN and ADMIN; the global analytics aggregate remains platform-admin scoped under seeded roles. Promotion redemption service-level order/store lineage remains a defense-in-depth follow-up.
 - Next: review PR #157 source/dependency composition, then build Slice B from refreshed develop. Keep workers/webhooks and operator/migration paths separate; one consolidated CI campaign after integration assembly.
+
+
+## Final live checkpoint before this memory commit — 26 November 2026
+
+- PR #138: OPEN / DRAFT / UNMERGED, mergeable=false, 1,942 changed files. Source head before this documentation commit: `f7894abe85b9e9c053e51a730dbfd1c51f6adf21`; preservation ref identical. `develop` `fde20420bbb759d2e562f9ff747c9e824ac58e25`; compare 2,892 ahead / 3 behind from merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`. Exact-head Actions: no runs.
+- PR #157: OPEN / DRAFT / UNMERGED, mergeable=true, 19 files, head `77145bc6262aba99cf7fdbd45139382bebc44fa7`, base `develop` at `fde20420bbb759d2e562f9ff747c9e824ac58e25`.
+- PR #158: OPEN / DRAFT / UNMERGED, mergeable=true, 3 files, head `2e57a2deed1efb5c02de05d23b7ec10b668271c0`, base PR #157 branch at `77145bc6262aba99cf7fdbd45139382bebc44fa7`.
+- PR #157/#158 exact-head Actions lookups: no runs. Vercel Web/Admin build-rate-limit failures only. No tests, lint, typecheck, build or CI have run for either slice.
+- The preservation branch will be fast-forwarded to the new source documentation commit without force. PR #138 remains the source/evidence branch; do not merge it wholesale.
+- No migrations, SQL/catalog access, RLS/grants/default ACL, staging/shared DB writes, worker activation, provider/storage calls, bootstrap, deployment or merge occurred.
