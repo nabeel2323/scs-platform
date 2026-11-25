@@ -131,17 +131,13 @@ export class OrdersService {
    * Checkout repeats validation and resolves all mutable terms again before commit.
    */
   async previewCheckout(input: CheckoutInput) {
-    const cart = await this.withUserActorContext(actor, () =>
-      this.db.db.query.carts.findFirst({
-        where: and(eq(carts.userId, input.buyerId), eq(carts.status, 'ACTIVE')),
-      }),
-    );
+    const cart = await this.db.db.query.carts.findFirst({
+      where: and(eq(carts.userId, input.buyerId), eq(carts.status, 'ACTIVE')),
+    });
     if (!cart) throw new BadRequestException('No active cart found');
-    const items = await this.withUserActorContext(actor, () =>
-      this.db.db.query.cartItems.findMany({
-        where: eq(cartItems.cartId, cart['id']),
-      }),
-    );
+    const items = await this.db.db.query.cartItems.findMany({
+      where: eq(cartItems.cartId, cart['id']),
+    });
     if (items.length === 0) throw new BadRequestException('Cart is empty');
 
     const offerIds = [...new Set(items.map((item) => item['offerId']).filter(Boolean) as string[])];
@@ -230,13 +226,11 @@ export class OrdersService {
     const resolvedFeeByStore = new Map<string, number>();
     for (const [storeId, selection] of selectionsByStore) {
       if (this.shipping) {
-        await this.withUserActorContext(actor, () =>
-          this.shipping!.validateCheckoutSelection(
-            storeId,
-            selection.fulfillmentMethod,
-            selection.shippingMethodId,
-            input.deliveryAddress as ZoneMatchInput,
-          ),
+        await this.shipping.validateCheckoutSelection(
+          storeId,
+          selection.fulfillmentMethod,
+          selection.shippingMethodId,
+          input.deliveryAddress as ZoneMatchInput,
         );
       }
       const subtotal = grouped.get(storeId)!.reduce((sum, item) => sum + item['lineTotalMinor'], 0);
@@ -280,13 +274,11 @@ export class OrdersService {
       const subtotal = storeItems.reduce((sum, item) => sum + item['lineTotalMinor'], 0);
       const hasPromo = Boolean(cart['promotionId'] || cart['promoCode']);
       const promo = hasPromo
-        ? await this.withUserActorContext(actor, () =>
-            this.promotions.resolveApplicable(storeId, {
-              promotionId: cart['promotionId'],
-              code: cart['promoCode'],
-              userId: input.buyerId,
-            }),
-          )
+        ? await this.promotions.resolveApplicable(storeId, {
+            promotionId: cart['promotionId'],
+            code: cart['promoCode'],
+            userId: input.buyerId,
+          })
         : null;
       const discount = promo ? this.promotions.calculateDiscount(promo, subtotal) : 0;
       const selection = selectionsByStore.get(storeId)!;
