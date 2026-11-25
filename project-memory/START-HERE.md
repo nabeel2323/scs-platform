@@ -377,3 +377,11 @@ PR #138 is OPEN / DRAFT / UNMERGED at `e410bf44b272eafb8e762636b66877f9e0c4b230`
 - No DB/catalog access, SQL execution, migration, grants/default ACL, RLS, staging/shared DB write, provider/storage call, worker activation, deployment, merge or CI occurred. No test/typecheck/lint/build result is claimed.
 
 **Next:** finish migration and callsite coverage, resolve the three migration review questions with isolated evidence, then refresh develop and construct the bounded file-level extraction ledger. Keep the single consolidated CI campaign deferred until integration is assembled.
+
+
+## 26 November 2026 — foundational migration audit continuation
+
+- Static source review now covers foundational migrations 0001–0006 and 0008–0011 in addition to the previously recorded focused financial/latest migration set. Key independent-FK boundaries are business documents/verification requests (org+store), product/category, product media variant/product, inventory variant/warehouse, price tier list/variant, cart item cart/store/variant, order item order/variant, and trust/conversation participant/order links.
+- Prioritized next service-callsite checks: same-store variant/category/media, variant↔warehouse, variant↔price-list, cart owner/store/variant, order buyer/store/variant/promotion, document org/store, and conversation/dispute participant ownership. These are schema-level risks to reconcile with service guards, not confirmed vulnerabilities.
+- Full 75-migration audit remains INCOMPLETE. No tests, CI, database operations, migrations, RLS/grant changes, deployment or merge occurred.
+- Detailed matrix appended to `docs/remediation/G-002-FK-OWNERSHIP-CROSSWALK-2026-11-26.md`.
