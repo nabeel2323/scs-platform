@@ -21,3 +21,11 @@
 3. Design and implement a real generic publisher only after event ownership, payload contracts, tenant/recipient resolution and acknowledgement semantics are defined.
 4. Add PostgreSQL durable-claim, idempotency, duplicate-worker, crash-after-delivery-before-ack and retry/dead-letter tests.
 5. Continue G-002 with dedicated API role/TLS and transaction-local tenant context design; do not activate RLS until all role/context/ownership/rollback gates pass.
+
+
+### 25 November 2026 — PR #154 buyer-confirmation follow-up
+- Review found a partial-commit risk: `confirmDelivery()` wrote `buyerConfirmedAt` before the completion transaction. A later write failure could strand a DELIVERED order excluded from auto-completion.
+- Moved the buyer confirmation timestamp into the same guarded transaction as the DELIVERED → COMPLETED status update.
+- Added a regression spec proving a failed shipment-event write rolls back the buyer confirmation timestamp and does not publish/emit.
+- Follow-up commit: `2f766035ee85302ab78ab56274aef423507278dc` (docs/memory sync); implementation commits precede it.
+- Tests remain authored, not executed. Keep PR #154 draft pending consolidated validation.
