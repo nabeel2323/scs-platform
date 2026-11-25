@@ -3,7 +3,7 @@ import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { DatabaseService } from './database/database.service';
 import { recordOpsCounter } from '../modules/operations/ops-counters';
 import { stores, warehouses, storeMembers } from '../modules/merchant/merchant.schema';
-import { organizationMembers } from '../modules/identity/identity.schema';
+import { organizationMembers, organizations } from '../modules/identity/identity.schema';
 import { products, productVariants } from '../modules/catalog/catalog.schema';
 import { inventoryItems } from '../modules/inventory/inventory.schema';
 
@@ -77,16 +77,22 @@ export async function assertActiveOrgMembership(
     throw new ForbiddenException('You do not have access to this organization');
   }
 
-  const membership = await db.db.query.organizationMembers.findFirst({
-    where: and(
-      eq(organizationMembers.orgId, orgId),
-      eq(organizationMembers.userId, caller.sub),
-      eq(organizationMembers.status, 'ACTIVE'),
-    ),
-    columns: { id: true },
-  });
+  const [membership, organization] = await Promise.all([
+    db.db.query.organizationMembers.findFirst({
+      where: and(
+        eq(organizationMembers.orgId, orgId),
+        eq(organizationMembers.userId, caller.sub),
+        eq(organizationMembers.status, 'ACTIVE'),
+      ),
+      columns: { id: true },
+    }),
+    db.db.query.organizations.findFirst({
+      where: and(eq(organizations.id, orgId), eq(organizations.isActive, true)),
+      columns: { id: true },
+    }),
+  ]);
 
-  if (!membership) {
+  if (!membership || !organization) {
     throw new ForbiddenException('You are not an active member of this organization');
   }
 }
@@ -110,6 +116,7 @@ export async function assertStoreInOrg(
   if (!orgId || orgId !== caller.activeOrg) {
     throw new ForbiddenException('You do not have access to this store');
   }
+  await assertActiveOrgMembership(db, caller, orgId);
 }
 
 /** variant → product → store → org */
@@ -192,7 +199,10 @@ export async function assertOrderAccessible(
   if (order.buyerId && order.buyerId === caller.sub) return;
   if (order.storeId) {
     const orgId = await storeOrgId(db, order.storeId);
-    if (orgId && orgId === caller.activeOrg) return;
+    if (orgId && orgId === caller.activeOrg) {
+      await assertActiveOrgMembership(db, caller, orgId);
+      return;
+    }
   }
   throw new ForbiddenException('You do not have access to this order');
 }
@@ -336,6 +346,12 @@ export async function canManageStoreCatalog(
   if (!caller.activeOrg) return false;
   const orgId = await storeOrgId(db, storeId);
   if (!orgId || orgId !== caller.activeOrg) return false;
+  try {
+    await assertActiveOrgMembership(db, caller, orgId);
+  } catch (error) {
+    if (error instanceof ForbiddenException) return false;
+    throw error;
+  }
   const membership = await db.db.query.storeMembers.findFirst({
     where: and(
       eq(storeMembers.storeId, storeId),

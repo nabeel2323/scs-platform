@@ -9,6 +9,7 @@ import type { Request } from 'express';
 import { defer, from, lastValueFrom, Observable } from 'rxjs';
 import { DatabaseService } from './database.service';
 import type { JwtPayload } from '../guards/current-user.decorator';
+import { assertActiveOrgMembership, type CallerContext } from '../tenant-scope';
 
 /**
  * Controller-scoped transaction context for authenticated user-owned data.
@@ -71,7 +72,16 @@ export class TenantDatabaseContextInterceptor implements NestInterceptor {
             actorRole,
             activeOrgId,
           },
-          () => lastValueFrom(next.handle()),
+          async () => {
+            // JWT activeOrg is a routing claim and can outlive membership revocation.
+            // Revalidate the organization membership and active organization inside
+            // the same transaction before allowing any controller query to run.
+            if (activeOrgId) {
+              const caller: CallerContext = { sub: actorId, role: actorRole, activeOrg: activeOrgId };
+              await assertActiveOrgMembership(this.database, caller, activeOrgId);
+            }
+            return lastValueFrom(next.handle());
+          },
         ),
       ),
     );
