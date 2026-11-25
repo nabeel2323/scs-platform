@@ -2994,3 +2994,9 @@ OTP delivery log redaction is implemented in source commit `ed685b0d0c9a1dd8e280
 The user explicitly authorized staging-only database changes for first production launch. No production database exists/deployed. No staging DB write or migration was made pending actual API/migration role and default-ACL ownership evidence.
 
 Exact-head CI #45586306936 was unintentionally triggered by the source commit. Lint passed, typecheck failed with 250 diagnostic lines across tests and source, Flutter passed, and dependent jobs were skipped. Do not rerun until the implementation phase is complete.
+
+## 25 November 2026 — current-head reconciliation and grouped CI checkpoint
+
+PR #138 is OPEN / DRAFT / UNMERGED at `16846152af71524f29047b704159f52ab0d73e75`; 1,927 changed paths, including 1,277 `.m73b6-scratch` paths. Its preservation ref was fast-forwarded to the exact PR head and verified identical. Current comparison is 2,742 commits ahead / 3 behind develop. No Actions run exists for this exact head. Historical TypeScript run #45586306936 (250 diagnostics, including 227 TS2554 call-site errors) is from an earlier SHA and must not be treated as current verification.
+
+A changed-file overlap matrix was computed: PR #144 7/7, #154 9/13, #153 6/10, #151 5/12, #150 1/2, #156 1/3, #155 0/1. PR #145 has a distinct filename but migration-number collision 0070. Reconcile each overlap before extraction. Next G-002 implementation task remains rechecking current test callsites and supplying explicit actor/role/tenant/operation fixtures without weakening production signatures. Keep tests/CI deferred until the implementation batch is complete; use one consolidated CI run per meaningful batch.
