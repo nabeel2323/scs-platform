@@ -103,6 +103,16 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
   let inventoryService: InventoryService;
   let promotionsService: PromotionsService;
 
+
+  async function checkoutAsBuyer(input: any) {
+    const actor =
+      input?.buyerId === buyerA ? { sub: buyerA, role: 'BUYER', activeOrg: orgA } :
+      input?.buyerId === buyerB ? { sub: buyerB, role: 'BUYER', activeOrg: orgB } :
+      null;
+    if (!actor) throw new Error('Checkout test must use a seeded buyer identity');
+    return ordersService.checkout(input, actor);
+  }
+
   // Shared catalog IDs
   let categoryId: string, brandId: string, productTypeId: string;
   let productId: string, variantId: string, variant2Id: string;
@@ -430,7 +440,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       expect(validation.stale).toHaveLength(0);
 
       // Checkout
-      const result = await ordersService.checkout({
+      const result = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: { street: '123 Test St' },
         idempotencyKey: `test-checkout-${randomUUID()}`,
@@ -618,7 +628,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       // Create a new order to test rejection
       const cart2 = await cartService.getOrCreateCart(buyerA);
       await cartService.addItem(buyerA, { variantId, quantity: 1, offerId: offerA });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `fsm-${randomUUID()}`,
@@ -644,7 +654,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     it('reserves stock when merchant accepts an order', async () => {
       // Fresh checkout for reservation test
       await cartService.addItem(buyerA, { variantId, quantity: 3, offerId: offerA });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `reserve-${randomUUID()}`,
@@ -680,7 +690,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     it('releases reserved stock when order is cancelled', async () => {
       // Create and accept an order
       await cartService.addItem(buyerA, { variantId, quantity: 2, offerId: offerA });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `release-${randomUUID()}`,
@@ -722,7 +732,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
   describe('Scenario 8 — Stock consumption on delivery', () => {
     it('deducts on_hand and reserved on DELIVERED', async () => {
       await cartService.addItem(buyerA, { variantId, quantity: 2, offerId: offerA });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `consume-${randomUUID()}`,
@@ -838,7 +848,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       await cartService.addItem(buyerB, { variantId: variant2Id, quantity: 1, offerId: offerB2 });
       const idemKey = `idem-test-${randomUUID()}`;
 
-      const first = await ordersService.checkout({
+      const first = await checkoutAsBuyer({
         buyerId: buyerB,
         deliveryAddress: {},
         idempotencyKey: idemKey,
@@ -846,7 +856,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
 
       // Second call with same key returns existing order (idempotency)
       // without needing a new cart — the idempotency check short-circuits.
-      const second = await ordersService.checkout({
+      const second = await checkoutAsBuyer({
         buyerId: buyerB,
         deliveryAddress: {},
         idempotencyKey: idemKey,
@@ -1005,8 +1015,8 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
 
       // Two concurrent checkouts with the same key and same cart
       const results = await Promise.allSettled([
-        ordersService.checkout({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey }),
-        ordersService.checkout({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey }),
+        checkoutAsBuyer({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey }),
+        checkoutAsBuyer({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey }),
       ]);
 
       // Both succeed (one creates, the other returns existing)
@@ -1082,7 +1092,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
         quantity: 10,
         offerId: limitedOffer.id,
       });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `partial-inv-${randomUUID()}`,
@@ -1115,7 +1125,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     it('partiallyAcceptOrder correctly represents partial quantities', async () => {
       // Create a fresh order for partial acceptance testing
       await cartService.addItem(buyerA, { variantId, quantity: 5, offerId: offerA });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `partial-accept-${randomUUID()}`,

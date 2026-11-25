@@ -114,6 +114,16 @@ describe('Phase 1 — Core Marketplace E2E', () => {
   let inventoryService: InventoryService;
   let promotionsService: PromotionsService;
 
+
+  async function checkoutAsBuyer(input: any) {
+    const actor =
+      input?.buyerId === buyerA ? { sub: buyerA, role: 'BUYER', activeOrg: orgA } :
+      input?.buyerId === buyerB ? { sub: buyerB, role: 'BUYER', activeOrg: orgB } :
+      null;
+    if (!actor) throw new Error('Checkout test must use a seeded buyer identity');
+    return ordersService.checkout(input, actor);
+  }
+
   // Shared catalog IDs
   let categoryId: string, brandId: string, productTypeId: string;
   let productId: string, variantId: string, variant2Id: string;
@@ -578,7 +588,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       // checkout re-reads from the cart_items table — but the only way to
       // set it is through the service, which always uses server-resolved prices.
       // Verify the checkout uses the stored price (which was server-set).
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `tamper-${randomUUID()}`,
@@ -639,7 +649,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       // First checkout: buyerA with variantId
       await cartService.addItem(buyerA, { variantId, quantity: 1, offerId: offerA });
       const idemKey = `conflict-test-${randomUUID()}`;
-      const first = await ordersService.checkout({
+      const first = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: idemKey,
@@ -650,7 +660,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       await cartService.addItem(buyerA, { variantId: variant2Id, quantity: 1, offerId: offerB2 });
       // Same idempotency key, different cart → should throw 409
       await expect(
-        ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: idemKey }),
+        checkoutAsBuyer({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: idemKey }),
       ).rejects.toThrow(/idempotency|conflict|409/i);
     });
 
@@ -658,14 +668,14 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       // Fresh buyer to avoid cart contamination
       await cartService.addItem(buyerB, { variantId, quantity: 1, offerId: offerA });
       const idemKey = `idem-same-${randomUUID()}`;
-      const first = await ordersService.checkout({
+      const first = await checkoutAsBuyer({
         buyerId: buyerB,
         deliveryAddress: {},
         idempotencyKey: idemKey,
       });
 
       // Cart is now CONVERTED, so second call returns existing (no active cart → early return)
-      const second = await ordersService.checkout({
+      const second = await checkoutAsBuyer({
         buyerId: buyerB,
         deliveryAddress: {},
         idempotencyKey: idemKey,
@@ -760,7 +770,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     beforeAll(async () => {
       // Create a fresh order for FSM testing
       await cartService.addItem(buyerA, { variantId, quantity: 1, offerId: offerA });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `fsm-full-${randomUUID()}`,
@@ -838,7 +848,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     it('CANCELLED is terminal', async () => {
       // Create and cancel an order
       await cartService.addItem(buyerA, { variantId, quantity: 1, offerId: offerA });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `fsm-cancel-${randomUUID()}`,
@@ -855,7 +865,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
 
     it('REJECTED is terminal', async () => {
       await cartService.addItem(buyerA, { variantId, quantity: 1, offerId: offerA });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `fsm-reject-${randomUUID()}`,
@@ -872,7 +882,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
 
     it('PENDING_CONFIRMATION → PARTIALLY_ACCEPTED → PREPARING path', async () => {
       await cartService.addItem(buyerA, { variantId, quantity: 5, offerId: offerA });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `fsm-partial-${randomUUID()}`,
@@ -897,7 +907,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
 
     it('forbidden transition: PENDING_CONFIRMATION → DELIVERED (skips states)', async () => {
       await cartService.addItem(buyerA, { variantId, quantity: 1, offerId: offerA });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `fsm-skip-${randomUUID()}`,
@@ -934,7 +944,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     beforeAll(async () => {
       // Create orders in both stores via buyerA
       await cartService.addItem(buyerA, { variantId, quantity: 1, offerId: offerA });
-      const coA = await ordersService.checkout({
+      const coA = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `sec-a-${randomUUID()}`,
@@ -942,7 +952,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       orderFromStoreA = coA.subOrders.find((s: any) => s.storeId === storeA)?.id;
 
       await cartService.addItem(buyerA, { variantId: variant2Id, quantity: 1, offerId: offerB2 });
-      const coB = await ordersService.checkout({
+      const coB = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `sec-b-${randomUUID()}`,
@@ -954,7 +964,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     it('Buyer A cannot read Buyer B master order', async () => {
       // Create an order as buyerB
       await cartService.addItem(buyerB, { variantId, quantity: 1, offerId: offerA });
-      const coB = await ordersService.checkout({
+      const coB = await checkoutAsBuyer({
         buyerId: buyerB,
         deliveryAddress: {},
         idempotencyKey: `sec-buyerb-${randomUUID()}`,
