@@ -178,3 +178,22 @@ No tests, typecheck, formatter, build or CI were run for the unit-test update. A
 - The 0070 edit is source-only. No migration runner, dry-run, SQL execution, staging/shared DB write, grant/default-ACL change, RLS change, deployment or worker activation occurred. No tests/typecheck/formatter/build/CI were run.
 
 **Next:** assemble the G-002 bounded migration manifest with explicit 0070 canonical disposition, single 0071 ownership, and validation/rollback evidence for 0072–0075. Do not apply any migration until the separately required database-access and deployment approvals are satisfied.
+
+
+## 26 November 2026 — return/shipping worker actor-context and lease-fencing review
+
+### Return expiration
+
+- `ReturnExpirationWorker.runBatch` establishes the worker actor for the claim SQL and each per-item processing operation. Its nested `WorkerLeaseService` calls use the same `holderId`, so DatabaseService's identical-actor nested-scope rule reuses the active transaction. `ReturnsService.escalateReturn` locks the exact live lease and repeats the holder+epoch+expiry predicate in the return status mutation; the return event and outbox insert are in that same transaction. The caller's worker scope surrounds this service call. No production return-worker change was identified in this pass.
+- Fixed unit test doubles for `ReturnExpirationWorker` and `ReturnsService.escalateReturn` to provide the actor-context wrapper and exercise the intended worker/user caller scopes. Test files: `return-expiration-worker-fencing.spec.ts`, `returns-service-worker-escalation-fence.spec.ts`.
+
+### Shipping carrier worker
+
+- Claim and stale-recovery operations run under a stable worker principal. Before provider side effects, handlers resolve the shipment's store→organization relationship and verify the shipment order belongs to that store. Tenant-specific shipment/label writes use the resolved active organization. Carrier API, label URL fetch and object-storage operations are outside DB actor transactions.
+- Found a real stale-worker fencing gap: successful event acknowledgement and failure/retry state updates were conditional only on outbox event ID. A worker whose processing lease had expired could overwrite the state after another worker reclaimed the event. Both updates now require the event ID, `status='PROCESSING'`, and `locked_by=this.workerId`. Source commit: `d18a495433460902190bec23d0d39923cc7b346a`.
+- Added regression tests for owner-fenced success acknowledgement and failure/retry updates; also repaired carrier-worker test doubles so claim/recovery execute inside the expected worker actor scope. Return worker and ReturnsService tests now model the production caller actor context. Test commits: `7009e69dc04a4d37ea1f7dd8b29c89466c125eff`, `e90276f75e562aeb1ecbd71de0bdc0e661bade6a`, `7fc543a59f6902db811ea903f34bc7a80caf0e26`, `2abac268e2a06b5c6997e00f9f0f23d526d4d836`.
+- The generic outbox dispatcher remains excluded: #153's no-poller/no-false-ack behavior is canonical. Carrier-specific worker ownership remains with ShippingCarrierWorker.
+
+### Verification boundary
+
+All changes are source/test authoring only. No test, lint, typecheck, formatter, build or CI was run, per the implementation-first batching decision. No carrier provider, storage, Redis, DB, migration, worker activation, staging workflow, deployment or merge was executed. The live staging ReturnExpirationWorker remains disabled unless separately configured; this source review did not change worker flags.
