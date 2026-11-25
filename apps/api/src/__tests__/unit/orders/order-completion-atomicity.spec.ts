@@ -70,6 +70,46 @@ function makeService(options?: { failShipmentEvent?: boolean }) {
   return { service, db, tx, outbox, realtime, emit, transaction, recalculate, updateValues, committed: () => committed, rolledBack: () => rolledBack, order };
 }
 
+describe('OrdersService.recalculateMasterOrderStatus concurrency', () => {
+  it('locks the master row before reading its current status', async () => {
+    const calls: string[] = [];
+    const tx = {
+      execute: vi.fn(async () => {
+        calls.push('lock');
+        return { rows: [] };
+      }),
+      query: {
+        masterOrders: {
+          findFirst: vi.fn(async () => {
+            calls.push('master');
+            return { id: 'master-1', status: 'ACCEPTED', buyerId: 'buyer-1' };
+          }),
+        },
+        orders: {
+          findMany: vi.fn(async () => {
+            calls.push('suborders');
+            return [{ status: 'COMPLETED' }, { status: 'ACCEPTED' }];
+          }),
+        },
+      },
+      update: vi.fn(),
+    };
+    const outbox = { publish: vi.fn() };
+    const service = new OrdersService(
+      { db: { transaction: vi.fn() } } as any,
+      outbox as any,
+      {} as any,
+    );
+
+    const status = await service.recalculateMasterOrderStatus('master-1', tx);
+
+    expect(calls).toEqual(['lock', 'master', 'suborders']);
+    expect(status).toBe('ACCEPTED');
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(outbox.publish).not.toHaveBeenCalled();
+  });
+});
+
 describe('OrdersService.completeOrder atomicity', () => {
   it('commits order, shipment, history, outbox and master status in one transaction before realtime', async () => {
     const fixture = makeService();
