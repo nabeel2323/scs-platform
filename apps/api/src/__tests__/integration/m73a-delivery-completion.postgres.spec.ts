@@ -38,6 +38,7 @@ import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testconta
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { DatabaseService } from '../../common/database/database.service';
 import { OrdersService } from '../../modules/orders/orders.service';
+import { AutoCompleteWorker } from '../../modules/orders/auto-complete.worker';
 import { InventoryService } from '../../modules/inventory/inventory.service';
 import { PromotionsService } from '../../modules/promotions/promotions.service';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
@@ -357,6 +358,96 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
       const rejected = results.filter(r => r.status === 'rejected');
       expect(fulfilled.length).toBe(1);
       expect(rejected.length).toBe(1);
+    });
+
+    it('CON-M73A-05: Two PostgreSQL workers cannot claim the same due order', async () => {
+      const orderId = await createDeliveredOrder(buyerA, merchantA, storeA, variantA, offerA);
+      await pool.query(
+        `UPDATE orders
+         SET auto_complete_at = NOW() - INTERVAL '1 minute',
+             auto_complete_claimed_at = NULL,
+             auto_complete_claimed_by = NULL
+         WHERE id = $1`,
+        [orderId],
+      );
+
+      const workerA = new AutoCompleteWorker(database, ordersService);
+      const workerB = new AutoCompleteWorker(database, ordersService);
+      const [claimA, claimB] = await Promise.all([
+        (workerA as any).claimNextOrder(),
+        (workerB as any).claimNextOrder(),
+      ]);
+
+      expect([claimA, claimB].filter(Boolean)).toHaveLength(1);
+      const winningWorker = claimA ? workerA : workerB;
+      const persisted = await pool.query(
+        `SELECT auto_complete_claimed_by FROM orders WHERE id = $1`,
+        [orderId],
+      );
+      expect(persisted.rows[0].auto_complete_claimed_by).toBe((winningWorker as any).workerId);
+    });
+
+    it('CON-M73A-06: Expired lease is reclaimed and a stale worker is fenced out', async () => {
+      const orderId = await createDeliveredOrder(buyerA, merchantA, storeA, variantA, offerA);
+      await pool.query(
+        `UPDATE orders
+         SET auto_complete_at = NOW() - INTERVAL '1 minute',
+             auto_complete_claimed_at = NULL,
+             auto_complete_claimed_by = NULL
+         WHERE id = $1`,
+        [orderId],
+      );
+
+      const crashedWorker = new AutoCompleteWorker(database, ordersService);
+      const replacementWorker = new AutoCompleteWorker(database, ordersService);
+      const firstClaim = await (crashedWorker as any).claimNextOrder();
+      expect(firstClaim?.id).toBe(orderId);
+      const staleOwner = (crashedWorker as any).workerId;
+      const replacementOwner = (replacementWorker as any).workerId;
+
+      // Simulate process death: leave the lease behind, then move it beyond expiry.
+      await pool.query(
+        `UPDATE orders
+         SET auto_complete_claimed_at = NOW() - INTERVAL '6 minutes'
+         WHERE id = $1 AND auto_complete_claimed_by = $2`,
+        [orderId, staleOwner],
+      );
+
+      const reclaimed = await (replacementWorker as any).claimNextOrder();
+      expect(reclaimed?.id).toBe(orderId);
+      const persisted = await pool.query(
+        `SELECT status, auto_complete_claimed_by FROM orders WHERE id = $1`,
+        [orderId],
+      );
+      expect(persisted.rows[0].auto_complete_claimed_by).toBe(replacementOwner);
+      expect(persisted.rows[0].status).toBe('DELIVERED');
+
+      await expect(
+        ordersService.completeOrder(orderId, 'system', 'SYSTEM', 'AUTO_COMPLETION', staleOwner),
+      ).rejects.toThrow(/concurrent completion rejected/);
+
+      const afterStaleAttempt = await pool.query(
+        `SELECT status, auto_complete_claimed_by FROM orders WHERE id = $1`,
+        [orderId],
+      );
+      expect(afterStaleAttempt.rows[0].status).toBe('DELIVERED');
+      expect(afterStaleAttempt.rows[0].auto_complete_claimed_by).toBe(replacementOwner);
+
+      await ordersService.completeOrder(
+        orderId,
+        'system',
+        'SYSTEM',
+        'AUTO_COMPLETION',
+        replacementOwner,
+      );
+      const completed = await pool.query(
+        `SELECT status, auto_complete_claimed_by, auto_complete_claimed_at
+         FROM orders WHERE id = $1`,
+        [orderId],
+      );
+      expect(completed.rows[0].status).toBe('COMPLETED');
+      expect(completed.rows[0].auto_complete_claimed_by).toBeNull();
+      expect(completed.rows[0].auto_complete_claimed_at).toBeNull();
     });
   });
 
