@@ -4017,28 +4017,10 @@ export class OrdersService {
       );
     }
 
-    // Atomically record buyer confirmation (optimistic lock)
-    const flipResult = await this.db.db
-      .update(orders)
-      .set({ buyerConfirmedAt: new Date(), updatedAt: new Date() })
-      .where(
-        and(
-          eq(orders.id, orderId),
-          eq(orders.status, 'DELIVERED'),
-          sql`${orders.buyerConfirmedAt} IS NULL`,
-        ),
-      )
-      .returning({ id: orders.id });
-
-    if (flipResult.length === 0) {
-      // Race: another confirmation already happened — idempotent
-      const current = await this.getOrder(orderId);
-      if (current['status'] === 'COMPLETED') {
-        return this.getOrderWithItems(orderId, caller);
-      }
-      throw new ConflictException('Delivery confirmation already processed');
-    }
-
+    // Buyer confirmation and completion must share one transaction. Recording
+    // buyerConfirmedAt before completeOrder commits can strand a DELIVERED order
+    // if a later shipment/history/outbox write fails. completeOrder now writes
+    // buyerConfirmedAt together with the guarded status transition.
     return this.completeOrder(orderId, userId, 'BUYER', 'BUYER_CONFIRMATION');
   }
 
@@ -4070,7 +4052,11 @@ export class OrdersService {
     await this.db.db.transaction(async (tx) => {
       const flipResult = await tx
         .update(orders)
-        .set({ status: 'COMPLETED', updatedAt: new Date() })
+        .set({
+          status: 'COMPLETED',
+          updatedAt: new Date(),
+          ...(source === 'BUYER_CONFIRMATION' ? { buyerConfirmedAt: new Date() } : {}),
+        })
         .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
         .returning({ id: orders.id });
 
