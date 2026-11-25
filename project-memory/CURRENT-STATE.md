@@ -11,7 +11,7 @@
 | Latest develop CI at baseline | Run #1509 — SUCCESS |
 | `main` | `d3f4aefc41b37ad82f0aeb2eb78121342455eb21` at last inspected check |
 | PR #153 | OPEN / DRAFT; head `23a96506c835b604a6595f820aa34866172d40d6` at last check |
-| PR #154 | OPEN / DRAFT; head `4e2a8632f92ecd700ec51871153cbcd75ccf491e` |
+| PR #154 | OPEN / DRAFT; head `2f766035ee85302ab78ab56274aef423507278dc` |
 
 PR #147, #152 and #142 are merged into develop. PR #138 remains open/draft/unmerged and must not be merged wholesale.
 
@@ -33,12 +33,12 @@ The latest recorded startup logs show in-process OutboxDispatcher, AutoCompleteW
 
 ## Order completion
 
-PR #154 moves the order flip, shipment completion record, order status history, order outbox event and master-order aggregation/outbox into one transaction. Realtime emission occurs after commit. AutoCompleteWorker candidate selection no longer mutates `orders.updated_at`; optimistic status transition remains the authoritative cross-instance completion guard. See [order completion atomicity](../docs/remediation/ORDER-COMPLETION-ATOMICITY-2026-11-25.md).
+PR #154 moves the order flip, shipment completion record, order status history, order outbox event, buyer confirmation timestamp (for buyer-triggered completion) and master-order aggregation/outbox into one transaction. Realtime emission occurs after commit. AutoCompleteWorker candidate selection no longer mutates `orders.updated_at`; optimistic status transition remains the authoritative cross-instance completion guard. See [order completion atomicity](../docs/remediation/ORDER-COMPLETION-ATOMICITY-2026-11-25.md).
 
 ## Evidence limits
 
 - CI #1509 verifies the develop baseline only, not PR #153 or #154.
-- Focused regression specs for the outbox and order completion changes are authored but not yet executed.
+- Focused regression specs for the outbox and order completion changes, including the buyer-confirmation rollback case, are authored but not yet executed.
 - PR #153 had Vercel web success and Vercel admin failure due to a reported build-rate-limit/plan response at the last check; GitHub Actions had no run for its `[skip ci]` commits.
 - No deployment or staging runtime verification of either branch has occurred.
 - No staging database or Render configuration changes were made by this work.
