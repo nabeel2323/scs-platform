@@ -197,3 +197,14 @@ No tests, typecheck, formatter, build or CI were run for the unit-test update. A
 ### Verification boundary
 
 All changes are source/test authoring only. No test, lint, typecheck, formatter, build or CI was run, per the implementation-first batching decision. No carrier provider, storage, Redis, DB, migration, worker activation, staging workflow, deployment or merge was executed. The live staging ReturnExpirationWorker remains disabled unless separately configured; this source review did not change worker flags.
+
+
+## 26 November 2026 — shipping worker stale-owner fence and G-002 extraction manifest
+
+- Re-verified before this documentation update: PR #138 open/draft/unmerged, head `a4b4921fd11171d48c13bcf69cef4082e1d48301`, base develop `fde20420bbb759d2e562f9ff747c9e824ac58e25`, diverged 2,840 ahead / 3 behind from merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`, mergeable=false. Preservation ref was 11 commits behind and is to be fast-forwarded to the final doc head with expected-SHA protection. Exact-head Actions has no runs; only Vercel Web/Admin build-rate-limit failures are present.
+- Fixed a real ShippingCarrierWorker stale-owner race: success acknowledgement and failure/retry finalization now require matching event ID, PROCESSING status and current locked_by worker. Commit `d18a495433460902190bec23d0d39923cc7b346a`. Added regression tests and repaired worker actor-context test doubles in return/shipping/ReturnsService specs (commits `7009e69d`, `e90276f7`, `7fc543a5`, `2abac268`). These are not run yet.
+- Reviewed ReturnExpirationWorker and ReturnsService nesting: the same worker principal is used through nested scopes; the escalation transaction locks the live lease and repeats the holder/epoch/expiry fence in the return mutation. No additional production change identified in this pass.
+- Added `docs/remediation/G-002-BOUNDED-INTEGRATION-MANIFEST-2026-11-26.md`, with explicit actor-context, application adoption, worker/webhook, operator/migration slices; exclusions; migration 0070–0075 dispositions; and consolidated verification gates. Current #138 changed paths: 1,939 total, 1,280 scratch, 659 non-scratch. Do not import all non-scratch paths; select only reviewed G-002 dependencies. The manifest is a plan, not a merge/deploy/migration authorization.
+- No tests, lint, typecheck, formatter, build or CI run. No carrier provider/storage/Redis/DB/migration, worker activation, staging workflow, deployment, grant/default-ACL/RLS change, bootstrap/token issuance or merge occurred.
+
+**Next:** continue the FK-to-ownership crosswalk and raw SQL/function/trigger/partition audit against the 75 numbered migrations and source callsites. Then refresh develop, build clean bounded integration branches using the manifest, and run one consolidated CI campaign once integration is complete. Preserve #138; never merge its 1,939-path tree wholesale.
