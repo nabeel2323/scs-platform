@@ -161,3 +161,9 @@ Reviewed the current PR #138 order auto-completion worker, its unit tests, the #
 No tests, typecheck, formatter, build or CI were run for the unit-test update. All source/test changes remain NOT TESTED / NOT CI-VERIFIED. No worker was activated, no outbox polling enabled, no provider call, database write, migration, deployment or merge occurred.
 
 **Next:** finish the remaining worker and database call-graph audit; prepare the bounded G-002 extraction as the composition of #154 atomic completion with #138 actor context, and #153's safe outbox behavior. Run the consolidated CI campaign only after that bounded slice is assembled.
+
+
+## 26 November 2026 — final worker-test typing cleanup
+
+- Replaced explicit `any[]` in the auto-completion worker test mock with `unknown[]`; behavior and assertions are unchanged. Commit: `2c412732dbbbbde742d43e60f5d2593552aea3cb`.
+- This remains unexecuted source/test authoring. No test runner, typecheck, formatter, build or CI was run.
