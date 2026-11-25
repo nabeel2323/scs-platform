@@ -344,3 +344,12 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 - Added regression coverage for both finalization paths and corrected ReturnExpirationWorker, ShippingCarrierWorker and ReturnsService test doubles to model the production actor-context boundary. Commits `7009e69d`, `e90276f7`, `7fc543a5`, `2abac268`. Not executed yet.
 - Source review confirmed return expiration uses a stable worker scope and a live lease lock plus repeated holder/epoch/expiry fence in the atomic return transition; carrier external I/O remains outside DB actor transactions. Generic log-only outbox dispatcher stays excluded in favor of PR #153 behavior.
 - No tests/typecheck/build/CI or provider/storage/DB/migration/worker/deployment action occurred. Continue to the bounded G-002 extraction manifest; do not merge PR #138 wholesale.
+
+
+## 26 November 2026 — latest worker and extraction checkpoint
+
+- Fixed ShippingCarrierWorker finalization to require event ID + PROCESSING + current locked_by worker for both success acknowledgement and failure/retry state, preventing stale workers from overwriting reclaimed events. Commit `d18a495433460902190bec23d0d39923cc7b346a`.
+- Added carrier finalization regression tests and repaired return/shipping worker actor-context test fixtures. ReturnExpirationWorker/ReturnsService call paths were reviewed; no further production change identified. Tests remain unexecuted.
+- Added `docs/remediation/G-002-BOUNDED-INTEGRATION-MANIFEST-2026-11-26.md` defining bounded extraction slices, explicit exclusions, migration 0070–0075 dispositions and the deferred consolidated verification campaign.
+- Current #138 inventory: 1,939 changed paths, 1,280 scratch, 659 non-scratch. The 659 non-scratch files are not all G-002; select only reviewed dependencies. PR #138 remains open/draft/unmerged and must not be merged wholesale.
+- No tests/lint/typecheck/build/CI, DB/migration/grant/RLS change, worker activation, provider/storage call, bootstrap, deployment or merge occurred. Next: complete FK ownership and raw SQL/function/trigger/partition audit, then create bounded integration branches from refreshed develop.
