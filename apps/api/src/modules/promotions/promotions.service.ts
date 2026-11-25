@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { promotions, promotionRedemptions } from './promotions.schema';
+import { orders } from '../orders/orders.schema';
 import { eq, and, desc } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
@@ -213,6 +214,28 @@ export class PromotionsService {
     discountMinor: number,
   ) {
     const promo = await this.getPromotion(promoId);
+
+    // A redemption is an order-linked financial record. Do not trust caller-supplied
+    // buyer/order IDs independently: prove that the committed order belongs to this
+    // buyer and promotion store, records this promotion, and carries this discount.
+    if (!orderId) {
+      throw new BadRequestException('Promotion redemption requires an order');
+    }
+
+    const matchingOrder = await this.db.db.query.orders.findFirst({
+      where: and(
+        eq(orders.id, orderId),
+        eq(orders.buyerId, userId),
+        eq(orders.storeId, promo['storeId']),
+        eq(orders.promotionId, promoId),
+        eq(orders.discountMinor, discountMinor),
+      ),
+      columns: { id: true },
+    });
+
+    if (!matchingOrder) {
+      throw new BadRequestException('Promotion redemption does not match the order');
+    }
 
     // Check max redemptions
     if (promo['maxRedemptions'] && promo['redemptionCount'] >= promo['maxRedemptions']) {
