@@ -294,7 +294,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       merchantA,
     );
     productId = prod.id;
-    await catalog.updateProduct(productId, { status: 'ACTIVE' });
+    await catalog.updateProduct(productId, { status: 'ACTIVE' }, undefined, callerA());
 
     const v1 = await catalog.createVariant(productId, { sku: 'SG-RED', title: 'Super Gadget Red' });
     variantId = v1.id;
@@ -509,7 +509,11 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     });
 
     it('product detail returns variants and the product is distinguishable from merchant offers', async () => {
-      const detail = await catalog.getProductDetail(productId);
+      const detail = await catalog.getProductDetail(productId, {
+        sub: buyerA,
+        role: 'BUYER',
+        activeOrg: null,
+      });
       expect(detail).toBeTruthy();
       expect(detail.title).toBe('Super Gadget');
       // The product is the canonical entity; offers are separate commercial layer

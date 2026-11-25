@@ -288,7 +288,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       merchantA,
     );
     productA = pA.id;
-    await catalog.updateProduct(productA, { status: 'ACTIVE' });
+    await catalog.updateProduct(productA, { status: 'ACTIVE' }, undefined, callerA());
     const vA1 = await catalog.createVariant(productA, { sku: 'PA-V1', title: 'Product Alpha V1' });
     variantA1 = vA1.id;
     const vA2 = await catalog.createVariant(productA, { sku: 'PA-V2', title: 'Product Alpha V2' });
@@ -307,7 +307,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       merchantA,
     );
     productB = pB.id;
-    await catalog.updateProduct(productB, { status: 'ACTIVE' });
+    await catalog.updateProduct(productB, { status: 'ACTIVE' }, undefined, callerA());
     const vB1 = await catalog.createVariant(productB, { sku: 'PB-V1', title: 'Product Bravo V1' });
     variantB1 = vB1.id;
 
@@ -324,7 +324,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       merchantB,
     );
     productC = pC.id;
-    await catalog.updateProduct(productC, { status: 'ACTIVE' });
+    await catalog.updateProduct(productC, { status: 'ACTIVE' }, undefined, callerB());
     const vC1 = await catalog.createVariant(productC, {
       sku: 'PC-V1',
       title: 'Product Charlie V1',

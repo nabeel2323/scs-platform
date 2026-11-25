@@ -280,7 +280,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       merchantA,
     );
     productId = prod.id;
-    await catalog.updateProduct(productId, { status: 'ACTIVE' });
+    await catalog.updateProduct(productId, { status: 'ACTIVE' }, undefined, callerA());
 
     const v1 = await catalog.createVariant(productId, { sku: 'WP-RED', title: 'Widget Pro Red' });
     variantId = v1.id;
