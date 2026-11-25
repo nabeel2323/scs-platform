@@ -329,3 +329,10 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 
 - Replaced explicit `any[]` in the auto-completion worker test mock with `unknown[]`; behavior and assertions are unchanged. Commit: `2c412732dbbbbde742d43e60f5d2593552aea3cb`.
 - This remains unexecuted source/test authoring. No test runner, typecheck, formatter, build or CI was run.
+
+
+## 26 November 2026 — migration sequence reconciliation
+
+- Resolved the PR #138 / PR #145 migration-0070 collision in the preserved source: kept PR #138's broader privilege/default-ACL hardening migration and added PR #145's explicit postcondition assertion for `normalize_arabic` search_path. Use one canonical 0070; exclude PR #145's standalone duplicate from extraction.
+- Confirmed migration runner uses a session advisory lock and per-file transaction with ledger insert; dry-run only checks nonempty SQL and is not SQL validation. 0071 is duplicate DDL with #154 and must appear once. 0072–0075 remain unvalidated source-only migrations requiring isolated tests and data/rollback review.
+- No migration or DB changes were executed. No grants/default ACL/RLS, deployment or worker changes occurred. No CI was run.
