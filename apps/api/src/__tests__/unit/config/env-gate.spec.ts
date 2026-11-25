@@ -3,6 +3,7 @@ import {
   INSECURE_DEV_SECRET,
   MIN_SECRET_LENGTH,
   isProductionLikeEnv,
+  resolveDeploymentNodeEnv,
   resolveJwtAccessSecret,
   assertJwtConfig,
   INSECURE_DEV_OTP_HMAC_SECRET,
@@ -37,6 +38,21 @@ describe('env-gate — isProductionLikeEnv', () => {
     expect(isProductionLikeEnv('production')).toBe(true);
     expect(isProductionLikeEnv('prod')).toBe(true);
     expect(isProductionLikeEnv('qa')).toBe(true);
+  });
+});
+
+
+describe('env-gate — resolveDeploymentNodeEnv', () => {
+  it('treats Render services as production even when NODE_ENV is missing or misconfigured', () => {
+    expect(resolveDeploymentNodeEnv({ RENDER_SERVICE_ID: 'srv-test', NODE_ENV: 'development' } as NodeJS.ProcessEnv)).toBe('production');
+    expect(resolveDeploymentNodeEnv({ RENDER_SERVICE_ID: 'srv-test', NODE_ENV: 'test' } as NodeJS.ProcessEnv)).toBe('production');
+    expect(resolveDeploymentNodeEnv({ RENDER_SERVICE_ID: 'srv-test' } as NodeJS.ProcessEnv)).toBe('production');
+  });
+
+  it('preserves explicit local and non-Render environments', () => {
+    expect(resolveDeploymentNodeEnv({ NODE_ENV: 'development' } as NodeJS.ProcessEnv)).toBe('development');
+    expect(resolveDeploymentNodeEnv({ NODE_ENV: 'test' } as NodeJS.ProcessEnv)).toBe('test');
+    expect(resolveDeploymentNodeEnv({ NODE_ENV: 'staging' } as NodeJS.ProcessEnv)).toBe('staging');
   });
 });
 
@@ -100,6 +116,9 @@ describe('env-gate — assertJwtConfig', () => {
     );
     expect(assertJwtConfig({ NODE_ENV: 'development' } as NodeJS.ProcessEnv)).toBe(
       INSECURE_DEV_SECRET,
+    );
+    expect(() => assertJwtConfig({ RENDER_SERVICE_ID: 'srv-test', NODE_ENV: 'development' } as NodeJS.ProcessEnv)).toThrow(
+      /JWT_ACCESS_SECRET must be set/,
     );
   });
 });
@@ -197,6 +216,12 @@ describe('env-gate — assertOtpHmacConfig', () => {
     expect(
       assertOtpHmacConfig({ NODE_ENV: 'development' } as NodeJS.ProcessEnv),
     ).toBe(INSECURE_DEV_OTP_HMAC_SECRET);
+    expect(() => assertOtpHmacConfig({ RENDER_SERVICE_ID: 'srv-test', NODE_ENV: 'development' } as NodeJS.ProcessEnv)).toThrow(
+      /OTP_HMAC_SECRET must be set/,
+    );
+    expect(() => assertOtpHmacConfig({ RENDER_SERVICE_ID: 'srv-test' } as NodeJS.ProcessEnv)).toThrow(
+      /OTP_HMAC_SECRET must be set/,
+    );
   });
 });
 
@@ -291,5 +316,11 @@ describe('env-gate — assertBootstrapOwnerEmail', () => {
       assertBootstrapOwnerEmail({ NODE_ENV: 'production' } as NodeJS.ProcessEnv),
     ).toThrow(/SCS_BOOTSTRAP_OWNER_EMAIL must be set/);
     expect(assertBootstrapOwnerEmail({ NODE_ENV: 'development' } as NodeJS.ProcessEnv)).toBe(null);
+    expect(() => assertBootstrapOwnerEmail({ RENDER_SERVICE_ID: 'srv-test', NODE_ENV: 'development' } as NodeJS.ProcessEnv)).toThrow(
+      /SCS_BOOTSTRAP_OWNER_EMAIL must be set/,
+    );
+    expect(() => assertBootstrapOwnerEmail({ RENDER_SERVICE_ID: 'srv-test' } as NodeJS.ProcessEnv)).toThrow(
+      /SCS_BOOTSTRAP_OWNER_EMAIL must be set/,
+    );
   });
 });

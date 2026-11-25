@@ -189,7 +189,7 @@ export function resolveOtpHmacSecret(input: OtpHmacSecretGateInput = {}): string
  */
 export function assertOtpHmacConfig(env: NodeJS.ProcessEnv = process.env): string {
   return resolveOtpHmacSecret({
-    nodeEnv: env['NODE_ENV'],
+    nodeEnv: resolveDeploymentNodeEnv(env),
     secret: env['OTP_HMAC_SECRET'],
   });
 }
@@ -376,7 +376,7 @@ export function assertBootstrapOwnerEmail(
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
   return resolveBootstrapOwnerEmail({
-    nodeEnv: env['NODE_ENV'],
+    nodeEnv: resolveDeploymentNodeEnv(env),
     email: env['SCS_BOOTSTRAP_OWNER_EMAIL'],
   });
 }
