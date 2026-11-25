@@ -100,3 +100,11 @@ A follow-up code review found and fixed the buyer-confirmation/auto-completion r
 - Latest PR #154 head before this handoff update: `619bf6d5684b9774be5e0dc25972b3aaa53d0f24`.
 - CI run #1543 (run ID `45669741152`) passed all 10 substantive jobs: mobile analysis/tests, lint/typecheck/format, migration full apply, web/admin tests, unit/coverage, E6 boundary lint, integration tests, build, container build/smoke, and contract/codegen. k6 smoke and staging release were skipped; neither is claimed as passed.
 - PR #154 remains draft pending independent review. No merge, staging DB write/migration, Render change, worker activation, deployment or restart occurred.
+
+
+## 25 November 2026 — consolidated PR #154 CI result
+
+- Exact code/test head `e4a5901102e474c3bdce63ca16431ad20f36a317` passed workflow run `45700713258`. Required jobs all succeeded: Lint & Typecheck; Mobile analyze/tests; Integration Tests (including the new real-PostgreSQL worker-claim and expired-lease/stale-owner tests); Migration Full Apply; Web & Admin tests; Unit Tests + Coverage Gates; Boundary Lint (E6); Contract Spec & Codegen; Build; Container Build & Smoke Test.
+- k6 Smoke Test and Trigger Staging Release were skipped by workflow design. This is not a staging deployment or load-test pass.
+- The source/test batch includes commit `b535140b3d88711457aedd204594c2ba7e56d3a9`; documentation-only commits followed. The full CI run validates the exact source/test head and the combined PR tree at `e4a590...`.
+- PR #154 remains OPEN / DRAFT / UNMERGED. Independent review is still required. Do not merge or mark release-ready based on CI alone. No staging DB, Render, worker, deployment or business workflow action occurred.
