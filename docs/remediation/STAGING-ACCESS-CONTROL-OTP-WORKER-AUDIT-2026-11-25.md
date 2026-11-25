@@ -4,7 +4,7 @@
 
 This is a read-only audit of the connected Supabase project and source code at the `develop` and `remediation/phase-0-1-tenant-security` refs. The database catalog and advisor queries were executed through the connected Supabase integration. No SQL write, DDL, RLS enablement, grant/revoke, migration, seed, deployment, worker activation, secret/environment change, or business workflow was performed.
 
-The SQL integration reports `current_user = postgres`. That is the management/audit connection identity, **not proof of the API runtime identity**. The current `pg_stat_activity` snapshot did not show a distinct application session. The API runtime role and migration runner role therefore remain unverified until the protected audit workflow or Render startup logs are inspected.
+The SQL integration reports `current_user = postgres`. Fresh Render application logs now independently confirm the actual API runtime also uses `session_user = current_user = postgres`, with `BYPASSRLS=true`, `CREATEROLE=true`, `CREATEDB=true`, and `ssl=false`. This is a confirmed API runtime blocker, not an inference from the management connection. The migration runner identity remains unverified pending the protected read-only audit workflow.
 
 ## 1. Live database access-control inventory
 
@@ -102,7 +102,7 @@ The separate `db-access-audit.yml` workflow on `develop` is read-only, uses the 
 
 Source review confirms `DatabaseService` creates a node-postgres pool from `DATABASE_URL`; it does not use the Supabase JS client/service-role key as its main database adapter. Startup logs a database identity fingerprint. The migration runner uses `STAGING_DATABASE_URL` in the release workflow and also reports connection identity.
 
-The current SQL integration's `postgres` identity cannot be substituted for either runtime identity. The API runtime may use a BYPASSRLS/table-owner role; if so, enabling RLS alone would not protect tenant data. Before RLS design, capture the actual API `session_user`, `current_user`, role flags, schema/table privileges, and migration runner identity from the protected audit workflow or Render logs.
+The API runtime identity is now confirmed from Render logs: `session_user = current_user = postgres`, `BYPASSRLS=true`, `CREATEROLE=true`, `CREATEDB=true`, and `ssl=false`. This role owns the public tables and bypasses RLS, so RLS must not be enabled while the API uses it. The migration runner identity remains unknown; obtain it from the protected `db-access-audit.yml` workflow before designing ownership or migration grants.
 
 The last repository deployment runbook observation says the Render API start command is `pnpm --filter @scs/api start:prod` and migrations/seeds are performed by the separate release workflow. The uploaded investigation note says the configured startup command runs migrations and RBAC seed. These statements conflict and require a fresh read-only Render service configuration/log check; neither is treated as current fact until verified.
 
@@ -161,3 +161,10 @@ Next:
 4. Finalize the tenant RLS design only after the API role is confirmed to be non-owner and non-BYPASSRLS (or after a least-privilege runtime-role migration plan is approved).
 5. Keep the OTP patch local until the user asks to apply/commit it; verify the exact Render log evidence first.
 6. Do not dispatch `release.yml`, apply migrations, enable RLS, revoke grants, activate ReturnExpirationWorker, or run business workflows as part of this audit.
+
+
+## 25 November 2026 — fresh Render runtime identity confirmation
+
+Read-only Render inspection confirmed the deployed `scs-api-staging` service is on `develop`, with latest successful deployment `fde20420bbb759d2e562f9ff747c9e824ac58e25` at 12:06:17 UTC. Five API-process `DatabaseService` diagnostics between 10:21 and 12:30 UTC consistently report `session_user=postgres`, `current_user=postgres`, database `postgres`, `superuser=false`, `BYPASSRLS=true`, `CREATEROLE=true`, `CREATEDB=true`, and `ssl=false`. This confirms the actual API runtime role and TLS state, not merely the Supabase management connection. No environment values were retrieved or changed.
+
+This is a hard RLS blocker: the API uses the table-owning `postgres` role with BYPASSRLS, so RLS would not constrain it. The database connection also has TLS disabled. The current DatabaseService only enables verified TLS when `PGSSLROOTCERT` is mounted. Migration-runner identity remains unverified; the protected read-only `db-access-audit.yml` workflow has not been dispatched. See `docs/remediation/STAGING-API-RUNTIME-ROLE-AND-TLS-REMEDIATION-PLAN-2026-11-25.md` for the least-privilege role/TLS rollout. No DB role/grant/RLS/migration, Render configuration, deployment, worker activation or production action occurred.
