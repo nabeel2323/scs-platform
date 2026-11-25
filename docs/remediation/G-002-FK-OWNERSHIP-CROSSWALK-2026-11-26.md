@@ -108,3 +108,26 @@ Static source review covered migrations 0001–0006 and 0008–0011. Migration 0
 7. Conversation sender and dispute participants are authorized for the linked order.
 
 Do not add composite constraints blindly: profile existing data first, inspect Drizzle schema and all service/internal callsites, and define repair/rollback for any inconsistent historical rows. Continue migration 0007 and 0012–0069 inventory; this still does not complete the 75-file audit.
+
+
+## 26 November 2026 — service-callsite spot-check for commerce ownership links
+
+Reviewed source sections in CatalogService, InventoryService/Controller, PricingService/Controller, CartService/Controller and OrdersService. Findings below are limited to the inspected paths; this is not exhaustive callsite closure.
+
+### Positive guards observed
+
+- Catalog product creation calls `assertCategoryAvailableForStore(categoryId, storeId)` before insert; category lookup allows platform categories or the same store. Recheck category update/parent changes and every import/bulk product write path separately.
+- Inventory HTTP controller passes authenticated `JwtPayload` to create/list/adjust/transfer methods under JWT, permission guard and TenantDatabaseContextInterceptor. `createItem` checks warehouse membership, variant-store membership and equality when caller is supplied. Transfer verifies source warehouse, target warehouse and variant resolve to the same store.
+- Pricing controller verifies active organization/store membership for price-list access and variant store; add/update/delete/resolve tier paths require variant store to equal price-list store. PricingService repeats the variant/list consistency check for tier add/update/delete/resolve.
+- Cart controller derives operations from the authenticated user's active cart and is guarded by JWT, permissions and TenantDatabaseContextInterceptor. CartService derives store from variant→product (not client storeId), validates a selected offer applies to the exact variant/product and routes through that offer's store; cart rows are keyed to the user's cart. This is a useful mitigation for the cart_items independent-FK combination.
+- OrdersService has a dedicated user actor-context wrapper for checkout mutation paths. Continue verifying every checkout/order write and cart snapshot uses the authenticated buyer, store grouping and item variant lineage.
+
+### Remaining callsite risks / evidence gaps
+
+1. InventoryService exposes caller-optional methods (including `createItem` and list helpers) and a no-caller `getOrCreateItem` helper. HTTP routes pass caller, but enumerate every internal/system callsite and prove it runs inside the intended actor context and independently validates variant↔warehouse store equality. A missing caller skips the object-level membership checks in `createItem`.
+2. PricingService methods such as price-list creation are not themselves CallerContext-bound; the HTTP controller performs the store/org/member gate. Inventory internal callers and pricing internal callers therefore remain in the G-002 service-boundary matrix.
+3. Cart helper `getCart(cartId)` reads by ID alone; current controller paths use user-scoped active-cart helpers, but ensure no direct/internal route exposes it without owner verification. Checkout must revalidate persisted cart item store/variant/offer lineage rather than assume earlier cart writes remain valid.
+4. Catalog product creation's category check is positive evidence for that path only. Review product update, category reparent/move, product-media attach, imports, bulk operations and canonical product/offer linkage.
+5. Orders migration has independent master_order, store, buyer, promotion and order-item variant links. Checkout source review must prove all links agree; the partial OrdersService excerpt confirms per-store grouping and offer/store validation but is not enough to close the full invariant.
+
+No source code was changed in this pass. Do not treat these spot checks as closure of the remaining internal/system callsite audit.
