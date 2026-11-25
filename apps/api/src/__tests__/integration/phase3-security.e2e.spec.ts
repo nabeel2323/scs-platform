@@ -95,6 +95,8 @@ let adminRoleId: string, moderatorRoleId: string, superAdminRoleId: string;
 // Tenant contexts are created lazily because beforeAll populates the UUIDs.
 const callerA = () => ({ sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA });
 const callerB = () => ({ sub: merchantOwnerB, role: 'MERCHANT_OWNER', activeOrg: orgB });
+const callerBuyerA = () => ({ sub: buyerA, role: 'BUYER', activeOrg: orgA });
+const callerBuyerB = () => ({ sub: buyerB, role: 'BUYER', activeOrg: orgB });
 
 // Role permission counts from seed-pg.ts
 const EXPECTED_PERM_COUNTS: Record<string, number> = {
@@ -132,6 +134,16 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
   let offerA: string, offerB: string;
   let invItemA: string, invItemB: string;
   let orderA: string; // buyerA's order from storeA
+
+  async function checkoutAsBuyer(input: any) {
+    const actor =
+      input?.buyerId === buyerA ? callerBuyerA() :
+      input?.buyerId === buyerB ? callerBuyerB() :
+      null;
+    if (!actor) throw new Error('Checkout test must use a seeded buyer identity');
+    return ordersService.checkout(input, actor);
+  }
+
 
   beforeAll(async () => {
     container = await new PostgreSqlContainer('postgres:16-alpine').start();
@@ -191,7 +203,8 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
     }
 
     // ── Instantiate services ──────────────────────────────────────
-    database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
     const conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
     catalog = new CatalogService(
@@ -339,7 +352,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       merchantOwnerA,
     );
     productA = pA.id;
-    await catalog.updateProduct(productA, { status: 'ACTIVE' });
+    await catalog.updateProduct(productA, { status: 'ACTIVE' }, undefined, callerA());
     const vA = await catalog.createVariant(productA, { sku: 'PA-V1', title: 'Product Alpha V1' });
     variantA = vA.id;
 
@@ -356,7 +369,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       merchantOwnerB,
     );
     productB = pB.id;
-    await catalog.updateProduct(productB, { status: 'ACTIVE' });
+    await catalog.updateProduct(productB, { status: 'ACTIVE' }, undefined, callerB());
     const vB = await catalog.createVariant(productB, { sku: 'PB-V1', title: 'Product Beta V1' });
     variantB = vB.id;
 
@@ -433,7 +446,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
 
     // ── Create an order for IDOR tests ────────────────────────────
     await cartService.addItem(buyerA, { variantId: variantA, quantity: 2, offerId: offerA });
-    const co = await ordersService.checkout({
+    const co = await checkoutAsBuyer({
       buyerId: buyerA,
       deliveryAddress: {},
       idempotencyKey: `p3-security-${randomUUID()}`,
@@ -655,7 +668,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
     it('Buyer A cannot read Buyer B master order', async () => {
       // Create a Buyer B order
       await cartService.addItem(buyerB, { variantId: variantB, quantity: 1, offerId: offerB });
-      const coB = await ordersService.checkout({
+      const coB = await checkoutAsBuyer({
         buyerId: buyerB,
         deliveryAddress: {},
         idempotencyKey: `p3-buyerb-${randomUUID()}`,
@@ -690,7 +703,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
     it('Merchant A cannot accept Merchant B order', async () => {
       // Create order from store B
       await cartService.addItem(buyerA, { variantId: variantB, quantity: 1, offerId: offerB });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p3-crossmerch-${randomUUID()}`,
@@ -708,7 +721,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
 
     it('Merchant A cannot reject Merchant B order', async () => {
       await cartService.addItem(buyerA, { variantId: variantB, quantity: 1, offerId: offerB });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p3-crossmerch2-${randomUUID()}`,
@@ -726,7 +739,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
 
     it('Merchant A cannot transition Merchant B order status', async () => {
       await cartService.addItem(buyerA, { variantId: variantB, quantity: 1, offerId: offerB });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p3-crossmerch3-${randomUUID()}`,
@@ -744,7 +757,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
 
     it('Merchant A cannot cancel Merchant B order', async () => {
       await cartService.addItem(buyerA, { variantId: variantB, quantity: 1, offerId: offerB });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p3-crossmerch4-${randomUUID()}`,
@@ -960,7 +973,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
     it('Merchant Owner A can accept Store A order', async () => {
       // Create a fresh order for accept
       await cartService.addItem(buyerA, { variantId: variantA, quantity: 1, offerId: offerA });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p3-own-accept-${randomUUID()}`,
@@ -981,7 +994,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
 
     it('Buyer A can cancel their own order', async () => {
       await cartService.addItem(buyerA, { variantId: variantA, quantity: 1, offerId: offerA });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p3-own-cancel-${randomUUID()}`,
@@ -1003,7 +1016,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
     it('checkout derives buyerId from JWT, not from client input', async () => {
       // The controller passes user.sub as buyerId, ignoring any client-supplied buyerId.
       // This is verified by reading the controller code:
-      //   return this.ordersService.checkout({ ...input, buyerId: user.sub });
+      //   return this.checkoutAsBuyer({ ...input, buyerId: user.sub });
       // At the service level, buyerId is used as-is — security is at the controller layer.
       // We verify the controller pattern exists by checking the source.
       const controllerSrc = await readFile(
@@ -1015,7 +1028,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
 
     it('order items preserve server-side price, not client-supplied', async () => {
       await cartService.addItem(buyerA, { variantId: variantA, quantity: 1, offerId: offerA });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p3-tamper-price-${randomUUID()}`,
@@ -1031,7 +1044,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
 
     it('offer snapshot is server-captured, not client-supplied', async () => {
       await cartService.addItem(buyerA, { variantId: variantA, quantity: 1, offerId: offerA });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p3-tamper-snap-${randomUUID()}`,
