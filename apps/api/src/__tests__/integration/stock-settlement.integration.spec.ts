@@ -69,6 +69,8 @@ function createHarness(initialStatus: string, ledger: LedgerRow[]) {
       })),
     })),
     // Mock transaction: executes callback with same mock db
+    // Master-order recalculation acquires a row lock before reading status.
+    execute: vi.fn().mockResolvedValue({ rows: [] }),
     transaction: vi.fn(async (cb: any) => cb(db)),
     query: {
       orders: { findFirst: vi.fn(async () => ({ ...order })) },
