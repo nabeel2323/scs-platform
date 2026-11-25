@@ -62,3 +62,17 @@
 - Created PR #156 with response-cookie/header/path redaction and a Pino-output regression test. It remains draft pending exact-head CI and independent security review.
 - Updated PR #153, #154 and #145 descriptions with read-only runtime evidence. PR #154 exact-head CI #1537 passed; k6 and staging release were skipped.
 - No database writes, migrations, grants, RLS/role changes, Render changes, worker activation, deployment, restart, credential rotation, or business workflow was performed.
+
+
+### 25 November 2026 — PostgreSQL auto-completion concurrency verification source
+
+- Added two PostgreSQL-backed worker-lease tests to PR #154: concurrent claims across two worker instances produce one owner; an expired claim is reclaimed, the stale owner cannot complete, and the replacement owner can complete with lease fields cleared.
+- Commit: `b535140b3d88711457aedd204594c2ba7e56d3a9` (`[skip ci]`). Tests remain authored but unexecuted; CI #1548 passed only on the preceding source head `cd1735c0cad7c36f6f6096cec6b719844c09b0d5` and does not validate this change.
+- PR #154 remains draft pending one consolidated exact-head CI run and independent review. No staging/database/worker/deployment action occurred.
+
+### 25 November 2026 — consolidated CI and PR #138 handling rules
+
+- Avoid CI after each small change. Group implementation and tests, use targeted/local checks where available, and run one full CI per meaningful integration batch.
+- PR #138 current head `16846152af71524f29047b704159f52ab0d73e75` has 1,927 changed files including 1,277 `.m73b6-scratch` files; it remains draft/unmerged and is not safe to merge wholesale. The preservation ref is 22 commits behind current PR head; reconcile before extraction.
+- PR #153/#154/#155/#156 remain draft and require independent review. PR #152 is merged.
+- main/develop divergence remains 11 develop-only and 4 main-only commits; do not promote until reconciled.
