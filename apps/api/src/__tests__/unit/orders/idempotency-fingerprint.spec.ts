@@ -53,9 +53,31 @@ const mockCartItems = [
 ];
 
 const mockVariant = { id: VARIANT_1, productId: 'prod-001', isActive: true, sku: 'SKU-001', title: 'Test' };
-const mockProduct = { id: 'prod-001', storeId: STORE_1, status: 'ACTIVE', deletedAt: null, title: 'Test Product', moq: 1 };
+const mockProduct = { id: 'prod-001', storeId: null, status: 'ACTIVE', deletedAt: null, title: 'Test Product', moq: 1 };
 
-function createMocks(existingMaster?: any, cartItemsOverride?: any[]) {
+function createMocks(
+  existingMaster?: any,
+  cartItemsOverride?: any[],
+  overrides: { product?: any; offer?: any } = {},
+) {
+  const resolvedProduct = { ...mockProduct, ...overrides.product };
+  const resolvedOffer = {
+    id: 'offer-1',
+    status: 'ACTIVE',
+    isAvailable: true,
+    storeId: STORE_1,
+    productId: 'prod-001',
+    variantId: null,
+    currency: 'SAR',
+    moq: 1,
+    orderIncrement: null,
+    priceListId: null,
+    warehouseId: null,
+    basePriceMinor: 200,
+    compareAtPriceMinor: null,
+    leadTimeDays: null,
+    ...overrides.offer,
+  };
   const insertValues = vi.fn().mockResolvedValue(undefined);
   const updateReturning = vi.fn().mockResolvedValue([{ id: CART_ID }]);
   const updateWhere = vi.fn().mockReturnValue({ returning: updateReturning });
@@ -76,27 +98,11 @@ function createMocks(existingMaster?: any, cartItemsOverride?: any[]) {
       builder['orderBy'] = vi.fn(() => builder);
       builder['limit'] = vi.fn().mockResolvedValue([]);
       builder['for'] = vi.fn(async () => {
-        if (selectedTable === products) return [mockProduct];
+        if (selectedTable === products) return [resolvedProduct];
         if (selectedTable === merchantOffers) {
           return resolvedCartItems
             .filter((item) => item.offerId)
-            .map((item) => ({
-              id: item.offerId,
-              status: 'ACTIVE',
-              isAvailable: true,
-              storeId: STORE_1,
-              productId: 'prod-001',
-              variantId: null,
-              isAvailable: true,
-              currency: 'SAR',
-              moq: 1,
-              orderIncrement: null,
-              priceListId: null,
-              warehouseId: null,
-              basePriceMinor: 200,
-              compareAtPriceMinor: null,
-              leadTimeDays: null,
-            }));
+            .map((item) => ({ ...resolvedOffer, id: item.offerId }));
         }
         return [];
       });
@@ -115,25 +121,16 @@ function createMocks(existingMaster?: any, cartItemsOverride?: any[]) {
         findFirst: vi.fn().mockResolvedValue(mockVariant),
         findMany: vi.fn().mockResolvedValue([mockVariant]),
       },
-      products: { findFirst: vi.fn().mockResolvedValue(mockProduct) },
+      products: { findFirst: vi.fn().mockResolvedValue(resolvedProduct) },
       stores: { findMany: vi.fn().mockResolvedValue([]) },
       stockMovements: { findMany: vi.fn().mockResolvedValue([]) },
       // Return ACTIVE offers matching whatever offerIds the cart items reference
       merchantOffers: {
-        findMany: vi.fn().mockImplementation(async ({ where }: any) => {
-          return resolvedCartItems
-            .filter((i) => i.offerId)
-            .map((i) => ({
-              id: i.offerId,
-              status: 'ACTIVE',
-              storeId: 'store-001',
-              productId: 'prod-001',
-              variantId: null,
-              isAvailable: true,
-              currency: 'SAR',
-              moq: 1,
-            }));
-        }),
+        findMany: vi.fn().mockImplementation(async () =>
+          resolvedCartItems
+            .filter((item) => item.offerId)
+            .map((item) => ({ ...resolvedOffer, id: item.offerId })),
+        ),
       },
     },
   };
@@ -194,6 +191,34 @@ describe('P1.1-A - Idempotency Fingerprint', () => {
     expect(masterInsert![0].requestFingerprint).toBeTruthy();
     expect(typeof masterInsert![0].requestFingerprint).toBe('string');
     expect(masterInsert![0].requestFingerprint.length).toBe(64);
+  });
+
+  it.each([
+    { name: 'product-level', variantId: null },
+    { name: 'variant-level', variantId: VARIANT_1 },
+  ])('accepts a canonical product backed by a $name seller offer', async ({ variantId }) => {
+    const mocks = createMocks(undefined, undefined, {
+      product: { storeId: null },
+      offer: { variantId },
+    });
+    mocks.db.query.masterOrders.findFirst
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue({
+        id: 'new-master',
+        buyerId: BUYER_ID,
+        status: 'SUBMITTED',
+        requestFingerprint: 'abc123',
+      });
+
+    const service = createService(mocks);
+    const result = await service.checkout({
+      buyerId: BUYER_ID,
+      deliveryAddress: { city: 'Riyadh' },
+      idempotencyKey: `canonical-${variantId ?? 'product'}`,
+    }, BUYER_ACTOR);
+
+    expect(result.id).toBe('new-master');
   });
 
   // -- Test 2: Same key, same request -> existing order --
