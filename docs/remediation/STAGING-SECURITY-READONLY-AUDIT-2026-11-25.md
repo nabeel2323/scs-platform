@@ -113,6 +113,18 @@ The prior `OtpDeliveryService` success/failure/error log lines included the raw 
 
 The identity service masks email/phone identifiers; the mock provider stores test OTPs in memory and logs only subject type/correlation metadata. The available Render log window from 1–25 November contained 267 OTP-tagged app log entries and 94 OTP-route-related entries; no six-digit values were found in those messages. This only verifies accessible retained logs, not logs outside the available window. Provider-specific success logs still include opaque provider message IDs and correlation IDs; these are not OTP values or full recipients, but can be minimized further if the logging policy classifies them as sensitive identifiers.
 
+### 4.1 HTTP request/response logging credential leak
+
+A separate review of `main.ts` and retained Render request-completion logs found a distinct issue from OTP provider logging:
+
+- The pino-http redaction covers incoming authorization/cookie headers but omits `res.headers["set-cookie"]`.
+- Four retained request-completion records contain the `scs_device_trust` Set-Cookie value. The inspected cookie has a 90-day Max-Age. Values are intentionally not reproduced in this report.
+- The same request serializer records carrier webhook URL paths containing a credential-like `webhookToken`, as well as `x-carrier-signature` / `x-webhook-signature` headers, device IDs and forwarded client-IP headers, without explicit redaction.
+- The device-trust cookie is a remembered-device credential. Treat the historical logged values as potentially compromised until expiry/revocation is confirmed. This may permit OTP bypass after the separate primary authentication step; it is not an access JWT by itself.
+- A narrow source fix and Pino-output regression test are in PR #156. It is not merged/deployed and does not erase historical logs or revoke cookies. No credential rotation or revocation was performed.
+
+The OTP delivery service fix in PR #152 remains valid and separate: no six-digit OTP values were found in the accessible OTP-related log window, but the response-cookie exposure is still a security issue until PR #156 is reviewed, merged and deployed.
+
 ## 5. Worker and outbox runtime review
 
 Render currently has one API service, one instance, and no separate worker service. The latest live deployment is `develop` at `fde20420bbb759d2e562f9ff747c9e824ac58e25`; auto-deploy is disabled.
@@ -151,4 +163,4 @@ Supabase's performance advisor currently reports 55 foreign-key constraints with
 6. Keep P13/financial worker activation disabled until the dedicated worker identity, lease, pause controls, and release plan are verified.
 7. Run a new read-only audit after any approved changes; only then plan controlled write tests with explicit authorization.
 
-**Audit result:** access-control architecture and generic outbox delivery remain staging release blockers. OTP log redaction is merged/deployed and current retained logs show no OTP values. No staging writes or operational actions were performed.
+**Audit result:** access-control architecture, generic outbox delivery, and HTTP response-cookie log redaction remain staging release blockers. OTP provider log redaction is merged/deployed and current retained logs show no six-digit OTP values, but historical device-trust cookies were recorded in HTTP response logs and require an explicit revocation/retention decision. No staging writes or operational actions were performed.
