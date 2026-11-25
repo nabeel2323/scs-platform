@@ -210,6 +210,12 @@ Do not enable RLS indiscriminately while the API connects as `postgres`.
 7. **Separate worker privileges and context.** Workers should use a dedicated worker identity/context and only the tables required for their job. The current in-process workers share the API's privileged pool; do not enable financial or carrier workflows as part of an RLS migration.
 8. **Test in an isolated database first.** Cover missing-context denial, cross-user and cross-tenant isolation, buyer/merchant/driver boundaries, parent/child tables, analytics partitions, worker permissions, pool connection reuse, transaction rollback, and attempts to bypass policies. Run full migrations and integration tests on a disposable database before any staging change.
 
+### 3.1 Existing service-level tenant checks are not database RLS context
+
+The current `apps/api/src/common/tenant-scope.ts` provides service-level checks such as `assertStoreInOrg`, `assertProductInOrg`, `assertOrderAccessible`, `assertStoreMember`, and `financialOrgScope`. They consume the application's custom JWT caller context (`sub`, `role`, `activeOrg`) and query through the shared `DatabaseService` pool. The module explicitly documents that trusted internal calls which do not forward a caller context bypass tenant scoping by design.
+
+These helpers are valuable API authorization controls, but they do not set transaction-local PostgreSQL actor context and cannot make RLS effective while the API role is `postgres`/BYPASSRLS. RLS must be designed around the custom application JWT claims, not assumed to use Supabase Auth's `auth.uid()`. The refactor must also account for internal/background callers that intentionally omit HTTP caller context and give them narrowly scoped worker policies rather than silently inheriting tenant-wide access.
+
 ## 4. OTP logging review
 
 PR #152 is already merged and included in the deployed `develop` commit `fde20420bbb759d2e562f9ff747c9e824ac58e25`.
