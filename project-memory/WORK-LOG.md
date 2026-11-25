@@ -303,3 +303,10 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 - Consolidated PR #145's `normalize_arabic` search_path postcondition into PR #138 migration 0070. Keep one 0070; standalone #145 migration is excluded from the integration slice. PR #138/#154 0071 DDL is duplicate and must appear once.
 - Reviewed migration runner: advisory lock across ledger/apply sequence; each migration plus ledger insert is atomic per file; dry-run only checks nonempty SQL. 0072–0075 remain source-only pending isolated PostgreSQL validation and data/rollback review.
 - No SQL, migration, DB write, grant/default-ACL/RLS change, deployment or worker action occurred. No tests/typecheck/CI run. Next: complete G-002 migration manifest and validation plan.
+
+
+## 26 November 2026 — worker fencing source correction
+
+- Fixed ShippingCarrierWorker success and failure event finalization to require event ID + PROCESSING state + current locked_by worker, preventing an expired worker from overwriting a reclaimed event. Commit `d18a4954`.
+- Added regression specs for ack/failure lease fencing and corrected return/shipping worker test doubles to model DatabaseService.withActorContext. ReturnsService worker-escalation spec now invokes the service within the expected caller actor context. Commits: `7009e69d`, `e90276f7`, `7fc543a5`, `2abac268`.
+- Reviewed return worker nesting and atomic lease fence. No additional production change identified. No tests/lint/typecheck/build/CI run. No provider/storage/DB/migration/worker/deployment/merge side effect occurred.
