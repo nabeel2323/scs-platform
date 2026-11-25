@@ -1,3 +1,33 @@
+## 26 November 2026 — live continuation checkpoint (latest PR #138 head `d1d9d8f570e21bf96f2853ce17a8b42aaed0b902`)
+
+**Repository state freshly checked**
+- PR #138 remains OPEN / DRAFT / UNMERGED, base `develop`, and GitHub reports `mergeable=false`. Current PR head: `d1d9d8f570e21bf96f2853ce17a8b42aaed0b902`; latest commit: `fix(config): enforce production gates on Render services [skip ci]` (implementation batch), followed by this documentation checkpoint when committed.
+- Current comparison against `develop`: 2,776 commits ahead / 3 behind; merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`; current develop head `fde20420bbb759d2e562f9ff747c9e824ac58e25`. PR diff: 1,933 paths, 103,874 additions, 414,508 deletions. 1,277 paths remain under `.m73b6-scratch/`; three additional PostgreSQL suites are under `apps/api/src/__tests__/scratch/`. Do not merge this branch wholesale or extract scratch/token-like artifacts.
+- Preservation branch `preservation/pr138-remediation-2026-11-25` was verified identical to the source branch at `6b17ae6e9e2b3810afabae42a2e049e550120e40` before this continuation's two grouped commits. Fast-forward it to the final updated source head using an expected-SHA check after the documentation checkpoint; never reset or force-push either branch.
+- No GitHub Actions run is associated with the implementation head because the grouped implementation commit uses `[skip ci]`. The only reported status contexts on the preceding head were Vercel preview daily-quota failures; these are provider limits, not application CI results. Do not claim tests or CI passed for the new source changes.
+
+**Implementation performed in this continuation**
+- Reviewed the Render production fail-closed startup guard added in the preceding 33-commit source-diff batch. Found three configuration assertions still using raw `NODE_ENV`: OTP HMAC, bootstrap-owner email, and OTP delivery readiness. A Render service with `NODE_ENV=development` or unset could therefore still enter a development fallback path despite the new deployment-environment resolver.
+- Fixed all three to use `resolveDeploymentNodeEnv(env)`. Added regression coverage for Render with `NODE_ENV=development` and missing `NODE_ENV`, while preserving local development behavior. JWT already used the resolver.
+- Grouped source/test changes into commit `d1d9d8f570e21bf96f2853ce17a8b42aaed0b902` (`[skip ci]`): `env-gate.ts`, `otp-delivery-gate.ts`, existing `env-gate.spec.ts`, and new `otp-delivery-gate.spec.ts`.
+- This is source-reviewed but **NOT TESTED / NOT CI-VERIFIED**. Continue implementation without running CI after small edits; run one consolidated validation campaign after the planned implementation/integration batch.
+
+**Focused PRs and release sequencing**
+- PR #153 current head `5294698d8db78e21df972e8ce6213f21237789fa`; its exact-head Actions run #1523 passed, but it remains OPEN / DRAFT pending independent review. Current Vercel preview status is a provider daily-quota failure.
+- PR #154 current head `e421e21b1e66386a9d0c259fb83c99f1a05272cb`; no GitHub Actions run was found for this exact head. Earlier green runs apply only to earlier SHAs. It remains OPEN / DRAFT; review the newest PostgreSQL-backed worker-claim concurrency coverage and independent review before advancing it.
+- PR #152 OTP redaction is already merged into `develop`; do not repeat it.
+- `main` and `develop` are currently DIVERGED: `develop` is 11 commits ahead and 4 behind `main`, merge base `9f5bc397467dc92cdc8debd54797b6d730659c36`. Do not promote to `main` until the separate history divergence is reconciled deliberately.
+
+**Next work**
+1. Continue source-only G-002 actor-context and DB access-path review on the current PR #138 head; keep production method contracts strict and tests explicit about actor, role, tenant and worker principal.
+2. Finish raw SQL/function/trigger/partition coverage, method-level ownership predicates, FK-to-ownership crosswalk, and worker/bootstrap/CLI actor-context boundaries.
+3. Reconcile overlaps with #153/#154/#156 and migration 0070 before creating bounded extraction PRs from refreshed `develop`.
+4. Preserve the staging safety boundary: no RLS/grant/default-ACL/migration changes, Render environment changes/deploy/restart, worker activation or business workflow until the documented identity, role/TLS, rollback and authorization gates are satisfied.
+
+**CI budget rule reaffirmed:** local/targeted checks during implementation where a local checkout is available; group related source, tests and docs into cohesive commits; use `[skip ci]` while the implementation batch is in progress; one consolidated CI per completed workstream, then one final release-candidate campaign. Never represent skipped or historical checks as current passes.
+
+---
+
 # PR #138 — Merge and Extraction Map
 
 **Checkpoint:** 25 November 2026  
