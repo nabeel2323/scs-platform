@@ -92,6 +92,111 @@ Tables without direct tenant keys must not receive a permissive policy by defaul
 
 **Current public exposure decision:** no existing table is approved for direct `anon` or `authenticated` CRUD. If buyer-facing catalog access is required, use curated views or the authenticated API over published/approved records rather than granting raw-table access.
 
+### 2.1 Catalog scope-key and foreign-key inventory
+
+The following is the full catalog heuristic for the 101 base/parent tables (partition children excluded). Column names are not proof of authorization semantics: `actor_id` identifies an actor, not a tenant, and every policy must be checked against the service workflow and FK constraints.
+
+**45 tables with direct scope-like columns:**
+
+```text
+account_link_log (user_id)
+analytics_events (user_id)
+audit_logs (actor_id)
+business_documents (store_id)
+carrier_configurations (store_id)
+cart_items (store_id)
+carts (user_id)
+catalog_requests (store_id)
+categories (store_id)
+credential_audit_log (user_id)
+delivery_zones (store_id)
+device_credentials (user_id)
+device_tokens (user_id)
+dispute_events (actor_id)
+driver_profiles (user_id)
+driver_store_assignments (store_id)
+favorites (user_id)
+import_jobs (store_id)
+master_orders (buyer_id)
+merchant_offers (store_id)
+notification_preferences (user_id)
+notifications (user_id)
+ops_control_audit (actor_id)
+orders (buyer_id, cancellation_actor_id, store_id)
+organization_members (user_id)
+outbox_events (organization_id, store_id)
+p13_pilot_allowlist (store_id)
+payment_events (actor_id)
+price_lists (store_id)
+product_moderation (actor_user_id)
+products (store_id)
+promotion_redemptions (user_id)
+promotions (store_id)
+return_request_events (actor_id)
+return_requests (buyer_id)
+saved_suppliers (store_id, user_id)
+search_queries (store_id, user_id)
+sessions (user_id)
+settlement_records (merchant_store_id)
+shipment_events (actor_user_id)
+shipments (assigned_driver_id, store_id)
+shipping_methods (store_id)
+store_members (store_id, user_id)
+verification_requests (store_id)
+warehouses (store_id)
+```
+
+**41 tables without a direct scope-like column but with a public-table FK path:**
+
+| Child table | FK parents to inspect for policy |
+|---|---|
+| `attribute_options` | `attribute_definitions` |
+| `business_calendar_audit`, `business_calendar_holidays` | `business_calendars`, `users` |
+| `business_calendars` | `users` |
+| `carrier_credentials` | `organizations`, `users` |
+| `carrier_webhook_events`, `delivery_proofs`, `shipment_labels` | `shipments` |
+| `catalog_import_errors` | `catalog_imports` |
+| `catalog_imports` | `users` |
+| `commission_reversals` | `refunds`, `return_requests`, `settlement_records`, `users` |
+| `conversations` | `orders`, `users` |
+| `delivery_zone_methods` | `delivery_zones`, `shipping_methods` |
+| `disputes` | `orders`, `return_requests`, `users` |
+| `import_job_chunks` | `import_jobs` |
+| `inventory_items` | `product_variants`, `warehouses` |
+| `messages` | `conversations`, `users` |
+| `order_financial_breakdown` | `orders` |
+| `order_items` | `merchant_offers`, `orders`, `product_variants` |
+| `order_status_history` | `orders`, `users` |
+| `organization_update_requests` | `organizations`, `users` |
+| `payment_records` | `orders`, `users` |
+| `price_tiers` | `price_lists`, `product_variants` |
+| `product_attribute_values` | `attribute_definitions`, `products` |
+| `product_media` | `product_variants`, `products` |
+| `product_offer_review_state` | `merchant_offers`, `products` |
+| `product_sources` | `products` |
+| `product_type_attributes` | `attribute_definitions`, `attribute_groups`, `product_types` |
+| `product_types` | `categories` |
+| `product_variants` | `products` |
+| `reconciliation_discrepancies` | `reconciliation_runs`, `users` |
+| `reconciliation_runs` | `reconciliation_runs` (self-reference), `users` |
+| `refunds` | `disputes`, `orders`, `payment_records`, `return_requests`, `users` |
+| `return_request_items` | `inventory_items`, `order_items`, `return_requests` |
+| `reviews` | `orders`, `users` |
+| `role_permissions` | `permissions`, `roles` |
+| `settlement_adjustment_approvals` | `settlement_adjustments`, `users` |
+| `settlement_adjustments` | `orders`, `return_requests`, `settlement_records`, `users` |
+| `stock_movements` | `inventory_items`, `users` |
+| `stores` | `organizations` |
+| `variant_attribute_values` | `attribute_definitions`, `product_variants` |
+
+**15 tables with neither a direct scope-like column nor a public-table FK:**
+
+- Platform/internal: `_migration_log`, `backfill_errors`, `bootstrap_authorizations`, `feature_flags`, `ops_alerts`, `ops_controls`, `worker_leases`.
+- Security/audit or root entities: `trust_snapshots`, `organizations`, `users`.
+- Shared reference/admin: `attribute_definitions`, `attribute_groups`, `brands`, `permissions`, `roles`.
+
+The no-FK root tables still need explicit policies: `users` should be self-scoped, `organizations` should be scoped through verified organization membership, and `trust_snapshots` should remain backend/security-only unless a specific read path is justified. Reference tables should be exposed only through a curated read surface where needed. Internal tables should not be browser-accessible.
+
 ## 3. Recommended access-control architecture
 
 Do not enable RLS indiscriminately while the API connects as `postgres`.
