@@ -625,7 +625,7 @@ describe('OrdersService.checkout authoritative offer lock', () => {
                 lockModes.push(mode);
                 lockRead += 1;
                 return lockRead === 1
-                  ? [{ id: 'product-1', title: 'Widget', moq: 1 }]
+                  ? [{ id: 'product-1', storeId: null, status: 'ACTIVE', deletedAt: null, title: 'Widget', moq: 1 }]
                   : [lockedOffer];
               }),
             })),
