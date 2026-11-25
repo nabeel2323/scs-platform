@@ -90,6 +90,8 @@ let merchantRoleId: string, buyerRoleId: string;
 // Tenant contexts are created lazily because beforeAll populates the UUIDs.
 const callerA = () => ({ sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA });
 const callerB = () => ({ sub: merchantB, role: 'MERCHANT_OWNER', activeOrg: orgB });
+const callerBuyerA = () => ({ sub: buyerA, role: 'BUYER', activeOrg: orgA });
+const callerBuyerB = () => ({ sub: buyerB, role: 'BUYER', activeOrg: orgB });
 
 describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
   let container: StartedPostgreSqlContainer;
@@ -103,6 +105,16 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
   let ordersService: OrdersService;
   let inventoryService: InventoryService;
   let promotionsService: PromotionsService;
+
+
+  async function checkoutAsBuyer(input: any) {
+    const actor =
+      input?.buyerId === buyerA ? callerBuyerA() :
+      input?.buyerId === buyerB ? callerBuyerB() :
+      null;
+    if (!actor) throw new Error('Checkout test must use a seeded buyer identity');
+    return ordersService.checkout(input, actor);
+  }
 
   // Shared catalog IDs
   let categoryId: string, brandId: string, productTypeId: string;
@@ -500,7 +512,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         offerId: offerStoreB2,
       });
 
-      const result = await ordersService.checkout({
+      const result = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: { street: '123 Test St', city: 'Riyadh' },
         idempotencyKey: `p2-multi-${randomUUID()}`,
@@ -675,7 +687,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 5,
         offerId: offerStoreA1,
       });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p2-accept-${randomUUID()}`,
@@ -720,7 +732,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 10,
         offerId: offerStoreA1,
       });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p2-partial-${randomUUID()}`,
@@ -751,7 +763,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 4,
         offerId: offerStoreA1,
       });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p2-reject-${randomUUID()}`,
@@ -769,7 +781,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 2,
         offerId: offerStoreA1,
       });
-      const co2 = await ordersService.checkout({
+      const co2 = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p2-reject2-${randomUUID()}`,
@@ -797,7 +809,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 3,
         offerId: offerStoreA1,
       });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p2-cancel-${randomUUID()}`,
@@ -834,7 +846,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 1,
         offerId: offerStoreA1,
       });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p2-auth-${randomUUID()}`,
@@ -898,7 +910,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 8,
         offerId: testOffer.id,
       });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p2-inv-cancel-${randomUUID()}`,
@@ -960,7 +972,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 6,
         offerId: testOffer.id,
       });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p2-inv-deliver-${randomUUID()}`,
@@ -1007,7 +1019,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 2,
         offerId: offerStoreA1,
       });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p2-snap-price-${randomUUID()}`,
@@ -1035,7 +1047,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 1,
         offerId: offerStoreA1,
       });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p2-snap-variant-${randomUUID()}`,
@@ -1070,7 +1082,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 1,
         offerId: offerStoreA1,
       });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p2-snap-offer-${randomUUID()}`,
@@ -1104,7 +1116,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 1,
         offerId: offerStoreA1,
       });
-      await ordersService.checkout({
+      await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p2-evt-${randomUUID()}`,
@@ -1144,14 +1156,14 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 1,
         offerId: offerStoreA1,
       });
-      await ordersService.checkout({
+      await checkoutAsBuyer({
         buyerId: buyerB,
         deliveryAddress: {},
         idempotencyKey: idemKey,
       });
 
       // Second call with same key
-      await ordersService.checkout({
+      await checkoutAsBuyer({
         buyerId: buyerB,
         deliveryAddress: {},
         idempotencyKey: idemKey,
@@ -1182,12 +1194,12 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         offerId: offerStoreB2,
       });
       const idemKey = `p2-retry-co-${randomUUID()}`;
-      const first = await ordersService.checkout({
+      const first = await checkoutAsBuyer({
         buyerId: buyerB,
         deliveryAddress: {},
         idempotencyKey: idemKey,
       });
-      const second = await ordersService.checkout({
+      const second = await checkoutAsBuyer({
         buyerId: buyerB,
         deliveryAddress: {},
         idempotencyKey: idemKey,
@@ -1201,7 +1213,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 2,
         offerId: offerStoreA1,
       });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p2-retry-cancel-${randomUUID()}`,
@@ -1268,7 +1280,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         quantity: 5,
         offerId: testOffer.id,
       });
-      const co = await ordersService.checkout({
+      const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p2-conc-accept-${randomUUID()}`,
