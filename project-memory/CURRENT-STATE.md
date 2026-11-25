@@ -230,3 +230,9 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 - Fixed the auto-completion worker unit-test double to model DatabaseService.withActorContext and assert database execution, completion and lease release occur inside the worker principal. Commits: `983acb6b5a87c52a21a905745cf404d6c785c47f`, `82998dd808f5800ccfb7c354a373ef63bdf06bf4`, `7b98f58532c66c005c6a3089f9da72e1bc32d495`. Tests were not run.
 - Integration decision reaffirmed: #154 atomic completion/lease-fenced service logic plus #138 worker actor context; retain one migration 0071. #153 safe outbox behavior is canonical; do not extract #138 log-only dispatcher. #154 exact-head Actions has no run; #153 has a passing exact-head CI run.
 - No worker activation, DB/migration/provider/deployment side effect occurred. Continue remaining worker/DB access audit, then assemble bounded G-002 slice before one consolidated CI campaign.
+
+
+## 26 November 2026 — final worker-test typing cleanup
+
+- Replaced explicit `any[]` in the auto-completion worker test mock with `unknown[]`; behavior and assertions are unchanged. Commit: `2c412732dbbbbde742d43e60f5d2593552aea3cb`.
+- This remains unexecuted source/test authoring. No test runner, typecheck, formatter, build or CI was run.
