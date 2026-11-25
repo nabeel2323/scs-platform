@@ -90,7 +90,7 @@ describe('CatalogService — Saved Suppliers (§21.3)', () => {
         { id: 'store-B', displayName: 'Supplier B' },
       ]);
 
-      const result = await service.listSavedSuppliers('user-1');
+      const result = await service.listSavedSuppliers('user-1', actor);
 
       // One batched store fetch, not one-per-save (N+1 guard).
       expect(mocks.db.select).toHaveBeenCalledTimes(1);
@@ -106,7 +106,7 @@ describe('CatalogService — Saved Suppliers (§21.3)', () => {
       ]);
       mocks.selectChain.where.mockResolvedValue([{ id: 'store-A', name: 'Supplier A' }]);
 
-      const result = await service.listSavedSuppliers('user-1');
+      const result = await service.listSavedSuppliers('user-1', actor);
       expect(result).toHaveLength(1);
       expect(result[0]!.storeId).toBe('store-A');
     });
@@ -147,7 +147,7 @@ describe('CatalogService — Saved Suppliers (§21.3)', () => {
       mocks.db.query.stores.findFirst.mockResolvedValue({ id: 'store-A', name: 'Supplier A' });
       mocks.db.query.savedSuppliers.findFirst.mockResolvedValue(undefined);
 
-      const result = await service.saveSupplier('user-1', 'store-A');
+      const result = await service.saveSupplier('user-1', 'store-A', actor);
       expect(mocks.db.insert).toHaveBeenCalledTimes(1);
       expect(result).toMatchObject({ userId: 'user-1', storeId: 'store-A' });
       expect(result.id).toEqual(expect.any(String));

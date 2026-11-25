@@ -78,6 +78,12 @@ describe('M7.1 — Security & Concurrency', () => {
 
   let roleById: Map<string, string>;
 
+  function buyerActor(id: string) {
+    if (id === buyerA) return { sub: buyerA, role: 'BUYER', activeOrg: orgA };
+    if (id === buyerB) return { sub: buyerB, role: 'BUYER', activeOrg: orgB };
+    throw new Error('Security fixture checkout must use a seeded buyer');
+  }
+
   // Helper: create a full order pipeline (cart → checkout → accept)
   // The merchant who owns the store accepts the order.
   async function createAcceptedOrder(
@@ -101,7 +107,7 @@ describe('M7.1 — Security & Concurrency', () => {
       buyerId,
       deliveryAddress: {},
       idempotencyKey: `sec-${randomUUID()}`,
-    });
+    }, buyerActor(buyerId));
     const orderId = co.subOrders[0]!.id;
     // The owning merchant accepts (caller's activeOrg must match the store's org)
     const ownerOrgId = acceptOrgId || (sId === storeB ? orgB : orgA);
@@ -165,7 +171,8 @@ describe('M7.1 — Security & Concurrency', () => {
       client.release();
     }
 
-    database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
     const promotions = new PromotionsService(database);
     const inventoryService = new InventoryService(database, outbox);
     ordersService = new OrdersService(
@@ -429,7 +436,7 @@ describe('M7.1 — Security & Concurrency', () => {
           buyerId: buyerA,
           deliveryAddress: {},
           idempotencyKey: `moq-race-${randomUUID()}`,
-        });
+        }, buyerActor(buyerA));
 
         const deadline = Date.now() + 15_000;
         let blockedOnOfferLock = false;

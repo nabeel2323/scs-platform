@@ -298,7 +298,7 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
       buyerId: buyerA,
       deliveryAddress: {},
       idempotencyKey: `b331-${randomUUID()}`,
-    });
+    }, { sub: buyerA, role: 'BUYER', activeOrg: orgA });
     const orderId = co.subOrders[0]!.id;
     const caller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
 

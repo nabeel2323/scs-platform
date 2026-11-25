@@ -136,6 +136,12 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
 
   let roleById: Map<string, string>;
 
+  function buyerActor(id: string) {
+    if (id === buyerA) return { sub: buyerA, role: 'BUYER', activeOrg: orgA };
+    if (id === buyerB) return { sub: buyerB, role: 'BUYER', activeOrg: orgB };
+    throw new Error('Delivery fixture checkout must use a seeded buyer');
+  }
+
   /** Create a full order pipeline through DELIVERED state. */
   async function createDeliveredOrder(
     buyerId: string, mId: string, sId: string, vId: string, oId: string, acceptOrgId?: string,
@@ -143,7 +149,7 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
     const cartId = randomUUID();
     await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerId]);
     await pool.query(`INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id) VALUES ($1, $2, $3, $4, 2, 1000, 2000, $5)`, [randomUUID(), cartId, sId, vId, oId]);
-    const co = await ordersService.checkout({ buyerId, deliveryAddress: {}, idempotencyKey: `m73a-${randomUUID()}` });
+    const co = await ordersService.checkout({ buyerId, deliveryAddress: {}, idempotencyKey: `m73a-${randomUUID()}` }, buyerActor(buyerId));
     const orderId = co.subOrders[0]!.id;
     const ownerOrgId = acceptOrgId || (sId === storeB ? orgB : orgA);
     const caller = { sub: mId, role: 'MERCHANT_OWNER', activeOrg: ownerOrgId };
@@ -165,7 +171,7 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
     const cartId = randomUUID();
     await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerId]);
     await pool.query(`INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id) VALUES ($1, $2, $3, $4, 2, 1000, 2000, $5)`, [randomUUID(), cartId, sId, vId, oId]);
-    const co = await ordersService.checkout({ buyerId, deliveryAddress: {}, idempotencyKey: `m73a-${randomUUID()}` });
+    const co = await ordersService.checkout({ buyerId, deliveryAddress: {}, idempotencyKey: `m73a-${randomUUID()}` }, buyerActor(buyerId));
     const orderId = co.subOrders[0]!.id;
     const ownerOrgId = acceptOrgId || (sId === storeB ? orgB : orgA);
     const caller = { sub: mId, role: 'MERCHANT_OWNER', activeOrg: ownerOrgId };
@@ -202,7 +208,8 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
     const client = await pool.connect();
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
-    database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
     const promotions = new PromotionsService(database);
     const realOutbox = new OutboxDispatcher(database);
     const inventoryService = new InventoryService(database, realOutbox);
@@ -327,7 +334,7 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
       const cartId = randomUUID();
       await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
       await pool.query(`INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id) VALUES ($1, $2, $3, $4, 2, 1000, 2000, $5)`, [randomUUID(), cartId, storeA, variantA, offerA]);
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `m73a-cd-${randomUUID()}` });
+      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `m73a-cd-${randomUUID()}` }, buyerActor(buyerA));
       const orderId = co.subOrders[0]!.id;
       const caller = { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA };
       await ordersService.acceptOrder(orderId, merchantA, caller);

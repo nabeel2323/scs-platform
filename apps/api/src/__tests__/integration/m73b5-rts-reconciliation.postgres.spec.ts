@@ -103,7 +103,7 @@ async function createOrderOutForDelivery(
     buyerId,
     deliveryAddress: {},
     idempotencyKey: `b5-${randomUUID()}`,
-  });
+  }, { sub: buyerId, role: 'BUYER', activeOrg: orgId });
   const orderId = co.subOrders[0]!.id;
   const caller = { sub: merchantId, role: 'MERCHANT_OWNER' as const, activeOrg: orgId };
 
@@ -206,7 +206,8 @@ describe('M7.3-B.5 — RTS + Reconciliation (PostgreSQL)', () => {
     const client = await pool.connect();
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
-    database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
     outbox = new OutboxDispatcher(database);
     const promotions = new PromotionsService(database);
     const inventoryService = new InventoryService(database, outbox);
