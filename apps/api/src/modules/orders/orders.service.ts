@@ -106,6 +106,24 @@ export class OrdersService {
     @Optional() private readonly payments?: PaymentsService,
   ) {}
 
+  private withUserActorContext<T>(
+    actor: CallerContext,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    if (!actor?.sub?.trim() || !actor?.role?.trim()) {
+      throw new ForbiddenException('Authenticated user actor context is required');
+    }
+    return this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: actor.sub,
+        actorRole: actor.role,
+        activeOrgId: actor.activeOrg ?? null,
+      },
+      operation,
+    );
+  }
+
   // ── Checkout ─────────────────────────────────────────────────
 
   /**
@@ -113,13 +131,17 @@ export class OrdersService {
    * Checkout repeats validation and resolves all mutable terms again before commit.
    */
   async previewCheckout(input: CheckoutInput) {
-    const cart = await this.db.db.query.carts.findFirst({
-      where: and(eq(carts.userId, input.buyerId), eq(carts.status, 'ACTIVE')),
-    });
+    const cart = await this.withUserActorContext(actor, () =>
+      this.db.db.query.carts.findFirst({
+        where: and(eq(carts.userId, input.buyerId), eq(carts.status, 'ACTIVE')),
+      }),
+    );
     if (!cart) throw new BadRequestException('No active cart found');
-    const items = await this.db.db.query.cartItems.findMany({
-      where: eq(cartItems.cartId, cart['id']),
-    });
+    const items = await this.withUserActorContext(actor, () =>
+      this.db.db.query.cartItems.findMany({
+        where: eq(cartItems.cartId, cart['id']),
+      }),
+    );
     if (items.length === 0) throw new BadRequestException('Cart is empty');
 
     const offerIds = [...new Set(items.map((item) => item['offerId']).filter(Boolean) as string[])];
@@ -208,11 +230,13 @@ export class OrdersService {
     const resolvedFeeByStore = new Map<string, number>();
     for (const [storeId, selection] of selectionsByStore) {
       if (this.shipping) {
-        await this.shipping.validateCheckoutSelection(
-          storeId,
-          selection.fulfillmentMethod,
-          selection.shippingMethodId,
-          input.deliveryAddress as ZoneMatchInput,
+        await this.withUserActorContext(actor, () =>
+          this.shipping!.validateCheckoutSelection(
+            storeId,
+            selection.fulfillmentMethod,
+            selection.shippingMethodId,
+            input.deliveryAddress as ZoneMatchInput,
+          ),
         );
       }
       const subtotal = grouped.get(storeId)!.reduce((sum, item) => sum + item['lineTotalMinor'], 0);
@@ -256,11 +280,13 @@ export class OrdersService {
       const subtotal = storeItems.reduce((sum, item) => sum + item['lineTotalMinor'], 0);
       const hasPromo = Boolean(cart['promotionId'] || cart['promoCode']);
       const promo = hasPromo
-        ? await this.promotions.resolveApplicable(storeId, {
-            promotionId: cart['promotionId'],
-            code: cart['promoCode'],
-            userId: input.buyerId,
-          })
+        ? await this.withUserActorContext(actor, () =>
+            this.promotions.resolveApplicable(storeId, {
+              promotionId: cart['promotionId'],
+              code: cart['promoCode'],
+              userId: input.buyerId,
+            }),
+          )
         : null;
       const discount = promo ? this.promotions.calculateDiscount(promo, subtotal) : 0;
       const selection = selectionsByStore.get(storeId)!;
@@ -293,7 +319,10 @@ export class OrdersService {
     return { isEstimate: true, vatRate, stores: breakdowns, totalsByCurrency, hasUnpricedAmounts };
   }
 
-  async checkout(input: CheckoutInput) {
+  async checkout(input: CheckoutInput, actor: CallerContext) {
+    if (actor.sub !== input.buyerId) {
+      throw new ForbiddenException('Checkout buyer must match the authenticated user');
+    }
     // PHASE 1.1: Early return for matching idempotency key (before expensive
     // cart/offer work).
     // - Legacy orders (no fingerprint): return immediately on key match.
@@ -302,17 +331,24 @@ export class OrdersService {
     // - Non-legacy non-DRAFT + active cart: fall through to compute fingerprint
     //   and compare, so same-key-different-cart → 409 Conflict.
     if (input.idempotencyKey) {
-      const existingByKey = await this.db.db.query.masterOrders.findFirst({
-        where: eq(masterOrders.idempotencyKey, input.idempotencyKey),
-      });
+      const existingByKey = await this.withUserActorContext(actor, () =>
+        this.db.db.query.masterOrders.findFirst({
+          where: and(
+            eq(masterOrders.idempotencyKey, input.idempotencyKey),
+            eq(masterOrders.buyerId, input.buyerId),
+          ),
+        }),
+      );
       if (existingByKey && existingByKey['status'] !== 'DRAFT') {
         const storedFp = existingByKey['requestFingerprint'] as string | null;
         if (!storedFp) return this.getMasterOrder(existingByKey['id']);
         // Non-legacy: check if an active cart exists for fingerprint comparison.
         // No active cart → the cart was already converted → this is a retry.
-        const activeCart = await this.db.db.query.carts.findFirst({
-          where: and(eq(carts.userId, input.buyerId), eq(carts.status, 'ACTIVE')),
-        });
+        const activeCart = await this.withUserActorContext(actor, () =>
+          this.db.db.query.carts.findFirst({
+            where: and(eq(carts.userId, input.buyerId), eq(carts.status, 'ACTIVE')),
+          }),
+        );
         if (!activeCart) return this.getMasterOrder(existingByKey['id']);
         // Active cart exists → fall through to load items, compute fingerprint, compare.
       }
@@ -327,9 +363,14 @@ export class OrdersService {
       // CONVERTED by a concurrent request that already created the order.
       // Return the existing order instead of throwing.
       if (input.idempotencyKey) {
-        const existingByKey = await this.db.db.query.masterOrders.findFirst({
-          where: eq(masterOrders.idempotencyKey, input.idempotencyKey),
-        });
+        const existingByKey = await this.withUserActorContext(actor, () =>
+          this.db.db.query.masterOrders.findFirst({
+            where: and(
+              eq(masterOrders.idempotencyKey, input.idempotencyKey),
+              eq(masterOrders.buyerId, input.buyerId),
+            ),
+          }),
+        );
         if (existingByKey && existingByKey['status'] !== 'DRAFT') {
           return this.getMasterOrder(existingByKey['id']);
         }
@@ -368,9 +409,11 @@ export class OrdersService {
       }
     >();
     if (offerIds.length > 0) {
-      const fullOffers = await this.db.db.query.merchantOffers.findMany({
-        where: inArray(merchantOffers.id, offerIds),
-      });
+      const fullOffers = await this.withUserActorContext(actor, () =>
+        this.db.db.query.merchantOffers.findMany({
+          where: inArray(merchantOffers.id, offerIds),
+        }),
+      );
       const activeSet = new Set(fullOffers.filter((o) => o.status === 'ACTIVE').map((o) => o.id));
       for (const item of items) {
         const oid = item['offerId'] as string | null;
@@ -406,13 +449,15 @@ export class OrdersService {
     // TRANSACTION FOUNDATION: Use offer.moq when available (offer layer is
     // source of truth). Fall back to product.moq for legacy items without offerId.
     for (const item of items) {
-      const variant = await this.db.db.query.productVariants.findFirst({
-        where: eq(productVariants.id, item['variantId']),
-      });
-      if (!variant) throw new BadRequestException(`Variant ${item['variantId']} not found`);
-
-      const product = await this.db.db.query.products.findFirst({
-        where: eq(products.id, variant['productId']),
+      const { variant, product } = await this.withUserActorContext(actor, async () => {
+        const variant = await this.db.db.query.productVariants.findFirst({
+          where: eq(productVariants.id, item['variantId']),
+        });
+        if (!variant) throw new BadRequestException(`Variant ${item['variantId']} not found`);
+        const product = await this.db.db.query.products.findFirst({
+          where: eq(products.id, variant['productId']),
+        });
+        return { variant, product };
       });
 
       // Determine authoritative MOQ: offer.moq wins, product.moq is legacy fallback
@@ -514,10 +559,12 @@ export class OrdersService {
       } else if (selection.shippingMethodId && this.shipping) {
         // M7.2.2: resolve fee from shipping_methods table via ShippingService
         try {
-          const result = await this.shipping.resolveAuthoritativeFee(
-            storeId,
-            selection.shippingMethodId,
-            storeSubtotal,
+          const result = await this.withUserActorContext(actor, () =>
+            this.shipping!.resolveAuthoritativeFee(
+              storeId,
+              selection.shippingMethodId!,
+              storeSubtotal,
+            ),
           );
           resolvedFeeByStore.set(storeId, result.feeMinor);
         } catch (err: any) {
@@ -547,9 +594,14 @@ export class OrdersService {
       ? this.computeCheckoutFingerprint(items, input.deliveryAddress, selectionsByStore)
       : null;
     if (input.idempotencyKey) {
-      const existingByKey = await this.db.db.query.masterOrders.findFirst({
-        where: eq(masterOrders.idempotencyKey, input.idempotencyKey),
-      });
+      const existingByKey = await this.withUserActorContext(actor, () =>
+        this.db.db.query.masterOrders.findFirst({
+          where: and(
+            eq(masterOrders.idempotencyKey, input.idempotencyKey),
+            eq(masterOrders.buyerId, input.buyerId),
+          ),
+        }),
+      );
       if (existingByKey && existingByKey['status'] !== 'DRAFT') {
         const storedFp = existingByKey['requestFingerprint'] as string | null;
         if (storedFp && storedFp !== requestFingerprint) {
@@ -568,10 +620,19 @@ export class OrdersService {
     // Read store metadata before the transaction (read-only, safe outside).
     const currencyByStore = new Map<string, string>();
     const orgIdByStore = new Map<string, string>();
-    const storeRows = await this.db.db.query.stores.findMany({
-      where: inArray(stores.id, [...grouped.keys()]),
-      columns: { id: true, currency: true, orgId: true },
-    });
+    const storeRows = await this.withUserActorContext(actor, () =>
+      this.db.db.query.stores.findMany({
+        where: and(
+          inArray(stores.id, [...grouped.keys()]),
+          eq(stores.status, 'ACTIVE'),
+          eq(stores.verificationStatus, 'VERIFIED'),
+        ),
+        columns: { id: true, currency: true, orgId: true },
+      }),
+    );
+    if (storeRows.length !== grouped.size) {
+      throw new BadRequestException('A store in your cart is no longer available');
+    }
     for (const store of storeRows) {
       currencyByStore.set(store['id'], store['currency']);
       if (store['orgId']) orgIdByStore.set(store['id'], store['orgId']);
