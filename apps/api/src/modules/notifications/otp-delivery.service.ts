@@ -179,11 +179,11 @@ export class OtpDeliveryService {
 
       if (result.success) {
         this.logger.log(
-          `OTP delivered via ${channel} to ${request.subject} (message: ${result.messageId || 'unknown'}, correlation: ${request.correlationId || 'none'})`,
+          `OTP delivery accepted via ${channel}`,
         );
       } else {
         this.logger.warn(
-          `OTP delivery failed via ${channel} to ${request.subject}: ${result.errorReason} (retryable: ${result.retryable || false})`,
+          `OTP delivery failed via ${channel} (retryable: ${result.retryable === true})`,
         );
       }
 
@@ -196,7 +196,7 @@ export class OtpDeliveryService {
           ? error.name.replace(/[^A-Za-z0-9_]/g, '').slice(0, 48)
           : 'UnknownError';
       this.logger.error(
-        `Unexpected error during OTP delivery via ${channel} to ${request.subject} [${errorType}]`,
+        `Unexpected error during OTP delivery via ${channel} [${errorType}]`,
       );
 
       return {
