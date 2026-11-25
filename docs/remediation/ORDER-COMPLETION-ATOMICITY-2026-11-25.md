@@ -48,3 +48,13 @@ On run #1525, lint/typecheck, mobile, web/admin, migration full apply and bounda
 CI #1533 passed on exact head `d496b0616c9a0cdde2bd891ca47167d9b9dfbabc`. Subsequent code review identified a race where auto-completion could commit after `confirmDelivery()` initially read DELIVERED but before the buyer's guarded completion. The buyer endpoint now catches a completion conflict, re-reads the order, and returns the completed order with items only if the current status is COMPLETED; otherwise it rethrows the original conflict. A regression test covers the competing auto-completion winner.
 
 The implementation and test commits are `978a7b978e32e77b0a9b1752da60a7066f427fab` and `9efc30a7a3c0f841890a1d0bae839590cf58f8f3`. The latest head still needs a fresh exact-head CI run. Keep the PR draft pending that run and independent review.
+
+
+## Follow-up: real PostgreSQL worker lease concurrency coverage — 25 November 2026
+
+The PR #154 integration suite now adds two PostgreSQL-backed scenarios using two independent `AutoCompleteWorker` instances and the real Testcontainers database:
+
+1. Two concurrent claim statements target one due DELIVERED order. Exactly one worker may persist its unique `auto_complete_claimed_by` owner.
+2. A first worker claims the order, then a simulated process crash leaves the claim behind. After moving the lease timestamp beyond the five-minute expiry, a replacement worker must reclaim it. The stale worker's `completeOrder()` call must be rejected without changing order status or the replacement owner; the replacement worker then completes successfully and the lease fields are cleared.
+
+Source commit: `b535140b3d88711457aedd204594c2ba7e56d3a9` (`[skip ci]`). These tests are authored but not executed. CI #1548 passed only on the preceding head `cd1735c0cad7c36f6f6096cec6b719844c09b0d5`; a single consolidated exact-head CI run is still required. PR remains draft pending CI and independent review.
