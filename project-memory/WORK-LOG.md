@@ -29,3 +29,12 @@
 - Added a regression spec proving a failed shipment-event write rolls back the buyer confirmation timestamp and does not publish/emit.
 - Follow-up commit: `2f766035ee85302ab78ab56274aef423507278dc` (docs/memory sync); implementation commits precede it.
 - Tests remain authored, not executed. Keep PR #154 draft pending consolidated validation.
+
+
+### 25 November 2026 — PR #154 exact-head typecheck correction
+- CI run #1514 on the prior PR head failed `@scs/api:typecheck` at `orders.service.ts` master-order sub-order status mapping: callback parameter `so` implicitly had type any.
+- Added an explicit row type to the map callback: `(so: { status: string }) => so.status`.
+- Correction commit: `b21d7b080d28665fa23d35548232c8d70dbf1efd`.
+- The prior run executed Lint & Typecheck and Mobile only; most jobs (unit/coverage, integration, migrations, web/admin, build, contracts, container, k6 and release) were skipped. It is not a successful validation campaign.
+- New head needs a fresh complete CI run; focused regression specs remain unexecuted.
+- PR #138's separate durable auto-completion lease implementation must be reconciled with this branch before the broader remediation branch is integrated. PR #138 must not be merged wholesale.
