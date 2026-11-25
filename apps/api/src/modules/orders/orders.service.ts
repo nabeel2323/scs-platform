@@ -751,22 +751,33 @@ export class OrdersService {
             !variant.isActive ||
             !product ||
             product.deletedAt ||
-            product.status !== 'ACTIVE' ||
-            product.storeId !== item['storeId']
+            product.status !== 'ACTIVE'
           ) {
             throw new BadRequestException('A product in your cart is no longer available');
           }
           const itemOfferId = item['offerId'] as string | null;
           const offer = itemOfferId ? checkoutOfferById.get(itemOfferId) : undefined;
+
+          // Canonical products have no owning store: the selected merchant offer
+          // supplies the cart line's store. Merchant-owned products, by contrast,
+          // must remain in their owning store. Keep this predicate aligned with
+          // CartService.addItem's variant-level and product-level offer matching.
+          const productStoreMismatch =
+            product.storeId != null && product.storeId !== item['storeId'];
+          const missingOwningStore =
+            !itemOfferId && (product.storeId == null || product.storeId !== item['storeId']);
+          if (productStoreMismatch || missingOwningStore) {
+            throw new BadRequestException('A product in your cart is no longer available');
+          }
+
           if (
             itemOfferId &&
             (!offer ||
               offer.status !== 'ACTIVE' ||
               !offer.isAvailable ||
               offer.storeId !== item['storeId'] ||
-              offer.storeId !== product.storeId ||
               offer.productId !== product.id ||
-              (offer.variantId && offer.variantId !== item['variantId']))
+              (offer.variantId != null && offer.variantId !== item['variantId']))
           ) {
             throw new BadRequestException(
               "A seller's offer for one of your items is no longer available. Please review your cart.",
