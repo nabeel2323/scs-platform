@@ -22,7 +22,7 @@
  */
 
 import { Logger } from '@nestjs/common';
-import { isProductionLikeEnv } from './env-gate';
+import { isProductionLikeEnv, resolveDeploymentNodeEnv } from './env-gate';
 import {
   OtpReadiness,
   resolveNotificationConfig,
@@ -50,7 +50,7 @@ export class OtpDeliveryConfigurationError extends Error {
  *   permitted channel that can deliver.
  */
 export function assertOtpDeliveryConfig(env: NodeJS.ProcessEnv = process.env): OtpReadiness {
-  const nodeEnv = env['NODE_ENV'];
+  const nodeEnv = resolveDeploymentNodeEnv(env);
   const productionLike = isProductionLikeEnv(nodeEnv);
 
   // Throws on a malformed allowlist regardless of environment.

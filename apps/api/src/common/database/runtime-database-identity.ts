@@ -10,6 +10,8 @@ export interface RuntimeDatabaseIdentity {
   effective_role_bypassrls: boolean;
   effective_role_createrole: boolean;
   effective_role_createdb: boolean;
+  owns_public_tables: boolean;
+  owns_public_schema: boolean;
   ssl: boolean | null;
 }
 
@@ -25,6 +27,20 @@ export const RUNTIME_DATABASE_IDENTITY_SQL = `SELECT
   effective_role.rolbypassrls AS effective_role_bypassrls,
   effective_role.rolcreaterole AS effective_role_createrole,
   effective_role.rolcreatedb AS effective_role_createdb,
+  EXISTS (
+    SELECT 1
+    FROM pg_class AS relation
+    JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+    WHERE namespace.nspname = 'public'
+      AND relation.relkind IN ('r', 'p')
+      AND relation.relowner = effective_role.oid
+  ) AS owns_public_tables,
+  EXISTS (
+    SELECT 1
+    FROM pg_namespace AS namespace
+    WHERE namespace.nspname = 'public'
+      AND namespace.nspowner = effective_role.oid
+  ) AS owns_public_schema,
   pg_stat_ssl.ssl AS ssl
 FROM pg_roles AS session_role
 JOIN pg_roles AS effective_role ON effective_role.rolname = current_user
@@ -37,26 +53,30 @@ export interface RuntimeIdentityLogger {
 }
 
 /**
- * Logs non-secret metadata for the actual API pool connection.
- * Diagnostic failures are intentionally non-fatal and never echo database errors.
+ * Returns non-secret metadata for the actual API pool connection.
+ * Diagnostic failures are intentionally non-fatal here; production callers
+ * must reject a null result before allowing the process to start.
  */
 export async function logRuntimeDatabaseIdentity(
   query: () => Promise<{ rows: RuntimeDatabaseIdentity[] }>,
   logger: RuntimeIdentityLogger,
-): Promise<void> {
+): Promise<RuntimeDatabaseIdentity | null> {
   try {
     const result = await query();
-    const identity = result.rows[0];
+    const identity = result.rows[0] ?? null;
     if (identity) {
       logger.log(`Runtime database identity: ${JSON.stringify(identity)}`);
-    } else {
-      logger.warn(
-        'Runtime database identity query returned no role metadata; identity remains unverified.',
-      );
+      return identity;
     }
+
+    logger.warn(
+      'Runtime database identity query returned no role metadata; identity remains unverified.',
+    );
+    return null;
   } catch {
     logger.warn(
       'Runtime database identity diagnostics failed; identity remains unverified.',
     );
+    return null;
   }
 }

@@ -16,15 +16,17 @@ const identity: RuntimeDatabaseIdentity = {
   effective_role_bypassrls: false,
   effective_role_createrole: false,
   effective_role_createdb: false,
+  owns_public_tables: false,
+  owns_public_schema: false,
   ssl: true,
 };
 
 describe('logRuntimeDatabaseIdentity', () => {
-  it('logs the non-secret identity returned by the API pool query', async () => {
+  it('returns and logs the non-secret identity returned by the API pool query', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [identity] });
     const logger = { log: vi.fn(), warn: vi.fn() };
 
-    await logRuntimeDatabaseIdentity(query, logger);
+    await expect(logRuntimeDatabaseIdentity(query, logger)).resolves.toBe(identity);
 
     expect(query).toHaveBeenCalledOnce();
     expect(logger.log).toHaveBeenCalledWith(
@@ -37,7 +39,7 @@ describe('logRuntimeDatabaseIdentity', () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const logger = { log: vi.fn(), warn: vi.fn() };
 
-    await logRuntimeDatabaseIdentity(query, logger);
+    await expect(logRuntimeDatabaseIdentity(query, logger)).resolves.toBeNull();
 
     expect(logger.log).not.toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalledWith(
@@ -45,11 +47,11 @@ describe('logRuntimeDatabaseIdentity', () => {
     );
   });
 
-  it('does not fail API startup or leak connection errors when diagnostics fail', async () => {
+  it('does not leak connection errors when diagnostics fail', async () => {
     const query = vi.fn().mockRejectedValue(new Error('postgres://secret-user:secret-pass@host/db'));
     const logger = { log: vi.fn(), warn: vi.fn() };
 
-    await expect(logRuntimeDatabaseIdentity(query, logger)).resolves.toBeUndefined();
+    await expect(logRuntimeDatabaseIdentity(query, logger)).resolves.toBeNull();
 
     expect(logger.log).not.toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalledOnce();
