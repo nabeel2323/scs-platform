@@ -17,7 +17,14 @@ function makeService(options?: { leaseRows?: unknown[]; updatedRows?: unknown[] 
   const insert = vi.fn().mockReturnValue({ values });
   const tx = { execute: txExecute, update, insert };
   const transaction = vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback(tx));
-  const db = { db: { query: { returnRequests: { findFirst } }, transaction } };
+  const actorContexts: unknown[] = [];
+  const withActorContext = vi.fn(
+    async (context: unknown, operation: () => Promise<unknown>) => {
+      actorContexts.push(context);
+      return operation();
+    },
+  );
+  const db = { db: { query: { returnRequests: { findFirst } }, transaction }, withActorContext };
   const calendar = {
     addBusinessDays: vi.fn().mockResolvedValue(new Date('2026-11-25T00:00:00.000Z')),
   };
@@ -31,17 +38,23 @@ function makeService(options?: { leaseRows?: unknown[]; updatedRows?: unknown[] 
     {} as any,
     {} as any,
   );
-  return { service, findFirst, txExecute, update, where, insert, values, outbox, transaction };
+  return { service, findFirst, txExecute, update, where, insert, values, outbox, transaction, withActorContext, actorContexts };
 }
 
 describe('ReturnsService return-expiration worker fencing', () => {
   it('locks the live worker lease and repeats its fence in the return mutation', async () => {
     const h = makeService();
-    await h.service.escalateReturn('return-a', {
-      kind: 'worker',
-      holderId: 'worker-host-123',
-      epoch: 42,
-    });
+    await h.withActorContext(
+      { actorKind: 'worker', workerId: 'worker-host-123' },
+      () => h.service.escalateReturn('return-a', {
+        kind: 'worker',
+        holderId: 'worker-host-123',
+        epoch: 42,
+      }),
+    );
+    expect(h.actorContexts).toEqual([
+      expect.objectContaining({ actorKind: 'worker', workerId: 'worker-host-123' }),
+    ]);
 
     expect(h.txExecute).toHaveBeenCalledOnce();
     const leaseQuery = new PgDialect().sqlToQuery(h.txExecute.mock.calls[0]![0]);
@@ -64,11 +77,14 @@ describe('ReturnsService return-expiration worker fencing', () => {
     const h = makeService({ leaseRows: [] });
 
     await expect(
-      h.service.escalateReturn('return-a', {
-        kind: 'worker',
-        holderId: 'stale-worker',
-        epoch: 41,
-      }),
+      h.withActorContext(
+        { actorKind: 'worker', workerId: 'stale-worker' },
+        () => h.service.escalateReturn('return-a', {
+          kind: 'worker',
+          holderId: 'stale-worker',
+          epoch: 41,
+        }),
+      ),
     ).resolves.toBeNull();
 
     expect(h.update).not.toHaveBeenCalled();
@@ -86,10 +102,13 @@ describe('ReturnsService return-expiration worker fencing', () => {
 
   it('allows an explicitly privileged platform caller without a worker lease', async () => {
     const h = makeService();
-    await h.service.escalateReturn('return-a', {
-      kind: 'platform',
-      caller: { sub: 'admin-a', role: 'SUPER_ADMIN', activeOrg: null },
-    });
+    await h.withActorContext(
+      { actorKind: 'user', actorId: 'admin-a', actorRole: 'SUPER_ADMIN' },
+      () => h.service.escalateReturn('return-a', {
+        kind: 'platform',
+        caller: { sub: 'admin-a', role: 'SUPER_ADMIN', activeOrg: null },
+      }),
+    );
 
     expect(h.txExecute).not.toHaveBeenCalled();
     expect(h.outbox.publish).toHaveBeenCalledOnce();
