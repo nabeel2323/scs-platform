@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   UseGuards,
+  UseInterceptors,
   Headers,
   ParseUUIDPipe,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import { IdentityService } from './identity.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CatalogService } from '../catalog/catalog.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { CurrentUser, JwtPayload } from '../../common/guards/current-user.decorator';
 import { UpdateProfileDto, SetupCredentialsDto, ChangePasswordDto } from './dto/profile.dto';
 
@@ -34,6 +36,7 @@ export class ProfileController {
   ) {}
 
   @Get()
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getProfile(@CurrentUser() user: JwtPayload) {
     // Pass the caller's verified `activeOrg` so the projected `role` matches the
     // active organization (and the enforced token claims) — GET /v1/me is the
@@ -42,16 +45,19 @@ export class ProfileController {
   }
 
   @Patch()
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async updateProfile(@CurrentUser() user: JwtPayload, @Body() dto: UpdateProfileDto) {
     return this.identityService.updateProfile(user.sub, dto);
   }
 
   @Get('organizations')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getMyOrganizations(@CurrentUser() user: JwtPayload) {
     return this.identityService.listUserOrgs(user.sub);
   }
 
   @Post('devices')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async registerDevice(
     @CurrentUser() user: JwtPayload,
     @Body() body: { token: string; platform: string; appVersion?: string },
@@ -65,11 +71,13 @@ export class ProfileController {
   }
 
   @Get('devices')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listDevices(@CurrentUser() user: JwtPayload) {
     return this.notificationsService.listDeviceTokens(user.sub);
   }
 
   @Delete('devices/:token')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async unregisterDevice(@CurrentUser() user: JwtPayload, @Param('token') token: string) {
     return this.notificationsService.unregisterDeviceToken(user.sub, token);
   }
@@ -77,18 +85,33 @@ export class ProfileController {
   // ── Favorites / Wishlist ───────────────────────────────────
 
   @Get('favorites')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getFavorites(@CurrentUser() user: JwtPayload) {
-    return this.catalogService.listFavorites(user.sub);
+    return this.catalogService.listFavorites(user.sub, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Post('favorites')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async addFavorite(@CurrentUser() user: JwtPayload, @Body() body: { productId: string }) {
-    return this.catalogService.addFavorite(user.sub, body.productId);
+    return this.catalogService.addFavorite(user.sub, body.productId, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Delete('favorites/:productId')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async removeFavorite(@CurrentUser() user: JwtPayload, @Param('productId') productId: string) {
-    return this.catalogService.removeFavorite(user.sub, productId);
+    return this.catalogService.removeFavorite(user.sub, productId, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   // ── Saved Suppliers (§21.3 retailer capability) ────────────
@@ -98,18 +121,33 @@ export class ProfileController {
    * Store-level analog of favorites; scoped to the caller via the `sub` claim.
    */
   @Get('saved-suppliers')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getSavedSuppliers(@CurrentUser() user: JwtPayload) {
-    return this.catalogService.listSavedSuppliers(user.sub);
+    return this.catalogService.listSavedSuppliers(user.sub, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Post('saved-suppliers')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async saveSupplier(@CurrentUser() user: JwtPayload, @Body() body: { storeId: string }) {
-    return this.catalogService.saveSupplier(user.sub, body.storeId);
+    return this.catalogService.saveSupplier(user.sub, body.storeId, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Delete('saved-suppliers/:storeId')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async removeSavedSupplier(@CurrentUser() user: JwtPayload, @Param('storeId') storeId: string) {
-    return this.catalogService.removeSavedSupplier(user.sub, storeId);
+    return this.catalogService.removeSavedSupplier(user.sub, storeId, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   // ── Credential Management ──────────────────────────────────
@@ -124,7 +162,13 @@ export class ProfileController {
     @Body() dto: SetupCredentialsDto,
     @Headers('x-device-id') deviceId?: string,
   ) {
-    return this.identityService.setupCredentials(user.sub, dto.email, dto.password, deviceId);
+    return this.identityService.setupCredentials(
+      user.sub,
+      dto.email,
+      dto.password,
+      { role: user.role, activeOrg: user.activeOrg },
+      deviceId,
+    );
   }
 
   /**
@@ -140,6 +184,7 @@ export class ProfileController {
       user.sub,
       dto.currentPassword,
       dto.newPassword,
+      { role: user.role, activeOrg: user.activeOrg },
       deviceId,
     );
   }
@@ -150,6 +195,7 @@ export class ProfileController {
    * rather than a client-supplied header, so it cannot be spoofed.
    */
   @Get('sessions')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async getSessions(@CurrentUser() user: JwtPayload) {
     return this.identityService.getUserSessions(user.sub, user.sid);
   }
@@ -160,6 +206,7 @@ export class ProfileController {
    * "sign this device out" cannot leave a second-factor exemption behind.
    */
   @Delete('sessions/revoke-by-device/:deviceId')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async revokeSessionsByDevice(
     @CurrentUser() user: JwtPayload,
     @Param('deviceId') deviceId: string,
@@ -178,6 +225,7 @@ export class ProfileController {
    * recognise and remove a device they no longer control.
    */
   @Get('trusted-devices')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async listTrustedDevices(@CurrentUser() user: JwtPayload) {
     return this.identityService.listDeviceCredentials(user.sub);
   }
@@ -189,6 +237,7 @@ export class ProfileController {
    * belonging to another account removes nothing.
    */
   @Delete('trusted-devices/:credentialId')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async revokeTrustedDevice(
     @CurrentUser() user: JwtPayload,
     @Param('credentialId', ParseUUIDPipe) credentialId: string,
