@@ -110,3 +110,20 @@ Inspected the current #154 head `e421e21b1e66386a9d0c259fb83c99f1a05272cb` and #
 - #154 exact-head workflow lookup returned no run. Its latest source/tests remain NOT CI-VERIFIED at the inspected SHA. The PostgreSQL lease concurrency tests need to be included in the consolidated campaign after the worker/actor composition is complete.
 
 No code was changed in #154 and no migration was applied.
+
+
+## Bootstrap/operator actor-context continuation — 26 November 2026
+
+- Rechecked the live PR #138 and preservation refs before editing. Source branch and preservation branch were identical at the previous checkpoint; the PR remains draft/open/unmerged and mergeable=false.
+- Reviewed `apps/api/infra/drizzle/operator-actor-context.ts`, all five staging bootstrap entry points, the staging target guard, the break-glass bootstrap token CLI, `BootstrapService`, the database actor-context tests and the G-002 operator/migration access map.
+- Found that the break-glass CLI had its own inline bootstrap `set_config` statement and omitted an explicit transaction-local reset of `app.auth_operation`. Replaced it with the shared `setOperatorActorContext` helper, which sets the six standard actor-context values and clears fields irrelevant to bootstrap.
+- Extended `operator-actor-context.spec.ts` to assert actor ID, actor role, active organization, actor kind, worker ID and authentication-operation settings are all transaction-local.
+- The five staging bootstrap scripts already use `assertStagingBootstrapTarget`, `BEGIN`, and `setStagingBootstrapActorContext` before their data operations. They were inspected but not executed or modified.
+- No test runner, typecheck, formatter or CI was run. This batch is NOT TESTED / NOT CI-VERIFIED. No token was issued; no bootstrap, migration, seed, staging/shared DB write, deployment or worker activation occurred.
+
+Commits in this batch:
+- `21d9362cdb55e50969999d87bc9fba0a7c116a0a` — replace inline bootstrap CLI actor SQL with the shared operator helper.
+- `0c2c8b3acaf81e36d6bcb66192adda90f48af7dc` — assert all six transaction-local context fields in helper unit coverage.
+- `017f19a6b0c3dac31816ee7c52e7ed91e476421f` — update G-002 operator-access audit evidence.
+
+**Next source-review area:** finish the mixed catalog import/product actor-context audit (especially service methods that interleave DB phases with Redis, object storage, workbook parsing and cache/outbox/audit work). Keep each database phase short and actor-scoped; never wrap external I/O in a database transaction. Then reconcile remaining direct DB bootstrap/migration and worker boundaries before defining the bounded G-002 extraction slice.
