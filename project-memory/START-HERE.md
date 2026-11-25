@@ -1,3 +1,15 @@
+## 26 November 2026 — latest SCS continuation and stacked G-002 slices
+
+- Baseline before this memory update: PR #138 source head 9697e61fe47bac5cd221d9b2af12ae8a19e1ad6f; the preservation ref was verified identical. PR #138 remains OPEN / DRAFT / UNMERGED to develop. Develop remains fde20420bbb759d2e562f9ff747c9e824ac58e25.
+- PR #138 remediation work added during this continuation: PromotionsService now validates order ID, buyer ID, promotion store, promotion ID and recorded discount before redemption writes. Source commit ab59c9b4019dcc6a0a306e604b7e32d139b1b14c; direct service tests commit 53990e08318e0deb54b41bb258c76ce5e6e41713. The separate concurrent redemption-limit race remains open. Crosswalk documentation records this.
+- CatalogImportService caller preflight is also present: upload rejects a missing/blank verified subject or role before object-storage writes; user/audit actor helpers validate before opening context; execute validates before plan mutation. Commits f9bfccf3ac11b7fbb0904634845c24a31d7c805a, 0b14f11c3fd6f787baa73765da7310bb553b24c4 and 0f8586e9548a91ad4c56b410e60180ad080e6788. Tests are authored, not run.
+- PR #157 is the bounded actor-context foundation, current exact head 77145bc6262aba99cf7fdbd45139382bebc44fa7, 19 changed paths, based on develop. CI run #1553 was cancelled after five successful jobs; it is not a complete pass. A newer exact-head CI run #1554 is in progress. Vercel quota failures are separate provider statuses.
+- PR #158 is a stacked identity-membership slice based on PR #157; exact head 2e57a2deed1efb5c02de05d23b7ec10b668271c0. It changes IdentityService and two focused test files, requiring ACTIVE membership and active organization for switching, claims and profile role projection. No exact-head Actions run exists yet. Both PRs remain draft/unmerged.
+- No PR was merged. No DB/catalog write, migration, grants/default ACL/RLS change, staging mutation, provider/storage call, worker activation, bootstrap, deployment or production action occurred.
+- New source/test changes remain untested unless an exact-head CI result above proves otherwise. Do not trigger duplicate CI while #157 run #1554 is active.
+
+**Next:** finish the file-level review of PR #157 and the stacked PR #158; inspect the active CI run and reconcile any cancelled jobs once, without repeating completed checks. Continue the remaining FK-to-ownership and raw SQL/function/trigger/partition audit, then prepare the next bounded application-adoption slice from refreshed develop. Keep workers/webhooks and operator/migration work separate. Never merge PR #138 wholesale.
+
 ## 26 November 2026 — CatalogImportService actor preflight hardening
 
 - Baseline verified before this batch: PR #138 was OPEN / DRAFT / UNMERGED at f49d6ad28ac89fcb17710c02f11ae8ba09ec8759; develop was fde20420bbb759d2e562f9ff747c9e824ac58e25; preservation branch was identical (0 ahead / 0 behind).
