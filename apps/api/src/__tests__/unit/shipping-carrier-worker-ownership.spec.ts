@@ -62,6 +62,79 @@ describe('ShippingCarrierWorker event ownership', () => {
     ]);
   });
 
+  it('acknowledges a carrier event only while this worker still owns its processing lease', async () => {
+    let predicate: unknown;
+    const where = vi.fn((condition: unknown) => {
+      predicate = condition;
+      return Promise.resolve([]);
+    });
+    const set = vi.fn().mockReturnValue({ where });
+    const update = vi.fn().mockReturnValue({ set });
+    const database = makeActorScopedDb({ update });
+    const worker = Object.create(ShippingCarrierWorker.prototype) as any;
+    worker.db = database;
+    worker.workerId = 'worker-current-owner';
+    worker.logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    worker.handleCreate = vi.fn().mockResolvedValue(undefined);
+
+    await worker.processEvent({
+      id: 'event-ack-fence',
+      eventType: 'shipping.carrier.create',
+      aggregateId: 'shipment-a',
+    });
+
+    expect(update).toHaveBeenCalledOnce();
+    const query = new PgDialect().sqlToQuery(predicate as any);
+    expect(query.sql).toContain('"locked_by"');
+    expect(query.sql).toContain('"status"');
+    expect(query.params).toEqual(
+      expect.arrayContaining(['event-ack-fence', 'PROCESSING', 'worker-current-owner']),
+    );
+    expect(database.actorContexts).toEqual([
+      expect.objectContaining({ actorKind: 'worker', workerId: 'worker-current-owner' }),
+    ]);
+  });
+
+  it('updates retry state only while this worker still owns the processing lease', async () => {
+    let predicate: unknown;
+    const where = vi.fn((condition: unknown) => {
+      predicate = condition;
+      return Promise.resolve([]);
+    });
+    const set = vi.fn().mockReturnValue({ where });
+    const update = vi.fn().mockReturnValue({ set });
+    const database = makeActorScopedDb({ update });
+    const worker = Object.create(ShippingCarrierWorker.prototype) as any;
+    worker.db = database;
+    worker.workerId = 'worker-current-owner';
+    worker.retryPolicy = {
+      classify: vi.fn().mockReturnValue({
+        decision: 'retry',
+        isFinal: false,
+        safeMessage: 'safe failure',
+        nextAttemptAt: new Date('2026-11-26T12:00:00.000Z'),
+      }),
+    };
+    worker.logger = { error: vi.fn() };
+
+    await worker.handleFailure(
+      'event-retry-fence',
+      { id: 'event-retry-fence', eventType: 'shipping.carrier.create', attempts: 0 },
+      new Error('temporary'),
+    );
+
+    expect(update).toHaveBeenCalledOnce();
+    const query = new PgDialect().sqlToQuery(predicate as any);
+    expect(query.sql).toContain('"locked_by"');
+    expect(query.sql).toContain('"status"');
+    expect(query.params).toEqual(
+      expect.arrayContaining(['event-retry-fence', 'PROCESSING', 'worker-current-owner']),
+    );
+    expect(database.actorContexts).toEqual([
+      expect.objectContaining({ actorKind: 'worker', workerId: 'worker-current-owner' }),
+    ]);
+  });
+
   it('routes unsupported carrier event types to retry handling instead of acknowledging them', async () => {
     const handleFailure = vi.fn().mockResolvedValue(undefined);
     const update = vi.fn();
