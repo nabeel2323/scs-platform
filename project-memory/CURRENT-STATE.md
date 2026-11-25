@@ -11,7 +11,7 @@
 | Latest develop CI at baseline | Run #1509 — SUCCESS |
 | `main` | `d3f4aefc41b37ad82f0aeb2eb78121342455eb21` at last inspected check |
 | Work branch | `fix/outbox-placeholder-dispatch-safety-2026-11-25` |
-| PR | #153 — OPEN / DRAFT |
+| PR | #153 — OPEN / DRAFT; see live PR head for latest inventory follow-up |
 | PR head before latest continuation | `aa5c2c3ff6054b52c3e94c8ff27779cc3693bf7d` |
 
 PR #147, #152 and #142 are merged into develop. PR #138 remains open/draft/unmerged and must not be merged wholesale.
@@ -28,7 +28,7 @@ The latest recorded startup logs show in-process OutboxDispatcher, AutoCompleteW
 
 - PR #147 gives `shipping.carrier.*` events one authoritative consumer: `ShippingCarrierWorker`.
 - The generic outbox provider had only logged non-carrier events and marked them `DISPATCHED` without a real publisher. PR #153 disables that placeholder poller; newly published non-carrier events remain `PENDING`.
-- The producer scan identifies order, shipment, return, commission, settlement-adjustment, payment, review/dispute, inventory, merchant, store-membership and catalog event families with no generic outbox consumer found. See [event ownership inventory](../docs/remediation/OUTBOX-EVENT-OWNERSHIP-INVENTORY.md).
+- The bounded producer scan explicitly inspected OrdersService, ReturnsService, PaymentsService, ReviewsService, InventoryService, MerchantService, StoreMembershipService and CatalogService, including direct outbox inserts. It records order/shipment, return, payment, review, inventory, merchant, store-membership and catalog event families with no generic outbox consumer found. Commission/settlement/dispute paths and persisted event history remain unverified; see [event ownership inventory](../docs/remediation/OUTBOX-EVENT-OWNERSHIP-INVENTORY.md).
 - Unknown event types inside the `shipping.carrier.*` prefix previously fell through the worker switch and were marked `DISPATCHED`. PR #153's follow-up now classifies them as unsupported and routes them to the existing dead-letter path.
 - Generic event delivery remains **NOT IMPLEMENTED**. The inventory is a source scan, not yet a complete reconciliation against every repository producer and persisted database event.
 
