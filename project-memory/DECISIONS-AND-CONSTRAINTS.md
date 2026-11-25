@@ -1,3 +1,18 @@
+## 26 November 2026 — User-approved PR #138 priority and working constraints
+
+- **Highest priority:** Preserve and safely prepare PR #138 for integration into `develop`. Reconcile it into bounded, clean integration slices; do not merge its huge, divergent branch wholesale. Only after this work is reconciled should the remaining focused PRs be repaired.
+- Keep the source PR and `preservation/pr138-remediation-2026-11-25` intact and synchronized with expected-SHA fast-forward updates. Never reset, force-push, delete or destructively rebase them.
+- Start integration from the latest `develop`; reconcile develop-only commits and maintain a file-by-file ledger of source, tests, overlaps, migrations, disposition and verification.
+- Exclude scratch trees, unresolved token/secret-like artifacts and unreviewed test artifacts from release slices. Never expose token/secret contents. Exclusion from integration does not authorize deleting the original source/evidence.
+- Consolidate overlapping PR work into one canonical implementation. Resolve migration 0070 collision (#145) and migration 0071/order-completion overlap (#154) before extracting or applying migrations.
+- Backlog order after #138 reconciliation: tenant security (#144/#139); outbox/order completion (#153/#154); HTTP log redaction and truthful notifications (#156/#150); currency/UX (#151); migration search_path (#145); then #148, #149, #155 and #143. Recheck live PR state and exact heads each session.
+- **CI budget:** Do not run CI for every small change. Group related implementation/tests/docs and run one consolidated CI campaign per completed bounded workstream, then a final release-candidate campaign. Never represent historical or skipped checks as current passes.
+- Preserve independent review and all staging/database/migration/RLS/worker/deployment gates. The priority order is not permission to bypass them.
+- On every continuation, read project-memory, verify PR #138 and preservation refs, latest `develop`, exact-head CI and open PR states before changing code.
+- The current factual GitHub checkpoint and next-session steps are recorded at the top of `project-memory/START-HERE.md` and `project-memory/CURRENT-STATE.md`.
+
+---
+
 # SCS Platform — Decisions and Constraints
 
 **Last reconciled:** 21 November 2026  
