@@ -26,3 +26,10 @@ The auto-completion worker also used an `UPDATE orders SET updated_at = NOW()` s
 ## Verification
 
 The focused regression spec is authored but has not yet been executed in this environment. Run it with the API Vitest suite and include the orders integration suite in the consolidated validation campaign before merge.
+
+
+## Follow-up correctness fix — buyer confirmation atomicity
+
+The review found that `confirmDelivery()` previously wrote `buyerConfirmedAt` before calling the completion transaction. If a shipment/history/outbox write then failed, the order could remain `DELIVERED` while the auto-completion worker excluded it and a repeated buyer confirmation was rejected. The confirmation timestamp is now written in the same guarded order update as the `COMPLETED` transition when the source is `BUYER_CONFIRMATION`. A transactional failure therefore rolls back both fields together. A regression spec covers this rollback boundary.
+
+This follow-up is authored but still requires execution in the consolidated validation campaign.
