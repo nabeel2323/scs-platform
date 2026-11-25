@@ -107,6 +107,21 @@ describe('OrdersService.rejectOrder actor-context boundaries (G-002)', () => {
     );
     expect(service.recalculateMasterOrderStatus).toHaveBeenCalledWith('master-a');
   });
+  it('fails closed when no caller actor is supplied', async () => {
+    const withActorContext = vi.fn();
+    const service = new OrdersService(
+      { withActorContext } as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(
+      service.rejectOrder('order-a', 'merchant-a', 'OUT_OF_STOCK'),
+    ).rejects.toThrow('Authenticated database actor context is missing');
+
+    expect(withActorContext).not.toHaveBeenCalled();
+  });
+
   it('fails closed when an HTTP caller has no authenticated role', async () => {
     const db = { withActorContext: vi.fn() };
     const service = new OrdersService(db as any, {} as any, {} as any);

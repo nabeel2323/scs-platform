@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { PgDialect, type SQL } from 'drizzle-orm/pg-core';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
 import { BadRequestException, ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { CatalogTaxonomyService, type AttributeValueInput } from '../../../modules/catalog/catalog.taxonomy.service';
 
@@ -203,6 +204,40 @@ describe('CatalogTaxonomyService — product types', () => {
     // and that NO_ATTRIBUTES is one of the returned error codes.
     await expect(svc.publishProductType('pt-1')).rejects.toBeInstanceOf(
       UnprocessableEntityException,
+    );
+  });
+
+  it('reports an inactive platform category with a stable validation code', async () => {
+    const { svc } = makeHarness({
+      productTypes: {
+        findFirst: {
+          id: 'pt-inactive',
+          code: 'inactive-type',
+          name: 'Inactive Type',
+          status: 'DRAFT',
+          categoryId: 'inactive-category',
+          variantDimensions: [],
+        },
+      },
+      categories: {
+        findFirst: {
+          id: 'inactive-category',
+          storeId: null,
+          name: 'Inactive category',
+          isActive: false,
+        },
+      },
+      productTypeAttributes: { findMany: [] },
+    });
+
+    const result = await svc.validateProductTypeForPublish('pt-inactive');
+
+    expect(result.canPublish).toBe(false);
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({
+        code: 'CATEGORY_INACTIVE',
+        severity: 'ERROR',
+      }),
     );
   });
 
