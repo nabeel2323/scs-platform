@@ -243,3 +243,11 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 - Resolved the PR #138 / PR #145 migration-0070 collision in the preserved source: kept PR #138's broader privilege/default-ACL hardening migration and added PR #145's explicit postcondition assertion for `normalize_arabic` search_path. Use one canonical 0070; exclude PR #145's standalone duplicate from extraction.
 - Confirmed migration runner uses a session advisory lock and per-file transaction with ledger insert; dry-run only checks nonempty SQL and is not SQL validation. 0071 is duplicate DDL with #154 and must appear once. 0072–0075 remain unvalidated source-only migrations requiring isolated tests and data/rollback review.
 - No migration or DB changes were executed. No grants/default ACL/RLS, deployment or worker changes occurred. No CI was run.
+
+
+## 26 November 2026 — shipping/return worker lease-fencing correction
+
+- Fixed a real stale-owner race in `ShippingCarrierWorker`: both success acknowledgement and failure/retry updates now require matching event ID, `PROCESSING` status and current `locked_by` worker. Commit `d18a495433460902190bec23d0d39923cc7b346a`.
+- Added regression coverage for both finalization paths and corrected ReturnExpirationWorker, ShippingCarrierWorker and ReturnsService test doubles to model the production actor-context boundary. Commits `7009e69d`, `e90276f7`, `7fc543a5`, `2abac268`. Not executed yet.
+- Source review confirmed return expiration uses a stable worker scope and a live lease lock plus repeated holder/epoch/expiry fence in the atomic return transition; carrier external I/O remains outside DB actor transactions. Generic log-only outbox dispatcher stays excluded in favor of PR #153 behavior.
+- No tests/typecheck/build/CI or provider/storage/DB/migration/worker/deployment action occurred. Continue to the bounded G-002 extraction manifest; do not merge PR #138 wholesale.
