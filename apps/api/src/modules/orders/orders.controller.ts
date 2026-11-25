@@ -28,10 +28,17 @@ export class OrdersController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('orders:write')
   async checkout(@CurrentUser() user: JwtPayload, @Body() input: CheckoutInput) {
-    return this.ordersService.checkout({
-      ...input,
-      buyerId: user.sub,
-    });
+    return this.ordersService.checkout(
+      {
+        ...input,
+        buyerId: user.sub,
+      },
+      {
+        sub: user.sub,
+        role: user.role,
+        activeOrg: user.activeOrg,
+      },
+    );
   }
 
   // ── Master Orders ────────────────────────────────────────────
