@@ -1,3 +1,16 @@
+## 26 November 2026 — current integration and service-boundary checkpoint
+
+- PR #138 remains OPEN / DRAFT / UNMERGED at source head f7894abe85b9e9c053e51a730dbfd1c51f6adf21, base develop, mergeable=false. Preservation branch preservation/pr138-remediation-2026-11-25 is identical (0 ahead / 0 behind). Develop remains fde20420bbb759d2e562f9ff747c9e824ac58e25. No exact-head GitHub Actions run exists for #138; Vercel Web/Admin rate-limit failures are provider statuses only.
+- The CatalogImportService preflight guard and regression spec are committed on #138. Tests, lint, typecheck, formatter, build and CI remain unexecuted for these changes.
+- PR #157 Slice A is OPEN / DRAFT / UNMERGED, head 77145bc6262aba99cf7fdbd45139382bebc44fa7, mergeable=true. GitHub Actions run #1554 is IN PROGRESS: Lint & Typecheck, Mobile, Web/Admin, Boundary Lint and Migration Full Apply have passed; API Integration and Unit/Coverage remain in progress. Previous run #1553 was cancelled after the head changed. Do not start a duplicate CI run.
+- PR #158 is OPEN / DRAFT / UNMERGED, stacked on #157 at head 2e57a2deed1efb5c02de05d23b7ec10b668271c0. It adds active organization membership checks for identity claims/profile projection. No exact-head Actions run exists; Vercel failures are provider rate-limit statuses only.
+- Commerce boundary spot-check: InventoryController has class-level TenantDatabaseContextInterceptor and passes the verified JWT caller to every exposed InventoryService route; InventoryModule exports InventoryService, so direct internal callsites still require mapping before caller-optional service methods can be tightened. PricingController similarly has class-level actor interception and performs store/org/membership and price-list/variant checks before service calls; PricingModule exports PricingService, so direct internal consumers remain an audit item. CartController uses the authenticated user ID and actor interceptor; getCart(cartId) is not directly exposed as an HTTP route, but OrdersModule exports CartService, so direct internal consumers must be mapped before changing its visibility/contract.
+- No tests or CI were run for the latest PR #138 changes. No database, migration, grant/default-ACL/RLS, storage/provider, worker, staging, deployment or merge action occurred.
+
+**Next:** complete the exported-service internal-callsite map and raw SQL/function/trigger/partition consumer inventory; update the G-002 manifest from that evidence. Keep #138 preserved and CI consolidated.
+
+---
+
 ## 26 November 2026 — CatalogImportService actor preflight hardening
 
 - Baseline verified before this batch: PR #138 was OPEN / DRAFT / UNMERGED at f49d6ad28ac89fcb17710c02f11ae8ba09ec8759; develop was fde20420bbb759d2e562f9ff747c9e824ac58e25; preservation branch was identical (0 ahead / 0 behind).
