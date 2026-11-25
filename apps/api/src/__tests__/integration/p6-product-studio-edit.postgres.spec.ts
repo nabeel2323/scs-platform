@@ -31,6 +31,16 @@ function toISO(val: any): string {
   return val instanceof Date ? val.toISOString() : new Date(val).toISOString();
 }
 
+async function updateProduct(
+  productId: string,
+  input: any,
+  clientUpdatedAt?: string,
+  actor = merchantActor(),
+) {
+  return catalogService.updateProduct(productId, input, clientUpdatedAt, actor);
+}
+
+
 async function applyMigrations(pool: Pool) {
   const files = fs.readdirSync(MIGRATIONS_DIR)
     .filter(f => f.endsWith('.sql') && !EXCLUDED.has(f))
@@ -51,6 +61,11 @@ let taxonomyService: CatalogTaxonomyService;
 // IDs seeded in beforeAll
 let orgA: string, orgB: string;
 let storeA: string, storeB: string;
+let merchantUserId: string;
+let adminUserId: string;
+
+const merchantActor = () => ({ sub: merchantUserId, role: 'MERCHANT_OWNER', activeOrg: orgA });
+const adminActor = () => ({ sub: adminUserId, role: 'ADMIN', activeOrg: null });
 let productTypeId: string;
 let productA: string;       // owned by storeA / orgA
 let productNoStore: string; // store_id = NULL
@@ -64,7 +79,8 @@ beforeAll(async () => {
   await applyMigrations(pool);
 
   const drizzleDb = drizzle(pool, { schema: schema as any }) as any;
-  db = { db: drizzleDb } as any;
+  db = new DatabaseService();
+  db.db = drizzleDb;
 
   taxonomyService = new CatalogTaxonomyService(db);
   catalogService = new CatalogService(
@@ -88,6 +104,19 @@ beforeAll(async () => {
   await pool.query(`INSERT INTO organizations (id, name, type, country) VALUES ($1, 'OrgB', 'WHOLESALER', 'SA')`, [orgB]);
   await pool.query(`INSERT INTO stores (id, org_id, slug, display_name) VALUES ($1, $2, 'store-a', 'Store A')`, [storeA, orgA]);
   await pool.query(`INSERT INTO stores (id, org_id, slug, display_name) VALUES ($1, $2, 'store-b', 'Store B')`, [storeB, orgB]);
+
+  // Seed real owner/admin identities so service-level actor scopes and
+  // Product Studio store-membership checks exercise the intended principals.
+  merchantUserId = randomUUID();
+  adminUserId = randomUUID();
+  await pool.query(
+    `INSERT INTO users (id, full_name) VALUES ($1, 'P6 Store Owner'), ($2, 'P6 Platform Admin')`,
+    [merchantUserId, adminUserId],
+  );
+  await pool.query(
+    `INSERT INTO store_members (store_id, user_id, role, status) VALUES ($1, $2, 'OWNER', 'ACTIVE')`,
+    [storeA, merchantUserId],
+  );
 
   // ── Seed taxonomy ───────────────────────────────────────────────
   productTypeId = randomUUID();
@@ -144,7 +173,7 @@ describe('P6 Merchant Product Studio Edit Mode', () => {
       // updateProduct does not check org itself — that's the controller's job.
       // Here we verify the service allows the update on a product with matching store.
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
-      const updated = await catalogService.updateProduct(productA, { title: 'Product A Updated' }, ts);
+      const updated = await updateProduct(productA, { title: 'Product A Updated' }, ts);
       expect(updated).toBeDefined();
       expect(updated!.title).toBe('Product A Updated');
     });
@@ -161,14 +190,14 @@ describe('P6 Merchant Product Studio Edit Mode', () => {
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
       // Attempt to inject productTypeId — the UpdateProductInput type doesn't include it,
       // but even if passed, the service should not update it.
-      const updated = await catalogService.updateProduct(productA, { title: 'SEC-10 Test' } as any, ts);
+      const updated = await updateProduct(productA, { title: 'SEC-10 Test' } as any, ts);
       const row = await pool.query(`SELECT product_type_id FROM products WHERE id = '${productA}'`);
       expect(row.rows[0].product_type_id).toBe(productTypeId); // unchanged
     });
 
     it('SEC-11: merchant cannot change status via updateProduct', async () => {
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
-      const updated = await catalogService.updateProduct(productA, { title: 'SEC-11 Test' } as any, ts);
+      const updated = await updateProduct(productA, { title: 'SEC-11 Test' } as any, ts);
       const row = await pool.query(`SELECT status FROM products WHERE id = '${productA}'`);
       // Status should remain ACTIVE (or whatever it was)
       expect(row.rows[0].status).toBeDefined();
@@ -176,7 +205,7 @@ describe('P6 Merchant Product Studio Edit Mode', () => {
 
     it('SEC-12: merchant cannot change storeId via updateProduct', async () => {
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
-      await catalogService.updateProduct(productA, { title: 'SEC-12 Test' } as any, ts);
+      await updateProduct(productA, { title: 'SEC-12 Test' } as any, ts);
       const row = await pool.query(`SELECT store_id FROM products WHERE id = '${productA}'`);
       expect(row.rows[0].store_id).toBe(storeA); // unchanged
     });
@@ -187,7 +216,7 @@ describe('P6 Merchant Product Studio Edit Mode', () => {
   describe('Product Scalar Editing (§5)', () => {
     it('SCALAR-01: edit title, description, condition', async () => {
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
-      const updated = await catalogService.updateProduct(productA, {
+      const updated = await updateProduct(productA, {
         title: 'Edited Title',
         description: 'Edited description',
         condition: 'used',
@@ -199,21 +228,21 @@ describe('P6 Merchant Product Studio Edit Mode', () => {
 
     it('SCALAR-02: GTIN trim + empty → NULL', async () => {
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
-      const updated = await catalogService.updateProduct(productA, { gtin: '  ' }, ts);
+      const updated = await updateProduct(productA, { gtin: '  ' }, ts);
       const row = await pool.query(`SELECT gtin FROM products WHERE id = '${productA}'`);
       expect(row.rows[0].gtin).toBeNull();
     });
 
     it('SCALAR-03: MPN trim + empty → NULL', async () => {
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
-      const updated = await catalogService.updateProduct(productA, { mpn: '  ' }, ts);
+      const updated = await updateProduct(productA, { mpn: '  ' }, ts);
       const row = await pool.query(`SELECT mpn FROM products WHERE id = '${productA}'`);
       expect(row.rows[0].mpn).toBeNull();
     });
 
     it('SCALAR-04: Arabic title preserved', async () => {
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
-      const updated = await catalogService.updateProduct(productA, { titleAr: 'المنتج أ' }, ts);
+      const updated = await updateProduct(productA, { titleAr: 'المنتج أ' }, ts);
       expect(updated!.titleAr).toBe('المنتج أ');
     });
   });
@@ -306,10 +335,10 @@ describe('P6 Merchant Product Studio Edit Mode', () => {
     it('LOCK-01: stale product update → 409', async () => {
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
       // First update succeeds
-      await catalogService.updateProduct(productA, { title: 'Lock Test 1' }, ts);
+      await updateProduct(productA, { title: 'Lock Test 1' }, ts);
       // Second update with stale timestamp → 409
       try {
-        await catalogService.updateProduct(productA, { title: 'Lock Test 2' }, ts);
+        await updateProduct(productA, { title: 'Lock Test 2' }, ts);
         expect.fail('Should have thrown 409');
       } catch (err: any) {
         expect(err.status || err.statusCode).toBe(409);
@@ -336,7 +365,7 @@ describe('P6 Merchant Product Studio Edit Mode', () => {
     it('BOUNDARY-01: product edit does not mutate merchant_offers', async () => {
       const beforeCount = parseInt((await pool.query(`SELECT COUNT(*) FROM merchant_offers`)).rows[0].count);
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
-      await catalogService.updateProduct(productA, { title: 'Boundary Test' }, ts);
+      await updateProduct(productA, { title: 'Boundary Test' }, ts);
       const afterCount = parseInt((await pool.query(`SELECT COUNT(*) FROM merchant_offers`)).rows[0].count);
       expect(afterCount).toBe(beforeCount);
     });
@@ -348,7 +377,7 @@ describe('P6 Merchant Product Studio Edit Mode', () => {
     it('AUDIT-01: product.updated event generated', async () => {
       const before = auditLog.length;
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
-      await catalogService.updateProduct(productA, { title: 'Audit Test' }, ts);
+      await updateProduct(productA, { title: 'Audit Test' }, ts);
       const newEvents = auditLog.slice(before);
       const productUpdated = newEvents.find(e => e.action === 'product.updated');
       expect(productUpdated).toBeDefined();
@@ -385,8 +414,8 @@ describe('P6 Merchant Product Studio Edit Mode', () => {
       for (let i = 0; i < 50; i++) {
         const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${raceProduct}'`)).rows[0].updated_at);
         const results = await Promise.allSettled([
-          catalogService.updateProduct(raceProduct, { title: `Merchant-A-${i}` }, ts),
-          catalogService.updateProduct(raceProduct, { title: `Merchant-B-${i}` }, ts),
+          updateProduct(raceProduct, { title: `Merchant-A-${i}` }, ts),
+          updateProduct(raceProduct, { title: `Merchant-B-${i}` }, ts),
         ]);
         const aOk = results[0].status === 'fulfilled';
         const bOk = results[1].status === 'fulfilled';
@@ -419,8 +448,8 @@ describe('P6 Merchant Product Studio Edit Mode', () => {
         const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${raceProduct}'`)).rows[0].updated_at);
         // Both use catalogService.updateProduct (same code path, simulates merchant vs admin)
         const results = await Promise.allSettled([
-          catalogService.updateProduct(raceProduct, { title: `Merchant-${i}` }, ts),
-          catalogService.updateProduct(raceProduct, { title: `Admin-${i}` }, ts),
+          updateProduct(raceProduct, { title: `Merchant-${i}` }, ts),
+          updateProduct(raceProduct, { title: `Admin-${i}` }, ts, adminActor()),
         ]);
         if (results[0].status === 'fulfilled' && results[1].status === 'fulfilled') doubleSuccess++;
       }
@@ -443,8 +472,8 @@ describe('P6 Merchant Product Studio Edit Mode', () => {
         // Merchant edits title; moderation would edit status (but P6 doesn't allow status change)
         // Simulate: both try to update the product with same timestamp
         const results = await Promise.allSettled([
-          catalogService.updateProduct(raceProduct, { title: `MerchantEdit-${i}` }, ts),
-          catalogService.updateProduct(raceProduct, { description: `ModerationNote-${i}` } as any, ts),
+          updateProduct(raceProduct, { title: `MerchantEdit-${i}` }, ts),
+          updateProduct(raceProduct, { description: `ModerationNote-${i}` } as any, ts),
         ]);
         if (results[0].status === 'fulfilled' && results[1].status === 'fulfilled') doubleSuccess++;
       }
@@ -513,7 +542,7 @@ describe('P6 Merchant Product Studio Edit Mode', () => {
       // Ensure product is ACTIVE
       await pool.query(`UPDATE products SET status = 'ACTIVE' WHERE id = '${productA}'`);
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
-      await catalogService.updateProduct(productA, { title: 'Active Test' }, ts);
+      await updateProduct(productA, { title: 'Active Test' }, ts);
       const row = await pool.query(`SELECT status FROM products WHERE id = '${productA}'`);
       expect(row.rows[0].status).toBe('ACTIVE');
     });
