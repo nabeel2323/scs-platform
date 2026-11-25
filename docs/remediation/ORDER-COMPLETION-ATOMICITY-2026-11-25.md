@@ -11,25 +11,31 @@ The auto-completion worker also used an `UPDATE orders SET updated_at = NOW()` s
 - Wrap the order status flip, shipment completion timestamp, shipment event, order status history and `order.completed` outbox event in one database transaction.
 - Recalculate the master order inside the same transaction and write `order.master.status_changed` through that transaction executor.
 - Extend `recalculateMasterOrderStatus()` with an optional transaction executor; existing callers retain the standalone transaction behavior.
+- Lock the master-order row before reading its current status. This ensures the status comparison and `previousStatus` event payload use the latest serialized master state.
 - Emit realtime `order:updated` only after the database transaction commits.
 - Change AutoCompleteWorker candidate selection to a read-only `SELECT ... FOR UPDATE SKIP LOCKED`; it no longer updates `orders.updated_at` while selecting candidates.
 - Document the actual concurrency model: row locks reduce overlap during selection, while the conditional order-status update inside `completeOrder()` is the authoritative cross-instance guard. This is not a durable lease.
-- Add regression specs for transactional writes, post-commit realtime and failure before outbox/realtime side effects.
+- Record buyer `buyerConfirmedAt` in the same guarded transaction as buyer-triggered completion.
+- Add regression specs for transactional writes, post-commit realtime, buyer-confirmation rollback and master-row lock/read ordering.
+
+## CI findings and fixture correction
+
+CI run #1525 on head `fb68724bcc67ecfc02c1a92edeff41bc1a697954` failed in both API unit/coverage and integration jobs. The failure summary reported 23 failed tests, all caused by transaction mocks in `orders.integration.spec.ts` and `stock-settlement.integration.spec.ts` not implementing `execute()` after master-order row locking was introduced.
+
+The production row-lock operation was retained. Both mocked transaction fixtures now provide:
+
+```ts
+execute: vi.fn().mockResolvedValue({ rows: [] }),
+```
+
+This updates the mock transaction contract; it does not bypass or weaken the production lock. The fixture correction commits are `3653a3113d7567e4b3b20d4f9bb4dabe39c7af6a` and `5411e2c8363041b4c3c066226a50f9a62ec38773`.
+
+On run #1525, lint/typecheck, mobile, web/admin, migration full apply and boundary lint passed. Unit/coverage and integration failed on the missing mock method. Contract/codegen, build and container jobs were skipped because prerequisites failed. A fresh full CI run on the corrected exact head is required; the earlier successful run #1524 and failed run #1525 do not validate the corrected head.
 
 ## Safety and scope
 
 - No schema or migration is required.
 - No inventory movement is added; stock was already consumed at `DELIVERED`.
-- Master status and its outbox event now commit/roll back with the sub-order completion.
+- Master status and its outbox event commit/roll back with the sub-order completion.
 - No staging database, Render setting, service restart, worker activation, deployment or business workflow was touched.
-
-## Verification
-
-The focused regression spec is authored but has not yet been executed in this environment. Run it with the API Vitest suite and include the orders integration suite in the consolidated validation campaign before merge.
-
-
-## Follow-up correctness fix — buyer confirmation atomicity
-
-The review found that `confirmDelivery()` previously wrote `buyerConfirmedAt` before calling the completion transaction. If a shipment/history/outbox write then failed, the order could remain `DELIVERED` while the auto-completion worker excluded it and a repeated buyer confirmation was rejected. The confirmation timestamp is now written in the same guarded order update as the `COMPLETED` transition when the source is `BUYER_CONFIRMATION`. A transactional failure therefore rolls back both fields together. A regression spec covers this rollback boundary.
-
-This follow-up is authored but still requires execution in the consolidated validation campaign.
+- Keep PR #154 draft pending fresh exact-head CI and independent review.

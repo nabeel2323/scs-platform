@@ -7,34 +7,26 @@
 - Read the remediation branch's project-memory handoff, decisions, roadmap, open issues, release/CI status, implementation gap register, product inventory, and relevant staging/RLS audit design.
 - PR #153: disabled the generic log-only outbox poller while retaining transactional writes as `PENDING`; added tests, event ownership inventory and project-memory handoff.
 - PR #153: fixed unknown `shipping.carrier.*` event acknowledgement. Unsupported event types now use `UnsupportedCarrierOperationError` and the existing terminal dead-letter path.
-- PR #153 latest observed status: open draft, three commits ahead of develop, mergeable false at last check because Vercel admin returned a build-rate-limit/plan response; Vercel web passed. No GitHub Actions run was created because commits use `[skip ci]`. Focused tests remain unexecuted.
-- PR #154: opened as draft PR #154 at `b018aa6ea2e023d6f8006dc3bf121d85f1d54680`; made `OrdersService.completeOrder()` transactional across order state, shipment timestamp/event, status history, order outbox event and master-order recalculation/outbox. Realtime emission now occurs after commit.
+- PR #153 exact head `5294698d8db78e21df972e8ce6213f21237789fa`: CI run #1523 passed. Vercel previews are blocked by provider build-rate-limit quota. PR remains draft pending independent review.
+- PR #154: made `OrdersService.completeOrder()` transactional across order state, shipment timestamp/event, status history, order outbox event and master-order recalculation/outbox. Realtime emission occurs only after commit.
 - PR #154: changed AutoCompleteWorker candidate selection from a no-op `UPDATE updated_at` to a read-only `SELECT ... FOR UPDATE SKIP LOCKED`; documented that optimistic order status transition is the final concurrency guard, not a durable worker lease.
-- Added focused tests for transaction executor use, post-commit realtime, and suppressing outbox/realtime when a transactional shipment write fails.
-- Tests are authored but not executed. Do not treat parent CI as verification of either PR. Run focused Vitest specs and consolidated API/CI campaign before merge.
+- PR #154: moved buyer `buyerConfirmedAt` into the same transaction as the guarded DELIVERED → COMPLETED status update for buyer confirmation; added rollback regression coverage.
+- PR #154: fixed master-order lock ordering. The master row is now locked before reading current status, so concurrent sub-order completion does not compare against a stale pre-lock snapshot.
+- CI #1524 passed on previous PR #154 head `40e7d6891b625e524d1ddd0354fedfa91dd1c8f1`; this is not evidence for subsequent commits.
+- CI #1525 on `fb68724bcc67ecfc02c1a92edeff41bc1a697954` failed in unit/coverage and integration jobs. The 23 failures were all caused by transaction mocks in `orders.integration.spec.ts` and `stock-settlement.integration.spec.ts` lacking the `execute()` method now used by the master-row lock. Other mandatory jobs passed: lint/typecheck, mobile, web/admin, migration full apply and boundary lint. Contract/codegen, build and container jobs were skipped because the unit/integration prerequisites failed.
+- Corrected both integration fixtures by adding `execute: vi.fn().mockResolvedValue({ rows: [] })`. Commits: `3653a3113d7567e4b3b20d4f9bb4dabe39c7af6a` and `5411e2c8363041b4c3c066226a50f9a62ec38773`. This corrects the test harness contract without weakening production locking.
+- A fresh full CI run is required on the corrected branch head. Do not count run #1524 or #1525 as validating the corrected head.
+- Full open PR audit: #151/#150/#149/#148/#146/#145/#144/#143/#139/#138 remain open drafts. #150/#146 overlap; #144/#139 overlap; #145 migration 0070 conflicts with a different #138 migration 0070. #138 is thousands of commits ahead and must never be merged wholesale.
+- Main/develop diverged at last comparison: 11 commits unique to develop, 4 unique to main. Plan reconciliation after bounded PRs.
 - No database, migration, grant, RLS, Render setting, secret, worker activation, staging write, deployment, restart, provider call or business workflow was performed.
 
 ### Next
 
-1. PR #154 is open as a draft at head `4e2a8632f92ecd700ec51871153cbcd75ccf491e`; refresh its checks before merge.
-2. Complete repository-wide producer/event-history reconciliation, including direct `outbox_events` inserts and dynamic event names.
-3. Design and implement a real generic publisher only after event ownership, payload contracts, tenant/recipient resolution and acknowledgement semantics are defined.
-4. Add PostgreSQL durable-claim, idempotency, duplicate-worker, crash-after-delivery-before-ack and retry/dead-letter tests.
-5. Continue G-002 with dedicated API role/TLS and transaction-local tenant context design; do not activate RLS until all role/context/ownership/rollback gates pass.
-
-
-### 25 November 2026 — PR #154 buyer-confirmation follow-up
-- Review found a partial-commit risk: `confirmDelivery()` wrote `buyerConfirmedAt` before the completion transaction. A later write failure could strand a DELIVERED order excluded from auto-completion.
-- Moved the buyer confirmation timestamp into the same guarded transaction as the DELIVERED → COMPLETED status update.
-- Added a regression spec proving a failed shipment-event write rolls back the buyer confirmation timestamp and does not publish/emit.
-- Follow-up commit: `2f766035ee85302ab78ab56274aef423507278dc` (docs/memory sync); implementation commits precede it.
-- Tests remain authored, not executed. Keep PR #154 draft pending consolidated validation.
-
-
-### 25 November 2026 — PR #154 exact-head typecheck correction
-- CI run #1514 on the prior PR head failed `@scs/api:typecheck` at `orders.service.ts` master-order sub-order status mapping: callback parameter `so` implicitly had type any.
-- Added an explicit row type to the map callback: `(so: { status: string }) => so.status`.
-- Correction commit: `b21d7b080d28665fa23d35548232c8d70dbf1efd`.
-- The prior run executed Lint & Typecheck and Mobile only; most jobs (unit/coverage, integration, migrations, web/admin, build, contracts, container, k6 and release) were skipped. It is not a successful validation campaign.
-- New head needs a fresh complete CI run; focused regression specs remain unexecuted.
-- PR #138's separate durable auto-completion lease implementation must be reconciled with this branch before the broader remediation branch is integrated. PR #138 must not be merged wholesale.
+1. Run full exact-head CI for PR #154 after the fixture correction; inspect every failed job rather than relying only on the run conclusion.
+2. Obtain independent review for #153 and #154. Merge #153 into develop first only after review/required approvals; then rebase/revalidate #154 against updated develop.
+3. Consolidate #150/#146 and #144/#139 after complete diff/scope review.
+4. Reconcile the migration-number collision between #145 and #138.
+5. Rebase stale branches #151/#150/#149/#148/#145/#144/#143 and rerun CI.
+6. Keep #138 as a source of individually reviewed changes only.
+7. Complete repository-wide outbox producer/persisted-event reconciliation before designing generic delivery.
+8. Continue G-002 dedicated API role/TLS and transaction-local tenant context design only under recorded security gates.

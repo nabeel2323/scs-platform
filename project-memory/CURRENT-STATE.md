@@ -10,10 +10,42 @@
 | `develop` baseline | `fde20420bbb759d2e562f9ff747c9e824ac58e25` |
 | Latest develop CI at baseline | Run #1509 — SUCCESS |
 | `main` | `d3f4aefc41b37ad82f0aeb2eb78121342455eb21` at last inspected check |
-| PR #153 | OPEN / DRAFT; head `23a96506c835b604a6595f820aa34866172d40d6` at last check |
-| PR #154 | OPEN / DRAFT; see live PR head (includes buyer-confirmation atomicity follow-up) |
+| PR #153 | OPEN / DRAFT; head `5294698d8db78e21df972e8ce6213f21237789fa`; CI #1523 SUCCESS |
+| PR #154 | OPEN / DRAFT; latest branch head is the lock-fixture correction; CI #1525 FAILED on its preceding head |
 
 PR #147, #152 and #142 are merged into develop. PR #138 remains open/draft/unmerged and must not be merged wholesale.
+
+## PR #153 — outbox safety
+
+- Generic log-only polling/acknowledgement is disabled; non-carrier events remain PENDING until a real delivery adapter exists.
+- Unknown `shipping.carrier.*` event types follow the terminal dead-letter path.
+- CI #1523 passed on exact head `5294698d8db78e21df972e8ce6213f21237789fa`.
+- Vercel preview checks are blocked by provider build-rate-limit quota, not application test failures.
+- Independent review is still required. Generic non-carrier event delivery remains NOT IMPLEMENTED.
+
+## PR #154 — order completion atomicity
+
+- Order state, shipment completion, shipment event, order status history, `order.completed` outbox event, buyer-confirmation timestamp (for buyer-confirmation source), and master-order recalculation/outbox are in one transaction.
+- Realtime `order:updated` is emitted only after commit.
+- AutoCompleteWorker candidate selection no longer mutates `orders.updated_at`; conditional status transition remains the authoritative cross-instance guard. This is not a durable worker lease.
+- Master-order row is locked before reading its current status, preventing stale pre-lock status snapshots in concurrent sub-order completion flows.
+- CI #1524 passed on earlier head `40e7d6891b625e524d1ddd0354fedfa91dd1c8f1`; it does not validate later changes.
+- CI #1525 on head `fb68724bcc67ecfc02c1a92edeff41bc1a697954` failed: 23 tests across `orders.integration.spec.ts` and `stock-settlement.integration.spec.ts` failed because mock transaction objects lacked `execute()`. Both fixture files were corrected to provide `execute: vi.fn().mockResolvedValue({ rows: [] })`.
+- Corrected fixture commit head must receive a fresh exact-head full CI run. Do not claim the new head is green until run results are available.
+- Vercel preview checks are blocked by provider build-rate-limit quota.
+
+## Other open PR portfolio
+
+- #150 is the preferred notification delivery implementation candidate; #146 overlaps it and its tests failed due to an incorrect nested DB mock.
+- #144 and #139 overlap in merchant-offer tenant authorization; reconcile the full changed-file scope before merging either.
+- #145 migration 0070 conflicts by number with a different migration 0070 on #138.
+- #151/#150/#149/#148/#145/#144/#143 are stale relative to develop and require rebase/refresh and fresh CI.
+- #138 is thousands of commits ahead and overlaps multiple bounded PRs; use only as source for individually reviewed work.
+- #143 remediation docs need refresh against current evidence.
+
+## Main/develop divergence
+
+Last comparison: develop has 11 commits not in main; main has 4 commits not in develop. Do not merge feature branches directly into main as a shortcut. Plan the integration after bounded PRs are reviewed and merged into develop.
 
 ## Staging/runtime evidence
 
@@ -23,22 +55,12 @@ The staging service was recorded as one Frankfurt API instance on `develop`, aut
 
 The latest recorded startup logs show in-process OutboxDispatcher, AutoCompleteWorker, ShippingCarrierWorker, CarrierTrackingPoller, CarrierReconciliationService and P13MonitorService registrations. ReturnExpirationWorker was disabled because `P13_WORKER_ENABLED` was unset. No separate Render worker/cron service was found in the inspected workspace.
 
-## Current outbox status
+## Safety and evidence limits
 
-- PR #147 gives `shipping.carrier.*` events one authoritative consumer: `ShippingCarrierWorker`.
-- PR #153 disables the generic log-only poller; new non-carrier events remain `PENDING`.
-- PR #153 also sends unknown carrier-prefixed events to the existing terminal dead-letter path.
-- The producer scan identifies order, shipment, return, commission, settlement-adjustment, payment, review/dispute, inventory, merchant, store-membership and catalog event families with no generic outbox consumer found. See [event ownership inventory](../docs/remediation/OUTBOX-EVENT-OWNERSHIP-INVENTORY.md).
-- Generic event delivery remains **NOT IMPLEMENTED**; the inventory is a source scan, not yet a complete reconciliation against all producers and persisted event rows.
-
-## Order completion
-
-PR #154 moves the order flip, shipment completion record, order status history, order outbox event, buyer confirmation timestamp (for buyer-triggered completion) and master-order aggregation/outbox into one transaction. Realtime emission occurs after commit. AutoCompleteWorker candidate selection no longer mutates `orders.updated_at`; optimistic status transition remains the authoritative cross-instance completion guard. See [order completion atomicity](../docs/remediation/ORDER-COMPLETION-ATOMICITY-2026-11-25.md).
-
-## Evidence limits
-
-- CI #1509 verifies the develop baseline only, not PR #153 or #154.
-- Focused regression specs for the outbox and order completion changes, including the buyer-confirmation rollback case, are authored but not yet executed. CI run #1514 on the previous PR #154 head failed typecheck at the master-order sub-order status mapping; the implicit-any mapping has been explicitly typed in the latest commit. The new head requires fresh CI.
-- PR #153 had Vercel web success and Vercel admin failure due to a reported build-rate-limit/plan response at the last check; GitHub Actions had no run for its `[skip ci]` commits.
-- No deployment or staging runtime verification of either branch has occurred.
-- No staging database or Render configuration changes were made by this work.
+- No production database has been provisioned or deployed.
+- No staging database writes, migrations, grants/RLS/default ACL changes, Render configuration changes, worker activation, deployment, restart, or business workflow were performed in this work.
+- Do not merge PR #138 wholesale.
+- Do not treat skipped CI jobs as passing.
+- Do not mark outbox events DISPATCHED without confirmed downstream delivery.
+- Durable outbox claims require lease/ownership semantics; `FOR UPDATE SKIP LOCKED` alone is not a durable lease.
+- `ShippingCarrierWorker` remains the sole identified consumer of `shipping.carrier.*`.
