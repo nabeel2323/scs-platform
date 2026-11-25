@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import pino from 'pino';
 import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { IoAdapter } from '@nestjs/platform-socket.io';
@@ -129,14 +130,16 @@ async function bootstrap() {
           ? { target: 'pino-pretty', options: { colorize: true, translateTime: 'SYS:standard' } }
           : undefined,
       redact: {
-        paths: [
-          'req.headers.authorization',
-          'req.headers.cookie',
-          'req.headers["set-cookie"]',
-          'err.response.headers.authorization',
-          'err.response.headers["set-cookie"]',
-        ],
+        paths: HTTP_LOG_REDACT_PATHS,
         censor: '[REDACTED]',
+      },
+      serializers: {
+        // pino-http logs response headers too. The device-trust credential is
+        // issued in Set-Cookie, so redact the response header as well as the
+        // incoming Cookie header. Sanitize URL/query/route params because carrier
+        // webhook URLs contain a credential-like route token.
+        req: (req: Parameters<typeof pino.stdSerializers.req>[0]) =>
+          sanitizeRequestLog(pino.stdSerializers.req(req)),
       },
     }),
   );
