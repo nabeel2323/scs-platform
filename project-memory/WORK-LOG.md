@@ -28,6 +28,12 @@
 - Updated worker/service/schema, completion regression specs, remediation note and project-memory handoff. Exact commit/head and CI evidence will be appended after push and CI completion.
 - `DatabaseService` on PR #154 does not expose PR #138's `withActorContext` helper; it was not copied or referenced, avoiding an unsupported API.
 
+
+
+- CI run #1530 on head `97cf7b1fb7f8da59ecae0e991e6f2a4ff4c3b5cf` exposed two actionable test failures: the lease-fencing unit mock evaluated its `returning()` result before `.set()` populated the update list, and the PostgreSQL idempotency test invoked AUTO_COMPLETION without first establishing the worker lease. The worker unit specs passed; migration full apply, lint/typecheck, mobile, web/admin and boundary lint passed. Build/container/contract and k6/staging jobs were skipped because API test prerequisites failed.
+- Corrected the unit mock to evaluate the affected update count when `returning()` executes. Updated the PostgreSQL idempotency fixture to persist a unique worker claim before automatic completion and to pass a worker owner in the post-buyer-confirmation negative case. Fix commit: `1554ea8b6a67aef1a5ba40e5fe2045d715b7e190`.
+- Run #1530 is not green and does not validate the test corrections. A new exact-head CI run is required; keep PR #154 draft.
+
 ### Next
 
 1. Run full exact-head CI for the durable-lease update to PR #154 and inspect every failed job rather than relying only on the run conclusion.
