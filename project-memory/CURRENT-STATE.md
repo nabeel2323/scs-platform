@@ -11,7 +11,7 @@
 | Latest develop CI at baseline | Run #1509 — SUCCESS |
 | `main` | `d3f4aefc41b37ad82f0aeb2eb78121342455eb21` at last inspected check |
 | PR #153 | OPEN / DRAFT; head `23a96506c835b604a6595f820aa34866172d40d6` at last check |
-| PR #154 | OPEN / DRAFT; head `2f766035ee85302ab78ab56274aef423507278dc` |
+| PR #154 | OPEN / DRAFT; see live PR head (includes buyer-confirmation atomicity follow-up) |
 
 PR #147, #152 and #142 are merged into develop. PR #138 remains open/draft/unmerged and must not be merged wholesale.
 
