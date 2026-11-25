@@ -3955,7 +3955,7 @@ export class OrdersService {
       });
 
       const newStatus = OrdersService.computeMasterStatus(
-        subOrders.map(so => so['status'] as string),
+        subOrders.map((so: { status: string }) => so.status),
       );
 
       if (newStatus !== master['status']) {
