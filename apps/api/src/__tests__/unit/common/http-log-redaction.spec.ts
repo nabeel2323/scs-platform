@@ -9,14 +9,15 @@ import {
 
 describe('HTTP log redaction', () => {
   it('strips query values and redacts credential-like carrier webhook path tokens', () => {
-    expect(
-      sanitizeRequestUrl('/v1/webhooks/carrier/aramex/credential-token?signature=secret&otp=123456'),
-    ).toBe('/v1/webhooks/carrier/aramex/[REDACTED]');
-    expect(sanitizeRequestUrl('/v1/auth/otp/verify?email=user@example.test&otp=123456'))
-      .toBe('/v1/auth/otp/verify');
+    const webhookUrl =
+      '/v1/webhooks/carrier/aramex/credential-token?signature=secret&otp=123456';
+    const otpUrl = '/v1/auth/otp/verify?email=user@example.test&otp=123456';
+
+    expect(sanitizeRequestUrl(webhookUrl)).toBe('/v1/webhooks/carrier/aramex/[REDACTED]');
+    expect(sanitizeRequestUrl(otpUrl)).toBe('/v1/auth/otp/verify');
   });
 
-  it('redacts response cookies, request signatures, identifiers, and sensitive route metadata in Pino output', () => {
+  it('redacts credentials and sensitive metadata in actual Pino output', () => {
     const chunks: string[] = [];
     const sink = new Writable({
       write(chunk, _encoding, callback) {
