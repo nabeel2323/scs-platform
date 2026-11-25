@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CatalogService } from '../../../modules/catalog/catalog.service';
 import { ForbiddenException } from '@nestjs/common';
-import { PgDialect, type SQL } from 'drizzle-orm/pg-core';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
 
 /**
  * Catalog Service — Saved Suppliers unit tests (§21.3 retailer capability).

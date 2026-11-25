@@ -1,7 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { CatalogService } from '../../../modules/catalog/catalog.service';
-import { PgDialect, type SQL } from 'drizzle-orm/pg-core';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
 
 describe('CatalogService.addMedia variant ownership', () => {
   it('rejects media linked to a variant from another product before inserting', async () => {

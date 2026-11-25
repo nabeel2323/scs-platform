@@ -397,7 +397,7 @@ describe('ShippingService driver assignment eligibility', () => {
       harness.service.assertDriverEligibleForStore('driver-a', 'store-a'),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(harness.profilesFindFirst.mock.calls[0][0].where).toBeDefined();
+    expect(harness.profilesFindFirst.mock.calls[0]?.[0]?.where).toBeDefined();
     expect(harness.usersFindFirst).not.toHaveBeenCalled();
     expect(harness.assignmentsFindMany).not.toHaveBeenCalled();
   });
