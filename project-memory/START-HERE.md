@@ -71,3 +71,19 @@ A follow-up code review found and fixed the buyer-confirmation/auto-completion r
 - PR #156 is the HTTP request/response log-redaction fix. Latest head `e158c505f8f4758cce4e825cf4ea2dae52051ba4`; CI #1541 is pending/in progress.
 - PR #145 contains narrow `normalize_arabic` search_path hardening migration 0070; the staging ledger remains at 0069 and the broader conflicting PR #138 migration must not be merged.
 - Do not merge, deploy, restart services, activate workers, rotate credentials, change grants/RLS/roles, or run migrations without the applicable review and explicit authorization.
+
+
+## PR #138 preservation and consolidation guard — 25 November 2026
+
+- PR #138 remains **OPEN / DRAFT / UNMERGED** at source head `14f9871d40b2e6e88c1cffe480c3751e9393c597` (1,909 changed files; mergeable=false). Its complete remediation tree, commit history, tests, migrations, runbooks, registers and project-memory evidence are retained. Do not close, delete, reset, force-push, destructively rebase, or wholesale-merge it.
+- Created a second preservation ref `preservation/pr138-remediation-2026-11-25` at that exact SHA. The original PR branch was not modified.
+- PR #138 contains much more than auto-completion leases: tenant authorization and G-001/G-023–G-035 remediation, database/migration identity and access-control work, security audit/runbooks, worker/carrier hardening, tests and remediation evidence. Treat its full tree as retained source material. No item is discarded or considered integrated merely because a bounded PR overlaps it.
+- Integrate PR #138 only through a file-by-file reconciliation matrix against current `develop` and all bounded PRs. Extract reviewed, self-contained slices into clean branches; retain the original branch and preservation ref. Record each slice as integrated, deferred, superseded or blocked. Resolve migration-number collisions (including 0070/0071) against the current migration ledger and every pending PR before creating any migration.
+- PR #154's durable lease overlaps the lease already present in PR #138. Both implement five-minute owner/timestamp claims, but PR #138 uses `DatabaseService.withActorContext` and updates business `orders.updated_at` on claim/release; PR #154 is compatible with current `develop` and avoids those business timestamp writes. Select and validate exactly one canonical implementation for eventual integration; never merge both copies. Preserve all unrelated PR #138 remediation.
+- Preservation ref creation does not merge code or authorize migrations, database changes, deployment, worker activation or release.
+
+## Latest exact-head verification — PR #154
+
+- Latest PR #154 head before this handoff update: `619bf6d5684b9774be5e0dc25972b3aaa53d0f24`.
+- CI run #1543 (run ID `45669741152`) passed all 10 substantive jobs: mobile analysis/tests, lint/typecheck/format, migration full apply, web/admin tests, unit/coverage, E6 boundary lint, integration tests, build, container build/smoke, and contract/codegen. k6 smoke and staging release were skipped; neither is claimed as passed.
+- PR #154 remains draft pending independent review. No merge, staging DB write/migration, Render change, worker activation, deployment or restart occurred.
