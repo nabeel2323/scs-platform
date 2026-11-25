@@ -208,3 +208,12 @@ All changes are source/test authoring only. No test, lint, typecheck, formatter,
 - No tests, lint, typecheck, formatter, build or CI run. No carrier provider/storage/Redis/DB/migration, worker activation, staging workflow, deployment, grant/default-ACL/RLS change, bootstrap/token issuance or merge occurred.
 
 **Next:** continue the FK-to-ownership crosswalk and raw SQL/function/trigger/partition audit against the 75 numbered migrations and source callsites. Then refresh develop, build clean bounded integration branches using the manifest, and run one consolidated CI campaign once integration is complete. Preserve #138; never merge its 1,939-path tree wholesale.
+
+
+## 26 November 2026 — initial FK-to-ownership crosswalk
+
+- Added `docs/remediation/G-002-FK-OWNERSHIP-CROSSWALK-2026-11-26.md` after reviewing shipping, payment, return, settlement and reconciliation schemas/services plus `financialOrgScope` and carrier webhook routing.
+- Confirmed important independent-FK relationships require runtime consistency checks: shipment.order_id + store_id; carrier configuration org_id + credential_id + optional store_id; webhook credential_id + shipment_id; return sub_order_id + payment_record_id; settlement sub_order/payment/store links. Reviewed service guards exist for carrier config create/resolve, carrier worker shipment/order/store validation, webhook credential routing, commission reversal, settlement adjustment posting and payment-proof cleanup. Continue callsite review; no claim that all paths are covered.
+- Financial reconciliation intentionally supports null/global scope for platform roles; non-platform HTTP callers are denied without activeOrg by `financialOrgScope` and the ReturnsController has class-level tenant actor interception. Preserve that distinction in the RLS/policy design.
+- Full 75-migration/schema FK inventory and remaining catalog/inventory/document/settlement ownership chains remain open. This crosswalk is partial source evidence only.
+- No tests or DB/catalog/migration/provider/storage/worker/deployment actions occurred.
