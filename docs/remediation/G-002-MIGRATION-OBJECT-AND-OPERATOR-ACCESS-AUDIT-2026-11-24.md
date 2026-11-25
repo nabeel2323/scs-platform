@@ -114,3 +114,18 @@ Reviewed `catalog.controller.ts`, `catalog.service.ts` and `TenantDatabaseContex
 No code was changed in this review. No tests, typecheck, formatter, build or CI were run. No import job was created/processed, no object storage or Redis was touched, and no staging/shared DB writes, migrations, grants, RLS changes, worker activation, deployment or merge occurred.
 
 **Next:** continue catalog service and worker actor-context coverage; then complete the raw SQL/function/trigger and migration/operator boundaries and prepare a bounded G-002 extraction manifest from refreshed `develop`. Keep CI batched until that bounded workstream is complete.
+
+
+## 26 November 2026 — worker actor-context and order-completion reconciliation
+
+Reviewed the current PR #138 order auto-completion worker, its unit tests, the #138 OrdersService completion path, focused PR #154 and the #153 outbox implementation.
+
+- The #138 auto-completion worker establishes `withActorContext({ actorKind: 'worker', workerId })` around both claim and the entire `processCompletion` call. The conditional lease release runs in `processCompletion`'s `finally` before that outer actor scope closes, so release inherits the worker context. No production worker code change was required.
+- The #138 worker unit-test double did not implement DatabaseService.withActorContext, so the tests did not model the actor-context implementation. Updated the test harness to provide a passthrough scope, assert DB execution and completion occur inside the worker scope, assert the stable worker principal, and cover lease release after failed completion. Commits: `983acb6b5a87c52a21a905745cf404d6c785c47f`, `82998dd808f5800ccfb7c354a373ef63bdf06bf4`, `7b98f58532c66c005c6a3089f9da72e1bc32d495`.
+- The #138 `OrdersService.completeOrder` still performs multiple related writes without the single encompassing transaction present in #154. #154's atomic completion and claim-owner/lease fencing are the preferred service implementation, but its worker must be composed with #138's DatabaseService worker actor context before extraction. Keep one canonical migration 0071; its duplicate DDL must not be applied twice.
+- #138's generic outbox dispatcher still contains the log-only placeholder that marks events DISPATCHED. Do not extract or enable it. PR #153 is the safer canonical behavior: no generic polling/acknowledgement without a real adapter; carrier-owned events remain with ShippingCarrierWorker. #153 exact-head Actions has a passing CI run; #154 exact-head Actions lookup is empty. Recheck before any merge decision.
+- ShippingCarrierWorker's inspected database phases use a worker-context helper; provider/storage operations are outside those short DB scopes. This was a source-level spot check, not full worker sign-off.
+
+No tests, typecheck, formatter, build or CI were run for the unit-test update. All source/test changes remain NOT TESTED / NOT CI-VERIFIED. No worker was activated, no outbox polling enabled, no provider call, database write, migration, deployment or merge occurred.
+
+**Next:** finish the remaining worker and database call-graph audit; prepare the bounded G-002 extraction as the composition of #154 atomic completion with #138 actor context, and #153's safe outbox behavior. Run the consolidated CI campaign only after that bounded slice is assembled.
