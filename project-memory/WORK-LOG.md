@@ -283,3 +283,10 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 - Reviewed import controller routes, CatalogService DB operations and TenantDatabaseContextInterceptor. Route context coverage and short actor-scoped service DB phases were found for the import route set. Redis, object storage, workbook parsing and CSV serialization remain outside DB actor transactions. A few service methods rely on current controller wrappers; documented that contract and follow-up requirement in the G-002 ledger.
 - No code changed and no tests/typecheck/formatter/build/CI ran. No DB, storage, Redis, worker, staging, migration, grant/RLS, deployment or merge side effect occurred.
 - Next: continue the remaining catalog service and worker call-graph audit, then complete G-002 extraction manifest from refreshed develop. Keep CI consolidated.
+
+
+## 26 November 2026 — worker/order completion review
+
+- Reviewed auto-completion worker actor scope and confirmed releaseClaim runs in the surrounding worker context. Updated its unit-test harness to model DatabaseService.withActorContext and assert scoped claim, completion and release behavior (commits `983acb6b`, `82998dd8`, `7b98f585`). No tests/typecheck/CI run.
+- Reconciled worker dependencies: #154 atomic order-completion service and lease fencing plus #138 worker actor context; one migration 0071. #153 no-poller/no-false-ack outbox behavior is canonical; do not extract #138 log-only dispatcher. #154 exact-head Actions absent; #153 exact-head CI passed.
+- No worker activation, DB write, migration, provider call, deployment or merge occurred. Next: complete worker/DB access audit and prepare bounded G-002 extraction; keep CI consolidated.
