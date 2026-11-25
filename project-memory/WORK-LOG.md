@@ -16,7 +16,7 @@
 
 ### Next
 
-1. Verify PR #154 branch/commit and open its draft PR after the implementation commit is pushed.
+1. PR #154 is open as a draft at head `4e2a8632f92ecd700ec51871153cbcd75ccf491e`; refresh its checks before merge.
 2. Complete repository-wide producer/event-history reconciliation, including direct `outbox_events` inserts and dynamic event names.
 3. Design and implement a real generic publisher only after event ownership, payload contracts, tenant/recipient resolution and acknowledgement semantics are defined.
 4. Add PostgreSQL durable-claim, idempotency, duplicate-worker, crash-after-delivery-before-ack and retry/dead-letter tests.
