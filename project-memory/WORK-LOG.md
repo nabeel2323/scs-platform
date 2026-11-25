@@ -319,3 +319,10 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 - Reviewed return-expiration nested actor scope and lease fencing; no further production change identified.
 - Added G-002 bounded integration manifest. PR #138 inventory now 1,939 paths: 1,280 scratch and 659 non-scratch; do not assume all non-scratch files belong in G-002.
 - No tests/lint/typecheck/build/CI or DB/migration/provider/storage/worker/deployment/merge side effect. Next: complete FK-to-ownership and raw SQL/function/trigger/partition review, then build bounded integration branches from refreshed develop.
+
+
+## 26 November 2026 — FK ownership crosswalk
+
+- Added initial source-level crosswalk for shipping/carrier, payment proof, returns, settlements and reconciliation. Documented independent-FK combinations and existing runtime consistency checks, plus open areas for catalog/inventory/documents and all 75 migration files.
+- Confirmed financial global/null reconciliation scope is limited at HTTP edge by `financialOrgScope` (platform roles only; non-platform roles require activeOrg) and class-level ReturnsController actor interception.
+- No tests/CI or DB/catalog/migration/provider/storage/worker/deployment action occurred. Next: complete remaining migration and module ownership crosswalk and raw SQL/function/trigger inventory.
