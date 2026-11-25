@@ -171,7 +171,7 @@ async function createDeliveredOrder(
     buyerId,
     deliveryAddress: {},
     idempotencyKey: `p13fin-${randomUUID()}`,
-  });
+  }, { sub: buyerId, role: 'BUYER', activeOrg: orgId });
   const orderId = co.subOrders[0]!.id;
   const caller = { sub: merchantId, role: 'MERCHANT_OWNER' as const, activeOrg: orgId };
 
@@ -256,6 +256,12 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
   let roleById: Map<string, string>;
 
   const adminCaller = { sub: adminA, role: 'ADMIN' as const };
+  function checkoutAsBuyer(input: any) {
+    if (input?.buyerId !== buyerA) {
+      throw new Error('Financial checkout fixture must use the seeded Buyer A principal');
+    }
+    return ordersService.checkout(input, { sub: buyerA, role: 'BUYER', activeOrg: orgA });
+  }
 
   beforeAll(async () => {
     container = await new PostgreSqlContainer('postgis/postgis:16-3.4').start();
@@ -328,12 +334,13 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       client.release();
     }
 
-    const outbox = new OutboxDispatcher({ db } as DatabaseService);
-    const promotions = new PromotionsService({ db } as DatabaseService);
+    const database = new DatabaseService();
+    database.db = db;
+    const outbox = new OutboxDispatcher(database);
+    const promotions = new PromotionsService(database);
     const registry = new PaymentProviderRegistry();
     registry.register(new ManualVerificationProvider());
-    paymentsService = new PaymentsService({ db } as DatabaseService, outbox, registry);
-    const database = { db } as DatabaseService;
+    paymentsService = new PaymentsService(database, outbox, registry);
     reconciliationService = new ReconciliationService(database);
     ordersService = new OrdersService(
       database,
@@ -2682,7 +2689,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
       [randomUUID(), cartId, storeA, variantA, offerA],
     );
-    const bankTransferOrder = await ordersService.checkout({
+    const bankTransferOrder = await checkoutAsBuyer({
       buyerId: buyerA,
       deliveryAddress: {},
       paymentMethod: 'BANK_TRANSFER',
@@ -2865,7 +2872,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
       [randomUUID(), cartId, storeA, variantA, offerA],
     );
-    const checkout = await ordersService.checkout({
+    const checkout = await checkoutAsBuyer({
       buyerId: buyerA,
       deliveryAddress: {},
       paymentMethod: 'BANK_TRANSFER',
@@ -2936,7 +2943,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     });
     try {
       await expect(
-        ordersService.checkout({
+        checkoutAsBuyer({
           buyerId: buyerA,
           deliveryAddress: {},
           paymentMethod: 'BANK_TRANSFER',
@@ -3051,7 +3058,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
       [randomUUID(), cartId, storeA, variantA, offerA],
     );
-    const checkout = await ordersService.checkout({
+    const checkout = await checkoutAsBuyer({
       buyerId: buyerA,
       deliveryAddress: {},
       paymentMethod: 'BANK_TRANSFER',
@@ -3121,7 +3128,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
       [randomUUID(), cartId, storeA, variantA, offerA],
     );
-    const checkout = await ordersService.checkout({
+    const checkout = await checkoutAsBuyer({
       buyerId: buyerA,
       deliveryAddress: {},
       paymentMethod: 'BANK_TRANSFER',
@@ -3186,7 +3193,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
       [randomUUID(), cartId, storeA, variantA, offerA],
     );
-    const checkout = await ordersService.checkout({
+    const checkout = await checkoutAsBuyer({
       buyerId: buyerA,
       deliveryAddress: {},
       paymentMethod: 'BANK_TRANSFER',
@@ -3513,7 +3520,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
       [randomUUID(), bankCartId, storeA, variantA, offerA],
     );
-    const bankCheckout = await ordersService.checkout({
+    const bankCheckout = await checkoutAsBuyer({
       buyerId: buyerA,
       deliveryAddress: {},
       paymentMethod: 'BANK_TRANSFER',
@@ -3563,7 +3570,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
        VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
       [randomUUID(), codCartId, storeA, variantA, offerA],
     );
-    const codCheckout = await ordersService.checkout({
+    const codCheckout = await checkoutAsBuyer({
       buyerId: buyerA,
       deliveryAddress: {},
       paymentMethod: 'CASH_ON_DELIVERY',
