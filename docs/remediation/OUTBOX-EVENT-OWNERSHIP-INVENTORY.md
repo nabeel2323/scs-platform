@@ -14,17 +14,23 @@ The scan covers the API module producers inspected for the outbox remediation. D
 | Event family / examples | Producer area | Authoritative consumer found | Current disposition |
 |---|---|---|---|
 | `shipping.carrier.create`, `.cancel`, `.label`, `.track`, `.webhook.retry` | Orders/shipping | `ShippingCarrierWorker` | Dedicated consumer. Unknown events under the carrier prefix must be dead-lettered, never acknowledged as dispatched. |
-| `order.*`, `order.fulfillment.*`, `order.master.status_changed` | `OrdersService` | No generic outbox consumer found | Pending; some status changes also emit WebSocket updates directly. Those socket emits are not durable outbox delivery. |
-| `shipment.cancelled` | `OrdersService` | No generic outbox consumer found | Pending. Shipment lifecycle records are also persisted separately. |
+| `order.*`, `order.fulfillment.*`, `order.master.status_changed` | `OrdersService` | No generic outbox consumer found | Pending. Observed examples include `order.submitted`, `order.pending_confirmation`, `order.accepted`, `order.partially_accepted`, `order.rejected`, `order.cancelled`, `order.fulfillment.assigned`, `order.fulfillment.delivered` and master-status transitions. Some transitions also emit WebSocket updates directly; those socket emits are not durable outbox delivery. |
+| `shipment.*` | `OrdersService` | No generic outbox consumer found | Pending. Observed examples include `shipment.cancelled`, `shipment.delivery_exception`, `shipment.delivery_exception_resolved`, `shipment.delivery_retry_requested`, `shipment.rts_requested`, `shipment.rts_approved`, `shipment.rts_completed` and `shipment.return_processed`. Shipment lifecycle records are also persisted separately. |
 | `return.*` | `ReturnsService` | No generic outbox consumer found | Pending. `P13MonitorService` observes selected failed return/refund events; it does not deliver them. |
 | `commission.reversed` | `CommissionReversalService` | No generic outbox consumer found | Pending. Financial reconciliation/monitoring is not event delivery. |
 | `settlement_adjustment.*` | `SettlementAdjustmentService` | No generic outbox consumer found | Pending. No publisher/consumer adapter is wired. |
-| `payment.*` | `PaymentsService` | No generic outbox consumer found | Pending. Payment state and provider workflows are separate from outbox notification delivery. |
+| `payment.*` | `PaymentsService` | No generic outbox consumer found | Pending. Observed examples include `payment.proof_submitted`, `payment.confirmed`, `payment.rejected`, `payment.refund_requested`, `payment.refund_succeeded`, `payment.settlement_calculated`, `payment.cancelled` and `payment.expired`. Payment state/provider workflows are separate from outbox notification delivery. |
 | `review.created`, `dispute.opened`, `dispute.resolved` | Reviews/disputes | No generic outbox consumer found | Pending. |
 | `inventory.low_stock`, `inventory.transferred` | `InventoryService` | No generic outbox consumer found | Pending. |
 | `merchant.store.created`, `merchant.verification.*` | `MerchantService` | No generic outbox consumer found | Pending. Verification events include a direct transactional insert into `outbox_events`. |
-| `store_member.*` | `StoreMembershipService` | No generic outbox consumer found | Pending. |
+| `store_member.*` | `StoreMembershipService` | No generic outbox consumer found | Pending. Observed examples include `store_member.added`, `.removed`, `.role_changed`, `.activated` and `.deactivated`. |
 | `catalog.product.published` | `CatalogService` | No generic outbox consumer found | Pending. |
+
+## Producer scan notes
+
+The follow-up source pass explicitly inspected `OrdersService`, `ReturnsService`, `PaymentsService`, `ReviewsService`, `InventoryService`, `MerchantService`, `StoreMembershipService` and `CatalogService` for `OutboxDispatcher.publish()` calls and direct `outbox_events` inserts. It confirmed direct transactional outbox inserts in order submission, shipment delivery/exception/RTS/return-processing paths, and merchant verification decisions. It also confirmed that return and payment event names include dynamic status/action variants, so consumers must validate an allow-list rather than assume every prefix member is supported.
+
+This remains a bounded source pass, not a complete repository-wide proof: commission/settlement/dispute producer paths and any dynamically generated SQL or helper-based inserts still require exact path discovery and review; persisted outbox rows/event history have not been queried. The event family rows above must therefore be treated as a working ownership inventory, not an exhaustive registry.
 
 ## Important distinction: notification delivery
 
