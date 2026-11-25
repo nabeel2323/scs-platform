@@ -161,3 +161,12 @@ The PR is intentionally draft. Application adoption, workers/webhooks and remain
 - PR #158 is stacked on PR #157 at 2e57a2deed1efb5c02de05d23b7ec10b668271c0 and adds only IdentityService plus two focused test files for active organization membership and active organization claim/profile checks. No exact-head Actions run exists.
 - All newly authored promotion/catalog-import tests remain unexecuted. No database/catalog writes, migrations, grant/default-ACL/RLS changes, staging mutation, storage/provider calls, worker activation, bootstrap, deployment or merge occurred.
 - Next: complete source review of PR #157/#158 and their dependency relationship, inspect #157's active CI run, continue the FK ownership and raw SQL/function/trigger/partition audit, then prepare the next bounded application-adoption slice from refreshed develop. Keep worker/webhook and operator/migration slices separate; do not merge PR #138 wholesale.
+
+
+## 26 November 2026 — live Slice A and exported-service follow-up
+
+- PR #157 current head: 77145bc6262aba99cf7fdbd45139382bebc44fa7, OPEN / DRAFT / UNMERGED, mergeable=true. Exact-head Actions run #1554 is in progress. Lint/typecheck, Mobile, Web/Admin, E6 boundary lint and full migration apply passed; API integration and unit/coverage remain in progress. Do not dispatch duplicate CI.
+- PR #158 is a stacked draft on #157 at 2e57a2deed1efb5c02de05d23b7ec10b668271c0 for active organization membership checks in identity claims/profile projection. No exact-head Actions run yet.
+- PR #138 remains the preserved evidence source at f7894abe85b9e9c053e51a730dbfd1c51f6adf21; its preservation ref is identical. It remains draft/unmerged and has no exact-head Actions run.
+- The CatalogImportService preflight actor validation and regression test are present on #138 but not yet tested or CI-verified. Treat this as a Candidate Slice B application-adoption dependency, not part of Slice A.
+- Inventory, Pricing and Cart route spot-check: their HTTP controllers establish actor context and derive/verify user/store scope, but their modules export service classes. Internal consumers must be mapped before caller-optional InventoryService methods, controller-dependent PricingService authorization, or CartService ID-based helper contracts are changed.
