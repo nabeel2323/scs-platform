@@ -13,7 +13,10 @@ import {
   DEVICE_TRUST_PROOF_HEADER,
   resolveDeviceTrustCookieConfig,
 } from './common/auth/device-trust-cookie';
-import { HTTP_LOG_REDACT_PATHS, sanitizeRequestLog } from './common/logging/http-log-redaction';
+import {
+  HTTP_LOG_REDACT_PATHS,
+  sanitizeRequestLog,
+} from './common/logging/http-log-redaction';
 
 async function bootstrap() {
   // Fail fast on insecure JWT configuration (API-B7) before creating the app,
