@@ -66,3 +66,11 @@ The latest recorded startup logs show in-process OutboxDispatcher, AutoCompleteW
 - Do not mark outbox events DISPATCHED without confirmed downstream delivery.
 - Durable outbox claims require lease/ownership semantics; `FOR UPDATE SKIP LOCKED` alone is not a durable lease.
 - `ShippingCarrierWorker` remains the sole identified consumer of `shipping.carrier.*`.
+
+## Latest verified continuation
+
+- PR #154 latest branch head: `9efc30a7a3c0f841890a1d0bae839590cf58f8f3`.
+- Previous exact-head CI #1533 passed on `d496b0616c9a0cdde2bd891ca47167d9b9dfbabc`; that green run predates the buyer-confirmation race fix and does not validate the current head.
+- The buyer-confirmation race fix re-reads state after ConflictException and returns idempotent success only when the competing transition completed the order. Regression test added.
+- Next: obtain and inspect full exact-head CI for `9efc30a7a3c0f841890a1d0bae839590cf58f8f3`; keep PR draft pending CI and independent review.
+- PR #154 remains unmerged. No database/Render/deployment/worker action was taken.
