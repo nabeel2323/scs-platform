@@ -360,3 +360,8 @@ The PR #138 source branch now includes a fail-closed database startup guard (not
 - Added `docs/remediation/G-002-FK-OWNERSHIP-CROSSWALK-2026-11-26.md` with reviewed shipping, carrier, payment-proof, return, settlement and reconciliation FK/ownership relationships and open gaps.
 - Key independent-FK combinations need explicit service consistency checks (shipment order/store, carrier configuration org/credential/store, webhook credential/shipment, return order/payment, settlement order/payment/store). Reviewed guards exist in the named services, but full callsite and 75-migration crosswalk remains incomplete.
 - Financial global reconciliation scope is intentional for platform roles only; `financialOrgScope` rejects non-platform HTTP callers without activeOrg. No tests or external side effects occurred.
+
+
+## Final live checkpoint — 26 November 2026
+
+PR #138 is OPEN / DRAFT / UNMERGED at `e410bf44b272eafb8e762636b66877f9e0c4b230`, base develop, mergeable=false. Preservation branch is identical (0/0). PR changed paths: 1,940 total (1,280 scratch; 660 non-scratch; not all non-scratch belong to G-002). Develop is `fde20420bbb759d2e562f9f747c9e824ac58e25`; branch is diverged 2,852 ahead / 3 behind from `f74eb588cc58fc99b105e749d39dbfbacb4f9775`. Exact-head Actions has no runs; only Vercel Web/Admin build-rate-limit failures are reported. All newly authored worker tests remain unexecuted. Next: finish full migration/FK and raw SQL/function/trigger/partition inventory, refresh develop, create bounded integration PRs from the manifest, then one consolidated CI campaign.
