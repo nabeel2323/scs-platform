@@ -4022,7 +4022,20 @@ export class OrdersService {
     // buyerConfirmedAt before completeOrder commits can strand a DELIVERED order
     // if a later shipment/history/outbox write fails. completeOrder now writes
     // buyerConfirmedAt together with the guarded status transition.
-    return this.completeOrder(orderId, userId, 'BUYER', 'BUYER_CONFIRMATION');
+    try {
+      return await this.completeOrder(orderId, userId, 'BUYER', 'BUYER_CONFIRMATION');
+    } catch (error) {
+      // Auto-completion may win after the initial DELIVERED read but before
+      // this request's guarded update. Preserve the endpoint's idempotent
+      // contract when the competing transition completed the same order.
+      if (error instanceof ConflictException) {
+        const current = await this.getOrder(orderId);
+        if (current['status'] === 'COMPLETED') {
+          return this.getOrderWithItems(orderId, caller);
+        }
+      }
+      throw error;
+    }
   }
 
   /**
