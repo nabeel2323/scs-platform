@@ -385,3 +385,10 @@ PR #138 is OPEN / DRAFT / UNMERGED at `e410bf44b272eafb8e762636b66877f9e0c4b230`
 - Prioritized next service-callsite checks: same-store variant/category/media, variant↔warehouse, variant↔price-list, cart owner/store/variant, order buyer/store/variant/promotion, document org/store, and conversation/dispute participant ownership. These are schema-level risks to reconcile with service guards, not confirmed vulnerabilities.
 - Full 75-migration audit remains INCOMPLETE. No tests, CI, database operations, migrations, RLS/grant changes, deployment or merge occurred.
 - Detailed matrix appended to `docs/remediation/G-002-FK-OWNERSHIP-CROSSWALK-2026-11-26.md`.
+
+
+## 26 November 2026 — commerce service callsite spot-check
+
+- Reviewed Catalog, Inventory, Pricing, Cart and Orders service/controller paths against the foundational migration crosswalk. Positive guards: product creation checks category scope; inventory HTTP routes pass authenticated caller and inventory create/transfer check variant↔warehouse store equality; pricing controller/service check variant↔price-list store; cart derives store from variant→product and validates selected offer scope; OrdersService establishes user actor context for checkout mutations.
+- Remaining risks: InventoryService caller-optional methods and no-caller helper require complete internal-callsite audit; PricingService has service methods relying on controller scope for store/member authorization; cart getCart-by-ID helper must remain internal and owner-scoped; revalidate cart/order item/offer/store lineage at checkout; review catalog updates/imports/media/category reparenting.
+- Crosswalk updated with exact scope and evidence gaps. These are not claims of complete G-002 closure. No source changes, tests, CI, DB operations, migrations, RLS/grant changes, deployment or merge occurred.
