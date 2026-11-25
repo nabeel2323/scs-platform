@@ -168,7 +168,8 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     }
 
     // ── Instantiate services ──────────────────────────────────────
-    database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
     const conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
     catalog = new CatalogService(

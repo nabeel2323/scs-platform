@@ -169,7 +169,8 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     }
 
     // ── Instantiate services ──────────────────────────────────────
-    database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
     const conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
     catalog = new CatalogService(
