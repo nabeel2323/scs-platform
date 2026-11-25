@@ -178,3 +178,12 @@ No tests, lint, typecheck, build, SQL execution, database/catalog inspection, mi
 The earlier concern about the unscoped analytics event-count aggregate is narrowed by the current source RBAC seed: `analytics:read` is assigned to `SUPER_ADMIN` (all permissions) and `ADMIN`, and is not assigned to merchant owner/staff, buyer or driver roles. The global aggregate is therefore platform-admin scoped under the seeded roles. Preserve that restriction; if future custom role assignment allows a tenant role to receive `analytics:read`, add org scoping before granting it.
 
 Draft PR #157 now carries the bounded Slice A actor-context foundation from current `develop` (17 files, exact head `e3bc1ba21d67ec4947824acf278529e543487eb1`). It retains develop-only runtime identity, OTP redaction and carrier outbox commits. Exact-head Actions has no runs; Vercel failures are provider build-rate-limit only. No tests/CI run. Promotions redemption service lineage remains a defense-in-depth follow-up; OrdersService calls it inside buyer actor context after creating the store-specific sub-order.
+
+
+## 26 November 2026 — promotion redemption order-lineage guard
+
+- PromotionsService.redeemPromotion now requires an order ID and resolves a matching committed order using all of: order ID, buyer ID, promotion store ID, promotion ID and recorded discount amount. A missing or mismatched order is rejected before the redemption row or promotion counter is changed.
+- OrdersService already invokes redemption after the sub-order transaction commits and inside the verified buyer actor context. The service-side predicate now independently protects this internal boundary rather than relying only on that caller.
+- Added direct service regression coverage for a matching order, a non-matching order and a missing order ID in apps/api/src/__tests__/unit/promotions/promotions.service.spec.ts.
+- This closes the identified buyer/order/store/promotion/discount lineage gap at the redemption boundary. It does not resolve the separate concurrent max/per-user redemption-limit race; that remains a distinct transactional/idempotency review item.
+- Source/test authoring only. The focused tests, typecheck, lint, formatter, build and CI have not been run. No database, migration, staging, provider, deployment or worker action occurred.
