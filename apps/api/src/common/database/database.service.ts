@@ -12,6 +12,11 @@ import { PERMISSIONS, ROLES } from './rbac-seed.data';
 import { acquireMigrationLock, releaseMigrationLock } from '../../../infra/drizzle/migration-lock';
 import { DEV_MIGRATION_EXCLUSIONS } from '../../../infra/drizzle/migration-config';
 import { setOperatorActorContext } from '../../../infra/drizzle/operator-actor-context';
+import {
+  logRuntimeDatabaseIdentity,
+  RUNTIME_DATABASE_IDENTITY_SQL,
+  type RuntimeDatabaseIdentity,
+} from './runtime-database-identity';
 
 export type DatabaseActorKind = 'anonymous' | 'authentication' | 'user' | 'worker' | 'system' | 'bootstrap' | 'audit';
 export type DatabaseAuthenticationOperation =
@@ -282,102 +287,37 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       ...(ssl && { ssl }),
     });
 
-    // Emit a non-secret identity fingerprint for the actual API pool connection.
-    // A remote/staging/production API must never run as a table owner, BYPASSRLS
-    // role, DDL-capable role, or over an unverified/non-TLS connection.
-    type RuntimeDatabaseIdentity = {
-      session_user: string;
-      current_user: string;
-      database_name: string;
-      session_role_superuser: boolean;
-      session_role_bypassrls: boolean;
-      session_role_createrole: boolean;
-      session_role_createdb: boolean;
-      effective_role_superuser: boolean;
-      effective_role_bypassrls: boolean;
-      effective_role_createrole: boolean;
-      effective_role_createdb: boolean;
-      owns_public_tables: boolean;
-      owns_public_schema: boolean;
-      ssl: boolean | null;
-    };
-    let identity: RuntimeDatabaseIdentity | null = null;
-    try {
-      const identityResult = await this.pool.query<RuntimeDatabaseIdentity>(
-        `SELECT
-          session_user::text AS session_user,
-          current_user::text AS current_user,
-          current_database()::text AS database_name,
-          session_role.rolsuper AS session_role_superuser,
-          session_role.rolbypassrls AS session_role_bypassrls,
-          session_role.rolcreaterole AS session_role_createrole,
-          session_role.rolcreatedb AS session_role_createdb,
-          effective_role.rolsuper AS effective_role_superuser,
-          effective_role.rolbypassrls AS effective_role_bypassrls,
-          effective_role.rolcreaterole AS effective_role_createrole,
-          effective_role.rolcreatedb AS effective_role_createdb,
-          EXISTS (
-            SELECT 1
-            FROM pg_class AS relation
-            JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
-            WHERE namespace.nspname = 'public'
-              AND relation.relkind IN ('r', 'p')
-              AND relation.relowner = effective_role.oid
-          ) AS owns_public_tables,
-          EXISTS (
-            SELECT 1
-            FROM pg_namespace AS namespace
-            WHERE namespace.nspname = 'public'
-              AND namespace.nspowner = effective_role.oid
-          ) AS owns_public_schema,
-          pg_stat_ssl.ssl AS ssl
-        FROM pg_roles AS session_role
-        JOIN pg_roles AS effective_role ON effective_role.rolname = current_user
-        LEFT JOIN pg_stat_ssl ON pg_stat_ssl.pid = pg_backend_pid()
-        WHERE session_role.rolname = session_user`,
-      );
-      identity = identityResult.rows[0] ?? null;
-    } catch {
-      // Never expose the connection error, DSN, host or credentials in logs.
-      DatabaseService.logger.warn(
-        'Runtime database identity diagnostics failed; identity remains unverified.',
-      );
-      if (requireSecureRuntime) {
-        throw new Error(
-          'Runtime database identity verification failed; refusing to start in a deployed environment.',
-        );
-      }
-    }
+    // Use the shared diagnostic query, but keep the production startup gate here:
+    // diagnostics may be non-fatal in development; an unverified identity is fatal
+    // in every production-like runtime.
+    const identity: RuntimeDatabaseIdentity | null = await logRuntimeDatabaseIdentity(
+      () => this.pool.query<RuntimeDatabaseIdentity>(RUNTIME_DATABASE_IDENTITY_SQL),
+      DatabaseService.logger,
+    );
 
     if (!identity) {
-      DatabaseService.logger.warn(
-        'Runtime database identity query returned no role metadata; identity remains unverified.',
-      );
       if (requireSecureRuntime) {
         throw new Error(
           'Runtime database identity is unavailable; refusing to start in a production-like environment.',
         );
       }
-    } else {
-      DatabaseService.logger.log(`Runtime database identity: ${JSON.stringify(identity)}`);
-      if (requireSecureRuntime) {
-        const unsafe: string[] = [];
-        if (identity.session_user !== identity.current_user) unsafe.push('session/effective role mismatch');
-        if (identity.session_role_superuser || identity.effective_role_superuser) unsafe.push('superuser');
-        if (identity.session_role_bypassrls || identity.effective_role_bypassrls) unsafe.push('BYPASSRLS');
-        if (identity.session_role_createrole || identity.effective_role_createrole) unsafe.push('CREATEROLE');
-        if (identity.session_role_createdb || identity.effective_role_createdb) unsafe.push('CREATEDB');
-        if (identity.owns_public_tables || identity.owns_public_schema) unsafe.push('owns public tables/schema');
-        if (identity.ssl !== true) unsafe.push('TLS disabled or unverified');
+    } else if (requireSecureRuntime) {
+      const unsafe: string[] = [];
+      if (identity.session_user !== identity.current_user) unsafe.push('session/effective role mismatch');
+      if (identity.session_role_superuser || identity.effective_role_superuser) unsafe.push('superuser');
+      if (identity.session_role_bypassrls || identity.effective_role_bypassrls) unsafe.push('BYPASSRLS');
+      if (identity.session_role_createrole || identity.effective_role_createrole) unsafe.push('CREATEROLE');
+      if (identity.session_role_createdb || identity.effective_role_createdb) unsafe.push('CREATEDB');
+      if (identity.owns_public_tables || identity.owns_public_schema) unsafe.push('owns public tables/schema');
+      if (identity.ssl !== true) unsafe.push('TLS disabled or unverified');
 
-        if (unsafe.length > 0) {
-          DatabaseService.logger.error(
-            `Unsafe runtime database identity (${unsafe.join(', ')}); refusing to start.`,
-          );
-          throw new Error(
-            'Unsafe runtime database role or TLS configuration; refusing to start in a production-like environment.',
-          );
-        }
+      if (unsafe.length > 0) {
+        DatabaseService.logger.error(
+          `Unsafe runtime database identity (${unsafe.join(', ')}); refusing to start.`,
+        );
+        throw new Error(
+          'Unsafe runtime database role or TLS configuration; refusing to start in a production-like environment.',
+        );
       }
     }
 
