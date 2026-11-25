@@ -674,7 +674,7 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p4-import-${randomUUID()}`,
-      });
+      }, { sub: buyerA, role: 'BUYER', activeOrg: orgA });
       expect(co.id).toBeTruthy();
       expect(co.subOrders.length).toBeGreaterThan(0);
 
@@ -843,7 +843,7 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
         merchantOwnerA,
       );
       regProduct = p.id;
-      await catalog.updateProduct(regProduct, { status: 'ACTIVE' });
+      await catalog.updateProduct(regProduct, { status: 'ACTIVE' }, undefined, callerA());
 
       const v = await catalog.createVariant(regProduct, { sku: 'REG-P4-V1', title: 'Reg Variant' });
       regVariant = v.id;
@@ -895,7 +895,7 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `p4-regression-${randomUUID()}`,
-      });
+      }, { sub: buyerA, role: 'BUYER', activeOrg: orgA });
       expect(co.subOrders.length).toBeGreaterThan(0);
     });
 

@@ -119,7 +119,7 @@ async function createDeliveredOrder(
     buyerId,
     deliveryAddress: {},
     idempotencyKey: `p13-${randomUUID()}`,
-  });
+  }, { sub: buyerId, role: 'BUYER', activeOrg: orgId });
   const orderId = co.subOrders[0]!.id;
   const caller = { sub: merchantId, role: 'MERCHANT_OWNER' as const, activeOrg: orgId };
 
@@ -254,13 +254,14 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
       client.release();
     }
 
-    const outbox = new OutboxDispatcher({ db } as DatabaseService);
-    const promotions = new PromotionsService({ db } as DatabaseService);
-    const inventoryService = new InventoryService({ db } as DatabaseService, outbox);
+    database = new DatabaseService();
+    database.db = db;
+    const outbox = new OutboxDispatcher(database);
+    const promotions = new PromotionsService(database);
+    const inventoryService = new InventoryService(database, outbox);
     const registry = new PaymentProviderRegistry();
     registry.register(new ManualVerificationProvider());
-    const paymentsService = new PaymentsService({ db } as DatabaseService, outbox, registry);
-    database = { db } as DatabaseService;
+    const paymentsService = new PaymentsService(database, outbox, registry);
     ordersService = new OrdersService(
       database,
       outbox,
