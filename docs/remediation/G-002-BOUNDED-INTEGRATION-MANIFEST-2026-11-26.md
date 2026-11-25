@@ -106,3 +106,8 @@ Do not promote old CI runs, test source that has not been executed, or Vercel bu
 - The staging API runtime was previously observed using `postgres` with `BYPASSRLS=true` and TLS disabled. The code-side fail-closed guard is not deployed. Do not enable RLS or apply migrations until a dedicated non-owner/non-BYPASSRLS API role, verified TLS, migration identity and protected rollout are prepared.
 - No database write, migration, grant/default-ACL change, RLS change, Render configuration/deploy/restart, worker activation, provider call, bootstrap/token issuance, production provisioning or PR merge occurred.
 - PR #138 remains the preserved source-of-truth evidence branch, not a release branch.
+
+
+## 26 November 2026 — crosswalk dependency
+
+The initial FK-to-ownership source crosswalk is recorded in `docs/remediation/G-002-FK-OWNERSHIP-CROSSWALK-2026-11-26.md`. It covers shipping/carrier, payment proof, returns, settlements and reconciliation and identifies the remaining 75-migration and module coverage. It is partial source evidence; complete the remaining callsite and migration crosswalk before closing G-002.
