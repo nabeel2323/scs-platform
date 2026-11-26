@@ -453,3 +453,12 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - PR #157 exact head 77145bc6262aba99cf7fdbd45139382bebc44fa7; OPEN / DRAFT / UNMERGED, mergeable=true, 19 changed files. CI run #1554: five jobs passed (lint/typecheck/format, Flutter, Web/Admin, E6 boundary lint, migration full apply); API integration and API unit/coverage were still running at last check. Previous run #1553 was cancelled and is not a full pass.
 - PR #138 exact head at the start of this note: 285b38c8d02ad7cb94e42d1ee44074a775ae444c; OPEN / DRAFT / UNMERGED, mergeable=false, 1,942 changed files. Preservation branch was verified identical. Continue expected-SHA fast-forwards only.
 - No new tests were run locally or in CI for PR #138 or #158. No DB write, migration, RLS/grant change, staging mutation, provider/storage action, worker activation, bootstrap, deployment or merge occurred.
+
+
+## 26 November 2026 — PR #138 OrdersService and SQL audit checkpoint
+
+- Source/preservation refs are synchronized; current PR #138 source head at this checkpoint is d3a01fb31a897b1f9f4c3c44815bd85828b95af7 (documentation-only commits after the code changes).
+- Added fail-closed actor requirements to OrdersService.cancelOrder and rejectOrder: CallerContext is required, supplied actor ID must equal caller.sub, and cancellation no longer falls back to an unscoped DB operation. Updated lifecycle/actor-context regression tests. No tests run for these PR #138 changes.
+- Targeted scan covered 75 numbered SQL migrations and 62 API service/worker files. Dynamic sql.raw interpolation was limited to allowlisted day/week date_trunc literals and internally generated SAVEPOINT IDs. No CREATE TRIGGER/PROCEDURE/EXECUTE FUNCTION/CREATE RULE was found in the numbered migrations; normalize_arabic remains the application-defined function and analytics partition management is in 0002/0013/0018. Full controller/script/package SQL inventory and live catalog/ACL verification remain open.
+- PR #157 head 5f9399cd6fa80e51b508c31203dd6b5f80b37757 has consolidated CI run #1556 in progress. PR #158 head 5c7e41bf04ec16e9fc0565e57425fcc05f548ffc remains stacked on the older PR #157 head and must be reconciled only after #1556 is green.
+- No database write, migration, RLS/grant change, staging mutation, worker activation, deployment or merge occurred.
