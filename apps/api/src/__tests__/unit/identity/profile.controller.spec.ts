@@ -83,13 +83,13 @@ describe('ProfileController', () => {
   it('updateProfile forwards sub + dto + the caller activeOrg', async () => {
     const dto = { fullName: 'New Name' } as any;
     await controller.updateProfile(payload({ sub: 'u1', activeOrg: 'org-9' }), dto);
-    expect(m.identity.updateProfile).toHaveBeenCalledWith('u1', dto, 'org-9');
+    expect(m.identity.updateProfile).toHaveBeenCalledWith('u1', dto);
   });
 
   it('updateProfile forwards a null activeOrg unchanged', async () => {
     const dto = { fullName: 'New Name' } as any;
     await controller.updateProfile(payload({ sub: 'u1', activeOrg: null }), dto);
-    expect(m.identity.updateProfile).toHaveBeenCalledWith('u1', dto, null);
+    expect(m.identity.updateProfile).toHaveBeenCalledWith('u1', dto);
   });
 
   it('getMyOrganizations forwards sub', async () => {
@@ -120,18 +120,18 @@ describe('ProfileController', () => {
     await controller.getFavorites(payload({ sub: 'u1' }));
     await controller.addFavorite(payload({ sub: 'u1' }), { productId: 'p1' });
     await controller.removeFavorite(payload({ sub: 'u1' }), 'p1');
-    expect(m.catalog.listFavorites).toHaveBeenCalledWith('u1');
-    expect(m.catalog.addFavorite).toHaveBeenCalledWith('u1', 'p1');
-    expect(m.catalog.removeFavorite).toHaveBeenCalledWith('u1', 'p1');
+    expect(m.catalog.listFavorites).toHaveBeenCalledWith('u1', { sub: 'u1', role: 'OWNER', activeOrg: 'org-1' });
+    expect(m.catalog.addFavorite).toHaveBeenCalledWith('u1', 'p1', { sub: 'u1', role: 'OWNER', activeOrg: 'org-1' });
+    expect(m.catalog.removeFavorite).toHaveBeenCalledWith('u1', 'p1', { sub: 'u1', role: 'OWNER', activeOrg: 'org-1' });
   });
 
   it('saved suppliers delegate to the catalog service (§21.3)', async () => {
     await controller.getSavedSuppliers(payload({ sub: 'u1' }));
     await controller.saveSupplier(payload({ sub: 'u1' }), { storeId: 's1' });
     await controller.removeSavedSupplier(payload({ sub: 'u1' }), 's1');
-    expect(m.catalog.listSavedSuppliers).toHaveBeenCalledWith('u1');
-    expect(m.catalog.saveSupplier).toHaveBeenCalledWith('u1', 's1');
-    expect(m.catalog.removeSavedSupplier).toHaveBeenCalledWith('u1', 's1');
+    expect(m.catalog.listSavedSuppliers).toHaveBeenCalledWith('u1', { sub: 'u1', role: 'OWNER', activeOrg: 'org-1' });
+    expect(m.catalog.saveSupplier).toHaveBeenCalledWith('u1', 's1', { sub: 'u1', role: 'OWNER', activeOrg: 'org-1' });
+    expect(m.catalog.removeSavedSupplier).toHaveBeenCalledWith('u1', 's1', { sub: 'u1', role: 'OWNER', activeOrg: 'org-1' });
   });
 
   it('setupCredentials forwards sub/email/password + device header', async () => {
@@ -140,7 +140,7 @@ describe('ProfileController', () => {
       { email: 'a@b.c', password: 'pw' } as any,
       'dev-1',
     );
-    expect(m.identity.setupCredentials).toHaveBeenCalledWith('u1', 'a@b.c', 'pw', 'dev-1');
+    expect(m.identity.setupCredentials).toHaveBeenCalledWith('u1', 'a@b.c', 'pw', { role: 'OWNER', activeOrg: 'org-1' }, 'dev-1');
   });
 
   it('changePassword forwards sub/current/new + device header', async () => {
@@ -149,7 +149,7 @@ describe('ProfileController', () => {
       { currentPassword: 'old', newPassword: 'new' } as any,
       'dev-1',
     );
-    expect(m.identity.changePassword).toHaveBeenCalledWith('u1', 'old', 'new', 'dev-1');
+    expect(m.identity.changePassword).toHaveBeenCalledWith('u1', 'old', 'new', { role: 'OWNER', activeOrg: 'org-1' }, 'dev-1');
   });
 
   it('getSessions forwards sub + the caller sid (WEB-B3, non-spoofable)', async () => {
