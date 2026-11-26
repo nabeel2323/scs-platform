@@ -1,3 +1,13 @@
+## 26 November 2026 — PR #157 diagnostic CI compile correction
+
+- Diagnostic CI #1560 (`45778372173`) on `b2a1131017e6117118a68e33bfd7da26b37bbfd0` stopped at Lint & Typecheck; Flutter passed, downstream jobs skipped. The only reported compile error was missing `HttpException` import in the P4 test-only diagnostic harness. Therefore the underlying P4 runtime exception remains unknown.
+- Fixed the import in commit `e0f1bc2e3734f5e74384827270ab104752868bf8` (`test(ci): import HTTP exception type for P4 diagnostics`).
+- Exact-head CI run #1561 (`45778570221`) is QUEUED for `e0f1bc2e3734f5e74384827270ab104752868bf8`; wait for it and do not trigger another run.
+- PR #157 remains OPEN/DRAFT. No production behavior or security assertion has been changed by the diagnostic commits.
+- PR #138 source/preservation branch last synced at prior memory commit `1db1fa5676a23964d7fb41c8b229e34613b19d20`; after this update, sync preservation with expected-SHA fast-forward.
+
+---
+
 ## 26 November 2026 — focused PR portfolio recheck
 
 - PR #153 remains OPEN/DRAFT at exact head `5294698d8db78e21df972e8ce6213f21237789fa`; Actions run #1523 (`45622306528`) passed on that exact head. Independent review is still outstanding; no merge performed. This remains the canonical outbox safety behavior.
