@@ -199,3 +199,10 @@ The PR is intentionally draft. Application adoption, workers/webhooks and remain
 - 0070 uses dynamic EXECUTE format for privilege/search_path hardening; 0072 and 0074 use DO blocks for conditional constraints/integrity checks. These still require owner/default-ACL authority and rollback review.
 
 **Open:** live pg_partman/partition/scheduler and physical relation/function/extension ownership/ACL checks; full raw SQL/dynamic SQL consumer scan; 0075 cleanup invocation/worker contract. No database operation or CI was run.
+
+
+## 26 November 2026 — PR #158 explicit-null active organization profile alignment
+
+The PR #158 review found that GET /me passed the JWT activeOrg but getProfile treated explicit null like an omitted argument, selecting the first active membership and potentially projecting merchant role/permissions that were absent from the current token. The fix distinguishes undefined (default membership selection for internal callers) from explicit null (no active organization), and carries the caller's JWT activeOrg through updateProfile. Added a regression test for an active membership with explicit-null JWT activeOrg.
+
+Commits: 94c8fc5f1a2ae5d69e276909f31b8a539a7001ed, 76894a736d7279ba2a523685af38c4bd9936e3c3, 5c7e41bf04ec16e9fc0565e57425fcc05f548ffc. No test/lint/typecheck/build/CI execution yet; exact-head Actions list empty; Vercel statuses are provider build-rate-limit failures.
