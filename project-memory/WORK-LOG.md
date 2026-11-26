@@ -489,7 +489,7 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 
 ## 26 November 2026 — PR #157 run #1558 queued
 
-- PR #157 exact head 0d97dd446d5912d6d0a815d8a931a88f53db009c; consolidated CI run #1558 is queued.
+- PR #157 exact head 0d97dd446d5912d6d0a815d8a931a88f53db009c; consolidated CI run #1558 is IN PROGRESS.
 - Run #1557 on 6901389d passed migration full apply and non-test jobs but failed integration/coverage: membership/store relation lookups lacked Drizzle query relations, P4 lacked valid order lines and isolated adjustment orders, and excluding scratch specs lowered coverage. Commit d204b9e adds safe parameterized SQL-builder fallbacks; 0d97dd4 restores scratch specs and repairs P4/P6/P12 fixtures.
 - PR #158 head 19b96bcda29d7166a748dd5693b430cce0ea2098 remains stacked and behind parent; reconcile only after #1558 is green.
 - PR #138 actor hardening and SQL source scan remain untested; source/preservation refs are identical. No DB writes, staging changes, RLS/grant changes, worker activation or deployment.
