@@ -1,3 +1,17 @@
+## Live checkpoint — 26 November 2026 (PR #168 merged; Catalog Import actor-context slice)
+
+- PR #168 `fix(catalog-import): enforce authenticated actor context` passed exact-head GitHub Actions run #1593 (run ID `45859606206`) on head `83d5635436e5221962a6e7d548d662fb35c572d3`. All ten mandatory jobs succeeded: Mobile, Lint & Typecheck, Migration Full Apply, Integration Tests, Web & Admin App Tests, Unit Tests + Coverage, Boundary Lint (E6), Container Build & Smoke Test, Build, and Contract Spec & Codegen. k6 Smoke Test and Trigger Staging Release were skipped by workflow conditions.
+- Verified PR #168 remained OPEN / unmerged / mergeable before merge, base `develop` at `af70ec081bf6ae2c5421cdd8d8200f7ec4252f31`, exact unchanged head `83d5635436e5221962a6e7d548d662fb35c572d3`, ten intended files only (Catalog Import controller/module/service, Excel executor, template generator, two new actor-context unit specs, Phase 2 executor spec, and two integration specs). No schema/migration changes.
+- Merged PR #168 using expected head SHA. Merge commit: `64b4a7de3fc6a0c0d824b261eeda0a571cf90fdc`. Vercel Web/Admin statuses still showed external build-rate-limit failures; they are not GitHub Actions failures. No reviewers requested, per user instruction.
+- The first exact-head CI run #1592 was obsolete and had failed due to seven old test call sites missing actor args; all were fixed in the final PR head and the successful #1593 validated that correction.
+- Follow-up: audit module-external Catalog Import callers and verify the complete import pipeline's DB operations remain inside short actor scopes. Promotions global/per-user redemption-limit check/counter concurrency remains a separate unresolved follow-up from PR #167.
+- PR #138 remains OPEN / DRAFT / UNMERGED, 1,943 paths, protected source/evidence only; never merge it wholesale. Before this checkpoint, source branch `remediation/phase-0-1-tenant-security` and preservation branch `preservation/pr138-remediation-2026-11-25` were both verified identical at `77db80ec2518469201e878aa77214ffb64ccd01e`. After updating this memory checkpoint, fast-forward preservation using expected-SHA only and verify equality again.
+- No staging/production DB writes, migration application, grants/default-ACL/RLS changes, provider calls, worker activation, Render changes, deployment, restart, or release occurred.
+
+**Next:** continue with a bounded PR #138 extraction from the refreshed develop head, first checking the merge result and identifying the next coherent actor-context slice. Batch related changes, run one exact-head CI per bounded PR, and keep PR #138 preserved.
+
+---
+
 ## Live checkpoint — 26 November 2026 (migration collision reconciled; no application performed)
 
 - PR #145 (G-020) exact head `b3625d390f30794d331c8d74d6f5b3b8a828b058` passed Actions run #1012 (`44708242986`). It changes one file: narrow `0070_normalize_arabic_search_path.sql`. Compared with current develop `fde20420bbb759d2e562f9ff747c9e824ac58e25`, branch is 2 ahead / 3 behind (merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`); keep draft and revalidate/rebase only when ready for review.
