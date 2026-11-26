@@ -130,6 +130,8 @@ describe('CatalogService product/media read actor boundaries (G-002)', () => {
           query: {
             products: { findFirst: vi.fn().mockResolvedValue({ id: 'product-1', storeId: 'store-a', status: 'DRAFT' }) },
             stores: { findFirst: vi.fn().mockResolvedValue({ orgId: 'org-1' }) },
+            organizationMembers: { findFirst: vi.fn().mockResolvedValue({ id: 'membership-1' }) },
+            organizations: { findFirst: vi.fn().mockResolvedValue({ id: 'org-1' }) },
             storeMembers: { findFirst: vi.fn().mockResolvedValue(null) },
           },
         },

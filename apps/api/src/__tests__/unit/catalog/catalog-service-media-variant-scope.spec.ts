@@ -15,6 +15,8 @@ describe('CatalogService.addMedia variant ownership', () => {
           productVariants: { findFirst: variantFindFirst },
           products: { findFirst: vi.fn().mockResolvedValue({ storeId: 'store-a' }) },
           stores: { findFirst: vi.fn().mockResolvedValue({ orgId: 'org-a' }) },
+          organizationMembers: { findFirst: vi.fn().mockResolvedValue({ id: 'membership-a' }) },
+          organizations: { findFirst: vi.fn().mockResolvedValue({ id: 'org-a' }) },
           storeMembers: { findFirst: vi.fn().mockResolvedValue({ id: 'membership-a' }) },
         },
         insert,
