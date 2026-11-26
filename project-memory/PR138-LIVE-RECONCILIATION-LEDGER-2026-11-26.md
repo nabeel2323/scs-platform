@@ -1,3 +1,18 @@
+## Live checkpoint — 26 November 2026 (bulk PR #138 integration started)
+
+- PR #169 (Orders cancellation/rejection actor context) passed exact-head Actions run #1605 (45874247555) on head 550736024ca0c41adadb3b3852b76257ab1c8acf; all ten mandatory jobs passed. It was merged into develop using the expected head SHA. Merge commit: 6ce2d0920e319a6623eb7102a4838964c7b4ee35. No reviewers were requested, per the user's instruction.
+- Created integration/pr138-bulk-remediation-2026-11-26 from that exact develop head. One consolidated integration commit ae88605465a108752e9b4c2d6a99f6b3202d6f69 applies 574 non-conflicting PR #138 paths (93,658 additions / 19,072 deletions) without importing source-branch history.
+- Draft PR #170: https://github.com/nabeel2323/scs-platform/pull/170. Exact head ae88605465a108752e9b4c2d6a99f6b3202d6f69, base develop at 6ce2d0920e319a6623eb7102a4838964c7b4ee35, 574 changed files, no reviewers requested. Exact-head CI run #1606 / ID 45877581314 is IN PROGRESS; last observed jobs were Lint & Typecheck and Mobile Flutter analysis/tests. Do not dispatch duplicate CI; poll this run.
+- Extraction method: compared source, develop and the recorded merge base f74eb588cc58fc99b105e749d39dbfbacb4f9775; only source-changed paths untouched by develop were overlaid onto a tree rooted at current develop. This retained develop-only paths and did not replace changed develop files.
+- Held out deliberately: all .m73b6-scratch/ and apps/api/src/__tests__/scratch/ artifacts; test-token.txt; apps/api/src/scripts/bootstrap-issue-token.ts; project-memory files pending this checkpoint; all migration files and workflow changes; and the 40 overlapping paths requiring manual three-way reconciliation. The 23 develop-only paths remain intact.
+- PR #138 remains OPEN / DRAFT / UNMERGED. Source branch remediation/phase-0-1-tenant-security and preservation branch preservation/pr138-remediation-2026-11-25 were verified identical at ccebeef7d35e2f271ce174cb19243c67e824f298 before this documentation update. Keep them identical using expected-SHA fast-forward only.
+- Manual conflict reconciliation must preserve newer develop work. In particular, keep develop's runtime-database-identity helper and lazy actor-context storage behavior; keep develop's safe OutboxDispatcher behavior (no generic polling or false DISPATCHED acknowledgement). Reconcile orders/shipping worker actor-context with PR #169 and focused outbox/order work already present on develop. Migrations 0070–0075 remain held pending sequence/role/ACL reconciliation.
+- No staging/production DB writes, migration application, grants/default-ACL/RLS changes, provider calls, worker activation, Render changes, deployment, restart or release occurred.
+
+**Next:** poll exact-head CI #1606; continue manual reconciliation of the 40 overlapping paths in grouped workstreams; then create one final validation campaign after the bulk extraction is complete. No small-change CI runs and no reviewer requests.
+
+---
+
 ## PR #157 — P4 database lifecycle root cause and test-harness correction (26 November 2026)
 
 - CI #1561 (`45778570221`) exact head `e0f1bc2e3734f5e74384827270ab104752868bf8` failed Unit/Coverage and Integration. Lint/typecheck, Flutter, Web/Admin, E6 and Migration Full Apply passed.
