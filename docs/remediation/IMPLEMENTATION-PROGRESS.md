@@ -3038,3 +3038,13 @@ Next source-only work should review the changed fixture semantics without weaken
 - No local tests have been executed. No exact-head CI run exists for the current PR #170 head. The previous failed run #1617 predates this batch; all current changes remain VERIFICATION_PENDING. Keep remaining API fixture reconciliation grouped, then run one exact-head mandatory CI campaign.
 - PR #170 remains OPEN / DRAFT / UNMERGED against develop. PR #138 remains OPEN / DRAFT / UNMERGED and source/preservation refs remain synchronized at `f81c91207cfe33af2817aeaa0311ee4119436885`. Do not merge PR #138 wholesale or merge PR #170 before mandatory CI and separate staging-release/migration authorization.
 - No reviewers requested; no staging/production DB changes, migrations, provider calls, worker activation, Render changes, deployments, restarts or releases occurred.
+
+
+## Continuation checkpoint — 26 November 2026 (bootstrap and shipping integration fixtures)
+
+- Added a grouped source/test correction in `74b99e113563db3ecf060c3c8b545734503de0f2`: the M7.2.3-A.1 PostgreSQL concurrency suite now constructs a real `DatabaseService` wrapper and assigns its Drizzle connection, instead of passing a raw `{ db }` object into actor-scoped carrier services and `ShippingCarrierWorker`.
+- Corrected the bootstrap OTP failure-limit test fixture in `4eb959ff88c9140aa8baeacdb5ce06ffd12a5f14` to seed the current `bootstrap:otp:email:<email>` Redis key and challenge payload (`ch/hs/s/ca/co`). Its actor-context wrapper was already present. This restores the intended invalid-code/rate-limit path without changing production OTP behavior.
+- The bootstrap service unit factory also now supplies `withActorContext` for its actor-scoped insert path (commit `347ddb72e71021a466f4eef6f5611090007d9f7c`).
+- These are source-reviewed fixture changes only. No local test execution is available in this session; no exact-head CI has been launched. Keep the remaining repair work grouped before one consolidated exact-head validation.
+- PR #170 remains OPEN / DRAFT / UNMERGED. PR #138 remains OPEN / DRAFT / UNMERGED, with its source and preservation refs identical at `f81c91207cfe33af2817aeaa0311ee4119436885`. Do not merge PR #138 wholesale. PR #170 still requires mandatory exact-head CI and separate staging-release/migration authorization before merge.
+- No reviewer requests, staging/production DB changes, migrations, provider calls, worker activation, Render changes, deployments, restarts or releases were performed.
