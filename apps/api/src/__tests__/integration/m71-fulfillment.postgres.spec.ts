@@ -42,7 +42,10 @@ const outbox = { publish: vi.fn().mockResolvedValue(undefined) } as any;
 const realtime = { emitNewOrder: vi.fn(), emitOrderStatusChanged: vi.fn() } as any;
 const notifications = { send: vi.fn().mockResolvedValue(undefined) } as any;
 // M7.1 tests shipment state/ownership; actual driver eligibility is covered by M7.2.2.
-const shippingEligibility = { assertDriverEligibleForStore: vi.fn().mockResolvedValue(undefined) } as any;
+const shippingEligibility = {
+  assertDriverEligibleForStore: vi.fn().mockResolvedValue(undefined),
+  validateCheckoutSelection: vi.fn().mockResolvedValue(undefined),
+} as any;
 
 describe('M7.1 — Order Fulfillment Lifecycle', () => {
   let container: StartedPostgreSqlContainer;
