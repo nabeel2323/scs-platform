@@ -1,3 +1,13 @@
+## Live checkpoint — 26 November 2026 (migration collision reconciled; no application performed)
+
+- PR #145 (G-020) exact head `b3625d390f30794d331c8d74d6f5b3b8a828b058` passed Actions run #1012 (`44708242986`). It changes one file: narrow `0070_normalize_arabic_search_path.sql`. Compared with current develop `fde20420bbb759d2e562f9ff747c9e824ac58e25`, branch is 2 ahead / 3 behind (merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`); keep draft and revalidate/rebase only when ready for review.
+- PR #138's `0070_public_access_and_function_search_path_hardening.sql` collides by sequence with #145's 0070 and combines G-020's same function-local search_path hardening with broad revokes of anon/authenticated table/sequence grants and default ACL changes. The two 0070 migrations MUST NOT both be installed. Canonical G-020 is the narrow, CI-passed PR #145 migration 0070. If G-002 grant/default-ACL remediation is separately approved after actual API/migration roles and access requirements are verified, extract it as a separate correctly sequenced migration; do not import its grant changes now.
+- PR #138's `0071_auto_complete_claim_leases.sql` and PR #154's `0071_auto_complete_claim_leases.sql` implement the same two nullable lease columns and partial claimable-order index (only comment wording differs). Keep PR #154 as the canonical tested implementation; do not apply duplicate migration 0071 from #138.
+- PR #154 exact head `0faaac932faffd6ccc26c8c6fd8df2bcc660ffd4` passed Actions #1549, all ten executable jobs. PR #145 exact head passed #1012. Both remain draft/unmerged pending independent review and proper migration ordering. No staging/shared DB write, migration, grants/default-ACL/RLS change, Render change, worker activation, deployment or release occurred.
+- PR #138 remains OPEN / DRAFT / UNMERGED, 1,943 changed files, non-mergeable; protected source/evidence only. Never wholesale merge it. Preserve expected-SHA synchronization between this memory branch and `preservation/pr138-remediation-2026-11-25`.
+
+---
+
 ## Live checkpoint — 26 November 2026 (bounded PR validation inventory)
 
 - G-002 foundation PR #157: exact head `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`; Actions run #1572 passed all 10 mandatory jobs. OPEN / DRAFT / UNMERGED, base `develop`, independent review still outstanding.
