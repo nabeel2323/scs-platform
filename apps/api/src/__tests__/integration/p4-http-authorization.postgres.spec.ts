@@ -275,7 +275,17 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
 
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('v1');
-    app.useGlobalFilters(new AllExceptionsFilter());
+    app.useGlobalFilters({
+      catch(exception: unknown, host: Parameters<AllExceptionsFilter['catch']>[1]) {
+        if (!(exception instanceof HttpException)) {
+          console.error(
+            '[P4 HTTP exception]',
+            exception instanceof Error ? `${exception.name}: ${exception.message}` : String(exception),
+          );
+        }
+        new AllExceptionsFilter().catch(exception, host);
+      },
+    });
     // listen(0), not init(): init() builds the graph but never binds a socket,
     // so `address()` would be null and there would be nothing to fetch against.
     await app.listen(0, '127.0.0.1');
@@ -639,7 +649,7 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
           ? JSON.parse(JSON.stringify(route.body).replace('PLACEHOLDER_ORG_A', orgA))
           : undefined;
         const res = await req(route.method, route.path, { token: admin, body });
-        expect(res.status, `${route.method} ${route.path}`).toBeGreaterThanOrEqual(200);
+        expect(res.status, `${route.method} ${route.path}: ${JSON.stringify(res.body)}`).toBeGreaterThanOrEqual(200);
         expect(res.status, `${route.method} ${route.path}`).toBeLessThan(300);
       }
     });
