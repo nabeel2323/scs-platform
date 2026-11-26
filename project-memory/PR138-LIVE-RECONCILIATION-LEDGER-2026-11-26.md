@@ -489,3 +489,15 @@ Commits: 94c8fc5f1a2ae5d69e276909f31b8a539a7001ed, 76894a736d7279ba2a523685af38c
 - PR #154 remains open/draft with no exact-head CI for current head e421e21b1e66386a9d0c259fb83c99f1a05272cb; its migration 0071 and worker/transaction changes still require exact-head validation and independent review.
 - PR #158 remains stacked on stale PR #157 parent 5f9399cd6fa80e51b508c31203dd6b5f80b37757; do not merge directly. Port its bounded identity/profile changes only after Slice A is green and reviewed.
 - PR #138 remains protected, open/draft/unmerged; no wholesale merge or history rewrite.
+
+
+## 26 November 2026 — continued PR #157 / #154 checkpoint
+
+- PR #157 current source head f21b5f4230a0926072cce4415d4754da32016fe9. Exact-head CI run #1566 / 45793251965 is still IN_PROGRESS at this checkpoint; mobile passed, lint/typecheck still running, dependent jobs not yet complete.
+- CI #1565 (45790430239) showed that service readiness was not the root cause: the API production-like DB identity guard requires verified TLS, while the smoke PostgreSQL instance had no trusted certificate. The workflow now creates an ephemeral certificate with ci-postgres DNS SAN, enables postgres TLS, mounts the CA and configures PGSSLROOTCERT. Certificate verification remains enabled. Alpine postgres key ownership corrected to UID 70.
+- PR #157 has no production policy relaxation. Do not merge until exact-head CI #1566 is fully green and Slice A source/diff review is complete.
+- PR #154 advanced to head 0faaac932faffd6ccc26c8c6fd8df2bcc660ffd4 with an additional real-PostgreSQL regression: an expired worker's stale releaseClaim() cannot clear a replacement worker's persisted lease. This was a test-only addition committed with [skip ci]; it still needs one consolidated exact-head CI run after PR #157's active run completes.
+- PR #154 migration 0071 does not currently exist on develop. When composing with PR #138, retain exactly one canonical migration 0071 copy; do not duplicate the identical claim-lease DDL. Migration 0070 is not on develop either and remains separately governed by the bounded integration manifest.
+- PR #153 head 5294698d8db78e21df972e8ce6213f21237789fa has exact-head Actions run #1523 success. Review confirms the generic no-adapter dispatcher stays disabled and unknown carrier events classify unsupported/terminal, reaching DEAD_LETTER. Independent review remains outstanding; no merge yet.
+- PR #158 remains stacked on obsolete PR #157 parent 5f9399cd6fa80e51b508c31203dd6b5f80b37757; port its five identity/profile changes onto the current green Slice A head only after validation/review.
+- PR #138 remains OPEN/DRAFT/UNMERGED and its preservation branch is kept synchronized via expected-SHA fast-forward only. No wholesale merge, history rewrite, database mutation, migration application, deployment, worker activation, or staging action.
