@@ -195,9 +195,11 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
       [genericEventId, randomUUID()],
     );
 
-    // Exercise the real generic dispatcher poll method against persisted rows.
+    // The generic dispatcher is intentionally a write-only outbox provider
+    // until a real delivery adapter is configured. Initialization must not
+    // poll or acknowledge either generic or carrier events.
     const dispatcher = new OutboxDispatcher(database);
-    await (dispatcher as any).poll();
+    dispatcher.onModuleInit();
 
     const afterGeneric = await pool.query(
       `SELECT id, status, attempts FROM outbox_events WHERE id = ANY($1::uuid[])`,
@@ -205,13 +207,13 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     );
     const genericRow = afterGeneric.rows.find((row: any) => row.id === genericEventId);
     const carrierAfterGeneric = afterGeneric.rows.find((row: any) => row.id === carrierEventId);
-    expect(genericRow.status).toBe('DISPATCHED');
+    expect(genericRow.status).toBe('PENDING');
+    expect(Number(genericRow.attempts)).toBe(0);
     expect(carrierAfterGeneric.status).toBe('PENDING');
     expect(Number(carrierAfterGeneric.attempts)).toBe(0);
 
-    // Exercise the real carrier poll method, claim query and retry path. The
-    // unsupported event deliberately fails safely into retry rather than
-    // being acknowledged as DISPATCHED.
+    // Exercise only the dedicated carrier poll method. The unsupported carrier
+    // event deliberately fails safely into retry rather than being acknowledged.
     const worker = Object.create(ShippingCarrierWorker.prototype) as any;
     worker.db = database;
     worker.workerId = 'integration-carrier-owner';
@@ -244,7 +246,7 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     expect(Number(carrierRow.attempts)).toBe(1);
     expect(carrierRow.locked_at).toBeNull();
     expect(carrierRow.locked_by).toBeNull();
-    expect(genericAfterCarrier.status).toBe('DISPATCHED');
+    expect(genericAfterCarrier.status).toBe('PENDING');
     expect(worker.retryPolicy.classify).toHaveBeenCalledTimes(1);
     expect(worker.retryPolicy.classify.mock.calls[0][0].message).toContain(
       'shipping.carrier.unsupported.integration-test',
