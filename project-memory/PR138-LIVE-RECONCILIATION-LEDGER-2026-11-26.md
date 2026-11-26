@@ -1,3 +1,15 @@
+## PR #157 P4 HTTP diagnostics — CI #1560 queued (26 November 2026)
+
+- PR #157 advanced from `a0f32189b14700bad6701a4b948fd70c5755a0be` to `b2a1131017e6117118a68e33bfd7da26b37bbfd0` with a test-only diagnostic commit. P4 HTTP test harness logs only exception name/message for non-HTTP exceptions and HA-08 prints the RFC 7807 response body in its assertion message. No production behavior or security assertions were changed.
+- CI run #1560 (`45778372173`) is QUEUED for exact head `b2a1131017e6117118a68e33bfd7da26b37bbfd0`; wait for exact-head result and do not duplicate the workflow.
+- Run #1559 on `a0f32189b14700bad6701a4b948fd70c5755a0be` failed. Unit/Coverage: 4,344 passed, 22 failed, 110 skipped; all 22 failures were in P4 HTTP authorization spec. Integration: 1,615 passed, 17 failed across 82 files, with P4 HTTP authorization/returns/adjustment/pilot failures. Migration Full Apply, E6, lint/typecheck, Flutter and Web/Admin passed.
+- The P4 root exception has not yet been established; use #1560 exception name/message and HA-08 response body to identify it before production-code changes. PostgreSQL logs from the integration job include FK failures for settlement adjustment sub_order_id values not present in orders, but these must be correlated to the exact failing spec/request before assigning cause.
+- P6 concurrency/user-identifier fixtures are passing in #1559; don't make further P6 changes without new evidence.
+- PR #138 remains protected; source and preservation refs synchronized at `56d486e01e54f21e2084a9af4b5487f2e3c99bd6` before this memory-only update. No broad merge or history rewrite.
+- No shared database/staging mutation, migrations, grant/RLS change, worker activation, deployment or merge occurred.
+
+---
+
 ## PR #157 CI #1559 — exact-head failure triage (26 November 2026)
 
 - Exact head `a0f32189b14700bad6701a4b948fd70c5755a0be`; run #1559 (`45764646880`) completed FAILURE.
