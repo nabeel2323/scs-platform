@@ -621,3 +621,16 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - No shared/staging database writes, migration application, grants/default-ACL/RLS changes, Render changes, worker activation, provider calls, deployment, restart or release occurred.
 
 **Next:** monitor existing #165 run #1587 only; if all mandatory jobs pass, merge #165 with expected head SHA, then close #164 as superseded. Keep PR #138 preserved and continue the bounded remediation extraction plan.
+
+
+## 26 November 2026 — next bounded PR #138 extraction prepared
+
+- While PR #165's exact-head CI run #1587 (45849606536) is running, prepared draft PR #166 from refreshed develop for the next bounded application-adoption slice. PR #166 has exactly four Promotions files (controller, module, service and unit spec), 167 additions / 25 deletions, head e83cc4dfa74a19a369f80b04cd9bc836cbcfc12c, base develop at 3f55809d8680961a61aa9235418cde69f86a42c1. It is OPEN / DRAFT / UNMERGED. Do not trigger CI until #165's run completes, to preserve the Actions-budget decision.
+- PR #166 adopts the merged tenant actor-context foundation for Promotions HTTP routes, forwards verified JWT caller context, enforces active store/org membership for store-scoped operations, and checks redemption order lineage (buyer, store, promotion, discount) before writing a redemption or incrementing the counter.
+- Explicit limitation: global/per-user redemption-limit check/counter concurrency remains unresolved and is not claimed as fixed by #166.
+- PR #165 remains OPEN / READY / UNMERGED, exact head b010559cbe2d720335141cd7f7fdb524edb3285e, run #1587 IN PROGRESS. Previous #164 head CI #1585 passed but does not validate #165. #164 remains open temporarily as superseded source until #165 passes and merges.
+- PR #163 is merged at 3f55809d8680961a61aa9235418cde69f86a42c1. Current develop baseline for #165/#166 is that merge commit.
+- PR #138 remains OPEN / DRAFT / UNMERGED and must remain preserved, never merged wholesale. Source and preservation refs were identical at cd917c6f4ca0f73d3d1d228e311e6c4530a78874 before this memory update.
+- No shared/staging database writes, migration application, grants/default-ACL/RLS changes, provider calls, worker activation, Render changes, deployment, restart or release occurred. No reviewers are required per the user's instruction.
+
+**Next:** finish only the already-running #165 CI; if green, merge #165 and close #164 as superseded. Then mark #166 ready and run one consolidated exact-head CI. Continue PR #138 extraction only in bounded slices from refreshed develop.
