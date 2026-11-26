@@ -996,11 +996,19 @@ export class IdentityService {
     priorToken?: { jti?: string; exp?: number },
   ): Promise<{ accessToken: string }> {
     const membership = await this.db.db.query.organizationMembers.findFirst({
-      where: and(eq(organizationMembers.userId, userId), eq(organizationMembers.orgId, orgId)),
+      where: and(
+        eq(organizationMembers.userId, userId),
+        eq(organizationMembers.orgId, orgId),
+        eq(organizationMembers.status, 'ACTIVE'),
+      ),
+    });
+    const organization = await this.db.db.query.organizations.findFirst({
+      where: and(eq(organizations.id, orgId), eq(organizations.isActive, true)),
+      columns: { id: true },
     });
 
-    if (!membership) {
-      throw new ForbiddenException('Not a member of this organization');
+    if (!membership || membership.status !== 'ACTIVE' || !organization) {
+      throw new ForbiddenException('Not an active member of this organization');
     }
 
     const claims = await this.buildClaims(userId, orgId);
@@ -1053,6 +1061,7 @@ export class IdentityService {
 
     // Batch-fetch orgs in one query (avoids N+1: was 1 query per membership).
     const orgList = [];
+    const activeOrgIds = new Set<string>();
     if (memberships.length > 0) {
       const orgs = await this.db.db.query.organizations.findMany({
         where: inArray(
@@ -1060,18 +1069,29 @@ export class IdentityService {
           memberships.map((m) => m.orgId),
         ),
       });
-      const orgById = new Map(orgs.map((o) => [o.id, o]));
+      const orgById = new Map(orgs.map((org) => [org.id, org]));
       for (const m of memberships) {
         const org = orgById.get(m.orgId);
-        if (org) orgList.push({ ...org, membershipStatus: m.status });
+        if (org) {
+          orgList.push({ ...org, membershipStatus: m.status });
+          if (org.isActive === true) activeOrgIds.add(org.id);
+        }
       }
     }
 
-    // Resolve the current role from the active org (single lookup by the active
-    // membership's roleId, mirroring buildClaims) so it matches the role the
-    // PermissionsGuard enforces for this token, including after switchOrg.
-    const resolvedActiveOrgId = activeOrgId ?? memberships[0]?.orgId ?? null;
-    const activeMembership = memberships.find((m) => m.orgId === resolvedActiveOrgId);
+    // A stale JWT activeOrg may survive membership revocation or organization
+    // deactivation. Project a merchant role only from a currently ACTIVE
+    // membership whose organization is still active.
+    const activeMemberships = memberships.filter(
+      (m) => m.status === 'ACTIVE' && activeOrgIds.has(m.orgId),
+    );
+    const resolvedActiveOrgId =
+      activeOrgId === undefined
+        ? activeMemberships[0]?.orgId ?? null
+        : activeOrgId !== null && activeMemberships.some((m) => m.orgId === activeOrgId)
+          ? activeOrgId
+          : null;
+    const activeMembership = activeMemberships.find((m) => m.orgId === resolvedActiveOrgId);
 
     // Mirror buildClaims: a user with no active membership is still a BUYER,
     // so fall back to the seeded BUYER role instead of leaving the permission
@@ -1113,6 +1133,7 @@ export class IdentityService {
   async updateProfile(
     userId: string,
     data: { fullName?: string; email?: string; locale?: string },
+    activeOrgId?: string | null,
   ) {
     const updates: Record<string, any> = {};
     if (data['fullName']) updates['fullName'] = data['fullName'];
@@ -1124,7 +1145,7 @@ export class IdentityService {
       await this.db.db.update(users).set(updates).where(eq(users.id, userId));
     }
 
-    return this.getProfile(userId);
+    return this.getProfile(userId, activeOrgId);
   }
 
   // ── Organizations ──────────────────────────────────────────
@@ -2694,13 +2715,37 @@ export class IdentityService {
   }
 
   private async buildClaims(userId: string, preferredOrgId?: string) {
-    // Get user's org memberships
+    // Only currently active memberships in active organizations can
+    // contribute a tenant role to authentication claims.
     const memberships = await this.db.db.query.organizationMembers.findMany({
-      where: eq(organizationMembers.userId, userId),
+      where: and(
+        eq(organizationMembers.userId, userId),
+        eq(organizationMembers.status, 'ACTIVE'),
+      ),
     });
+    const activeCandidates = memberships.filter((m) => m.status === 'ACTIVE');
+    const activeOrganizations = activeCandidates.length
+      ? await this.db.db.query.organizations.findMany({
+          where: and(
+            inArray(organizations.id, activeCandidates.map((m) => m.orgId)),
+            eq(organizations.isActive, true),
+          ),
+          columns: { id: true },
+        })
+      : [];
+    const activeOrgIds = new Set(activeOrganizations.map((organization) => organization.id));
+    const activeMemberships = activeCandidates.filter((m) => activeOrgIds.has(m.orgId));
 
-    const activeOrgId = preferredOrgId || memberships[0]?.orgId || null;
-    const activeMembership = memberships.find((m) => m.orgId === activeOrgId);
+    if (
+      preferredOrgId !== undefined &&
+      preferredOrgId !== null &&
+      !activeMemberships.some((m) => m.orgId === preferredOrgId)
+    ) {
+      throw new ForbiddenException('Not an active member of this organization');
+    }
+
+    const activeOrgId = preferredOrgId ?? activeMemberships[0]?.orgId ?? null;
+    const activeMembership = activeMemberships.find((m) => m.orgId === activeOrgId);
 
     // Resolve the role and its permission set.
     //

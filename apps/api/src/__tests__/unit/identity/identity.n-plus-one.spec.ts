@@ -27,12 +27,15 @@ function createMocks() {
       permissions: { findMany: vi.fn(), findFirst: vi.fn() },
     },
     update: vi.fn().mockReturnValue({
-      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: 'session-1' }]) }) }),
     }),
     insert: vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) }),
   };
 
-  const mockDb = { db } as any;
+  const mockDb = {
+    db,
+    withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()),
+  } as any;
   const mockRedis = {
     client: { get: vi.fn(), set: vi.fn(), del: vi.fn(), incr: vi.fn(), expire: vi.fn() },
   } as any;
@@ -235,8 +238,8 @@ describe('IdentityService — N+1 elimination (P2)', () => {
         },
       ]);
       mocks.db.query.organizations.findMany.mockResolvedValue([
-        { id: 'org-1', name: 'Alpha' },
-        { id: 'org-2', name: 'Beta' },
+        { id: 'org-1', name: 'Alpha', isActive: true },
+        { id: 'org-2', name: 'Beta', isActive: true },
       ]);
       // getProfile also resolves the active role's permission keys (RBAC GAP-6).
       mocks.db.query.roles.findFirst.mockResolvedValue({ id: 'role-1', key: 'MERCHANT_OWNER' });
@@ -285,6 +288,8 @@ describe('IdentityService — N+1 elimination (P2)', () => {
         { id: 'p3', key: 'merchant:promotions:write' },
       ]);
 
+      mocks.db.query.organizations.findFirst.mockResolvedValue({ id: 'org-1', isActive: true });
+      mocks.db.query.organizations.findMany.mockResolvedValue([{ id: 'org-1', isActive: true }]);
       await service.switchOrg(USER_ID, 'org-1');
 
       // Permissions resolved with a single batched findMany, never per-row findFirst.
@@ -316,6 +321,8 @@ describe('IdentityService — N+1 elimination (P2)', () => {
       mocks.db.query.roles.findFirst.mockResolvedValue({ id: 'role-1', key: 'BUYER' });
       mocks.db.query.rolePermissions.findMany.mockResolvedValue([]);
 
+      mocks.db.query.organizations.findFirst.mockResolvedValue({ id: 'org-1', isActive: true });
+      mocks.db.query.organizations.findMany.mockResolvedValue([{ id: 'org-1', isActive: true }]);
       await service.switchOrg(USER_ID, 'org-1');
 
       expect(mocks.db.query.permissions.findMany).not.toHaveBeenCalled();
