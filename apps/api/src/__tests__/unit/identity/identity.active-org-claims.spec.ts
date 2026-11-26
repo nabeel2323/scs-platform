@@ -84,6 +84,23 @@ describe('IdentityService active organization claims', () => {
     expect(signed.role).toBe('MERCHANT_OWNER');
   });
 
+  it('skips an inactive first organization and selects the next active membership', async () => {
+    harness.db.query.organizationMembers.findMany.mockResolvedValue([
+      { id: 'membership-old', orgId: 'org-inactive', status: 'ACTIVE', roleId: 'role-old' },
+      { id: 'membership-current', orgId: 'org-current', status: 'ACTIVE', roleId: 'role-current' },
+    ]);
+    harness.db.query.organizations.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'org-current', isActive: true });
+    harness.db.query.roles.findFirst.mockResolvedValue({ id: 'role-current', key: 'MERCHANT_OWNER' });
+    harness.db.query.rolePermissions.findMany.mockResolvedValue([]);
+
+    const claims = await (harness.service as any).buildClaims('user-1');
+
+    expect(claims).toMatchObject({ activeOrgId: 'org-current', roleKey: 'MERCHANT_OWNER' });
+    expect(harness.db.query.organizations.findFirst).toHaveBeenCalledTimes(2);
+  });
+
   it('does not choose a suspended membership when building default claims', async () => {
     harness.db.query.organizationMembers.findMany.mockResolvedValue([
       { id: 'old-membership', orgId: 'org-old', status: 'SUSPENDED', roleId: 'role-admin' },
