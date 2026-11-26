@@ -116,7 +116,7 @@ describe('OrdersService.rejectOrder actor-context boundaries (G-002)', () => {
     );
 
     await expect(
-      service.rejectOrder('order-a', 'merchant-a', 'OUT_OF_STOCK'),
+      service.rejectOrder('order-a', 'merchant-a', 'OUT_OF_STOCK', undefined as any),
     ).rejects.toThrow('Authenticated database actor context is missing');
 
     expect(withActorContext).not.toHaveBeenCalled();
@@ -137,6 +137,22 @@ describe('OrdersService.rejectOrder actor-context boundaries (G-002)', () => {
     await expect(
       service.rejectOrder('order-a', 'merchant-a', 'OUT_OF_STOCK', { role: 'MERCHANT_OWNER' } as any),
     ).rejects.toThrow('Authenticated database actor context is missing');
+    expect(db.withActorContext).not.toHaveBeenCalled();
+  });
+
+
+  it('rejects a rejection actor ID that differs from the authenticated caller', async () => {
+    const db = { withActorContext: vi.fn() };
+    const service = new OrdersService(db as any, {} as any, {} as any);
+
+    await expect(
+      service.rejectOrder('order-a', 'other-user', 'OUT_OF_STOCK', {
+        sub: 'merchant-a',
+        role: 'MERCHANT_OWNER',
+        activeOrg: 'org-a',
+      }),
+    ).rejects.toThrow('Rejection actor must match the authenticated caller');
+
     expect(db.withActorContext).not.toHaveBeenCalled();
   });
 
