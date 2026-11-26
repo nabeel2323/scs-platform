@@ -3068,3 +3068,12 @@ Next source-only work should review the changed fixture semantics without weaken
 - These are test-fixture/expectation alignments only; no production authorization or business behavior was relaxed. No local tests were executed and no exact-head CI run exists for current PR #170 head `0e802e474670fe01bcc398445e7fdbbf9e29010f`. Status remains VERIFICATION_PENDING; complete the remaining grouped audit before one exact-head mandatory CI campaign.
 - PR #170 remains OPEN / DRAFT / UNMERGED. PR #138 remains OPEN / DRAFT / UNMERGED, with source and preservation refs identical at `f81c91207cfe33af2817aeaa0311ee4119436885`. Do not merge PR #138 wholesale or merge PR #170 before mandatory CI and separate staging-release/migration authorization.
 - No reviewers, staging/production DB writes, migrations, provider calls, worker activation, Render changes, deployments, restarts or releases occurred.
+
+
+## Continuation checkpoint — 26 November 2026 (carrier recovery queue fixture)
+
+- Latest branch continuation commit `0e802e474670fe01bcc398445e7fdbbf9e29010f` updates `carrier-admin-recovery-queue-scope.spec.ts` to support the joined recovery-queue query contract. This is consistent with the earlier finding that the old fixture lacked the joined query-chain method; no production authorization behavior was relaxed.
+- PR #170 currently points to `0e802e474670fe01bcc398445e7fdbbf9e29010f` before this tracker update, with 613 changed files, OPEN / DRAFT / UNMERGED, base `develop`. GitHub currently reports mergeable=true, but that is not a validation result.
+- No GitHub Actions run is associated with the latest code head. All source/test corrections remain VERIFICATION_PENDING; historical CI #1617 is diagnostic only. Continue grouped fixture review, then run one exact-head mandatory CI campaign.
+- PR #138 remains OPEN / DRAFT / UNMERGED, 1,943 changed files; its source and preservation refs have both advanced and are verified identical at `927302dc75d6b31f7521cc32a9ac55655b248c9d`. Preserve this source and never merge it wholesale.
+- No reviewer requests, database writes, migrations, provider calls, worker activation, Render changes, deployments, restarts or releases were performed. PR #170 must remain draft until mandatory CI passes and separate staging-release/migration authorization is given.
