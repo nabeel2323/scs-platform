@@ -529,6 +529,8 @@ describe('M7.3-B.3.4 — PICKUP_CANCELLED Removal (BD-3.4-09 / C7)', () => {
   function cancelShipmentFixture() {
     return {
       id: 'ship-pickup-cancel',
+      order_id: 'order-b34-001',
+      store_id: 'store-b34-001',
       carrier_cancel_status: 'UNKNOWN',
       carrier_cancel_attempted_at: new Date(),
       carrier_cancel_retries: 0,
@@ -686,6 +688,8 @@ describe('M7.3-B.3.4 — Schema Vocabulary and Cancellation Regression Guarantee
 
     await service.reconcileCancelShipment({
       id: 'ship-no-resurrect',
+      order_id: 'order-b34-001',
+      store_id: 'store-b34-001',
       carrier_cancel_status: 'UNKNOWN',
       carrier_cancel_attempted_at: new Date(),
       carrier_cancel_retries: 0,
@@ -715,6 +719,8 @@ describe('M7.3-B.3.4 — Schema Vocabulary and Cancellation Regression Guarantee
 
     await service.reconcileCancelShipment({
       id: 'ship-no-recancel',
+      order_id: 'order-b34-001',
+      store_id: 'store-b34-001',
       carrier_cancel_status: 'UNKNOWN',
       carrier_cancel_attempted_at: new Date(),
       carrier_cancel_retries: 0,
