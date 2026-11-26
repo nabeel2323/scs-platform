@@ -476,3 +476,16 @@ Commits: 94c8fc5f1a2ae5d69e276909f31b8a539a7001ed, 76894a736d7279ba2a523685af38c
 - PR #157 remains OPEN / DRAFT / UNMERGED. Do not merge until exact-head required checks, including container smoke, pass and Slice A receives review.
 - PR #138 source and preservation refs were synchronized via expected-SHA fast-forward at memory commit 3043780957f57545240c9deb8dc88549995940e0. PR #138 remains OPEN / DRAFT / UNMERGED and mergeable=false; never merge its broad diff.
 - No database/staging writes, migrations, grants/RLS changes, worker activation, deployment or release action occurred.
+
+
+## 26 November 2026 — PR #157 production-like smoke TLS correction
+
+- PR #157 CI #1564 (run 45787029331) had all application checks green; only Container Build & Smoke Test failed. The API exited at DatabaseService.onModuleInit because runtime DB identity diagnostics returned null.
+- PR #157 CI #1565 (run 45790430239) proved that waiting for PostgreSQL/Redis readiness alone did not resolve startup. The API smoke process runs NODE_ENV=production and DatabaseService correctly enforces verified TLS; the smoke PostgreSQL service had no trusted TLS certificate configured.
+- PR #157 now generates an ephemeral one-day self-signed CA/server certificate with DNS SAN ci-postgres, enables PostgreSQL SSL, mounts the CA into the API container as PGSSLROOTCERT, and retains production certificate verification. The private key is assigned to postgres:16-alpine UID 70 with mode 0600.
+- Latest PR #157 head: f21b5f4230a0926072cce4415d4754da32016fe9. Exact-head CI run #1566 (45793251965) was IN_PROGRESS at this checkpoint. Do not claim success until all mandatory jobs complete; inspect container smoke result first.
+- This is CI fixture configuration only. No production database identity guard was relaxed, no production source was weakened, and no migration/database/staging/deployment action occurred.
+- PR #153 remains open/draft with exact-head Actions run #1523 successful; source review confirms generic non-carrier outbox polling/false acknowledgements are disabled and unsupported carrier event types classify terminal/unsupported into DEAD_LETTER. Independent review and consolidated merge decision remain outstanding.
+- PR #154 remains open/draft with no exact-head CI for current head e421e21b1e66386a9d0c259fb83c99f1a05272cb; its migration 0071 and worker/transaction changes still require exact-head validation and independent review.
+- PR #158 remains stacked on stale PR #157 parent 5f9399cd6fa80e51b508c31203dd6b5f80b37757; do not merge directly. Port its bounded identity/profile changes only after Slice A is green and reviewed.
+- PR #138 remains protected, open/draft/unmerged; no wholesale merge or history rewrite.
