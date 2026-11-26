@@ -22,7 +22,7 @@ const caller = {
 describe('Shipping and carrier tenant context', () => {
   it('requires a current ACTIVE organization membership', async () => {
     const findFirst = vi.fn().mockResolvedValue(null);
-    const db = { db: { query: { organizationMembers: { findFirst } } } };
+    const db = { db: { query: { organizationMembers: { findFirst }, organizations: { findFirst: vi.fn().mockResolvedValue({ id: 'org-a', isActive: true }) } } } };
 
     await expect(assertActiveOrgMembership(db as any, caller, 'org-a')).rejects.toBeInstanceOf(
       ForbiddenException,
@@ -43,6 +43,7 @@ describe('Shipping and carrier tenant context', () => {
         query: {
           stores: { findFirst: storeFindFirst },
           organizationMembers: { findFirst: organizationFindFirst },
+          organizations: { findFirst: vi.fn().mockResolvedValue({ id: 'org-a', isActive: true }) },
           shippingMethods: { findMany: methodFindMany },
         },
       },
@@ -64,6 +65,7 @@ describe('Shipping and carrier tenant context', () => {
       db: {
         query: {
           organizationMembers: { findFirst: organizationFindFirst },
+          organizations: { findFirst: vi.fn().mockResolvedValue({ id: 'org-a', isActive: true }) },
           carrierCredentials: { findMany: credentialFindMany },
         },
       },
