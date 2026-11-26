@@ -1,3 +1,17 @@
+## 26 November 2026 — PR #157 CI smoke repair and extraction-scope review
+
+- Revalidated repository state: `develop` is `fde20420bbb759d2e562f9ff747c9e824ac58e25`; `main` is `d3f4aefc41b37ad82f0aeb2eb78121342455eb21`; they remain 11 ahead / 4 behind from `9f5bc397467dc92cdc8debd54797b6d730659c36`. Do not begin release promotion while the remediation extraction is in progress.
+- PR #138 remains the protected source/evidence branch, OPEN / DRAFT / UNMERGED and mergeable=false. It has 1,943 changed files. No wholesale merge or history rewrite. The source and preservation refs were identical at `898b7878776bb809ab69fb3226f4548412a31347` before this memory batch.
+- PR #157 current exact head is `ea13a81e9c2767eb5f4440c5f8efd897fe62d5bb`. Its prior exact-head run #1566 passed all substantive application checks but failed only in Container Build & Smoke Test: GitHub-hosted runner denied host-side `chown 70:70` on the certificate bind mount. The failure was CI fixture ownership, not application behavior.
+- Fixed the smoke fixture in `ea13a81`: create a Docker-managed named volume, generate the short-lived TLS certificate inside an Alpine helper container, set PostgreSQL UID/GID ownership inside that container, mount the volume read-only into PostgreSQL and the API, and clean up the volume. TLS verification remains enabled; no production identity guard was relaxed.
+- Exact-head CI #1570 (run ID `45797704166`) is IN PROGRESS. Mobile passed; Lint & Typecheck was still running at last poll. Wait for this run; do not trigger a duplicate. The smoke job is the critical acceptance check for the new fixture.
+- Source review found three P6 PostgreSQL suites still under `apps/api/src/__tests__/scratch/` in PR #157, contrary to the explicit extraction rule. They are substantive store-authorization regression tests, not disposable artifacts. Before merge, deliberately review and relocate them into `src/__tests__/integration/` or record a justified exclusion/coverage alternative. Also assess six one-line helper changes in M7.3b carrier integration specs; they are outside Slice A's acceptance scope and should be reverted/split if lazy ALS initialization makes them unnecessary.
+- PR #157 has no independent review yet and must remain draft/unmerged until exact-head CI is fully green, scope discrepancies are resolved, and independent review is completed. PR #158 remains stacked on an obsolete #157 parent; do not reconcile/merge until the parent is green and reviewed.
+- PR #154 current head `0faaac932faffd6ccc26c8c6fd8df2bcc660ffd4` has no exact-head Actions run; its new stale-worker releaseClaim regression requires one consolidated CI run after #157. PR #153 exact-head CI #1523 passed, but no independent review exists.
+- No PR merge, database/staging write, migration application, grant/default-ACL/RLS change, Render configuration change, worker activation, deployment or release action occurred.
+
+---
+
 ## 26 November 2026 — PR #158 profile-claim alignment follow-up
 
 - PR #158 is OPEN / DRAFT / UNMERGED, stacked on PR #157, current head 5c7e41bf04ec16e9fc0565e57425fcc05f548ffc, mergeable=true, 4 files. It now checks ACTIVE organization membership and active organization for switching/claims/profile, and keeps profile role/perms aligned with an explicitly null JWT activeOrg.
