@@ -3242,3 +3242,16 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
 - Added an explicit fail-fast guard before passing the predicate to `PgDialect.sqlToQuery`. This preserves the query and assertions; it only makes the test's expected mock call explicit. Commit: `ffec8326db69605c600e02adf4fa55e08abb2a84`.
 - No run is currently visible for `ffec8326`; the latest verified workflow result remains CI #1646 on the previous code head. The new narrowing fix and all earlier changes remain unverified until a workflow runs on the updated branch. Do not infer that typecheck or downstream suites pass.
 - PR #170 remains OPEN / DRAFT / UNMERGED. PR #138 remains OPEN / DRAFT / UNMERGED; its preservation branch remains identical to source. No reviewers, merge, staging/production writes, migrations, deployments, releases, worker activation, Render changes, or service restarts. Keep the staging-release safety hold disabled.
+
+
+## CI follow-up — worker constructor fixture alignment (27 November 2026)
+
+- Exact-head CI run **#1647** on code commit `ffec8326db69605c600e02adf4fa55e08abb2a84` confirmed the previous API typecheck failure is resolved. Lint & Typecheck, Mobile, Boundary Lint, Migration Full Apply, and Web/Admin tests passed.
+- Remaining failing gates were API Integration Tests and Unit Tests + Coverage. The integration output identified multiple test-fixture incompatibilities with the current 11-argument `ShippingCarrierWorker` constructor: three PostgreSQL suites still omitted storage, merchant tenant-context lookup, and webhook-routing collaborators. Their failures cascaded into retry-state assertions and prevented the intended carrier paths from executing.
+- Added the missing collaborators to the shared worker factories in:
+  - `m73b3321-retry-state-foundation.postgres.spec.ts`
+  - `m73b3322-retry-after-header-parsing.postgres.spec.ts`
+  - `m73b333-carrier-http.postgres.spec.ts`
+- These are test-fixture-only changes. The tenant/order lineage checks and production worker behavior remain unchanged. New exact-head CI verification is pending.
+- The same CI run also exposed separate outstanding fixture/expectation issues in checkout, identity actor-context integration tests, transaction lifecycle, and catalog/order/returns unit tests. They are not waived or masked; investigate and fix in coherent batches after reviewing the next exact-head run.
+- Staging release remained skipped. No deployment, database mutation outside ephemeral CI databases, or merge was performed. PR #138 and its preservation branch remain untouched.
