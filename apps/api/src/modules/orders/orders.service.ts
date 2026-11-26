@@ -886,12 +886,14 @@ export class OrdersService {
     if (merchantUserId !== caller.sub) {
       throw new ForbiddenException('Rejection actor must match the authenticated caller');
     }
+    const actorId: string = caller.sub;
+    const actorRole: string = caller.role;
     const runAsCaller = <T>(operation: () => Promise<T>): Promise<T> =>
       this.db.withActorContext(
         {
           actorKind: 'user',
-          actorId: caller.sub,
-          actorRole: caller.role,
+          actorId,
+          actorRole,
           activeOrgId: caller.activeOrg ?? null,
         },
         operation,
@@ -1231,12 +1233,14 @@ export class OrdersService {
       throw new ForbiddenException('Cancellation actor must match the authenticated caller');
     }
 
+    const actorId: string = caller.sub;
+    const actorRole: string = caller.role;
     const runAsCaller = <T>(operation: () => Promise<T>): Promise<T> =>
       this.db.withActorContext(
         {
           actorKind: 'user',
-          actorId: caller.sub,
-          actorRole: caller.role,
+          actorId,
+          actorRole,
           activeOrgId: caller.activeOrg ?? null,
         },
         operation,
