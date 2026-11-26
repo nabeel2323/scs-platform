@@ -39,6 +39,8 @@ interface HarnessQueries {
   warehouses?: QueryConfig;
   stores?: QueryConfig;
   storeMembers?: QueryConfig;
+  organizationMembers?: QueryConfig;
+  organizations?: QueryConfig;
 }
 
 interface Harness {
@@ -103,6 +105,8 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
         warehouses: q(queries.warehouses),
         stores: q(queries.stores ?? { findFirst: { orgId: 'org-1' } }),
         storeMembers: q(queries.storeMembers ?? { findFirst: { id: 'membership-1' } }),
+        organizationMembers: q(queries.organizationMembers ?? { findFirst: { id: 'org-membership-1' } }),
+        organizations: q(queries.organizations ?? { findFirst: { id: 'org-1', isActive: true } }),
       },
       insert: () => ({
         values: (rows: unknown) => {
