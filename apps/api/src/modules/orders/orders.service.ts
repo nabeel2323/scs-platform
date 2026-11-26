@@ -1076,38 +1076,32 @@ export class OrdersService {
     orderId: string,
     buyerId: string,
     storeId: string,
+    actor: CallerContext,
   ) {
-    await this.db.db
-      .update(orders)
-      .set({ status: 'PENDING_CONFIRMATION', updatedAt: new Date() })
-      .where(eq(orders.id, orderId));
+    return this.withUserActorContext(actor, async () => {
+      await this.db.db
+        .update(orders)
+        .set({ status: 'PENDING_CONFIRMATION', updatedAt: new Date() })
+        .where(eq(orders.id, orderId));
 
-    await this.recordStatusChange(
-      orderId,
-      'SUBMITTED',
-      'PENDING_CONFIRMATION',
-      buyerId,
-      'SYSTEM',
-      'Auto-advance: merchant notified, SLA timer started',
-    );
+      await this.recordStatusChange(
+        orderId,
+        'SUBMITTED',
+        'PENDING_CONFIRMATION',
+        buyerId,
+        'SYSTEM',
+        'Auto-advance: merchant notified, SLA timer started',
+      );
 
-    // Publish outbox event — merchant notification + SLA timer
-    await this.outbox.publish('order.pending_confirmation', orderId, {
-      orderId,
-      storeId,
-      buyerId,
-      slaDeadlineMinutes: 15, // 15-min SLA for merchant to respond
+      await this.outbox.publish('order.pending_confirmation', orderId, {
+        orderId,
+        storeId,
+        buyerId,
+        slaDeadlineMinutes: 15,
+      });
     });
   }
 
-  /**
-   * Persist an in-app "new order" notification for every ACTIVE member of each
-   * selling org so merchants see it in the notifications bell and the nav unread
-   * badge refreshes over the realtime push. Members of one org are fetched once
-   * (cached per org) even when a cart spans several of that org's stores.
-   * Best-effort and dependency-guarded: a missing NotificationsService (isolated
-   * unit specs) or a delivery error must never fail a committed checkout.
-   */
   private async notifyStoreMerchants(
     masterOrderId: string,
     subOrders: { id: string; storeId: string; itemCount: number }[],
@@ -1383,7 +1377,7 @@ export class OrdersService {
       await assertOrderAccessible(this.db, caller, order);
       let currentStatus = order['status'];
       if (currentStatus === 'SUBMITTED') {
-        await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
+        await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId'], caller);
         currentStatus = 'PENDING_CONFIRMATION';
       }
       this.assertTransition(currentStatus, 'REJECTED');
