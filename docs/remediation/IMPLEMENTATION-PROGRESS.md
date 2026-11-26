@@ -3057,3 +3057,14 @@ Next source-only work should review the changed fixture semantics without weaken
 - These changes address historical fixture-contract errors from CI #1617 only; they have not been rerun, so no pass is claimed. The current PR #170 exact head remains unvalidated. Continue source review and group remaining API fixtures before one exact-head CI campaign.
 - PR #138 remains OPEN / DRAFT / UNMERGED, 1,943 files; source and preservation refs remain identical at `f81c91207cfe33af2817aeaa0311ee4119436885`. PR #170 remains OPEN / DRAFT / UNMERGED; no merge or release authorization is implied.
 - No reviewers, database writes, migrations, provider calls, worker activation, Render changes, deployments, restarts or releases were performed.
+
+
+## Continuation checkpoint — 26 November 2026 (orders, payments and shipping fixture alignment)
+
+- Added active/verified store rows to the OrdersService MOQ checkout fixture (`2b0d2149de3e0d20e347a888c0b51bfff62e1f9e`) and dynamic store rows to idempotency checkout fixtures (`df8434040dcd7c0ebe5a8ab4538fdd7cad0b6c91`). This aligns the fixtures with checkout's authoritative active-store preflight so the tests can reach the intended MOQ/idempotency assertions.
+- Added an explicit actor-context wrapper to the merchant-rejection refund fixture (`bbafe7606d12594d6fa14df91f0ec7639941ab68`).
+- Corrected settlement-adjustment tests to expect the service's explicit cross-organization Forbidden response and to supply an actual foreign return-request row for the sub-order mismatch case (`ed66128c01d2a399dfe5887a9c0d0391e31f0172`).
+- Added the missing Drizzle `innerJoin` chain to the carrier recovery-queue controller fixture (`0e802e474670fe01bcc398445e7fdbbf9e29010f`).
+- These are test-fixture/expectation alignments only; no production authorization or business behavior was relaxed. No local tests were executed and no exact-head CI run exists for current PR #170 head `0e802e474670fe01bcc398445e7fdbbf9e29010f`. Status remains VERIFICATION_PENDING; complete the remaining grouped audit before one exact-head mandatory CI campaign.
+- PR #170 remains OPEN / DRAFT / UNMERGED. PR #138 remains OPEN / DRAFT / UNMERGED, with source and preservation refs identical at `f81c91207cfe33af2817aeaa0311ee4119436885`. Do not merge PR #138 wholesale or merge PR #170 before mandatory CI and separate staging-release/migration authorization.
+- No reviewers, staging/production DB writes, migrations, provider calls, worker activation, Render changes, deployments, restarts or releases occurred.
