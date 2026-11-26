@@ -67,6 +67,7 @@ const storage = {
 const outbox = { publish: vi.fn().mockResolvedValue(undefined) } as any;
 const audit = { record: vi.fn().mockResolvedValue(undefined) } as any;
 const redis = { get: vi.fn(), set: vi.fn(), del: vi.fn() } as any;
+const importCaller = { sub: '00000000-0000-4000-8000-000000000001', role: 'SUPER_ADMIN', activeOrg: null };
 
 /**
  * Build a realistic multi-sheet catalog workbook (Workbook A) that exercises
@@ -255,7 +256,7 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
     // ── Instantiate services ──────────────────────────────────────
-    database = { db } as DatabaseService;
+    database = { db, withActorContext: async (_actor: unknown, operation: () => Promise<unknown>) => operation() } as DatabaseService;
     const validationService = new CatalogValidationService();
     const conditionalRules = new ConditionalRulesService();
 
@@ -290,7 +291,7 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
       const refs = await resolver.resolve(workbook);
       const existing = await loadExistingEntityMap();
       const plan = planner.buildPlan(workbook, refs, existing);
-      const result = await executor.execute(plan, refs);
+      const result = await executor.execute(plan, refs, importCaller);
 
       // All entities should be CREATE (empty DB)
       expect(result.created).toBeGreaterThan(0);
@@ -321,7 +322,7 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
     });
 
     it('exports the database to Workbook B', async () => {
-      const exportBuf = Buffer.from(await templateGen.generateExport());
+      const exportBuf = Buffer.from(await templateGen.generateExport(importCaller));
       expect(exportBuf).toBeTruthy();
       expect(exportBuf.length).toBeGreaterThan(0);
 
@@ -345,7 +346,7 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
 
     it('re-importing Workbook B produces 0 creates, 0 updates, 0 rejected', async () => {
       // Export
-      const exportBuf = Buffer.from(await templateGen.generateExport());
+      const exportBuf = Buffer.from(await templateGen.generateExport(importCaller));
 
       // Parse Workbook B
       const workbook = await parser.parse(exportBuf, 'export.xlsx');
@@ -374,7 +375,7 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
       expect(plan.summary.totalUnchanged).toBeGreaterThan(0);
 
       // Execute (should be a no-op)
-      const result = await executor.execute(plan, refs);
+      const result = await executor.execute(plan, refs, importCaller);
       expect(result.created).toBe(0);
       expect(result.updated).toBe(0);
       expect(result.rejected).toBe(0);
@@ -383,7 +384,7 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
 
     it('three-time idempotency: third import also produces 0 creates, 0 updates', async () => {
       // Third import using the same exported workbook — must also be fully idempotent
-      const exportBuf2 = Buffer.from(await templateGen.generateExport());
+      const exportBuf2 = Buffer.from(await templateGen.generateExport(importCaller));
       const workbook3 = await parser.parse(exportBuf2, 'export-3.xlsx');
       const snapshot3 = await loadExistingDataSnapshot();
       const errors3 = validator.validate(workbook3, snapshot3);
@@ -397,7 +398,7 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
       expect(plan3.summary.totalUpdate).toBe(0);
       expect(plan3.summary.totalUnchanged).toBeGreaterThan(0);
 
-      const result3 = await executor.execute(plan3, refs3);
+      const result3 = await executor.execute(plan3, refs3, importCaller);
       expect(result3.created).toBe(0);
       expect(result3.updated).toBe(0);
       expect(result3.rejected).toBe(0);

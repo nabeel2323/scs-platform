@@ -16,6 +16,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { CatalogImportService } from './catalog-import.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -60,7 +61,7 @@ export class CatalogImportController {
     this.logger.log(`Catalog import upload by ${user.sub}: ${file.originalname}`);
     return this.importService.upload(
       { buffer: file.buffer, originalName: file.originalname, size: file.size },
-      user.sub,
+      { sub: user.sub, role: user.role, activeOrg: user.activeOrg },
     );
   }
 
@@ -71,6 +72,7 @@ export class CatalogImportController {
   @Get()
   @RequirePermission('catalog:imports:manage')
   @RequireRole('ADMIN', 'SUPER_ADMIN')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async list(
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
@@ -90,6 +92,7 @@ export class CatalogImportController {
   @Get(':id')
   @RequirePermission('catalog:imports:manage')
   @RequireRole('ADMIN', 'SUPER_ADMIN')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async detail(@Param('id', ParseUUIDPipe) id: string) {
     return this.importService.getImportDetail(id);
   }
@@ -118,7 +121,11 @@ export class CatalogImportController {
     @Body() body: { overrides?: Record<string, Record<string, Record<string, string>>> } = {},
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.importService.execute(id, user.sub, body.overrides);
+    return this.importService.execute(id, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    }, body.overrides);
   }
 
   /**
@@ -132,7 +139,11 @@ export class CatalogImportController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.importService.retry(id, user.sub);
+    return this.importService.retry(id, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   /**
@@ -142,6 +153,7 @@ export class CatalogImportController {
   @Get(':id/errors')
   @RequirePermission('catalog:imports:manage')
   @RequireRole('ADMIN', 'SUPER_ADMIN')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   async errors(@Param('id', ParseUUIDPipe) id: string) {
     return this.importService.getErrors(id);
   }
@@ -153,8 +165,16 @@ export class CatalogImportController {
   @Get(':id/report')
   @RequirePermission('catalog:imports:manage')
   @RequireRole('ADMIN', 'SUPER_ADMIN')
-  async report(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
-    const buffer = await this.importService.downloadReport(id);
+  async report(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const buffer = await this.importService.downloadReport(id, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="import-report-${id}.xlsx"`,
@@ -170,12 +190,20 @@ export class CatalogImportController {
   @Get('template/:type')
   @RequirePermission('catalog:imports:manage')
   @RequireRole('ADMIN', 'SUPER_ADMIN')
-  async template(@Param('type') type: string, @Res() res: Response) {
+  async template(
+    @Param('type') type: string,
+    @Res() res: Response,
+    @CurrentUser() user: JwtPayload,
+  ) {
     const validTypes = ['full', 'products', 'categories', 'brands', 'attributes', 'product-types'];
     if (!validTypes.includes(type)) {
       throw new BadRequestException(`Invalid template type "${type}". Allowed: ${validTypes.join(', ')}`);
     }
-    const buffer = await this.importService.downloadTemplate(type);
+    const buffer = await this.importService.downloadTemplate(type, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="catalog-template-${type}.xlsx"`,
@@ -191,8 +219,12 @@ export class CatalogImportController {
   @Post('export')
   @RequirePermission('catalog:imports:manage')
   @RequireRole('ADMIN', 'SUPER_ADMIN')
-  async export(@Res() res: Response) {
-    const buffer = await this.importService.exportCatalog();
+  async export(@Res() res: Response, @CurrentUser() user: JwtPayload) {
+    const buffer = await this.importService.exportCatalog({
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="catalog-export-${new Date().toISOString().slice(0, 10)}.xlsx"`,

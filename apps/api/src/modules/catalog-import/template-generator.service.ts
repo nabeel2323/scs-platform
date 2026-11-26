@@ -14,6 +14,12 @@ import {
 import { isNull, eq } from 'drizzle-orm';
 import { CatalogValidationService } from '../catalog/catalog.validation-service';
 
+type CatalogImportCaller = {
+  sub: string;
+  role: string;
+  activeOrg?: string | null;
+};
+
 /**
  * Generates downloadable Excel templates and full-catalog workbooks.
  *
@@ -57,10 +63,25 @@ export class TemplateGeneratorService {
     private readonly validationService: CatalogValidationService,
   ) {}
 
+  private withUserActor<T>(
+    caller: CatalogImportCaller,
+    operation: () => PromiseLike<T>,
+  ): Promise<T> {
+    return this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: caller.sub,
+        actorRole: caller.role,
+        activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
+      },
+      async () => await operation(),
+    );
+  }
+
   /**
    * Generate a blank catalog template with data validations (dropdowns).
    */
-  async generateTemplate(type: 'full' | string): Promise<Buffer> {
+  async generateTemplate(type: 'full' | string, caller: CatalogImportCaller): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'SCS Platform';
     workbook.created = new Date();
@@ -80,8 +101,9 @@ export class TemplateGeneratorService {
       this.addHeaders(sheet, headers);
     }
 
-    // Add data validations from DB
-    await this.addDataValidations(workbook);
+    // Load dropdown values under a short actor scope; workbook work stays outside it.
+    const validationOptions = await this.withUserActor(caller, () => this.loadDataValidationOptions());
+    this.addDataValidations(workbook, validationOptions);
 
     const buffer = await workbook.xlsx.writeBuffer();
     return Buffer.from(buffer);
@@ -102,7 +124,7 @@ export class TemplateGeneratorService {
    *     Sources, and Attribute Groups sheets are produced (audit §4)
    *   - README metadata sheet records per-sheet counts (task §26)
    */
-  async generateExport(): Promise<Buffer> {
+  async generateExport(caller: CatalogImportCaller): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'SCS Platform';
     workbook.created = new Date();
@@ -110,18 +132,18 @@ export class TemplateGeneratorService {
     // Order here controls the visible sheet tab order in Excel. Each method
     // queries independently, so this ordering does NOT affect correctness.
     const counts: Record<string, number> = {};
-    counts['Attribute Groups'] = await this.exportAttributeGroups(workbook);
-    counts['Categories'] = await this.exportCategories(workbook);
-    counts['Brands'] = await this.exportBrands(workbook);
-    counts['Attributes'] = await this.exportAttributes(workbook);
-    counts['Attribute Options'] = await this.exportAttributeOptions(workbook);
-    counts['Product Types'] = await this.exportProductTypes(workbook);
-    counts['Product Type Attributes'] = await this.exportProductTypeAttributes(workbook);
-    counts['Products'] = await this.exportProducts(workbook);
-    counts['Product Attributes'] = await this.exportProductAttributes(workbook);
-    counts['Variants'] = await this.exportVariants(workbook);
-    counts['Variant Attributes'] = await this.exportVariantAttributes(workbook);
-    counts['Sources'] = await this.exportSources(workbook);
+    counts['Attribute Groups'] = await this.exportAttributeGroups(workbook, caller);
+    counts['Categories'] = await this.exportCategories(workbook, caller);
+    counts['Brands'] = await this.exportBrands(workbook, caller);
+    counts['Attributes'] = await this.exportAttributes(workbook, caller);
+    counts['Attribute Options'] = await this.exportAttributeOptions(workbook, caller);
+    counts['Product Types'] = await this.exportProductTypes(workbook, caller);
+    counts['Product Type Attributes'] = await this.exportProductTypeAttributes(workbook, caller);
+    counts['Products'] = await this.exportProducts(workbook, caller);
+    counts['Product Attributes'] = await this.exportProductAttributes(workbook, caller);
+    counts['Variants'] = await this.exportVariants(workbook, caller);
+    counts['Variant Attributes'] = await this.exportVariantAttributes(workbook, caller);
+    counts['Sources'] = await this.exportSources(workbook, caller);
 
     // Metadata / README placed last so the entity sheets open first when the
     // workbook is loaded, but present so integrity verification is trivial.
@@ -181,52 +203,58 @@ export class TemplateGeneratorService {
     sheet.columns = headers.map(() => ({ width: 22 }));
   }
 
-  private async addDataValidations(workbook: ExcelJS.Workbook): Promise<void> {
+  private async loadDataValidationOptions(): Promise<{
+    brandSlugs: string[];
+    catSlugs: string[];
+    attrCodes: string[];
+    ptCodes: string[];
+  }> {
     try {
-      // Load brands for dropdown
-      const brandRows = await this.db.db.select({ slug: brands.slug }).from(brands).limit(500);
-      const brandSlugs = brandRows.map(r => r.slug);
-
-      // Load categories for dropdown
-      const catRows = await this.db.db.select({ slug: categories.slug }).from(categories).where(isNull(categories.storeId)).limit(500);
-      const catSlugs = catRows.map(r => r.slug);
-
-      // Load attribute codes
-      const attrRows = await this.db.db.select({ code: attributeDefinitions.code }).from(attributeDefinitions).limit(500);
-      const attrCodes = attrRows.map(r => r.code);
-
-      // Load product type codes
-      const ptRows = await this.db.db.select({ code: productTypes.code }).from(productTypes).limit(500);
-      const ptCodes = ptRows.map(r => r.code);
-
-      // Add validations to Product Types sheet
-      const ptSheet = workbook.getWorksheet('Product Types');
-      if (ptSheet) {
-        this.addDropdownValidation(ptSheet, catSlugs, 5); // category_slug column
-      }
-
-      // Add validations to Products sheet
-      const productsSheet = workbook.getWorksheet('Products');
-      if (productsSheet) {
-        this.addDropdownValidation(productsSheet, brandSlugs, 7); // brand_slug column
-        this.addDropdownValidation(productsSheet, catSlugs, 9); // category_slug column
-        this.addDropdownValidation(productsSheet, ptCodes, 8); // product_type_code column
-      }
-
-      // Add validations to Product Attributes sheet
-      const paSheet = workbook.getWorksheet('Product Attributes');
-      if (paSheet) {
-        this.addDropdownValidation(paSheet, attrCodes, 2); // attribute_code column
-      }
-
-      // Add validations to Variant Attributes sheet
-      const vaSheet = workbook.getWorksheet('Variant Attributes');
-      if (vaSheet) {
-        this.addDropdownValidation(vaSheet, attrCodes, 2); // attribute_code column
-      }
+      const [brandRows, catRows, attrRows, ptRows] = await Promise.all([
+        this.db.db.select({ slug: brands.slug }).from(brands).limit(500),
+        this.db.db.select({ slug: categories.slug }).from(categories)
+          .where(isNull(categories.storeId)).limit(500),
+        this.db.db.select({ code: attributeDefinitions.code }).from(attributeDefinitions).limit(500),
+        this.db.db.select({ code: productTypes.code }).from(productTypes).limit(500),
+      ]);
+      return {
+        brandSlugs: brandRows.map((row) => row.slug),
+        catSlugs: catRows.map((row) => row.slug),
+        attrCodes: attrRows.map((row) => row.code),
+        ptCodes: ptRows.map((row) => row.code),
+      };
     } catch (err) {
-      this.logger.warn(`Failed to add data validations: ${err}`);
+      this.logger.warn(`Failed to load data validations: ${err}`);
+      return { brandSlugs: [], catSlugs: [], attrCodes: [], ptCodes: [] };
     }
+  }
+
+  private addDataValidations(
+    workbook: ExcelJS.Workbook,
+    options: {
+      brandSlugs: string[];
+      catSlugs: string[];
+      attrCodes: string[];
+      ptCodes: string[];
+    },
+  ): void {
+    const { brandSlugs, catSlugs, attrCodes, ptCodes } = options;
+
+    const ptSheet = workbook.getWorksheet('Product Types');
+    if (ptSheet) this.addDropdownValidation(ptSheet, catSlugs, 5);
+
+    const productsSheet = workbook.getWorksheet('Products');
+    if (productsSheet) {
+      this.addDropdownValidation(productsSheet, brandSlugs, 7);
+      this.addDropdownValidation(productsSheet, catSlugs, 9);
+      this.addDropdownValidation(productsSheet, ptCodes, 8);
+    }
+
+    const paSheet = workbook.getWorksheet('Product Attributes');
+    if (paSheet) this.addDropdownValidation(paSheet, attrCodes, 2);
+
+    const vaSheet = workbook.getWorksheet('Variant Attributes');
+    if (vaSheet) this.addDropdownValidation(vaSheet, attrCodes, 2);
   }
 
   private addDropdownValidation(sheet: ExcelJS.Worksheet, values: string[], colNumber: number): void {
@@ -257,12 +285,12 @@ export class TemplateGeneratorService {
 
   // ── Export helpers ────────────────────────────────────────────
 
-  private async exportCategories(workbook: ExcelJS.Workbook): Promise<number> {
+  private async exportCategories(workbook: ExcelJS.Workbook, caller: CatalogImportCaller): Promise<number> {
     // Include the row id and parentId so we can resolve parent_slug via an
     // in-memory lookup — avoids a self-join and correctly emits parents that
     // are also in this result set (the platform category tree is small).
     // See audit §2 — this is the specific defect that emptied parent_slug.
-    const rows = await this.db.db.select({
+    const rows = await this.withUserActor(caller, () => this.db.db.select({
       id: categories.id,
       slug: categories.slug,
       name: categories.name,
@@ -270,7 +298,7 @@ export class TemplateGeneratorService {
       description: categories.description,
       parentId: categories.parentId,
       sortOrder: categories.sortOrder,
-    }).from(categories).where(isNull(categories.storeId));
+    }).from(categories).where(isNull(categories.storeId)));
 
     const idToSlug = new Map(rows.map(r => [r.id, r.slug] as const));
 
@@ -283,12 +311,12 @@ export class TemplateGeneratorService {
     return rows.length;
   }
 
-  private async exportAttributeGroups(workbook: ExcelJS.Workbook): Promise<number> {
-    const rows = await this.db.db.select({
+  private async exportAttributeGroups(workbook: ExcelJS.Workbook, caller: CatalogImportCaller): Promise<number> {
+    const rows = await this.withUserActor(caller, () => this.db.db.select({
       name: attributeGroups.name,
       nameAr: attributeGroups.nameAr,
       kind: attributeGroups.kind,
-    }).from(attributeGroups);
+    }).from(attributeGroups));
 
     const sheet = workbook.addWorksheet('Attribute Groups');
     this.addHeaders(sheet, SHEET_HEADERS['Attribute Groups']!);
@@ -298,13 +326,13 @@ export class TemplateGeneratorService {
     return rows.length;
   }
 
-  private async exportBrands(workbook: ExcelJS.Workbook): Promise<number> {
-    const rows = await this.db.db.select({
+  private async exportBrands(workbook: ExcelJS.Workbook, caller: CatalogImportCaller): Promise<number> {
+    const rows = await this.withUserActor(caller, () => this.db.db.select({
       slug: brands.slug,
       name: brands.name,
       nameAr: brands.nameAr,
       description: brands.description,
-    }).from(brands);
+    }).from(brands));
 
     const sheet = workbook.addWorksheet('Brands');
     this.addHeaders(sheet, SHEET_HEADERS['Brands']!);
@@ -314,8 +342,8 @@ export class TemplateGeneratorService {
     return rows.length;
   }
 
-  private async exportAttributes(workbook: ExcelJS.Workbook): Promise<number> {
-    const rows = await this.db.db.select({
+  private async exportAttributes(workbook: ExcelJS.Workbook, caller: CatalogImportCaller): Promise<number> {
+    const rows = await this.withUserActor(caller, () => this.db.db.select({
       code: attributeDefinitions.code,
       name: attributeDefinitions.name,
       nameAr: attributeDefinitions.nameAr,
@@ -324,7 +352,7 @@ export class TemplateGeneratorService {
       scope: attributeDefinitions.scope,
       unit: attributeDefinitions.unit,
       validation: attributeDefinitions.validation,
-    }).from(attributeDefinitions);
+    }).from(attributeDefinitions));
 
     const sheet = workbook.addWorksheet('Attributes');
     this.addHeaders(sheet, SHEET_HEADERS['Attributes']!);
@@ -342,21 +370,21 @@ export class TemplateGeneratorService {
     return rows.length;
   }
 
-  private async exportAttributeOptions(workbook: ExcelJS.Workbook): Promise<number> {
+  private async exportAttributeOptions(workbook: ExcelJS.Workbook, caller: CatalogImportCaller): Promise<number> {
     // Need attribute codes for the attribute_code column
-    const attrRows = await this.db.db.select({
+    const attrRows = await this.withUserActor(caller, () => this.db.db.select({
       id: attributeDefinitions.id,
       code: attributeDefinitions.code,
-    }).from(attributeDefinitions);
+    }).from(attributeDefinitions));
     const idToCode = new Map(attrRows.map(r => [r.id, r.code] as const));
 
-    const optRows = await this.db.db.select({
+    const optRows = await this.withUserActor(caller, () => this.db.db.select({
       attributeId: attributeOptions.attributeId,
       value: attributeOptions.value,
       valueAr: attributeOptions.valueAr,
       label: attributeOptions.label,
       sortOrder: attributeOptions.sortOrder,
-    }).from(attributeOptions);
+    }).from(attributeOptions));
 
     const sheet = workbook.addWorksheet('Attribute Options');
     this.addHeaders(sheet, SHEET_HEADERS['Attribute Options']!);
@@ -367,9 +395,9 @@ export class TemplateGeneratorService {
     return optRows.length;
   }
 
-  private async exportProductTypes(workbook: ExcelJS.Workbook): Promise<number> {
+  private async exportProductTypes(workbook: ExcelJS.Workbook, caller: CatalogImportCaller): Promise<number> {
     // Join with categories to get the category slug for each product type.
-    const rows = await this.db.db.select({
+    const rows = await this.withUserActor(caller, () => this.db.db.select({
       code: productTypes.code,
       name: productTypes.name,
       nameAr: productTypes.nameAr,
@@ -377,7 +405,7 @@ export class TemplateGeneratorService {
       categorySlug: categories.slug,
       variantDimensions: productTypes.variantDimensions,
     }).from(productTypes)
-      .leftJoin(categories, eq(productTypes.categoryId, categories.id));
+      .leftJoin(categories, eq(productTypes.categoryId, categories.id)));
 
     // variantDimensions is JSONB. Under the current importer it holds attribute
     // UUIDs (see excel-executor.service.ts upsertProductType: variantDimensions
@@ -385,10 +413,10 @@ export class TemplateGeneratorService {
     // created via other paths may hold attribute CODES directly. The importer
     // expects codes, so map UUIDs → codes and pass codes through unchanged.
     // See audit §9.
-    const attrRows = await this.db.db.select({
+    const attrRows = await this.withUserActor(caller, () => this.db.db.select({
       id: attributeDefinitions.id,
       code: attributeDefinitions.code,
-    }).from(attributeDefinitions);
+    }).from(attributeDefinitions));
     const idToCode = new Map(attrRows.map(a => [a.id, a.code] as const));
 
     const sheet = workbook.addWorksheet('Product Types');
@@ -403,12 +431,12 @@ export class TemplateGeneratorService {
     return rows.length;
   }
 
-  private async exportProductTypeAttributes(workbook: ExcelJS.Workbook): Promise<number> {
+  private async exportProductTypeAttributes(workbook: ExcelJS.Workbook, caller: CatalogImportCaller): Promise<number> {
     // The absence of this sheet is the direct root cause of "Imported Product
     // Types cannot be published" (audit §5, task §8/§10): publish requires
     // at least one PTA row, and re-import of the previous export produced
     // zero. Every PTA relationship is now written.
-    const rows = await this.db.db.select({
+    const rows = await this.withUserActor(caller, () => this.db.db.select({
       productTypeCode: productTypes.code,
       attributeCode: attributeDefinitions.code,
       groupName: attributeGroups.name,
@@ -422,7 +450,7 @@ export class TemplateGeneratorService {
     }).from(productTypeAttributes)
       .innerJoin(productTypes, eq(productTypeAttributes.productTypeId, productTypes.id))
       .innerJoin(attributeDefinitions, eq(productTypeAttributes.attributeDefinitionId, attributeDefinitions.id))
-      .leftJoin(attributeGroups, eq(productTypeAttributes.groupId, attributeGroups.id));
+      .leftJoin(attributeGroups, eq(productTypeAttributes.groupId, attributeGroups.id)));
 
     const sheet = workbook.addWorksheet('Product Type Attributes');
     this.addHeaders(sheet, SHEET_HEADERS['Product Type Attributes']!);
@@ -444,12 +472,12 @@ export class TemplateGeneratorService {
     return rows.length;
   }
 
-  private async exportProducts(workbook: ExcelJS.Workbook): Promise<number> {
+  private async exportProducts(workbook: ExcelJS.Workbook, caller: CatalogImportCaller): Promise<number> {
     // Join brand / product_type / category so their natural keys are exported
     // alongside the product. See audit §3 — the previous version of this
     // method wrote three literal empty strings for these columns, silently
     // stripping every relationship on the round trip.
-    const rows = await this.db.db.select({
+    const rows = await this.withUserActor(caller, () => this.db.db.select({
       slug: products.slug,
       title: products.title,
       titleAr: products.titleAr,
@@ -467,7 +495,7 @@ export class TemplateGeneratorService {
       .leftJoin(brands, eq(products.brandId, brands.id))
       .leftJoin(productTypes, eq(products.productTypeId, productTypes.id))
       .leftJoin(categories, eq(products.categoryId, categories.id))
-      .where(isNull(products.storeId));
+      .where(isNull(products.storeId)));
 
     const sheet = workbook.addWorksheet('Products');
     this.addHeaders(sheet, SHEET_HEADERS['Products']!);
@@ -482,7 +510,7 @@ export class TemplateGeneratorService {
     return rows.length;
   }
 
-  private async exportProductAttributes(workbook: ExcelJS.Workbook): Promise<number> {
+  private async exportProductAttributes(workbook: ExcelJS.Workbook, caller: CatalogImportCaller): Promise<number> {
     // Task §11 — preserve typed values. The four columns the importer writes
     // (value_text, value_number, value_boolean, option_key) map 1:1 to the
     // typed columns on product_attribute_values.
@@ -493,7 +521,7 @@ export class TemplateGeneratorService {
     // cannot ingest value_json either, so this preserves round-trip parity
     // (nothing new is lost) rather than fabricating a schema. Task §32 forbids
     // inventing values, so we do not flatten value_json into value_text.
-    const rows = await this.db.db.select({
+    const rows = await this.withUserActor(caller, () => this.db.db.select({
       productSlug: products.slug,
       attributeCode: attributeDefinitions.code,
       valueText: productAttributeValues.valueText,
@@ -503,7 +531,7 @@ export class TemplateGeneratorService {
       valueJson: productAttributeValues.valueJson,
     }).from(productAttributeValues)
       .innerJoin(products, eq(productAttributeValues.productId, products.id))
-      .innerJoin(attributeDefinitions, eq(productAttributeValues.attributeDefinitionId, attributeDefinitions.id));
+      .innerJoin(attributeDefinitions, eq(productAttributeValues.attributeDefinitionId, attributeDefinitions.id)));
 
     const sheet = workbook.addWorksheet('Product Attributes');
     this.addHeaders(sheet, SHEET_HEADERS['Product Attributes']!);
@@ -526,8 +554,8 @@ export class TemplateGeneratorService {
     return written;
   }
 
-  private async exportVariants(workbook: ExcelJS.Workbook): Promise<number> {
-    const rows = await this.db.db.select({
+  private async exportVariants(workbook: ExcelJS.Workbook, caller: CatalogImportCaller): Promise<number> {
+    const rows = await this.withUserActor(caller, () => this.db.db.select({
       sku: productVariants.sku,
       title: productVariants.title,
       titleAr: productVariants.titleAr,
@@ -535,13 +563,13 @@ export class TemplateGeneratorService {
       unit: productVariants.unit,
       weightGrams: productVariants.weightGrams,
       productId: productVariants.productId,
-    }).from(productVariants);
+    }).from(productVariants));
 
     // Need product slugs
-    const prodRows = await this.db.db.select({
+    const prodRows = await this.withUserActor(caller, () => this.db.db.select({
       id: products.id,
       slug: products.slug,
-    }).from(products);
+    }).from(products));
     const idToSlug = new Map(prodRows.map(r => [r.id, r.slug] as const));
 
     const sheet = workbook.addWorksheet('Variants');
@@ -553,14 +581,14 @@ export class TemplateGeneratorService {
     return rows.length;
   }
 
-  private async exportVariantAttributes(workbook: ExcelJS.Workbook): Promise<number> {
+  private async exportVariantAttributes(workbook: ExcelJS.Workbook, caller: CatalogImportCaller): Promise<number> {
     // Task §12 — SKU on this sheet is always `productVariants.sku`, never a
     // derived JSON blob. The corrupted-SKU variant (audit §8) will still be
     // exported with its current (invalid) SKU because Task §32 forbids
     // hiding/silently rewriting records at export time; that row is dealt
     // with as an explicit data classification/migration in M5, not masked
     // here.
-    const rows = await this.db.db.select({
+    const rows = await this.withUserActor(caller, () => this.db.db.select({
       variantSku: productVariants.sku,
       attributeCode: attributeDefinitions.code,
       valueText: variantAttributeValues.valueText,
@@ -569,7 +597,7 @@ export class TemplateGeneratorService {
       optionValue: variantAttributeValues.optionValue,
     }).from(variantAttributeValues)
       .innerJoin(productVariants, eq(variantAttributeValues.variantId, productVariants.id))
-      .innerJoin(attributeDefinitions, eq(variantAttributeValues.attributeDefinitionId, attributeDefinitions.id));
+      .innerJoin(attributeDefinitions, eq(variantAttributeValues.attributeDefinitionId, attributeDefinitions.id)));
 
     const sheet = workbook.addWorksheet('Variant Attributes');
     this.addHeaders(sheet, SHEET_HEADERS['Variant Attributes']!);
@@ -591,11 +619,11 @@ export class TemplateGeneratorService {
     return written;
   }
 
-  private async exportSources(workbook: ExcelJS.Workbook): Promise<number> {
+  private async exportSources(workbook: ExcelJS.Workbook, caller: CatalogImportCaller): Promise<number> {
     const sheet = workbook.addWorksheet('Sources');
     this.addHeaders(sheet, SHEET_HEADERS['Sources']!);
 
-    const rows = await this.db.db
+    const rows = await this.withUserActor(caller, () => this.db.db
       .select({
         productSlug: products.slug,
         sourceType: productSources.sourceType,
@@ -604,7 +632,7 @@ export class TemplateGeneratorService {
       })
       .from(productSources)
       .innerJoin(products, eq(productSources.productId, products.id))
-      .where(isNull(products.deletedAt));
+      .where(isNull(products.deletedAt)));
 
     let written = 0;
     for (const r of rows) {
