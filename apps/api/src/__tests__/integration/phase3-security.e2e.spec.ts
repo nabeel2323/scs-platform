@@ -133,7 +133,6 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
 
     // ── Instantiate services ──────────────────────────────────────
     database = new DatabaseService();
-    database.pool = pool;
     database.db = db;
     const conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);

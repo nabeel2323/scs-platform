@@ -162,7 +162,6 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
 
     const db = drizzle(pool, { schema }) as unknown as DatabaseService['db'];
     database = new DatabaseService();
-    database.pool = pool;
     database.db = db;
 
     await pool.query(

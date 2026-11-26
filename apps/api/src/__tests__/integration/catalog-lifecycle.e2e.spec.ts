@@ -122,7 +122,6 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
 
     // ── Instantiate services ────────────────────────────────────────
     database = new DatabaseService();
-    database.pool = pool;
     database.db = db;
     conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);

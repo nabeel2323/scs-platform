@@ -113,7 +113,7 @@ class StubCarrierProvider extends ShippingProvider {
 // ── Wiring helpers ──────────────────────────────────────────────────────────
 
 function makeDbService(pool: Pool, db: any): DatabaseService {
-  const svc = new DatabaseService();
+  const svc = new DatabaseService() as any;
   svc.pool = pool;
   svc.db = db;
   return svc;
