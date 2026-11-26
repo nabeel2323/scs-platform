@@ -51,7 +51,10 @@ function createGateway() {
     stores: { findFirst: vi.fn().mockResolvedValue({ id: ids.store, orgId: ids.org }) },
     storeMembers: { findFirst: vi.fn().mockResolvedValue({ id: 'membership-1' }) },
   };
-  const db = { db: { query } };
+  const db = {
+    db: { query },
+    withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
+  };
   const merchant = {
     getStore: vi.fn().mockResolvedValue({ id: ids.store, orgId: ids.org }),
   };
