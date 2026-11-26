@@ -101,4 +101,31 @@ describe('OrdersService.cancelOrder actor-context boundary (G-002)', () => {
     expect(db.withActorContext).not.toHaveBeenCalled();
   });
 
+
+  it('fails closed when no caller actor is supplied', async () => {
+    const db = { withActorContext: vi.fn() };
+    const service = new OrdersService(db as any, {} as any, {} as any);
+
+    await expect(
+      service.cancelOrder('order-a', 'buyer-a', 'CUSTOMER_REQUEST', undefined as any),
+    ).rejects.toThrow('Authenticated database actor context is missing');
+
+    expect(db.withActorContext).not.toHaveBeenCalled();
+  });
+
+  it('rejects a cancellation actor ID that differs from the authenticated caller', async () => {
+    const db = { withActorContext: vi.fn() };
+    const service = new OrdersService(db as any, {} as any, {} as any);
+
+    await expect(
+      service.cancelOrder('order-a', 'other-user', 'CUSTOMER_REQUEST', {
+        sub: 'buyer-a',
+        role: 'BUYER',
+        activeOrg: null,
+      }),
+    ).rejects.toThrow('Cancellation actor must match the authenticated caller');
+
+    expect(db.withActorContext).not.toHaveBeenCalled();
+  });
+
 });
