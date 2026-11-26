@@ -96,7 +96,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
         products, productVariants, categories, brands, productMedia,
         attributeDefinitions, attributeOptions, attributeGroups,
         productTypes, productTypeAttributes, productAttributeValues, variantAttributeValues,
-        merchantOffers, stores, warehouses, users, organizations,
+        merchantOffers, stores, warehouses, users, organizations, organizationMembers, roles,
         priceLists, priceTiers,
         inventoryItems, stockMovements, carts, cartItems,
         masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory,
@@ -118,7 +118,9 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
     // ── Instantiate services ──────────────────────────────────────
-    database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.pool = pool;
+    database.db = db;
     const conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
     catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy, {} as any, {} as any, {} as any);

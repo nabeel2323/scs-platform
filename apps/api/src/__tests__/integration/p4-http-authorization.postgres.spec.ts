@@ -161,7 +161,9 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     pool = new Pool({ connectionString: started.getConnectionUri() });
 
     const db = drizzle(pool, { schema }) as unknown as DatabaseService['db'];
-    database = { db } as unknown as DatabaseService;
+    database = new DatabaseService();
+    database.pool = pool;
+    database.db = db;
 
     await pool.query(
       `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`,
@@ -322,6 +324,23 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     await pool.query(
       `INSERT INTO store_members (id, store_id, user_id, role, status) VALUES ($1,$2,$3,'OWNER','ACTIVE'),($4,$5,$6,'OWNER','ACTIVE')`,
       [randomUUID(), storeA, merchantOwnerA, randomUUID(), storeB, merchantOwnerB],
+    );
+
+    // Active organization membership is distinct from store membership and is
+    // required by the actor-context boundary for merchant and finance callers.
+    await pool.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status)
+       VALUES
+         ($1,$2,$3,(SELECT id FROM roles WHERE key='MERCHANT_OWNER'),'ACTIVE'),
+         ($4,$5,$6,(SELECT id FROM roles WHERE key='MERCHANT_OWNER'),'ACTIVE'),
+         ($7,$8,$9,(SELECT id FROM roles WHERE key='FINANCE'),'ACTIVE'),
+         ($10,$11,$12,(SELECT id FROM roles WHERE key='FINANCE'),'ACTIVE')`,
+      [
+        randomUUID(), orgA, merchantOwnerA,
+        randomUUID(), orgB, merchantOwnerB,
+        randomUUID(), orgA, finUserA,
+        randomUUID(), orgB, finUserB,
+      ],
     );
 
     const masterA = randomUUID(); const masterB = randomUUID();

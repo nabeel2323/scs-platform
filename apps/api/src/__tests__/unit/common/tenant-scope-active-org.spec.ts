@@ -15,7 +15,7 @@ function createDb() {
     organizations: { findFirst: vi.fn() },
     stores: { findFirst: vi.fn(), findMany: vi.fn() },
   };
-  return { db: { query } as any, query };
+  return { db: { db: { query } } as any, query };
 }
 
 describe('active organization ownership checks', () => {
