@@ -598,3 +598,13 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - #159 includes the canonical narrow 0070 and canonical additive 0071 in numeric order. PR #138 duplicate/broader migrations remain excluded.
 - No shared/staging DB writes, migration application, grants/default-ACL/RLS changes, Render changes, worker activation, deployment, restart or release.
 - User explicitly waived independent GitHub reviewer requirements. Continue with exact-head CI and source/scope/safety verification; no reviewer gate.
+
+
+## 26 November 2026 — integration status update
+
+- `develop` current head: `a1d53acd14cd66901a2002ce1a05c9edf0c61c5c` after PR #159 merge.
+- PR #159 merged successfully at `a1d53acd14cd66901a2002ce1a05c9edf0c61c5c`. Exact-head Actions run #1582 / `45829417417`: all ten mandatory jobs passed; k6 and staging-release trigger skipped. It carries canonical migration 0070 followed by 0071, atomic order completion and durable owner-fenced worker leases.
+- PR #160 and #162 were not mergeable after #159 advanced develop. Rebuilt their exact intended file sets directly on the new head: PR #163 (outbox dispatch safety, six files, head `e57a33e4f0658d17fbd11caaf346ee1a31c761b1`) and PR #164 (HTTP log redaction + read-only audit evidence, four files, head `0687481e106f0d625a0e51a0e1fba6d457386c20`). Both report mergeable true; exact-head Actions runs #1584 (`45833214705`) and #1585 (`45833292699`) are in progress at checkpoint. Poll; do not dispatch duplicates.
+- Old PR #160/#162 remain open pending validation of replacements; close as superseded only after replacement PRs pass and are merged. Do not force merge stale branches.
+- PR #138 remains protected source/evidence only; never wholesale merge. No staging/production DB mutation, migration application, grants/default ACL/RLS changes, Render, worker activation, deployment, restart or release.
+- User explicitly waived independent reviewers. Continue exact-head mandatory CI and scope/operational-safety gates; no reviewer gate.
