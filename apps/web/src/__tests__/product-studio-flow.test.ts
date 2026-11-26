@@ -219,6 +219,7 @@ describe('continueProductStudioStep', () => {
       continueProductStudioStep({
         step: 'offer',
         saving: false,
+        isDirty: true,
         productId: 'product-a',
         title: 'Updated laptop',
         storeId: 'store-a',

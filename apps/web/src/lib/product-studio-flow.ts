@@ -80,6 +80,8 @@ export async function persistProductStudioMedia(
 export interface ProductStudioContinueOptions {
   step: string;
   saving: boolean;
+  /** Whether the persisted product has edits that must be saved before leaving this step. */
+  isDirty?: boolean;
   productId: string | null;
   title: string;
   storeId: string;
@@ -95,6 +97,7 @@ export interface ProductStudioContinueOptions {
 export async function continueProductStudioStep({
   step,
   saving,
+  isDirty = false,
   productId,
   title,
   storeId,
@@ -104,8 +107,8 @@ export async function continueProductStudioStep({
 }: ProductStudioContinueOptions): Promise<boolean> {
   if (saving) return false;
 
-  if (step === 'offer' && !productId) {
-    if (!storeId || !title.trim()) {
+  if (step === 'offer' && (!productId || isDirty)) {
+    if (!productId && (!storeId || !title.trim())) {
       setError('Choose a store and enter a product title before continuing.');
       return false;
     }

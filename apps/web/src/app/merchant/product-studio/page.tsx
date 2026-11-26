@@ -29,6 +29,7 @@ export default function ProductStudioPage() {
     error,
     setError,
     saving,
+    isDirty,
     success,
     goNext,
     goPrev,
@@ -56,6 +57,7 @@ export default function ProductStudioPage() {
     void continueProductStudioStep({
       step,
       saving,
+      isDirty,
       productId: state.productId,
       title: state.title,
       storeId: state.storeId,
@@ -221,6 +223,7 @@ export default function ProductStudioPage() {
                   continueProductStudioStep({
                     step,
                     saving,
+                    isDirty,
                     productId: state.productId,
                     title: state.title,
                     storeId: state.storeId,
