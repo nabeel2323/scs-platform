@@ -692,3 +692,15 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - Do NOT copy the old PR #138 files wholesale onto current `develop`: the current Catalog Import controller/module/service/executor/template-generator files all differ from the preserved source branch, and the two new actor-context tests do not yet exist on develop. A three-way/targeted merge is required to retain intervening develop changes. This slice is not yet implemented, opened as a PR, or CI-validated. Continue by comparing the source patch against current develop and applying only the intended actor-context hunks; then add the tests and run one consolidated exact-head CI.
 - PR #167's former branch `integration/promotions-tenant-lineage-post165` is now one commit behind `develop` after merge; it is not an active integration branch.
 - User explicitly waived GitHub reviewers and asked to avoid repeated CI for small changes. Do not request reviewers; batch related code/tests and run one exact-head CI per bounded PR. No shared/staging DB writes, migrations, grants/default-ACL/RLS changes, provider calls, worker activation, Render changes, deployment, restart or release occurred.
+
+
+## 26 November 2026 — PR #168 opened; Catalog Import actor-context slice
+
+- Created `integration/catalog-import-actor-context-develop` directly from current `develop` head `af70ec081bf6ae2c5421cdd8d8200f7ec4252f31`.
+- Opened PR #168: https://github.com/nabeel2323/scs-platform/pull/168, title `fix(catalog-import): enforce authenticated actor context`, head `c1a322adeef5b76ecfb9afe9bbaf56cb9131a2f0`, base `develop`. Eight files: controller, module, service, executor, template generator, two new actor-context regression specs, and Phase 2 executor transaction spec. Compare verified 445 additions / 203 deletions, no unrelated files, no schema/migration changes.
+- Integration method: apply PR #138's relevant patch hunks to each current develop file by exact context matching; all five implementation-file patches applied cleanly. New tests added separately. This retained develop's intervening catalog-import implementation rather than copying old whole files.
+- CI run #1592 (`45859306428`) is in progress on exact head. At checkpoint, Mobile (flutter analyze/test) and Lint & Typecheck were in progress; other required jobs had not yet appeared in the first jobs response. Poll this same run only; do not start another CI.
+- Vercel Web/Admin contexts report external build-rate-limit failures; do not treat those as GitHub Actions failures. No reviewers requested, per user instruction.
+- PR #168 is not merged. Merge only after all mandatory exact-head Actions jobs pass and PR head/base remain unchanged. Inspect failures and fix in one consolidated update if necessary.
+- PR #138 remains open/draft/unmerged as source evidence. Preservation branch `preservation/pr138-remediation-2026-11-25` must remain identical to this memory branch using expected-SHA fast-forward only.
+- No staging/production database access, migration application, grants/default-ACL/RLS changes, provider calls, worker activation, Render changes, deployment, restart, or release.
