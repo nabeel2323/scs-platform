@@ -1,3 +1,15 @@
+## 26 November 2026 — live SCS continuation snapshot
+
+- `develop` is currently `fde20420bbb759d2e562f9ff747c9e824ac58e25`; `main` is `d3f4aefc41b37ad82f0aeb2eb78121342455eb21`. They are diverged by 11 commits ahead / 4 behind from merge base `9f5bc397467dc92cdc8debd54797b6d730659c36`. Do not promote/reconcile main until the bounded develop integration is complete.
+- PR #138 remains OPEN / DRAFT / UNMERGED, mergeable=false, 1,943 changed files. It is a preserved extraction source, not a merge candidate. Source and preservation refs were identical at `898b7878776bb809ab69fb3226f4548412a31347` immediately before this memory refresh; sync preservation to the new memory commit using expected-SHA fast-forward only.
+- PR #157 (G-002 Slice A) is OPEN / DRAFT / UNMERGED, current head `ea13a81e9c2767eb5f4440c5f8efd897fe62d5bb`, based on `develop`. CI #1570 / run `45797704166` is IN PROGRESS after fixing the smoke TLS certificate ownership setup. Mobile passed; Lint & Typecheck was still in progress at last poll. Do not start duplicate CI.
+- Previous PR #157 CI #1566 passed every application job, including unit/coverage, integration, migration full apply, build and contract/codegen; only container smoke failed because host-side `chown` was denied by the GitHub runner. Commit `ea13a81` creates certificates in a Docker-managed volume and sets ownership inside a helper container, retaining verified TLS and the production DB identity guard.
+- Scope review: PR #157 still includes three PostgreSQL P6 suites under `apps/api/src/__tests__/scratch/`, contrary to the extraction map. They are substantive store-authorization tests, but must be deliberately reviewed and relocated to the supported integration tree or explicitly excluded with a coverage rationale before merge. Six one-line M7.3b carrier-test helper changes also need necessity review. No independent review exists for PR #157.
+- PR #158 remains stacked on an obsolete #157 parent; reconcile only after #157 CI is green, its scope is corrected and independent review is complete. PR #154 current head is `0faaac932faffd6ccc26c8c6fd8df2bcc660ffd4` with no exact-head Actions run; it needs one consolidated run after the parent foundation is resolved. PR #153 head `5294698d8db78e21df972e8ce6213f21237789fa` passed exact-head CI #1523, but independent review is outstanding.
+- No PR was merged. No database writes, migrations, grants/default-ACL/RLS changes, Render configuration changes, worker activation, staging mutation, deployment or release action occurred.
+
+---
+
 ## 26 November 2026 — PR #158 profile-claim alignment follow-up
 
 - PR #158 is OPEN / DRAFT / UNMERGED, stacked on PR #157, current head 5c7e41bf04ec16e9fc0565e57425fcc05f548ffc, mergeable=true, 4 files. It now checks ACTIVE organization membership and active organization for switching/claims/profile, and keeps profile role/perms aligned with an explicitly null JWT activeOrg.
