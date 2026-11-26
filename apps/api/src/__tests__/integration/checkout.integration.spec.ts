@@ -474,8 +474,8 @@ describe('Checkout Integration', () => {
 
     it("records each supplier's own currency on its own sub-order", async () => {
       mocks.db.query.stores.findMany.mockResolvedValue([
-        { id: STORE_1, currency: 'SAR' },
-        { id: STORE_2, currency: 'AED' },
+        { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+        { id: STORE_2, currency: 'AED', orgId: 'org-2', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
       ]);
 
       await runCheckout();
@@ -489,8 +489,12 @@ describe('Checkout Integration', () => {
     });
 
     it('stores nothing rather than a guessed code', async () => {
-      // An unreadable seller row must not silently become "SAR" on the invoice.
-      mocks.db.query.stores.findMany.mockResolvedValue([]);
+      // The seller is still present and eligible; only its currency is unknown.
+      // Do not invent a currency code for the invoice snapshot.
+      mocks.db.query.stores.findMany.mockResolvedValue([
+        { id: STORE_1, currency: null, orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+        { id: STORE_2, currency: null, orgId: 'org-2', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      ]);
 
       await runCheckout();
 

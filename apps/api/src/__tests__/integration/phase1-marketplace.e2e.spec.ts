@@ -236,7 +236,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       country: 'SA',
       currency: 'SAR',
       storeStatus: 'ACTIVE',
-      verificationStatus: 'PENDING',
+      verificationStatus: 'VERIFIED',
       users: {
         buyerA: { fullName: 'Buyer Alpha' },
         buyerB: { fullName: 'Buyer Beta' },
@@ -332,6 +332,10 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     offerA = oA.id;
     await offerService.proposeOffer(offerA, callerA());
     await offerService.approveOffer(offerA, adminUser);
+
+    // This E2E scenario models a platform-canonical listing offered by both merchants.
+    // Store-owned private products remain protected by tenant-scope checks.
+    await db.update(products).set({ storeId: null }).where(eq(products.id, productId));
 
     const oB = await offerService.createOffer(
       {

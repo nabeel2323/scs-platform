@@ -41,6 +41,8 @@ const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql'])
 const outbox = { publish: vi.fn().mockResolvedValue(undefined) } as any;
 const realtime = { emitNewOrder: vi.fn(), emitOrderStatusChanged: vi.fn() } as any;
 const notifications = { send: vi.fn().mockResolvedValue(undefined) } as any;
+// M7.1 tests shipment state/ownership; actual driver eligibility is covered by M7.2.2.
+const shippingEligibility = { assertDriverEligibleForStore: vi.fn().mockResolvedValue(undefined) } as any;
 
 describe('M7.1 — Order Fulfillment Lifecycle', () => {
   let container: StartedPostgreSqlContainer;
@@ -102,7 +104,7 @@ describe('M7.1 — Order Fulfillment Lifecycle', () => {
     // Create services
     const promotions = new PromotionsService(database);
     inventoryService = new InventoryService(database, outbox);
-    ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications);
+    ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications, shippingEligibility);
 
     // ── Create fixtures ──────────────────────────────────────────
     // Roles

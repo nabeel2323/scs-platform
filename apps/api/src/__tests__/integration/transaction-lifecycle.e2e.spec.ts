@@ -237,8 +237,8 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       { id: buyerB, fullName: 'Buyer B', phone: '+10000000005' },
     ]);
     await db.insert(stores).values([
-      { id: storeA, orgId: orgA, slug: 'store-a', displayName: 'Store A', status: 'ACTIVE' },
-      { id: storeB, orgId: orgB, slug: 'store-b', displayName: 'Store B', status: 'ACTIVE' },
+      { id: storeA, orgId: orgA, slug: 'store-a', displayName: 'Store A', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      { id: storeB, orgId: orgB, slug: 'store-b', displayName: 'Store B', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
     ]);
     await db.insert(warehouses).values([
       { id: warehouseA, storeId: storeA, name: 'Warehouse A' },
@@ -315,6 +315,9 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     offerA = oA.id;
     await offerService.proposeOffer(offerA, callerA());
     await offerService.approveOffer(offerA, adminUser);
+
+    // This E2E scenario models a platform-canonical listing offered by both merchants.
+    await db.update(products).set({ storeId: null }).where(eq(products.id, productId));
 
     const oB = await offerService.createOffer(
       {

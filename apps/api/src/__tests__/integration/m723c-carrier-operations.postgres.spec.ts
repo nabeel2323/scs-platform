@@ -58,6 +58,7 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
   const buyerA = randomUUID();
   const storeA = randomUUID();
   const storeB = randomUUID();
+  const webhookCredentialId = randomUUID();
 
   const CARRIER_MASTER_KEY = randomBytes(32).toString('hex');
 
@@ -144,6 +145,11 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     await pool.query(
       `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer A', '+966500000099')`,
       [buyerA],
+    );
+    await pool.query(
+      `INSERT INTO carrier_credentials (id, org_id, provider_key, environment, label, credentials_encrypted, created_by)
+       VALUES ($1, $2, 'aramex', 'production', 'Webhook dedup fixture', 'fixture-encrypted', $3)`,
+      [webhookCredentialId, orgA, merchantA],
     );
     await pool.query(
       `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`,
@@ -556,20 +562,20 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
 
   // ── C-07: Duplicate Webhook Dedup ──────────────────────────────────────
 
-  it('C-07: duplicate webhook events are rejected by UNIQUE constraint', async () => {
+  it('C-07: duplicate webhook events are rejected by credential-scoped UNIQUE constraint', async () => {
     const webhookId = randomUUID();
     await pool.query(
-      `INSERT INTO carrier_webhook_events (id, provider_key, event_type, external_delivery_id, payload, processed)
-       VALUES ($1, 'aramex', 'status_update', 'AWB-12345', '{}', false)`,
-      [webhookId],
+      `INSERT INTO carrier_webhook_events (id, provider_key, credential_id, event_type, external_delivery_id, payload, processed)
+       VALUES ($1, 'aramex', $2, 'status_update', 'AWB-12345', '{}', false)`,
+      [webhookId, webhookCredentialId],
     );
 
     // Duplicate insert should fail
     try {
       await pool.query(
-        `INSERT INTO carrier_webhook_events (id, provider_key, event_type, external_delivery_id, payload, processed)
-         VALUES ($1, 'aramex', 'status_update', 'AWB-12345', '{}', false)`,
-        [randomUUID()],
+        `INSERT INTO carrier_webhook_events (id, provider_key, credential_id, event_type, external_delivery_id, payload, processed)
+         VALUES ($1, 'aramex', $2, 'status_update', 'AWB-12345', '{}', false)`,
+        [randomUUID(), webhookCredentialId],
       );
       expect.fail('Should have thrown unique violation');
     } catch (err: any) {

@@ -88,7 +88,8 @@ describe('M7.2.2 — Shipping CRUD & Tenant Isolation', () => {
     await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-b', 'Store B', 'APPROVED')`, [storeB, orgB]);
     await pool.query(`INSERT INTO driver_profiles (id, user_id, org_id, is_active) VALUES ($1, $2, $3, TRUE)`, [driverProfileA, driverUserA, orgA]);
 
-    const databaseService = { db } as any;
+    const databaseService = new DatabaseService();
+    databaseService.db = db;
     const registry = new ShippingProviderRegistry();
     const manual = new ManualDeliveryProvider();
     shippingService = new ShippingService(databaseService, registry, manual);
@@ -423,7 +424,7 @@ describe('M7.2.2 — Shipping CRUD & Tenant Isolation', () => {
         [driverProfileA],
       );
       await pool.query(
-        `UPDATE organization_members SET status = 'INACTIVE'
+        `UPDATE organization_members SET status = 'REVOKED'
          WHERE org_id = $1 AND user_id = $2`,
         [orgA, driverUserA],
       );

@@ -64,6 +64,8 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
   const orgA = randomUUID();
   const merchantA = randomUUID();
   const buyerUser = randomUUID();
+  const driverUser = randomUUID();
+  const webhookCredentialId = randomUUID();
   const storeA = randomUUID();
   const masterOrderId = randomUUID();
   const orderId = randomUUID();
@@ -124,6 +126,10 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
       [buyerUser],
     );
     await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Driver', '+966500000098')`,
+      [driverUser],
+    );
+    await pool.query(
       `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`,
       [randomUUID(), orgA, merchantA, roleById.get('MERCHANT_OWNER')],
     );
@@ -132,8 +138,17 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
       [randomUUID(), orgA, buyerUser, roleById.get('BUYER')],
     );
     await pool.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`,
+      [randomUUID(), orgA, driverUser, roleById.get('DRIVER')],
+    );
+    await pool.query(
       `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a', 'Store A', 'APPROVED')`,
       [storeA, orgA],
+    );
+    await pool.query(
+      `INSERT INTO carrier_credentials (id, org_id, provider_key, environment, label, credentials_encrypted, created_by)
+       VALUES ($1, $2, 'aramex', 'production', 'Webhook dedup fixture', 'fixture-encrypted', $3)`,
+      [webhookCredentialId, orgA, merchantA],
     );
 
     // Create a master order + sub-order + shipment for testing
@@ -333,14 +348,14 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
       // Two concurrent inserts with the same (provider_key, external_delivery_id)
       const [r1, r2] = await Promise.allSettled([
         pool.query(
-          `INSERT INTO carrier_webhook_events (id, provider_key, event_type, external_delivery_id, payload, processed)
-           VALUES ($1, $2, 'delivery', $3, '{}', FALSE)`,
-          [randomUUID(), providerKey, externalDeliveryId],
+          `INSERT INTO carrier_webhook_events (id, provider_key, credential_id, event_type, external_delivery_id, payload, processed)
+           VALUES ($1, $2, $3, 'delivery', $4, '{}', FALSE)`,
+          [randomUUID(), providerKey, webhookCredentialId, externalDeliveryId],
         ),
         pool.query(
-          `INSERT INTO carrier_webhook_events (id, provider_key, event_type, external_delivery_id, payload, processed)
-           VALUES ($1, $2, 'delivery', $3, '{}', FALSE)`,
-          [randomUUID(), providerKey, externalDeliveryId],
+          `INSERT INTO carrier_webhook_events (id, provider_key, credential_id, event_type, external_delivery_id, payload, processed)
+           VALUES ($1, $2, $3, 'delivery', $4, '{}', FALSE)`,
+          [randomUUID(), providerKey, webhookCredentialId, externalDeliveryId],
         ),
       ]);
 
@@ -363,32 +378,29 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
   // ── CON-04: Concurrent Different Webhook Events ──────────────────────────
 
   describe('CON-04: Concurrent Different Webhook Events', () => {
-    it('two different events for the same external delivery ID are both recorded', async () => {
-      const providerKey = 'smsa';
+    it('deduplicates different event types for the same credential delivery ID', async () => {
+      const providerKey = 'aramex';
       const externalDeliveryId = `SHP-${randomUUID().slice(0, 8)}`;
 
       // Two different event types for the same delivery
       const [r1, r2] = await Promise.allSettled([
         pool.query(
-          `INSERT INTO carrier_webhook_events (id, provider_key, event_type, external_delivery_id, payload, processed)
-           VALUES ($1, $2, 'picked_up', $3, '{}', FALSE)`,
-          [randomUUID(), providerKey, externalDeliveryId],
+          `INSERT INTO carrier_webhook_events (id, provider_key, credential_id, event_type, external_delivery_id, payload, processed)
+           VALUES ($1, $2, $3, 'picked_up', $4, '{}', FALSE)`,
+          [randomUUID(), providerKey, webhookCredentialId, externalDeliveryId],
         ),
         pool.query(
-          `INSERT INTO carrier_webhook_events (id, provider_key, event_type, external_delivery_id, payload, processed)
-           VALUES ($1, $2, 'out_for_delivery', $3, '{}', FALSE)`,
-          [randomUUID(), providerKey, externalDeliveryId],
+          `INSERT INTO carrier_webhook_events (id, provider_key, credential_id, event_type, external_delivery_id, payload, processed)
+           VALUES ($1, $2, $3, 'out_for_delivery', $4, '{}', FALSE)`,
+          [randomUUID(), providerKey, webhookCredentialId, externalDeliveryId],
         ),
       ]);
 
-      // Both should succeed because event_type is different
-      // Wait — the UNIQUE constraint is on (provider_key, external_delivery_id), NOT event_type
-      // So only ONE should succeed
+      // A different event type does not bypass credential-scoped delivery deduplication.
       const succeeded = [r1, r2].filter((r) => r.status === 'fulfilled');
       const failed = [r1, r2].filter((r) => r.status === 'rejected');
 
-      // The UNIQUE constraint is (provider_key, external_delivery_id)
-      // Different event types for the same delivery → only one wins
+      // The unique key is (credential_id, external_delivery_id): only one event wins.
       expect(succeeded.length).toBe(1);
       expect(failed.length).toBe(1);
 
@@ -411,16 +423,16 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
 
       // Insert "later" event first (e.g., delivered)
       await pool.query(
-        `INSERT INTO carrier_webhook_events (id, provider_key, event_type, external_delivery_id, payload, processed)
-         VALUES ($1, $2, 'delivered', $3, '{}', FALSE)`,
-        [randomUUID(), providerKey, extId1],
+        `INSERT INTO carrier_webhook_events (id, provider_key, credential_id, event_type, external_delivery_id, payload, processed)
+         VALUES ($1, $2, $3, 'delivered', $4, '{}', FALSE)`,
+        [randomUUID(), providerKey, webhookCredentialId, extId1],
       );
 
       // Then insert "earlier" event (e.g., picked_up)
       await pool.query(
-        `INSERT INTO carrier_webhook_events (id, provider_key, event_type, external_delivery_id, payload, processed)
-         VALUES ($1, $2, 'picked_up', $3, '{}', FALSE)`,
-        [randomUUID(), providerKey, extId2],
+        `INSERT INTO carrier_webhook_events (id, provider_key, credential_id, event_type, external_delivery_id, payload, processed)
+         VALUES ($1, $2, $3, 'picked_up', $4, '{}', FALSE)`,
+        [randomUUID(), providerKey, webhookCredentialId, extId2],
       );
 
       // Both are recorded (different external delivery IDs)
@@ -476,23 +488,23 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
   // ── IDE-02: Webhook Dedup ────────────────────────────────────────────────
 
   describe('IDE-02: Webhook Dedup via UNIQUE Constraint', () => {
-    it('duplicate webhook is rejected by UNIQUE(provider_key, external_delivery_id)', async () => {
+    it('duplicate webhook is rejected by UNIQUE(credential_id, external_delivery_id)', async () => {
       const providerKey = 'aramex';
       const extId = `SHP-${randomUUID().slice(0, 8)}`;
 
       // First insert succeeds
       await pool.query(
-        `INSERT INTO carrier_webhook_events (id, provider_key, event_type, external_delivery_id, payload, processed)
-         VALUES ($1, $2, 'delivery', $3, '{}', FALSE)`,
-        [randomUUID(), providerKey, extId],
+        `INSERT INTO carrier_webhook_events (id, provider_key, credential_id, event_type, external_delivery_id, payload, processed)
+         VALUES ($1, $2, $3, 'delivery', $4, '{}', FALSE)`,
+        [randomUUID(), providerKey, webhookCredentialId, extId],
       );
 
       // Second insert with same (provider_key, external_delivery_id) fails
       await expect(
         pool.query(
-          `INSERT INTO carrier_webhook_events (id, provider_key, event_type, external_delivery_id, payload, processed)
-           VALUES ($1, $2, 'delivery', $3, '{}', FALSE)`,
-          [randomUUID(), providerKey, extId],
+          `INSERT INTO carrier_webhook_events (id, provider_key, credential_id, event_type, external_delivery_id, payload, processed)
+           VALUES ($1, $2, $3, 'delivery', $4, '{}', FALSE)`,
+          [randomUUID(), providerKey, webhookCredentialId, extId],
         ),
       ).rejects.toThrow(/duplicate key|unique constraint/i);
     });
@@ -712,7 +724,7 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
 
     it('BUYER role can list masked credentials but cannot create', async () => {
       // listForOrg allows org members to see masked credentials (no admin required for listing)
-      const buyerCaller = { sub: randomUUID(), role: 'BUYER', activeOrg: orgA } as any;
+      const buyerCaller = { sub: buyerUser, role: 'BUYER', activeOrg: orgA } as any;
 
       const result = await credentialsService.listForOrg(orgA, buyerCaller);
       // Buyer can list (masked) — but every entry must be masked
@@ -734,7 +746,7 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
     });
 
     it('DRIVER role can list masked credentials but cannot create', async () => {
-      const driverCaller = { sub: randomUUID(), role: 'DRIVER', activeOrg: orgA } as any;
+      const driverCaller = { sub: driverUser, role: 'DRIVER', activeOrg: orgA } as any;
 
       const result = await credentialsService.listForOrg(orgA, driverCaller);
       expect(result.every((c) => c.credentialsMasked === '***')).toBe(true);

@@ -117,6 +117,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   let attrWarranty: string, attrWarrantyPeriod: string;
   let productTypeId: string;
   let productId: string;
+  let privateProductId: string;
   let variant16_512: string, variant16_1tb: string, variant32_1tb: string;
   let offerA: string, offerB: string;
 
@@ -226,6 +227,8 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     // Fetch the MERCHANT_OWNER role ID for reference
     const merchantRole = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_OWNER'`);
     const merchantRoleId = merchantRole.rows[0].id;
+    const buyerRole = await pool.query(`SELECT id FROM roles WHERE key = 'BUYER'`);
+    const buyerRoleId = buyerRole.rows[0].id;
     roleIdMerchantA = merchantRoleId;
     roleIdMerchantB = merchantRoleId;
 
@@ -233,6 +236,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     await db.insert(organizationMembers).values([
       { id: randomUUID(), orgId: orgA, userId: merchantA, roleId: merchantRoleId },
       { id: randomUUID(), orgId: orgB, userId: merchantB, roleId: merchantRoleId },
+      { id: randomUUID(), orgId: orgA, userId: buyerUser, roleId: buyerRoleId },
     ]);
 
     // Explicit active store memberships are required by merchant offer writes.
@@ -391,6 +395,22 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       );
 
       productId = prod.id;
+
+      // A separate store-owned product remains private for the tenant-isolation
+      // assertions below while the Laptop Pro X becomes a shared canonical listing.
+      const privateProd = await catalog.createProduct(
+        {
+          storeId: storeA,
+          title: 'Tenant Isolation Private Product',
+          categoryId,
+          brandId,
+          productTypeId,
+          images: ['products/private-product.png'],
+        },
+        merchantA,
+      );
+      privateProductId = privateProd.id;
+
       expect(prod.title).toBe('Laptop Pro X');
       expect(prod.storeId).toBe(storeA);
       expect(prod.status).toBe('DRAFT');
@@ -793,30 +813,30 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     });
 
     it('Merchant B cannot PATCH Merchant A product → 403', async () => {
-      await expect(assertProductInOrg(database, callerB(), productId)).rejects.toThrow(
+      await expect(assertProductInOrg(database, callerB(), privateProductId)).rejects.toThrow(
         ForbiddenException,
       );
     });
 
     it('Merchant B cannot DELETE Merchant A product → 403', async () => {
-      await expect(assertProductInOrg(database, callerB(), productId)).rejects.toThrow(
+      await expect(assertProductInOrg(database, callerB(), privateProductId)).rejects.toThrow(
         ForbiddenException,
       );
     });
 
     it('Merchant A CAN access their own product', async () => {
       // Verify the data chain product → store → org
-      const prodRow = await pool.query('SELECT store_id FROM products WHERE id = $1', [productId]);
+      const prodRow = await pool.query('SELECT store_id FROM products WHERE id = $1', [privateProductId]);
       expect(prodRow.rows[0]?.store_id).toBe(storeA);
       const storeRow = await pool.query('SELECT org_id FROM stores WHERE id = $1', [storeA]);
       expect(storeRow.rows[0]?.org_id).toBe(orgA);
       expect(callerA().activeOrg).toBe(orgA);
 
-      await expect(assertProductInOrg(database, callerA(), productId)).resolves.toBeUndefined();
+      await expect(assertProductInOrg(database, callerA(), privateProductId)).resolves.toBeUndefined();
     });
 
     it('Admin bypasses tenant checks', async () => {
-      await expect(assertProductInOrg(database, adminCaller(), productId)).resolves.toBeUndefined();
+      await expect(assertProductInOrg(database, adminCaller(), privateProductId)).resolves.toBeUndefined();
     });
 
     it('Merchant B cannot create offer with Merchant A storeId → rejected', async () => {
@@ -987,7 +1007,10 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     });
 
     it('admin approves request → auto-creates attribute', async () => {
-      const result = await requestsService.approveRequest(requestId, adminUser);
+      const result = await database.withActorContext(
+        { actorKind: 'user', actorId: adminUser, actorRole: 'SUPER_ADMIN', activeOrgId: null },
+        () => requestsService.approveRequest(requestId, adminUser),
+      );
       expect(result.status).toBe('APPROVED');
       expect(result.createdEntityId).toBeTruthy();
 
@@ -1004,7 +1027,10 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
         type: 'BRAND',
         payload: { name: 'FakeBrand' },
       });
-      const rejected = await requestsService.rejectRequest(req2.id, adminUser, 'Not a real brand');
+      const rejected = await database.withActorContext(
+        { actorKind: 'user', actorId: adminUser, actorRole: 'SUPER_ADMIN', activeOrgId: null },
+        () => requestsService.rejectRequest(req2.id, adminUser, 'Not a real brand'),
+      );
       expect(rejected.status).toBe('REJECTED');
     });
   });

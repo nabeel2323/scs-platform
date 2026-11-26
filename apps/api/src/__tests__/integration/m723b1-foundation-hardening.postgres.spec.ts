@@ -147,11 +147,11 @@ describe('M7.2.3-B.1 — PostgreSQL Integration', () => {
     );
 
     // 11. Initialize services
-    const databaseService = { db } as any;
-    database = databaseService;
+    database = new DatabaseService();
+    database.db = db;
     cryptoService = new CarrierCredentialCryptoService();
-    credentialsService = new CarrierCredentialsService(databaseService, cryptoService);
-    emailResolver = new CarrierEmailResolver(databaseService);
+    credentialsService = new CarrierCredentialsService(database, cryptoService);
+    emailResolver = new CarrierEmailResolver(database);
   }, 180_000);
 
   afterAll(async () => {

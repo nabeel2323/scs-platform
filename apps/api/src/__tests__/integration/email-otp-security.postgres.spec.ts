@@ -28,6 +28,7 @@ import * as schema from '../../drizzle/schema';
 import { users } from '../../modules/identity/identity.schema';
 import { eq } from 'drizzle-orm';
 import { IdentityService } from '../../modules/identity/identity.service';
+import { DatabaseService } from '../../common/database/database.service';
 import { createMockRedisStore } from '../unit/helpers/mock-redis';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 import { normalizeEmail } from '../../common/utils/email-normalization';
@@ -90,12 +91,15 @@ describe('Email OTP Security Integration (S1.35 Phase 1)', () => {
   let container: StartedPostgreSqlContainer;
   let pool: Pool;
   let db: any;
+  let database: DatabaseService;
   let service: IdentityService;
 
   beforeAll(async () => {
     container = await new PostgreSqlContainer('postgres:16-alpine').start();
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, { schema }) as any;
+    database = new DatabaseService();
+    database.db = db;
 
     const files = fs.readdirSync(MIGRATIONS_DIR)
       .filter(f => f.endsWith('.sql') && !EXCLUDED.has(f))
@@ -127,7 +131,7 @@ describe('Email OTP Security Integration (S1.35 Phase 1)', () => {
 
     const jwt = new JwtService({ secret: 'test-jwt-secret-min-32-chars!!', signOptions: { expiresIn: '15m' } });
     service = new IdentityService(
-      { db } as any, mockRedis as any, jwt,
+      database, mockRedis as any, jwt,
       mockRateLimit as any, mockAudit as any,
       mockDelivery as any, mockRegistry as any,
     );

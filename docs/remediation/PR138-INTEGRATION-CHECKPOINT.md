@@ -38,3 +38,10 @@
 
 - Commit `bb5a0e9137b7fcb29a679b1c144b9fbda374a757` disables Product Studio's Previous control while a save is in progress or after a successful save. This aligns the footer navigation lock with the progress-step buttons and Next/Save controls.
 - The existing `product-studio-progress.test.tsx` covers sequential step access and disabling all progress buttons during save. The footer Previous-button change has not been executed in a local test environment; include it in the consolidated exact-head Web/Admin test run.
+
+
+## 2026-11-27 CI repair batch 2 checkpoint
+
+- Candidate follow-up fixes reviewed against exact-head run #1621. Web/Admin failures: permission-dependent hydration landmark and quote-normalization mismatch. API failures: actor-context test wrappers, M7.1 test-only shipping eligibility injection, M7.2.2 unsupported INACTIVE membership state, checkout currency fixture rows, catalog canonical/private fixture collision, and webhook dedup tests that predate migration 0072 credential scoping.
+- Follow-up batch is being assembled as one commit on `integration/pr138-bulk-remediation-2026-11-26`; it must be validated on its exact commit SHA before PR #170 can be considered merge-ready.
+- Keep staging-release predicate hard-disabled. Do not merge PR #138 wholesale; it remains the preserved source/recovery branch. PR #170 stays draft. No deployment, staging/prod DB writes, Render edits, or reviewer requests.

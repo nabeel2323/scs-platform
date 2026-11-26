@@ -30,6 +30,7 @@ import * as schema from '../../drizzle/schema';
 import { users, sessions } from '../../modules/identity/identity.schema';
 import { eq } from 'drizzle-orm';
 import { IdentityService } from '../../modules/identity/identity.service';
+import { DatabaseService } from '../../common/database/database.service';
 import { createMockRedisStore } from '../unit/helpers/mock-redis';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 import { normalizeEmail, hashIdentifier } from '../../common/utils/email-normalization';
@@ -92,6 +93,7 @@ describe('Email OTP E2E (S1.35 Phase 1)', () => {
   let container: StartedPostgreSqlContainer;
   let pool: Pool;
   let db: any;
+  let database: DatabaseService;
   let service: IdentityService;
   const originalEmailOtpFlag = process.env['FLAG_AUTH_EMAIL_OTP'];
 
@@ -100,6 +102,8 @@ describe('Email OTP E2E (S1.35 Phase 1)', () => {
     container = await new PostgreSqlContainer('postgres:16-alpine').start();
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, { schema }) as any;
+    database = new DatabaseService();
+    database.db = db;
 
     // Run all migrations
     const files = fs.readdirSync(MIGRATIONS_DIR)
@@ -148,7 +152,7 @@ describe('Email OTP E2E (S1.35 Phase 1)', () => {
     const jwt = new JwtService({ secret: 'test-jwt-secret-min-32-chars!!', signOptions: { expiresIn: '15m' } });
 
     service = new IdentityService(
-      { db } as any,
+      database,
       mockRedis as any,
       jwt,
       mockRateLimit as any,

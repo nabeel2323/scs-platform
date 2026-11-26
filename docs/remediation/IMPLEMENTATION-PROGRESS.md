@@ -3110,3 +3110,14 @@ Next source-only work should review the changed fixture semantics without weaken
 - Safety restrictions remain: no merge, no staging/release execution, no deployment, no shared-database migrations/seeds, no Render mutation, and no reviewer requests.
 
 Next: finish the focused failing-fixture inventory, validate the batch together, then inspect mandatory checks on the exact resulting PR #170 head. Keep PR #170 draft until CI is green and any release/database operation is separately authorized.
+
+
+## 2026-11-27 — PR #170 exact-head CI repair batch 2
+
+- The first grouped integration repair is committed at `f8ad00f4e5969f758b8f2d5d16f02f4f4c18cda1`. Exact-head run #1621 completed with Lint/Typecheck, Mobile, E6 boundary lint, and disposable full-migration validation passing; Web/Admin, API Integration, and API Unit/Coverage identified additional test harness/fixture failures.
+- This follow-up batch corrects admin hydration assertions to use the unconditional Dashboard landmark, normalizes CSS attribute-selector quoting in the sidebar test, scopes OTP tests through a real `DatabaseService`, and supplies a real `DatabaseService` to carrier credential tests.
+- Updated the M7.1 order/shipment tests with an explicit eligibility test seam; actual driver eligibility remains covered by M7.2.2. The M7.2.2 revoked-membership case uses the schema-supported `REVOKED` state, not an invalid `INACTIVE` value.
+- Corrected checkout currency snapshots so eligible stores with unknown currency remain present with null currency; added VERIFIED stores for the two-merchant E2E marketplace fixtures; separated a private catalog product from the shared canonical product; added the required active org membership for the staff-read fixture; and wrapped catalog review calls in authenticated admin actor context.
+- Corrected webhook dedup tests to seed real credentials and bind events to `credential_id`, matching migration 0072's partial unique index on `(credential_id, external_delivery_id)`. Buyer/driver credential-list test actors now use active seeded organization memberships.
+- This batch is not yet on the branch at the time this note is authored. A single consolidated commit and exact-head CI run will follow source-level validation.
+- Safety remains unchanged: no merge, staging/release activation, deployment, shared database mutation, Render mutation, or reviewer requests. PR #138 remains preserved; PR #170 remains draft until mandatory checks pass.
