@@ -83,7 +83,7 @@ class RateLimitWithRetryAfterProvider extends ShippingProvider {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function makeDbService(pool: Pool, db: any): DatabaseService {
-  const svc = Object.create(DatabaseService.prototype);
+  const svc = new DatabaseService() as any;
   svc.pool = pool;
   svc.db = db;
   return svc;

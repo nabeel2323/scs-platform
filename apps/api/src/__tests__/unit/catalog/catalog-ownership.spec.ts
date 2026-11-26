@@ -28,6 +28,12 @@ function makeMockDb(queries: {
   return {
     db: {
       query: {
+        organizationMembers: {
+          findFirst: async () => ({ id: 'membership-a' }),
+        },
+        organizations: {
+          findFirst: async () => ({ id: 'org-a', isActive: true }),
+        },
         products: {
           findFirst: async () => queries.products ?? null,
         },
