@@ -33,3 +33,8 @@
 - Do not perform staging/production DB writes, migrations, RLS/grant/default-ACL changes, provider calls, worker activation, Render changes, deployments, restarts, or releases without separate authorization.
 - No GitHub reviewers are required or should be requested.
 - Keep related changes grouped into as few commits and CI runs as practical. Keep this checkpoint and PR description current.
+
+## Additional grouped Web regression correction
+
+- Commit `bb5a0e9137b7fcb29a679b1c144b9fbda374a757` disables Product Studio's Previous control while a save is in progress or after a successful save. This aligns the footer navigation lock with the progress-step buttons and Next/Save controls.
+- The existing `product-studio-progress.test.tsx` covers sequential step access and disabling all progress buttons during save. The footer Previous-button change has not been executed in a local test environment; include it in the consolidated exact-head Web/Admin test run.
