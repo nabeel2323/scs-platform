@@ -422,6 +422,15 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
       expect(persisted.rows[0].auto_complete_claimed_by).toBe(replacementOwner);
       expect(persisted.rows[0].status).toBe('DELIVERED');
 
+      // A stale process's finally/release path must not clear the replacement
+      // worker's lease after the order has been reclaimed.
+      await (crashedWorker as any).releaseClaim(orderId);
+      const afterStaleRelease = await pool.query(
+        `SELECT auto_complete_claimed_by FROM orders WHERE id = $1`,
+        [orderId],
+      );
+      expect(afterStaleRelease.rows[0].auto_complete_claimed_by).toBe(replacementOwner);
+
       await expect(
         ordersService.completeOrder(orderId, 'system', 'SYSTEM', 'AUTO_COMPLETION', staleOwner),
       ).rejects.toThrow(/concurrent completion rejected/);
