@@ -66,7 +66,7 @@ async function checkoutOutForDelivery(
       [randomUUID(), cartId, storeId, variantId, qty, qty * 1000, ctx.offerForVariant(variantId)],
     );
   }
-  const co = await svc.checkout({ buyerId: ctx.buyerA, deliveryAddress: {}, idempotencyKey: `c-${randomUUID()}` });
+  const co = await svc.checkout({ buyerId: ctx.buyerA, deliveryAddress: {}, idempotencyKey: `c-${randomUUID()}` }, { sub: ctx.buyerA, role: 'BUYER', activeOrg: null });
   const orderId = co.subOrders[0]!.id;
   const mc = { sub: ctx.merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: ctx.orgA };
   await svc.acceptOrder(orderId, ctx.merchantA, mc);

@@ -789,7 +789,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       const subId2 = co2.subOrders.find((s: any) => s.storeId === storeA)?.id;
 
       // Reject directly from PENDING_CONFIRMATION
-      const rejected = await ordersService.rejectOrder(subId2!, merchantA, 'Out of stock');
+      const rejected = await ordersService.rejectOrder(subId2!, merchantA, 'Out of stock', { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA });
       expect(rejected.status).toBe('REJECTED');
 
       // History

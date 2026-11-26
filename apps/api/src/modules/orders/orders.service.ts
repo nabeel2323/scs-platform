@@ -1076,30 +1076,27 @@ export class OrdersService {
     orderId: string,
     buyerId: string,
     storeId: string,
-    actor: CallerContext,
   ) {
-    await this.withUserActorContext(actor, async () => {
-      await this.db.db
-        .update(orders)
-        .set({ status: 'PENDING_CONFIRMATION', updatedAt: new Date() })
-        .where(and(eq(orders.id, orderId), eq(orders.buyerId, buyerId)));
+    await this.db.db
+      .update(orders)
+      .set({ status: 'PENDING_CONFIRMATION', updatedAt: new Date() })
+      .where(eq(orders.id, orderId));
 
-      await this.recordStatusChange(
-        orderId,
-        'SUBMITTED',
-        'PENDING_CONFIRMATION',
-        buyerId,
-        'SYSTEM',
-        'Auto-advance: merchant notified, SLA timer started',
-      );
+    await this.recordStatusChange(
+      orderId,
+      'SUBMITTED',
+      'PENDING_CONFIRMATION',
+      buyerId,
+      'SYSTEM',
+      'Auto-advance: merchant notified, SLA timer started',
+    );
 
-      // Publish outbox event — merchant notification + SLA timer
-      await this.outbox.publish('order.pending_confirmation', orderId, {
-        orderId,
-        storeId,
-        buyerId,
-        slaDeadlineMinutes: 15,
-      });
+    // Publish outbox event — merchant notification + SLA timer
+    await this.outbox.publish('order.pending_confirmation', orderId, {
+      orderId,
+      storeId,
+      buyerId,
+      slaDeadlineMinutes: 15, // 15-min SLA for merchant to respond
     });
   }
 
@@ -4691,44 +4688,56 @@ export class OrdersService {
    * Concurrency-safe: SELECT ... FOR UPDATE on the master row prevents
    * lost updates when multiple sub-orders transition concurrently.
    */
-  async recalculateMasterOrderStatus(masterOrderId: string): Promise<string> {
-    return this.db.db.transaction(async (tx) => {
-      // Lock the master order row
+  async recalculateMasterOrderStatus(masterOrderId: string, txClient?: any): Promise<string> {
+    const recalculate = async (tx: any): Promise<string> => {
+      // Lock before reading the current status. Reading first can leave a stale
+      // status snapshot when concurrent sub-order completions serialize here,
+      // causing duplicate or out-of-order master transition events.
+      await tx.execute(
+        sql`SELECT id FROM master_orders WHERE id = ${masterOrderId} FOR UPDATE`,
+      );
+
       const master = await tx.query.masterOrders.findFirst({
         where: eq(masterOrders.id, masterOrderId),
       });
       if (!master) return 'SUBMITTED';
 
-      // Lock the row explicitly (Drizzle query may not FOR UPDATE)
-      await tx.execute(sql`SELECT id FROM master_orders WHERE id = ${masterOrderId} FOR UPDATE`);
-
-      // Load sub-orders
+      // Load sub-orders after acquiring the master lock.
       const subOrders = await tx.query.orders.findMany({
         where: eq(orders.masterOrderId, masterOrderId),
       });
 
       const newStatus = OrdersService.computeMasterStatus(
-        subOrders.map((so) => so['status'] as string),
+        subOrders.map((so: { status: string }) => so.status),
       );
 
-      // Only update if changed
       if (newStatus !== master['status']) {
         await tx
           .update(masterOrders)
           .set({ status: newStatus, updatedAt: new Date() })
           .where(eq(masterOrders.id, masterOrderId));
 
-        // Publish outbox event for the master status change
-        await this.outbox.publish('order.master.status_changed', masterOrderId, {
+        // Keep the derived master transition in the caller's transaction when
+        // supplied, so the master state and its outbox record commit together.
+        await this.outbox.publish(
+          'order.master.status_changed',
           masterOrderId,
-          previousStatus: master['status'],
-          newStatus,
-          buyerId: master['buyerId'],
-        });
+          {
+            masterOrderId,
+            previousStatus: master['status'],
+            newStatus,
+            buyerId: master['buyerId'],
+          },
+          {},
+          null,
+          tx,
+        );
       }
 
       return newStatus;
-    });
+    };
+
+    return txClient ? recalculate(txClient) : this.db.db.transaction(recalculate);
   }
 
   // ── M7.3-A: Delivery Completion ──────────────────────────────

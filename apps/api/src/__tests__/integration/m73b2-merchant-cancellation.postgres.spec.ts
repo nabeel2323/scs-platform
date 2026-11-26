@@ -100,7 +100,7 @@ async function createOrderAtStatus(
     buyerId,
     deliveryAddress: {},
     idempotencyKey: `b2-${randomUUID()}`,
-  });
+  }, { sub: buyerId, role: 'BUYER', activeOrg: null });
   const orderId = co.subOrders[0]!.id;
   const caller = { sub: merchantId, role: 'MERCHANT_OWNER' as const, activeOrg: orgId };
 
@@ -141,7 +141,7 @@ async function createOrderPendingConfirmation(
     buyerId,
     deliveryAddress: {},
     idempotencyKey: `b2-pc-${randomUUID()}`,
-  });
+  }, { sub: buyerId, role: 'BUYER', activeOrg: null });
   return co.subOrders[0]!.id;
 }
 

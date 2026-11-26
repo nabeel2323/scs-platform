@@ -43,7 +43,7 @@ describe('IdentityService active organization claims', () => {
       orgId: 'org-1',
     });
 
-    await expect(harness.service.switchOrg('user-1', 'org-1')).rejects.toThrow(ForbiddenException);
+    await expect(harness.service.switchOrg('user-1', 'org-1', { role: 'BUYER', activeOrg: null }, 'session-1')).rejects.toThrow(ForbiddenException);
     expect(harness.jwt.sign).not.toHaveBeenCalled();
   });
 
@@ -55,7 +55,7 @@ describe('IdentityService active organization claims', () => {
     });
     harness.db.query.organizations.findFirst.mockResolvedValue(null);
 
-    await expect(harness.service.switchOrg('user-1', 'org-1')).rejects.toThrow(ForbiddenException);
+    await expect(harness.service.switchOrg('user-1', 'org-1', { role: 'BUYER', activeOrg: null }, 'session-1')).rejects.toThrow(ForbiddenException);
     expect(harness.jwt.sign).not.toHaveBeenCalled();
   });
 
@@ -74,7 +74,7 @@ describe('IdentityService active organization claims', () => {
     harness.db.query.roles.findFirst.mockResolvedValue({ id: 'role-owner', key: 'MERCHANT_OWNER' });
     harness.db.query.rolePermissions.findMany.mockResolvedValue([]);
 
-    await harness.service.switchOrg('user-1', 'org-1');
+    await harness.service.switchOrg('user-1', 'org-1', { role: 'BUYER', activeOrg: null }, 'session-1');
 
     const signed = harness.jwt.sign.mock.calls[0][0];
     expect(signed.activeOrg).toBe('org-1');

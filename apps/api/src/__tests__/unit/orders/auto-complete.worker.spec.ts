@@ -17,7 +17,7 @@ describe('AutoCompleteWorker durable claims', () => {
       },
     );
     const results = [{ rows: [order] }, { rows: [] }, { rows: [] }];
-    const execute = vi.fn(async () => {
+    const execute = vi.fn(async (..._args: any[]) => {
       expect(actorDepth).toBeGreaterThan(0);
       return results.shift() ?? { rows: [] };
     });
@@ -67,7 +67,7 @@ describe('AutoCompleteWorker durable claims', () => {
       },
     );
     const results = [{ rows: [order] }, { rows: [] }, { rows: [] }];
-    const execute = vi.fn(async () => {
+    const execute = vi.fn(async (..._args: any[]) => {
       expect(actorDepth).toBeGreaterThan(0);
       return results.shift() ?? { rows: [] };
     });

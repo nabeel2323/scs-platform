@@ -103,7 +103,7 @@ async function createOrderOutForDelivery(
     buyerId,
     deliveryAddress: {},
     idempotencyKey: `b5-${randomUUID()}`,
-  });
+  }, { sub: buyerId, role: 'BUYER', activeOrg: null });
   const orderId = co.subOrders[0]!.id;
   const caller = { sub: merchantId, role: 'MERCHANT_OWNER' as const, activeOrg: orgId };
 

@@ -84,7 +84,7 @@ async function createOrderOutForDelivery(
     buyerId,
     deliveryAddress: {},
     idempotencyKey: `b4-${randomUUID()}`,
-  });
+  }, { sub: buyerId, role: 'BUYER', activeOrg: null });
   const orderId = co.subOrders[0]!.id;
   const caller = { sub: merchantId, role: 'MERCHANT_OWNER' as const, activeOrg: orgId };
 
@@ -621,7 +621,7 @@ describe('M7.3-B.4 — Delivery Exceptions + Retry (PostgreSQL)', () => {
       buyerId: buyerA,
       deliveryAddress: {},
       idempotencyKey: `b4-ready-${randomUUID()}`,
-    });
+    }, { sub: buyerA, role: 'BUYER', activeOrg: null });
     const orderId = co.subOrders[0]!.id;
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
 

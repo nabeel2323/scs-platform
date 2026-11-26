@@ -424,7 +424,7 @@ describe('§5 15-Scenario Security Matrix (assertProductEditableByMerchant)', ()
 
   it('C: Store A MEMBER → Store A product → ALLOW', async () => {
     await expect(
-      assertProductEditableByMerchant(db, caller(userMemberA, 'MERCHANT_STAFF', orgX), productA)
+      assertProductEditableByMerchant(db, { sub: userMemberA, role: 'MERCHANT_STAFF', activeOrg: orgX }, productA)
     ).resolves.not.toThrow();
   });
 
@@ -524,7 +524,7 @@ describe('§6 Endpoint Protection (authorized member → ALLOW, unauthorized →
   for (const ep of endpoints) {
     it(`${ep.name}: Store A member → ALLOW`, async () => {
       await expect(
-        assertProductEditableByMerchant(db, caller(userMemberA, 'MERCHANT_STAFF', orgX), ep.productId())
+        assertProductEditableByMerchant(db, { sub: userMemberA, role: 'MERCHANT_STAFF', activeOrg: orgX }, ep.productId())
       ).resolves.not.toThrow();
     });
 
@@ -542,8 +542,8 @@ describe('§6 Endpoint Protection (authorized member → ALLOW, unauthorized →
 
 describe('§7 Product Create Protection', () => {
   it('Store A member can create in Store A (assertStoreInOrg + assertStoreMember pass)', async () => {
-    await expect(assertStoreInOrg(db, caller(userMemberA, 'MERCHANT_STAFF', orgX), storeA)).resolves.not.toThrow();
-    await expect(assertStoreMember(db, caller(userMemberA, 'MERCHANT_STAFF', orgX), storeA)).resolves.not.toThrow();
+    await expect(assertStoreInOrg(db, { sub: userMemberA, role: 'MERCHANT_STAFF', activeOrg: orgX }, storeA)).resolves.not.toThrow();
+    await expect(assertStoreMember(db, { sub: userMemberA, role: 'MERCHANT_STAFF', activeOrg: orgX }, storeA)).resolves.not.toThrow();
   });
 
   it('Store B member cannot create in Store A (assertStoreMember denies)', async () => {
@@ -571,7 +571,7 @@ describe('§7 Product Create Protection', () => {
 describe('§8 Variant IDOR', () => {
   it('Store A member → variant of Store A product → ALLOW', async () => {
     await expect(
-      assertProductEditableByMerchant(db, caller(userMemberA, 'MERCHANT_STAFF', orgX), productA)
+      assertProductEditableByMerchant(db, { sub: userMemberA, role: 'MERCHANT_STAFF', activeOrg: orgX }, productA)
     ).resolves.not.toThrow();
   });
 
@@ -595,7 +595,7 @@ describe('§8 Variant IDOR', () => {
 describe('§9 Media IDOR', () => {
   it('Store A member → media on Store A product → ALLOW', async () => {
     await expect(
-      assertProductEditableByMerchant(db, caller(userMemberA, 'MERCHANT_STAFF', orgX), productA)
+      assertProductEditableByMerchant(db, { sub: userMemberA, role: 'MERCHANT_STAFF', activeOrg: orgX }, productA)
     ).resolves.not.toThrow();
   });
 
@@ -619,7 +619,7 @@ describe('§10 storeId = NULL', () => {
 
   it('MERCHANT_STAFF → NULL storeId product → DENY', async () => {
     await expect(
-      assertProductEditableByMerchant(db, caller(userMemberA, 'MERCHANT_STAFF', orgX), productNoStore)
+      assertProductEditableByMerchant(db, { sub: userMemberA, role: 'MERCHANT_STAFF', activeOrg: orgX }, productNoStore)
     ).rejects.toThrow(ForbiddenException);
   });
 
@@ -832,10 +832,10 @@ describe('§14 Concurrency 5×50', () => {
     let conflicts = 0;
     for (let i = 0; i < 50; i++) {
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
-      const result1 = await catalogService.updateProduct(productA, { title: `Conc5-${i}-a` }, ts, caller(userMemberA, 'MERCHANT_STAFF', orgX));
+      const result1 = await catalogService.updateProduct(productA, { title: `Conc5-${i}-a` }, ts, { sub: userMemberA, role: 'MERCHANT_STAFF', activeOrg: orgX });
       expect(result1).toBeDefined();
       try {
-        await catalogService.updateProduct(productA, { title: `Conc5-${i}-b` }, ts, caller(userMemberA, 'MERCHANT_STAFF', orgX));
+        await catalogService.updateProduct(productA, { title: `Conc5-${i}-b` }, ts, { sub: userMemberA, role: 'MERCHANT_STAFF', activeOrg: orgX });
       } catch {
         conflicts++;
       }
@@ -851,10 +851,10 @@ describe('§14 Concurrency 5×50', () => {
 describe('§15 Authorization + Optimistic Locking', () => {
   it('two authorized Store A users with same timestamp → one wins, one gets 409', async () => {
     const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productA}'`)).rows[0].updated_at);
-    const r1 = await catalogService.updateProduct(productA, { title: 'Lock-A' }, ts, caller(userMemberA, 'MERCHANT_STAFF', orgX));
+    const r1 = await catalogService.updateProduct(productA, { title: 'Lock-A' }, ts, { sub: userMemberA, role: 'MERCHANT_STAFF', activeOrg: orgX });
     expect(r1).toBeDefined();
     await expect(
-      catalogService.updateProduct(productA, { title: 'Lock-B' }, ts, caller(userMemberA, 'MERCHANT_STAFF', orgX))
+      catalogService.updateProduct(productA, { title: 'Lock-B' }, ts, { sub: userMemberA, role: 'MERCHANT_STAFF', activeOrg: orgX })
     ).rejects.toThrow();
   });
 

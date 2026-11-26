@@ -47,10 +47,11 @@ let productNoStore: string;
 let attrDefProduct: string, attrDefVariant: string;
 const auditEvents: any[] = [];
 
-let merchantA: CallerContext;
-let merchantB: CallerContext;
-let merchantY: CallerContext;
-let adminCaller: CallerContext;
+type CatalogActor = { sub: string; role: string; activeOrg: string };
+let merchantA: CatalogActor;
+let merchantB: CatalogActor;
+let merchantY: CatalogActor;
+let adminCaller: CatalogActor;
 
 beforeAll(async () => {
   container = await new PostgreSqlContainer('postgres:16-alpine').start();

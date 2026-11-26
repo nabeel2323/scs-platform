@@ -86,12 +86,13 @@ let roleIdMerchantA: string, roleIdMerchantB: string;
 
 // Caller factories are shared by lifecycle and tenant-isolation scenarios.
 // They read IDs populated by beforeAll, so they remain safe to declare here.
-const callerA = (): CallerContext => ({
+type CatalogActor = { sub: string; role: string; activeOrg: string };
+const callerA = (): CatalogActor => ({
   sub: merchantA,
   role: 'MERCHANT_OWNER',
   activeOrg: orgA,
 });
-const callerB = (): CallerContext => ({
+const callerB = (): CatalogActor => ({
   sub: merchantB,
   role: 'MERCHANT_OWNER',
   activeOrg: orgB,
