@@ -462,3 +462,11 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - Targeted scan covered 75 numbered SQL migrations and 62 API service/worker files. Dynamic sql.raw interpolation was limited to allowlisted day/week date_trunc literals and internally generated SAVEPOINT IDs. No CREATE TRIGGER/PROCEDURE/EXECUTE FUNCTION/CREATE RULE was found in the numbered migrations; normalize_arabic remains the application-defined function and analytics partition management is in 0002/0013/0018. Full controller/script/package SQL inventory and live catalog/ACL verification remain open.
 - PR #157 head 5f9399cd6fa80e51b508c31203dd6b5f80b37757 has consolidated CI run #1556 in progress. PR #158 head 5c7e41bf04ec16e9fc0565e57425fcc05f548ffc remains stacked on the older PR #157 head and must be reconciled only after #1556 is green.
 - No database write, migration, RLS/grant change, staging mutation, worker activation, deployment or merge occurred.
+
+
+## 26 November 2026 — PR #157 test-repair CI checkpoint
+
+- PR #157 exact head is 6901389d9975fbeb959ee89633024f83ce598272. Run #1556 (older head 5f9399...) completed with five jobs passing, including migration full apply and pg_partman verification; Integration Tests and Unit/Coverage failed before test discovery because vitest.config.ts had a malformed exclude array. Fixed the syntax at 6901389d; run #1557 is queued for the corrected head.
+- Test fixture repair commits 21d4e344... and 4341fef0... updated DatabaseService test initialization, membership schema/seed fixtures, catalog/tenant-scope mocks and scratch spec exclusion. The actual test suites have not yet been validated after these changes.
+- PR #158 head 5c7e41bf... remains stacked on old parent 77145bc...; do not rebase until #1557 is green.
+- PR #138 source/preservation refs remain identical at the latest memory commit; the PR #138 cancel/reject actor hardening and SQL scan are source-reviewed only, not tested.
