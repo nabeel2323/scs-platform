@@ -51,11 +51,13 @@ function createHarness() {
         findMany: vi.fn(async () => warehouseRows),
       },
       productVariants: {
+        findFirst: vi.fn(async () => ({ productId: 'prod-001' })),
         findMany: vi.fn(async () => [
           { id: VARIANT_ID, sku: 'SKU-001', title: 'Test Variant', productId: 'prod-001' },
         ]),
       },
       products: {
+        findFirst: vi.fn(async () => ({ storeId: STORE_ID })),
         findMany: vi.fn(async () => [
           { id: 'prod-001', title: 'Test Product' },
         ]),
