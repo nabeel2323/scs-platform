@@ -491,7 +491,12 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       const afterAccept = await inventoryService.getItem(invA1);
 
       // Cancel
-      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', { sub: buyerA, role: 'BUYER' });
+      await ordersService.cancelOrder(
+        subId!,
+        buyerA,
+        'CUSTOMER_REQUEST',
+        { sub: buyerA, role: 'BUYER' },
+      );
       const afterCancel = await inventoryService.getItem(invA1);
       expect(afterCancel.qtyReserved).toBe(afterAccept.qtyReserved - 3);
 
@@ -546,7 +551,12 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       expect(afterReserve.qtyOnHand - afterReserve.qtyReserved).toBe(12);
 
       // Cancel → release
-      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', { sub: buyerA, role: 'BUYER' });
+      await ordersService.cancelOrder(
+        subId!,
+        buyerA,
+        'CUSTOMER_REQUEST',
+        { sub: buyerA, role: 'BUYER' },
+      );
       const afterCancel = await inventoryService.getItem(testInv.id);
       expect(afterCancel.qtyReserved).toBe(0);
       expect(afterCancel.qtyOnHand).toBe(20);
@@ -721,11 +731,21 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-retry-cancel-${randomUUID()}` });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
       await ordersService.acceptOrder(subId!, merchantA);
-      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', { sub: buyerA, role: 'BUYER' });
+      await ordersService.cancelOrder(
+        subId!,
+        buyerA,
+        'CUSTOMER_REQUEST',
+        { sub: buyerA, role: 'BUYER' },
+      );
 
       // Second cancel should fail at FSM level
       await expect(
-        ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', { sub: buyerA, role: 'BUYER' }),
+        ordersService.cancelOrder(
+          subId!,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER' },
+        ),
       ).rejects.toThrow();
 
       // Stock not corrupted
