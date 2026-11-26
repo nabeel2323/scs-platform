@@ -3204,3 +3204,10 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
 - This is a service-level security correction and has not been executed locally or by CI. It remains VERIFICATION_PENDING. Include identity/profile and related authorization suites in the single consolidated exact-head CI campaign.
 - The previous four test-only fixture/assertion corrections remain in commits `cf1b1c8`, `05fce9d`, `61e772e`, and `18e80c1`. Current integration branch head after this checkpoint will be recorded by the subsequent tracker commit.
 - No staging/production writes, migrations, deployments, releases, service restarts, provider calls, or Render mutations. PR #170 remains draft/unmerged; PR #138 remains preserved and unmerged. No reviewers requested.
+
+
+## Identity controller and inventory membership fixture follow-up — 27 November 2026
+
+- Aligned `profile.controller.spec.ts` with the current controller delegation contract: profile updates forward only user + DTO; credential setup/password change forward the verified actor context and device ID; catalog favorites and saved-supplier methods forward the complete caller actor. Test-only correction commit: `63a3280384dfda6f9a75c3da6c041cfaa6181d6d`.
+- Separated organization-membership query fixtures from store-membership query fixtures in `inventory-tenant-scope.spec.ts`. The helpers intentionally enforce both organization membership and store membership; separate spies now assert each check independently instead of conflating two distinct authorization layers. Test-only correction commit: `83158d46ea963edf62ea181cf659a467af4d9adb`.
+- Neither change has been run locally or in CI. Status remains VERIFICATION_PENDING. Keep all tenant and authorization checks intact; do not use CI results from historical heads as evidence for this branch.
