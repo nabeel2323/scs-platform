@@ -122,7 +122,15 @@ function createMocks(
         findMany: vi.fn().mockResolvedValue([mockVariant]),
       },
       products: { findFirst: vi.fn().mockResolvedValue(resolvedProduct) },
-      stores: { findMany: vi.fn().mockResolvedValue([]) },
+      stores: {
+        findMany: vi.fn().mockImplementation(async () =>
+          [...new Set(resolvedCartItems.map((item) => item.storeId))].map((id) => ({
+            id,
+            currency: 'SAR',
+            orgId: null,
+          })),
+        ),
+      },
       stockMovements: { findMany: vi.fn().mockResolvedValue([]) },
       // Return ACTIVE offers matching whatever offerIds the cart items reference
       merchantOffers: {
