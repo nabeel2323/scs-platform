@@ -1,3 +1,13 @@
+## 26 November 2026 — PR #157 consolidated fixture repair checkpoint
+
+- PR #157 current exact head: 0d97dd446d5912d6d0a815d8a931a88f53db009c, OPEN / DRAFT / UNMERGED, base develop. Run #1558 is QUEUED for this exact head; do not start another run.
+- Previous run #1557 (head 6901389d...) passed non-test jobs and Migration Full Apply but failed Integration Tests and Unit/Coverage. Root causes: missing Drizzle relation-query objects for membership/store lookups, P4 fixture missing order lines and reusing orders with seeded financial records, and scratch specs excluded from coverage.
+- Commit d204b9e adds lazy AsyncLocalStorage initialization and parameterized SQL-builder fallbacks. Commit 0d97dd4 restores scratch specs, seeds UUID-backed P6 users and active memberships, initializes real DatabaseService in P6/P12 fixtures, and gives P4 HTTP probes separate orders/products/variants/order items.
+- PR #158 current head 19b96bcda29d7166a748dd5693b430cce0ea2098 (5 changed files) covers active membership/organization claims, explicit-null activeOrg alignment and profile-controller forwarding tests. It does not yet include parent commits 6901389d, d204b9e or 0d97dd4; reconcile only after #1558 passes.
+- PR #138 source and preservation refs remain synchronized at the current project-memory checkpoint. PR #138 OrdersService cancel/reject actor hardening and bounded SQL scan remain untested; preserve the 1,943-file branch and do not merge wholesale.
+- No database writes, migrations, RLS/grant changes, staging mutations, worker activation, deployments or merges occurred.
+
+
 ## 26 November 2026 — PR #158 test alignment checkpoint
 
 - PR #157 remains at d204b9ea18958f623e0379c7cc307fd0545f8863. Run #1557 is still testing prior head 6901389d; Migration Full Apply, lint/typecheck, mobile, Web/Admin and E6 checks passed, while Unit/Coverage and Integration Tests remain in progress. The latest d204b9e follow-up is not yet validated.
