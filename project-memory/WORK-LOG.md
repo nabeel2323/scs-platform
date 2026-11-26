@@ -599,3 +599,13 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - Run #1557 on 6901389d passed migration full apply and non-test jobs but failed integration/coverage: membership/store relation lookups lacked Drizzle query relations, P4 lacked valid order lines and isolated adjustment orders, and excluding scratch specs lowered coverage. Commit d204b9e adds safe parameterized SQL-builder fallbacks; 0d97dd4 restores scratch specs and repairs P4/P6/P12 fixtures.
 - PR #158 head 19b96bcda29d7166a748dd5693b430cce0ea2098 remains stacked and behind parent; reconcile only after #1558 is green.
 - PR #138 actor hardening and SQL source scan remain untested; source/preservation refs are identical. No DB writes, staging changes, RLS/grant changes, worker activation or deployment.
+
+
+## 26 November 2026 — G-002 foundation and identity slices integrated
+
+- User confirmed independent GitHub reviewers are not required; removed review submissions as a gating condition. Continue to require exact-head mandatory CI and verify source scope, mergeability, migration collisions and operational safety.
+- PR #157: marked ready and merged to develop. Exact head `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`; Actions run #1572 (`45805365809`) passed Mobile, Lint/Typecheck, Web/Admin, Boundary Lint, Unit/Coverage, Migration Full Apply, Integration Tests, Container Build/Smoke, Contract/Codegen and Build. k6 and staging release skipped. Merge commit `daabd25cd00a6d2e9d6613d3c0edba23e56b6603`.
+- PR #158: after #157 merge, retargeted to develop; GitHub compare verified six changed files only. Marked ready and merged. Exact head `703b9d49f27a67dfdd02eb47ed925b3244bc8b8f`; Actions #1576 (`45819431072`) passed all 10 mandatory jobs. k6 and staging release skipped. Merge commit/current develop head `f58047c363adb69054a92b98dbdfe226dc17da21`.
+- Preserved the ancestry by using merge commits. No duplicate parent foundation files entered the six-file identity slice.
+- Next: refresh #145/#153/#154 against develop `f58047c`; preserve #145 as the narrow canonical migration 0070 and #154 as the canonical migration 0071. Keep #138 duplicate/broader migration content excluded. Then assess #155 and #156 independently.
+- No tests rerun unnecessarily, no staging/shared DB writes, migration application, grants/default-ACL/RLS changes, Render changes, worker activation, deployment, restart or release.
