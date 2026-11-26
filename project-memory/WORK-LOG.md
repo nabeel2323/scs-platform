@@ -1,3 +1,17 @@
+## Live checkpoint — 26 November 2026 (bounded PR validation inventory)
+
+- G-002 foundation PR #157: exact head `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`; Actions run #1572 passed all 10 mandatory jobs. OPEN / DRAFT / UNMERGED, base `develop`, independent review still outstanding.
+- G-002 identity PR #158: exact head `703b9d49f27a67dfdd02eb47ed925b3244bc8b8f`; Actions run #1576 passed. Base restored to PR #157 branch; verified 19 commits ahead / 0 behind and exactly six identity/test files. OPEN / DRAFT / UNMERGED, mergeable true; independent review outstanding.
+- PR #153 outbox placeholder-dispatch safety: exact head `5294698d8db78e21df972e8ce6213f21237789fa`; prior exact-head Actions run #1523 passed all substantive jobs. OPEN / DRAFT / UNMERGED, mergeable true; independent review outstanding.
+- PR #154 order-completion atomicity + durable auto-completion lease: exact head `0faaac932faffd6ccc26c8c6fd8df2bcc660ffd4`; Actions run #1549 (`45700713258`) completed SUCCESS. All 10 executable jobs passed, including integration, full disposable migration apply, coverage, container smoke, build and codegen; k6 and staging release were skipped. OPEN / DRAFT / UNMERGED, mergeable true. Migration 0071 remains unapplied and must be sequenced after independent migration 0070/PR #145; no staging mutation or worker activation.
+- PR #155 read-only staging security/access-control audit: exact head `47c8ea7737d45128c5acc57a0d79017d7e8db165`; Actions run #1547 (`45670997394`) passed. OPEN / DRAFT / UNMERGED, mergeable true.
+- PR #156 HTTP response-cookie/webhook-token/signature log redaction: exact head `e158c505f8f4758cce4e825cf4ea2dae52051ba4`; Actions run #1541 (`45669270709`) passed. OPEN / DRAFT / UNMERGED, mergeable true.
+- All six bounded PRs above still lack independent review. GitHub rejected CODEOWNERS team requests because the teams are not collaborators on this personal repository. Do not self-approve or merge. Reviewer membership must be fixed or valid individual reviewer usernames supplied.
+- PR #138 remains the protected source/evidence branch, OPEN / DRAFT / UNMERGED, 1,943 changed files, non-mergeable. Never wholesale merge it. The project-memory branch and preservation branch are synchronized at this commit line; continue expected-SHA fast-forward only.
+- No staging/shared DB writes, migrations, grants/default-ACL/RLS changes, Render changes, worker activation, deployment, restart or release action. CI green is not deployment approval.
+
+---
+
 ## Live checkpoint — 26 November 2026 (PR #158 exact-head CI passed; stack restored)
 
 - PR #158 exact head `703b9d49f27a67dfdd02eb47ed925b3244bc8b8f` passed GitHub Actions run #1576 (`45819431072`) with conclusion SUCCESS. This run validates the corrected token-revocation fixture mocking both `organizations.findFirst()` and `organizations.findMany()`.
