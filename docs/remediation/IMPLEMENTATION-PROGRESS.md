@@ -3028,3 +3028,13 @@ Next source-only work should review the changed fixture semantics without weaken
 - No local tests were executed. No exact-head CI run exists for the latest PR #170 head; all implementation changes remain VERIFICATION_PENDING. Keep remaining fixture repairs grouped, then run one exact-head mandatory CI campaign.
 - PR #170 remains OPEN / DRAFT / UNMERGED. PR #138 remains OPEN / DRAFT / UNMERGED and its preservation ref remains synchronized at `f81c91207cfe33af2817aeaa0311ee4119436885`. Do not merge PR #138 wholesale or merge PR #170 before mandatory CI and separate staging-release/migration authorization.
 - No reviewers, staging/production DB changes, migrations, provider calls, worker activation, Render changes, deployments, restarts or releases were requested or performed.
+
+
+## Continuation checkpoint — 26 November 2026 (grouped API fixture repairs)
+
+- PR #170 integration branch now includes grouped source-reviewed repairs for shipping-label worker tenant context, IdentityService actor-context unit fixtures, CatalogOffer active-organization fixtures, and BootstrapService OTP actor-context/challenge fixtures. Latest branch head at checkpoint: `4eb959ff88c9140aa8baeacdb5ce06ffd12a5f14`.
+- These are fixture corrections only. Production authorization, tenant ownership checks, worker delivery semantics and business logic were not relaxed.
+- ProgressIndicator already rejects navigation while disabled; no production UI change was justified.
+- No local tests have been executed. No exact-head CI run exists for the current PR #170 head. The previous failed run #1617 predates this batch; all current changes remain VERIFICATION_PENDING. Keep remaining API fixture reconciliation grouped, then run one exact-head mandatory CI campaign.
+- PR #170 remains OPEN / DRAFT / UNMERGED against develop. PR #138 remains OPEN / DRAFT / UNMERGED and source/preservation refs remain synchronized at `f81c91207cfe33af2817aeaa0311ee4119436885`. Do not merge PR #138 wholesale or merge PR #170 before mandatory CI and separate staging-release/migration authorization.
+- No reviewers requested; no staging/production DB changes, migrations, provider calls, worker activation, Render changes, deployments, restarts or releases occurred.
