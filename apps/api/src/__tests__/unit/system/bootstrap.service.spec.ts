@@ -28,7 +28,11 @@ function makeService(overrides: {
   }
   try {
     return new BootstrapService(
-      { db: { insert }, transaction: vi.fn(async (fn: any) => fn({ insert })) } as any,
+      {
+        withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()),
+        db: { insert },
+        transaction: vi.fn(async (fn: any) => fn({ insert })),
+      } as any,
       { record: vi.fn() } as any,
       { checkAndIncrement: vi.fn(async () => ({ allowed: true, remaining: 9 })) } as any,
       overrides.redis ?? createMockRedisStore(),
