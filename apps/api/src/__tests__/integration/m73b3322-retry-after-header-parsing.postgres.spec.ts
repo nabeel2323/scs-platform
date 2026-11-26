@@ -106,6 +106,9 @@ function createWorkerWithProvider(
     { tryResolve: vi.fn(async () => null) } as any,
     retryPolicy ?? new CarrierRetryPolicy(),
     circuitBreaker ?? ({ canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any),
+    {} as any,
+    { getStoreTenantContextForSystem: vi.fn(async () => ({ orgId: 'test-org' })) } as any,
+    {} as any,
   );
 }
 
