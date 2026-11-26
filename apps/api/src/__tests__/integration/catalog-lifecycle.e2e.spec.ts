@@ -102,7 +102,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
         productTypes, productTypeAttributes,
         productAttributeValues, variantAttributeValues,
         merchantOffers, catalogRequests, searchQueries,
-        stores, verificationRequests, users, organizations, disputes,
+        stores, verificationRequests, users, organizations, organizationMembers, roles, disputes,
         priceLists, priceTiers, warehouses, inventoryItems,
       },
     }) as unknown as DatabaseService['db'];
@@ -121,7 +121,8 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
     // ── Instantiate services ────────────────────────────────────────
-    database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
     conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
     catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy, {} as any, {} as any, {} as any);

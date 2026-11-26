@@ -5,7 +5,7 @@ import {
   MIGRATION_LOCK_KEY,
   MIGRATION_LOCK_NAMESPACE,
   releaseMigrationLock,
-} from '../../../infra/drizzle/migration-lock';
+} from '../../common/database/migration-lock';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
 let container: StartedPostgreSqlContainer;

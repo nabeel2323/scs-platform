@@ -34,7 +34,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { INestApplication } from '@nestjs/common';
+import { HttpException, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
@@ -66,6 +66,7 @@ import * as schema from '../../drizzle/schema';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
+const ORIGINAL_DATABASE_URL = process.env['DATABASE_URL'];
 
 /** Every protected operations route and the permission key it must require. */
 const OPS_ROUTES: ReadonlyArray<{
@@ -135,6 +136,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
   let storeB: string;
   let orderA: string;
   let orderB: string;
+  let orderC: string;
+  let orderD: string;
   let payA: string;
   let payB: string;
   let retA: string;
@@ -158,10 +161,16 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     const { PostgreSqlContainer } = await import('@testcontainers/postgresql');
     const started = await new PostgreSqlContainer('postgis/postgis:16-3.4').start();
     container = started;
-    pool = new Pool({ connectionString: started.getConnectionUri() });
+    const testDatabaseUrl = started.getConnectionUri();
+    // DatabaseService.onModuleInit() creates its own pool and replaces the
+    // injected Drizzle handle. Point that lifecycle pool at this same disposable
+    // Testcontainers database, never the CI job's unrelated localhost DSN.
+    process.env['DATABASE_URL'] = testDatabaseUrl;
+    pool = new Pool({ connectionString: testDatabaseUrl });
 
     const db = drizzle(pool, { schema }) as unknown as DatabaseService['db'];
-    database = { db } as unknown as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
 
     await pool.query(
       `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`,
@@ -169,16 +178,27 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     const files = fs.readdirSync(MIGRATIONS_DIR)
       .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
       .sort();
-    for (const file of files) {
-      const text = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
-      await pool.query('BEGIN');
-      try {
-        await pool.query(text);
-        await pool.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]);
-        await pool.query('COMMIT');
-      } catch {
-        await pool.query('ROLLBACK');
+    // A migration transaction must stay on one PostgreSQL connection. Pool.query()
+    // may dispatch each statement to a different client, which makes BEGIN/COMMIT
+    // ineffective and can leave required Phase 4 tables absent while the test
+    // continues with misleading HTTP 500 failures.
+    const migrationClient = await pool.connect();
+    try {
+      for (const file of files) {
+        const migrationSql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
+        await migrationClient.query('BEGIN');
+        try {
+          await migrationClient.query(migrationSql);
+          await migrationClient.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]);
+          await migrationClient.query('COMMIT');
+        } catch (error) {
+          await migrationClient.query('ROLLBACK');
+          const detail = error instanceof Error ? error.message : String(error);
+          throw new Error(`P4 HTTP fixture failed to apply migration ${file}: ${detail}`, { cause: error });
+        }
       }
+    } finally {
+      migrationClient.release();
     }
 
     const client = await pool.connect();
@@ -261,7 +281,17 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
 
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('v1');
-    app.useGlobalFilters(new AllExceptionsFilter());
+    app.useGlobalFilters({
+      catch(exception: unknown, host: Parameters<AllExceptionsFilter['catch']>[1]) {
+        if (!(exception instanceof HttpException)) {
+          console.error(
+            '[P4 HTTP exception]',
+            exception instanceof Error ? `${exception.name}: ${exception.message}` : String(exception),
+          );
+        }
+        new AllExceptionsFilter().catch(exception, host);
+      },
+    });
     // listen(0), not init(): init() builds the graph but never binds a socket,
     // so `address()` would be null and there would be nothing to fetch against.
     await app.listen(0, '127.0.0.1');
@@ -275,6 +305,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     await app?.close();
     await pool?.end();
     await container?.stop();
+    if (ORIGINAL_DATABASE_URL === undefined) delete process.env['DATABASE_URL'];
+    else process.env['DATABASE_URL'] = ORIGINAL_DATABASE_URL;
   });
 
   /** Deterministic financial fixture + no leftover configuration per test. */
@@ -324,19 +356,88 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       [randomUUID(), storeA, merchantOwnerA, randomUUID(), storeB, merchantOwnerB],
     );
 
+    // Active organization membership is distinct from store membership and is
+    // required by the actor-context boundary for buyer, merchant and finance callers.
+    await pool.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status)
+       VALUES
+         ($1,$2,$3,(SELECT id FROM roles WHERE key='MERCHANT_OWNER'),'ACTIVE'),
+         ($4,$5,$6,(SELECT id FROM roles WHERE key='MERCHANT_OWNER'),'ACTIVE'),
+         ($7,$8,$9,(SELECT id FROM roles WHERE key='FINANCE'),'ACTIVE'),
+         ($10,$11,$12,(SELECT id FROM roles WHERE key='FINANCE'),'ACTIVE'),
+         ($13,$14,$15,(SELECT id FROM roles WHERE key='BUYER'),'ACTIVE'),
+         ($16,$17,$18,(SELECT id FROM roles WHERE key='BUYER'),'ACTIVE')`,
+      [
+        randomUUID(), orgA, merchantOwnerA,
+        randomUUID(), orgB, merchantOwnerB,
+        randomUUID(), orgA, finUserA,
+        randomUUID(), orgB, finUserB,
+        randomUUID(), orgA, buyerA,
+        randomUUID(), orgB, buyerB,
+      ],
+    );
+
     const masterA = randomUUID(); const masterB = randomUUID();
-    await pool.query(`INSERT INTO master_orders (id, buyer_id, status) VALUES ($1,$2,'SUBMITTED'),($3,$4,'SUBMITTED')`, [masterA, buyerA, masterB, buyerB]);
+    const masterC = randomUUID(); const masterD = randomUUID();
+    await pool.query(
+      `INSERT INTO master_orders (id, buyer_id, status)
+       VALUES ($1,$2,'SUBMITTED'),($3,$4,'SUBMITTED'),($5,$6,'SUBMITTED'),($7,$8,'SUBMITTED')`,
+      [masterA, buyerA, masterB, buyerB, masterC, buyerA, masterD, buyerB],
+    );
     orderA = randomUUID(); orderB = randomUUID();
+    orderC = randomUUID(); orderD = randomUUID();
     await pool.query(
       `INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, subtotal_minor, discount_minor, delivery_fee_minor, tax_minor, total_minor)
-       VALUES ($1,$2,$3,$4,'DELIVERED',5000,0,500,0,5500),($5,$6,$7,$8,'DELIVERED',7000,0,500,0,7500)`,
-      [orderA, masterA, storeA, buyerA, orderB, masterB, storeB, buyerB],
+       VALUES
+         ($1,$2,$3,$4,'DELIVERED',5000,0,500,0,5500),
+         ($5,$6,$7,$8,'DELIVERED',7000,0,500,0,7500),
+         ($9,$10,$11,$12,'DELIVERED',5000,0,500,0,5500),
+         ($13,$14,$15,$16,'DELIVERED',7000,0,500,0,7500)`,
+      [
+        orderA, masterA, storeA, buyerA,
+        orderB, masterB, storeB, buyerB,
+        orderC, masterC, storeA, buyerA,
+        orderD, masterD, storeB, buyerB,
+      ],
+    );
+
+    // Return and adjustment HTTP probes need real historical order lines.
+    const productAId = randomUUID(); const productBId = randomUUID();
+    const variantAId = randomUUID(); const variantBId = randomUUID();
+    const skuA = `P4-A-${variantAId}`; const skuB = `P4-B-${variantBId}`;
+    await pool.query(
+      `INSERT INTO products (id, store_id, slug, title)
+       VALUES ($1,$2,$3,'P4 Product A'),($4,$5,$6,'P4 Product B')`,
+      [productAId, storeA, `p4-a-${productAId}`, productBId, storeB, `p4-b-${productBId}`],
+    );
+    await pool.query(
+      `INSERT INTO product_variants (id, product_id, sku)
+       VALUES ($1,$2,$3),($4,$5,$6)`,
+      [variantAId, productAId, skuA, variantBId, productBId, skuB],
+    );
+    await pool.query(
+      `INSERT INTO order_items (id, order_id, variant_id, sku, title, quantity, unit_price_minor, line_total_minor)
+       VALUES
+         ($1,$2,$3,$4,'P4 Product A',1,5000,5000),
+         ($5,$6,$3,$4,'P4 Product A',1,5000,5000),
+         ($7,$8,$9,$10,'P4 Product B',1,7000,7000),
+         ($11,$12,$9,$10,'P4 Product B',1,7000,7000)`,
+      [
+        randomUUID(), orderA, variantAId, skuA,
+        randomUUID(), orderC,
+        randomUUID(), orderB, variantBId, skuB,
+        randomUUID(), orderD,
+      ],
     );
     payA = randomUUID(); payB = randomUUID();
     await pool.query(
       `INSERT INTO payment_records (id, order_id, payment_method, status, amount_minor, currency)
-       VALUES ($1,$2,'CASH_ON_DELIVERY','CONFIRMED',5500,'SYP'),($3,$4,'CASH_ON_DELIVERY','CONFIRMED',7500,'SYP')`,
-      [payA, orderA, payB, orderB],
+       VALUES
+         ($1,$2,'CASH_ON_DELIVERY','CONFIRMED',5500,'SYP'),
+         ($3,$4,'CASH_ON_DELIVERY','CONFIRMED',7500,'SYP'),
+         ($5,$6,'CASH_ON_DELIVERY','CONFIRMED',5500,'SYP'),
+         ($7,$8,'CASH_ON_DELIVERY','CONFIRMED',7500,'SYP')`,
+      [payA, orderA, payB, orderB, randomUUID(), orderC, randomUUID(), orderD],
     );
     retA = randomUUID(); retB = randomUUID();
     await pool.query(
@@ -556,7 +657,7 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
           ? JSON.parse(JSON.stringify(route.body).replace('PLACEHOLDER_ORG_A', orgA))
           : undefined;
         const res = await req(route.method, route.path, { token: admin, body });
-        expect(res.status, `${route.method} ${route.path}`).toBeGreaterThanOrEqual(200);
+        expect(res.status, `${route.method} ${route.path}: ${JSON.stringify(res.body)}`).toBeGreaterThanOrEqual(200);
         expect(res.status, `${route.method} ${route.path}`).toBeLessThan(300);
       }
     });
@@ -898,7 +999,7 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     // built the fixture, and a describe-level literal would run at collection time.
     function createBody() {
       return {
-        subOrderId: orderA,
+        subOrderId: orderC,
         adjustmentType: 'SETTLEMENT_CORRECTION',
         amountMinor: 1500,
         currency: 'SYP',
@@ -1072,7 +1173,7 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
 
       // 400 from line validation, not 403 from the gate: the gate did not run.
       const res = await req('POST', '/v1/returns', {
-        token: await mint('BUYER', orgA, { sub: buyerA }), body: gateProbeBody(orderA),
+        token: await mint('BUYER', orgA, { sub: buyerA }), body: gateProbeBody(orderC),
       });
       expect(res.status).toBe(400);
       expect(detailOf(res)).toMatch(/At least one return line is required/i);
@@ -1127,7 +1228,7 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
 
       // Org B is still outside, even though its buyer has the same role and perms.
       const outside = await req('POST', '/v1/returns', {
-        token: await mint('BUYER', orgB, { sub: buyerB }), body: gateProbeBody(orderB),
+        token: await mint('BUYER', orgB, { sub: buyerB }), body: gateProbeBody(orderD),
       });
       expect(outside.status).toBe(403);
       expect(codeOf(outside)).toBe('p13_pilot_org_not_allowlisted');

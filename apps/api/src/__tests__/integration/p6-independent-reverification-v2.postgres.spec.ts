@@ -89,7 +89,8 @@ beforeAll(async () => {
   await applyMigrations(pool);
 
   const drizzleDb = drizzle(pool, { schema: schema as any }) as any;
-  db = { db: drizzleDb } as any;
+  db = new DatabaseService();
+  db.db = drizzleDb;
 
   taxonomyService = new CatalogTaxonomyService(db);
   catalogService = new CatalogService(
@@ -763,6 +764,13 @@ describe('§14 Concurrency 5×50', () => {
       `INSERT INTO store_members (store_id, user_id, role, status) VALUES ($1, $2, 'MEMBER', 'ACTIVE')`,
       [storeA, tempUser],
     );
+    // Store authorization now also requires a live organization membership.
+    await pool.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status)
+       SELECT gen_random_uuid(), $1, $2, id, 'ACTIVE'
+       FROM roles WHERE key = 'MERCHANT_STAFF'`,
+      [orgX, tempUser],
+    );
 
     let allowed = 0, denied = 0;
     for (let i = 0; i < 50; i++) {
@@ -792,6 +800,13 @@ describe('§14 Concurrency 5×50', () => {
     await pool.query(
       `INSERT INTO store_members (store_id, user_id, role, status) VALUES ($1, $2, 'MEMBER', 'INACTIVE')`,
       [storeA, tempUser],
+    );
+    // The test toggles store membership; organization membership remains active.
+    await pool.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status)
+       SELECT gen_random_uuid(), $1, $2, id, 'ACTIVE'
+       FROM roles WHERE key = 'MERCHANT_STAFF'`,
+      [orgX, tempUser],
     );
 
     let allowed = 0, denied = 0;

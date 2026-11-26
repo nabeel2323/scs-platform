@@ -545,11 +545,48 @@ jobs:
       - name: Start disposable services
         run: |
           docker network create ci-smoke-net
+
+          # The production-like API startup gate requires verified PostgreSQL TLS.
+          # Give the disposable smoke database a short-lived, locally trusted cert
+          # whose SAN matches the Docker service DNS name; never disable verification.
+          # Use a Docker-managed volume so certificate ownership can be set
+          # inside a container. GitHub-hosted runner bind mounts may reject host
+          # chown even when the workflow runs as the runner's privileged user.
+          docker volume create ci-pg-certs
+          docker run --rm -v ci-pg-certs:/certs alpine:3.21 sh -ec '
+            apk add --no-cache openssl
+            openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 \
+              -keyout /certs/server.key \
+              -out /certs/ca.crt \
+              -subj "/CN=ci-postgres" \
+              -addext "subjectAltName=DNS:ci-postgres"
+            cp /certs/ca.crt /certs/server.crt
+            chown 70:70 /certs/server.key /certs/server.crt
+            chmod 600 /certs/server.key
+            chmod 644 /certs/server.crt /certs/ca.crt
+          '
+
           docker run -d --name ci-postgres --network ci-smoke-net \
             -e POSTGRES_PASSWORD=scs -e POSTGRES_USER=scs -e POSTGRES_DB=scs_platform \
-            postgres:16-alpine
+            -v ci-pg-certs:/var/lib/postgresql/certs:ro \
+            postgres:16-alpine \
+            -c ssl=on \
+            -c ssl_cert_file=/var/lib/postgresql/certs/server.crt \
+            -c ssl_key_file=/var/lib/postgresql/certs/server.key
           docker run -d --name ci-redis --network ci-smoke-net redis:7-alpine
-          sleep 10
+          # Wait for real readiness instead of assuming fixed startup time.
+          timeout 60s sh -c 'until docker exec ci-postgres pg_isready -U scs -d scs_platform >/dev/null 2>&1; do sleep 1; done'
+          timeout 30s sh -c 'until docker exec ci-redis redis-cli ping 2>/dev/null | grep -q PONG; do sleep 1; done'
+
+          # Never use the privileged bootstrap account as the API runtime role.
+          # This production-like smoke principal owns no schema/tables and cannot
+          # administer roles/databases or bypass row-level security.
+          docker exec ci-postgres psql -v ON_ERROR_STOP=1 -U scs -d scs_platform \
+            -c "CREATE ROLE scs_api_runtime LOGIN PASSWORD 'ci-runtime-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"
+          docker exec ci-postgres psql -v ON_ERROR_STOP=1 -U scs -d scs_platform \
+            -c "GRANT CONNECT ON DATABASE scs_platform TO scs_api_runtime"
+          docker exec ci-postgres psql -v ON_ERROR_STOP=1 -U scs -d scs_platform \
+            -c "GRANT USAGE ON SCHEMA public TO scs_api_runtime"
 
       # S1.28 D-CI-4: `main.ts` bootstrap calls `assertOtpHmacConfig()` (added by
       # S1.3 / audit finding M-02). It fails the process under NODE_ENV=production
@@ -569,7 +606,9 @@ jobs:
         run: |
           docker run -d --name ci-api --network ci-smoke-net \
             -e NODE_ENV=production \
-            -e DATABASE_URL=postgresql://scs:scs@ci-postgres:5432/scs_platform \
+            -e DATABASE_URL=postgresql://scs_api_runtime:ci-runtime-password@ci-postgres:5432/scs_platform \
+            -e PGSSLROOTCERT=/ci-pg-certs/ca.crt \
+            -v ci-pg-certs:/ci-pg-certs:ro \
             -e REDIS_URL=redis://ci-redis:6379 \
             -e JWT_ACCESS_SECRET='ci-test-secret-at-least-16-chars!!' \
             -e OTP_HMAC_SECRET='ci-test-otp-hmac-secret-at-least-32-chars!!' \
@@ -631,6 +670,7 @@ jobs:
         run: |
           docker rm -f ci-api ci-postgres ci-redis 2>/dev/null || true
           docker network rm ci-smoke-net 2>/dev/null || true
+          docker volume rm ci-pg-certs 2>/dev/null || true
           docker rmi scs-api:ci-test 2>/dev/null || true
 
   # ── Staging Release (develop push only, after all mandatory CI gates) ────

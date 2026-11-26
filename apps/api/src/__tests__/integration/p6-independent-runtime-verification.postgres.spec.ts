@@ -58,7 +58,8 @@ beforeAll(async () => {
   await applyMigrations(pool);
 
   const drizzleDb = drizzle(pool, { schema: schema as any }) as any;
-  db = { db: drizzleDb } as any;
+  db = new DatabaseService();
+  db.db = drizzleDb;
 
   taxonomyService = new CatalogTaxonomyService(db);
   catalogService = new CatalogService(
@@ -76,15 +77,47 @@ beforeAll(async () => {
   await pool.query(`INSERT INTO organizations (id, name, type, country) VALUES ($1, 'OrgX', 'WHOLESALER', 'SA')`, [orgX]);
   await pool.query(`INSERT INTO organizations (id, name, type, country) VALUES ($1, 'OrgY', 'WHOLESALER', 'SA')`, [orgY]);
 
+  // These callers now need UUID-backed users and active organization memberships.
+  const merchantAId = randomUUID();
+  const merchantBId = randomUUID();
+  const merchantYId = randomUUID();
+  const adminId = randomUUID();
+  await pool.query(
+    `INSERT INTO roles (id, key, name) VALUES ($1, 'MERCHANT_OWNER', 'Merchant Owner')
+     ON CONFLICT (key) DO NOTHING`,
+    [randomUUID()],
+  );
+  const roleResult = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_OWNER' LIMIT 1`);
+  const merchantRoleId = roleResult.rows[0].id;
+  await pool.query(
+    `INSERT INTO users (id, phone, email, full_name) VALUES
+      ($1, '+966500000001', 'merchant-a@test.local', 'Merchant A'),
+      ($2, '+966500000002', 'merchant-b@test.local', 'Merchant B'),
+      ($3, '+966500000003', 'merchant-y@test.local', 'Merchant Y'),
+      ($4, '+966500000004', 'platform-admin@test.local', 'Platform Admin')`,
+    [merchantAId, merchantBId, merchantYId, adminId],
+  );
+  await pool.query(
+    `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES
+      ($1, $2, $3, $4, 'ACTIVE'),
+      ($5, $2, $6, $4, 'ACTIVE'),
+      ($7, $8, $9, $4, 'ACTIVE')`,
+    [
+      randomUUID(), orgX, merchantAId, merchantRoleId,
+      randomUUID(), merchantBId,
+      randomUUID(), orgY, merchantYId,
+    ],
+  );
+
   storeA = randomUUID(); storeB = randomUUID(); storeY = randomUUID();
   await pool.query(`INSERT INTO stores (id, org_id, slug, display_name) VALUES ($1, $2, 'store-a', 'Store A')`, [storeA, orgX]);
   await pool.query(`INSERT INTO stores (id, org_id, slug, display_name) VALUES ($1, $2, 'store-b', 'Store B')`, [storeB, orgX]);
   await pool.query(`INSERT INTO stores (id, org_id, slug, display_name) VALUES ($1, $2, 'store-y', 'Store Y')`, [storeY, orgY]);
 
-  merchantA = { sub: 'merchant-a', role: 'MERCHANT', activeOrg: orgX };
-  merchantB = { sub: 'merchant-b', role: 'MERCHANT', activeOrg: orgX };
-  merchantY = { sub: 'merchant-y', role: 'MERCHANT', activeOrg: orgY };
-  adminCaller = { sub: 'admin', role: 'ADMIN', activeOrg: orgX };
+  merchantA = { sub: merchantAId, role: 'MERCHANT', activeOrg: orgX };
+  merchantB = { sub: merchantBId, role: 'MERCHANT', activeOrg: orgX };
+  merchantY = { sub: merchantYId, role: 'MERCHANT', activeOrg: orgY };
+  adminCaller = { sub: adminId, role: 'ADMIN', activeOrg: orgX };
 
   productTypeId = randomUUID();
   await pool.query(`INSERT INTO product_types (id, code, name) VALUES ($1, 'v-type', 'V-Type')`, [productTypeId]);

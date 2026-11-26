@@ -76,6 +76,8 @@ describe('runtime database identity SQL — PostgreSQL', () => {
       expect(identity.effective_role_bypassrls).toBe(false);
       expect(identity.effective_role_createrole).toBe(false);
       expect(identity.effective_role_createdb).toBe(false);
+      expect(identity.owns_public_tables).toBe(false);
+      expect(identity.owns_public_schema).toBe(false);
       expect(message).not.toContain(LOGIN_PASSWORD);
     } finally {
       client.release();

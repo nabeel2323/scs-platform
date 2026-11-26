@@ -35,6 +35,25 @@ export function isProductionLikeEnv(nodeEnv?: string): boolean {
 }
 
 /**
+ * Resolve the effective deployment environment. Render exposes RENDER_SERVICE_ID
+ * for deployed services; if NODE_ENV is missing or accidentally set to development
+ * or test there, treat the process as production. This prevents deployed services
+ * from receiving development secret fallbacks or running development migrations.
+ */
+export function resolveDeploymentNodeEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const configured = (env['NODE_ENV'] ?? 'development').trim().toLowerCase();
+  if (
+    env['RENDER_SERVICE_ID'] &&
+    (configured === 'development' || configured === 'test')
+  ) {
+    return 'production';
+  }
+  return configured;
+}
+
+/**
  * Resolve the JWT access-token signing secret, enforcing production rules.
  *
  * - In production-like environments (`staging`, `production`, or any value
@@ -86,7 +105,7 @@ export function resolveJwtAccessSecret(input: JwtSecretGateInput = {}): string {
  */
 export function assertJwtConfig(env: NodeJS.ProcessEnv = process.env): string {
   return resolveJwtAccessSecret({
-    nodeEnv: env['NODE_ENV'],
+    nodeEnv: resolveDeploymentNodeEnv(env),
     accessSecret: env['JWT_ACCESS_SECRET'],
   });
 }
@@ -170,7 +189,7 @@ export function resolveOtpHmacSecret(input: OtpHmacSecretGateInput = {}): string
  */
 export function assertOtpHmacConfig(env: NodeJS.ProcessEnv = process.env): string {
   return resolveOtpHmacSecret({
-    nodeEnv: env['NODE_ENV'],
+    nodeEnv: resolveDeploymentNodeEnv(env),
     secret: env['OTP_HMAC_SECRET'],
   });
 }
@@ -357,7 +376,7 @@ export function assertBootstrapOwnerEmail(
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
   return resolveBootstrapOwnerEmail({
-    nodeEnv: env['NODE_ENV'],
+    nodeEnv: resolveDeploymentNodeEnv(env),
     email: env['SCS_BOOTSTRAP_OWNER_EMAIL'],
   });
 }
@@ -374,12 +393,13 @@ export function assertBootstrapOwnerEmail(
 export function assertProductionConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): AlertSinkStatus {
-  if (!isProductionLikeEnv(env['NODE_ENV'])) {
+  const nodeEnv = resolveDeploymentNodeEnv(env);
+  if (!isProductionLikeEnv(nodeEnv)) {
     return describeAlertSink(env['P13_OPS_ALERT_WEBHOOK_URL']);
   }
 
-  resolveDatabaseUrl({ nodeEnv: env['NODE_ENV'], url: env['DATABASE_URL'] });
-  resolveRedisUrl({ nodeEnv: env['NODE_ENV'], url: env['REDIS_URL'] });
+  resolveDatabaseUrl({ nodeEnv, url: env['DATABASE_URL'] });
+  resolveRedisUrl({ nodeEnv, url: env['REDIS_URL'] });
 
   const sink = describeAlertSink(env['P13_OPS_ALERT_WEBHOOK_URL']);
   if (sink.invalidReason) {
