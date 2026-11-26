@@ -1,3 +1,13 @@
+## PR #157 — P4 database lifecycle root cause and test-harness correction (26 November 2026)
+
+- CI #1561 (`45778570221`) exact head `e0f1bc2e3734f5e74384827270ab104752868bf8` failed Unit/Coverage and Integration. Lint/typecheck, Flutter, Web/Admin, E6 and Migration Full Apply passed.
+- Root cause established from the exact P4 diagnostic logs: requests failed with `connect ECONNREFUSED 127.0.0.1:25433`. The spec manually started/migrated a Testcontainers DB and injected its Drizzle handle, but Nest lifecycle called `DatabaseService.onModuleInit()`, which created another pool using CI's unrelated `DATABASE_URL` and replaced the injected handle. All P4 route failures were downstream of that misdirected lifecycle pool.
+- Fixed in PR #157 commit `ba85744e4ce13337f1c16439eec5d33241b77dfa`: set `process.env.DATABASE_URL` to the Testcontainers connection URI immediately after starting the container; restore the original value in `afterAll`. This makes the DatabaseService lifecycle pool point at the same disposable DB used for migrations/fixtures. No production source or authorization assertion changed.
+- Exact-head CI for `ba85744e4ce13337f1c16439eec5d33241b77dfa` must complete before claiming repair success. Do not trigger a duplicate workflow.
+- PR #138 remains protected; source and preservation refs were identical at `7d2d5eb1b9022abd233d5e0a53572ce47f3ebfdb` before this documentation-only commit. Keep refs synced by expected-SHA fast-forward only.
+
+---
+
 ## PR #157 diagnostic CI #1560 and compile correction (26 November 2026)
 
 - Run #1560 (`45778372173`) on `b2a1131017e6117118a68e33bfd7da26b37bbfd0` failed at Lint & Typecheck before downstream jobs. Flutter passed; Web/Admin, unit/coverage, migration, integration, contract, boundary, build, container and staging jobs were skipped.
