@@ -66,6 +66,7 @@ import * as schema from '../../drizzle/schema';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
+const ORIGINAL_DATABASE_URL = process.env['DATABASE_URL'];
 
 /** Every protected operations route and the permission key it must require. */
 const OPS_ROUTES: ReadonlyArray<{
@@ -160,7 +161,12 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     const { PostgreSqlContainer } = await import('@testcontainers/postgresql');
     const started = await new PostgreSqlContainer('postgis/postgis:16-3.4').start();
     container = started;
-    pool = new Pool({ connectionString: started.getConnectionUri() });
+    const testDatabaseUrl = started.getConnectionUri();
+    // DatabaseService.onModuleInit() creates its own pool and replaces the
+    // injected Drizzle handle. Point that lifecycle pool at this same disposable
+    // Testcontainers database, never the CI job's unrelated localhost DSN.
+    process.env['DATABASE_URL'] = testDatabaseUrl;
+    pool = new Pool({ connectionString: testDatabaseUrl });
 
     const db = drizzle(pool, { schema }) as unknown as DatabaseService['db'];
     database = new DatabaseService();
@@ -299,6 +305,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     await app?.close();
     await pool?.end();
     await container?.stop();
+    if (ORIGINAL_DATABASE_URL === undefined) delete process.env['DATABASE_URL'];
+    else process.env['DATABASE_URL'] = ORIGINAL_DATABASE_URL;
   });
 
   /** Deterministic financial fixture + no leftover configuration per test. */
