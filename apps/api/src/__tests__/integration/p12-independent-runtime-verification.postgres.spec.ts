@@ -135,6 +135,13 @@ describe('P12 Independent Runtime Verification', () => {
       ($6,'Admin','+96300000006'),
       ($7,'Mod','+96300000007')`, [buyerA, buyerB, merchantA1, merchantA2, merchantB1, adminUser, modUser]);
 
+    // Tenant actor checks require an active organization membership for each merchant.
+    await q(pool, `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES
+      ($1,$2,$3,(SELECT id FROM roles WHERE key='MERCHANT_OWNER'),'ACTIVE'),
+      ($4,$5,$6,(SELECT id FROM roles WHERE key='MERCHANT_OWNER'),'ACTIVE'),
+      ($7,$8,$9,(SELECT id FROM roles WHERE key='MERCHANT_OWNER'),'ACTIVE')`,
+      [randomUUID(), orgA, merchantA1, randomUUID(), orgA, merchantA2, randomUUID(), orgB, merchantB1]);
+
     // Payment provider registry — real service dependencies
     registry = new PaymentProviderRegistry();
     const manual = new ManualVerificationProvider();
