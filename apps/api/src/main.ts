@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import pino from 'pino';
 import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { IoAdapter } from '@nestjs/platform-socket.io';
@@ -18,6 +19,10 @@ import {
   DEVICE_TRUST_PROOF_HEADER,
   resolveDeviceTrustCookieConfig,
 } from './common/auth/device-trust-cookie';
+import {
+  HTTP_LOG_REDACT_PATHS,
+  sanitizeRequestLog,
+} from './common/logging/http-log-redaction';
 
 async function bootstrap() {
   // Fail fast on insecure JWT configuration (API-B7) before creating the app,
@@ -143,9 +148,7 @@ async function bootstrap() {
           : undefined,
       redact: {
         paths: [
-          'req.headers.authorization',
-          'req.headers.cookie',
-          'req.headers["set-cookie"]',
+          ...HTTP_LOG_REDACT_PATHS,
           // Authentication and verification secrets are never allowed in request logs.
           'req.body',
           'res.body',
@@ -164,6 +167,11 @@ async function bootstrap() {
           'err.response.headers["set-cookie"]',
         ],
         censor: '[REDACTED]',
+      },
+      serializers: {
+        // Sanitize URL/query/route params before pino-http serializes request metadata.
+        req: (req: Parameters<typeof pino.stdSerializers.req>[0]) =>
+          sanitizeRequestLog(pino.stdSerializers.req(req)),
       },
     }),
   );
