@@ -3936,46 +3936,56 @@ export class OrdersService {
    * Concurrency-safe: SELECT ... FOR UPDATE on the master row prevents
    * lost updates when multiple sub-orders transition concurrently.
    */
-  async recalculateMasterOrderStatus(masterOrderId: string): Promise<string> {
-    return this.db.db.transaction(async (tx) => {
-      // Lock the master order row
+  async recalculateMasterOrderStatus(masterOrderId: string, txClient?: any): Promise<string> {
+    const recalculate = async (tx: any): Promise<string> => {
+      // Lock before reading the current status. Reading first can leave a stale
+      // status snapshot when concurrent sub-order completions serialize here,
+      // causing duplicate or out-of-order master transition events.
+      await tx.execute(
+        sql`SELECT id FROM master_orders WHERE id = ${masterOrderId} FOR UPDATE`,
+      );
+
       const master = await tx.query.masterOrders.findFirst({
         where: eq(masterOrders.id, masterOrderId),
       });
       if (!master) return 'SUBMITTED';
 
-      // Lock the row explicitly (Drizzle query may not FOR UPDATE)
-      await tx.execute(
-        sql`SELECT id FROM master_orders WHERE id = ${masterOrderId} FOR UPDATE`
-      );
-
-      // Load sub-orders
+      // Load sub-orders after acquiring the master lock.
       const subOrders = await tx.query.orders.findMany({
         where: eq(orders.masterOrderId, masterOrderId),
       });
 
       const newStatus = OrdersService.computeMasterStatus(
-        subOrders.map(so => so['status'] as string),
+        subOrders.map((so: { status: string }) => so.status),
       );
 
-      // Only update if changed
       if (newStatus !== master['status']) {
         await tx
           .update(masterOrders)
           .set({ status: newStatus, updatedAt: new Date() })
           .where(eq(masterOrders.id, masterOrderId));
 
-        // Publish outbox event for the master status change
-        await this.outbox.publish('order.master.status_changed', masterOrderId, {
+        // Keep the derived master transition in the caller's transaction when
+        // supplied, so the master state and its outbox record commit together.
+        await this.outbox.publish(
+          'order.master.status_changed',
           masterOrderId,
-          previousStatus: master['status'],
-          newStatus,
-          buyerId: master['buyerId'],
-        });
+          {
+            masterOrderId,
+            previousStatus: master['status'],
+            newStatus,
+            buyerId: master['buyerId'],
+          },
+          {},
+          null,
+          tx,
+        );
       }
 
       return newStatus;
-    });
+    };
+
+    return txClient ? recalculate(txClient) : this.db.db.transaction(recalculate);
   }
 
   // ── M7.3-A: Delivery Completion ──────────────────────────────
@@ -4008,29 +4018,24 @@ export class OrdersService {
       );
     }
 
-    // Atomically record buyer confirmation (optimistic lock)
-    const flipResult = await this.db.db
-      .update(orders)
-      .set({ buyerConfirmedAt: new Date(), updatedAt: new Date() })
-      .where(
-        and(
-          eq(orders.id, orderId),
-          eq(orders.status, 'DELIVERED'),
-          sql`${orders.buyerConfirmedAt} IS NULL`,
-        ),
-      )
-      .returning({ id: orders.id });
-
-    if (flipResult.length === 0) {
-      // Race: another confirmation already happened — idempotent
-      const current = await this.getOrder(orderId);
-      if (current['status'] === 'COMPLETED') {
-        return this.getOrderWithItems(orderId, caller);
+    // Buyer confirmation and completion must share one transaction. Recording
+    // buyerConfirmedAt before completeOrder commits can strand a DELIVERED order
+    // if a later shipment/history/outbox write fails. completeOrder now writes
+    // buyerConfirmedAt together with the guarded status transition.
+    try {
+      return await this.completeOrder(orderId, userId, 'BUYER', 'BUYER_CONFIRMATION');
+    } catch (error) {
+      // Auto-completion may win after the initial DELIVERED read but before
+      // this request's guarded update. Preserve the endpoint's idempotent
+      // contract when the competing transition completed the same order.
+      if (error instanceof ConflictException) {
+        const current = await this.getOrder(orderId);
+        if (current['status'] === 'COMPLETED') {
+          return this.getOrderWithItems(orderId, caller);
+        }
       }
-      throw new ConflictException('Delivery confirmation already processed');
+      throw error;
     }
-
-    return this.completeOrder(orderId, userId, 'BUYER', 'BUYER_CONFIRMATION');
   }
 
   /**
@@ -4046,7 +4051,11 @@ export class OrdersService {
     userId: string,
     actorType: string,
     source: string,
+    autoCompleteClaimOwner?: string,
   ) {
+    if (source === 'AUTO_COMPLETION' && !autoCompleteClaimOwner) {
+      throw new ConflictException('Auto-completion requires an active worker claim');
+    }
     const order = await this.getOrder(orderId);
     this.assertTransition(order['status'], 'COMPLETED');
 
@@ -4055,58 +4064,88 @@ export class OrdersService {
     const actorUserId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
       ? userId : null;
 
-    // Atomic optimistic lock on order status
-    const flipResult = await this.db.db
-      .update(orders)
-      .set({ status: 'COMPLETED', updatedAt: new Date() })
-      .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
-      .returning({ id: orders.id });
+    // The order flip, shipment/history records, outbox events and master-order
+    // aggregation form one state transition. If any write fails, the entire
+    // completion rolls back and the order remains DELIVERED for a safe retry.
+    await this.db.db.transaction(async (tx) => {
+      const flipResult = await tx
+        .update(orders)
+        .set({
+          status: 'COMPLETED',
+          updatedAt: new Date(),
+          ...(source === 'BUYER_CONFIRMATION' ? { buyerConfirmedAt: new Date() } : {}),
+          autoCompleteClaimedAt: null,
+          autoCompleteClaimedBy: null,
+        })
+        .where(and(
+          eq(orders.id, orderId),
+          eq(orders.status, order['status']),
+          ...(autoCompleteClaimOwner
+            ? [
+                eq(orders.autoCompleteClaimedBy, autoCompleteClaimOwner),
+                sql`${orders.autoCompleteClaimedAt} > NOW() - INTERVAL '5 minutes'`,
+              ]
+            : []),
+        ))
+        .returning({ id: orders.id });
 
-    if (flipResult.length === 0) {
-      throw new ConflictException('Order status already changed — concurrent completion rejected');
-    }
-
-    // NO inventory movement — stock was consumed at DELIVERED
-
-    // Update shipment completedAt (shipment stays in DELIVERED status)
-    const shipment = await this.getShipmentByOrderId(orderId);
-    if (shipment) {
-      await this.db.db
-        .update(shipments)
-        .set({ completedAt: new Date(), updatedAt: new Date() })
-        .where(eq(shipments.id, shipment['id']));
-
-      // Shipment event (only if not already COMPLETED)
-      if (shipment['status'] !== 'COMPLETED') {
-        await this.db.db.insert(shipmentEvents).values({
-          id: crypto.randomUUID(),
-          shipmentId: shipment['id'],
-          eventType: 'COMPLETED',
-          actorUserId: actorUserId,
-          actorType,
-          notes: `Order completed via ${source}`,
-        });
+      if (flipResult.length === 0) {
+        throw new ConflictException('Order status already changed — concurrent completion rejected');
       }
-    }
 
-    // Order status history
-    await this.recordStatusChange(orderId, order['status'], 'COMPLETED', actorUserId, actorType);
+      // NO inventory movement — stock was consumed at DELIVERED.
 
-    // Outbox event
-    await this.outbox.publish('order.completed', orderId, {
-      orderId,
-      storeId: order['storeId'],
-      source,
+      const shipment = await tx.query.shipments.findFirst({
+        where: eq(shipments.orderId, orderId),
+      });
+      if (shipment) {
+        await tx
+          .update(shipments)
+          .set({ completedAt: new Date(), updatedAt: new Date() })
+          .where(eq(shipments.id, shipment['id']));
+
+        if (shipment['status'] !== 'COMPLETED') {
+          await tx.insert(shipmentEvents).values({
+            id: crypto.randomUUID(),
+            shipmentId: shipment['id'],
+            eventType: 'COMPLETED',
+            actorUserId,
+            actorType,
+            notes: `Order completed via ${source}`,
+          });
+        }
+      }
+
+      await tx.insert(orderStatusHistory).values({
+        id: crypto.randomUUID(),
+        orderId,
+        fromStatus: order['status'],
+        toStatus: 'COMPLETED',
+        changedBy: actorUserId,
+        actorType,
+        reason: null,
+      });
+
+      await this.outbox.publish(
+        'order.completed',
+        orderId,
+        { orderId, storeId: order['storeId'], source },
+        {},
+        null,
+        tx,
+      );
+
+      // Recalculate the master order in the same transaction; its outbox
+      // transition is committed or rolled back with this completion.
+      await this.recalculateMasterOrderStatus(order['masterOrderId'] as string, tx);
     });
 
-    // Realtime
+    // Realtime is deliberately post-commit: clients must never observe a
+    // completion that later rolls back.
     this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', {
       orderId,
       status: 'COMPLETED',
     });
-
-    // Recalculate master order
-    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
 
     return this.getOrder(orderId);
   }
