@@ -1,3 +1,14 @@
+## Live checkpoint — 26 November 2026 (PR #158 identity fixture correction)
+
+- PR #157 remains OPEN / DRAFT / UNMERGED at `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`; exact-head Actions run #1572 (`45805365809`) passed all mandatory jobs including P6 integration suites and restricted-role verified-TLS smoke.
+- PR #158 is temporarily based on `develop` only to enable the repository's PR workflow (the workflow triggers only for PRs targeting `main` or `develop`). Its synchronized stack commit is `2429003e3a7a19932388f95553d0e5ccd9968c11`, preserving PR #157 and the identity changes. The no-source-change validation trigger commit `f8d85de084da3dfd0182d96935cadff9e4a63ed8` produced Actions run #1573 (`45810050091`), which failed Unit Tests + Coverage only: four failures in the existing API-B9 `token-revocation.spec.ts` because its fixture did not mock the newly required active organization lookup. Integration Tests, lint/typecheck, mobile, web/admin, migration apply and E6 boundary lint passed; container/build/contract were skipped downstream of the unit gate.
+- Corrected the fixture in commit `634278fd2afc9066cf182a47670f8fec7869a2e7` by supplying an active `org-2` record to `organizations.findFirst`. This keeps the production authorization rule intact; it repairs the stale unit fixture only. Exact-head Actions run #1574 (`45812366679`) was QUEUED at last poll on `634278fd2afc9066cf182a47670f8fec7869a2e7`. Wait for that run; do not dispatch duplicate CI.
+- After exact-head CI completes, restore PR #158 base from `develop` to `integration/g002-actor-context-foundation` without changing its head; verify its diff is exactly five identity files and no longer has the 33 inherited parent paths.
+- PR #158 remains draft/unmerged pending exact-head CI and independent review. PR #157 also lacks independent review; CODEOWNERS team requests were rejected because those teams are not collaborators on this personal repository. Do not self-approve or merge.
+- PR #138 remains protected source/evidence only; never wholesale merge it. Project-memory and preservation refs must remain synchronized via expected-SHA fast-forward. No staging/shared DB writes, migrations, grants/default-ACL/RLS changes, Render changes, worker activation, deployment or release action.
+
+---
+
 ## Live checkpoint — 26 November 2026 (PR #157 green; PR #158 stack synchronized)
 
 - PR #157 exact head `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`, OPEN / DRAFT / UNMERGED, base `develop`. Exact-head Actions run #1572 (`45805365809`) completed SUCCESS: all 10 mandatory jobs passed (Mobile, Lint & Typecheck, Web/Admin, Boundary Lint E6, Unit/Coverage, Migration Full Apply, Integration Tests, Container Build & Smoke Test, Contract/Codegen, Build). k6 smoke and staging release were skipped as intended.
