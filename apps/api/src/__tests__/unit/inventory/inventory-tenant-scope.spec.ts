@@ -58,6 +58,11 @@ function makeDb(options?: {
     .mockResolvedValue(
       options?.membership === null ? null : (options?.membership ?? { id: 'membership-a' }),
     );
+  const organizationMembershipsFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.membership === null ? null : (options?.membership ?? { id: 'org-membership-a' }),
+    );
 
   return {
     db: {
@@ -65,7 +70,7 @@ function makeDb(options?: {
         from: vi.fn(() => ({
           where: vi.fn(() => ({
             limit: vi.fn(async () => {
-              const membership = await membershipsFindFirst();
+              const membership = await organizationMembershipsFindFirst();
               return membership ? [membership] : [];
             }),
           })),
@@ -87,6 +92,7 @@ function makeDb(options?: {
       productsFindFirst,
       inventoryFindFirst,
       membershipsFindFirst,
+      organizationMembershipsFindFirst,
     },
   };
 }
@@ -97,6 +103,7 @@ describe('Inventory tenant scope — active store membership', () => {
     await expect(
       assertWarehouseMember(h as unknown as DatabaseService, merchant, 'warehouse-a'),
     ).resolves.toBe('store-a');
+    expect(h.spies.organizationMembershipsFindFirst).toHaveBeenCalledOnce();
     expect(h.spies.membershipsFindFirst).toHaveBeenCalledOnce();
   });
 
