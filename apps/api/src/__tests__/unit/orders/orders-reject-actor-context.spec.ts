@@ -72,7 +72,9 @@ describe('OrdersService.rejectOrder actor-context boundaries (G-002)', () => {
       masterOrderId: 'master-a',
     };
     vi.spyOn(service, 'getOrder').mockResolvedValue(order as any);
-    const settleStock = vi.spyOn(service as any, 'settleStockForStatus').mockResolvedValue(undefined);
+    const settleStock = vi
+      .spyOn(service as any, 'settleStockForStatus')
+      .mockResolvedValue(undefined);
     vi.spyOn(service, 'recalculateMasterOrderStatus').mockResolvedValue('REJECTED');
     const caller = { sub: 'merchant-a', role: 'MERCHANT_OWNER', activeOrg: 'org-a' };
 
