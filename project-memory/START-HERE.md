@@ -1,3 +1,11 @@
+## 26 November 2026 — PR #158 test alignment checkpoint
+
+- PR #157 remains at d204b9ea18958f623e0379c7cc307fd0545f8863. Run #1557 is still testing prior head 6901389d; Migration Full Apply, lint/typecheck, mobile, Web/Admin and E6 checks passed, while Unit/Coverage and Integration Tests remain in progress. The latest d204b9e follow-up is not yet validated.
+- PR #158 has advanced to 19b96bcda29d7166a748dd5693b430cce0ea2098 (5 changed files). The profile-controller test now asserts PATCH /me forwards both a concrete activeOrg and explicit null. It remains based on an older parent and must be reconciled after PR #157's current head is green.
+- PR #138 source and preservation refs remain synchronized at the latest memory checkpoint. PR #138 OrdersService cancel/reject hardening and bounded SQL scan remain source-reviewed only, not tested.
+- Do not start overlapping CI runs, merge PRs, mutate staging/database access, enable RLS, activate workers or deploy.
+
+
 ## 26 November 2026 — latest concurrent CI checkpoint
 
 - PR #157 current head: d204b9ea18958f623e0379c7cc307fd0545f8863, OPEN / DRAFT / UNMERGED, base develop. Run #1557 is still running against the preceding head 6901389d9975fbeb959ee89633024f83ce598272; Migration Full Apply, lint/typecheck, mobile, Web/Admin and E6 boundary lint have passed so far. Unit/Coverage and Integration Tests remain in progress. This run does NOT validate d204b9e.
