@@ -45,7 +45,8 @@ describe('P13 Phase 4.1.6 — Webhook delivery with HMAC-SHA256 + replay protect
     pool = new Pool({ connectionString: started.getConnectionUri() });
 
     const db = drizzle(pool, { schema }) as unknown as DatabaseService['db'];
-    database = { db } as unknown as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
 
     await pool.query(
       `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`,

@@ -203,7 +203,8 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
     const client = await pool.connect();
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
-    database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
     const promotions = new PromotionsService(database);
     const realOutbox = new OutboxDispatcher(database);
     const inventoryService = new InventoryService(database, realOutbox);

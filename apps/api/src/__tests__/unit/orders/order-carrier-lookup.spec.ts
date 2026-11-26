@@ -6,7 +6,16 @@ describe('OrdersService.findShipmentsByCarrierReference', () => {
   it('constrains provider, external reference and credential-owned stores, with ambiguity cap', async () => {
     const findMany = vi.fn().mockResolvedValue([{ id: 'shipment-a', storeId: 'store-a' }]);
     const service = Object.create(OrdersService.prototype) as any;
-    service.db = { db: { query: { shipments: { findMany } } } };
+    const select = vi.fn(() => {
+      const query: any = {
+        from: vi.fn(() => query),
+        innerJoin: vi.fn(() => query),
+        where: vi.fn(() => query),
+        limit: vi.fn().mockResolvedValue([{ shipment: { id: 'shipment-a', storeId: 'store-a' } }]),
+      };
+      return query;
+    });
+    service.db = { db: { select, query: { shipments: { findMany } } } };
 
     await expect(
       service.findShipmentsByCarrierReference('aramex', 'external-a', ['store-a', 'store-b']),
