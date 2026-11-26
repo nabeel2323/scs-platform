@@ -41,6 +41,7 @@ const mockCartItems = [
     tierMinQty: 1,
     promoSnapshot: {},
     lineTotalMinor: 2000,
+    offerId: 'offer-store-1-v1',
   },
   {
     id: 'ci-002',
@@ -52,6 +53,7 @@ const mockCartItems = [
     tierMinQty: 1,
     promoSnapshot: {},
     lineTotalMinor: 1500,
+    offerId: 'offer-store-1-v2',
   },
   {
     id: 'ci-003',
@@ -63,17 +65,30 @@ const mockCartItems = [
     tierMinQty: 1,
     promoSnapshot: {},
     lineTotalMinor: 600,
+    offerId: 'offer-store-2-v1',
   },
 ];
 
 const mockVariant = { id: VARIANT_1, productId: 'prod-001', sku: 'SKU-001', title: 'Test Product' };
-const mockProduct = { id: 'prod-001', title: 'Test Product', moq: 1 };
+const mockProduct = {
+  id: 'prod-001',
+  title: 'Test Product',
+  moq: 1,
+  storeId: null,
+  status: 'ACTIVE',
+  deletedAt: null,
+};
+const mockOffers = [
+  { id: 'offer-store-1-v1', storeId: STORE_1, productId: 'prod-001', variantId: VARIANT_1, status: 'ACTIVE', isAvailable: true, moq: 1, orderIncrement: 1, currency: 'SAR', priceListId: null, warehouseId: null, basePriceMinor: 200, compareAtPriceMinor: null, leadTimeDays: null },
+  { id: 'offer-store-1-v2', storeId: STORE_1, productId: 'prod-001', variantId: VARIANT_2, status: 'ACTIVE', isAvailable: true, moq: 1, orderIncrement: 1, currency: 'SAR', priceListId: null, warehouseId: null, basePriceMinor: 300, compareAtPriceMinor: null, leadTimeDays: null },
+  { id: 'offer-store-2-v1', storeId: STORE_2, productId: 'prod-001', variantId: VARIANT_1, status: 'ACTIVE', isAvailable: true, moq: 1, orderIncrement: 1, currency: 'SAR', priceListId: null, warehouseId: null, basePriceMinor: 200, compareAtPriceMinor: null, leadTimeDays: null },
+];
 
 // ── Mock Builder ──────────────────────────────────────────────────
 
 function createMocks() {
   const insertValues = vi.fn().mockResolvedValue(undefined);
-  const forUpdateRows: unknown[][] = [[mockProduct]];
+  const forUpdateRows: unknown[][] = [[mockProduct], mockOffers];
   const forUpdate = vi.fn().mockImplementation(async () => forUpdateRows.shift() ?? []);
   const updateWhere = vi.fn().mockResolvedValue(undefined);
   const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
@@ -102,11 +117,11 @@ function createMocks() {
       productVariants: {
         findFirst: vi.fn(),
         findMany: vi.fn().mockResolvedValue([
-          { id: VARIANT_1, productId: 'prod-001' },
-          { id: VARIANT_2, productId: 'prod-001' },
+          { id: VARIANT_1, productId: 'prod-001', isActive: true },
+          { id: VARIANT_2, productId: 'prod-001', isActive: true },
         ]),
       },
-      merchantOffers: { findMany: vi.fn().mockResolvedValue([]) },
+      merchantOffers: { findMany: vi.fn().mockResolvedValue(mockOffers) },
       products: { findFirst: vi.fn() },
       // Checkout fixtures use two active, verified stores by default. Tests
       // covering unreadable seller metadata explicitly override this with [].
@@ -226,7 +241,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       // First FOR UPDATE result is the product row; second is the current offer row.
-      mocks.forUpdateRows.push([updatedOffer]);
+      mocks.forUpdateRows.splice(1, 1, [updatedOffer]);
 
       await expect(
         checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
