@@ -150,6 +150,11 @@ function createWorkerWithProvider(
     { tryResolve: vi.fn(async () => null) } as any, // emailResolver
     { classify: vi.fn(() => ({ isFinal: false, safeMessage: '', nextAttemptAt: null })) } as any, // retryPolicy
     { canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any, // circuitBreaker
+    {} as any, // storage — unused by cancellation handlers
+    {
+      getStoreTenantContextForSystem: vi.fn(async (storeId: string) => ({ id: storeId, orgId: orgA })),
+    } as any, // merchant — authoritative store ownership
+    {} as any, // webhook routing — unused by cancellation handlers
   );
 }
 
@@ -491,6 +496,9 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
       { tryResolve: vi.fn() } as any,
       { classify: vi.fn() } as any,
       { canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any,
+      {} as any,
+      { getStoreTenantContextForSystem: vi.fn(async (storeId: string) => ({ id: storeId, orgId: orgA })) } as any,
+      {} as any,
     );
 
     await (worker as any).handleCancel({
@@ -673,6 +681,9 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
       { tryResolve: vi.fn() } as any,
       { classify: vi.fn() } as any,
       { canRequest: vi.fn(() => true) } as any,
+      {} as any,
+      { getStoreTenantContextForSystem: vi.fn(async (storeId: string) => ({ id: storeId, orgId: orgA })) } as any,
+      {} as any,
     );
 
     await expect(
