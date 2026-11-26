@@ -873,3 +873,11 @@ PR #138 is OPEN / DRAFT / UNMERGED at `e410bf44b272eafb8e762636b66877f9e0c4b230`
 - #159 includes the canonical narrow 0070 and canonical additive 0071 in numeric order. PR #138 duplicate/broader migrations remain excluded.
 - No shared/staging DB writes, migration application, grants/default-ACL/RLS changes, Render changes, worker activation, deployment, restart or release.
 - User explicitly waived independent GitHub reviewer requirements. Continue with exact-head CI and source/scope/safety verification; no reviewer gate.
+
+
+## Live checkpoint — 26 November 2026 (PR #159 merged; #163/#164 refreshed)
+
+- PR #159 merged into develop after exact-head Actions run #1582 (`45829417417`) passed all 10 mandatory jobs. Merge commit/current develop baseline at checkpoint: `a1d53acd14cd66901a2002ce1a05c9edf0c61c5c`. Migration 0070 narrow G-020 precedes additive 0071 durable auto-completion lease; no shared DB migration applied.
+- PR #160 and #162 became divergent after #159. Their intended source files were reconstructed onto the new develop head as PR #163 (six outbox safety files, head `e57a33e4f0658d17fbd11caaf346ee1a31c761b1`) and PR #164 (four HTTP log-redaction/audit files, head `0687481e106f0d625a0e51a0e1fba6d457386c20`). Both exact-head CI runs are in progress; require all mandatory jobs to pass before merge. Do not force-merge stale #160/#162.
+- Keep PR #138 OPEN / DRAFT / UNMERGED, protected source/evidence only. No wholesale merge. No staging/production DB writes, migration application, grants/default-ACL/RLS changes, Render changes, worker activation, deployment, restart or release.
+- User waives independent reviewer requirement. Exact-head mandatory CI, scope/safety review and mergeability remain required. Minimize CI by one consolidated run per refreshed workstream.
