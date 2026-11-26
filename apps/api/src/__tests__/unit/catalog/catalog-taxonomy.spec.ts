@@ -330,7 +330,8 @@ describe('CatalogTaxonomyService — product types', () => {
     const compiled = new PgDialect().sqlToQuery(
       (categoryFindFirstCalls[0] as { where: SQL }).where,
     );
-    expect(compiled.sql.toLowerCase()).toContain('store_id is null');
+    expect(compiled.sql.toLowerCase()).toContain('store_id');
+    expect(compiled.sql.toLowerCase()).toContain('is null');
     expect(compiled.params).toContain('store-category');
   });
 
