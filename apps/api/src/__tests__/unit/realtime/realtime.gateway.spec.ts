@@ -49,6 +49,8 @@ function createGateway() {
   const redis = { client: { get: vi.fn().mockResolvedValue(null) } };
   const query = {
     stores: { findFirst: vi.fn().mockResolvedValue({ id: ids.store, orgId: ids.org }) },
+    organizations: { findFirst: vi.fn().mockResolvedValue({ id: ids.org }) },
+    organizationMembers: { findFirst: vi.fn().mockResolvedValue({ id: 'org-membership-1' }) },
     storeMembers: { findFirst: vi.fn().mockResolvedValue({ id: 'membership-1' }) },
   };
   const db = {
