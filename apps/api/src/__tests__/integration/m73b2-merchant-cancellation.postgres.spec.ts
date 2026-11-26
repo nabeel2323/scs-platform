@@ -234,10 +234,11 @@ describe('M7.3-B.2 — Merchant Cancellation + Shipment Sync (PostgreSQL)', () =
     const client = await pool.connect();
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
-    const outbox = new OutboxDispatcher({ db } as DatabaseService);
-    const promotions = new PromotionsService({ db } as DatabaseService);
-    const inventoryService = new InventoryService({ db } as DatabaseService, outbox);
-    database = { db } as DatabaseService;
+    database = Object.create(DatabaseService.prototype) as DatabaseService;
+    database.db = db;
+    const outbox = new OutboxDispatcher(database);
+    const promotions = new PromotionsService(database);
+    const inventoryService = new InventoryService(database, outbox);
     ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications);
 
     const rolesRes = await pool.query(`SELECT id, key FROM roles`);

@@ -149,7 +149,8 @@ describe('M7.3-C — Inventory Return-to-Stock (PostgreSQL)', () => {
     const client = await poolRef.connect();
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
-    database = { db } as DatabaseService;
+    database = Object.create(DatabaseService.prototype) as DatabaseService;
+    database.db = db;
     outbox = new OutboxDispatcher(database);
     const promotions = new PromotionsService(database);
     inventoryService = new InventoryService(database, outbox);

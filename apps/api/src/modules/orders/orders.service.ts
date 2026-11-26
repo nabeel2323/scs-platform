@@ -868,63 +868,111 @@ export class OrdersService {
     return this.getOrder(orderId);
   }
 
-  async rejectOrder(orderId: string, merchantUserId: string, reason: string, caller?: CallerContext) {
-    const order = await this.getOrder(orderId);
-    if (caller) await assertOrderAccessible(this.db, caller, order);
-    let currentStatus = order['status'];
-    if (currentStatus === 'SUBMITTED') {
-      await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
-      currentStatus = 'PENDING_CONFIRMATION';
+  async rejectOrder(
+    orderId: string,
+    merchantUserId: string,
+    reason: string,
+    caller: CallerContext,
+  ) {
+    if (
+      !caller ||
+      typeof caller.sub !== 'string' ||
+      caller.sub.trim().length === 0 ||
+      typeof caller.role !== 'string' ||
+      caller.role.trim().length === 0
+    ) {
+      throw new ForbiddenException('Authenticated database actor context is missing');
     }
-    this.assertTransition(currentStatus, 'REJECTED');
+    if (merchantUserId !== caller.sub) {
+      throw new ForbiddenException('Rejection actor must match the authenticated caller');
+    }
+    const actorId: string = caller.sub;
+    const actorRole: string = caller.role;
+    const runAsCaller = <T>(operation: () => Promise<T>): Promise<T> =>
+      this.db.withActorContext(
+        {
+          actorKind: 'user',
+          actorId,
+          actorRole,
+          activeOrgId: caller.activeOrg ?? null,
+        },
+        operation,
+      );
 
-    // ADVERSARIAL FIX: stock settlement and status write must be atomic.
-    // settleStockForStatus runs first (it manages its own transactions per
-    // inventory item), then the status write + history are in a single
-    // transaction so a failure cannot leave stock released without the
-    // order status reflecting the rejection.
-    await this.settleStockForStatus(orderId, 'REJECTED', merchantUserId);
+    // Order, inventory, history and rejection outbox changes are one
+    // transaction-bound actor phase. No provider/storage work belongs here.
+    const order = await runAsCaller(async () => {
+      const order = await this.getOrder(orderId);
+      await assertOrderAccessible(this.db, caller, order);
+      let currentStatus = order['status'];
+      if (currentStatus === 'SUBMITTED') {
+        await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
+        currentStatus = 'PENDING_CONFIRMATION';
+      }
+      this.assertTransition(currentStatus, 'REJECTED');
 
-    await this.db.db.transaction(async (tx) => {
-      await tx
-        .update(orders)
-        .set({ status: 'REJECTED', rejectionReason: reason, updatedAt: new Date() })
-        .where(eq(orders.id, orderId));
+      await this.db.db.transaction(async (tx) => {
+        await this.settleStockForStatus(orderId, 'REJECTED', merchantUserId, tx);
 
-      await tx.insert(orderStatusHistory).values({
-        id: crypto.randomUUID(),
-        orderId,
-        fromStatus: currentStatus,
-        toStatus: 'REJECTED',
-        changedBy: merchantUserId,
-        actorType: 'MERCHANT',
-        reason,
+        const flip = await tx
+          .update(orders)
+          .set({ status: 'REJECTED', rejectionReason: reason, updatedAt: new Date() })
+          .where(and(eq(orders.id, orderId), eq(orders.status, currentStatus)))
+          .returning({ id: orders.id });
+        if (flip.length === 0) {
+          throw new ConflictException(
+            'Order status already changed — concurrent rejection rejected',
+          );
+        }
+
+        await tx.insert(orderStatusHistory).values({
+          id: crypto.randomUUID(),
+          orderId,
+          fromStatus: currentStatus,
+          toStatus: 'REJECTED',
+          changedBy: merchantUserId,
+          actorType: 'MERCHANT',
+          reason,
+        });
+
+        await this.outbox.publish(
+          'order.rejected',
+          orderId,
+          { orderId, storeId: order['storeId'], reason },
+          {},
+          null,
+          tx,
+        );
       });
-    });
-    await this.outbox.publish('order.rejected', orderId, {
-      orderId,
-      storeId: order['storeId'],
-      reason,
+
+      return order;
     });
 
-    // P12: If payment was already confirmed, auto-create refund for buyer.
-    // Merchant rejection after payment confirmation means the buyer is owed money.
+    // Refund request creation is a separate DB-only actor phase. It persists
+    // a refund row/event/outbox entry; the current generic dispatcher only logs
+    // this event and does not execute a payment-provider refund.
+    // The stable key makes retries of this rejection idempotent.
     if (this.payments) {
       try {
-        const payment = await this.payments.getPaymentForOrder(orderId);
-        if (payment && ['CONFIRMED', 'PARTIALLY_REFUNDED'].includes(payment.status)) {
-          const refundableAmount = Number(payment.confirmedAmountMinor || payment.amountMinor);
-          if (refundableAmount > 0) {
-            await this.payments.requestRefund(
-              payment.id,
-              refundableAmount,
-              'MERCHANT_REJECTION',
-              order['buyerId'] as string,
-              { sub: order['buyerId'] as string, role: 'BUYER', activeOrg: null } as any,
-              { idempotencyKey: `reject-refund:${orderId}:${Date.now()}` },
+        await runAsCaller(async () => {
+          const payment = await this.payments!.getPaymentForOrder(orderId);
+          if (payment && ['CONFIRMED', 'CAPTURED', 'PARTIALLY_REFUNDED'].includes(payment.status)) {
+            const refundableAmount = Number(
+              payment.confirmedAmountMinor ?? payment.amountMinor,
             );
+            if (refundableAmount > 0) {
+              const refundCaller: CallerContext = caller;
+              await this.payments!.requestRefund(
+                payment.id,
+                refundableAmount,
+                'MERCHANT_REJECTION',
+                caller.sub,
+                refundCaller,
+                { idempotencyKey: `reject-refund:${orderId}` },
+              );
+            }
           }
-        }
+        });
       } catch (err) {
         this.logger.warn(
           `[P12] Auto-refund after merchant rejection failed (non-fatal): ${(err as Error)?.message}`,
@@ -932,10 +980,10 @@ export class OrdersService {
       }
     }
 
-    // M7.3-A: Recalculate master order status after rejection
-    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
-
-    return this.getOrder(orderId);
+    return runAsCaller(async () => {
+      await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
+      return this.getOrder(orderId);
+    });
   }
 
   async confirmItem(orderId: string, itemId: string, qtyConfirmed: number, merchantUserId: string, caller?: CallerContext) {
@@ -1159,7 +1207,7 @@ export class OrdersService {
     orderId: string,
     userId: string,
     reason: string,
-    caller?: CallerContext,
+    caller: CallerContext,
     notes?: string,
   ) {
     // M7.3-B.2: Validate cancellation reason against B.0 locked set
@@ -1170,209 +1218,242 @@ export class OrdersService {
     }
     // OTHER requires explanatory notes
     if (reason === 'OTHER' && !notes?.trim()) {
-      throw new BadRequestException(
-        'Cancellation reason OTHER requires explanatory notes',
+      throw new BadRequestException('Cancellation reason OTHER requires explanatory notes');
+    }
+    if (
+      !caller ||
+      typeof caller.sub !== 'string' ||
+      caller.sub.trim().length === 0 ||
+      typeof caller.role !== 'string' ||
+      caller.role.trim().length === 0
+    ) {
+      throw new ForbiddenException('Authenticated database actor context is missing');
+    }
+    if (userId !== caller.sub) {
+      throw new ForbiddenException('Cancellation actor must match the authenticated caller');
+    }
+
+    const actorId: string = caller.sub;
+    const actorRole: string = caller.role;
+    const runAsCaller = <T>(operation: () => Promise<T>): Promise<T> =>
+      this.db.withActorContext(
+        {
+          actorKind: 'user',
+          actorId,
+          actorRole,
+          activeOrgId: caller.activeOrg ?? null,
+        },
+        operation,
       );
-    }
 
-    const order = await this.getOrder(orderId);
+    const order = await runAsCaller(async () => {
+      const order = await this.getOrder(orderId);
 
-    // A3-1: object-level check — buyers cancel their own orders, merchants
-    // cancel orders their org fulfills, platform staff bypass.
-    if (caller) await assertOrderAccessible(this.db, caller, order);
+      // A3-1: object-level check — buyers cancel their own orders, merchants
+      // cancel orders their org fulfills, platform staff bypass.
+      await assertOrderAccessible(this.db, caller, order);
 
-    // Can only cancel pre-DELIVERED (SUBMITTED is auto-advance, not user-cancellable)
-    // M7.3-B.5: OUT_FOR_DELIVERY added — cancellation must win over active RTS.
-    const cancellable = [
-      'PENDING_CONFIRMATION',
-      'ACCEPTED',
-      'PARTIALLY_ACCEPTED',
-      'PREPARING',
-      'READY',
-      'PAYMENT_PENDING',
-      'PAYMENT_CONFIRMED',
-      'OUT_FOR_DELIVERY',
-    ];
-    if (!cancellable.includes(order['status'])) {
-      throw new ConflictException(`Cannot cancel order in ${order['status']} status`);
-    }
-
-    // M7.3-B.2: Resolve actor type from caller context (not hardcoded BUYER)
-    const actorType = this.resolveActorType(caller);
-    const expectedStatus = order['status'] as string;
-
-    // M7.3-B.2: Dedicated atomic transaction — NOT delegating to transitionStatus()
-    // Includes: optimistic lock, inventory settlement, shipment sync,
-    // shipment event, order history, cancellation metadata, outbox events.
-    await this.db.db.transaction(async (tx) => {
-      // 1. Optimistic lock: UPDATE WHERE status = expected
-      const flipResult = await tx
-        .update(orders)
-        .set({
-          status: 'CANCELLED',
-          cancellationReason: reason,
-          cancellationActorType: actorType,
-          cancellationActorId: userId,
-          cancelledAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(and(eq(orders.id, orderId), eq(orders.status, expectedStatus)))
-        .returning({ id: orders.id });
-
-      if (flipResult.length === 0) {
-        throw new ConflictException(
-          'Order status already changed — concurrent transition rejected',
-        );
+      // Can only cancel pre-DELIVERED (SUBMITTED is auto-advance, not user-cancellable)
+      // M7.3-B.5: OUT_FOR_DELIVERY added — cancellation must win over active RTS.
+      const cancellable = [
+        'PENDING_CONFIRMATION',
+        'ACCEPTED',
+        'PARTIALLY_ACCEPTED',
+        'PREPARING',
+        'READY',
+        'PAYMENT_PENDING',
+        'PAYMENT_CONFIRMED',
+        'OUT_FOR_DELIVERY',
+      ];
+      if (!cancellable.includes(order['status'])) {
+        throw new ConflictException(`Cannot cancel order in ${order['status']} status`);
       }
 
-      // 2. Inventory settlement inside the same transaction
-      await this.settleStockForStatus(orderId, 'CANCELLED', userId, tx);
+      // M7.3-B.2: Resolve actor type from caller context (not hardcoded BUYER)
+      const actorType = this.resolveActorType(caller);
+      const expectedStatus = order['status'] as string;
 
-      // 3. Shipment synchronization: cancel associated shipment if it exists
-      // Use direct select (not tx.query.shipments) so it works with any
-      // drizzle instance — some test harnesses don't register shipments in schema.
-      const shipmentRows = await tx
-        .select({ id: shipments.id, status: shipments.status })
-        .from(shipments)
-        .where(eq(shipments.orderId, orderId))
-        .orderBy(shipments.createdAt)
-        .limit(1);
-      const shipment = shipmentRows[0] ?? null;
-
-      if (shipment) {
-        const shipmentId = shipment['id'] as string;
-        // Only cancel shipments not already in a terminal state
-        const shipmentStatus = shipment['status'] as string;
-        const cancellableShipmentStatuses = ['PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP'];
-        if (cancellableShipmentStatuses.includes(shipmentStatus)) {
-          await tx
-            .update(shipments)
-            .set({
-              status: 'CANCELLED',
-              cancelledAt: new Date(),
-              cancellationReason: reason,
-              // M7.3-B.3.3.1: initial carrier-cancel status so the worker
-              // can consume the event asynchronously.
-              carrierCancelStatus: 'PENDING',
-              carrierCancelIdempotencyKey: `carrier-cancel:${shipmentId}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(shipments.id, shipmentId));
-
-          // 4. Shipment event: insert CANCELLED event
-          await tx.insert(shipmentEvents).values({
-            id: crypto.randomUUID(),
-            shipmentId,
-            eventType: 'CANCELLED',
-            actorUserId: userId,
-            actorType,
-            notes: reason,
-          });
-        }
-
-        // 4b. Carrier cancellation outbox event (M7.3-B.3.3.1).
-        // Created atomically inside the cancellation transaction so the
-        // worker can asynchronously call the external carrier's CancelPickup.
-        // The worker checks provider capability and carrierPickupId.
-        await this.outbox.publish(
-          'shipping.carrier.cancel',
-          shipmentId,
-          { shipmentId },
-          { storeId: order['storeId'] },
-          null,
-          tx,
-        );
-
-        // 4c. M7.3-B.4 + M7.3-B.5: Close any open/retry-pending/RTS exception
-        // inside the SAME cancellation transaction. Cancellation is authoritative —
-        // no cancelled shipment may remain retryable or in RTS.
-        const exceptionFlip = await tx
-          .update(shipments)
+      // M7.3-B.2: Dedicated atomic transaction — NOT delegating to transitionStatus()
+      // Includes: optimistic lock, inventory settlement, shipment sync,
+      // shipment event, order history, cancellation metadata, outbox events.
+      await this.db.db.transaction(async (tx) => {
+        // 1. Optimistic lock: UPDATE WHERE status = expected
+        const flipResult = await tx
+          .update(orders)
           .set({
-            exceptionStatus: 'CLOSED',
-            exceptionResolvedAt: new Date(),
+            status: 'CANCELLED',
+            cancellationReason: reason,
+            cancellationActorType: actorType,
+            cancellationActorId: caller.sub,
+            cancelledAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(and(
-            eq(shipments.id, shipmentId),
-            inArray(shipments.exceptionStatus, OrdersService.CANCELLABLE_EXCEPTION_STATES),
-          ))
-          .returning({ id: shipments.id, exceptionStatus: shipments.exceptionStatus });
+          .where(and(eq(orders.id, orderId), eq(orders.status, expectedStatus)))
+          .returning({ id: orders.id });
 
-        if (exceptionFlip.length > 0) {
-          const prevExc = (exceptionFlip[0] as any).exceptionStatus as string;
-          const rtsCancelled = OrdersService.RTS_ACTIVE_STATES.includes(prevExc);
-          await tx.insert(shipmentEvents).values({
-            id: crypto.randomUUID(),
-            shipmentId,
-            eventType: 'DELIVERY_EXCEPTION_CLOSED',
-            actorUserId: userId,
-            actorType,
-            notes: rtsCancelled
-              ? `Closed: order cancelled (RTS cancelled, was ${prevExc})`
-              : 'Closed: order cancelled',
-            metadata: { reason, previousExceptionStatus: prevExc },
-          });
+        if (flipResult.length === 0) {
+          throw new ConflictException(
+            'Order status already changed — concurrent transition rejected',
+          );
         }
-      }
 
-      // 5. Order status history with correct actorType
-      await tx.insert(orderStatusHistory).values({
-        id: crypto.randomUUID(),
-        orderId,
-        fromStatus: expectedStatus,
-        toStatus: 'CANCELLED',
-        changedBy: userId,
-        actorType,
-        reason: notes ? `${reason}: ${notes}` : reason,
-      });
+        // 2. Inventory settlement inside the same transaction
+        await this.settleStockForStatus(orderId, 'CANCELLED', userId, tx);
 
-      // 6. Outbox: order.cancelled event
-      await this.outbox.publish(
-        'order.cancelled',
-        orderId,
-        {
+        // 3. Shipment synchronization: cancel associated shipment if it exists
+        // Use direct select (not tx.query.shipments) so it works with any
+        // drizzle instance — some test harnesses don't register shipments in schema.
+        const shipmentRows = await tx
+          .select({ id: shipments.id, status: shipments.status })
+          .from(shipments)
+          .where(eq(shipments.orderId, orderId))
+          .orderBy(shipments.createdAt)
+          .limit(1);
+        const shipment = shipmentRows[0] ?? null;
+
+        if (shipment) {
+          const shipmentId = shipment['id'] as string;
+          // Only cancel shipments not already in a terminal state
+          const shipmentStatus = shipment['status'] as string;
+          const cancellableShipmentStatuses = ['PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP'];
+          if (cancellableShipmentStatuses.includes(shipmentStatus)) {
+            await tx
+              .update(shipments)
+              .set({
+                status: 'CANCELLED',
+                cancelledAt: new Date(),
+                cancellationReason: reason,
+                // M7.3-B.3.3.1: initial carrier-cancel status so the worker
+                // can consume the event asynchronously.
+                carrierCancelStatus: 'PENDING',
+                carrierCancelIdempotencyKey: `carrier-cancel:${shipmentId}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(shipments.id, shipmentId));
+
+            // 4. Shipment event: insert CANCELLED event
+            await tx.insert(shipmentEvents).values({
+              id: crypto.randomUUID(),
+              shipmentId,
+              eventType: 'CANCELLED',
+              actorUserId: userId,
+              actorType,
+              notes: reason,
+            });
+          }
+
+          // 4b. Carrier cancellation outbox event (M7.3-B.3.3.1).
+          // Created atomically inside the cancellation transaction so the
+          // worker can asynchronously call the external carrier's CancelPickup.
+          // The worker checks provider capability and carrierPickupId.
+          await this.outbox.publish(
+            'shipping.carrier.cancel',
+            shipmentId,
+            { shipmentId },
+            { storeId: order['storeId'] },
+            null,
+            tx,
+          );
+
+          // 4c. M7.3-B.4 + M7.3-B.5: Close any open/retry-pending/RTS exception
+          // inside the SAME cancellation transaction. Cancellation is authoritative —
+          // no cancelled shipment may remain retryable or in RTS.
+          const exceptionFlip = await tx
+            .update(shipments)
+            .set({
+              exceptionStatus: 'CLOSED',
+              exceptionResolvedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(shipments.id, shipmentId),
+                inArray(shipments.exceptionStatus, OrdersService.CANCELLABLE_EXCEPTION_STATES),
+              ),
+            )
+            .returning({ id: shipments.id, exceptionStatus: shipments.exceptionStatus });
+
+          if (exceptionFlip.length > 0) {
+            const prevExc = (exceptionFlip[0] as any).exceptionStatus as string;
+            const rtsCancelled = OrdersService.RTS_ACTIVE_STATES.includes(prevExc);
+            await tx.insert(shipmentEvents).values({
+              id: crypto.randomUUID(),
+              shipmentId,
+              eventType: 'DELIVERY_EXCEPTION_CLOSED',
+              actorUserId: userId,
+              actorType,
+              notes: rtsCancelled
+                ? `Closed: order cancelled (RTS cancelled, was ${prevExc})`
+                : 'Closed: order cancelled',
+              metadata: { reason, previousExceptionStatus: prevExc },
+            });
+          }
+        }
+
+        // 5. Order status history with correct actorType
+        await tx.insert(orderStatusHistory).values({
+          id: crypto.randomUUID(),
           orderId,
-          status: 'CANCELLED',
-          storeId: order['storeId'],
-          buyerId: order['buyerId'],
+          fromStatus: expectedStatus,
+          toStatus: 'CANCELLED',
+          changedBy: userId,
           actorType,
-          reason,
-          source: 'cancelOrder',
-        },
-        {},
-        null,
-        tx,
-      );
+          reason: notes ? `${reason}: ${notes}` : reason,
+        });
 
-      // 7. Outbox: shipment.cancelled event (if shipment exists)
-      if (shipment) {
+        // 6. Outbox: order.cancelled event
         await this.outbox.publish(
-          'shipment.cancelled',
-          shipment['id'] as string,
+          'order.cancelled',
+          orderId,
           {
-            shipmentId: shipment['id'],
             orderId,
             status: 'CANCELLED',
-            reason,
+            storeId: order['storeId'],
+            buyerId: order['buyerId'],
             actorType,
+            reason,
             source: 'cancelOrder',
           },
           {},
           null,
           tx,
         );
-      }
 
-      // 8. P12: Cancel associated payment record (if non-terminal)
-      if (this.payments) {
-        try {
-          const payment = await this.payments.getPaymentForOrder(orderId);
-          if (payment && !['CONFIRMED', 'EXPIRED', 'CANCELLED', 'REFUNDED'].includes(payment.status)) {
-            await this.payments.cancelPayment(payment.id, userId, tx);
+        // 7. Outbox: shipment.cancelled event (if shipment exists)
+        if (shipment) {
+          await this.outbox.publish(
+            'shipment.cancelled',
+            shipment['id'] as string,
+            {
+              shipmentId: shipment['id'],
+              orderId,
+              status: 'CANCELLED',
+              reason,
+              actorType,
+              source: 'cancelOrder',
+            },
+            {},
+            null,
+            tx,
+          );
+        }
+
+        // 8. P12: Cancel associated payment record (if non-terminal)
+        if (this.payments) {
+          try {
+            const payment = await this.payments.getPaymentForOrder(orderId);
+            if (
+              payment &&
+              !['CONFIRMED', 'EXPIRED', 'CANCELLED', 'REFUNDED'].includes(payment.status)
+            ) {
+              await this.payments.cancelPayment(payment.id, userId, tx);
+            }
+          } catch {
+            /* best-effort — order cancellation is authoritative */
           }
-        } catch { /* best-effort — order cancellation is authoritative */ }
-      }
+        }
+      });
+      return order;
     });
 
     // Post-commit: realtime emit
@@ -1384,9 +1465,10 @@ export class OrdersService {
     );
 
     // Recalculate master order status after cancellation
-    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
-
-    return this.getOrder(orderId);
+    return runAsCaller(async () => {
+      await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
+      return this.getOrder(orderId);
+    });
   }
 
   // ── Queries ──────────────────────────────────────────────────

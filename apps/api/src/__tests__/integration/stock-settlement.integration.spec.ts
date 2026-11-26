@@ -2,6 +2,13 @@ import { describe, it, expect, vi } from 'vitest';
 import { inspect } from 'node:util';
 import { OrdersService } from '../../modules/orders/orders.service';
 
+vi.mock('../../common/tenant-scope', () => ({
+  assertOrderAccessible: vi.fn().mockResolvedValue(undefined),
+  assertMasterOrderAccessible: vi.fn().mockResolvedValue(undefined),
+  assertStoreInOrg: vi.fn().mockResolvedValue(undefined),
+  isTenantPrivileged: vi.fn().mockReturnValue(false),
+}));
+
 /**
  * A4-4 — stock settlement against the order FSM.
  *
@@ -82,7 +89,12 @@ function createHarness(initialStatus: string, ledger: LedgerRow[]) {
   };
 
   const service = new OrdersService(
-    { db } as any,
+    {
+      db,
+      withActorContext: vi.fn(
+        async (_actor: unknown, operation: () => Promise<unknown>) => operation(),
+      ),
+    } as any,
     { publish: vi.fn(async () => undefined) } as any,
     {
       resolveApplicable: vi.fn(async () => null),
@@ -120,7 +132,12 @@ describe('Order stock settlement (A4-4)', () => {
   it('releases the reservation when the order is cancelled', async () => {
     const h = createHarness('ACCEPTED', [reserved(10)]);
 
-    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'CUSTOMER_REQUEST');
+    await h.service.cancelOrder(
+      ORDER_ID,
+      BUYER_ID,
+      'CUSTOMER_REQUEST',
+      { sub: BUYER_ID, role: 'BUYER', activeOrg: null },
+    );
 
     const [movement] = h.writtenMovements();
     expect(movement).toMatchObject({
@@ -139,7 +156,12 @@ describe('Order stock settlement (A4-4)', () => {
   it('scopes the ledger read to this order', async () => {
     const h = createHarness('ACCEPTED', [reserved(10)]);
 
-    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'CUSTOMER_REQUEST');
+    await h.service.cancelOrder(
+      ORDER_ID,
+      BUYER_ID,
+      'CUSTOMER_REQUEST',
+      { sub: BUYER_ID, role: 'BUYER', activeOrg: null },
+    );
 
     // The fake below ignores the predicate and returns every row it is given, so
     // the only way to catch a dropped WHERE is to assert on the SQL itself.
@@ -176,7 +198,12 @@ describe('Order stock settlement (A4-4)', () => {
       },
     ]);
 
-    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'DUPLICATE_ORDER');
+    await h.service.cancelOrder(
+      ORDER_ID,
+      BUYER_ID,
+      'DUPLICATE_ORDER',
+      { sub: BUYER_ID, role: 'BUYER', activeOrg: null },
+    );
 
     expect(h.writtenMovements()).toEqual([]);
     expect(h.stockUpdates()).toEqual([]);
@@ -187,7 +214,12 @@ describe('Order stock settlement (A4-4)', () => {
     // Short stock: reserveStock holds 7 of the 10 ordered units.
     const h = createHarness('ACCEPTED', [reserved(7)]);
 
-    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'CUSTOMER_REQUEST');
+    await h.service.cancelOrder(
+      ORDER_ID,
+      BUYER_ID,
+      'CUSTOMER_REQUEST',
+      { sub: BUYER_ID, role: 'BUYER', activeOrg: null },
+    );
 
     expect(h.writtenMovements()[0]!['quantity']).toBe(7);
   });
@@ -202,7 +234,12 @@ describe('Order stock settlement (A4-4)', () => {
     };
     const h = createHarness('ACCEPTED', [legacy]);
 
-    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'CUSTOMER_REQUEST');
+    await h.service.cancelOrder(
+      ORDER_ID,
+      BUYER_ID,
+      'CUSTOMER_REQUEST',
+      { sub: BUYER_ID, role: 'BUYER', activeOrg: null },
+    );
 
     expect(h.writtenMovements()[0]!['quantity']).toBe(6);
   });
@@ -223,7 +260,12 @@ describe('Order stock settlement (A4-4)', () => {
   it('releases on rejectOrder, which bypasses transitionStatus', async () => {
     const h = createHarness('PENDING_CONFIRMATION', [reserved(3)]);
 
-    await h.service.rejectOrder(ORDER_ID, MERCHANT_ID, 'Out of stock');
+    await h.service.rejectOrder(
+      ORDER_ID,
+      MERCHANT_ID,
+      'Out of stock',
+      { sub: MERCHANT_ID, role: 'MERCHANT_OWNER', activeOrg: null },
+    );
 
     expect(h.writtenMovements()[0]).toMatchObject({ movementType: 'RELEASE', quantity: 3 });
     expect(h.status()).toBe('REJECTED');

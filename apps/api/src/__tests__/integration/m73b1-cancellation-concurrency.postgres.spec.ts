@@ -208,7 +208,8 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
     const client = await pool.connect();
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
-    database = { db } as DatabaseService;
+    database = Object.create(DatabaseService.prototype) as DatabaseService;
+    database.db = db;
     outbox = new OutboxDispatcher(database);
     const promotions = new PromotionsService(database);
     const inventoryService = new InventoryService(database, outbox);
@@ -284,7 +285,12 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
 
     // Launch 100 concurrent cancellations
     const promises = Array.from({ length: 100 }, (_, i) =>
-      ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST')
+      ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        )
         .then(() => ({ ok: true, index: i }))
         .catch((err: any) => ({ ok: false, index: i, message: err.message || String(err) })),
     );
@@ -339,7 +345,12 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
     const promises: Promise<any>[] = [];
     for (let i = 0; i < 50; i++) {
       promises.push(
-        ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST')
+        ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        )
           .then(() => ({ ok: true, action: 'cancel' }))
           .catch(() => ({ ok: false, action: 'cancel' })),
       );
@@ -385,7 +396,12 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
     const promises: Promise<any>[] = [];
     for (let i = 0; i < 50; i++) {
       promises.push(
-        ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST')
+        ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        )
           .then(() => ({ ok: true, action: 'cancel' }))
           .catch(() => ({ ok: false, action: 'cancel' })),
       );
@@ -419,7 +435,12 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
     const promises: Promise<any>[] = [];
     for (let i = 0; i < 50; i++) {
       promises.push(
-        ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST')
+        ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        )
           .then(() => ({ ok: true, action: 'cancel' }))
           .catch(() => ({ ok: false, action: 'cancel' })),
       );
@@ -457,7 +478,12 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
 
     // 100 concurrent cancels
     const promises = Array.from({ length: 100 }, () =>
-      ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST')
+      ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        )
         .then(() => 'ok')
         .catch(() => 'conflict'),
     );
@@ -491,7 +517,12 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
     );
 
     // First cancel succeeds
-    await ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST');
+    await ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        );
 
     // Record stock state
     const movCountBefore = await pool.query(
@@ -502,7 +533,12 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
 
     // Second cancel fails
     await expect(
-      ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST'),
+      ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        ),
     ).rejects.toThrow();
 
     // No additional stock movements
@@ -521,11 +557,26 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
     );
 
     // First succeeds
-    await ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST');
+    await ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        );
 
     // Second and third fail
-    await expect(ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST')).rejects.toThrow();
-    await expect(ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST')).rejects.toThrow();
+    await expect(ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        )).rejects.toThrow();
+    await expect(ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        )).rejects.toThrow();
 
     // Exactly 1 RELEASE
     const releases = await pool.query(
@@ -542,7 +593,12 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
       pool, ordersService, 'READY', buyerA, merchantA, storeA, variantA, offerA, orgA,
     );
 
-    await ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST');
+    await ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        );
 
     const cancelHistory = await pool.query(
       `SELECT COUNT(*) FROM order_status_history WHERE order_id = $1 AND to_status = 'CANCELLED'`,
@@ -565,7 +621,12 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
 
     // 50 concurrent cancels
     const promises = Array.from({ length: 50 }, () =>
-      ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST')
+      ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        )
         .then(() => 'ok')
         .catch(() => 'conflict'),
     );
@@ -585,7 +646,12 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
       pool, ordersService, 'READY', buyerA, merchantA, storeA, variantA, offerA, orgA,
     );
 
-    await ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST');
+    await ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        );
 
     const outboxRes = await pool.query(
       `SELECT COUNT(*) FROM outbox_events WHERE aggregate_id = $1 AND event_type = 'order.cancelled'`,
@@ -603,7 +669,12 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
 
     // 50 concurrent cancels
     const promises = Array.from({ length: 50 }, () =>
-      ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST')
+      ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        )
         .then(() => 'ok')
         .catch(() => 'conflict'),
     );
@@ -678,7 +749,8 @@ describe('M7.3-B.1 — Failure Injection (PostgreSQL)', () => {
     const client = await pool.connect();
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
-    database = { db } as DatabaseService;
+    database = Object.create(DatabaseService.prototype) as DatabaseService;
+    database.db = db;
     outbox = new OutboxDispatcher(database);
     const promotions = new PromotionsService(database);
     const inventoryService = new InventoryService(database, outbox);
@@ -796,7 +868,12 @@ describe('M7.3-B.1 — Failure Injection (PostgreSQL)', () => {
     await pool.query(`ALTER TABLE outbox_events RENAME TO outbox_events_backup`);
 
     try {
-      await ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST');
+      await ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        );
       // Should not reach here
       expect(true).toBe(false);
     } catch {
@@ -831,7 +908,12 @@ describe('M7.3-B.1 — Failure Injection (PostgreSQL)', () => {
     const orderId = await createReadyOrder();
 
     // Successful cancel
-    await ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST');
+    await ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        );
 
     // All artifacts must exist
     const orderRes = await pool.query(`SELECT status FROM orders WHERE id = $1`, [orderId]);
@@ -889,7 +971,12 @@ describe('M7.3-B.1 — Failure Injection (PostgreSQL)', () => {
     expect(reserves.length).toBeGreaterThan(0);
 
     // Cancel
-    await ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST');
+    await ordersService.cancelOrder(
+          orderId,
+          buyerA,
+          'CUSTOMER_REQUEST',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        );
 
     // Exactly 1 RELEASE
     const releases = await pool.query(

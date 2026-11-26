@@ -109,7 +109,8 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
     // ── Instantiate services ──────────────────────────────────────
-    database = { db } as DatabaseService;
+    database = Object.create(DatabaseService.prototype) as DatabaseService;
+    database.db = db;
     const conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
     catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy, {} as any, {} as any, {} as any);
@@ -384,7 +385,12 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       const subId = co.subOrders[0]?.id;
       expect(subId).toBeTruthy();
 
-      await ordersService.rejectOrder(subId!, merchantA, 'Out of stock');
+      await ordersService.rejectOrder(
+        subId!,
+        merchantA,
+        'Out of stock',
+        { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA },
+      );
       const rejected = await ordersService.getOrder(subId!);
       expect(rejected.status).toBe('REJECTED');
 
@@ -442,7 +448,12 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       const beforeReserved = before.qtyReserved;
 
       // Cancel
-      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', undefined);
+      await ordersService.cancelOrder(
+        subId!,
+        buyerA,
+        'CUSTOMER_REQUEST',
+        { sub: buyerA, role: 'BUYER', activeOrg: null },
+      );
 
       const after = await inventoryService.getItem(invItemA);
       expect(after.qtyReserved).toBe(beforeReserved - 2);
@@ -461,7 +472,12 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       if (cancelledRes.rows.length === 0) return;
       const id = cancelledRes.rows[0].id;
       await expect(
-        ordersService.cancelOrder(id, buyerA, 'Again', undefined),
+        ordersService.cancelOrder(
+          id,
+          buyerA,
+          'Again',
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        ),
       ).rejects.toThrow();
     });
   });
