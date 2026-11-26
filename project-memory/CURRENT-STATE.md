@@ -578,3 +578,11 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - Next integration candidates: #145 narrow canonical migration 0070, #154 canonical lease migration 0071 + atomic order completion, #153 outbox false-ack protection. Reconcile against the new develop head and avoid duplicate migration content from #138. #155/#156 remain separate security slices.
 - PR #138 remains OPEN / DRAFT / UNMERGED and protected source/evidence only. No wholesale merge.
 - No shared/staging DB mutation, migration application, grant/default-ACL/RLS change, Render setting, worker activation, deployment, restart or release.
+
+## 26 November 2026 — post-merge dependency refresh
+
+- After merging #157/#158, rechecked remaining PRs against current develop `f58047c363adb69054a92b98dbdfe226dc17da21`.
+- #145 remains one-file narrow migration 0070; #153 remains ten files; #154 remains thirteen files; #155 one audit document; #156 three source/test files. Their heads and previously successful exact-head CI are unchanged, but their base snapshots are stale and GitHub currently reports mergeable=false. Current comparisons show develop has advanced 51–54 commits beyond their old merge bases. Do not attempt merges on these stale PR branches.
+- Next step is to reconcile each bounded PR against refreshed develop, preserve its exact intended diff (especially the canonical 0070 and 0071 migration uniqueness), then run one consolidated exact-head CI per refreshed workstream before merge. Do not blindly merge develop into the branches or import unrelated project-memory changes.
+- PR #138 remains OPEN / DRAFT / UNMERGED, protected source/evidence only. Its source/preservation refs are synchronized at `873dce655c71833115db63f8ec527f4f743b44e6`.
+- No migration was applied and no staging/shared DB, grants/default-ACL/RLS, Render, worker, deployment, restart or release action occurred.
