@@ -54,6 +54,7 @@ const audit = { record: vi.fn().mockResolvedValue(undefined) } as any;
 const redis = { get: vi.fn(), set: vi.fn(), del: vi.fn() } as any;
 const realtime = { emitNewOrder: vi.fn(), emitOrderStatusChanged: vi.fn() } as any;
 const notifications = { send: vi.fn().mockResolvedValue(undefined) } as any;
+const importCaller = { sub: '00000000-0000-4000-8000-000000000002', role: 'SUPER_ADMIN', activeOrg: null };
 
 // ── Test identity IDs ──────────────────────────────────────────────────────
 let orgA: string;
@@ -181,7 +182,7 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
     // ── Instantiate services ──────────────────────────────────────
-    database = { db } as DatabaseService;
+    database = { db, withActorContext: async (_actor: unknown, operation: () => Promise<unknown>) => operation() } as DatabaseService;
     const conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
     catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy, {} as any, {} as any, {} as any);
@@ -300,7 +301,7 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
       const refs = await resolver.resolve(workbook);
       const existingEntities = { categories: new Map(), brands: new Map(), products: new Map() };
       const plan = planner.buildPlan(workbook, refs, existingEntities);
-      const result = await executor.execute(plan, refs);
+      const result = await executor.execute(plan, refs, importCaller);
 
       expect(result.created).toBeGreaterThan(0);
       expect(result.rejected).toBe(0);
