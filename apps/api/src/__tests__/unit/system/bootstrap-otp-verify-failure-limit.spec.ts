@@ -17,7 +17,10 @@ describe('BootstrapService OTP verification failure limits', () => {
     try {
       const redis = createMockRedisStore();
       const service = new BootstrapService(
-        { db: { query: { users: { findFirst: async () => null } } } } as any,
+        {
+          db: { query: { users: { findFirst: async () => null } } },
+          withActorContext: async (_context: unknown, operation: () => Promise<unknown>) => operation(),
+        } as any,
         {} as any,
         {} as any,
         redis as any,
