@@ -578,6 +578,16 @@ jobs:
           timeout 60s sh -c 'until docker exec ci-postgres pg_isready -U scs -d scs_platform >/dev/null 2>&1; do sleep 1; done'
           timeout 30s sh -c 'until docker exec ci-redis redis-cli ping 2>/dev/null | grep -q PONG; do sleep 1; done'
 
+          # Never use the privileged bootstrap account as the API runtime role.
+          # This production-like smoke principal owns no schema/tables and cannot
+          # administer roles/databases or bypass row-level security.
+          docker exec ci-postgres psql -v ON_ERROR_STOP=1 -U scs -d scs_platform \
+            -c "CREATE ROLE scs_api_runtime LOGIN PASSWORD 'ci-runtime-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS"
+          docker exec ci-postgres psql -v ON_ERROR_STOP=1 -U scs -d scs_platform \
+            -c "GRANT CONNECT ON DATABASE scs_platform TO scs_api_runtime"
+          docker exec ci-postgres psql -v ON_ERROR_STOP=1 -U scs -d scs_platform \
+            -c "GRANT USAGE ON SCHEMA public TO scs_api_runtime"
+
       # S1.28 D-CI-4: `main.ts` bootstrap calls `assertOtpHmacConfig()` (added by
       # S1.3 / audit finding M-02). It fails the process under NODE_ENV=production
       # when OTP_HMAC_SECRET missing, is the `.env.example` placeholder, or is
@@ -596,7 +606,7 @@ jobs:
         run: |
           docker run -d --name ci-api --network ci-smoke-net \
             -e NODE_ENV=production \
-            -e DATABASE_URL=postgresql://scs:scs@ci-postgres:5432/scs_platform \
+            -e DATABASE_URL=postgresql://scs_api_runtime:ci-runtime-password@ci-postgres:5432/scs_platform \
             -e PGSSLROOTCERT=/ci-pg-certs/ca.crt \
             -v ci-pg-certs:/ci-pg-certs:ro \
             -e REDIS_URL=redis://ci-redis:6379 \
