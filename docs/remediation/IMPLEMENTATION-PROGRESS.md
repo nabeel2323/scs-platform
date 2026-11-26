@@ -3159,3 +3159,15 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
 - Historical integration failures include checkout shipping eligibility mock/contract mismatch and worker tenant-context injection gaps. The current branch contains subsequent fixes for the shipping validation method and worker merchant dependency; these still require exact-head verification.
 - Keep PR #170 OPEN / DRAFT / UNMERGED. Preserve PR #138 and its preservation ref; never merge it wholesale. Do not trigger per-failure CI runs. Complete the remaining source-reviewed fixture batch, then run one consolidated exact-head mandatory CI campaign.
 - No staging/production database changes, migrations, deployments, releases, service restarts, provider calls, or Render mutations were performed. No reviewers are requested. The staging-release safety hold remains in place.
+
+
+## Continuation checkpoint — 27 November 2026 (refund and realtime fixture corrections)
+
+- Continued source-based review of the prior API unit CI log and corrected two deterministic test-fixture mismatches:
+  - `merchant-rejection-refund-actor.spec.ts` now asserts the generated refund ID captured from the inserted refund row, rather than a hard-coded UUID. The production service intentionally generates this ID with `crypto.randomUUID()`. Commit: `8b42ff149ac4d2ec2b9de1283e20f787b01e3f78`.
+  - `realtime.gateway.spec.ts` now provides the active organization and organization-membership rows required by the existing tenant-scope checks before the store-membership check. No authorization guard was weakened. Commit: `9153b44390a1f5d6a4c739d7e96b092d952210ad`.
+- The webhook token-route assertion correction remains in commit `282832768a80407e028de5748db0e7846e3433e1`.
+- These are test-only corrections and have not been run locally or by exact-head CI. Keep status VERIFICATION_PENDING; the historical run is not evidence for this branch head.
+- Remaining work is a source-reviewed audit of current-head fixture mismatches, especially inventory transfer, identity active-org/profile, shipment operations, carrier cancellation/race and integration checkout. Re-check whether historical failures have already been addressed before changing files.
+- PR #170 remains OPEN / DRAFT / UNMERGED, 62 commits ahead and 0 behind `develop`. PR #138 remains OPEN / DRAFT / UNMERGED and protected as source material. Do not merge either PR until exact-head mandatory CI is green and the separate staging-release/migration authorization gate is satisfied.
+- No staging/production DB writes, migrations, deployments, releases, service restarts, provider calls, Render mutations, or reviewer requests were made. Keep the staging-release safety hold disabled.
