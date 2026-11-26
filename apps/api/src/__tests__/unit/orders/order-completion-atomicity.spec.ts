@@ -115,8 +115,12 @@ describe('OrdersService.recalculateMasterOrderStatus concurrency', () => {
 
 describe('OrdersService.confirmDelivery idempotency', () => {
   it('returns the completed order when auto-completion wins after the initial status read', async () => {
+    const updateReturning = vi.fn().mockResolvedValue([{ id: 'order-1' }]);
+    const updateWhere = vi.fn(() => ({ returning: updateReturning }));
+    const updateSet = vi.fn(() => ({ where: updateWhere }));
+    const update = vi.fn(() => ({ set: updateSet }));
     const service = new OrdersService(
-      { db: {} } as any,
+      { db: { update } } as any,
       {} as any,
       {} as any,
     );
