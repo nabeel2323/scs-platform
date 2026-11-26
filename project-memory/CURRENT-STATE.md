@@ -567,3 +567,14 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - PR #138 source and preservation refs remain synchronized at the current project-memory checkpoint. PR #138 OrdersService cancel/reject actor hardening and bounded SQL scan remain untested; preserve the 1,943-file branch and do not merge wholesale.
 - No database writes, migrations, RLS/grant changes, staging mutations, worker activation, deployments or merges occurred.
 
+
+
+## 26 November 2026 — integration update: PR #157 and #158 merged
+
+- Reviewer policy: user explicitly waived independent GitHub reviewer requirements. Missing reviews are not a blocker; continue using exact-head CI and source/scope/safety verification. Do not self-approve or invent reviews.
+- PR #157 merged to `develop` with merge commit `daabd25cd00a6d2e9d6613d3c0edba23e56b6603`. Head `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`; Actions #1572 passed all 10 mandatory jobs.
+- PR #158 merged to `develop` with merge commit `f58047c363adb69054a92b98dbdfe226dc17da21`. Head `703b9d49f27a67dfdd02eb47ed925b3244bc8b8f`; Actions #1576 passed all 10 mandatory jobs. The PR diff was verified as exactly six identity/test files after retargeting to develop.
+- Current develop SHA: `f58047c363adb69054a92b98dbdfe226dc17da21`.
+- Next integration candidates: #145 narrow canonical migration 0070, #154 canonical lease migration 0071 + atomic order completion, #153 outbox false-ack protection. Reconcile against the new develop head and avoid duplicate migration content from #138. #155/#156 remain separate security slices.
+- PR #138 remains OPEN / DRAFT / UNMERGED and protected source/evidence only. No wholesale merge.
+- No shared/staging DB mutation, migration application, grant/default-ACL/RLS change, Render setting, worker activation, deployment, restart or release.
