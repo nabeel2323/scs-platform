@@ -3171,3 +3171,14 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
 - Remaining work is a source-reviewed audit of current-head fixture mismatches, especially inventory transfer, identity active-org/profile, shipment operations, carrier cancellation/race and integration checkout. Re-check whether historical failures have already been addressed before changing files.
 - PR #170 remains OPEN / DRAFT / UNMERGED, 62 commits ahead and 0 behind `develop`. PR #138 remains OPEN / DRAFT / UNMERGED and protected as source material. Do not merge either PR until exact-head mandatory CI is green and the separate staging-release/migration authorization gate is satisfied.
 - No staging/production DB writes, migrations, deployments, releases, service restarts, provider calls, Render mutations, or reviewer requests were made. Keep the staging-release safety hold disabled.
+
+
+## Continuation checkpoint — 27 November 2026 (checkout and shipping fixture batch)
+
+- Added the missing `validateCheckoutSelection` and driver-eligibility methods to the M7.1 fulfillment integration test's shipping collaborator. This is a test double for behavior outside that suite's scope; production shipping validation remains intact. Commit: `f714503cfb0e2ac4c128be2b5726409717cee390`.
+- Added the same explicit shipping collaborator to the M7.3-A delivery-completion integration suite, which exercises `assignDriver` and checkout. Commit: `946c36b038ec6bf775c7725ec34ebb90018e5247`.
+- Corrected the shipment database-context unit test to assert the controller's synchronous fail-closed exception synchronously, while still proving no actor scope opens for incomplete identity. Commit: `3fd325fcf44691f8af0360ba3762cd3769583bf3`.
+- Updated M7.3-B.3.4 cancellation reconciliation fixtures with order/store lineage required by the worker's new preflight. This preserves the production tenant-lineage guard. Commit: `48454d137a6f3ba80d43bbb6ad1693e8bc961450`.
+- Rebuilt checkout integration fixtures around active variants, active canonical product state, and explicit active merchant offers for each store/variant combination. The locked-offer fixture now replaces the correct queued lock result. This models the current checkout contract rather than weakening availability checks. Commit: `e0a96012063872d18c386358cd77d787866ca588`.
+- None of these changes have been executed locally or in CI. Historical CI logs are not current-head verification. Keep the status VERIFICATION_PENDING and continue source review before the single consolidated exact-head mandatory CI campaign.
+- PR #170 remains OPEN / DRAFT / UNMERGED. PR #138 remains OPEN / DRAFT / UNMERGED and its preservation branch remains identical. No reviewers, staging/production writes, migrations, deployments, releases, service restarts, provider calls, or Render mutations were made. The staging-release safety hold remains disabled.
