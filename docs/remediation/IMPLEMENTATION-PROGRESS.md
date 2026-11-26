@@ -3211,3 +3211,11 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
 - Aligned `profile.controller.spec.ts` with the current controller delegation contract: profile updates forward only user + DTO; credential setup/password change forward the verified actor context and device ID; catalog favorites and saved-supplier methods forward the complete caller actor. Test-only correction commit: `63a3280384dfda6f9a75c3da6c041cfaa6181d6d`.
 - Separated organization-membership query fixtures from store-membership query fixtures in `inventory-tenant-scope.spec.ts`. The helpers intentionally enforce both organization membership and store membership; separate spies now assert each check independently instead of conflating two distinct authorization layers. Test-only correction commit: `83158d46ea963edf62ea181cf659a467af4d9adb`.
 - Neither change has been run locally or in CI. Status remains VERIFICATION_PENDING. Keep all tenant and authorization checks intact; do not use CI results from historical heads as evidence for this branch.
+
+
+## Default active-organization selection edge case — 27 November 2026
+
+- Follow-up source review found that selecting the first ACTIVE membership and then checking its organization could incorrectly leave a user with BUYER claims when that first organization was deactivated, even if a later membership belonged to an active organization.
+- Updated `IdentityService.buildClaims` to select the first membership whose organization is also active when no organization is explicitly requested. When a specific organization is requested (for example, `switchOrg`), it remains authoritative and an inactive/missing organization fails closed; no cross-tenant fallback occurs. Commit `37b6134feaff1d9253f934ed7cdce93ad216216b`.
+- Added a regression test covering an inactive first organization followed by a valid active organization. Commit `94caa21ebca3604f97bd9d5be1d863aded387dcb`.
+- Schema review confirmed `organizations.is_active` exists and is non-null with a default of true. This service change and regression test have not been executed locally or in CI; status remains VERIFICATION_PENDING.
