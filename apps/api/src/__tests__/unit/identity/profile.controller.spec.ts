@@ -80,10 +80,16 @@ describe('ProfileController', () => {
     expect(m.identity.getProfile).toHaveBeenCalledWith('u1', null);
   });
 
-  it('updateProfile forwards sub + dto', async () => {
+  it('updateProfile forwards sub + dto + the caller activeOrg', async () => {
     const dto = { fullName: 'New Name' } as any;
-    await controller.updateProfile(payload({ sub: 'u1' }), dto);
-    expect(m.identity.updateProfile).toHaveBeenCalledWith('u1', dto);
+    await controller.updateProfile(payload({ sub: 'u1', activeOrg: 'org-9' }), dto);
+    expect(m.identity.updateProfile).toHaveBeenCalledWith('u1', dto, 'org-9');
+  });
+
+  it('updateProfile forwards a null activeOrg unchanged', async () => {
+    const dto = { fullName: 'New Name' } as any;
+    await controller.updateProfile(payload({ sub: 'u1', activeOrg: null }), dto);
+    expect(m.identity.updateProfile).toHaveBeenCalledWith('u1', dto, null);
   });
 
   it('getMyOrganizations forwards sub', async () => {
