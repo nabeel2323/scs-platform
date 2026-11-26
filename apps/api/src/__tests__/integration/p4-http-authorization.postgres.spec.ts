@@ -34,7 +34,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { INestApplication } from '@nestjs/common';
+import { HttpException, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
