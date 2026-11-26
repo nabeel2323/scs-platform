@@ -1,3 +1,13 @@
+## Live checkpoint — 26 November 2026 (PR #158 second identity fixture correction)
+
+- PR #157 remains OPEN / DRAFT / UNMERGED at `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`; exact-head Actions run #1572 (`45805365809`) passed all mandatory jobs.
+- PR #158 head `27da3d7f65a760d6e9bdf102b843f550a1cf38fb` was tested in Actions run #1575 (`45814538450`). Mobile, lint/typecheck, Web/Admin, E6 boundary lint, integration tests and migration full apply passed; Unit Tests + Coverage failed only four cases in `token-revocation.spec.ts`. The cause is now fully identified: `switchOrg()` performs a separate `organizations.findFirst()` active-organization lookup before `buildClaims()` performs `organizations.findMany()`. The fixture previously mocked only one lookup at a time.
+- Corrected the test fixture in commit `703b9d49f27a67dfdd02eb47ed925b3244bc8b8f` to mock BOTH `organizations.findFirst()` and `organizations.findMany()` as active `org-2`. This is test-only; no production authorization logic changed. Wait for the automatically triggered exact-head CI run on `703b9d4`; do not dispatch a duplicate.
+- PR #158 remains temporarily based on `develop` for CI trigger eligibility. Once the corrected exact-head CI succeeds, restore its base to `integration/g002-actor-context-foundation` and verify exactly six changed files (five identity-slice files plus the token-revocation fixture).
+- Keep PR #157 and #158 draft/unmerged pending independent review. PR #138 remains protected source/evidence only; never wholesale merge. Preserve project-memory and preservation refs with expected-SHA fast-forward only. No staging/shared DB writes, migrations, grants/default-ACL/RLS changes, Render changes, worker activation, deployment or release.
+
+---
+
 ## Live checkpoint — 26 November 2026 (PR #158 identity fixture correction)
 
 - PR #157 remains OPEN / DRAFT / UNMERGED at `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`; exact-head Actions run #1572 (`45805365809`) passed all mandatory jobs including P6 integration suites and restricted-role verified-TLS smoke.
