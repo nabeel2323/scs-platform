@@ -90,7 +90,7 @@ describe('PaymentsService.requestRefund merchant rejection attribution', () => {
     );
 
     expect(result).toEqual({
-      refundId: 'refund-a',
+      refundId: insertedRows[0]?.id,
       amountMinor: 12500,
       status: 'REQUESTED',
     });
