@@ -549,25 +549,30 @@ jobs:
           # The production-like API startup gate requires verified PostgreSQL TLS.
           # Give the disposable smoke database a short-lived, locally trusted cert
           # whose SAN matches the Docker service DNS name; never disable verification.
-          mkdir -p /tmp/ci-pg-certs
-          openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 \
-            -keyout /tmp/ci-pg-certs/server.key \
-            -out /tmp/ci-pg-certs/ca.crt \
-            -subj "/CN=ci-postgres" \
-            -addext "subjectAltName=DNS:ci-postgres"
-          cp /tmp/ci-pg-certs/ca.crt /tmp/ci-pg-certs/server.crt
-          chown 70:70 /tmp/ci-pg-certs/server.key /tmp/ci-pg-certs/server.crt
-          chmod 600 /tmp/ci-pg-certs/server.key
-          chmod 644 /tmp/ci-pg-certs/server.crt /tmp/ci-pg-certs/ca.crt
+          # Use a Docker-managed volume so certificate ownership can be set
+          # inside a container. GitHub-hosted runner bind mounts may reject host
+          # chown even when the workflow runs as the runner's privileged user.
+          docker volume create ci-pg-certs
+          docker run --rm -v ci-pg-certs:/certs alpine:3.21 sh -ec '
+            apk add --no-cache openssl
+            openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 \
+              -keyout /certs/server.key \
+              -out /certs/ca.crt \
+              -subj "/CN=ci-postgres" \
+              -addext "subjectAltName=DNS:ci-postgres"
+            cp /certs/ca.crt /certs/server.crt
+            chown 70:70 /certs/server.key /certs/server.crt
+            chmod 600 /certs/server.key
+            chmod 644 /certs/server.crt /certs/ca.crt
+          '
 
           docker run -d --name ci-postgres --network ci-smoke-net \
             -e POSTGRES_PASSWORD=scs -e POSTGRES_USER=scs -e POSTGRES_DB=scs_platform \
-            -v /tmp/ci-pg-certs/server.crt:/var/lib/postgresql/server.crt:ro \
-            -v /tmp/ci-pg-certs/server.key:/var/lib/postgresql/server.key:ro \
+            -v ci-pg-certs:/var/lib/postgresql/certs:ro \
             postgres:16-alpine \
             -c ssl=on \
-            -c ssl_cert_file=/var/lib/postgresql/server.crt \
-            -c ssl_key_file=/var/lib/postgresql/server.key
+            -c ssl_cert_file=/var/lib/postgresql/certs/server.crt \
+            -c ssl_key_file=/var/lib/postgresql/certs/server.key
           docker run -d --name ci-redis --network ci-smoke-net redis:7-alpine
           # Wait for real readiness instead of assuming fixed startup time.
           timeout 60s sh -c 'until docker exec ci-postgres pg_isready -U scs -d scs_platform >/dev/null 2>&1; do sleep 1; done'
@@ -593,7 +598,7 @@ jobs:
             -e NODE_ENV=production \
             -e DATABASE_URL=postgresql://scs:scs@ci-postgres:5432/scs_platform \
             -e PGSSLROOTCERT=/ci-pg-certs/ca.crt \
-            -v /tmp/ci-pg-certs/ca.crt:/ci-pg-certs/ca.crt:ro \
+            -v ci-pg-certs:/ci-pg-certs:ro \
             -e REDIS_URL=redis://ci-redis:6379 \
             -e JWT_ACCESS_SECRET='ci-test-secret-at-least-16-chars!!' \
             -e OTP_HMAC_SECRET='ci-test-otp-hmac-secret-at-least-32-chars!!' \
@@ -655,6 +660,7 @@ jobs:
         run: |
           docker rm -f ci-api ci-postgres ci-redis 2>/dev/null || true
           docker network rm ci-smoke-net 2>/dev/null || true
+          docker volume rm ci-pg-certs 2>/dev/null || true
           docker rmi scs-api:ci-test 2>/dev/null || true
 
   # ── Staging Release (develop push only, after all mandatory CI gates) ────
