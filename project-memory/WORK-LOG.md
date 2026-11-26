@@ -478,3 +478,10 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - d204b9e adds lazy AsyncLocalStorage initialization for prototype-based DatabaseService test doubles, parameterized SQL-builder fallback for organization/store lookups when Drizzle relation query objects are unavailable, and P4/P12 fixture changes. Wait for #1557 to finish, then run one consolidated check on d204b9e.
 - PR #158 head 4f2ac7d... includes earlier parent fixture work but not the 6901389d/d204b9e parent commits; keep it stacked and reconcile only after PR #157 is green.
 - PR #138 source and preservation refs remain identical at the latest project-memory checkpoint. OrdersService actor hardening and bounded SQL scan remain untested; no DB writes, staging mutations, RLS/grant changes, worker activation or deployment occurred.
+
+
+## 26 November 2026 — PR #158 profile-controller test alignment
+
+- PR #158 current head is 19b96bcda29d7166a748dd5693b430cce0ea2098 (5 changed files). Its profile-controller tests now verify updateProfile forwards a concrete activeOrg and explicit null, matching the controller/service contract.
+- PR #157 current head remains d204b9ea18958f623e0379c7cc307fd0545f8863; run #1557 still validates prior head 6901389d. Migration full apply and non-test jobs passed; Unit/Coverage and Integration Tests remain in progress. d204b9e is not yet validated.
+- Keep PR #158 stacked and reconcile only after PR #157's exact current head is green. PR #138 source/preservation refs remain identical; its actor hardening/SQL scan remain untested. No DB writes, staging changes, RLS/grant changes, worker activation or deployment.
