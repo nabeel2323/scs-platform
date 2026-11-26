@@ -120,10 +120,19 @@ export async function assertActiveOrgMembership(
 }
 
 async function storeOrgId(db: DatabaseService, storeId: string): Promise<string | null> {
-  const store = await db.db.query.stores.findFirst({
-    where: eq(stores.id, storeId),
-    columns: { orgId: true },
-  });
+  const storeQuery = db.db.query?.stores;
+  const store = storeQuery?.findFirst
+    ? await storeQuery.findFirst({
+        where: eq(stores.id, storeId),
+        columns: { orgId: true },
+      })
+    : (
+        await db.db
+          .select({ orgId: stores.orgId })
+          .from(stores)
+          .where(eq(stores.id, storeId))
+          .limit(1)
+      )[0];
   return store?.orgId ?? null;
 }
 
