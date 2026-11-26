@@ -32,7 +32,10 @@ function createMocks() {
     insert: vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) }),
   };
 
-  const mockDb = { db } as any;
+  const mockDb = {
+    withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
+    db,
+  } as any;
   const mockRedis = {
     client: { get: vi.fn(), set: vi.fn(), del: vi.fn(), incr: vi.fn(), expire: vi.fn() },
   } as any;
