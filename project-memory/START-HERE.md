@@ -1,3 +1,34 @@
+## 26 November 2026 — owner-directed PR #138 integration checkpoint (live GitHub recheck)
+
+**Owner priority:** protect PR #138 first, integrate its required remediation safely with current `develop`, then reconcile/fix the remaining focused PRs (initially #153 and #154). Batch related changes and run one consolidated CI campaign per meaningful integration slice; do not trigger CI for documentation or small edits. Never bypass required checks.
+
+### Live GitHub state
+
+- PR #138: OPEN / DRAFT / UNMERGED; base `develop`; source branch `remediation/phase-0-1-tenant-security`; exact head `e9fb552850f605fd412fc4aa35b812e945f3c702`; GitHub reports `mergeable=false`, `mergeable_state=dirty`.
+- `develop`: `fde20420bbb759d2e562f9ff747c9e824ac58e25`.
+- Compare `develop...`PR #138 head: DIVERGED, 2,951 commits ahead / 3 behind, merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
+- PR metadata reports 1,943 changed files (the live compare reports 2,951 commits ahead). This is not a merge-ready PR and must **not** be merged wholesale.
+- Preservation branch `preservation/pr138-remediation-2026-11-25` was observed at the same head as the source branch before this memory-only update. Keep it synchronized using expected-SHA fast-forwards only; never force-push or rewrite either history.
+- No GitHub Actions run was found for the exact PR #138 head. Historical CI and Vercel build-rate-limit statuses do not validate it. The latest source changes described in the ledger remain untested unless a later exact-head run proves otherwise.
+- PR #153: OPEN / DRAFT, head `5294698d8db78e21df972e8ce6213f21237789fa`, base `develop`, mergeable=true at the PR metadata snapshot.
+- PR #154: OPEN / DRAFT, head `e421e21b1e66386a9d0c259fb83c99f1a05272cb`, base `develop`, mergeable=true at the PR metadata snapshot. The visible successful CI run #457007 was for older head `e4a5901102e474c3bdce63ca16431ad20f36a317`, not the current PR head.
+
+### Safe integration decision
+
+1. Preserve PR #138 and its full source history as the remediation evidence/source-of-truth branch. Do not rebase it, force-push it, or merge its broad diff.
+2. Create bounded integration branches from the refreshed `develop`, with a path/commit/dependency manifest for each slice. Exclude all scratch/test-artifact paths and unrelated changes.
+3. First reconcile the three develop-only commits since merge base and all eight affected paths recorded in `PR138-LIVE-RECONCILIATION-LEDGER-2026-11-26.md`. In particular, compose (do not overwrite) DatabaseService with develop's shared runtime identity helper and tests.
+4. Keep the outbox behavior from #153 as canonical (no false success acknowledgement / no placeholder poller). Retain #138's worker actor-context design only as a foundation for a real adapter; reconcile order auto-completion using #154's atomic completion/lease logic plus #138's worker actor context.
+5. Treat migrations 0070–0075 as one ordered dependency set. Resolve the 0070 collision with #145 and 0071 overlap with #154; do not renumber or apply migrations ad hoc. Produce explicit disposition and rollback analysis before extraction.
+6. Run targeted tests while composing each bounded slice; once the integration slice is complete, run one consolidated CI campaign on its exact head. Do not merge until exact-head required checks are green and the relevant security review is complete.
+7. After the PR #138 foundation is safely integrated, continue the user's requested focused PR cleanup (#153, #154), reconciling overlaps rather than merging duplicates.
+
+### Safety boundaries
+
+No database writes, migrations, grant/default-ACL changes, RLS changes, staging mutations, worker activation, deployments, bootstrap/token issuance or release actions are authorized by this integration priority. The source audit and implementation work do not constitute runtime or release approval.
+
+---
+
 ## 26 November 2026 — PR #157 consolidated fixture repair checkpoint
 
 - PR #157 current exact head: 0d97dd446d5912d6d0a815d8a931a88f53db009c, OPEN / DRAFT / UNMERGED, base develop. run #1558 is IN PROGRESS for this exact head; do not start another run.
