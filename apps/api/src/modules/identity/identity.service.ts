@@ -1122,7 +1122,11 @@ export class IdentityService {
     // Only project organizations that are themselves active. Membership status
     // and organization status are both revalidated because stale JWT claims and
     // legacy rows must never restore a revoked merchant role.
-    const orgList = [];
+    const orgList: Array<
+      (typeof organizations.$inferSelect) & {
+        membershipStatus: (typeof organizationMembers.$inferSelect)['status'];
+      }
+    > = [];
     if (activeMemberships.length > 0) {
       const orgs = await this.db.db.query.organizations.findMany({
         where: inArray(
