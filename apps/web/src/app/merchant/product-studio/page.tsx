@@ -183,13 +183,13 @@ export default function ProductStudioPage() {
           <button
             type="button"
             onClick={goPrev}
-            disabled={stepIndex === 0}
+            disabled={stepIndex === 0 || saving || Boolean(success)}
             style={{
               padding: '10px 20px',
               borderRadius: 6,
               border: '1px solid #d9e2e6',
-              cursor: stepIndex === 0 ? 'not-allowed' : 'pointer',
-              opacity: stepIndex === 0 ? 0.5 : 1,
+              cursor: stepIndex === 0 || saving || Boolean(success) ? 'not-allowed' : 'pointer',
+              opacity: stepIndex === 0 || saving || Boolean(success) ? 0.5 : 1,
               background: '#fff',
             }}
           >
