@@ -443,3 +443,12 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - PR #138 source and preservation refs remain synchronized at d8741a83d38a64f3f0a797d6855a5443bb6006ef. PR #138 remains draft/unmerged, mergeable=false, 1,943 changed files. OrdersService cancel/reject actor hardening and the bounded SQL scan are source-reviewed only; no tests/CI have run for PR #138.
 - Keep staging read-only. No RLS/grant changes, DB writes, migration, worker activation, deployment or merge is authorized by this checkpoint.
 
+
+
+## 26 November 2026 — PR #158 test alignment checkpoint
+
+- PR #157 remains at d204b9ea18958f623e0379c7cc307fd0545f8863. Run #1557 is still testing prior head 6901389d; Migration Full Apply, lint/typecheck, mobile, Web/Admin and E6 checks passed, while Unit/Coverage and Integration Tests remain in progress. The latest d204b9e follow-up is not yet validated.
+- PR #158 has advanced to 19b96bcda29d7166a748dd5693b430cce0ea2098 (5 changed files). The profile-controller test now asserts PATCH /me forwards both a concrete activeOrg and explicit null. It remains based on an older parent and must be reconciled after PR #157's current head is green.
+- PR #138 source and preservation refs remain synchronized at the latest memory checkpoint. PR #138 OrdersService cancel/reject hardening and bounded SQL scan remain source-reviewed only, not tested.
+- Do not start overlapping CI runs, merge PRs, mutate staging/database access, enable RLS, activate workers or deploy.
+
