@@ -248,11 +248,11 @@ describe('M7.1 — Security & Concurrency', () => {
 
     // Store + Warehouse
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a', 'Store A', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-a', 'Store A', 'ACTIVE', 'VERIFIED')`,
       [storeA, orgA],
     );
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-b', 'Store B', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-b', 'Store B', 'ACTIVE', 'VERIFIED')`,
       [storeB, orgB],
     );
     await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'WH A')`, [

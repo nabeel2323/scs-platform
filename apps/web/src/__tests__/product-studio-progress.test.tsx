@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import ProgressIndicator from '../app/merchant/product-studio/components/ProgressIndicator';
 
 describe('Product Studio progress navigation', () => {
@@ -22,10 +22,12 @@ describe('Product Studio progress navigation', () => {
   });
 
   it('disables every step while the product is being saved', () => {
-    render(<ProgressIndicator currentStep="offer" stepIndex={3} onStepClick={vi.fn()} disabled />);
+    const { container } = render(
+      <ProgressIndicator currentStep="offer" stepIndex={3} onStepClick={vi.fn()} disabled />,
+    );
 
     expect(
-      screen.getAllByRole('button').every((button) => (button as HTMLButtonElement).disabled),
+      within(container).getAllByRole('button').every((button) => (button as HTMLButtonElement).disabled),
     ).toBe(true);
   });
 });

@@ -276,9 +276,9 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
         orgId: orgA,
         slug: 'alpha-store',
         displayName: 'Alpha Store',
-        status: 'ACTIVE',
+        status: 'ACTIVE', verificationStatus: 'VERIFIED'
       },
-      { id: storeB, orgId: orgB, slug: 'beta-store', displayName: 'Beta Store', status: 'ACTIVE' },
+      { id: storeB, orgId: orgB, slug: 'beta-store', displayName: 'Beta Store', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
     ]);
     await db.insert(warehouses).values([
       { id: warehouseA, storeId: storeA, name: 'Alpha Warehouse' },

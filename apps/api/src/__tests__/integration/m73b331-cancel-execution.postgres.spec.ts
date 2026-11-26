@@ -236,7 +236,7 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
       [randomUUID(), orgA, merchantA, roleById.get('MERCHANT_OWNER')],
     );
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a-b331', 'Store A', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-a-b331', 'Store A', 'ACTIVE', 'VERIFIED')`,
       [storeA, orgA],
     );
     await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'Main WH')`, [

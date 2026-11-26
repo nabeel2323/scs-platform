@@ -321,7 +321,7 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
       [randomUUID(), orgA, buyerA, roleById.get('BUYER')],
     );
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a-p13', 'Store A', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-a-p13', 'Store A', 'ACTIVE', 'VERIFIED')`,
       [storeA, orgA],
     );
     await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'WH A')`, [
@@ -360,7 +360,7 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
       [randomUUID(), orgA, merchantB, roleById.get('MERCHANT_OWNER')],
     );
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-b-p13', 'Store B', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-b-p13', 'Store B', 'ACTIVE', 'VERIFIED')`,
       [storeB, orgA],
     );
     await pool.query(

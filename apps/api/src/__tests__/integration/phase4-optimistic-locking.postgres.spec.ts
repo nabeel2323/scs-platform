@@ -96,7 +96,7 @@ beforeAll(async () => {
   await db.insert(stores).values({ id: storeId, orgId, slug: 'opt-lock-store', displayName: 'OptLock Store' });
 
   merchantUserId = randomUUID();
-  await db.insert(users).values({ id: merchantUserId, fullName: 'Optimistic Lock Store Owner' });
+  await db.insert(users).values({ id: merchantUserId, fullName: 'Optimistic Lock Store Owner', phone: '+10000001201' });
   await db.insert(storeMembers).values({
     storeId,
     userId: merchantUserId,

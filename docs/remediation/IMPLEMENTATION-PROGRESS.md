@@ -3097,3 +3097,16 @@ Next source-only work should review the changed fixture semantics without weaken
 - PR #170 remains OPEN / DRAFT / UNMERGED. Its latest pre-safety-hold head was `b22d76cc6a80e560f544f73edd4714707ba9a310`; no Actions run is associated with that exact head. Historical run #1617 / `45880442111` is diagnostic only and failed Unit/Coverage, Integration and Web/Admin tests; lint/typecheck, mobile, migration full-apply and E6 passed. Continue grouped source/test reconciliation and one consolidated exact-head CI only after the remaining concrete fixture failures are addressed.
 - The develop branch was at `6ce2d0920e319a6623eb7102a4838964c7b4ee35` before the safety-hold commit. PR #170 must incorporate/reconcile that one-commit safety-gate change before merge. No reviewer requests are required.
 - No new staging/production operations were performed during this continuation. Keep PR #170 draft and unmerged; a merge/release remains separately unauthorized.
+
+
+## 2026-11-27 — PR #170 grouped CI fixture repair
+
+- PR #170 remains OPEN / DRAFT / UNMERGED against `develop`; PR #138 remains OPEN / DRAFT / UNMERGED and is source/recovery material only. The current integration target is the `develop` SHA recorded in the branch checkpoint. Do not merge PR #138 wholesale.
+- Preserved the automatic staging-release safety hold. The reusable-workflow caller now retains its push/develop/repository predicates behind a literal `false &&` condition, allowing structural validation to test those guards without enabling a staging release.
+- Unknown carrier-prefixed event types now use the terminal unsupported-operation classification so they are dead-lettered rather than retried forever.
+- Corrected checkout test data to seed active/verified stores, legacy PostgreSQL store inserts to use the current ACTIVE + VERIFIED lifecycle, and users fixtures to comply with migration 0064's usable-identifier constraint. Corrected the two-merchant catalogue fixture to model a shared canonical product rather than relaxing cross-store ownership checks.
+- Scoped the Product Studio progress test's button query to its rendered component. No production navigation behavior change was needed.
+- The previous implementation CI failure was run against code SHA `bb5a0e9137b7fcb29a679b1c144b9fbda374a757`, not the then-current documentation checkpoint `1a3d692afd702d91d218fc4dbb2d21de959b6c2a`. This repair batch still requires source validation and one consolidated exact-head CI run.
+- Safety restrictions remain: no merge, no staging/release execution, no deployment, no shared-database migrations/seeds, no Render mutation, and no reviewer requests.
+
+Next: finish the focused failing-fixture inventory, validate the batch together, then inspect mandatory checks on the exact resulting PR #170 head. Keep PR #170 draft until CI is green and any release/database operation is separately authorized.

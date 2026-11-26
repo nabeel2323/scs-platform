@@ -403,7 +403,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [randomUUID(), orgA, buyerA, roleById.get('BUYER')],
     );
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-fin-p13', 'Store Fin', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-fin-p13', 'Store Fin', 'ACTIVE', 'VERIFIED')`,
       [storeA, orgA],
     );
     await pool.query(

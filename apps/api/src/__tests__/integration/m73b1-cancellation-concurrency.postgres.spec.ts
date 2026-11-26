@@ -237,7 +237,7 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
 
     // Store + Warehouse
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a-b1', 'Store A', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-a-b1', 'Store A', 'ACTIVE', 'VERIFIED')`,
       [storeA, orgA],
     );
     await pool.query(
@@ -778,7 +778,7 @@ describe('M7.3-B.1 — Failure Injection (PostgreSQL)', () => {
 
     // Store + Warehouse
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-fi', 'Store FI', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-fi', 'Store FI', 'ACTIVE', 'VERIFIED')`,
       [storeA, orgA],
     );
     await pool.query(

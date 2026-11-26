@@ -122,7 +122,7 @@ describe('M7.1 — Order Fulfillment Lifecycle', () => {
     await pool.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), orgId, buyerId, roleById.get('BUYER')]);
     await pool.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), orgId, driverId, roleById.get('DRIVER')]);
     await pool.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), orgId, otherDriverId, roleById.get('DRIVER')]);
-    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'test-store', 'Test Store', 'APPROVED')`, [storeId, orgId]);
+    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'test-store', 'Test Store', 'ACTIVE', 'VERIFIED')`, [storeId, orgId]);
     await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'Test WH')`, [warehouseId, storeId]);
 
     // Product + Variant + Offer

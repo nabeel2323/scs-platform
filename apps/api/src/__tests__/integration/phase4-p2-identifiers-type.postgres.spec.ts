@@ -112,8 +112,8 @@ beforeAll(async () => {
   merchantUserId = randomUUID();
   otherMerchantUserId = randomUUID();
   await db.insert(users).values([
-    { id: merchantUserId, fullName: 'P2 Merchant A' },
-    { id: otherMerchantUserId, fullName: 'P2 Merchant B' },
+    { id: merchantUserId, fullName: 'P2 Merchant A', phone: '+10000001301' },
+    { id: otherMerchantUserId, fullName: 'P2 Merchant B', phone: '+10000001302' },
   ]);
   await db.insert(storeMembers).values([
     { storeId, userId: merchantUserId, role: 'OWNER', status: 'ACTIVE' },

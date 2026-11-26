@@ -223,11 +223,11 @@ describe('M7.3-B.4 — Delivery Exceptions + Retry (PostgreSQL)', () => {
 
     // Store + Warehouse
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a-b4', 'Store A', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-a-b4', 'Store A', 'ACTIVE', 'VERIFIED')`,
       [storeA, orgA],
     );
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-b-b4', 'Store B', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-b-b4', 'Store B', 'ACTIVE', 'VERIFIED')`,
       [storeB, orgB],
     );
     await pool.query(

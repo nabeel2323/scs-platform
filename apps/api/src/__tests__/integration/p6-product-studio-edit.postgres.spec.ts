@@ -110,7 +110,7 @@ beforeAll(async () => {
   merchantUserId = randomUUID();
   adminUserId = randomUUID();
   await pool.query(
-    `INSERT INTO users (id, full_name) VALUES ($1, 'P6 Store Owner'), ($2, 'P6 Platform Admin')`,
+    `INSERT INTO users (id, full_name, phone) VALUES ($1, 'P6 Store Owner', '+10000001101'), ($2, 'P6 Platform Admin', '+10000001102')`,
     [merchantUserId, adminUserId],
   );
   await pool.query(

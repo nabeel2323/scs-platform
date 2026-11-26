@@ -233,8 +233,8 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
     await pool.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), orgA, driverA, roleById.get('DRIVER')]);
 
     // Store + Warehouse
-    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a-m73a', 'Store A', 'APPROVED')`, [storeA, orgA]);
-    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-b-m73a', 'Store B', 'APPROVED')`, [storeB, orgB]);
+    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-a-m73a', 'Store A', 'ACTIVE', 'VERIFIED')`, [storeA, orgA]);
+    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-b-m73a', 'Store B', 'ACTIVE', 'VERIFIED')`, [storeB, orgB]);
     await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'WH A')`, [warehouseA, storeA]);
 
     // Product + Variant + Offer

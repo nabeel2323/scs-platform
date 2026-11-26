@@ -108,10 +108,14 @@ function createMocks() {
       },
       merchantOffers: { findMany: vi.fn().mockResolvedValue([]) },
       products: { findFirst: vi.fn() },
-      // A2-4: checkout snapshots each supplier's currency, and the read paths
-      // name the seller. Default to "nothing readable" so a test that does not
-      // care still exercises the honest branch.
-      stores: { findMany: vi.fn().mockResolvedValue([]) },
+      // Checkout fixtures use two active, verified stores by default. Tests
+      // covering unreadable seller metadata explicitly override this with [].
+      stores: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+          { id: STORE_2, currency: 'SAR', orgId: 'org-2', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+        ]),
+      },
       // A4-4: transitions now consult the stock ledger before writing the status.
       stockMovements: { findMany: vi.fn().mockResolvedValue([]) },
     },

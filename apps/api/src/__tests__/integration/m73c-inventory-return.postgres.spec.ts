@@ -175,8 +175,8 @@ describe('M7.3-C — Inventory Return-to-Stock (PostgreSQL)', () => {
       await poolRef.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), oid, uid, roleById.get(rk)]);
     }
 
-    await poolRef.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'c-store-a', 'Store A', 'APPROVED')`, [storeA, orgA]);
-    await poolRef.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'c-store-b', 'Store B', 'APPROVED')`, [storeB, orgB]);
+    await poolRef.query(`INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'c-store-a', 'Store A', 'ACTIVE', 'VERIFIED')`, [storeA, orgA]);
+    await poolRef.query(`INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'c-store-b', 'Store B', 'ACTIVE', 'VERIFIED')`, [storeB, orgB]);
     await poolRef.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'WH A')`, [warehouseA, storeA]);
     await poolRef.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'WH B')`, [warehouseB, storeA]);
 

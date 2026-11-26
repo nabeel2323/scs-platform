@@ -21,6 +21,7 @@ import {
   classifyCarrierError,
   NonRetryableCarrierError,
   RetryableCarrierError,
+  UnsupportedCarrierOperationError,
 } from './carrier-errors';
 import { carrierEndpointAllowlistRegistry } from './ssrf-protection';
 import { CarrierObservabilityService } from './carrier-observability';
@@ -261,7 +262,10 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           // Unknown events in the carrier namespace must never be acknowledged.
           // Throwing routes them through retry/dead-letter handling instead of
           // silently marking an unhandled event DISPATCHED.
-          throw new Error(`Unsupported carrier event type: ${eventType}`);
+          throw new UnsupportedCarrierOperationError(
+            `Unsupported carrier event type: ${eventType}`,
+            { providerKey: 'unknown', operation: 'dispatchEvent' },
+          );
       }
 
       // Mark as dispatched

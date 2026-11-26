@@ -219,8 +219,8 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
 
     // Stores (each org owns one store)
     await db.insert(stores).values([
-      { id: storeA, orgId: orgA, slug: 'store-a', displayName: 'Store A', status: 'ACTIVE' },
-      { id: storeB, orgId: orgB, slug: 'store-b', displayName: 'Store B', status: 'ACTIVE' },
+      { id: storeA, orgId: orgA, slug: 'store-a', displayName: 'Store A', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      { id: storeB, orgId: orgB, slug: 'store-b', displayName: 'Store B', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
     ]);
 
     // Fetch the MERCHANT_OWNER role ID for reference
@@ -485,6 +485,9 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
 
   describe('Scenario E — Merchant B offers same variant', () => {
     it('creates a second offer on the same canonical product + variant', async () => {
+      // This scenario models a platform-canonical product shared by two merchants.
+      // Private products owned by another store remain inaccessible.
+      await db.update(products).set({ storeId: null }).where(eq(products.id, productId));
       const offer = await offerService.createOffer(
         {
           storeId: storeB,
@@ -589,7 +592,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   describe('Scenario F — Buyer search', () => {
     beforeAll(async () => {
       // Publish the product so search can find it (PUBLISHED required for buyer visibility)
-      await catalog.updateProduct(productId, { status: 'ACTIVE' }, undefined, callerA());
+      await db.update(products).set({ status: 'ACTIVE' }).where(eq(products.id, productId));
     });
 
     it('finds Laptop Pro X via text search', async () => {

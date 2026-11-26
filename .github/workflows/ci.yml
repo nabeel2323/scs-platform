@@ -691,7 +691,10 @@ jobs:
     # Safety hold: project owner has not authorized staging releases.
     # Keep the dedicated release.yml workflow_dispatch path available for a
     # separately authorized release; CI pushes to develop must never mutate staging.
-    if: false
+    if: >-
+      false && github.event_name == 'push' &&
+      github.ref == 'refs/heads/develop' &&
+      github.repository == 'nabeel2323/scs-platform'
     needs:
       - lint
       - test-unit
