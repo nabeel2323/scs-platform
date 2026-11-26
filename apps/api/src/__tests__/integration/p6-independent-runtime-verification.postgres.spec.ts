@@ -147,37 +147,37 @@ describe('P6-VR §4 Product CRUD', () => {
 
   it('CRUD-B: edit title/titleAr/description/descriptionAr', async () => {
     const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productOwnedByA}'`)).rows[0].updated_at);
-    const u = await catalogService.updateProduct(productOwnedByA, { title: 'Updated', titleAr: 'محدث', description: 'Desc', descriptionAr: 'وصف' }, ts);
+    const u = await catalogService.updateProduct(productOwnedByA, { title: 'Updated', titleAr: 'محدث', description: 'Desc', descriptionAr: 'وصف' }, ts, merchantA);
     expect(u!.title).toBe('Updated');
     expect(u!.titleAr).toBe('محدث');
   });
 
   it('CRUD-C: GTIN trim + empty→NULL', async () => {
     let ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productOwnedByA}'`)).rows[0].updated_at);
-    await catalogService.updateProduct(productOwnedByA, { gtin: '  123  ' }, ts);
+    await catalogService.updateProduct(productOwnedByA, { gtin: '  123  ' }, ts, merchantA);
     expect((await pool.query(`SELECT gtin FROM products WHERE id = '${productOwnedByA}'`)).rows[0].gtin).toBe('123');
     ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productOwnedByA}'`)).rows[0].updated_at);
-    await catalogService.updateProduct(productOwnedByA, { gtin: '  ' }, ts);
+    await catalogService.updateProduct(productOwnedByA, { gtin: '  ' }, ts, merchantA);
     expect((await pool.query(`SELECT gtin FROM products WHERE id = '${productOwnedByA}'`)).rows[0].gtin).toBeNull();
   });
 
   it('CRUD-D: ACTIVE remains ACTIVE after edit', async () => {
     await pool.query(`UPDATE products SET status = 'ACTIVE' WHERE id = '${productOwnedByA}'`);
     const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productOwnedByA}'`)).rows[0].updated_at);
-    await catalogService.updateProduct(productOwnedByA, { title: 'Active' }, ts);
+    await catalogService.updateProduct(productOwnedByA, { title: 'Active' }, ts, merchantA);
     expect((await pool.query(`SELECT status FROM products WHERE id = '${productOwnedByA}'`)).rows[0].status).toBe('ACTIVE');
   });
 
   it('CRUD-E: productTypeId unchanged', async () => {
     const before = (await pool.query(`SELECT product_type_id FROM products WHERE id = '${productOwnedByA}'`)).rows[0].product_type_id;
     const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productOwnedByA}'`)).rows[0].updated_at);
-    await catalogService.updateProduct(productOwnedByA, { title: 'PT-Test' }, ts);
+    await catalogService.updateProduct(productOwnedByA, { title: 'PT-Test' }, ts, merchantA);
     expect((await pool.query(`SELECT product_type_id FROM products WHERE id = '${productOwnedByA}'`)).rows[0].product_type_id).toBe(before);
   });
 
   it('CRUD-F: storeId unchanged', async () => {
     const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productOwnedByA}'`)).rows[0].updated_at);
-    await catalogService.updateProduct(productOwnedByA, { title: 'ST-Test' }, ts);
+    await catalogService.updateProduct(productOwnedByA, { title: 'ST-Test' }, ts, merchantA);
     expect((await pool.query(`SELECT store_id FROM products WHERE id = '${productOwnedByA}'`)).rows[0].store_id).toBe(storeA);
   });
 });
@@ -309,8 +309,8 @@ describe('P6-VR §11 combinationKey', () => {
 describe('P6-VR §12 Optimistic Locking', () => {
   it('LOCK-A: stale → 409, only winner persists', async () => {
     const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id = '${productOwnedByA}'`)).rows[0].updated_at);
-    await catalogService.updateProduct(productOwnedByA, { title: 'Winner' }, ts);
-    try { await catalogService.updateProduct(productOwnedByA, { title: 'Loser' }, ts); expect.fail('x'); }
+    await catalogService.updateProduct(productOwnedByA, { title: 'Winner' }, ts, merchantA);
+    try { await catalogService.updateProduct(productOwnedByA, { title: 'Loser' }, ts, merchantA); expect.fail('x'); }
     catch (e: any) { expect(e.status || e.statusCode).toBe(409); }
     expect((await pool.query(`SELECT title FROM products WHERE id = '${productOwnedByA}'`)).rows[0].title).toBe('Winner');
   });
@@ -334,7 +334,7 @@ describe('P6-VR §13 Concurrency', () => {
     let ds = 0, conf = 0, w = 0;
     for (let i = 0; i < 50; i++) {
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id='${rp}'`)).rows[0].updated_at);
-      const r = await Promise.allSettled([catalogService.updateProduct(rp, { title: `A${i}` }, ts), catalogService.updateProduct(rp, { title: `B${i}` }, ts)]);
+      const r = await Promise.allSettled([catalogService.updateProduct(rp, { title: `A${i}` }, ts, merchantA), catalogService.updateProduct(rp, { title: `B${i}` }, ts, merchantA)]);
       const a = r[0].status === 'fulfilled', b = r[1].status === 'fulfilled';
       if (a && b) ds++; else if (a || b) w++;
       for (const x of r) if (x.status === 'rejected' && (x.reason?.status === 409 || x.reason?.statusCode === 409)) conf++;
@@ -349,7 +349,7 @@ describe('P6-VR §13 Concurrency', () => {
     let ds = 0;
     for (let i = 0; i < 50; i++) {
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id='${rp}'`)).rows[0].updated_at);
-      const r = await Promise.allSettled([catalogService.updateProduct(rp, { title: `M${i}` }, ts), catalogService.updateProduct(rp, { title: `Adm${i}` }, ts)]);
+      const r = await Promise.allSettled([catalogService.updateProduct(rp, { title: `M${i}` }, ts, merchantA), catalogService.updateProduct(rp, { title: `Adm${i}` }, ts, adminCaller)]);
       if (r[0].status === 'fulfilled' && r[1].status === 'fulfilled') ds++;
     }
     await pool.query(`DELETE FROM products WHERE id='${rp}'`);
@@ -362,7 +362,7 @@ describe('P6-VR §13 Concurrency', () => {
     let ds = 0;
     for (let i = 0; i < 50; i++) {
       const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id='${rp}'`)).rows[0].updated_at);
-      const r = await Promise.allSettled([catalogService.updateProduct(rp, { title: `M${i}` }, ts), catalogService.updateProduct(rp, { description: `Mod${i}` } as any, ts)]);
+      const r = await Promise.allSettled([catalogService.updateProduct(rp, { title: `M${i}` }, ts, merchantA), catalogService.updateProduct(rp, { description: `Mod${i}` } as any, ts, adminCaller)]);
       if (r[0].status === 'fulfilled' && r[1].status === 'fulfilled') ds++;
     }
     await pool.query(`DELETE FROM products WHERE id='${rp}'`);
@@ -404,7 +404,7 @@ describe('P6-VR §15 Boundary', () => {
   it('BOUND-A: product edit → no merchant_offers mutation', async () => {
     const before = parseInt((await pool.query(`SELECT COUNT(*) FROM merchant_offers`)).rows[0].count);
     const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id='${productOwnedByA}'`)).rows[0].updated_at);
-    await catalogService.updateProduct(productOwnedByA, { title: 'Bound' }, ts);
+    await catalogService.updateProduct(productOwnedByA, { title: 'Bound' }, ts, merchantA);
     expect(parseInt((await pool.query(`SELECT COUNT(*) FROM merchant_offers`)).rows[0].count)).toBe(before);
   });
 });
@@ -414,7 +414,7 @@ describe('P6-VR §16 Audit', () => {
   it('AUDIT-A: product.updated', async () => {
     const before = auditEvents.length;
     const ts = toISO((await pool.query(`SELECT updated_at FROM products WHERE id='${productOwnedByA}'`)).rows[0].updated_at);
-    await catalogService.updateProduct(productOwnedByA, { title: 'Au' }, ts);
+    await catalogService.updateProduct(productOwnedByA, { title: 'Au' }, ts, merchantA);
     const evts = auditEvents.slice(before);
     expect(evts.find((e: any) => e.action === 'product.updated')).toBeDefined();
   });

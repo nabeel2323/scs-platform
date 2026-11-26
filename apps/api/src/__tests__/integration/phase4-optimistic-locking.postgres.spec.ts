@@ -82,7 +82,7 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: container.getConnectionUri() });
   db = drizzle(pool, { schema: schema as any }) as any;
   database = new DatabaseService();
-  database.db = db;
+  database.db = db as any;
 
   const taxonomy = new (await import('../../modules/catalog/catalog.taxonomy.service')).CatalogTaxonomyService(database);
   catalog = makeCatalogService(database, taxonomy);

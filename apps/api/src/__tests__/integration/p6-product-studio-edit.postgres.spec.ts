@@ -65,7 +65,7 @@ let merchantUserId: string;
 let adminUserId: string;
 
 const merchantActor = () => ({ sub: merchantUserId, role: 'MERCHANT_OWNER', activeOrg: orgA });
-const adminActor = () => ({ sub: adminUserId, role: 'ADMIN', activeOrg: null });
+const adminActor = () => ({ sub: adminUserId, role: 'ADMIN', activeOrg: orgId });
 let productTypeId: string;
 let productA: string;       // owned by storeA / orgA
 let productNoStore: string; // store_id = NULL

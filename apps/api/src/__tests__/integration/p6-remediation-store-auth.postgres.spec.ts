@@ -383,7 +383,7 @@ describe('Concurrency Regression', () => {
       const results = await Promise.allSettled(
         callers.map(async (uid) => {
           await assertProductEditableByMerchant(db, { sub: uid, role: 'MERCHANT_OWNER', activeOrg: orgX }, productA);
-          return catalogService.updateProduct(productA, { title: `Edit-${uid.slice(0, 8)}` }, baseTs);
+          return catalogService.updateProduct(productA, { title: `Edit-${uid.slice(0, 8)}` }, baseTs, { sub: uid, role: 'MERCHANT_OWNER', activeOrg: orgX });
         }),
       );
       const successes = results.filter(r => r.status === 'fulfilled').length;
@@ -448,8 +448,8 @@ describe('Concurrency Regression', () => {
 
       // Two concurrent edits with same timestamp
       const [r1, r2] = await Promise.allSettled([
-        catalogService.updateProduct(productA, { title: 'Edit-1' }, ts),
-        catalogService.updateProduct(productA, { title: 'Edit-2' }, ts),
+        catalogService.updateProduct(productA, { title: 'Edit-1' }, ts, { sub: userOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgX }),
+        catalogService.updateProduct(productA, { title: 'Edit-2' }, ts, { sub: userAdminA, role: 'ADMIN', activeOrg: orgX }),
       ]);
       if (r1.status === 'rejected' || r2.status === 'rejected') conflicts++;
     }
