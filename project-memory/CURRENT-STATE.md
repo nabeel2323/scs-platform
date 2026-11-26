@@ -1,3 +1,15 @@
+## Live checkpoint — 26 November 2026 (PR #157 green; PR #158 stack synchronized)
+
+- PR #157 exact head `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`, OPEN / DRAFT / UNMERGED, base `develop`. Exact-head Actions run #1572 (`45805365809`) completed SUCCESS: all 10 mandatory jobs passed (Mobile, Lint & Typecheck, Web/Admin, Boundary Lint E6, Unit/Coverage, Migration Full Apply, Integration Tests, Container Build & Smoke Test, Contract/Codegen, Build). k6 smoke and staging release were skipped as intended.
+- Integration job logs confirm the command `vitest run src/__tests__/integration --no-file-parallelism`; the three P6 suites are renamed into this supported glob. The integration job and overall run passed.
+- PR #157 remains draft because independent review is outstanding. CODEOWNERS references `platform-arch` and `platform-admin`, but GitHub rejected those teams as non-collaborators on this personal repository. No eligible independent reviewer is currently known; do not self-approve or merge without review. Vercel Web status on PR #157 has an external build-rate-limit failure; GitHub Actions mandatory checks are green.
+- PR #158 branch was synchronized using a two-parent merge commit `2429003e3a7a19932388f95553d0e5ccd9968c11` (PR #157 head + previous PR #158 head), preserving both histories and overlaying only its five identity files. Compare PR #157 head to the merge commit: ahead 15, behind 0; exactly five changed paths. The base branch was temporarily changed to `develop` to run the workflow, because CI only triggers pull requests targeting `main` or `develop`. A no-source-change CI trigger commit `f8d85de084da3dfd0182d96935cadff9e4a63ed8` was added on top.
+- PR #158 exact-head Actions run #1573 (`45810050091`) is IN PROGRESS on `f8d85de`, with temporary base `develop`; wait for all jobs. After it finishes, restore PR #158 base to `integration/g002-actor-context-foundation` (PR #157 branch) without changing its head, and verify the diff returns to exactly five files. Do not dispatch duplicate CI.
+- PR #138 remains OPEN / DRAFT / UNMERGED with 1,943 changed files, protected as source/evidence only. Preservation branch and project-memory branch are synchronized at the same memory commit. Never wholesale merge PR #138.
+- No shared/staging database writes, migrations, grants/default ACL/RLS changes, Render changes, worker activation, deployment, or release action. No merges authorized or performed.
+
+---
+
 ## 26 November 2026 — PR #157 P6 test scope cleanup
 
 - PR #157 exact head: `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`, OPEN / DRAFT / UNMERGED, base `develop`. The parent exact-head CI #1571 (`45802468173`) on `9186c174` completed SUCCESS across all mandatory jobs, including container build/smoke with verified TLS and the least-privilege `scs_api_runtime` role.
