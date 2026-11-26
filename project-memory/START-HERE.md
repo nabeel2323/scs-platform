@@ -1,3 +1,12 @@
+## 26 November 2026 — PR #157 smoke workflow syntax correction and current CI
+
+- The first readiness-workflow edit was malformed: the Redis shell block was truncated in the committed YAML, so push runs #1565 (45790087653) and #1566 (45790308776) failed before job creation. These are workflow-definition failures, not application test failures.
+- Rebuilt the CI workflow from the known-valid file at 6bb47ee2c707d8955f06aa50aa7d3d4c9139985d, then applied a minimal two-line bounded readiness gate using pg_isready and Redis PING. The repaired workflow is on PR #157 at a1a2837af5cf36f1777a2d648cdec003e45920da.
+- Exact-head PR CI #1567 (45790430239) is now IN_PROGRESS for a1a2837af5cf36f1777a2d648cdec003e45920da. At the latest poll, Lint & Typecheck and Mobile were running; no outcome is claimed. Wait for this run; do not trigger duplicate CI.
+- PR #157 remains OPEN / DRAFT / UNMERGED. Do not merge until exact-head required checks, including container smoke, pass and Slice A receives review.
+- PR #138 source and preservation refs were synchronized via expected-SHA fast-forward at memory commit 3043780957f57545240c9deb8dc88549995940e0. PR #138 remains OPEN / DRAFT / UNMERGED and mergeable=false; never merge its broad diff.
+- No database/staging writes, migrations, grants/RLS changes, worker activation, deployment or release action occurred.
+
 ## 26 November 2026 — PR #157 Slice A container packaging and smoke follow-up
 
 - PR #157 exact head 16df88d17ac31739d064fe29105ff3da5461f9fa (pending exact-head CI at checkpoint); base remains develop SHA fde20420bbb759d2e562f9ff747c9e824ac58e25.
