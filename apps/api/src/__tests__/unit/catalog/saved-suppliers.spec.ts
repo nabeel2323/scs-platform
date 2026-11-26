@@ -96,7 +96,7 @@ describe('CatalogService — Saved Suppliers (§21.3)', () => {
       expect(mocks.db.select).toHaveBeenCalledTimes(1);
       expect(result).toHaveLength(2);
       expect(result[0]!.store).toMatchObject({ id: 'store-A', displayName: 'Supplier A' });
-      expect(result[1]!.store).toMatchObject({ id: 'store-B', name: 'Supplier B' });
+      expect(result[1]!.store).toMatchObject({ id: 'store-B', displayName: 'Supplier B' });
     });
 
     it('drops saves whose store no longer exists', async () => {
