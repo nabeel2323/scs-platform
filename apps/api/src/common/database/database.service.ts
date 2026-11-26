@@ -9,9 +9,9 @@ import { randomUUID } from 'node:crypto';
 import * as schema from '../../drizzle/schema';
 import { isProductionLikeEnv, resolveDatabaseUrl, resolveDeploymentNodeEnv } from '../../config/env-gate';
 import { PERMISSIONS, ROLES } from './rbac-seed.data';
-import { acquireMigrationLock, releaseMigrationLock } from '../../../infra/drizzle/migration-lock';
-import { DEV_MIGRATION_EXCLUSIONS } from '../../../infra/drizzle/migration-config';
-import { setOperatorActorContext } from '../../../infra/drizzle/operator-actor-context';
+import { acquireMigrationLock, releaseMigrationLock } from './migration-lock';
+import { DEV_MIGRATION_EXCLUSIONS } from './migration-config';
+import { setOperatorActorContext } from './operator-actor-context';
 import {
   logRuntimeDatabaseIdentity,
   RUNTIME_DATABASE_IDENTITY_SQL,
