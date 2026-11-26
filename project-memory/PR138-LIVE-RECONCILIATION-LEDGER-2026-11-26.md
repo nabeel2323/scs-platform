@@ -1,3 +1,16 @@
+## PR #157 CI #1559 — exact-head failure triage (26 November 2026)
+
+- Exact head `a0f32189b14700bad6701a4b948fd70c5755a0be`; run #1559 (`45764646880`) completed FAILURE.
+- Passed: Lint & Typecheck, Mobile Flutter analyze/test, Migration Full Apply and pg_partman verification, Boundary Lint (E6), Web/Admin App Tests. Failed: Unit/Coverage and Integration Tests. Build, contract/codegen, k6, container smoke and staging release were skipped.
+- Unit/Coverage: 4,344 passed, 22 failed, 110 skipped; 220 files passed, 1 failed, 6 skipped. The 22 failures are all in `p4-http-authorization.postgres.spec.ts`, including HA-08, HA-12–HA-34; HTTP responses commonly returned 500. This is a concentrated P4 HTTP/PostgreSQL test failure, not a broad unit failure.
+- Integration: 1,615 passed, 17 failed, 0 skipped (82 files). Failure summary includes P4 HTTP authorization, returns, adjustment creation/approval and pilot-gate expectations: empty result sets and unexpected 404/403/400/409/500 status codes. Adjustment creation expected 201 but returned 409 in the structured summary.
+- PostgreSQL logs show `settlement_adjustments_sub_order_id_fkey` violations: fixture `sub_order_id` values were absent from `orders`; subsequent adjustment lookup attempted UUID `undefined`. This is the strongest current data-fixture lead, not yet a proven root cause. Source review shows `seedBusinessFixture()` inserts four orders before the per-test `seedFinancialFixture()`; trace row existence and variable values at that exact boundary and identify any deletion/cascade/lifecycle interaction. Also capture the actual response detail for the first unexpected 500/409 rather than relying only on status assertions.
+- Do not weaken HTTP authorization/tenant-isolation assertions, skip the P4 suite, or restore silent migration-error swallowing. Dedicated migration full-apply is green but does not validate these application tests.
+- Next: isolate P4 fixture lifecycle/foreign-key issue, repair actual cause in a grouped commit, then run one consolidated exact-head CI. P6 concurrency/user-identifier failures from earlier #1558 are no longer in this run's reported failures.
+- PR #138 remains protected and unmerged. No database/staging writes, migrations, grant/RLS changes, worker activation, deployment or merge occurred.
+
+---
+
 ## PR #157 follow-up — test fixture repair batch (26 November 2026)
 
 - Integration branch advanced to exact head `a0f32189b14700bad6701a4b948fd70c5755a0be`; CI run `45764646880` is QUEUED for that exact head, result pending.
