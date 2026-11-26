@@ -3219,3 +3219,18 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
 - Updated `IdentityService.buildClaims` to select the first membership whose organization is also active when no organization is explicitly requested. When a specific organization is requested (for example, `switchOrg`), it remains authoritative and an inactive/missing organization fails closed; no cross-tenant fallback occurs. Commit `37b6134feaff1d9253f934ed7cdce93ad216216b`.
 - Added a regression test covering an inactive first organization followed by a valid active organization. Commit `94caa21ebca3604f97bd9d5be1d863aded387dcb`.
 - Schema review confirmed `organizations.is_active` exists and is non-null with a default of true. This service change and regression test have not been executed locally or in CI; status remains VERIFICATION_PENDING.
+
+
+## Exact-head typecheck repair checkpoint — 27 November 2026
+
+- Reconciled the Actions history and found that exact-head CI #1644 (run ID `45910517268`) had in fact run on the prior integration head `c43064e8ed7c65ef59b6020ec93325edf3d21941`. Mobile analysis/tests passed and lint passed; API typecheck failed with six TypeScript diagnostics. All downstream API/Web, migration, build, boundary, container, contract and k6 jobs were skipped. This supersedes the earlier statement that no workflow run was associated with that head.
+- Fixed the six diagnostics without changing runtime authorization behavior:
+  - `m73b331-cancel-execution.postgres.spec.ts`: moved the shared test organization fixture to module scope so the worker factory can reference it.
+  - `order-carrier-lookup.spec.ts`: typed the Drizzle `where` mock argument as `SQL`, preserving the predicate assertions.
+  - `merchant-rejection-refund-actor.spec.ts`: used bracket access for the record's index-signature `id`.
+  - `identity.service.ts`: explicitly typed the active organization projection array from the Drizzle schema row and membership-status types.
+- Commits: `5f079432b6cdb5c3304da18d7499a44050569180`, `41eb72d7b4b48074d0200b4af27babc2a19f9e1c`, `8b2a86334be221f569ec83b6c8dbab381700668a`, `2ae5e8b66186fd5ce1c6c7d37acf11e51ec6d194`.
+- The four edited files were fetched again from the branch to verify the committed content. No local typecheck/test runner is available. No workflow run is yet associated with the latest code head `2ae5e8b66186fd5ce1c6c7d37acf11e51ec6d194`; all fixes remain unverified until CI runs on that exact head.
+- A separate source review confirmed the CatalogService product-detail test's three `findProduct` calls are expected: pre-cache authorization, authorization recheck inside the DB actor scope on a cache miss, and the actual product fetch. No change was made and neither authorization check was removed.
+- PR #170 remains OPEN / DRAFT / UNMERGED; its branch is now 88 commits ahead / 0 behind `develop`. PR #138 remains OPEN / DRAFT / UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; its preservation branch is still identical (0 ahead / 0 behind). Never merge PR #138 wholesale.
+- No staging/production DB writes, migrations, deployments, releases, provider calls, worker activation, Render changes, service restarts or reviewer requests occurred. Keep the staging-release safety hold disabled. Do not merge PR #170 until mandatory exact-head CI is green and the separate release/migration authorization gate is satisfied.
