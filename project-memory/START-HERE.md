@@ -853,3 +853,11 @@ PR #138 is OPEN / DRAFT / UNMERGED at `e410bf44b272eafb8e762636b66877f9e0c4b230`
 - This is the first successful bounded integration of PR #138 remediation work. PR #138 itself remains protected source/evidence only; never wholesale merge it.
 - Next: reconcile #145 (canonical narrow migration 0070), #154 (canonical additive lease migration 0071), #153 (outbox no-false-ack safety), then separately assess #155/#156. Revalidate each PR against refreshed develop and migration ordering before merge. Do not apply migrations to staging or deploy.
 - No staging/shared database writes, migration application, grants/default-ACL/RLS changes, Render changes, worker activation, deployment, restart or release occurred.
+
+## 26 November 2026 — post-merge dependency refresh
+
+- After merging #157/#158, rechecked remaining PRs against current develop `f58047c363adb69054a92b98dbdfe226dc17da21`.
+- #145 remains one-file narrow migration 0070; #153 remains ten files; #154 remains thirteen files; #155 one audit document; #156 three source/test files. Their heads and previously successful exact-head CI are unchanged, but their base snapshots are stale and GitHub currently reports mergeable=false. Current comparisons show develop has advanced 51–54 commits beyond their old merge bases. Do not attempt merges on these stale PR branches.
+- Next step is to reconcile each bounded PR against refreshed develop, preserve its exact intended diff (especially the canonical 0070 and 0071 migration uniqueness), then run one consolidated exact-head CI per refreshed workstream before merge. Do not blindly merge develop into the branches or import unrelated project-memory changes.
+- PR #138 remains OPEN / DRAFT / UNMERGED, protected source/evidence only. Its source/preservation refs are synchronized at `873dce655c71833115db63f8ec527f4f743b44e6`.
+- No migration was applied and no staging/shared DB, grants/default-ACL/RLS, Render, worker, deployment, restart or release action occurred.
