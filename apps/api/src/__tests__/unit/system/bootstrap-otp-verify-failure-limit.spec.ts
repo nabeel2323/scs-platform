@@ -34,8 +34,14 @@ describe('BootstrapService OTP verification failure limits', () => {
         expiresAt: Date.now() + 300_000,
         attempts: 0,
       };
-      redis._store.set(`bootstrap:otp:challenge:${email}`, {
-        value: JSON.stringify(challenge),
+      redis._store.set(`bootstrap:otp:email:${email}`, {
+        value: JSON.stringify({
+          ch: 'challenge-1',
+          hs: challenge.otpHash,
+          s: challenge.salt,
+          ca: String(Date.now()),
+          co: false,
+        }),
         ttl: 300,
       });
       redis._store.set(`bootstrap:otp:vatt:email:${email}`, {
