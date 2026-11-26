@@ -309,3 +309,12 @@ Commits: f9bfccf3ac11b7fbb0904634845c24a31d7c805a (service), 0b14f11c3fd6f787baa
 The PR #158 review found that GET /me passed the JWT activeOrg but getProfile treated explicit null like an omitted argument, selecting the first active membership and potentially projecting merchant role/permissions that were absent from the current token. The fix distinguishes undefined (default membership selection for internal callers) from explicit null (no active organization), and carries the caller's JWT activeOrg through updateProfile. Added a regression test for an active membership with explicit-null JWT activeOrg.
 
 Commits: 94c8fc5f1a2ae5d69e276909f31b8a539a7001ed, 76894a736d7279ba2a523685af38c4bd9936e3c3, 5c7e41bf04ec16e9fc0565e57425fcc05f548ffc. No test/lint/typecheck/build/CI execution yet; exact-head Actions list empty; Vercel statuses are provider build-rate-limit failures.
+
+
+## 26 November 2026 — PR #138 OrdersService and SQL audit checkpoint
+
+- Source/preservation refs are synchronized; current PR #138 source head at this checkpoint is d3a01fb31a897b1f9f4c3c44815bd85828b95af7 (documentation-only commits after the code changes).
+- Added fail-closed actor requirements to OrdersService.cancelOrder and rejectOrder: CallerContext is required, supplied actor ID must equal caller.sub, and cancellation no longer falls back to an unscoped DB operation. Updated lifecycle/actor-context regression tests. No tests run for these PR #138 changes.
+- Targeted scan covered 75 numbered SQL migrations and 62 API service/worker files. Dynamic sql.raw interpolation was limited to allowlisted day/week date_trunc literals and internally generated SAVEPOINT IDs. No CREATE TRIGGER/PROCEDURE/EXECUTE FUNCTION/CREATE RULE was found in the numbered migrations; normalize_arabic remains the application-defined function and analytics partition management is in 0002/0013/0018. Full controller/script/package SQL inventory and live catalog/ACL verification remain open.
+- PR #157 head 5f9399cd6fa80e51b508c31203dd6b5f80b37757 has consolidated CI run #1556 in progress. PR #158 head 5c7e41bf04ec16e9fc0565e57425fcc05f548ffc remains stacked on the older PR #157 head and must be reconciled only after #1556 is green.
+- No database write, migration, RLS/grant change, staging mutation, worker activation, deployment or merge occurred.
