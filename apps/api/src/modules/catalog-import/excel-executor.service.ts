@@ -15,6 +15,12 @@ import { randomUUID, createHash } from 'node:crypto';
 import type { ImportPlan, PlanEntry } from './excel-planner.service';
 import type { ResolvedReferences } from './excel-resolver.service';
 
+type CatalogImportCaller = {
+  sub: string;
+  role: string;
+  activeOrg?: string | null;
+};
+
 /**
  * Executes a validated import plan using 12 ordered per-entity-type
  * transactions (Phase 2).
@@ -219,7 +225,11 @@ export class ExcelExecutorService {
    * A failure in one entity type does NOT poison unrelated entity types.
    * Dependent entities are skipped and recorded as DEPENDENCY_ERROR.
    */
-  async execute(plan: ImportPlan, refs: ResolvedReferences): Promise<ExecutionResult> {
+  async execute(
+    plan: ImportPlan,
+    refs: ResolvedReferences,
+    caller: CatalogImportCaller,
+  ): Promise<ExecutionResult> {
     // Pre-flight: validate all string lengths BEFORE entering any transaction.
     const lengthErrors = this.validateStringLengths(plan);
     if (lengthErrors.length > 0) {
@@ -254,15 +264,21 @@ export class ExcelExecutorService {
         const entries = plan[key] as PlanEntry[];
 
         const batchResult = await this.executeEntityBatch(
-          type, entries, refs, realIds, entityOutcomes, resolveId,
+          type, entries, refs, realIds, entityOutcomes, resolveId, caller,
         );
 
         batchResults.push(batchResult);
         allErrors.push(...batchResult.errors);
       }
 
-      // Post-transaction: update variant combination keys
-      await this.updateCombinationKeys(plan, refs);
+      // Post-transaction: update variant combination keys in a separate
+      // short actor scope after all entity-type transactions have committed.
+      await this.db.withActorContext({
+        actorKind: 'user',
+        actorId: caller.sub,
+        actorRole: caller.role,
+        activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
+      }, () => this.updateCombinationKeys(plan, refs));
 
     } catch (err) {
       this.logger.error(`Import execution failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -328,6 +344,7 @@ export class ExcelExecutorService {
     realIds: Map<string, string>,
     entityOutcomes: Map<string, 'COMMITTED' | 'FAILED' | 'DEPENDENCY_FAILED'>,
     resolveId: (key: string, map: Map<string, string>) => string | undefined,
+    caller: CatalogImportCaller,
   ): Promise<EntityBatchResult> {
     const batch: EntityBatchResult = {
       entityType, created: 0, updated: 0, unchanged: 0,
@@ -335,7 +352,12 @@ export class ExcelExecutorService {
     };
     const sType = singularType(entityType);
 
-    await this.db.db.transaction(async (tx) => {
+    await this.db.withActorContext({
+      actorKind: 'user',
+      actorId: caller.sub,
+      actorRole: caller.role,
+      activeOrgId: typeof caller.activeOrg === 'string' ? caller.activeOrg : null,
+    }, async () => this.db.db.transaction(async (tx) => {
       for (const entry of entries) {
         if (entry.action === 'UNCHANGED') {
           batch.unchanged++;
@@ -388,7 +410,7 @@ export class ExcelExecutorService {
           batch.errors.push(rootError);
         }
       }
-    });
+    }));
 
     return batch;
   }
