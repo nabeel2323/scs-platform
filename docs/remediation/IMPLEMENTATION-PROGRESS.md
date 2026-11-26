@@ -3018,3 +3018,13 @@ Next source-only work should review the changed fixture semantics without weaken
 - PR #138 remains OPEN / DRAFT / UNMERGED at `c15b9f20ac7a43b2566cac2c2e81eb9df91f4e88`. The preservation branch `preservation/pr138-remediation-2026-11-25` was checked and is at the identical SHA. Its 1,943-file diff is source/recovery material only; never merge wholesale or rewrite its history.
 - PR #160 and #162 remain older open drafts; do not merge them as-is. Reconcile their remaining scope only where not already included in current `develop` or PR #170. PR #170 description carries the matching live integration checkpoint.
 - Safety: no staging/production database writes, applied migrations, grants/default-ACL/RLS changes, provider calls, worker activation, Render changes, deployment, restart or release occurred. Merging to develop may trigger the staging-release workflow and remains unauthorized. Keep PR #170 draft.
+
+
+## Continuation checkpoint — 26 November 2026 (bootstrap actor fixture)
+
+- PR #170 integration branch advanced through grouped actor-context, delivery/webhook, carrier lookup and identity fixture repairs. Latest source/test follow-up: `347ddb72e71021a466f4eef6f5611090007d9f7c`.
+- Corrected `apps/api/src/__tests__/unit/system/bootstrap.service.spec.ts` so its DatabaseService test double implements `withActorContext` and executes the supplied operation. This aligns the OTP-success test fixture with BootstrapService's actor-scoped authorization insert; production authorization behavior was not weakened or changed.
+- Source review also rechecked OrdersService preview/checkout fixtures, shipping tenant-context fixtures and Product Studio progress navigation. PreviewCheckout intentionally has no actor wrapper; checkout fixtures that invoke actor-scoped paths already provide one. Shipping fixtures already provide their actor-context wrapper. ProgressIndicator's disabled guard and its regression test agree; no production UI change was justified.
+- No local tests were executed. No exact-head CI run exists for the latest PR #170 head; all implementation changes remain VERIFICATION_PENDING. Keep remaining fixture repairs grouped, then run one exact-head mandatory CI campaign.
+- PR #170 remains OPEN / DRAFT / UNMERGED. PR #138 remains OPEN / DRAFT / UNMERGED and its preservation ref remains synchronized at `f81c91207cfe33af2817aeaa0311ee4119436885`. Do not merge PR #138 wholesale or merge PR #170 before mandatory CI and separate staging-release/migration authorization.
+- No reviewers, staging/production DB changes, migrations, provider calls, worker activation, Render changes, deployments, restarts or releases were requested or performed.
