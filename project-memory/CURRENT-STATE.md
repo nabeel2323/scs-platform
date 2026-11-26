@@ -634,3 +634,19 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - No shared/staging database writes, migration application, grants/default-ACL/RLS changes, provider calls, worker activation, Render changes, deployment, restart or release occurred. No reviewers are required per the user's instruction.
 
 **Next:** finish only the already-running #165 CI; if green, merge #165 and close #164 as superseded. Then mark #166 ready and run one consolidated exact-head CI. Continue PR #138 extraction only in bounded slices from refreshed develop.
+
+
+## 26 November 2026 — PR #165 merged; Promotions extraction refreshed as PR #167
+
+- PR #165 HTTP credential redaction + read-only staging audit evidence passed exact-head Actions CI #1587 (run 45849606536): all 10 mandatory jobs succeeded, including unit/coverage, integration, migration full apply, contract/codegen, build and container smoke. k6 smoke and staging release jobs were skipped by workflow conditions. Vercel Web/Admin build-rate-limit statuses are external provider failures and do not negate mandatory Actions success.
+- PR #165 merged into develop using expected head b010559cbe2d720335141cd7f7fdb524edb3285e. Merge commit: 5523dba6763298d3df388143ebd38614952f47eb. PR #164 closed without merging as superseded; its intended changes are included in #165.
+- PR #166 was prepared on the pre-#165 base but develop advanced after #165 merged. It was closed without merging and without CI; its four intended files were reapplied cleanly on the latest develop baseline as PR #167.
+- PR #167: OPEN / READY / UNMERGED, exactly four Promotions files, 167 additions / 25 deletions, head d13e795f32ee9fa5d5be62a8d8a106ce96b434f6, base develop at 5523dba6763298d3df388143ebd38614952f47eb. Scope: verified JWT caller context and tenant/store membership for store-scoped Promotions routes; validate buyer/store/promotion/discount order lineage before recording redemption; regression tests. No migration.
+- PR #167 exact-head Actions CI #1590 (run 45853558385) is IN PROGRESS. At latest poll Lint & Typecheck and Mobile were running; do not claim any checks passed yet. No overlapping CI should be dispatched.
+- Known follow-up explicitly retained: global/per-user promotion redemption-limit check and counter update are not concurrency-safe in this slice; do not claim that race is fixed.
+- PR #163 merged at 3f55809d8680961a61aa9235418cde69f86a42c1; PR #165 merge #5523dba6763298d3df388143ebd38614952f47eb is current develop baseline. PR #138 remains OPEN / DRAFT / UNMERGED and must never be merged wholesale.
+- PR #138 source and preservation refs were synchronized at a5cc64792f60e830477803b74c1e64a391ebf2ce before this memory update. Synchronize preservation via expected-SHA fast-forward only.
+- User explicitly waived independent GitHub reviewer requirements. Do not request reviewers or treat missing review as blocker; require exact-head mandatory CI, source/scope/safety checks and mergeability.
+- No shared/staging database writes, migration application, grants/default-ACL/RLS changes, provider calls, worker activation, Render changes, deployment, restart or release occurred.
+
+**Next:** monitor existing PR #167 CI #1590 only. If all mandatory jobs pass, verify mergeability and merge using exact head SHA. Then continue bounded extraction from PR #138 onto refreshed develop; do not create duplicate CI campaigns or merge the large source PR wholesale.
