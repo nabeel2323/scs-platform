@@ -195,3 +195,32 @@ Draft PR #157 now carries the bounded Slice A actor-context foundation from curr
 - PricingController also applies TenantDatabaseContextInterceptor at class level and explicitly checks store organization/membership, price-list ownership and variant/store equality before each exposed PricingService call. PricingModule exports PricingService; direct internal consumers remain to be inventoried.
 - CartController applies TenantDatabaseContextInterceptor and derives all cart operations from authenticated user.sub. It does not expose the raw getCart(cartId) helper as a route. OrdersModule exports CartService, so direct internal consumers of getCart/listCartItems and user-scoped operations still need mapping before changing method visibility or contracts.
 - These are route-level positive findings, not proof that every internal callsite is safe. Keep G-002 partial until exported-service consumers, raw SQL/function/trigger/partition callers and exact operation ownership predicates are reconciled. No source changes, tests, database access or CI were performed in this review.
+
+
+## 26 November 2026 — raw SQL and special-object consumer review
+
+### Function and search path
+- Migration 0007_search.sql creates public.normalize_arabic(text) as PL/pgSQL IMMUTABLE, invoker (no SECURITY DEFINER). Migration 0070 sets its search_path to pg_catalog and asserts the postcondition.
+- Catalog SearchService is the identified runtime consumer: its full-text/trigram queries call normalize_arabic through parameterized Drizzle SQL. CatalogController's GET search route applies TenantDatabaseContextInterceptor. No additional runtime consumer was identified in the inspected source paths.
+- pg_trgm is installed by 0007 for indexes. Extension schema/owner/ACL still requires live catalog verification.
+
+### Analytics partition parent
+- Migration 0002 creates analytics_events partitioned by created_at; 0013 replaces/reconfigures the parent and calls partman.create_parent (monthly, premake 3, start 2026-01-01); 0018 corrects retention matching to public.analytics_events with 12-month retention and keep_table/index false.
+- AnalyticsService reads/writes only the parent through Drizzle; no direct child partition references were found in inspected runtime source. AnalyticsController sets tenant actor context and derives userId/orgId from JWT on track routes.
+- GET /analytics/events is global aggregation, but analytics:read is seeded only for ADMIN and inherited by SUPER_ADMIN; merchant/staff/buyer roles receive analytics:track only. This is source-level seed evidence, not a live RBAC proof.
+- The 0013 cron.schedule example is commented out; no pg_cron/pg_partman scheduler deployment manifest was found. Extension version, partition coverage, default partition, retention job and relation ownership/ACL remain live/deployment gates.
+
+### Raw SQL runtime consumers
+- AutoCompleteWorker uses parameterized SQL with FOR UPDATE SKIP LOCKED for claim/update. Claim and process execute under worker actor context; releaseClaim runs in processCompletion's worker scope.
+- OpsAlertService wraps ops_alerts SQL with user or system actor helpers. P13MonitorService wraps its raw reads with the p13-monitor worker actor; its read-only timer starts from OnModuleInit at the configured interval (default 60s). WorkerLeaseService wraps lease SQL in worker context; forceExpire uses a system actor.
+- ReturnsReconciliationService uses pg_advisory_xact_lock inside its DB transactions and tenant/version predicates. Its identified production entry is ReturnsController, which has TenantDatabaseContextInterceptor and applies financialOrgScope to reconciliation routes.
+- PaymentsService consumes migration 0075 payment_proof_upload_intents: request DB phases use user actor, external object storage remains outside DB actor transactions, and cleanup claims/updates use a worker actor. PaymentsModule has no registered cleanup worker or controller route; no scheduled callsite was identified. Do not activate cleanup without an explicit worker contract and race/recovery tests.
+- AnalyticsService uses Drizzle on analytics_events; SearchService uses raw SQL and normalize_arabic; neither directly references partition children.
+- This consumer map is a targeted source review, not proof that every raw SQL or dynamic SQL callsite in the monorepo has been inspected.
+
+### Migration special-object disposition
+- The numbered migration source scan found no trigger/constraint-trigger creation, RLS policy/enablement, view/materialized-view, sequence or SECURITY DEFINER declarations. Function creation is limited to normalize_arabic in 0007; partition management is the analytics parent in 0002/0013/0018; PL/pgSQL blocks include 0053 and DO checks in 0070–0074.
+- 0053 logs progress every 500 rows but remains one migration transaction; it does not commit 500-row batches. Preflight actual JSONB volume and long-transaction/lock impact.
+- 0070 uses dynamic EXECUTE format for privilege/search_path hardening; 0072 and 0074 use DO blocks for conditional constraints/integrity checks. These still require owner/default-ACL authority and rollback review.
+
+**Open:** live pg_partman/partition/scheduler and physical relation/function/extension ownership/ACL checks; full raw SQL/dynamic SQL consumer scan; 0075 cleanup invocation/worker contract. No database operation or CI was run.
