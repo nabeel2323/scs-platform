@@ -2779,21 +2779,24 @@ export class IdentityService {
       where: and(eq(organizationMembers.userId, userId), eq(organizationMembers.status, 'ACTIVE')),
     });
     const activeMemberships = memberships.filter((membership) => membership.status === 'ACTIVE');
-    let activeMembership = preferredOrgId
-      ? activeMemberships.find((membership) => membership.orgId === preferredOrgId)
-      : activeMemberships[0];
-    let activeOrgId = activeMembership?.orgId ?? null;
-
-    // Membership alone is insufficient: an inactive organization cannot be
-    // selected for authentication claims or merchant-role projection.
-    if (activeOrgId) {
+    // A requested organization is authoritative: if it is inactive or the
+    // user is no longer an active member, do not silently switch tenants.
+    // Without a requested organization, choose the first membership whose
+    // organization is still active (not merely the first membership row).
+    const candidates = preferredOrgId
+      ? activeMemberships.filter((membership) => membership.orgId === preferredOrgId)
+      : activeMemberships;
+    let activeMembership: (typeof activeMemberships)[number] | undefined;
+    let activeOrgId: string | null = null;
+    for (const candidate of candidates) {
       const organization = await this.db.db.query.organizations.findFirst({
-        where: and(eq(organizations.id, activeOrgId), eq(organizations.isActive, true)),
+        where: and(eq(organizations.id, candidate.orgId), eq(organizations.isActive, true)),
         columns: { id: true },
       });
-      if (!organization) {
-        activeMembership = undefined;
-        activeOrgId = null;
+      if (organization) {
+        activeMembership = candidate;
+        activeOrgId = candidate.orgId;
+        break;
       }
     }
 
