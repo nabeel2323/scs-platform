@@ -28,7 +28,7 @@ describe('ShipmentOperationsController database actor scope', () => {
     controller.db = { withActorContext };
     const user = { sub: 'merchant-user-a', role: '', activeOrg: 'org-a' } as JwtPayload;
 
-    await expect(controller.withCallerDatabaseContext(user, async () => 'not-run')).rejects.toThrow(
+    expect(() => controller.withCallerDatabaseContext(user, async () => 'not-run')).toThrow(
       /database context is missing/,
     );
     expect(withActorContext).not.toHaveBeenCalled();
