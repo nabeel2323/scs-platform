@@ -26,6 +26,7 @@ describe('CarrierAdminController recovery queue tenant scope', () => {
   it('runs the recovery queue read under the verified user actor context', async () => {
     const selectChain = {
       from: vi.fn().mockReturnThis(),
+      innerJoin: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
       orderBy: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue([]),
