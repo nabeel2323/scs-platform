@@ -36,6 +36,8 @@ describe('P13 Phase 4.1.8 — signing exception cannot trigger unsigned delivery
       db: {
         execute: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
       },
+      withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
+      currentActorContext: null,
     } as unknown as DatabaseService;
   });
 
