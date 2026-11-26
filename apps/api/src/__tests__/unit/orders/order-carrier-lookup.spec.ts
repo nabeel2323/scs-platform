@@ -22,6 +22,7 @@ describe('OrdersService.findShipmentsByCarrierReference', () => {
     expect(innerJoin).toHaveBeenCalledOnce();
     expect(limit).toHaveBeenCalledWith(2);
     const predicate = where.mock.calls[0]?.[0];
+    if (!predicate) throw new Error('Expected the carrier lookup SQL predicate to be provided');
     const params = new PgDialect().sqlToQuery(predicate).params;
     expect(params).toContain('aramex');
     expect(params).toContain('external-a');
