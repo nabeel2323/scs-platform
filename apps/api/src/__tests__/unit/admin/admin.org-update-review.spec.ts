@@ -71,10 +71,11 @@ describe('AdminService.reviewOrgUpdateRequest', () => {
 
   function reviewRequest(
     requestId: string,
+    actorId: string,
     decision: 'APPROVED' | 'REJECTED',
     notes?: string,
   ) {
-    return service.reviewOrgUpdateRequest(requestId, 'admin-1', decision, notes, 'ADMIN', null);
+    return service.reviewOrgUpdateRequest(requestId, actorId, decision, notes, 'ADMIN', null);
   }
 
   it('applies the payload to the organization on APPROVED', async () => {
