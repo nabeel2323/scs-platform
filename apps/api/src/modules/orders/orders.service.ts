@@ -1352,7 +1352,7 @@ export class OrdersService {
     orderId: string,
     merchantUserId: string,
     reason: string,
-    caller?: CallerContext,
+    caller: CallerContext,
   ) {
     if (
       !caller ||
@@ -1363,18 +1363,12 @@ export class OrdersService {
     ) {
       throw new ForbiddenException('Authenticated database actor context is missing');
     }
+    if (merchantUserId !== caller.sub) {
+      throw new ForbiddenException('Rejection actor must match the authenticated caller');
+    }
     const actor = caller;
-    const runAsCaller = <T>(operation: () => Promise<T>): Promise<T> => {
-      if (!caller) return operation();
-      if (
-        typeof caller.sub !== 'string' ||
-        caller.sub.trim().length === 0 ||
-        typeof caller.role !== 'string' ||
-        caller.role.trim().length === 0
-      ) {
-        throw new ForbiddenException('Authenticated database actor context is missing');
-      }
-      return this.db.withActorContext(
+    const runAsCaller = <T>(operation: () => Promise<T>): Promise<T> =>
+      this.db.withActorContext(
         {
           actorKind: 'user',
           actorId: caller.sub,
@@ -1383,13 +1377,12 @@ export class OrdersService {
         },
         operation,
       );
-    };
 
     // Order, inventory, history and rejection outbox changes are one
     // transaction-bound actor phase. No provider/storage work belongs here.
     const order = await runAsCaller(async () => {
       const order = await this.getOrder(orderId);
-      if (caller) await assertOrderAccessible(this.db, caller, order);
+      await assertOrderAccessible(this.db, caller, order);
       let currentStatus = order['status'];
       if (currentStatus === 'SUBMITTED') {
         await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId'], actor);
@@ -1447,16 +1440,12 @@ export class OrdersService {
               payment.confirmedAmountMinor ?? payment.amountMinor,
             );
             if (refundableAmount > 0) {
-              const refundCaller: CallerContext = caller ?? {
-                sub: order['buyerId'] as string,
-                role: 'BUYER',
-                activeOrg: null,
-              };
+              const refundCaller: CallerContext = caller;
               await this.payments!.requestRefund(
                 payment.id,
                 refundableAmount,
                 'MERCHANT_REJECTION',
-                caller?.sub ?? (order['buyerId'] as string),
+                caller.sub,
                 refundCaller,
                 { idempotencyKey: `reject-refund:${orderId}` },
               );
@@ -1720,7 +1709,7 @@ export class OrdersService {
     orderId: string,
     userId: string,
     reason: string,
-    caller?: CallerContext,
+    caller: CallerContext,
     notes?: string,
   ) {
     // M7.3-B.2: Validate cancellation reason against B.0 locked set
@@ -1733,18 +1722,21 @@ export class OrdersService {
     if (reason === 'OTHER' && !notes?.trim()) {
       throw new BadRequestException('Cancellation reason OTHER requires explanatory notes');
     }
+    if (
+      !caller ||
+      typeof caller.sub !== 'string' ||
+      caller.sub.trim().length === 0 ||
+      typeof caller.role !== 'string' ||
+      caller.role.trim().length === 0
+    ) {
+      throw new ForbiddenException('Authenticated database actor context is missing');
+    }
+    if (userId !== caller.sub) {
+      throw new ForbiddenException('Cancellation actor must match the authenticated caller');
+    }
 
-    const runAsCaller = <T>(operation: () => Promise<T>): Promise<T> => {
-      if (!caller) return operation();
-      if (
-        typeof caller.sub !== 'string' ||
-        caller.sub.trim().length === 0 ||
-        typeof caller.role !== 'string' ||
-        caller.role.trim().length === 0
-      ) {
-        throw new ForbiddenException('Authenticated database actor context is missing');
-      }
-      return this.db.withActorContext(
+    const runAsCaller = <T>(operation: () => Promise<T>): Promise<T> =>
+      this.db.withActorContext(
         {
           actorKind: 'user',
           actorId: caller.sub,
@@ -1753,14 +1745,13 @@ export class OrdersService {
         },
         operation,
       );
-    };
 
     const order = await runAsCaller(async () => {
       const order = await this.getOrder(orderId);
 
       // A3-1: object-level check — buyers cancel their own orders, merchants
       // cancel orders their org fulfills, platform staff bypass.
-      if (caller) await assertOrderAccessible(this.db, caller, order);
+      await assertOrderAccessible(this.db, caller, order);
 
       // Can only cancel pre-DELIVERED (SUBMITTED is auto-advance, not user-cancellable)
       // M7.3-B.5: OUT_FOR_DELIVERY added — cancellation must win over active RTS.
@@ -1793,7 +1784,7 @@ export class OrdersService {
             status: 'CANCELLED',
             cancellationReason: reason,
             cancellationActorType: actorType,
-            cancellationActorId: userId,
+            cancellationActorId: caller.sub,
             cancelledAt: new Date(),
             updatedAt: new Date(),
           })
