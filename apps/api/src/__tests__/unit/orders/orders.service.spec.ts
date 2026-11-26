@@ -400,6 +400,7 @@ describe('OrdersService.checkout MOQ and order-increment enforcement', () => {
           findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1', isActive: true })),
         },
         products: { findFirst: vi.fn(async () => ({ id: 'product-1', storeId: null, status: 'ACTIVE', deletedAt: null, title: 'Widget', moq: 1 })) },
+        stores: { findMany: vi.fn(async () => [{ id: 'store-1', currency: 'SAR', orgId: null }]) },
       },
     };
     const service = new OrdersService({ db } as any, {} as any, {} as any);
