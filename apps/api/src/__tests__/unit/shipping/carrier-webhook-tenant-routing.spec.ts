@@ -102,7 +102,7 @@ describe('CarrierWebhookController tenant credential routing', () => {
 
     expect(harness.db.db.query.carrierCredentials.findFirst).toHaveBeenCalledOnce();
     expect(harness.db.db.query.carrierCredentials.findMany).not.toHaveBeenCalled();
-    expect(harness.credentials.decryptWebhookSecret).toHaveBeenCalledWith('credential-org-a');
+    expect(harness.credentials.decryptWebhookSecret).toHaveBeenCalledWith('credential-org-a', 'org-a');
     expect(harness.response.status).toHaveBeenCalledWith(403);
   });
 });
