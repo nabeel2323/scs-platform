@@ -111,7 +111,8 @@ describe('P12 Independent Runtime Verification', () => {
 
     // Drizzle wiring — full schema barrel so `db.query.<table>` works
     const drizzleDb = drizzle(pool, { schema }) as any;
-    db = { db: drizzleDb } as unknown as DatabaseService;
+    db = new DatabaseService();
+  db.db = drizzleDb;
 
     // Seed RBAC (needed for role keys lookup)
     const client = await pool.connect();

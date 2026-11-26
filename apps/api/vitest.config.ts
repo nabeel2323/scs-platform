@@ -1,4 +1,4 @@
-import { configDefaults, defineConfig } from 'vitest/config';
+import { defineConfig } from 'vitest/config';
 import path from 'path';
 
 export default defineConfig({
@@ -6,10 +6,6 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/__tests__/**/*.spec.ts'],
-    exclude: [
-      ...configDefaults.exclude,
-      'src/__tests__/scratch/**', // Manual investigation specs are not part of standard CI or coverage.
-    ],
     setupFiles: ['src/__tests__/setup.ts'],
     alias: {
       '@/*': path.resolve(__dirname, 'src/*'),

@@ -135,6 +135,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
   let storeB: string;
   let orderA: string;
   let orderB: string;
+  let orderC: string;
+  let orderD: string;
   let payA: string;
   let payB: string;
   let retA: string;
@@ -347,18 +349,66 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     );
 
     const masterA = randomUUID(); const masterB = randomUUID();
-    await pool.query(`INSERT INTO master_orders (id, buyer_id, status) VALUES ($1,$2,'SUBMITTED'),($3,$4,'SUBMITTED')`, [masterA, buyerA, masterB, buyerB]);
+    const masterC = randomUUID(); const masterD = randomUUID();
+    await pool.query(
+      `INSERT INTO master_orders (id, buyer_id, status)
+       VALUES ($1,$2,'SUBMITTED'),($3,$4,'SUBMITTED'),($5,$6,'SUBMITTED'),($7,$8,'SUBMITTED')`,
+      [masterA, buyerA, masterB, buyerB, masterC, buyerA, masterD, buyerB],
+    );
     orderA = randomUUID(); orderB = randomUUID();
+    orderC = randomUUID(); orderD = randomUUID();
     await pool.query(
       `INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, subtotal_minor, discount_minor, delivery_fee_minor, tax_minor, total_minor)
-       VALUES ($1,$2,$3,$4,'DELIVERED',5000,0,500,0,5500),($5,$6,$7,$8,'DELIVERED',7000,0,500,0,7500)`,
-      [orderA, masterA, storeA, buyerA, orderB, masterB, storeB, buyerB],
+       VALUES
+         ($1,$2,$3,$4,'DELIVERED',5000,0,500,0,5500),
+         ($5,$6,$7,$8,'DELIVERED',7000,0,500,0,7500),
+         ($9,$10,$11,$12,'DELIVERED',5000,0,500,0,5500),
+         ($13,$14,$15,$16,'DELIVERED',7000,0,500,0,7500)`,
+      [
+        orderA, masterA, storeA, buyerA,
+        orderB, masterB, storeB, buyerB,
+        orderC, masterC, storeA, buyerA,
+        orderD, masterD, storeB, buyerB,
+      ],
+    );
+
+    // Return and adjustment HTTP probes need real historical order lines.
+    const productAId = randomUUID(); const productBId = randomUUID();
+    const variantAId = randomUUID(); const variantBId = randomUUID();
+    const skuA = `P4-A-${variantAId}`; const skuB = `P4-B-${variantBId}`;
+    await pool.query(
+      `INSERT INTO products (id, store_id, slug, title)
+       VALUES ($1,$2,$3,'P4 Product A'),($4,$5,$6,'P4 Product B')`,
+      [productAId, storeA, `p4-a-${productAId}`, productBId, storeB, `p4-b-${productBId}`],
+    );
+    await pool.query(
+      `INSERT INTO product_variants (id, product_id, sku)
+       VALUES ($1,$2,$3),($4,$5,$6)`,
+      [variantAId, productAId, skuA, variantBId, productBId, skuB],
+    );
+    await pool.query(
+      `INSERT INTO order_items (id, order_id, variant_id, sku, title, quantity, unit_price_minor, line_total_minor)
+       VALUES
+         ($1,$2,$3,$4,'P4 Product A',1,5000,5000),
+         ($5,$6,$3,$4,'P4 Product A',1,5000,5000),
+         ($7,$8,$9,$10,'P4 Product B',1,7000,7000),
+         ($11,$12,$9,$10,'P4 Product B',1,7000,7000)`,
+      [
+        randomUUID(), orderA, variantAId, skuA,
+        randomUUID(), orderC,
+        randomUUID(), orderB, variantBId, skuB,
+        randomUUID(), orderD,
+      ],
     );
     payA = randomUUID(); payB = randomUUID();
     await pool.query(
       `INSERT INTO payment_records (id, order_id, payment_method, status, amount_minor, currency)
-       VALUES ($1,$2,'CASH_ON_DELIVERY','CONFIRMED',5500,'SYP'),($3,$4,'CASH_ON_DELIVERY','CONFIRMED',7500,'SYP')`,
-      [payA, orderA, payB, orderB],
+       VALUES
+         ($1,$2,'CASH_ON_DELIVERY','CONFIRMED',5500,'SYP'),
+         ($3,$4,'CASH_ON_DELIVERY','CONFIRMED',7500,'SYP'),
+         ($5,$6,'CASH_ON_DELIVERY','CONFIRMED',5500,'SYP'),
+         ($7,$8,'CASH_ON_DELIVERY','CONFIRMED',7500,'SYP')`,
+      [payA, orderA, payB, orderB, randomUUID(), orderC, randomUUID(), orderD],
     );
     retA = randomUUID(); retB = randomUUID();
     await pool.query(
@@ -920,7 +970,7 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     // built the fixture, and a describe-level literal would run at collection time.
     function createBody() {
       return {
-        subOrderId: orderA,
+        subOrderId: orderC,
         adjustmentType: 'SETTLEMENT_CORRECTION',
         amountMinor: 1500,
         currency: 'SYP',
@@ -1094,7 +1144,7 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
 
       // 400 from line validation, not 403 from the gate: the gate did not run.
       const res = await req('POST', '/v1/returns', {
-        token: await mint('BUYER', orgA, { sub: buyerA }), body: gateProbeBody(orderA),
+        token: await mint('BUYER', orgA, { sub: buyerA }), body: gateProbeBody(orderC),
       });
       expect(res.status).toBe(400);
       expect(detailOf(res)).toMatch(/At least one return line is required/i);
@@ -1149,7 +1199,7 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
 
       // Org B is still outside, even though its buyer has the same role and perms.
       const outside = await req('POST', '/v1/returns', {
-        token: await mint('BUYER', orgB, { sub: buyerB }), body: gateProbeBody(orderB),
+        token: await mint('BUYER', orgB, { sub: buyerB }), body: gateProbeBody(orderD),
       });
       expect(outside.status).toBe(403);
       expect(codeOf(outside)).toBe('p13_pilot_org_not_allowlisted');

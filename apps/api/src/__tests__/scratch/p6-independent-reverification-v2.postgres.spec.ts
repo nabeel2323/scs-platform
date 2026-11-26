@@ -89,7 +89,8 @@ beforeAll(async () => {
   await applyMigrations(pool);
 
   const drizzleDb = drizzle(pool, { schema: schema as any }) as any;
-  db = { db: drizzleDb } as any;
+  db = new DatabaseService();
+  db.db = drizzleDb;
 
   taxonomyService = new CatalogTaxonomyService(db);
   catalogService = new CatalogService(
