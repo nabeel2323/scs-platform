@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import {
   PromotionsService,
   CreatePromotionInput,
@@ -6,25 +6,30 @@ import {
 } from './promotions.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import {
-  RequirePermission,
-} from '../../common/guards/current-user.decorator';
+import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
+import type { CallerContext } from '../../common/tenant-scope';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class PromotionsController {
+  private caller(user: JwtPayload): CallerContext {
+    return { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+  }
+
   constructor(private readonly promotionsService: PromotionsService) {}
 
   @Post('promotions')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:promotions:write')
-  async createPromotion(@Body() input: CreatePromotionInput) {
-    return this.promotionsService.createPromotion(input);
+  async createPromotion(@CurrentUser() user: JwtPayload, @Body() input: CreatePromotionInput) {
+    return this.promotionsService.createPromotion(input, this.caller(user));
   }
 
   @Get('stores/:storeId/promotions')
-  async listByStore(@Param('storeId') storeId: string) {
-    return this.promotionsService.listByStore(storeId);
+  async listByStore(@CurrentUser() user: JwtPayload, @Param('storeId') storeId: string) {
+    return this.promotionsService.listByStore(storeId, this.caller(user));
   }
 
   @Get('stores/:storeId/promotions/active')
@@ -33,20 +38,28 @@ export class PromotionsController {
   }
 
   @Get('promotions/:id')
-  async getPromotion(@Param('id') id: string) {
-    return this.promotionsService.getPromotion(id);
+  async getPromotion(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.promotionsService.getPromotion(id, this.caller(user));
   }
 
   @Patch('promotions/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:promotions:write')
-  async updatePromotion(@Param('id') id: string, @Body() input: UpdatePromotionInput) {
-    return this.promotionsService.updatePromotion(id, input);
+  async updatePromotion(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() input: UpdatePromotionInput,
+  ) {
+    return this.promotionsService.updatePromotion(id, input, this.caller(user));
   }
 
   @Get('stores/:storeId/promotions/validate')
-  async validateCode(@Param('storeId') storeId: string, @Query('code') code: string) {
-    const promo = await this.promotionsService.findByCode(storeId, code);
+  async validateCode(
+    @CurrentUser() user: JwtPayload,
+    @Param('storeId') storeId: string,
+    @Query('code') code: string,
+  ) {
+    const promo = await this.promotionsService.findByCode(storeId, code, this.caller(user));
     return {
       valid: true,
       promoType: promo['promoType'],
