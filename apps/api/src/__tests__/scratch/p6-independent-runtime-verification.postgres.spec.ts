@@ -90,8 +90,11 @@ beforeAll(async () => {
   const roleResult = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_OWNER' LIMIT 1`);
   const merchantRoleId = roleResult.rows[0].id;
   await pool.query(
-    `INSERT INTO users (id, full_name) VALUES
-      ($1, 'Merchant A'), ($2, 'Merchant B'), ($3, 'Merchant Y'), ($4, 'Platform Admin')`,
+    `INSERT INTO users (id, phone, email, full_name) VALUES
+      ($1, '+966500000001', 'merchant-a@test.local', 'Merchant A'),
+      ($2, '+966500000002', 'merchant-b@test.local', 'Merchant B'),
+      ($3, '+966500000003', 'merchant-y@test.local', 'Merchant Y'),
+      ($4, '+966500000004', 'platform-admin@test.local', 'Platform Admin')`,
     [merchantAId, merchantBId, merchantYId, adminId],
   );
   await pool.query(

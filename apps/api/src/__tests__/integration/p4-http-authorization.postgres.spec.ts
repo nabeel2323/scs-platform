@@ -172,16 +172,27 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     const files = fs.readdirSync(MIGRATIONS_DIR)
       .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
       .sort();
-    for (const file of files) {
-      const text = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
-      await pool.query('BEGIN');
-      try {
-        await pool.query(text);
-        await pool.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]);
-        await pool.query('COMMIT');
-      } catch {
-        await pool.query('ROLLBACK');
+    // A migration transaction must stay on one PostgreSQL connection. Pool.query()
+    // may dispatch each statement to a different client, which makes BEGIN/COMMIT
+    // ineffective and can leave required Phase 4 tables absent while the test
+    // continues with misleading HTTP 500 failures.
+    const migrationClient = await pool.connect();
+    try {
+      for (const file of files) {
+        const migrationSql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
+        await migrationClient.query('BEGIN');
+        try {
+          await migrationClient.query(migrationSql);
+          await migrationClient.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]);
+          await migrationClient.query('COMMIT');
+        } catch (error) {
+          await migrationClient.query('ROLLBACK');
+          const detail = error instanceof Error ? error.message : String(error);
+          throw new Error(`P4 HTTP fixture failed to apply migration ${file}: ${detail}`, { cause: error });
+        }
       }
+    } finally {
+      migrationClient.release();
     }
 
     const client = await pool.connect();
