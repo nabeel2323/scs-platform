@@ -127,7 +127,7 @@ class TimeoutErrorProvider extends ShippingProvider {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function makeDbService(pool: Pool, db: any): DatabaseService {
-  const svc = new DatabaseService() as any;
+  const svc = Object.create(DatabaseService.prototype);
   svc.pool = pool;
   svc.db = db;
   return svc;
