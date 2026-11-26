@@ -1,3 +1,13 @@
+## 26 November 2026 — focused PR portfolio recheck
+
+- PR #153 remains OPEN/DRAFT at exact head `5294698d8db78e21df972e8ce6213f21237789fa`; Actions run #1523 (`45622306528`) passed on that exact head. Independent review is still outstanding; no merge performed. This remains the canonical outbox safety behavior.
+- PR #154 remains OPEN/DRAFT at exact head `e421e21b1e66386a9d0c259fb83c99f1a05272cb`; no exact-head Actions run is recorded. The older successful run does not validate this head. Keep unmerged until its current head is validated and reconciled with #138 actor-context worker design.
+- PR #158 remains OPEN/DRAFT at `19b96bcda29d7166a748dd5693b430cce0ea2098`, stacked on PR #157's old parent `5f9399cd6fa80e51b508c31203dd6b5f80b37757`. Do not merge/rebase it yet; after #157 Slice A is green, port its five-file identity claim/profile alignment onto the current #157 head and run exact-head validation.
+- PR #157 exact-head CI #1560 (`45778372173`) for diagnostic head `b2a1131017e6117118a68e33bfd7da26b37bbfd0` is currently IN PROGRESS. Latest jobs observed: Lint & Typecheck and Mobile Flutter both in progress. No duplicate run triggered.
+- PR #138 remains OPEN/DRAFT/UNMERGED; source and preservation refs synced after this handoff update via expected-SHA fast-forward only. Do not merge its broad diff.
+
+---
+
 ## 26 November 2026 — PR #157 P4 HTTP diagnostic commit queued for CI
 
 - PR #157 advanced to `b2a1131017e6117118a68e33bfd7da26b37bbfd0` with a test-only diagnostic improvement: the P4 HTTP integration harness now logs non-HTTP exceptions by name/message before delegating to the same RFC 7807 filter, and HA-08 includes the response body in its failure message. This does not alter production behavior or relax assertions.
