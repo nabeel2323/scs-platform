@@ -18,16 +18,40 @@ import { InventoryService } from '../../modules/inventory/inventory.service';
 import { PromotionsService } from '../../modules/promotions/promotions.service';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 // Schemas
-import { products, productVariants, categories, brands } from '../../modules/catalog/catalog.schema';
-import { attributeDefinitions, attributeOptions, attributeGroups, productTypes, productTypeAttributes, productAttributeValues, variantAttributeValues } from '../../modules/catalog/catalog.taxonomy.schema';
+import {
+  products,
+  productVariants,
+  categories,
+  brands,
+} from '../../modules/catalog/catalog.schema';
+import {
+  attributeDefinitions,
+  attributeOptions,
+  attributeGroups,
+  productTypes,
+  productTypeAttributes,
+  productAttributeValues,
+  variantAttributeValues,
+} from '../../modules/catalog/catalog.taxonomy.schema';
 import { merchantOffers } from '../../modules/catalog/catalog.offer.schema';
-import { users, organizations, organizationMembers, roles } from '../../modules/identity/identity.schema';
-import { stores, warehouses } from '../../modules/merchant/merchant.schema';
+import {
+  users,
+  organizations,
+  organizationMembers,
+  roles,
+} from '../../modules/identity/identity.schema';
+import { stores, warehouses, storeMembers } from '../../modules/merchant/merchant.schema';
 import { priceLists, priceTiers } from '../../modules/pricing/pricing.schema';
 import { promotions, promotionRedemptions } from '../../modules/promotions/promotions.schema';
 import { inventoryItems, stockMovements } from '../../modules/inventory/inventory.schema';
 import { carts, cartItems } from '../../modules/orders/cart.schema';
-import { masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory } from '../../modules/orders/orders.schema';
+import {
+  masterOrders,
+  orders,
+  orderItems,
+  orderFinancialBreakdown,
+  orderStatusHistory,
+} from '../../modules/orders/orders.schema';
 import { outboxEvents, auditLogs } from '../../modules/audit/audit.schema';
 import { disputes } from '../../modules/reviews/support.schema';
 
@@ -46,7 +70,9 @@ import { disputes } from '../../modules/reviews/support.schema';
  */
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
-const storage = { createPresignedGetUrl: vi.fn(async (_b: string, key: string) => `https://cdn.test/${key}`) } as any;
+const storage = {
+  createPresignedGetUrl: vi.fn(async (_b: string, key: string) => `https://cdn.test/${key}`),
+} as any;
 const outbox = { publish: vi.fn().mockResolvedValue(undefined) } as any;
 const audit = { record: vi.fn().mockResolvedValue(undefined) } as any;
 const redis = { get: vi.fn(), set: vi.fn(), del: vi.fn() } as any;
@@ -59,6 +85,10 @@ let merchantA: string, merchantB: string, buyerA: string, buyerB: string, adminU
 let storeA: string, storeB: string;
 let warehouseA: string, warehouseB: string;
 let merchantRoleId: string;
+
+// Tenant contexts are created lazily because beforeAll populates the UUIDs.
+const callerA = () => ({ sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA });
+const callerB = () => ({ sub: merchantB, role: 'MERCHANT_OWNER', activeOrg: orgB });
 
 describe('Transaction Foundation E2E — real PostgreSQL', () => {
   let container: StartedPostgreSqlContainer;
@@ -73,6 +103,16 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
   let inventoryService: InventoryService;
   let promotionsService: PromotionsService;
 
+
+  async function checkoutAsBuyer(input: any) {
+    const actor =
+      input?.buyerId === buyerA ? { sub: buyerA, role: 'BUYER', activeOrg: orgA } :
+      input?.buyerId === buyerB ? { sub: buyerB, role: 'BUYER', activeOrg: orgB } :
+      null;
+    if (!actor) throw new Error('Checkout test must use a seeded buyer identity');
+    return ordersService.checkout(input, actor);
+  }
+
   // Shared catalog IDs
   let categoryId: string, brandId: string, productTypeId: string;
   let productId: string, variantId: string, variant2Id: string;
@@ -84,14 +124,39 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, {
       schema: {
-        products, productVariants, categories, brands,
-        attributeDefinitions, attributeOptions, attributeGroups,
-        productTypes, productTypeAttributes, productAttributeValues, variantAttributeValues,
-        merchantOffers, stores, warehouses, users, organizations, disputes,
-        priceLists, priceTiers, promotions, promotionRedemptions,
-        inventoryItems, stockMovements, carts, cartItems,
-        masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory,
-        outboxEvents, auditLogs,
+        products,
+        productVariants,
+        categories,
+        brands,
+        attributeDefinitions,
+        attributeOptions,
+        attributeGroups,
+        productTypes,
+        productTypeAttributes,
+        productAttributeValues,
+        variantAttributeValues,
+        merchantOffers,
+        stores,
+        storeMembers,
+        warehouses,
+        users,
+        organizations,
+        disputes,
+        priceLists,
+        priceTiers,
+        promotions,
+        promotionRedemptions,
+        inventoryItems,
+        stockMovements,
+        carts,
+        cartItems,
+        masterOrders,
+        orders,
+        orderItems,
+        orderFinancialBreakdown,
+        orderStatusHistory,
+        outboxEvents,
+        auditLogs,
       },
     }) as unknown as DatabaseService['db'];
 
@@ -99,33 +164,61 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     const migrationsDir = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
     const excluded = ['0013_analytics.sql', '0018_analytics_retention.sql'];
     for (const file of (await readdir(migrationsDir))
-      .filter(f => f.endsWith('.sql') && !excluded.includes(f))
+      .filter((f) => f.endsWith('.sql') && !excluded.includes(f))
       .sort()) {
       await pool.query(await readFile(path.join(migrationsDir, file), 'utf8'));
     }
 
     // ── Seed RBAC ─────────────────────────────────────────────────
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
     // ── Instantiate services ──────────────────────────────────────
-    database = Object.create(DatabaseService.prototype) as DatabaseService;
+    database = new DatabaseService();
     database.db = db;
     const conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
-    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy, {} as any, {} as any, {} as any);
+    catalog = new CatalogService(
+      database,
+      redis as any,
+      outbox,
+      storage,
+      audit,
+      conditionalRules,
+      taxonomy,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
     offerService = new CatalogOfferService(database, audit);
     promotionsService = new PromotionsService(database);
     cartService = new CartService(database, promotionsService);
-    ordersService = new OrdersService(database, outbox, promotionsService, realtime, cartService, notifications);
+    ordersService = new OrdersService(
+      database,
+      outbox,
+      promotionsService,
+      realtime,
+      cartService,
+      notifications,
+    );
     inventoryService = new InventoryService(database, outbox);
 
     // ── Create test identities ────────────────────────────────────
-    orgA = randomUUID(); orgB = randomUUID();
-    merchantA = randomUUID(); merchantB = randomUUID();
-    buyerA = randomUUID(); buyerB = randomUUID(); adminUser = randomUUID();
-    storeA = randomUUID(); storeB = randomUUID();
-    warehouseA = randomUUID(); warehouseB = randomUUID();
+    orgA = randomUUID();
+    orgB = randomUUID();
+    merchantA = randomUUID();
+    merchantB = randomUUID();
+    buyerA = randomUUID();
+    buyerB = randomUUID();
+    adminUser = randomUUID();
+    storeA = randomUUID();
+    storeB = randomUUID();
+    warehouseA = randomUUID();
+    warehouseB = randomUUID();
 
     const roleRes = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_OWNER'`);
     merchantRoleId = roleRes.rows[0].id;
@@ -144,8 +237,8 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       { id: buyerB, fullName: 'Buyer B', phone: '+10000000005' },
     ]);
     await db.insert(stores).values([
-      { id: storeA, orgId: orgA, slug: 'store-a', displayName: 'Store A' },
-      { id: storeB, orgId: orgB, slug: 'store-b', displayName: 'Store B' },
+      { id: storeA, orgId: orgA, slug: 'store-a', displayName: 'Store A', status: 'ACTIVE' },
+      { id: storeB, orgId: orgB, slug: 'store-b', displayName: 'Store B', status: 'ACTIVE' },
     ]);
     await db.insert(warehouses).values([
       { id: warehouseA, storeId: storeA, name: 'Warehouse A' },
@@ -157,6 +250,10 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       { id: randomUUID(), orgId: orgA, userId: buyerA, roleId: buyerRoleId },
       { id: randomUUID(), orgId: orgA, userId: buyerB, roleId: buyerRoleId },
     ]);
+    await db.insert(storeMembers).values([
+      { id: randomUUID(), storeId: storeA, userId: merchantA, role: 'OWNER', status: 'ACTIVE' },
+      { id: randomUUID(), storeId: storeB, userId: merchantB, role: 'OWNER', status: 'ACTIVE' },
+    ]);
 
     // ── Catalog setup ─────────────────────────────────────────────
     const cat = await catalog.createCategory({ name: 'Electronics' });
@@ -166,13 +263,35 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     const pt = await taxonomy.createProductType({ code: 'widget', name: 'Widget', categoryId });
     productTypeId = pt.id;
     await taxonomy.setProductTypeAttributes(productTypeId, [
-      { attributeDefinitionId: (await taxonomy.createAttribute({ code: 'color', name: 'Color', type: 'TEXT', scope: 'VARIANT' })).id, required: true, scope: 'VARIANT', displayOrder: 0 },
+      {
+        attributeDefinitionId: (
+          await taxonomy.createAttribute({
+            code: 'color',
+            name: 'Color',
+            type: 'TEXT',
+            scope: 'VARIANT',
+          })
+        ).id,
+        required: true,
+        scope: 'VARIANT',
+        displayOrder: 0,
+      },
     ]);
     await taxonomy.publishProductType(productTypeId);
 
-    const prod = await catalog.createProduct({ storeId: storeA, title: 'Widget Pro', categoryId, brandId, productTypeId, images: ['widget.png'] }, merchantA);
+    const prod = await catalog.createProduct(
+      {
+        storeId: storeA,
+        title: 'Widget Pro',
+        categoryId,
+        brandId,
+        productTypeId,
+        images: ['widget.png'],
+      },
+      merchantA,
+    );
     productId = prod.id;
-    await catalog.updateProduct(productId, { status: 'ACTIVE' });
+    await catalog.updateProduct(productId, { status: 'ACTIVE' }, undefined, callerA());
 
     const v1 = await catalog.createVariant(productId, { sku: 'WP-RED', title: 'Widget Pro Red' });
     variantId = v1.id;
@@ -180,46 +299,132 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     variant2Id = v2.id;
 
     // ── Offers ────────────────────────────────────────────────────
-    const oA = await offerService.createOffer({ storeId: storeA, productId, variantId, currency: 'SAR', basePriceMinor: 10000, moq: 1, leadTimeDays: 3, proposedBy: merchantA });
+    const oA = await offerService.createOffer(
+      {
+        storeId: storeA,
+        productId,
+        variantId,
+        currency: 'SAR',
+        basePriceMinor: 10000,
+        moq: 1,
+        leadTimeDays: 3,
+        proposedBy: 'forged-user',
+      },
+      callerA(),
+    );
     offerA = oA.id;
-    await offerService.proposeOffer(offerA, merchantA);
+    await offerService.proposeOffer(offerA, callerA());
     await offerService.approveOffer(offerA, adminUser);
 
-    const oB = await offerService.createOffer({ storeId: storeB, productId, variantId, currency: 'SAR', basePriceMinor: 9500, moq: 1, leadTimeDays: 5, proposedBy: merchantB });
+    const oB = await offerService.createOffer(
+      {
+        storeId: storeB,
+        productId,
+        variantId,
+        currency: 'SAR',
+        basePriceMinor: 9500,
+        moq: 1,
+        leadTimeDays: 5,
+        proposedBy: 'forged-user',
+      },
+      callerB(),
+    );
     offerB = oB.id;
-    await offerService.proposeOffer(offerB, merchantB);
+    await offerService.proposeOffer(offerB, callerB());
     await offerService.approveOffer(offerB, adminUser);
 
     // Offer for variant2 from storeB (needed for multi-merchant cart tests)
-    const oB2 = await offerService.createOffer({ storeId: storeB, productId, variantId: variant2Id, currency: 'SAR', basePriceMinor: 11000, moq: 1, leadTimeDays: 5, proposedBy: merchantB });
+    const oB2 = await offerService.createOffer(
+      {
+        storeId: storeB,
+        productId,
+        variantId: variant2Id,
+        currency: 'SAR',
+        basePriceMinor: 11000,
+        moq: 1,
+        leadTimeDays: 5,
+        proposedBy: 'forged-user',
+      },
+      callerB(),
+    );
     offerB2 = oB2.id;
-    await offerService.proposeOffer(offerB2, merchantB);
+    await offerService.proposeOffer(offerB2, callerB());
     await offerService.approveOffer(offerB2, adminUser);
 
     // ── Price lists & tiers (needed for cart pricing) ─────────────
-    const plA = randomUUID(); const plB = randomUUID();
+    const plA = randomUUID();
+    const plB = randomUUID();
     await db.insert(priceLists).values([
-      { id: plA, storeId: storeA, name: 'Store A Retail', currency: 'SAR', isActive: true, priority: 10 },
-      { id: plB, storeId: storeB, name: 'Store B Retail', currency: 'SAR', isActive: true, priority: 10 },
+      {
+        id: plA,
+        storeId: storeA,
+        name: 'Store A Retail',
+        currency: 'SAR',
+        isActive: true,
+        priority: 10,
+      },
+      {
+        id: plB,
+        storeId: storeB,
+        name: 'Store B Retail',
+        currency: 'SAR',
+        isActive: true,
+        priority: 10,
+      },
     ]);
     await db.insert(priceTiers).values([
       { id: randomUUID(), priceListId: plA, variantId, unitPriceMinor: 10000, minQty: 1 },
-      { id: randomUUID(), priceListId: plA, variantId: variant2Id, unitPriceMinor: 12000, minQty: 1 },
+      {
+        id: randomUUID(),
+        priceListId: plA,
+        variantId: variant2Id,
+        unitPriceMinor: 12000,
+        minQty: 1,
+      },
       { id: randomUUID(), priceListId: plB, variantId, unitPriceMinor: 9500, minQty: 1 },
-      { id: randomUUID(), priceListId: plB, variantId: variant2Id, unitPriceMinor: 11000, minQty: 1 },
+      {
+        id: randomUUID(),
+        priceListId: plB,
+        variantId: variant2Id,
+        unitPriceMinor: 11000,
+        minQty: 1,
+      },
     ]);
 
     // ── Inventory ─────────────────────────────────────────────────
-    const invA = await inventoryService.createItem({ variantId, warehouseId: warehouseA, initialQty: 20, userId: merchantA });
+    const invA = await inventoryService.createItem({
+      variantId,
+      warehouseId: warehouseA,
+      initialQty: 20,
+      userId: merchantA,
+    });
     invItemA = invA.id;
-    const invB = await inventoryService.createItem({ variantId, warehouseId: warehouseB, initialQty: 10, userId: merchantB });
+    const invB = await inventoryService.createItem({
+      variantId,
+      warehouseId: warehouseB,
+      initialQty: 10,
+      userId: merchantB,
+    });
     invItemB = invB.id;
     // Also stock variant2 for store A and store B
-    await inventoryService.createItem({ variantId: variant2Id, warehouseId: warehouseA, initialQty: 15, userId: merchantA });
-    await inventoryService.createItem({ variantId: variant2Id, warehouseId: warehouseB, initialQty: 10, userId: merchantB });
+    await inventoryService.createItem({
+      variantId: variant2Id,
+      warehouseId: warehouseA,
+      initialQty: 15,
+      userId: merchantA,
+    });
+    await inventoryService.createItem({
+      variantId: variant2Id,
+      warehouseId: warehouseB,
+      initialQty: 10,
+      userId: merchantB,
+    });
   }, 180_000);
 
-  afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
+  afterAll(async () => {
+    await pool?.end();
+    await container?.stop();
+  }, 30_000);
 
   // ═══════════════════════════════════════════════════════════════════
   // SCENARIO 1 — Multi-Merchant Cart → Checkout
@@ -235,7 +440,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       expect(validation.stale).toHaveLength(0);
 
       // Checkout
-      const result = await ordersService.checkout({
+      const result = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: { street: '123 Test St' },
         idempotencyKey: `test-checkout-${randomUUID()}`,
@@ -266,9 +471,14 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
   describe('Scenario 2 — Financial integrity', () => {
     it('sub-order financials satisfy total = subtotal - discount + tax + delivery', async () => {
       // Use the most recent master order
-      const masterRes = await pool.query(`SELECT id FROM master_orders ORDER BY created_at DESC LIMIT 1`);
+      const masterRes = await pool.query(
+        `SELECT id FROM master_orders ORDER BY created_at DESC LIMIT 1`,
+      );
       const masterId = masterRes.rows[0].id;
-      const subRes = await pool.query(`SELECT id, subtotal_minor, discount_minor, delivery_fee_minor, tax_minor, total_minor, currency FROM orders WHERE master_order_id = $1`, [masterId]);
+      const subRes = await pool.query(
+        `SELECT id, subtotal_minor, discount_minor, delivery_fee_minor, tax_minor, total_minor, currency FROM orders WHERE master_order_id = $1`,
+        [masterId],
+      );
 
       for (const row of subRes.rows) {
         // pg returns bigint as string — coerce to number for arithmetic
@@ -286,7 +496,10 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
 
       // Verify financial breakdown exists for each sub-order
       for (const sub of subRes.rows) {
-        const bdRes = await pool.query(`SELECT * FROM order_financial_breakdown WHERE order_id = $1`, [sub.id]);
+        const bdRes = await pool.query(
+          `SELECT * FROM order_financial_breakdown WHERE order_id = $1`,
+          [sub.id],
+        );
         expect(bdRes.rows.length).toBe(1);
         const bd = bdRes.rows[0];
         expect(Number(bd.products_minor)).toBe(Number(sub.subtotal_minor));
@@ -300,21 +513,29 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
   describe('Scenario 3 — Price snapshot immutability', () => {
     it('historical order retains original price after merchant changes offer price', async () => {
       // Get order items from the checkout
-      const masterRes = await pool.query(`SELECT id FROM master_orders ORDER BY created_at DESC LIMIT 1`);
-      const itemsRes = await pool.query(`SELECT unit_price_minor, offer_snapshot FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE o.master_order_id = $1`, [masterRes.rows[0].id]);
+      const masterRes = await pool.query(
+        `SELECT id FROM master_orders ORDER BY created_at DESC LIMIT 1`,
+      );
+      const itemsRes = await pool.query(
+        `SELECT unit_price_minor, offer_snapshot FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE o.master_order_id = $1`,
+        [masterRes.rows[0].id],
+      );
 
       const originalPrice = Number(itemsRes.rows[0].unit_price_minor);
       expect(originalPrice).toBe(10000); // Store A price
 
       // Change the offer price
-      await offerService.updateOfferPricing(offerA, { basePriceMinor: 15000 });
+      await offerService.updateOfferPricing(offerA, { basePriceMinor: 15000 }, callerA());
 
       // Verify historical order still shows original price
-      const afterRes = await pool.query(`SELECT unit_price_minor FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE o.master_order_id = $1`, [masterRes.rows[0].id]);
+      const afterRes = await pool.query(
+        `SELECT unit_price_minor FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE o.master_order_id = $1`,
+        [masterRes.rows[0].id],
+      );
       expect(Number(afterRes.rows[0].unit_price_minor)).toBe(10000);
 
       // Restore price for subsequent tests
-      await offerService.updateOfferPricing(offerA, { basePriceMinor: 10000 });
+      await offerService.updateOfferPricing(offerA, { basePriceMinor: 10000 }, callerA());
     });
   });
 
@@ -327,14 +548,18 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       await cartService.addItem(buyerB, { variantId, quantity: 1, offerId: offerA });
 
       // Suspend the offer
-      await offerService.suspendOffer(offerA);
+      await offerService.suspendOffer(offerA, adminUser);
 
       // Validate cart — should detect stale
       const validation = await cartService.validateCart(buyerB);
       expect(validation.stale.length + validation.repriced.length).toBeGreaterThanOrEqual(1);
 
-      // Reactivate for subsequent tests
-      await offerService.reactivateOffer(offerA);
+      // Reactivate for subsequent tests. Suspension must not overwrite the
+      // merchant's independent availability preference.
+      await offerService.reactivateOffer(offerA, adminUser);
+      const reactivatedOffer = await offerService.getOffer(offerA);
+      expect(reactivatedOffer.status).toBe('ACTIVE');
+      expect(reactivatedOffer.isAvailable).toBe(true);
     });
   });
 
@@ -345,7 +570,9 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     let orderId: string;
 
     beforeAll(async () => {
-      const subRes = await pool.query(`SELECT id FROM orders WHERE status = 'PENDING_CONFIRMATION' LIMIT 1`);
+      const subRes = await pool.query(
+        `SELECT id FROM orders WHERE status = 'PENDING_CONFIRMATION' LIMIT 1`,
+      );
       orderId = subRes.rows[0]?.id;
     });
 
@@ -354,19 +581,39 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       const accepted = await ordersService.acceptOrder(orderId, merchantA);
       expect(accepted.status).toBe('ACCEPTED');
 
-      const preparing = await ordersService.transitionStatus(orderId, 'PREPARING', merchantA, 'MERCHANT');
+      const preparing = await ordersService.transitionStatus(
+        orderId,
+        'PREPARING',
+        merchantA,
+        'MERCHANT',
+      );
       expect(preparing.status).toBe('PREPARING');
 
       const ready = await ordersService.transitionStatus(orderId, 'READY', merchantA, 'MERCHANT');
       expect(ready.status).toBe('READY');
 
-      const outForDelivery = await ordersService.transitionStatus(orderId, 'OUT_FOR_DELIVERY', merchantA, 'MERCHANT');
+      const outForDelivery = await ordersService.transitionStatus(
+        orderId,
+        'OUT_FOR_DELIVERY',
+        merchantA,
+        'MERCHANT',
+      );
       expect(outForDelivery.status).toBe('OUT_FOR_DELIVERY');
 
-      const delivered = await ordersService.transitionStatus(orderId, 'DELIVERED', merchantA, 'MERCHANT');
+      const delivered = await ordersService.transitionStatus(
+        orderId,
+        'DELIVERED',
+        merchantA,
+        'MERCHANT',
+      );
       expect(delivered.status).toBe('DELIVERED');
 
-      const completed = await ordersService.transitionStatus(orderId, 'COMPLETED', merchantA, 'MERCHANT');
+      const completed = await ordersService.transitionStatus(
+        orderId,
+        'COMPLETED',
+        merchantA,
+        'MERCHANT',
+      );
       expect(completed.status).toBe('COMPLETED');
     });
 
@@ -381,16 +628,15 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       // Create a new order to test rejection
       const cart2 = await cartService.getOrCreateCart(buyerA);
       await cartService.addItem(buyerA, { variantId, quantity: 1, offerId: offerA });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `fsm-${randomUUID()}` });
+      const co = await checkoutAsBuyer({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `fsm-${randomUUID()}`,
+      });
       const subId = co.subOrders[0]?.id;
       expect(subId).toBeTruthy();
 
-      await ordersService.rejectOrder(
-        subId!,
-        merchantA,
-        'Out of stock',
-        { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA },
-      );
+      await ordersService.rejectOrder(subId!, merchantA, 'Out of stock');
       const rejected = await ordersService.getOrder(subId!);
       expect(rejected.status).toBe('REJECTED');
 
@@ -408,7 +654,11 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     it('reserves stock when merchant accepts an order', async () => {
       // Fresh checkout for reservation test
       await cartService.addItem(buyerA, { variantId, quantity: 3, offerId: offerA });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `reserve-${randomUUID()}` });
+      const co = await checkoutAsBuyer({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `reserve-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
       expect(subId).toBeTruthy();
 
@@ -440,7 +690,11 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     it('releases reserved stock when order is cancelled', async () => {
       // Create and accept an order
       await cartService.addItem(buyerA, { variantId, quantity: 2, offerId: offerA });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `release-${randomUUID()}` });
+      const co = await checkoutAsBuyer({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `release-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
       await ordersService.acceptOrder(subId!, merchantA);
 
@@ -448,12 +702,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       const beforeReserved = before.qtyReserved;
 
       // Cancel
-      await ordersService.cancelOrder(
-        subId!,
-        buyerA,
-        'CUSTOMER_REQUEST',
-        { sub: buyerA, role: 'BUYER', activeOrg: null },
-      );
+      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', undefined);
 
       const after = await inventoryService.getItem(invItemA);
       expect(after.qtyReserved).toBe(beforeReserved - 2);
@@ -468,17 +717,12 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
 
     it('double cancel does not corrupt stock (idempotent release)', async () => {
       // The order is already cancelled; trying again should fail at FSM level
-      const cancelledRes = await pool.query(`SELECT id FROM orders WHERE status = 'CANCELLED' LIMIT 1`);
+      const cancelledRes = await pool.query(
+        `SELECT id FROM orders WHERE status = 'CANCELLED' LIMIT 1`,
+      );
       if (cancelledRes.rows.length === 0) return;
       const id = cancelledRes.rows[0].id;
-      await expect(
-        ordersService.cancelOrder(
-          id,
-          buyerA,
-          'Again',
-          { sub: buyerA, role: 'BUYER', activeOrg: null },
-        ),
-      ).rejects.toThrow();
+      await expect(ordersService.cancelOrder(id, buyerA, 'Again', undefined)).rejects.toThrow();
     });
   });
 
@@ -488,7 +732,11 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
   describe('Scenario 8 — Stock consumption on delivery', () => {
     it('deducts on_hand and reserved on DELIVERED', async () => {
       await cartService.addItem(buyerA, { variantId, quantity: 2, offerId: offerA });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `consume-${randomUUID()}` });
+      const co = await checkoutAsBuyer({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `consume-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
       await ordersService.acceptOrder(subId!, merchantA);
 
@@ -519,29 +767,61 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
   describe('Scenario 9 — Concurrent stock reservation', () => {
     it('exactly one of two concurrent reservations succeeds when stock = 1', async () => {
       // Create a fresh inventory item with qty = 1
-      const freshVariant = await catalog.createVariant(productId, { sku: `CONC-${Date.now()}`, title: 'Concurrent Test' });
-      const freshInv = await inventoryService.createItem({ variantId: freshVariant.id, warehouseId: warehouseA, initialQty: 1, userId: merchantA });
+      const freshVariant = await catalog.createVariant(productId, {
+        sku: `CONC-${Date.now()}`,
+        title: 'Concurrent Test',
+      });
+      const freshInv = await inventoryService.createItem({
+        variantId: freshVariant.id,
+        warehouseId: warehouseA,
+        initialQty: 1,
+        userId: merchantA,
+      });
 
       // Set up a price for the new variant (createVariant auto-creates a base tier
       // with unitPriceMinor=0, so update it instead of inserting a duplicate)
-      const plId = (await pool.query(`SELECT id FROM price_lists WHERE store_id = '${storeA}' AND is_active = true LIMIT 1`)).rows[0].id;
-      await db.update(priceTiers)
+      const plId = (
+        await pool.query(
+          `SELECT id FROM price_lists WHERE store_id = '${storeA}' AND is_active = true LIMIT 1`,
+        )
+      ).rows[0].id;
+      await db
+        .update(priceTiers)
         .set({ unitPriceMinor: 5000, updatedAt: new Date() })
         .where(and(eq(priceTiers.priceListId, plId), eq(priceTiers.variantId, freshVariant.id)));
 
       // Create a fresh offer for this variant
-      const freshOffer = await offerService.createOffer({ storeId: storeA, productId, variantId: freshVariant.id, currency: 'SAR', basePriceMinor: 5000, moq: 1, proposedBy: merchantA });
-      await offerService.proposeOffer(freshOffer.id, merchantA);
+      const freshOffer = await offerService.createOffer(
+        {
+          storeId: storeA,
+          productId,
+          variantId: freshVariant.id,
+          currency: 'SAR',
+          basePriceMinor: 5000,
+          moq: 1,
+          proposedBy: 'forged-user',
+        },
+        callerA(),
+      );
+      await offerService.proposeOffer(freshOffer.id, callerA());
       await offerService.approveOffer(freshOffer.id, adminUser);
 
       // Two concurrent reservations via the inventory service
       const results = await Promise.allSettled([
-        inventoryService.reserveStock({ inventoryItemId: freshInv.id, quantity: 1, userId: merchantA }),
-        inventoryService.reserveStock({ inventoryItemId: freshInv.id, quantity: 1, userId: merchantA }),
+        inventoryService.reserveStock({
+          inventoryItemId: freshInv.id,
+          quantity: 1,
+          userId: merchantA,
+        }),
+        inventoryService.reserveStock({
+          inventoryItemId: freshInv.id,
+          quantity: 1,
+          userId: merchantA,
+        }),
       ]);
 
-      const successes = results.filter(r => r.status === 'fulfilled');
-      const failures = results.filter(r => r.status === 'rejected');
+      const successes = results.filter((r) => r.status === 'fulfilled');
+      const failures = results.filter((r) => r.status === 'rejected');
       expect(successes.length).toBe(1);
       expect(failures.length).toBe(1);
 
@@ -568,17 +848,28 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       await cartService.addItem(buyerB, { variantId: variant2Id, quantity: 1, offerId: offerB2 });
       const idemKey = `idem-test-${randomUUID()}`;
 
-      const first = await ordersService.checkout({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey });
+      const first = await checkoutAsBuyer({
+        buyerId: buyerB,
+        deliveryAddress: {},
+        idempotencyKey: idemKey,
+      });
 
       // Second call with same key returns existing order (idempotency)
       // without needing a new cart — the idempotency check short-circuits.
-      const second = await ordersService.checkout({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey });
+      const second = await checkoutAsBuyer({
+        buyerId: buyerB,
+        deliveryAddress: {},
+        idempotencyKey: idemKey,
+      });
 
       // Same master order returned
       expect(first.id).toBe(second.id);
 
       // Only one master order with this key
-      const countRes = await pool.query(`SELECT COUNT(*)::int AS cnt FROM master_orders WHERE idempotency_key = $1`, [idemKey]);
+      const countRes = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM master_orders WHERE idempotency_key = $1`,
+        [idemKey],
+      );
       expect(countRes.rows[0].cnt).toBe(1);
     });
   });
@@ -588,19 +879,33 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
   // ═══════════════════════════════════════════════════════════════════
   describe('Scenario 11 — Tenant isolation', () => {
     it('Buyer A cannot read Buyer B order', async () => {
-      const masterRes = await pool.query(`SELECT id, buyer_id FROM master_orders WHERE buyer_id = $1 LIMIT 1`, [buyerB]);
+      const masterRes = await pool.query(
+        `SELECT id, buyer_id FROM master_orders WHERE buyer_id = $1 LIMIT 1`,
+        [buyerB],
+      );
       if (masterRes.rows.length === 0) return;
       await expect(
-        ordersService.getMasterOrder(masterRes.rows[0].id, { sub: buyerA, role: 'BUYER', activeOrg: null }),
+        ordersService.getMasterOrder(masterRes.rows[0].id, {
+          sub: buyerA,
+          role: 'BUYER',
+          activeOrg: null,
+        }),
       ).rejects.toThrow();
     });
 
     it('Merchant A cannot read Merchant B sub-order', async () => {
-      const subRes = await pool.query(`SELECT o.id, o.store_id FROM orders o JOIN stores s ON o.store_id = s.id WHERE s.org_id = $1 LIMIT 1`, [orgB]);
+      const subRes = await pool.query(
+        `SELECT o.id, o.store_id FROM orders o JOIN stores s ON o.store_id = s.id WHERE s.org_id = $1 LIMIT 1`,
+        [orgB],
+      );
       if (subRes.rows.length === 0) return;
       const order = await ordersService.getOrder(subRes.rows[0].id);
       await expect(
-        ordersService.getOrderWithItems(subRes.rows[0].id, { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA }),
+        ordersService.getOrderWithItems(subRes.rows[0].id, {
+          sub: merchantA,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow();
     });
   });
@@ -613,7 +918,11 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       const beforeB = await inventoryService.getItem(invItemB);
 
       // Reserve from Merchant A's inventory
-      await inventoryService.reserveStock({ inventoryItemId: invItemA, quantity: 1, userId: merchantA });
+      await inventoryService.reserveStock({
+        inventoryItemId: invItemA,
+        quantity: 1,
+        userId: merchantA,
+      });
 
       const afterB = await inventoryService.getItem(invItemB);
       expect(afterB.qtyReserved).toBe(beforeB.qtyReserved);
@@ -626,7 +935,9 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
   // ═══════════════════════════════════════════════════════════════════
   describe('Outbox events', () => {
     it('order.submitted event was written during checkout', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM outbox_events WHERE event_type = 'order.submitted'`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM outbox_events WHERE event_type = 'order.submitted'`,
+      );
       expect(res.rows[0].cnt).toBeGreaterThanOrEqual(1);
     });
 
@@ -644,37 +955,51 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
   // ═══════════════════════════════════════════════════════════════════
   describe('Database integrity', () => {
     it('no orphan order items', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM order_items oi LEFT JOIN orders o ON oi.order_id = o.id WHERE o.id IS NULL`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM order_items oi LEFT JOIN orders o ON oi.order_id = o.id WHERE o.id IS NULL`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('no orphan sub-orders', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM orders o LEFT JOIN master_orders m ON o.master_order_id = m.id WHERE m.id IS NULL`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM orders o LEFT JOIN master_orders m ON o.master_order_id = m.id WHERE m.id IS NULL`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('no negative reserved quantity', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM inventory_items WHERE qty_reserved < 0`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM inventory_items WHERE qty_reserved < 0`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('no negative available quantity', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM inventory_items WHERE (qty_on_hand - qty_reserved) < 0`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM inventory_items WHERE (qty_on_hand - qty_reserved) < 0`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('no orphan stock movements', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM stock_movements sm LEFT JOIN inventory_items ii ON sm.inventory_item_id = ii.id WHERE ii.id IS NULL`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM stock_movements sm LEFT JOIN inventory_items ii ON sm.inventory_item_id = ii.id WHERE ii.id IS NULL`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('financial breakdown exists for every sub-order', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM orders o LEFT JOIN order_financial_breakdown b ON o.id = b.order_id WHERE b.order_id IS NULL`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM orders o LEFT JOIN order_financial_breakdown b ON o.id = b.order_id WHERE b.order_id IS NULL`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('status history exists for every sub-order', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM orders o LEFT JOIN LATERAL (SELECT 1 FROM order_status_history h WHERE h.order_id = o.id LIMIT 1) h ON true WHERE h IS NULL`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM orders o LEFT JOIN LATERAL (SELECT 1 FROM order_status_history h WHERE h.order_id = o.id LIMIT 1) h ON true WHERE h IS NULL`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
   });
@@ -690,12 +1015,12 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
 
       // Two concurrent checkouts with the same key and same cart
       const results = await Promise.allSettled([
-        ordersService.checkout({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey }),
-        ordersService.checkout({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey }),
+        checkoutAsBuyer({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey }),
+        checkoutAsBuyer({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey }),
       ]);
 
       // Both succeed (one creates, the other returns existing)
-      const successes = results.filter(r => r.status === 'fulfilled');
+      const successes = results.filter((r) => r.status === 'fulfilled');
       expect(successes.length).toBe(2);
 
       // Exactly one master order with this key
@@ -722,37 +1047,54 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     it('reserves only available quantity when ordered quantity exceeds stock', async () => {
       // Create a variant with limited stock (5 units)
       const limitedVariant = await catalog.createVariant(productId, {
-        sku: `LTD-${Date.now()}`, title: 'Limited Stock Item',
+        sku: `LTD-${Date.now()}`,
+        title: 'Limited Stock Item',
       });
 
       // Create offer and price for the limited variant
-      const limitedOffer = await offerService.createOffer({
-        storeId: storeA, productId, variantId: limitedVariant.id,
-        currency: 'SAR', basePriceMinor: 5000, moq: 1, proposedBy: merchantA,
-      });
-      await offerService.proposeOffer(limitedOffer.id, merchantA);
+      const limitedOffer = await offerService.createOffer(
+        {
+          storeId: storeA,
+          productId,
+          variantId: limitedVariant.id,
+          currency: 'SAR',
+          basePriceMinor: 5000,
+          moq: 1,
+          proposedBy: 'forged-user',
+        },
+        callerA(),
+      );
+      await offerService.proposeOffer(limitedOffer.id, callerA());
       await offerService.approveOffer(limitedOffer.id, adminUser);
 
-      const plId = (await pool.query(
-        `SELECT id FROM price_lists WHERE store_id = '${storeA}' AND is_active = true LIMIT 1`,
-      )).rows[0].id;
+      const plId = (
+        await pool.query(
+          `SELECT id FROM price_lists WHERE store_id = '${storeA}' AND is_active = true LIMIT 1`,
+        )
+      ).rows[0].id;
       // createVariant auto-creates a base tier, so update it rather than inserting a duplicate
-      await db.update(priceTiers)
+      await db
+        .update(priceTiers)
         .set({ unitPriceMinor: 5000, updatedAt: new Date() })
         .where(and(eq(priceTiers.priceListId, plId), eq(priceTiers.variantId, limitedVariant.id)));
 
       // Create inventory with only 5 units
       const limitedInv = await inventoryService.createItem({
-        variantId: limitedVariant.id, warehouseId: warehouseA,
-        initialQty: 5, userId: merchantA,
+        variantId: limitedVariant.id,
+        warehouseId: warehouseA,
+        initialQty: 5,
+        userId: merchantA,
       });
 
       // Buyer orders 10 units (more than available)
       await cartService.addItem(buyerA, {
-        variantId: limitedVariant.id, quantity: 10, offerId: limitedOffer.id,
+        variantId: limitedVariant.id,
+        quantity: 10,
+        offerId: limitedOffer.id,
       });
-      const co = await ordersService.checkout({
-        buyerId: buyerA, deliveryAddress: {},
+      const co = await checkoutAsBuyer({
+        buyerId: buyerA,
+        deliveryAddress: {},
         idempotencyKey: `partial-inv-${randomUUID()}`,
       });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
@@ -773,15 +1115,19 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
         [limitedInv.id, subId],
       );
       expect(moveRes.rows.length).toBeGreaterThanOrEqual(1);
-      const totalReserved = moveRes.rows.reduce((sum: number, r: any) => sum + Math.abs(r.quantity), 0);
+      const totalReserved = moveRes.rows.reduce(
+        (sum: number, r: any) => sum + Math.abs(r.quantity),
+        0,
+      );
       expect(totalReserved).toBe(5);
     });
 
     it('partiallyAcceptOrder correctly represents partial quantities', async () => {
       // Create a fresh order for partial acceptance testing
       await cartService.addItem(buyerA, { variantId, quantity: 5, offerId: offerA });
-      const co = await ordersService.checkout({
-        buyerId: buyerA, deliveryAddress: {},
+      const co = await checkoutAsBuyer({
+        buyerId: buyerA,
+        deliveryAddress: {},
         idempotencyKey: `partial-accept-${randomUUID()}`,
       });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
