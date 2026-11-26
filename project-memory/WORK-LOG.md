@@ -629,3 +629,12 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - #159 includes the canonical narrow 0070 and canonical additive 0071 in numeric order. PR #138 duplicate/broader migrations remain excluded.
 - No shared/staging DB writes, migration application, grants/default-ACL/RLS changes, Render changes, worker activation, deployment, restart or release.
 - User explicitly waived independent GitHub reviewer requirements. Continue with exact-head CI and source/scope/safety verification; no reviewer gate.
+
+
+## 26 November 2026 — PR #159 integration and refreshed follow-on workstreams
+
+- Verified exact-head CI for PR #159 (`8a3319a2f7319f0ca89e86d5fa63048633cd17b1`): Actions run #1582 (`45829417417`) SUCCESS. All ten mandatory jobs passed: lint/typecheck, mobile, unit/coverage, migration full apply, integration, Web/Admin, boundary lint, build, contract/codegen, container build/smoke. k6 and staging-release jobs were skipped.
+- Merged PR #159 using expected head SHA. Merge commit: `a1d53acd14cd66901a2002ce1a05c9edf0c61c5c`. Includes canonical narrow migration 0070 then additive 0071, atomic order/shipment/history/outbox/master-order completion, post-commit realtime and durable five-minute owner-fenced worker leases. No migration applied to staging/shared DB.
+- After develop advanced, #160/#162 were no longer mergeable. Reconstructed only their exact reviewed source/test/doc files onto `a1d53acd`: PR #163 outbox safety (six files; head `e57a33e4f0658d17fbd11caaf346ee1a31c761b1`) and PR #164 HTTP credential redaction/read-only audit (four files; head `0687481e106f0d625a0e51a0e1fba6d457386c20`). Both PRs opened against develop and report mergeable true.
+- Exact-head CI for #163 run `45833214705` and #164 run `45833292699` was in progress at checkpoint. Wait for both; do not duplicate runs. After all mandatory jobs pass, merge #163 then recheck/merge #164 against updated develop; close old #160/#162 only once replacements are safely merged.
+- PR #138 remains protected source/evidence only. No production/staging database writes, migration application, grants/default-ACL/RLS, Render, worker activation, deployment, restart or release. Independent reviewers are not a gate per user instruction.
