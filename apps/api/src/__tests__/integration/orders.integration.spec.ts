@@ -101,7 +101,9 @@ function createStatefulMocks(initialStatus: string) {
 
   const mockDbService = {
     db,
-    withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()),
+    withActorContext: vi.fn(
+      async (_actor: unknown, operation: () => Promise<unknown>) => operation(),
+    ),
   } as any;
   const mockOutbox = { publish: vi.fn().mockResolvedValue(undefined) } as any;
   const mockPromotions = {
@@ -181,7 +183,12 @@ describe('Order Lifecycle Integration', () => {
         mocks.mockPromotions,
       );
 
-      const result = await service.rejectOrder(ORDER_ID, MERCHANT_ID, 'Out of stock', { sub: MERCHANT_ID, role: 'ADMIN', activeOrg: null });
+      const result = await service.rejectOrder(
+        ORDER_ID,
+        MERCHANT_ID,
+        'Out of stock',
+        { sub: MERCHANT_ID, role: 'ADMIN', activeOrg: null },
+      );
 
       expect(result.status).toBe('REJECTED');
       expect(mocks.mockOutbox.publish).toHaveBeenCalledWith(
@@ -199,7 +206,14 @@ describe('Order Lifecycle Integration', () => {
         mocks.mockPromotions,
       );
 
-      await expect(service.rejectOrder(ORDER_ID, MERCHANT_ID, 'Changed mind', { sub: MERCHANT_ID, role: 'ADMIN', activeOrg: null })).rejects.toThrow(
+      await expect(
+        service.rejectOrder(
+          ORDER_ID,
+          MERCHANT_ID,
+          'Changed mind',
+          { sub: MERCHANT_ID, role: 'ADMIN', activeOrg: null },
+        ),
+      ).rejects.toThrow(
         ConflictException,
       );
     });
@@ -294,7 +308,12 @@ describe('Order Lifecycle Integration', () => {
         mocks.mockPromotions,
       );
 
-      const result = await service.cancelOrder(ORDER_ID, BUYER_ID, 'CUSTOMER_REQUEST', { sub: BUYER_ID, role: 'BUYER', activeOrg: null });
+      const result = await service.cancelOrder(
+        ORDER_ID,
+        BUYER_ID,
+        'CUSTOMER_REQUEST',
+        { sub: BUYER_ID, role: 'BUYER', activeOrg: null },
+      );
       expect(result.status).toBe('CANCELLED');
     });
 
@@ -308,7 +327,14 @@ describe('Order Lifecycle Integration', () => {
           mocks.mockPromotions,
         );
 
-        await expect(service.cancelOrder(ORDER_ID, BUYER_ID, 'CUSTOMER_REQUEST', { sub: BUYER_ID, role: 'BUYER', activeOrg: null })).rejects.toThrow(
+        await expect(
+          service.cancelOrder(
+            ORDER_ID,
+            BUYER_ID,
+            'CUSTOMER_REQUEST',
+            { sub: BUYER_ID, role: 'BUYER', activeOrg: null },
+          ),
+        ).rejects.toThrow(
           ConflictException,
         );
       },
@@ -322,7 +348,12 @@ describe('Order Lifecycle Integration', () => {
         mocks.mockPromotions,
       );
 
-      await service.cancelOrder(ORDER_ID, BUYER_ID, 'CUSTOMER_REQUEST', { sub: BUYER_ID, role: 'BUYER', activeOrg: null });
+      await service.cancelOrder(
+        ORDER_ID,
+        BUYER_ID,
+        'CUSTOMER_REQUEST',
+        { sub: BUYER_ID, role: 'BUYER', activeOrg: null },
+      );
 
       expect(mocks.mockOutbox.publish).toHaveBeenCalledWith(
         'order.cancelled',
