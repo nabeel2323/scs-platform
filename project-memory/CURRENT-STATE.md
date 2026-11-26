@@ -1,3 +1,14 @@
+## Live checkpoint — 26 November 2026 (PR #158 exact-head CI passed; stack restored)
+
+- PR #158 exact head `703b9d49f27a67dfdd02eb47ed925b3244bc8b8f` passed GitHub Actions run #1576 (`45819431072`) with conclusion SUCCESS. This run validates the corrected token-revocation fixture mocking both `organizations.findFirst()` and `organizations.findMany()`.
+- Restored PR #158 base to `integration/g002-actor-context-foundation` without changing its head. Verified PR metadata: OPEN / DRAFT / UNMERGED, mergeable true; base SHA is PR #157's verified head `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`.
+- Verified the PR #157-to-#158 comparison is ahead 19 / behind 0 and exactly six files: `apps/api/src/__tests__/unit/auth/token-revocation.spec.ts`, `apps/api/src/__tests__/unit/identity/identity.active-org-claims.spec.ts`, `apps/api/src/__tests__/unit/identity/identity.n-plus-one.spec.ts`, `apps/api/src/__tests__/unit/identity/profile.controller.spec.ts`, `apps/api/src/modules/identity/identity.service.ts`, `apps/api/src/modules/identity/profile.controller.ts`. PR changed_files is 6.
+- PR #157 remains OPEN / DRAFT / UNMERGED at `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`; exact-head Actions run #1572 passed all 10 mandatory jobs. Both PRs still require independent review; do not self-approve or merge.
+- Current exact-head status contexts for PR #158 include successful Vercel Web and Admin checks; the consolidated GitHub Actions run #1576 is green.
+- PR #138 remains protected source/evidence only; never wholesale merge. Preserve project-memory and preservation refs using expected-SHA fast-forward only. No staging/shared DB writes, migrations, grants/default-ACL/RLS changes, Render changes, worker activation, deployment or release.
+
+---
+
 ## Live checkpoint — 26 November 2026 (PR #158 second identity fixture correction)
 
 - PR #157 remains OPEN / DRAFT / UNMERGED at `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`; exact-head Actions run #1572 (`45805365809`) passed all mandatory jobs.
