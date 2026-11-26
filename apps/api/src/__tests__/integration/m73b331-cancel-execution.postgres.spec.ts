@@ -43,6 +43,7 @@ import { randomUUID } from 'node:crypto';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
+const orgA = randomUUID();
 
 async function applyAllMigrations(pool: Pool) {
   const files = fs
@@ -176,7 +177,6 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
   const FALLBACK_PG_USER = process.env['TEST_PG_USER'] ?? 'scs';
   const FALLBACK_PG_PASSWORD = process.env['TEST_PG_PASSWORD'] ?? 'scs_dev_2026';
 
-  const orgA = randomUUID();
   const merchantA = randomUUID();
   const buyerA = randomUUID();
   const storeA = randomUUID();
