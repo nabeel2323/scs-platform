@@ -1,17 +1,15 @@
 /**
  * Auto-Complete Worker — M7.3-A
  *
- * Polls for DELIVERED orders whose auto_complete_at has passed and
- * transitions them to COMPLETED.
+ * Claims due DELIVERED orders with a durable five-minute lease and completes
+ * them through the canonical OrdersService transition.
  *
- * Multi-instance behavior: each order is atomically claimed with a durable
- * five-minute lease. Completion is fenced by the lease owner and expiry in
- * the same transaction as the order transition and its durable side effects.
- * Expired claims can be reclaimed after a process crash.
- * Idempotent: buyer confirmation racing with auto-completion is handled
- * by the optimistic lock on the order status.
+ * Multi-instance safe: claims are persisted atomically using
+ * FOR UPDATE SKIP LOCKED. A lease can be recovered after a process crash.
+ * Fenced: OrdersService verifies the claim owner and lease expiry in the
+ * same atomic status update, so an expired worker cannot complete an order
+ * after another worker has reclaimed it.
  */
-
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
@@ -27,8 +25,6 @@ export class AutoCompleteWorker implements OnModuleInit, OnModuleDestroy {
 
   /** Poll interval: 60 seconds (configurable). */
   private readonly intervalMs: number;
-
-  /** Maximum orders to process per cycle. */
   private static readonly BATCH_SIZE = 20;
   private static readonly CLAIM_LEASE_MINUTES = 5;
 
@@ -59,7 +55,6 @@ export class AutoCompleteWorker implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** Atomically claim one due order with a persisted, crash-recoverable lease. */
   private async claimNextOrder(): Promise<any | null> {
     const result = await this.db.db.execute(sql`
       WITH candidate AS (
@@ -71,31 +66,31 @@ export class AutoCompleteWorker implements OnModuleInit, OnModuleDestroy {
           AND buyer_confirmed_at IS NULL
           AND (
             auto_complete_claimed_at IS NULL
-            OR auto_complete_claimed_at <= NOW() - (
-              ${AutoCompleteWorker.CLAIM_LEASE_MINUTES} * INTERVAL '1 minute'
-            )
+            OR auto_complete_claimed_at <= NOW() - INTERVAL '5 minutes'
           )
         ORDER BY auto_complete_at ASC, id ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED
       )
       UPDATE orders AS target
-      SET
-        auto_complete_claimed_at = NOW(),
-        auto_complete_claimed_by = ${this.workerId}
+      SET auto_complete_claimed_at = NOW(),
+          auto_complete_claimed_by = ${this.workerId},
+          updated_at = NOW()
       FROM candidate
       WHERE target.id = candidate.id
       RETURNING target.*
     `);
+
     return result.rows?.[0] ?? null;
   }
 
-  /** Release only this worker's claim; never clear a claim reassigned elsewhere. */
-  private async releaseClaim(orderId: string): Promise<void> {
+  private async releaseClaim(orderId: string) {
+    // Conditional release cannot clear a claim that has since been reassigned.
     await this.db.db.execute(sql`
       UPDATE orders
       SET auto_complete_claimed_at = NULL,
-          auto_complete_claimed_by = NULL
+          auto_complete_claimed_by = NULL,
+          updated_at = NOW()
       WHERE id = ${orderId}
         AND auto_complete_claimed_by = ${this.workerId}
     `);
@@ -104,15 +99,25 @@ export class AutoCompleteWorker implements OnModuleInit, OnModuleDestroy {
   private async poll() {
     if (this.running) return;
     this.running = true;
+
     try {
-      let claimed = 0;
-      while (claimed < AutoCompleteWorker.BATCH_SIZE) {
-        const row = await this.claimNextOrder();
+      let processed = 0;
+      while (processed < AutoCompleteWorker.BATCH_SIZE) {
+        const row = await this.db.withActorContext(
+          { actorKind: 'worker', workerId: this.workerId },
+          () => this.claimNextOrder(),
+        );
         if (!row) break;
-        claimed += 1;
-        await this.processCompletion(row);
+        processed += 1;
+        await this.db.withActorContext(
+          { actorKind: 'worker', workerId: this.workerId },
+          () => this.processCompletion(row),
+        );
       }
-      if (claimed > 0) this.logger.log(`Auto-complete: claimed ${claimed} order(s) for processing.`);
+
+      if (processed > 0) {
+        this.logger.log(`Auto-complete: processed ${processed} claimed order(s).`);
+      }
     } catch (err: any) {
       this.logger.error(`Auto-complete poll error: ${err?.message}`);
     } finally {
@@ -140,9 +145,10 @@ export class AutoCompleteWorker implements OnModuleInit, OnModuleDestroy {
       try {
         await this.releaseClaim(row.id);
       } catch (releaseError: any) {
-        this.logger.error(`Auto-complete claim release failed for ${row.id}: ${releaseError?.message}`);
+        this.logger.error(
+          `Auto-complete claim release failed for ${row.id}: ${releaseError?.message}`,
+        );
       }
     }
   }
-
 }
