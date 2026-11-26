@@ -1,3 +1,16 @@
+## 26 November 2026 — PR #157 CI #1559 failure triage
+
+- PR #157 exact head: `a0f32189b14700bad6701a4b948fd70c5755a0be`; CI run #1559 (`45764646880`) completed FAILURE.
+- Passed: Lint & Typecheck, Flutter analysis/tests, Migration Full Apply (including pg_partman verification), Boundary Lint (E6), Web/Admin tests. Failed: Unit/Coverage and Integration Tests. Build, contract/codegen, k6, container smoke and staging release were skipped.
+- Unit/Coverage: 4,344 passed, 22 failed, 110 skipped; 220 test files passed, 1 failed, 6 skipped. All 22 failures are in `p4-http-authorization.postgres.spec.ts` (HA-08, HA-12–HA-34); most requests returned HTTP 500. This isolates the unit/coverage gate failure to the P4 HTTP PostgreSQL harness/spec, not a broad unit regression.
+- Integration: 1,615 passed, 17 failed, 0 skipped across 82 files. Failure summary includes P4 HTTP authorization/returns/adjustment tests (empty expected return lists, unexpected 404/403/400/409/500 responses), including adjustment creation returning 409 rather than 201. P6 concurrency probes from the prior run are no longer in the failure summary.
+- PostgreSQL service log contains FK violations on `settlement_adjustments.sub_order_id` referencing IDs absent from `orders`; follow-on lookups attempted UUID values `undefined`. This is a concrete fixture/data-ordering lead to investigate, but the cause is not yet established. The P4 spec source does seed four orders in `seedBusinessFixture()` before its `beforeEach` financial fixture; verify actual row survival/IDs at the fixture boundary and identify any cleanup/cascade or lifecycle interaction before changing assertions.
+- The P4 migration runner's single-client transaction repair now exposes test failures instead of swallowing migration errors; the dedicated Migration Full Apply job is green. Do not revert to swallowed errors or weaken HTTP authorization assertions.
+- Next action: add/inspect narrowly scoped fixture-integrity evidence and trace the exact P4 response/SQL failure; repair underlying setup or service logic in one grouped batch. Then run one consolidated exact-head CI. Do not start a duplicate run before the batch is ready.
+- PR #138 remains OPEN/DRAFT/UNMERGED and dirty; its source/preservation history must remain protected. No wholesale merge, force-push, DB/staging mutation, migration, RLS/grant change, worker activation, deployment or release action occurred.
+
+---
+
 ## 26 November 2026 — PR #157 test-fixture repair batch committed
 
 - Owner's integration priority is unchanged: protect PR #138, integrate its required remediation safely into develop via bounded slices, then reconcile #153 and #154. Batch related changes and avoid CI runs for small edits.
