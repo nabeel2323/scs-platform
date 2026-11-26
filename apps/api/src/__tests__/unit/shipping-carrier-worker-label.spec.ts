@@ -17,6 +17,7 @@ function makeWorker(
     storeId: 'store-1',
     carrierShipmentId: 'waybill-1',
     shippingProviderKey: 'aramex',
+    orderId: 'order-1',
   });
   const findLabel = vi.fn().mockResolvedValue(options.existingLabel ?? null);
   const provider = {
@@ -35,11 +36,16 @@ function makeWorker(
     db: {
       query: {
         shipments: { findFirst: findShipment },
+        orders: { findFirst: vi.fn().mockResolvedValue({ storeId: 'store-1' }) },
         stores: { findFirst: vi.fn().mockResolvedValue({ orgId: 'org-1' }) },
         shipmentLabels: { findFirst: findLabel },
       },
       insert: () => ({ values: insertValues }),
     },
+    withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
+  };
+  worker.merchant = {
+    getStoreTenantContextForSystem: vi.fn().mockResolvedValue({ id: 'store-1', orgId: 'org-1' }),
   };
   worker.registry = { findProvider: vi.fn().mockReturnValue(provider) };
   worker.storage = storage;
