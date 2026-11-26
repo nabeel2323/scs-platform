@@ -1086,9 +1086,9 @@ export class IdentityService {
       (m) => m.status === 'ACTIVE' && activeOrgIds.has(m.orgId),
     );
     const resolvedActiveOrgId =
-      activeOrgId == null
+      activeOrgId === undefined
         ? activeMemberships[0]?.orgId ?? null
-        : activeMemberships.some((m) => m.orgId === activeOrgId)
+        : activeOrgId !== null && activeMemberships.some((m) => m.orgId === activeOrgId)
           ? activeOrgId
           : null;
     const activeMembership = activeMemberships.find((m) => m.orgId === resolvedActiveOrgId);
@@ -1133,6 +1133,7 @@ export class IdentityService {
   async updateProfile(
     userId: string,
     data: { fullName?: string; email?: string; locale?: string },
+    activeOrgId?: string | null,
   ) {
     const updates: Record<string, any> = {};
     if (data['fullName']) updates['fullName'] = data['fullName'];
@@ -1144,7 +1145,7 @@ export class IdentityService {
       await this.db.db.update(users).set(updates).where(eq(users.id, userId));
     }
 
-    return this.getProfile(userId);
+    return this.getProfile(userId, activeOrgId);
   }
 
   // ── Organizations ──────────────────────────────────────────
