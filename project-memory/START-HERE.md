@@ -1,3 +1,14 @@
+## 26 November 2026 — PR #157 P6 test scope cleanup
+
+- PR #157 exact head: `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`, OPEN / DRAFT / UNMERGED, base `develop`. The parent exact-head CI #1571 (`45802468173`) on `9186c174` completed SUCCESS across all mandatory jobs, including container build/smoke with verified TLS and the least-privilege `scs_api_runtime` role.
+- Commit `435b3fc` deliberately moved the three substantive P6 PostgreSQL store-authorization suites from `apps/api/src/__tests__/scratch/` to `apps/api/src/__tests__/integration/`. Both locations have the same directory depth, so imports and migration paths remain unchanged. The integration runner's glob `src/__tests__/integration` now executes these suites; the scratch exclusion rule is respected.
+- The same commit reverted six unrelated M7.3b carrier test helper edits to `Object.create(DatabaseService.prototype)`. This is safe because `DatabaseService.getActorContextStorage()` lazily initializes AsyncLocalStorage when accessed, including for prototype-based test doubles.
+- Exact-head CI run #1572 (`45805365809`) for `435b3fc` is IN PROGRESS. Do not dispatch duplicate CI; wait for the complete run and inspect integration tests for the newly promoted P6 suites.
+- PR #157 has no independent review recorded yet. Keep it draft/unmerged until exact-head CI #1572 succeeds, source/scope review is complete, and independent review is obtained.
+- PR #138 remains protected source/evidence only; never wholesale merge it. Keep `preservation/pr138-remediation-2026-11-25` synchronized only by expected-SHA fast-forward. No shared/staging database writes, migrations, grants/default ACL/RLS changes, Render configuration changes, worker activation, deployment, or release action.
+
+---
+
 ## 26 November 2026 — PR #157 smoke runtime-role correction
 
 - PR #157 exact head `9186c174254c1098888c15ac61247b858d7fe0ca`, OPEN / DRAFT / UNMERGED, base `develop`. The previous exact-head CI #1570 (run `45797704166`) completed with all application checks successful: lint/typecheck/format, Flutter, Web/Admin, API integration, API unit/coverage, E6 boundary lint, migration full apply (including pg_partman), build and contract/codegen. Container Build & Smoke Test alone failed.
