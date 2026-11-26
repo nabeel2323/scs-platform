@@ -1,3 +1,15 @@
+## 26 November 2026 — PR #157 P4 database lifecycle root cause fixed
+
+- PR #157 exact head advanced to `ba85744e4ce13337f1c16439eec5d33241b77dfa`.
+- CI #1561 (`45778570221`) exposed the P4 HTTP root cause: the test starts its own disposable Testcontainers PostgreSQL and manually migrates/seeds it, but Nest invokes `DatabaseService.onModuleInit()`, which creates a second pool from `process.env.DATABASE_URL` and replaces the injected Drizzle handle. CI's unrelated stale DSN pointed to `127.0.0.1:25433`, yielding `ECONNREFUSED` for every P4 HTTP request. This was a test harness wiring defect, not authorization behavior.
+- Fixed P4 harness by setting `DATABASE_URL` to `started.getConnectionUri()` immediately after starting the disposable container, so DatabaseService lifecycle pool and request handlers use the same test database. Original environment value is restored in `afterAll`. No production code/security assertions changed.
+- CI #1561: Lint & Typecheck SUCCESS; Flutter SUCCESS; Web/Admin SUCCESS; E6 SUCCESS; Migration Full Apply SUCCESS; Unit/Coverage and Integration FAILED solely with P4 HTTP harness fallout caused by the stale DSN. The targeted fix is now pushed; wait for its exact-head CI before further edits.
+- Diagnostic output confirms `connect ECONNREFUSED 127.0.0.1:25433` across P4 routes. Other fixture assertions are downstream of the same unavailable database. Do not weaken tests or alter production auth.
+- PR #138 source and preservation refs remain identical at `7d2d5eb1b9022abd233d5e0a53572ce47f3ebfdb` before this memory checkpoint; fast-forward preservation after the handoff update.
+- No merge, deployment, shared DB/staging mutation, migration apply, grant/RLS change, or worker activation.
+
+---
+
 ## 26 November 2026 — PR #157 diagnostic CI compile correction
 
 - Diagnostic CI #1560 (`45778372173`) on `b2a1131017e6117118a68e33bfd7da26b37bbfd0` stopped at Lint & Typecheck; Flutter passed, downstream jobs skipped. The only reported compile error was missing `HttpException` import in the P4 test-only diagnostic harness. Therefore the underlying P4 runtime exception remains unknown.
