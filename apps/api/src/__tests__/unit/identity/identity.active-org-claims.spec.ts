@@ -15,7 +15,10 @@ function createHarness() {
       permissions: { findMany: vi.fn() },
     },
   };
-  const mockDb = { db } as any;
+  const mockDb = {
+    db,
+    withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
+  } as any;
   const redis = { client: { set: vi.fn(), get: vi.fn(), del: vi.fn() } } as any;
   const jwt = { sign: vi.fn().mockReturnValue('signed.token'), verify: vi.fn() } as any;
   const rateLimit = { checkAndIncrement: vi.fn(), resetAttempts: vi.fn() } as any;

@@ -158,7 +158,10 @@ describe('IdentityService.switchOrg — prior-token revocation (API-B9)', () => 
       getAvailableChannels: vi.fn().mockReturnValue([]),
     };
     service = new IdentityService(
-      { db: mocks.db } as any,
+      {
+        db: mocks.db,
+        withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
+      } as any,
       { client: mocks.redis.client } as any,
       mocks.jwt as any,
       mocks.rateLimit as any,
