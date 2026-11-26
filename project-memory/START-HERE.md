@@ -947,3 +947,12 @@ PR #138 is OPEN / DRAFT / UNMERGED at `e410bf44b272eafb8e762636b66877f9e0c4b230`
 - PR #168 is not merged. Merge only after all mandatory exact-head Actions jobs pass and PR head/base remain unchanged. Inspect failures and fix in one consolidated update if necessary.
 - PR #138 remains open/draft/unmerged as source evidence. Preservation branch `preservation/pr138-remediation-2026-11-25` must remain identical to this memory branch using expected-SHA fast-forward only.
 - No staging/production database access, migration application, grants/default-ACL/RLS changes, provider calls, worker activation, Render changes, deployment, restart, or release.
+
+
+## 26 November 2026 — PR #168 CI remediation checkpoint
+
+- PR #168 first exact-head CI run #1592 (`45859306428`) failed Lint & Typecheck because seven existing integration-test call sites still used the old executor/template signatures. Specifically: six in `catalog-governance-roundtrip.spec.ts` (3 executor calls + 3 export calls) and one executor call in `phase4-import-commerce.e2e.spec.ts`. No product implementation error was reported by that job; lint reported 0 errors (warnings only).
+- Updated both integration specs to pass a valid test actor. Their isolated PostgreSQL DatabaseService adapters now implement a no-op `withActorContext` wrapper; those integration tests do not exercise production RLS/session GUCs. Updated PR body to explain this explicitly.
+- New PR #168 head: `83d5635436e5221962a6e7d548d662fb35c572d3`; now ten files (includes two integration specs), 456 additions / 212 deletions, no schema/migration changes. PR remains OPEN, not merged; mergeable reported true at last metadata read.
+- New exact-head Actions run #1593 (`45859606206`) is in progress. Poll only this latest run; do not start duplicate CI. The earlier run #1592 is obsolete for merge gating and should not be rerun.
+- User waiver on reviewers remains in force. Vercel preview rate-limit statuses remain external. No staging/production DB access, migration application, grants/default-ACL/RLS changes, provider calls, worker activation, Render changes, deployment, restart, or release.
