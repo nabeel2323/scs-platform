@@ -341,3 +341,11 @@ Commits: 94c8fc5f1a2ae5d69e276909f31b8a539a7001ed, 76894a736d7279ba2a523685af38c
 - PR #158 current head is 19b96bcda29d7166a748dd5693b430cce0ea2098 (5 changed files). Its profile-controller tests now verify updateProfile forwards a concrete activeOrg and explicit null, matching the controller/service contract.
 - PR #157 current head remains d204b9ea18958f623e0379c7cc307fd0545f8863; run #1557 still validates prior head 6901389d. Migration full apply and non-test jobs passed; Unit/Coverage and Integration Tests remain in progress. d204b9e is not yet validated.
 - Keep PR #158 stacked and reconcile only after PR #157's exact current head is green. PR #138 source/preservation refs remain identical; its actor hardening/SQL scan remain untested. No DB writes, staging changes, RLS/grant changes, worker activation or deployment.
+
+
+## 26 November 2026 — PR #157 run #1558 queued
+
+- PR #157 exact head 0d97dd446d5912d6d0a815d8a931a88f53db009c; consolidated CI run #1558 is queued.
+- Run #1557 on 6901389d passed migration full apply and non-test jobs but failed integration/coverage: membership/store relation lookups lacked Drizzle query relations, P4 lacked valid order lines and isolated adjustment orders, and excluding scratch specs lowered coverage. Commit d204b9e adds safe parameterized SQL-builder fallbacks; 0d97dd4 restores scratch specs and repairs P4/P6/P12 fixtures.
+- PR #158 head 19b96bcda29d7166a748dd5693b430cce0ea2098 remains stacked and behind parent; reconcile only after #1558 is green.
+- PR #138 actor hardening and SQL source scan remain untested; source/preservation refs are identical. No DB writes, staging changes, RLS/grant changes, worker activation or deployment.
