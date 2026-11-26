@@ -90,6 +90,7 @@ describe('Shipping and carrier tenant context', () => {
       db: {
         query: {
           organizationMembers: { findFirst: organizationFindFirst },
+          organizations: { findFirst: vi.fn().mockResolvedValue({ id: 'org-a', isActive: true }) },
           carrierCredentials: { findMany: credentialFindMany },
         },
       },
