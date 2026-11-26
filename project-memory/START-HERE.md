@@ -1,3 +1,16 @@
+## 26 November 2026 — PR #157 smoke runtime-role correction
+
+- PR #157 exact head `9186c174254c1098888c15ac61247b858d7fe0ca`, OPEN / DRAFT / UNMERGED, base `develop`. The previous exact-head CI #1570 (run `45797704166`) completed with all application checks successful: lint/typecheck/format, Flutter, Web/Admin, API integration, API unit/coverage, E6 boundary lint, migration full apply (including pg_partman), build and contract/codegen. Container Build & Smoke Test alone failed.
+- CI #1570 logs show PostgreSQL TLS and API-to-database connectivity succeeded; the API correctly refused startup because the smoke process connected as `scs`, the privileged PostgreSQL bootstrap account. This is a CI fixture principal error, not a reason to relax the production-like guard.
+- Fixed the fixture in commit `9186c174254c1098888c15ac61247b858d7fe0ca`: create `scs_api_runtime` with LOGIN, NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOINHERIT, NOBYPASSRLS; grant only CONNECT on the disposable database and USAGE on public schema; point the API's DATABASE_URL to this restricted role. Bootstrap account remains confined to disposable DB setup. No production security guard was changed.
+- Exact-head Actions run for `9186c17` had not yet appeared at the last poll (Actions run list empty; only Vercel Web/Admin checks pending). Recheck for an automatically triggered run before dispatching anything; never duplicate CI. Container smoke must pass before PR #157 can be considered CI-green.
+- Earlier source review still requires deliberate resolution of three P6 PostgreSQL tests under `apps/api/src/__tests__/scratch/` despite the extraction map's scratch-exclusion rule, and six unrelated one-line M7.3b carrier-test helper edits. Review whether to relocate the substantive P6 suites into integration tests and revert/split unnecessary helper edits. No independent review exists; PR remains draft.
+- PR #138 remains OPEN / DRAFT / UNMERGED, mergeable=false, 1,943 changed files. It is the protected source/evidence branch, never a wholesale merge candidate. Keep `preservation/pr138-remediation-2026-11-25` synchronized only by expected-SHA fast-forward.
+- PR #158 remains stacked on an obsolete #157 parent; reconcile only after #157 is green, scoped and independently reviewed. PR #154 needs consolidated exact-head CI after parent integration; PR #153 exact-head CI had passed but review remains outstanding.
+- No PR merge, shared/staging DB write, migration, grant/default-ACL/RLS change, Render setting change, worker activation, deployment or release action occurred.
+
+---
+
 ## 26 November 2026 — live continuation checkpoint (PR #157 CI smoke repair)
 
 - PR #157 exact head before the repair: `f21b5f4230a0926072cce4415d4754da32016fe9`. Consolidated Actions run #1566 (run ID `45793251965`) completed with **all application and verification jobs passing**: lint/typecheck, Flutter, Web/Admin, E6 boundary lint, full migration apply, unit/coverage, integration, build, and contract/codegen. Container Build & Smoke Test alone failed before starting the API.
