@@ -586,3 +586,15 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - Next step is to reconcile each bounded PR against refreshed develop, preserve its exact intended diff (especially the canonical 0070 and 0071 migration uniqueness), then run one consolidated exact-head CI per refreshed workstream before merge. Do not blindly merge develop into the branches or import unrelated project-memory changes.
 - PR #138 remains OPEN / DRAFT / UNMERGED, protected source/evidence only. Its source/preservation refs are synchronized at `873dce655c71833115db63f8ec527f4f743b44e6`.
 - No migration was applied and no staging/shared DB, grants/default-ACL/RLS, Render, worker, deployment, restart or release action occurred.
+
+## 26 November 2026 — refreshed remediation workstreams on current develop
+
+- Current develop baseline remains `f58047c363adb69054a92b98dbdfe226dc17da21` after #157/#158 merges.
+- Rebuilt stale PR workstreams on top of this baseline rather than merging stale branches or overwriting current files:
+  - PR #159: refreshed G-020 migration 0070 plus atomic order-completion/durable auto-completion lease migration 0071 and its source/tests. The PR is intentionally one ordered 11-file workstream (0070 before 0071), with no broad grants/default ACL/RLS changes. Head `8a3319a2f7319f0ca89e86d5fa63048633cd17b1`. Exact-head CI run #45829417417 is pending.
+  - PR #160: refreshed outbox false-acknowledgement containment. Six intended source/test/docs files only; stale project-memory files excluded. Head `0307b56074382cc05fd27da96e09f2d060fe7291`. Exact-head CI run #45828822024 is in progress.
+  - PR #162: combined read-only staging security audit evidence with HTTP request/response credential log-redaction hardening. Four files. Its `main.ts` integration was applied to the current develop file and explicitly preserves the existing request-body/response-body/password/OTP redaction protections. Head `636cb6fa3f918aee2567d525bd83e548336fead9`. Exact-head CI run #45829305179 is in progress.
+- Superseded stale PRs closed without merging: #145, #153, #154, #155, #156. Temporary stacked PR #161 closed without merging after its order-completion changes were consolidated into #159. These closures do not discard source; refreshed commits/PRs above retain the intended changes.
+- #159 includes the canonical narrow 0070 and canonical additive 0071 in numeric order. PR #138 duplicate/broader migrations remain excluded.
+- No shared/staging DB writes, migration application, grants/default-ACL/RLS changes, Render changes, worker activation, deployment, restart or release.
+- User explicitly waived independent GitHub reviewer requirements. Continue with exact-head CI and source/scope/safety verification; no reviewer gate.
