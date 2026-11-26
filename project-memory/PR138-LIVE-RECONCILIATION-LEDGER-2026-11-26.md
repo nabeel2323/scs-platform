@@ -1,3 +1,15 @@
+## CI checkpoint — PR #157 run #1558 failed (26 November 2026)
+
+- Exact PR #157 head `0d97dd446d5912d6d0a815d8a931a88f53db009c`; CI run #1558 (`45729671946`) completed FAILURE.
+- Passing jobs: Lint & Typecheck, Mobile Flutter analysis/tests, Web & Admin App Tests, Boundary Lint (E6), Migration Full Apply. Failing jobs: Unit Tests + Coverage Gates and Integration Tests. Build/contract/container/staging/k6 jobs were skipped.
+- Unit/Coverage: 4,308 passed, 24 failed, 144 skipped; failures include P4 HTTP authorization paths returning 500, P6 concurrency expectations returning 0 instead of 25, and a P6 PostgreSQL user fixture violating `users_at_least_one_identifier`.
+- Integration: 1,615 passed, 17 failed; concentrated in P4 HTTP authorization/financial/returns/pilot tests, with empty result sets, unexpected status codes, adjustment conflicts and malformed/missing UUID fixture references.
+- Next: inspect the failing P4/P6 test setup and service error paths; repair the related fixtures/implementation as one batch. Do not rerun CI until the batch is complete. Do not treat the green migration job as a substitute for failing application tests.
+- PR #138 remains the owner-priority source/evidence branch and must stay preserved. Its broad 1,943-file diff is not merge-ready; use bounded integration slices from refreshed develop. The implementation head preceding the memory-only updates was `e9fb552850f605fd412fc4aa35b812e945f3c702` and has no exact-head CI.
+- No database/staging mutation, migration, grant/default-ACL/RLS change, worker activation, deployment or merge occurred.
+
+---
+
 ## Owner-directed integration checkpoint — 26 November 2026 (live recheck)
 
 - Live PR #138 source head before this documentation checkpoint: `e9fb552850f605fd412fc4aa35b812e945f3c702`; PR OPEN / DRAFT / UNMERGED, base `develop`, GitHub mergeable=false / dirty.
