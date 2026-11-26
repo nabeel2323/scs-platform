@@ -1,3 +1,12 @@
+## 26 November 2026 — latest concurrent CI checkpoint
+
+- PR #157 current head: d204b9ea18958f623e0379c7cc307fd0545f8863, OPEN / DRAFT / UNMERGED, base develop. Run #1557 is still running against the preceding head 6901389d9975fbeb959ee89633024f83ce598272; Migration Full Apply, lint/typecheck, mobile, Web/Admin and E6 boundary lint have passed so far. Unit/Coverage and Integration Tests remain in progress. This run does NOT validate d204b9e.
+- PR #157 follow-up commit d204b9e adds lazy AsyncLocalStorage initialization for prototype-based test doubles, parameterized SQL-builder fallbacks in tenant-scope for missing Drizzle relation query objects, and P4/P12 fixture updates. After run #1557 completes, run one consolidated validation on exact current head d204b9e; do not launch overlapping runs.
+- PR #158 current head: 4f2ac7d997aab4ed8c4cae9dd84e97b1f08523f1, OPEN / DRAFT / UNMERGED, 4-file identity-membership slice. It includes earlier parent test fixtures through 5f9399 but lacks parent config correction 6901389d and d204b9e follow-up. Reconcile only after current PR #157 head is green.
+- PR #138 source and preservation refs remain synchronized at d8741a83d38a64f3f0a797d6855a5443bb6006ef. PR #138 remains draft/unmerged, mergeable=false, 1,943 changed files. OrdersService cancel/reject actor hardening and the bounded SQL scan are source-reviewed only; no tests/CI have run for PR #138.
+- Keep staging read-only. No RLS/grant changes, DB writes, migration, worker activation, deployment or merge is authorized by this checkpoint.
+
+
 ## 26 November 2026 — CI repair checkpoint
 
 - PR #157 current exact head: 6901389d9975fbeb959ee89633024f83ce598272, OPEN / DRAFT / UNMERGED, base develop. Run #1556 (head 5f9399...) completed with five jobs passed and two test jobs failing at Vitest config startup due to a malformed scratch-exclusion array; tests did not execute. Migration Full Apply and pg_partman verification passed. Config syntax was corrected at 6901389d; new exact-head run #1557 is QUEUED. Do not start another run.
