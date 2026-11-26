@@ -1,3 +1,18 @@
+## Owner-directed integration checkpoint — 26 November 2026 (live recheck)
+
+- Live PR #138 source head before this documentation checkpoint: `e9fb552850f605fd412fc4aa35b812e945f3c702`; PR OPEN / DRAFT / UNMERGED, base `develop`, GitHub mergeable=false / dirty.
+- Live develop head: `fde20420bbb759d2e562f9ff747c9e824ac58e25`; source compare is DIVERGED, 2,951 commits ahead / 3 behind, merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`. PR metadata reports 1,943 changed files.
+- The preservation ref was at the same source head before this documentation-only update. Keep source and preservation synchronized with expected-SHA fast-forwards only.
+- No exact-head Actions run was found for `e9fb552850f605fd412fc4aa35b812e945f3c702`; the latest source work remains NOT CI-VERIFIED. No merge is safe at this point.
+- Owner priority is to integrate PR #138 remediation with develop without merging its broad branch diff. Use clean bounded integration branches, reconcile the 8 develop-only paths and 3 develop-only commits, retain the shared runtime identity helper/tests, compose DatabaseService, and reconcile #153/#154 before selecting outbox/order-worker code.
+- PR #153 remains the canonical safe generic outbox behavior: no placeholder poller and no false delivery acknowledgement. Keep #138 worker actor-context as a boundary for a future real adapter.
+- PR #154's atomic order completion and lease fencing should be composed with #138 worker actor-context, after the DatabaseService foundation is integrated. Its visible successful run #457007 was on an older SHA, not its current head.
+- Migrations 0070–0075 remain a single ordered dependency block. Resolve the 0070/#145 collision and 0071/#154 overlap; no ad-hoc renumbering or application.
+- CI policy: batch related source/test changes, run one consolidated exact-head CI campaign per meaningful integration slice, never bypass required checks.
+- No database/staging writes, migration, RLS/grant/default-ACL change, worker activation, deployment, bootstrap/token issuance or release action occurred.
+
+---
+
 # PR #138 live reconciliation ledger — 26 November 2026
 
 ## Verified repository checkpoint
