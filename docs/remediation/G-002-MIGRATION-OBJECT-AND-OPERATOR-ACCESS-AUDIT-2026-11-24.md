@@ -253,3 +253,30 @@ Commits: f9bfccf3ac11b7fbb0904634845c24a31d7c805a (service), 0b14f11c3fd6f787baa
 - 0070 uses dynamic EXECUTE format for privilege/search_path hardening; 0072 and 0074 use DO blocks for conditional constraints/integrity checks. These still require owner/default-ACL authority and rollback review.
 
 **Open:** live pg_partman/partition/scheduler and physical relation/function/extension ownership/ACL checks; full raw SQL/dynamic SQL consumer scan; 0075 cleanup invocation/worker contract. No database operation or CI was run.
+
+
+## 26 November 2026 — targeted runtime SQL scan and OrdersService actor hardening
+
+### Runtime SQL scan (bounded source pass)
+
+- A targeted pattern scan covered 62 API `.service.ts` and `.worker.ts` files for `db.execute`, `tx.execute`, tagged SQL, `sql.raw`, direct pg clients and dynamic execution. This is not an AST-complete scan of controllers, scripts, tests or every repository package; the full raw/dynamic SQL inventory remains open.
+- The only `sql.raw` interpolations found in this pass are:
+  - AdminService date-trend `date_trunc`: `gran` is reduced to the literal union `'day' | 'week'` before interpolation.
+  - CatalogOfferService date-trend `date_trunc`: `opts.granularity` is reduced to the literal union `'day' | 'week'` before interpolation.
+  - ExcelExecutor SAVEPOINT identifiers: the identifier is generated from `randomUUID()`, stripped to hexadecimal characters and truncated to 12 characters; it is not user input.
+- Other inspected SQL execution paths use parameterized Drizzle tagged templates or query-builder predicates. The worker paths inspected retain explicit actor scopes: outbox dispatch, auto-complete claim/process/release, carrier reconciliation, shipping carrier events, return expiration, payment-proof cleanup, worker leases, P13 monitoring, operations alerts/control and pilot control. Admin and catalog request paths use route interceptors or explicit service-level actor scopes; external storage/provider work remains outside DB transactions.
+- AutoCompleteWorker's releaseClaim executes in processCompletion's worker actor scope (the finally block remains inside the withActorContext callback); it is not an unscoped release path.
+- The prior module-graph map for InventoryService, PricingService and CartService remains applicable. InventoryService's optional caller remains a future fail-closed contract item if a non-controller consumer is added; current production module graph showed only InventoryController as consumer.
+
+### OrdersService cancellation/rejection boundary
+
+- PR #138 source commit 5c8fa332ab9b5f16204bcf11b3444858e22f34f5 makes `cancelOrder` require a CallerContext, validates that the supplied userId equals caller.sub, always enters withActorContext for DB phases, and removes the no-caller unscoped fallback.
+- The same change makes `rejectOrder`'s CallerContext type required and validates merchantUserId === caller.sub before entering its actor scope.
+- Regression coverage was added for missing/mismatched cancellation and rejection actors; lifecycle integration tests now pass explicit caller contexts and a test DatabaseService actor wrapper (commits cff97c70f7f570c6685bffb9cdcf9bc7edd4659d, 3fbd36b13b6ab0ec79fd3e08762ba212d7405b7b, 54afaac67164a4cbb9663a1fdb2c2ab38519a048, 0b61f3b641b99fb9f426d3f314d1dba416d96730).
+- Tests have NOT been run for these PR #138 changes. Remaining OrdersService optional CallerContext methods still need a full direct-callsite classification (accept/partial accept, item confirmation, status/fulfilment transitions, order reads/list/history and master-order recalculation). Do not mass-tighten these until controller, Reviews/Shipping and worker/system consumers are mapped.
+
+### Numbered migration scan clarification
+
+- All 75 numbered `infra/drizzle/migrations/*.sql` files were scanned for function/procedure/trigger/rule/view/partition and dynamic-execution DDL. No `CREATE TRIGGER`, `CREATE PROCEDURE`, `EXECUTE FUNCTION` or `CREATE RULE` statements were found. The application function remains `normalize_arabic` (0007; search-path hardening in 0070); analytics partition management remains 0002/0013/0018. This source result does not replace live catalog, pg_partman, extension, ownership or ACL checks.
+
+**No CI, local test run, database write, migration, staging mutation, worker activation or deployment was performed for this PR #138 source update.**
