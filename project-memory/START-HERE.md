@@ -1,3 +1,20 @@
+## Live checkpoint — 26 November 2026, 21:00 UTC (bulk integration reconciliation)
+
+- PR #169 Orders cancellation/rejection actor context is merged into develop at 6ce2d0920e319a6623eb7102a4838964c7b4ee35 after exact-head CI run #1605 passed all ten mandatory jobs. No reviewers were requested.
+- Bulk branch: integration/pr138-bulk-remediation-2026-11-26. Draft PR #170: https://github.com/nabeel2323/scs-platform/pull/170. Base 6ce2d0920e319a6623eb7102a4838964c7b4ee35; exact current head 2ed6f7dec1f2102fdb8d2bba187882c16a969c72; 604 changed files (99,265 additions / 21,181 deletions). No reviewers requested.
+- 574 source-only/non-overlapping paths were overlaid onto current develop in one consolidated batch, preserving develop-only files. Further grouped reconciliation integrated IdentityService/auth/profile controllers, a composite OrdersService, tenant-scoped ShippingCarrierWorker and AutoCompleteWorker, plus aligned integration and unit tests.
+- OrdersService uses PR #138 functionality while retaining develop's exact PR #169 implementations of completeOrder, rejectOrder and cancelOrder, and develop's helper implementations for autoAdvanceToPendingConfirmation and recalculateMasterOrderStatus. Keep this composition; do not replace the full service with either branch wholesale.
+- Retained develop's DatabaseService runtime identity and lazy actor-context storage, tenant interceptor/scope safeguards, safe non-polling OutboxDispatcher, main bootstrap/log redaction, orders schema, migration runner, current CI workflow and PR #169 actor-aware PostgreSQL harness fixes.
+- Excluded scratch artifacts, test-token.txt and the bootstrap-token issuer. No broad merge of PR #138 history and no force-push occurred.
+- Migration reconciliation: keep develop's 0070_normalize_arabic_search_path.sql and 0071_auto_complete_claim_leases.sql (0071 DDL is equivalent to PR #138). Added PR #138 migrations 0072–0075. Resolved the 0070 filename collision by adding 0076_public_api_role_privilege_hardening.sql containing table/sequence and default-ACL revocations only; the G-020 function search_path guard remains in develop's 0070. No migration has been applied to staging or production.
+- First bulk CI attempt on the initial 574-file head failed TypeScript checks because API service contracts and actor-aware test fixtures had not yet been reconciled. A second attempt on head be05c3b exposed 61 remaining TypeScript errors; the grouped corrections are now committed at 2ed6f7d. Exact-head CI run #1616 / ID 45879868599 is IN PROGRESS with Lint & Typecheck and Mobile Flutter analysis/tests running. Competing run #1615 was canceled by the Actions concurrency group. Do not dispatch another run; poll #1616.
+- PR #138 remains OPEN / DRAFT / UNMERGED and is still the recovery source. Source and preservation branches were identical at fd1cb910362cb94c2fd080863ffcca6d64c2d086 before this documentation update; keep them identical by expected-SHA fast-forward only.
+- No staging/production DB writes, migration application, grants/default-ACL/RLS changes executed, provider calls, worker activation, Render changes, deployments, restarts or releases occurred. Merging PR #170 to develop triggers the staging-release workflow; do not merge until the user separately authorizes that release/migration step.
+
+**Next:** poll exact-head CI #1616. If it passes, retain PR #170 as a prepared draft and report the staging-release authorization gate. If it fails, group remaining corrections before one subsequent validation campaign; do not run CI after each small change. No reviewers are needed.
+
+---
+
 ## Live checkpoint — 26 November 2026 (bulk PR #138 integration started)
 
 - PR #169 (Orders cancellation/rejection actor context) passed exact-head Actions run #1605 (45874247555) on head 550736024ca0c41adadb3b3852b76257ab1c8acf; all ten mandatory jobs passed. It was merged into develop using the expected head SHA. Merge commit: 6ce2d0920e319a6623eb7102a4838964c7b4ee35. No reviewers were requested, per the user's instruction.
