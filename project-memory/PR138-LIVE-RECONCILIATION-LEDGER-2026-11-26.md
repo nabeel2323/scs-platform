@@ -1,3 +1,13 @@
+## PR #157 diagnostic CI #1560 and compile correction (26 November 2026)
+
+- Run #1560 (`45778372173`) on `b2a1131017e6117118a68e33bfd7da26b37bbfd0` failed at Lint & Typecheck before downstream jobs. Flutter passed; Web/Admin, unit/coverage, migration, integration, contract, boundary, build, container and staging jobs were skipped.
+- Sole compile error: `HttpException` was referenced in the P4 test diagnostic filter but not imported. No P4 runtime response/exception evidence was generated; the underlying HTTP 500 cause remains undiagnosed.
+- Corrected import in commit `e0f1bc2e3734f5e74384827270ab104752868bf8`; exact-head CI #1561 (`45778570221`) is QUEUED. Wait for this run; do not duplicate.
+- This is test-only instrumentation; production implementation and auth assertions remain unchanged.
+- PR #138 source and preservation refs were identical at `1db1fa5676a23964d7fb41c8b229e34613b19d20` before this memory update; fast-forward preservation after the source update.
+
+---
+
 ## Focused PR portfolio recheck — 26 November 2026
 
 - PR #153 exact head `5294698d8db78e21df972e8ce6213f21237789fa`; exact-head Actions run #1523 (`45622306528`) SUCCESS. PR remains OPEN/DRAFT; independent review outstanding. Retain as canonical generic outbox fail-closed behavior (no placeholder poller, no false acknowledgement).
