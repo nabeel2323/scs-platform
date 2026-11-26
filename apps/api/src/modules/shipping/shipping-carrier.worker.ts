@@ -8,7 +8,7 @@ import { outboxEvents } from '../audit/audit.schema';
 import { shipments } from '../orders/shipment.schema';
 import { carrierWebhookEvents } from './shipping.schema';
 import { generateIdempotencyKey, CarrierCreateStatus, CreateShipmentRequest, CancelPickupRequest } from './shipping.types';
-import { classifyCarrierError, RetryableCarrierError } from './carrier-errors';
+import { classifyCarrierError, RetryableCarrierError, UnsupportedCarrierOperationError } from './carrier-errors';
 import { CarrierObservabilityService } from './carrier-observability';
 import { CarrierEmailResolver } from './carrier-email-resolver';
 import { CarrierRetryPolicy } from './carrier-retry-policy';
@@ -218,7 +218,13 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           await this.handleWebhookRetry(event);
           break;
         default:
-          this.logger.warn(`Unknown carrier event type: ${eventType}`);
+          // A prefix match is not proof that this worker supports the event.
+          // Never acknowledge an unknown event as delivered: classify it as
+          // terminal/unsupported so it is visible in the dead-letter queue.
+          throw new UnsupportedCarrierOperationError(
+            `Unsupported carrier outbox event type: ${eventType}`,
+            { providerKey: 'outbox', operation: eventType },
+          );
       }
 
       // Mark as dispatched
