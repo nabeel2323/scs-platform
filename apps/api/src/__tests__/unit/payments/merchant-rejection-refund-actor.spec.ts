@@ -62,6 +62,7 @@ describe('PaymentsService.requestRefund merchant rejection attribution', () => {
       })),
     };
     const db = {
+      withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
       db: {
         transaction: vi.fn(
           async (operation: (client: typeof tx) => Promise<unknown>) => operation(tx),
