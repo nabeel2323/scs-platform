@@ -1,3 +1,17 @@
+## 26 November 2026 — PR #157 CI #1558 failure triage and PR #138 priority
+
+- PR #138 remains OPEN / DRAFT / UNMERGED, base develop, mergeable=false / dirty, 1,943 changed files. Source and preservation refs were synchronized at `e3ff391b4bd069113d572f9602ef7b5b6c962262` before this memory-only update. The preceding source implementation head was `e9fb552850f605fd412fc4aa35b812e945f3c702`; the two intervening commits updated project memory only. No exact-head CI is available for the implementation, so PR #138 remains NOT CI-VERIFIED. Do not merge its broad branch diff.
+- Owner instruction remains: protect PR #138, integrate its required remediation safely with develop through bounded slices, then fix focused PRs #153 and #154. Batch related work and do not rerun CI for small edits.
+- PR #157 (`integration/g002-actor-context-foundation`) exact head `0d97dd446d5912d6d0a815d8a931a88f53db009c` was verified by CI #1558 (run ID 45729671946), which completed FAILURE at 2026-11-26 00:45 UTC. Lint/typecheck, Flutter, Web/Admin and E6 passed; Migration Full Apply passed. Unit/Coverage and Integration Tests failed.
+- Unit/Coverage: 4,308 passed, 24 failed, 144 skipped; three files failed. Failures include P4 HTTP authorization tests returning HTTP 500 for expected successful/denied paths, P6 concurrency assertions returning 0 instead of 25, and a P6 PostgreSQL fixture violating `users_at_least_one_identifier`.
+- Integration Tests: 1,615 passed, 17 failed across 82 files. Failures are concentrated in P4 HTTP authorization/financial/returns/pilot tests (empty expected result sets, unexpected status codes, adjustment conflicts) and one undefined response field assertion. The PostgreSQL log also shows invalid UUID fixture values and missing settlement_adjustments.sub_order_id references.
+- Do not rerun the full workflow yet. Triage and repair the underlying P4/P6 fixture and service failures as one related batch, then run one consolidated exact-head CI campaign. A passing migration job does not make these failing tests safe to ignore.
+- PR #153 remains the canonical no-placeholder/no-false-acknowledgement outbox slice. PR #154 remains the atomic order-completion/lease slice; combine it with #138 worker actor-context only after the database actor-context foundation is sound. Current PR #154 visible successful CI is for an older head, not its current head.
+- Preserve PR #138 source and backup refs with expected-SHA fast-forwards only. Do not rewrite either history.
+- No database writes, migrations, grants/default ACL changes, RLS changes, staging mutations, worker activation, deployments, bootstrap/token issuance or merges occurred.
+
+---
+
 ## 26 November 2026 — owner-directed PR #138 integration checkpoint (live GitHub recheck)
 
 **Owner priority:** protect PR #138 first, integrate its required remediation safely with current `develop`, then reconcile/fix the remaining focused PRs (initially #153 and #154). Batch related changes and run one consolidated CI campaign per meaningful integration slice; do not trigger CI for documentation or small edits. Never bypass required checks.
