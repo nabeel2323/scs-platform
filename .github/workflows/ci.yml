@@ -556,7 +556,7 @@ jobs:
             -subj "/CN=ci-postgres" \
             -addext "subjectAltName=DNS:ci-postgres"
           cp /tmp/ci-pg-certs/ca.crt /tmp/ci-pg-certs/server.crt
-          chown 999:999 /tmp/ci-pg-certs/server.key /tmp/ci-pg-certs/server.crt
+          chown 70:70 /tmp/ci-pg-certs/server.key /tmp/ci-pg-certs/server.crt
           chmod 600 /tmp/ci-pg-certs/server.key
           chmod 644 /tmp/ci-pg-certs/server.crt /tmp/ci-pg-certs/ca.crt
 
