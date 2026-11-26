@@ -43,7 +43,7 @@ export class ProfileController {
 
   @Patch()
   async updateProfile(@CurrentUser() user: JwtPayload, @Body() dto: UpdateProfileDto) {
-    return this.identityService.updateProfile(user.sub, dto);
+    return this.identityService.updateProfile(user.sub, dto, user.activeOrg);
   }
 
   @Get('organizations')
