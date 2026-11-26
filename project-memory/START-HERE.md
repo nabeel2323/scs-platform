@@ -1,3 +1,16 @@
+## 26 November 2026 — live continuation checkpoint (PR #157 CI smoke repair)
+
+- PR #157 exact head before the repair: `f21b5f4230a0926072cce4415d4754da32016fe9`. Consolidated Actions run #1566 (run ID `45793251965`) completed with **all application and verification jobs passing**: lint/typecheck, Flutter, Web/Admin, E6 boundary lint, full migration apply, unit/coverage, integration, build, and contract/codegen. Container Build & Smoke Test alone failed before starting the API.
+- Root cause is isolated to CI fixture setup, not application code or the production DB guard: the GitHub-hosted runner rejects host-side `chown 70:70` on `/tmp/ci-pg-certs/server.key` and `server.crt` (operation not permitted). The smoke TLS design remains required; do not disable certificate verification or relax the production-like database identity guard.
+- Fixed the workflow in commit `ea13a81e9c2767eb5f4440c5f8efd897fe62d5bb` on `integration/g002-actor-context-foundation`: generate the short-lived CA/server certificate inside a Docker-managed volume, set PostgreSQL UID/GID ownership from inside the helper container, mount that volume read-only into PostgreSQL and the API, and remove the volume during cleanup. This avoids host bind-mount ownership mutation while preserving verified TLS.
+- Exact-head CI for `ea13a81e9c2767eb5f4440c5f8efd897fe62d5bb` is **NOT YET OBSERVED** at this checkpoint. Check the new run/status; do not claim the smoke repair passed until Container Build & Smoke Test passes on this exact SHA. Do not trigger a duplicate run if one is already active.
+- PR #157 remains OPEN / DRAFT / UNMERGED. Do not merge until exact-head CI is fully green and the bounded Slice A diff receives independent review.
+- PR #158 remains stacked on an obsolete PR #157 parent; reconcile only after #157 is green/reviewed. PR #154 current metadata head is `0faaac932faffd6ccc26c8c6fd8df2bcc660ffd4`; its additional stale-worker release-claim PostgreSQL test still needs one consolidated exact-head CI after #157 is resolved. PR #153 exact-head CI #1523 remains successful, but independent review is outstanding.
+- PR #138 remains OPEN / DRAFT / UNMERGED, mergeable=false, 1,943 changed files. Source and `preservation/pr138-remediation-2026-11-25` are identical at `b32e83423ca72b5e5c97eb2d7a0098bf444adc09`; preserve both and do not merge the broad branch wholesale.
+- No shared/staging database writes, migrations, grants/default-ACL/RLS changes, Render configuration changes, worker activation, deployment, or release action occurred.
+
+---
+
 ## 26 November 2026 — continued PR #157 / #154 checkpoint
 
 - PR #157 current source head f21b5f4230a0926072cce4415d4754da32016fe9. Exact-head CI run #1566 / 45793251965 is still IN_PROGRESS at this checkpoint; mobile passed, lint/typecheck still running, dependent jobs not yet complete.
