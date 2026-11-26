@@ -1,3 +1,17 @@
+## 26 November 2026 — PR #158 profile-claim alignment follow-up
+
+- PR #158 is OPEN / DRAFT / UNMERGED, stacked on PR #157, current head 5c7e41bf04ec16e9fc0565e57425fcc05f548ffc, mergeable=true, 4 files. It now checks ACTIVE organization membership and active organization for switching/claims/profile, and keeps profile role/perms aligned with an explicitly null JWT activeOrg.
+- Follow-up finding: ProfileController passes the verified JWT activeOrg to GET /me. getProfile previously treated explicit null like omitted and selected the first active membership, potentially returning merchant role/perms not present in the current buyer token. Fixed by distinguishing undefined (internal/default selection) from explicit null (no active org); updateProfile now carries the JWT activeOrg through its response. Added regression coverage for an active membership with explicit-null JWT activeOrg.
+- PR #158 follow-up commits: 94c8fc5f1a2ae5d69e276909f31b8a539a7001ed (service), 76894a736d7279ba2a523685af38c4bd9936e3c3 (profile controller), 5c7e41bf04ec16e9fc0565e57425fcc05f548ffc (regression spec). Tests, lint, typecheck, build and CI have NOT been run for this follow-up. Exact-head Actions run list is empty; Vercel Web/Admin failures are provider build-rate-limit statuses.
+- PR #157 remains OPEN / DRAFT / UNMERGED at 77145bc6262aba99cf7fdbd45139382bebc44fa7. Run #1554 was last observed with five jobs passed and API Integration plus Unit/Coverage still in progress. Do not dispatch duplicate CI; recheck the same run before any new dispatch.
+- PR #138 remains OPEN / DRAFT / UNMERGED; latest verified branch head before this memory refresh was f81c3177135fccf815758152488edb77cbcfb89e, with preservation branch identical. Its CatalogImportService actor preflight regression test is authored but not run; exact-head Actions remains empty.
+- G-002 source audit now maps the targeted function, analytics partition, auto-complete, operations monitor/alerts, worker lease, returns reconciliation and payment-proof upload-intent consumers. Remaining: full raw SQL/dynamic SQL scan; live pg_partman/partition/scheduler and relation/function/extension ACL inventory; 0075 cleanup worker invocation contract.
+- No database operation, migration, storage/provider call, worker activation, staging mutation, deployment or merge occurred.
+
+**Next:** recheck PR #157 run #1554 once; finish remaining G-002 SQL/object inventory and 0075 cleanup callsite mapping; only then run consolidated CI for the stacked integration changes. Keep PR #138 preserved and do not merge it wholesale.
+
+---
+
 ## 26 November 2026 — raw SQL and special-object consumer review
 
 - At review start PR #138 was OPEN / DRAFT / UNMERGED at a4eeaeed985c71f2e374775c159167a2a09ae65e; preservation was identical; develop was fde20420bbb759d2e562f9ff747c9e824ac58e25. PR #138 has no exact-head Actions run. The latest documentation-only updates will be synchronized to preservation with an expected-SHA fast-forward.
