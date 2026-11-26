@@ -94,7 +94,11 @@ function createReturnEngine(fixture: ReturnFixture) {
 
 function serviceFor(fixture: ReturnFixture) {
   const engine = createReturnEngine(fixture);
-  const db = { db: engine, pool: {} } as unknown as DatabaseService;
+  const db = {
+    db: engine,
+    pool: {},
+    withActorContext: async (_context: any, operation: () => Promise<unknown>) => operation(),
+  } as unknown as DatabaseService;
   const outbox = { publish: vi.fn().mockResolvedValue(undefined) } as any;
   const promotions = {} as any;
   const realtime = { emitNewOrder: vi.fn(), emitOrderStatusChanged: vi.fn(), server: { to: () => ({ emit: vi.fn() }) } } as any;
@@ -106,7 +110,7 @@ function serviceFor(fixture: ReturnFixture) {
 // A completed-RTS shipment with a single 5-unit reserved line (GOOD path).
 const baseFixture = (overrides: Partial<ReturnFixture> = {}): ReturnFixture => ({
   shipment: { id: 'ship-1', orderId: 'ord-1', storeId: 'store-1', exceptionStatus: 'RTS_COMPLETED', exceptionType: 'RECIPIENT_REFUSED' },
-  order: { id: 'ord-1', status: 'OUT_FOR_DELIVERY' },
+  order: { id: 'ord-1', storeId: 'store-1', status: 'OUT_FOR_DELIVERY' },
   store: { orgId: 'org-1' },
   orderItems: [{ id: 'item-1', orderId: 'ord-1', variantId: 'var-1', sku: 'SKU-1', title: 'Widget', quantity: 5 }],
   selects: [
