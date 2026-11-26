@@ -1,3 +1,13 @@
+## 26 November 2026 — CI repair checkpoint
+
+- PR #157 current exact head: 6901389d9975fbeb959ee89633024f83ce598272, OPEN / DRAFT / UNMERGED, base develop. Run #1556 (head 5f9399...) completed with five jobs passed and two test jobs failing at Vitest config startup due to a malformed scratch-exclusion array; tests did not execute. Migration Full Apply and pg_partman verification passed. Config syntax was corrected at 6901389d; new exact-head run #1557 is QUEUED. Do not start another run.
+- PR #157 test fixture repair commits 21d4e344... and 4341fef0... initialize real DatabaseService/AsyncLocalStorage test instances, include organization_members/roles in Drizzle schemas, seed active organization membership in the P4 fixture, repair tenant-scope/catalog mocks, and replace Object.create test doubles.
+- PR #158 current head 5c7e41bf04ec16e9fc0565e57425fcc05f548ffc remains OPEN / DRAFT / UNMERGED, 4 files, based on the older PR #157 foundation commit 77145bc...; the parent branch has advanced to 6901389d. Reconcile PR #158 onto the refreshed parent only after run #1557 is green.
+- PR #138 source and preservation refs remain identical at 5052d03a600a98cee0997c3e82644a5ed99af016. PR #138 remains OPEN / DRAFT / UNMERGED, mergeable=false, 1,943 changed files. Do not merge it wholesale.
+- PR #138 OrdersService cancel/reject actor hardening and targeted 75-migration/62-service-worker SQL scan are documented; no tests/CI were run for those source changes.
+- No database write, migration, RLS/grant change, staging mutation, worker activation, deployment or merge occurred.
+
+
 ## 26 November 2026 — consolidated project checkpoint
 
 ### Branch and PR state (re-verified)
