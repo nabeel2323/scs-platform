@@ -91,11 +91,21 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private static readonly logger = new Logger('DatabaseService');
   private pool!: Pool;
   private rootDb!: NodePgDatabase<typeof schema>;
-  private readonly actorContextStorage = new AsyncLocalStorage<{
+  private actorContextStorage?: AsyncLocalStorage<{
     db: NodePgDatabase<typeof schema>;
     actor: NormalizedDatabaseActorContext;
     active: boolean;
-  }>();
+  }>;
+
+  private getActorContextStorage() {
+    // Lazily initialize as well as using normal Nest construction. Prototype-
+    // based test doubles therefore behave like an empty AsyncLocalStorage.
+    return (this.actorContextStorage ??= new AsyncLocalStorage<{
+      db: NodePgDatabase<typeof schema>;
+      actor: NormalizedDatabaseActorContext;
+      active: boolean;
+    }>());
+  }
 
   /**
    * All existing services continue to use DatabaseService.db. During an explicitly
@@ -105,7 +115,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    * The setter preserves the existing bootstrap/test injection contract.
    */
   get db(): NodePgDatabase<typeof schema> {
-    const scope = this.actorContextStorage.getStore();
+    const scope = this.getActorContextStorage().getStore();
     if (scope && !scope.active) {
       throw new Error('Database actor context has already completed');
     }
@@ -119,7 +129,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   get currentActorContext(): Readonly<NormalizedDatabaseActorContext> | null {
-    const scope = this.actorContextStorage.getStore();
+    const scope = this.getActorContextStorage().getStore();
     return scope?.active ? scope.actor : null;
   }
 
@@ -142,7 +152,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     operation: () => Promise<T>,
   ): Promise<T> {
     const actor = this.normalizeActorContext(context);
-    const active = this.actorContextStorage.getStore();
+    const active = this.getActorContextStorage().getStore();
 
     if (active) {
       if (!active.active) {
@@ -175,7 +185,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         active: true,
       };
       try {
-        return await this.actorContextStorage.run(scope, operation);
+        return await this.getActorContextStorage().run(scope, operation);
       } finally {
         // Detached async work inherits the ALS store. Mark it closed so it cannot
         // issue queries on a transaction after its callback has committed/rolled back.
