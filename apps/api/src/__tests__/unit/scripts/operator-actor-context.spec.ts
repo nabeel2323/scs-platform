@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { setOperatorActorContext } from '../../../../infra/drizzle/operator-actor-context';
+import { setOperatorActorContext } from '../../../common/database/operator-actor-context';
 
 describe('operator database actor context', () => {
   it('sets only the supplied operator principal using transaction-local settings', async () => {
