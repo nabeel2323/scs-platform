@@ -1,3 +1,13 @@
+## Focused PR portfolio recheck — 26 November 2026
+
+- PR #153 exact head `5294698d8db78e21df972e8ce6213f21237789fa`; exact-head Actions run #1523 (`45622306528`) SUCCESS. PR remains OPEN/DRAFT; independent review outstanding. Retain as canonical generic outbox fail-closed behavior (no placeholder poller, no false acknowledgement).
+- PR #154 exact head `e421e21b1e66386a9d0c259fb83c99f1a05272cb`; OPEN/DRAFT; no exact-head Actions run found. Earlier successful CI on older SHA is not evidence for this head. Keep unmerged until exact-head validation and composition with #138 worker actor-context are complete.
+- PR #158 head `19b96bcda29d7166a748dd5693b430cce0ea2098`; OPEN/DRAFT, base `integration/g002-actor-context-foundation` at stale parent `5f9399cd6fa80e51b508c31203dd6b5f80b37757`. Do not integrate before PR #157 Slice A is green; then port the identity/profile membership changes onto current #157 head and validate independently.
+- PR #157 exact-head CI #1560 (`45778372173`) for `b2a1131017e6117118a68e33bfd7da26b37bbfd0` was observed IN_PROGRESS; Lint & Typecheck and Flutter jobs were running. Wait for result; no duplicate CI run.
+- No PR merges or release/runtime/database actions were performed in this portfolio recheck.
+
+---
+
 ## PR #157 P4 HTTP diagnostics — CI #1560 queued (26 November 2026)
 
 - PR #157 advanced from `a0f32189b14700bad6701a4b948fd70c5755a0be` to `b2a1131017e6117118a68e33bfd7da26b37bbfd0` with a test-only diagnostic commit. P4 HTTP test harness logs only exception name/message for non-HTTP exceptions and HA-08 prints the RFC 7807 response body in its assertion message. No production behavior or security assertions were changed.
