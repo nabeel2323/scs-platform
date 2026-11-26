@@ -1,0 +1,35 @@
+# PR #138 Integration Continuation Checkpoint
+
+**Updated:** 2026-11-26 UTC  
+**Repository:** `nabeel2323/scs-platform`
+
+## Current branch and pull request state
+
+- PR #170 is **OPEN / DRAFT / UNMERGED**, targeting `develop`.
+- Integration branch: `integration/pr138-bulk-remediation-2026-11-26`.
+- Exact integration head: `1102f9baca40364b02c4fce6d3766b5cdb8dcd2b`.
+- The integration branch is **44 commits ahead and 0 behind** `develop`; merge base is `118174a644a197d72a033c22f0ee5af430617f44`.
+- The latest develop-only change disabled the automatic staging-release job (`if: false`) pending separate owner authorization. The integration branch already contained the exact same `.github/workflows/ci.yml` content. A two-parent merge commit connected the histories without changing the integration tree.
+- GitHub reports the PR mergeable after recalculation. This is not test evidence or merge authorization.
+
+## PR #138 preservation
+
+- PR #138 remains **OPEN / DRAFT / UNMERGED** and is source/recovery material only.
+- Source branch `remediation/phase-0-1-tenant-security` and preservation branch `preservation/pr138-remediation-2026-11-25` are identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`.
+- Never merge PR #138 wholesale. Continue integrating only reconciled, bounded changes through PR #170.
+
+## Verification state and remaining gates
+
+- No exact-head GitHub Actions workflow run is associated with integration head `1102f9baca40364b02c4fce6d3766b5cdb8dcd2b`. The historical run #1617 is diagnostic only; it does not validate this head.
+- Current reported Vercel status contexts for the latest head are failing due to the team's free-plan deployment quota (`api-deployments-free-per-day`). These are preview-provider failures, not application test results. Do not trigger additional Vercel builds.
+- The previously identified grouped test work remains unverified: API actor-context/Drizzle fixtures, shipping/carrier tenant-context fixtures, bootstrap/outbox expectations, and Web/Admin recovery/navigation/Product Studio regressions (including merchant returns and progress disabling).
+- Continue source review and grouped corrections. Do not run per-file CI. When the remaining concrete mismatches are resolved, run one consolidated mandatory exact-head CI campaign.
+- No local tests have been executed by the connected GitHub tooling.
+
+## Safety and operating instructions
+
+- Do not merge PR #170 until exact-head mandatory CI passes and the user separately authorizes the staging-release/migration step.
+- The automatic staging release on pushes to `develop` is currently disabled; the dedicated release workflow still requires separate authorization.
+- Do not perform staging/production DB writes, migrations, RLS/grant/default-ACL changes, provider calls, worker activation, Render changes, deployments, restarts, or releases without separate authorization.
+- No GitHub reviewers are required or should be requested.
+- Keep related changes grouped into as few commits and CI runs as practical. Keep this checkpoint and PR description current.
