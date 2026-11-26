@@ -167,6 +167,7 @@ describe('IdentityService.switchOrg — prior-token revocation (API-B9)', () => 
       { getMockProvider: () => null, getForChannel: () => ({ sendOtp: vi.fn(), isConfigured: () => true }) } as any,
     );
     // Membership and active-organization checks + claims resolution.
+    mocks.db.query.organizations.findFirst.mockResolvedValue({ id: 'org-2' });
     mocks.db.query.organizations.findMany.mockResolvedValue([{ id: 'org-2' }]);
     mocks.db.query.organizationMembers.findFirst.mockResolvedValue({
       id: 'm1',
