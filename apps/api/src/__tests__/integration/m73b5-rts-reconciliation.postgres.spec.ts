@@ -206,7 +206,8 @@ describe('M7.3-B.5 — RTS + Reconciliation (PostgreSQL)', () => {
     const client = await pool.connect();
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
-    database = { db } as DatabaseService;
+    database = Object.create(DatabaseService.prototype) as DatabaseService;
+    database.db = db;
     outbox = new OutboxDispatcher(database);
     const promotions = new PromotionsService(database);
     const inventoryService = new InventoryService(database, outbox);

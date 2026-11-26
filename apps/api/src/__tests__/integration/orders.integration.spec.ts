@@ -197,6 +197,9 @@ describe('Order Lifecycle Integration', () => {
         'order.rejected',
         ORDER_ID,
         expect.objectContaining({ reason: 'Out of stock' }),
+        {},
+        null,
+        expect.anything(),
       );
     });
 

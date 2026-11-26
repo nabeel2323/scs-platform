@@ -109,7 +109,8 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
     // ── Instantiate services ──────────────────────────────────────
-    database = { db } as DatabaseService;
+    database = Object.create(DatabaseService.prototype) as DatabaseService;
+    database.db = db;
     const conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
     catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy, {} as any, {} as any, {} as any);
