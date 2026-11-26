@@ -174,6 +174,9 @@ function createWorkerWithProvider(
       } as any),
     circuitBreaker ??
       ({ canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any),
+    {} as any,
+    { getStoreTenantContextForSystem: vi.fn(async () => ({ orgId: 'test-org' })) } as any,
+    {} as any,
   );
 }
 
