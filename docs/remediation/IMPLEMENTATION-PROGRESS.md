@@ -3234,3 +3234,11 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
 - A separate source review confirmed the CatalogService product-detail test's three `findProduct` calls are expected: pre-cache authorization, authorization recheck inside the DB actor scope on a cache miss, and the actual product fetch. No change was made and neither authorization check was removed.
 - PR #170 remains OPEN / DRAFT / UNMERGED; its branch is now 88 commits ahead / 0 behind `develop`. PR #138 remains OPEN / DRAFT / UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; its preservation branch is still identical (0 ahead / 0 behind). Never merge PR #138 wholesale.
 - No staging/production DB writes, migrations, deployments, releases, provider calls, worker activation, Render changes, service restarts or reviewer requests occurred. Keep the staging-release safety hold disabled. Do not merge PR #170 until mandatory exact-head CI is green and the separate release/migration authorization gate is satisfied.
+
+
+## Follow-up typecheck narrowing fix — 27 November 2026
+
+- Reviewed exact-head CI #1646 (run ID `45911134504`) on code commit `2ae5e8b66186fd5ce1c6c7d37acf11e51ec6d194`. Mobile analysis/tests and lint passed; API typecheck still failed on one remaining strict-nullability diagnostic in `order-carrier-lookup.spec.ts`: the recorded Drizzle predicate can be undefined under `noUncheckedIndexedAccess`.
+- Added an explicit fail-fast guard before passing the predicate to `PgDialect.sqlToQuery`. This preserves the query and assertions; it only makes the test's expected mock call explicit. Commit: `ffec8326db69605c600e02adf4fa55e08abb2a84`.
+- No run is currently visible for `ffec8326`; the latest verified workflow result remains CI #1646 on the previous code head. The new narrowing fix and all earlier changes remain unverified until a workflow runs on the updated branch. Do not infer that typecheck or downstream suites pass.
+- PR #170 remains OPEN / DRAFT / UNMERGED. PR #138 remains OPEN / DRAFT / UNMERGED; its preservation branch remains identical to source. No reviewers, merge, staging/production writes, migrations, deployments, releases, worker activation, Render changes, or service restarts. Keep the staging-release safety hold disabled.
