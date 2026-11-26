@@ -886,7 +886,6 @@ export class OrdersService {
     if (merchantUserId !== caller.sub) {
       throw new ForbiddenException('Rejection actor must match the authenticated caller');
     }
-    const actor = caller;
     const runAsCaller = <T>(operation: () => Promise<T>): Promise<T> =>
       this.db.withActorContext(
         {
@@ -905,7 +904,7 @@ export class OrdersService {
       await assertOrderAccessible(this.db, caller, order);
       let currentStatus = order['status'];
       if (currentStatus === 'SUBMITTED') {
-        await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId'], actor);
+        await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
         currentStatus = 'PENDING_CONFIRMATION';
       }
       this.assertTransition(currentStatus, 'REJECTED');
