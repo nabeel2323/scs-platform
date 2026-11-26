@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
+import { type SQL } from 'drizzle-orm';
 import { OrdersService } from '../../../modules/orders/orders.service';
 
 describe('OrdersService.findShipmentsByCarrierReference', () => {
   it('constrains provider, external reference and credential-owned stores, with ambiguity cap', async () => {
     const rows = [{ shipment: { id: 'shipment-a', storeId: 'store-a' } }];
     const limit = vi.fn().mockResolvedValue(rows);
-    const where = vi.fn(() => ({ limit }));
+    const where = vi.fn((_predicate: SQL) => ({ limit }));
     const innerJoin = vi.fn(() => ({ where }));
     const from = vi.fn(() => ({ innerJoin }));
     const select = vi.fn(() => ({ from }));
