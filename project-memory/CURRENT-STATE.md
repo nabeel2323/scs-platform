@@ -608,3 +608,16 @@ Static review of Catalog, Inventory, Pricing, Cart and Orders service/controller
 - Old PR #160/#162 remain open pending validation of replacements; close as superseded only after replacement PRs pass and are merged. Do not force merge stale branches.
 - PR #138 remains protected source/evidence only; never wholesale merge. No staging/production DB mutation, migration application, grants/default ACL/RLS changes, Render, worker activation, deployment, restart or release.
 - User explicitly waived independent reviewers. Continue exact-head mandatory CI and scope/operational-safety gates; no reviewer gate.
+
+## 26 November 2026 — PR #163 merged; PR #165 refreshed and validating
+
+- PR #163 outbox dispatch-safety slice passed exact-head Actions run #1584 (45833214705) and was merged to develop using the expected head SHA. Merge commit/current develop head at this checkpoint: 3f55809d8680961a61aa9235418cde69f86a42c1.
+- PR #164's original head 0687481e106f0d625a0e51a0e1fba6d457386c20 passed exact-head CI #1585 (45833292699), but became diverged after #163 merged. Its four intended files were reconstructed on the new develop head without overwriting develop-only work.
+- Replacement PR #165: branch integration/http-credential-redaction-post-163, exactly four paths (HTTP redaction test/helper, main.ts integration, read-only staging audit evidence), 449 additions / 3 deletions. Head b010559cbe2d720335141cd7f7fdb524edb3285e, base develop at 3f55809d8680961a61aa9235418cde69f86a42c1. PR is OPEN / READY / UNMERGED, mergeable=true.
+- Exact-head CI run #1587 (45849606536) is IN PROGRESS for PR #165. At last poll, Mobile and Lint/Typecheck were running; no result is yet claimed. Previous #164 CI does not validate #165. Vercel Web/Admin build-rate-limit failures remain external provider statuses.
+- PR #164 is retained open temporarily as superseded source until #165 passes and is merged; then close #164 without merging.
+- PR #138 remains OPEN / DRAFT / UNMERGED, protected source/evidence only. Source and preservation refs were identical at 160d8a06cf50f4b66f60cf7ba78629cab559552e before this memory update. Do not merge its 1,943-path diff wholesale; continue bounded file-by-file extraction from refreshed develop and preserve the branch.
+- User explicitly waived independent GitHub reviewers. Do not request reviewers or treat missing reviews as a blocker; require exact-head mandatory CI, scope/safety verification and mergeability.
+- No shared/staging database writes, migration application, grants/default-ACL/RLS changes, Render changes, worker activation, provider calls, deployment, restart or release occurred.
+
+**Next:** monitor existing #165 run #1587 only; if all mandatory jobs pass, merge #165 with expected head SHA, then close #164 as superseded. Keep PR #138 preserved and continue the bounded remediation extraction plan.
