@@ -3048,3 +3048,12 @@ Next source-only work should review the changed fixture semantics without weaken
 - These are source-reviewed fixture changes only. No local test execution is available in this session; no exact-head CI has been launched. Keep the remaining repair work grouped before one consolidated exact-head validation.
 - PR #170 remains OPEN / DRAFT / UNMERGED. PR #138 remains OPEN / DRAFT / UNMERGED, with its source and preservation refs identical at `f81c91207cfe33af2817aeaa0311ee4119436885`. Do not merge PR #138 wholesale. PR #170 still requires mandatory exact-head CI and separate staging-release/migration authorization before merge.
 - No reviewer requests, staging/production DB changes, migrations, provider calls, worker activation, Render changes, deployments, restarts or releases were performed.
+
+
+## Continuation checkpoint — 26 November 2026 (Identity unit fixture actor scopes)
+
+- Added a grouped identity-fixture repair commit `a6a21bd4d1decae971f69f0f992921ef0ba65420` for `identity.add-org-member.spec.ts`, `identity.org-update-request.spec.ts` and `identity.deactivate-org.spec.ts`. Their mocked DatabaseService now exposes `withActorContext` and executes the supplied operation, matching the actor-scoped IdentityService contract.
+- Added the same DatabaseService wrapper to `identity.sessions.spec.ts` in `95e5d59f32831f969ea4d26c648d5e46e473c306`, covering the session-query unit fixture. Existing actor-context tests were left intact.
+- These changes address historical fixture-contract errors from CI #1617 only; they have not been rerun, so no pass is claimed. The current PR #170 exact head remains unvalidated. Continue source review and group remaining API fixtures before one exact-head CI campaign.
+- PR #138 remains OPEN / DRAFT / UNMERGED, 1,943 files; source and preservation refs remain identical at `f81c91207cfe33af2817aeaa0311ee4119436885`. PR #170 remains OPEN / DRAFT / UNMERGED; no merge or release authorization is implied.
+- No reviewers, database writes, migrations, provider calls, worker activation, Render changes, deployments, restarts or releases were performed.
