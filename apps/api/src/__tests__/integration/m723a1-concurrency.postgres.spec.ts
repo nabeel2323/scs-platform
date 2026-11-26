@@ -157,7 +157,8 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
     );
 
     // Initialize services
-    const databaseService = { db } as any;
+    const databaseService = new DatabaseService();
+    databaseService.db = db;
     database = databaseService;
     registry = new ShippingProviderRegistry();
     const manual = new ManualDeliveryProvider();
