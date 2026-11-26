@@ -1,3 +1,14 @@
+## 26 November 2026 — PR #157 P4 HTTP diagnostic commit queued for CI
+
+- PR #157 advanced to `b2a1131017e6117118a68e33bfd7da26b37bbfd0` with a test-only diagnostic improvement: the P4 HTTP integration harness now logs non-HTTP exceptions by name/message before delegating to the same RFC 7807 filter, and HA-08 includes the response body in its failure message. This does not alter production behavior or relax assertions.
+- Exact-head CI run #1560 (`45778372173`) is QUEUED for this diagnostic head. Wait for it; do not trigger duplicate CI.
+- Prior run #1559 failed: unit/coverage 22 failures (all in P4 HTTP auth spec); integration 17 failures. Dedicated migration full apply, E6 boundary lint, Flutter, lint/typecheck, Web/Admin all passed. The P4 error body/exception root cause is not yet known; #1560 is expected to reveal it.
+- P6 concurrency failures from #1558 are no longer present in #1559. Do not revisit or alter those passing fixtures without new evidence.
+- PR #138 source and preservation branch are synchronized at `56d486e01e54f21e2084a9af4b5487f2e3c99bd6`; this is a memory-only checkpoint and must remain protected. PR #138 remains open/draft/unmerged and not merge-ready.
+- No production code, database, staging, migration, grants/RLS, worker activation, deployment or merge was changed.
+
+---
+
 ## 26 November 2026 — PR #157 CI #1559 failure triage
 
 - PR #157 exact head: `a0f32189b14700bad6701a4b948fd70c5755a0be`; CI run #1559 (`45764646880`) completed FAILURE.
