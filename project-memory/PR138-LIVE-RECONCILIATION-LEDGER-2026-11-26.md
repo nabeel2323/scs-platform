@@ -1,3 +1,15 @@
+## PR #157 follow-up — test fixture repair batch (26 November 2026)
+
+- Integration branch advanced to exact head `a0f32189b14700bad6701a4b948fd70c5755a0be`; CI run `45764646880` is QUEUED for that exact head, result pending.
+- Fixed P4 migration test harness to use one checked-out PostgreSQL client for each transaction and fail fast with migration filename/error; no silent migration skips.
+- Fixed P6 concurrency fixtures to insert ACTIVE organization memberships so the test isolates store-membership activation/deactivation.
+- Fixed P6 independent runtime users fixture to provide phone/email values satisfying database identifier constraint.
+- These are test fixture/harness corrections, not a claim that production implementation is verified. Wait for exact-head CI and inspect any newly surfaced migration error.
+- PR #138 remains OPEN/DRAFT/UNMERGED, dirty and preserved. Continue bounded integration; no wholesale merge.
+- No shared DB/staging writes, schema migration, RLS/grant changes, worker activation, deployment or merge.
+
+---
+
 ## CI checkpoint — PR #157 run #1558 failed (26 November 2026)
 
 - Exact PR #157 head `0d97dd446d5912d6d0a815d8a931a88f53db009c`; CI run #1558 (`45729671946`) completed FAILURE.
