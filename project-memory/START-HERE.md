@@ -1,3 +1,13 @@
+## 26 November 2026 — PR #157 Slice A container packaging and smoke follow-up
+
+- PR #157 exact head 16df88d17ac31739d064fe29105ff3da5461f9fa (pending exact-head CI at checkpoint); base remains develop SHA fde20420bbb759d2e562f9ff747c9e824ac58e25.
+- CI #1563 (45786814317) exposed that three DatabaseService helper modules lived under apps/api/infra/drizzle, which is not included in the compiled Nest dist tree. Moved migration-lock, migration-config and operator-actor-context into apps/api/src/common/database and updated the migration runner and test imports. No SQL or runtime authorization policy changed.
+- CI #1564 (45787029331) on 6bb47ee2c707d8955f06aa50aa7d3d4c9139985d passed lint/typecheck, boundary lint, unit/coverage, integration, migration full apply, contract/codegen, build, Web/Admin and mobile. Container smoke then failed because DatabaseService correctly refused production-like startup when its first database identity query could not be verified.
+- The smoke workflow started disposable PostgreSQL/Redis and used a fixed sleep 10. Replaced that timing assumption with bounded readiness probes (pg_isready and Redis PING) and explicit timeout diagnostics. Exact-head run for 16df88d17ac31739d064fe29105ff3da5461f9fa must validate this fix; no CI result is claimed yet.
+- Do not weaken the production database identity/TLS/role startup guard to make smoke green. If the smoke test still fails, inspect the actual database identity diagnostic and fix the environment/query root cause.
+- PR #157 remains OPEN / DRAFT / UNMERGED. No merge, staging release, shared DB write, migration, grants/RLS change, or worker activation occurred.
+- PR #138 remains OPEN / DRAFT / UNMERGED and mergeable=false; preserve its broad source branch and do not merge wholesale.
+
 ## 26 November 2026 — PR #157 P4 database lifecycle root cause fixed
 
 - PR #157 exact head advanced to `ba85744e4ce13337f1c16439eec5d33241b77dfa`.
