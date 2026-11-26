@@ -77,19 +77,41 @@ export async function assertActiveOrgMembership(
     throw new ForbiddenException('You do not have access to this organization');
   }
 
+  const membershipQuery = db.db.query?.organizationMembers;
+  const organizationQuery = db.db.query?.organizations;
   const [membership, organization] = await Promise.all([
-    db.db.query.organizationMembers.findFirst({
-      where: and(
-        eq(organizationMembers.orgId, orgId),
-        eq(organizationMembers.userId, caller.sub),
-        eq(organizationMembers.status, 'ACTIVE'),
-      ),
-      columns: { id: true },
-    }),
-    db.db.query.organizations.findFirst({
-      where: and(eq(organizations.id, orgId), eq(organizations.isActive, true)),
-      columns: { id: true },
-    }),
+    membershipQuery?.findFirst
+      ? membershipQuery.findFirst({
+          where: and(
+            eq(organizationMembers.orgId, orgId),
+            eq(organizationMembers.userId, caller.sub),
+            eq(organizationMembers.status, 'ACTIVE'),
+          ),
+          columns: { id: true },
+        })
+      : db.db
+          .select({ id: organizationMembers.id })
+          .from(organizationMembers)
+          .where(
+            and(
+              eq(organizationMembers.orgId, orgId),
+              eq(organizationMembers.userId, caller.sub),
+              eq(organizationMembers.status, 'ACTIVE'),
+            ),
+          )
+          .limit(1)
+          .then((rows) => rows[0]),
+    organizationQuery?.findFirst
+      ? organizationQuery.findFirst({
+          where: and(eq(organizations.id, orgId), eq(organizations.isActive, true)),
+          columns: { id: true },
+        })
+      : db.db
+          .select({ id: organizations.id })
+          .from(organizations)
+          .where(and(eq(organizations.id, orgId), eq(organizations.isActive, true)))
+          .limit(1)
+          .then((rows) => rows[0]),
   ]);
 
   if (!membership || !organization) {
