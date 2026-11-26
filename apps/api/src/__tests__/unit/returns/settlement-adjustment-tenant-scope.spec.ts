@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { SettlementAdjustmentService } from '../../../modules/returns/settlement-adjustment.service';
 
@@ -47,14 +47,14 @@ describe('SettlementAdjustmentService — target tenant ownership', () => {
     const h = makeService('org-b');
 
     await expect(h.service.createAdjustment(input, 'finance-a', 'org-a')).rejects.toBeInstanceOf(
-      NotFoundException,
+      ForbiddenException,
     );
 
     expect(h.transaction).not.toHaveBeenCalled();
   });
 
   it('rejects a return request that belongs to a different sub-order', async () => {
-    const h = makeService('org-a', null);
+    const h = makeService('org-a', { id: 'return-foreign', subOrderId: 'order-other' });
 
     await expect(
       h.service.createAdjustment(
