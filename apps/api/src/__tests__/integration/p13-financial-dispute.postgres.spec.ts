@@ -2830,7 +2830,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     expect(events.rows[0].payload.status).toBe('DRAFT');
     expect(events.rows[0].payload.amountMinor).toBe(75);
   }, 60_000);
-  it('FIN-DSH-42: two outbox dispatcher instances cannot claim and dispatch the same pending event', async () => {
+  it('FIN-DSH-42: generic outbox dispatchers leave pending events untouched until a delivery adapter exists', async () => {
     const eventId = randomUUID();
     const aggregateId = randomUUID();
     await pool.query(
@@ -2841,22 +2841,24 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     const dispatcherA = new OutboxDispatcher({ db } as DatabaseService);
     const dispatcherB = new OutboxDispatcher({ db } as DatabaseService);
-    const slowDispatch = async () => new Promise<void>((resolve) => setTimeout(resolve, 100));
-    const dispatchA = vi.spyOn(dispatcherA as any, 'dispatch').mockImplementation(slowDispatch);
-    const dispatchB = vi.spyOn(dispatcherB as any, 'dispatch').mockImplementation(slowDispatch);
 
-    await Promise.all([(dispatcherA as any).poll(), (dispatcherB as any).poll()]);
+    // Both instances may initialize, but neither is allowed to claim,
+    // acknowledge, or mark the event delivered without a registered adapter.
+    dispatcherA.onModuleInit();
+    dispatcherB.onModuleInit();
 
-    expect(dispatchA.mock.calls.length + dispatchB.mock.calls.length).toBe(1);
-    const dispatchedEvent = dispatchA.mock.calls[0]?.[0] ?? dispatchB.mock.calls[0]?.[0];
-    expect(dispatchedEvent).toMatchObject({ eventType: 'test.concurrent_claim', aggregateId });
     const persisted = await pool.query(
-      `SELECT status, locked_at, locked_by FROM outbox_events WHERE id = $1`,
+      `SELECT status, attempts, locked_at, locked_by FROM outbox_events WHERE id = $1`,
       [eventId],
     );
-    expect(persisted.rows[0].status).toBe('DISPATCHED');
-    expect(persisted.rows[0].locked_at).toBeNull();
-    expect(persisted.rows[0].locked_by).toBeNull();
+    expect(persisted.rows[0]).toMatchObject({
+      status: 'PENDING',
+      attempts: 0,
+      locked_at: null,
+      locked_by: null,
+    });
+    expect((dispatcherA as any).poll).toBeUndefined();
+    expect((dispatcherB as any).poll).toBeUndefined();
   }, 30_000);
   // ── FIN-DSH-43: BANK_TRANSFER checkout state is atomic ──────────
 
