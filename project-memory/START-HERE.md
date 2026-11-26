@@ -1,3 +1,27 @@
+## 26 November 2026 — consolidated project checkpoint
+
+### Branch and PR state (re-verified)
+
+- PR #138 source branch `remediation/phase-0-1-tenant-security`: head 6af349d3fb53f5f6f3bea8f608142e4745aa2610. Preservation branch `preservation/pr138-remediation-2026-11-25` is synchronized to the same SHA. PR #138 remains OPEN / DRAFT / UNMERGED, base `develop`, mergeable=false, 1,943 changed files. Do not merge this branch wholesale.
+- PR #157: head 5f9399cd6fa80e51b508c31203dd6b5f80b37757, OPEN / DRAFT / UNMERGED, base `develop`, 32 changed files. New exact-head CI run #1556 is in progress. Previous run #1554 (old head 77145bc...) had five jobs pass and two API test jobs fail; test fixtures were repaired in commits 21d4e344... and 4341fef0..., then one consolidated run #1556 was started. Do not start another run while #1556 is active.
+- PR #158: head 5c7e41bf04ec16e9fc0565e57425fcc05f548ffc, OPEN / DRAFT / UNMERGED, base branch `integration/g002-actor-context-foundation`, 4 changed files. It includes active membership/active organization checks and explicit-null JWT activeOrg profile alignment. It has no exact-head Actions run and is based on the older PR #157 head 77145bc...; rebase/merge the refreshed PR #157 foundation only after run #1556 is green.
+- PR #138 remains the preservation/source of truth for unextracted remediation. Do not cherry-pick or merge the entire 1,943-file diff into develop.
+
+### Latest PR #138 source work
+
+- Completed targeted source scan of 75 numbered SQL migrations and 62 API service/worker files; details and limitations are recorded in `docs/remediation/G-002-MIGRATION-OBJECT-AND-OPERATOR-ACCESS-AUDIT-2026-11-24.md`.
+- `OrdersService.cancelOrder` now requires CallerContext, validates userId === caller.sub and has no unscoped fallback; `rejectOrder` now has a required CallerContext and validates merchantUserId === caller.sub. Regression tests and lifecycle test actor fixtures were updated. These PR #138 changes have NOT been tested or run in CI.
+- Inventory/Pricing/Cart module consumer map and migration object review are recorded. Remaining: complete raw SQL/dynamic SQL scan across controllers/scripts/packages; classify remaining optional OrdersService callers; live pg_partman/partition/function/extension ownership/ACL checks; verify the payment-proof cleanup worker contract; complete operator/migration-runner callsite audit.
+- Staging remains read-only. Do not enable RLS or change grants blindly: all 111 tables were previously confirmed with RLS disabled; OTP codes were observed in plain-text logs; worker isolation and startup migration/seed behavior still require remediation and controlled verification.
+
+### Immediate next actions
+
+1. Wait for PR #157 run #1556. Fix only failures from that exact head and avoid duplicate CI.
+2. If PR #157 is green, reconcile PR #158 onto the refreshed foundation and run one consolidated validation.
+3. Continue bounded G-002 actor-context adoption from refreshed `develop`; preserve PR #138 and its synchronized backup.
+4. Keep all database, staging, migration, RLS/grant, worker activation and deployment actions read-only/unauthorized until the separate security/deployment gates are reviewed.
+
+
 ## 26 November 2026 — PR #158 profile-claim alignment follow-up
 
 - PR #158 is OPEN / DRAFT / UNMERGED, stacked on PR #157, current head 5c7e41bf04ec16e9fc0565e57425fcc05f548ffc, mergeable=true, 4 files. It now checks ACTIVE organization membership and active organization for switching/claims/profile, and keeps profile role/perms aligned with an explicitly null JWT activeOrg.
