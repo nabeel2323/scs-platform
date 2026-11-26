@@ -842,3 +842,14 @@ PR #138 is OPEN / DRAFT / UNMERGED at `e410bf44b272eafb8e762636b66877f9e0c4b230`
 - PR #153 remains OPEN/DRAFT at `5294698d8db78e21df972e8ce6213f21237789fa`; exact-head CI #1523 previously passed, independent review still outstanding. PR #154 remains OPEN/DRAFT at `e421e21b1e66386a9d0c259fb83c99f1a05272cb`; exact-head validation is still required.
 - PR #138 remains OPEN / DRAFT / UNMERGED at `cf967590891eb446a41b5de91429755a8be10d05`, mergeable=false. Keep its source and preservation refs intact and synchronized only by expected-SHA fast-forward; never merge its broad diff wholesale.
 - No shared DB/catalog access, migration execution, grant/default-ACL/RLS change, staging mutation, worker activation, bootstrap/token issuance, deployment or merge occurred. The green migration job was isolated CI-only disposable database evidence.
+
+
+## Live checkpoint — 26 November 2026 (G-002 foundation and identity slices merged)
+
+- User explicitly confirmed that independent GitHub reviewers are not required for this project. Do not treat missing reviewer submissions as a blocker; use exact-head mandatory CI, source/scope verification, mergeability and explicit safety boundaries instead. Never self-approve or fabricate reviews.
+- PR #157 G-002 actor-context foundation was marked ready and merged into `develop` using a merge commit. Exact head `435b3fc1c44cb12784da3b72157b0b25f66e0b8d`; exact-head Actions run #1572 (`45805365809`) passed all 10 mandatory jobs. Merge commit: `daabd25cd00a6d2e9d6613d3c0edba23e56b6603`.
+- PR #158 active-organization identity claims was retargeted to `develop` after #157 merged, verified to contain exactly six files, marked ready and merged. Exact head `703b9d49f27a67dfdd02eb47ed925b3244bc8b8f`; exact-head Actions run #1576 (`45819431072`) passed all 10 mandatory jobs. Merge commit: `f58047c363adb69054a92b98dbdfe226dc17da21`.
+- Current `develop` head after both merges: `f58047c363adb69054a92b98dbdfe226dc17da21`. #157/#158 are no longer open PRs; their branch refs are retained as historical evidence.
+- This is the first successful bounded integration of PR #138 remediation work. PR #138 itself remains protected source/evidence only; never wholesale merge it.
+- Next: reconcile #145 (canonical narrow migration 0070), #154 (canonical additive lease migration 0071), #153 (outbox no-false-ack safety), then separately assess #155/#156. Revalidate each PR against refreshed develop and migration ordering before merge. Do not apply migrations to staging or deploy.
+- No staging/shared database writes, migration application, grants/default-ACL/RLS changes, Render changes, worker activation, deployment, restart or release occurred.
