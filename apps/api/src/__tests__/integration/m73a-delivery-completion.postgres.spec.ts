@@ -208,7 +208,18 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
     const promotions = new PromotionsService(database);
     const realOutbox = new OutboxDispatcher(database);
     const inventoryService = new InventoryService(database, realOutbox);
-    ordersService = new OrdersService(database, realOutbox, promotions, realtime, undefined, notifications);
+    ordersService = new OrdersService(
+      database,
+      realOutbox,
+      promotions,
+      realtime,
+      undefined,
+      notifications,
+      {
+        assertDriverEligibleForStore: vi.fn().mockResolvedValue(undefined),
+        validateCheckoutSelection: vi.fn().mockResolvedValue(undefined),
+      } as any,
+    );
 
     // Roles
     const rolesRes = await pool.query(`SELECT id, key FROM roles`);
