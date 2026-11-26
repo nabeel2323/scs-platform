@@ -1,19 +1,20 @@
-import { Pool } from "pg";
-import fs from "node:fs";
-import crypto from "node:crypto";
+import { Pool } from 'pg';
+import { assertStagingBootstrapTarget, setStagingBootstrapActorContext } from './scripts/staging-bootstrap-safety';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
 
 async function main() {
-  const connectionString = process.env["DATABASE_URL"];
-  const caFile = process.env["PGSSLROOTCERT"];
+  const connectionString = process.env['DATABASE_URL'];
+  const caFile = process.env['PGSSLROOTCERT'];
 
   if (!connectionString || !caFile) {
-    throw new Error("DATABASE_URL or PGSSLROOTCERT is not set");
+    throw new Error('DATABASE_URL or PGSSLROOTCERT is not set');
   }
 
   const pool = new Pool({
     connectionString,
     ssl: {
-      ca: fs.readFileSync(caFile, "utf8"),
+      ca: fs.readFileSync(caFile, 'utf8'),
       rejectUnauthorized: true,
     },
   });
@@ -21,7 +22,9 @@ async function main() {
   const client = await pool.connect();
 
   try {
-    await client.query("BEGIN");
+    await assertStagingBootstrapTarget(client, 'bootstrap-staging-store');
+    await client.query('BEGIN');
+    await setStagingBootstrapActorContext(client, 'bootstrap-staging-store');
 
     /*
      * Resolve the existing staging merchant organization.
@@ -37,9 +40,7 @@ async function main() {
     );
 
     if (orgResult.rowCount !== 1) {
-      throw new Error(
-        "TAIF B2 Test Merchant organization was not found",
-      );
+      throw new Error('TAIF B2 Test Merchant organization was not found');
     }
 
     const org = orgResult.rows[0];
@@ -66,9 +67,7 @@ async function main() {
     );
 
     if (existingStore.rowCount && existingStore.rowCount > 0) {
-      throw new Error(
-        `Store taif-b2-test-store already exists (${existingStore.rows[0].id}).`,
-      );
+      throw new Error(`Store taif-b2-test-store already exists (${existingStore.rows[0].id}).`);
     }
 
     /*
@@ -123,41 +122,41 @@ async function main() {
       [
         storeId,
         org.id,
-        "taif-b2-test-store",
-        "TAIF B2 Test Store",
-        "Dedicated staging store for TAIF B2 commerce testing",
-        "SAR",
-        "Asia/Riyadh",
-        "ar",
-        "DRAFT",
-        "PENDING",
+        'taif-b2-test-store',
+        'TAIF B2 Test Store',
+        'Dedicated staging store for TAIF B2 commerce testing',
+        'SAR',
+        'Asia/Riyadh',
+        'ar',
+        'DRAFT',
+        'PENDING',
         JSON.stringify({}),
         JSON.stringify({
-          environment: "staging",
-          purpose: "b2-commerce-testing",
+          environment: 'staging',
+          purpose: 'b2-commerce-testing',
         }),
       ],
     );
 
-    await client.query("COMMIT");
+    await client.query('COMMIT');
 
-    console.log("\nSTAGING STORE BOOTSTRAP COMPLETE\n");
+    console.log('\nSTAGING STORE BOOTSTRAP COMPLETE\n');
 
-    console.log("ORGANIZATION");
+    console.log('ORGANIZATION');
     console.table([org]);
 
-    console.log("STORE");
+    console.log('STORE');
     console.table(storeResult.rows);
 
-    console.log("\nSlug: taif-b2-test-store");
-    console.log("Display name: TAIF B2 Test Store");
-    console.log("Currency: SAR");
-    console.log("Timezone: Asia/Riyadh");
-    console.log("Locale: ar");
-    console.log("Status: DRAFT");
-    console.log("Verification: PENDING");
+    console.log('\nSlug: taif-b2-test-store');
+    console.log('Display name: TAIF B2 Test Store');
+    console.log('Currency: SAR');
+    console.log('Timezone: Asia/Riyadh');
+    console.log('Locale: ar');
+    console.log('Status: DRAFT');
+    console.log('Verification: PENDING');
   } catch (error) {
-    await client.query("ROLLBACK");
+    await client.query('ROLLBACK');
     throw error;
   } finally {
     client.release();
@@ -166,7 +165,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("\nSTAGING STORE BOOTSTRAP FAILED");
+  console.error('\nSTAGING STORE BOOTSTRAP FAILED');
   console.error(error);
   process.exit(1);
 });

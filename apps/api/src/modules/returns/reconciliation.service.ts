@@ -12,18 +12,32 @@
  * Key invariants (Phase 3.1 hardened):
  * - Versioned runs: each rerun creates a NEW run with incremented version
  * - Previous runs and their discrepancies are NEVER deleted
- * - Concurrent runs are prevented by unique index on (period, currency, version)
+ * - Concurrent runs are serialized per tenant/period/currency and protected by a tenant-scoped unique index
  * - Tenant-scoped: all queries filtered by orgId
  * - Never alters finalized financial records
  * - Deterministic output for the same period, currency and version
  */
-import { Injectable, Logger, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
-import { reconciliationRuns, reconciliationDiscrepancies, settlementAdjustments, settlementAdjustmentApprovals, commissionReversals } from './financial.schema';
-import { returnRequests, returnRequestItems } from './returns.schema';
+import {
+  reconciliationRuns,
+  reconciliationDiscrepancies,
+  settlementAdjustments,
+  settlementAdjustmentApprovals,
+  commissionReversals,
+} from './financial.schema';
+import { returnRequests, returnRequestItems, returnRequestEvents } from './returns.schema';
 import { refunds, settlementRecords } from '../payments/payments.schema';
 import { orders, orderFinancialBreakdown } from '../orders/orders.schema';
 import { stores } from '../merchant/merchant.schema';
+import { organizations } from '../identity/identity.schema';
+import { roundProportionalMinorUnits } from './returns-financials';
 import { eq, and, sql, gte, lte, inArray, isNull } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
@@ -50,6 +64,93 @@ export interface ReconciliationResult {
   status: string;
   discrepancyCount: number;
   summary: Record<string, number>;
+}
+
+export interface ReconciliationDiscrepancyDraft {
+  type: DiscrepancyType;
+  sourceRef: string;
+  expected?: number;
+  actual?: number;
+  delta?: number;
+  description: string;
+}
+
+/**
+ * Recalculate a settlement row using its ledger semantics. Primary settlements
+ * debit commission, while ADJUSTMENT rows can contain a positive commission
+ * reversal credit. Minor-unit arithmetic stays exact and refuses unsafe inputs.
+ */
+export function calculateExpectedSettlementNetMinor(
+  status: string,
+  grossMinor: number,
+  refundMinor: number,
+  commissionMinor: number,
+  feeMinor: number,
+  isAdjustmentLedgerRow?: boolean,
+): number | null {
+  const amounts = [grossMinor, refundMinor, commissionMinor, feeMinor];
+  if (amounts.some((amount) => !Number.isSafeInteger(amount))) {
+    return null;
+  }
+
+  const commission = BigInt(commissionMinor);
+  const expected =
+    BigInt(grossMinor) -
+    BigInt(refundMinor) +
+    ((isAdjustmentLedgerRow ?? status === 'ADJUSTMENT') ? commission : -commission) -
+    BigInt(feeMinor);
+  const result = Number(expected);
+  return Number.isSafeInteger(result) ? result : null;
+}
+
+/** Sum non-negative minor-unit amounts without Number precision loss. */
+export function sumSafeMinorUnitAmounts(amounts: number[]): bigint | null {
+  if (amounts.some((amount) => !Number.isSafeInteger(amount) || amount < 0)) {
+    return null;
+  }
+  return amounts.reduce((total, amount) => total + BigInt(amount), 0n);
+}
+
+/**
+ * Match the return workflow's half-up tax allocation when calculating the
+ * maximum refundable delivery fee. Returns null for unsafe source data.
+ */
+export function calculateDeliveryFeeRefundCapMinor(
+  deliveryFeeMinor: number,
+  taxMinor: number,
+  netGoodsMinor: number,
+): number | null {
+  if (
+    !Number.isSafeInteger(deliveryFeeMinor) ||
+    deliveryFeeMinor < 0 ||
+    !Number.isSafeInteger(taxMinor) ||
+    taxMinor < 0 ||
+    !Number.isSafeInteger(netGoodsMinor)
+  ) {
+    return null;
+  }
+
+  const deliveryTaxMinor =
+    netGoodsMinor > 0
+      ? roundProportionalMinorUnits(BigInt(deliveryFeeMinor), taxMinor, netGoodsMinor)
+      : 0;
+  const cap = deliveryFeeMinor + deliveryTaxMinor;
+  return Number.isSafeInteger(cap) ? cap : null;
+}
+
+/** Status mismatches are descriptive evidence, not monetary minor-unit values. */
+export function buildRefundStatusMismatchDiscrepancy(
+  returnId: string,
+  refundId: string,
+  refundStatus: string,
+  expectedRefundStatus = 'SUCCEEDED',
+  returnStatus = 'REFUNDED',
+): ReconciliationDiscrepancyDraft {
+  return {
+    type: 'REFUND_STATUS_MISMATCH',
+    sourceRef: `return:${returnId}:refund:${refundId}`,
+    description: `Return ${returnId} is ${returnStatus} but linked refund ${refundId} has status ${refundStatus}; expected ${expectedRefundStatus}`,
+  };
 }
 
 @Injectable()
@@ -81,123 +182,217 @@ export class ReconciliationService {
 
     const startDate = new Date(periodStart + 'T00:00:00.000Z');
     const endDate = new Date(periodEnd + 'T23:59:59.999Z');
-
-    // Determine the next version for this period/currency/org
-    const latestRun = await this.db.db.query.reconciliationRuns.findFirst({
-      where: and(
-        eq(reconciliationRuns.periodStart, periodStart),
-        eq(reconciliationRuns.periodEnd, periodEnd),
-        eq(reconciliationRuns.currency, currency),
-        orgId ? eq(reconciliationRuns.orgId, orgId) : isNull(reconciliationRuns.orgId),
-      ),
-      orderBy: [sql`${reconciliationRuns.version} DESC`],
-    });
-
-    const nextVersion = (latestRun?.version ?? 0) + 1;
-
-    // Create a new run (never reuse an existing run)
-    const runId = crypto.randomUUID();
-    await this.db.db.insert(reconciliationRuns).values({
-      id: runId,
-      periodStart,
-      periodEnd,
-      currency,
-      version: nextVersion,
-      status: 'RUNNING',
-      summary: {},
-      discrepancyCount: 0,
-      executedBy,
-      orgId: orgId ?? null,
-    });
-
-    // If there was a prior run, link it via supersededBy on the new run
-    // (We update the new run to point to the latest prior run)
-    if (latestRun) {
-      await this.db.db.update(reconciliationRuns)
-        .set({ supersededBy: latestRun.id } as any)
-        .where(eq(reconciliationRuns.id, runId));
-    }
-
-    const discrepancies: Array<{
-      type: DiscrepancyType; sourceRef: string;
-      expected?: number; actual?: number; delta?: number;
-      description: string;
-    }> = [];
-
-    // ── Check 1: Returns with approved refunds but no executed refund ──
-    await this.checkMissingRefunds(startDate, endDate, orgId, discrepancies);
-
-    // ── Check 2: Commission reversal consistency ──
-    await this.checkCommissionReversals(startDate, endDate, currency, orgId, discrepancies);
-
-    // ── Check 3: Settlement net formula consistency ──
-    await this.checkSettlementConsistency(startDate, endDate, currency, orgId, discrepancies);
-
-    // ── Check 4: Adjustment approval completeness ──
-    await this.checkAdjustmentApprovals(startDate, endDate, orgId, discrepancies);
-
-    // ── Check 5: Delivery-fee refund caps ──
-    await this.checkDeliveryFeeCaps(startDate, endDate, orgId, discrepancies);
-
-    // ── Check 6: Duplicate detection ──
-    await this.checkDuplicates(startDate, endDate, orgId, discrepancies);
-
-    // Record discrepancies (all in the new run)
-    const summary: Record<string, number> = {};
-    for (const d of discrepancies) {
-      summary[d.type] = (summary[d.type] ?? 0) + 1;
-      await this.db.db.insert(reconciliationDiscrepancies).values({
-        id: crypto.randomUUID(),
-        runId,
-        discrepancyType: d.type,
-        sourceRef: d.sourceRef,
-        expectedMinor: d.expected ?? null,
-        actualMinor: d.actual ?? null,
-        deltaMinor: d.delta ?? null,
-        description: d.description,
-        orgId: orgId ?? null,
+    const tenantId = orgId ?? null;
+    if (tenantId) {
+      const organization = await this.db.db.query.organizations.findFirst({
+        where: eq(organizations.id, tenantId),
+        columns: { id: true },
       });
+      if (!organization) throw new NotFoundException('Reconciliation organization not found');
     }
+    const lockKey = `reconciliation:${tenantId ?? 'global'}:${periodStart}:${periodEnd}:${currency}`;
+    let failedRunId: string | null = null;
 
-    // Update run record to COMPLETED
-    await this.db.db.update(reconciliationRuns)
-      .set({
-        status: 'COMPLETED',
-        summary,
-        discrepancyCount: discrepancies.length,
-        completedAt: new Date(),
-      } as any)
-      .where(eq(reconciliationRuns.id, runId));
+    try {
+      const result = await this.db.db.transaction(async (tx) => {
+        const txDb = tx;
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
 
-    this.logger.log(
-      `Reconciliation ${runId} v${nextVersion} completed: ${periodStart} to ${periodEnd} ` +
-      `(${currency}) — ${discrepancies.length} discrepancies found`,
-    );
+        const [latestRun] = await txDb
+          .select()
+          .from(reconciliationRuns)
+          .where(
+            and(
+              eq(reconciliationRuns.periodStart, periodStart),
+              eq(reconciliationRuns.periodEnd, periodEnd),
+              eq(reconciliationRuns.currency, currency),
+              tenantId ? eq(reconciliationRuns.orgId, tenantId) : isNull(reconciliationRuns.orgId),
+            ),
+          )
+          .orderBy(sql`${reconciliationRuns.version} DESC`)
+          .limit(1);
+        const nextVersion = (latestRun?.version ?? 0) + 1;
+        const runId = crypto.randomUUID();
+        failedRunId = runId;
 
-    return {
-      runId,
-      version: nextVersion,
-      periodStart,
-      periodEnd,
-      currency,
-      status: 'COMPLETED',
-      discrepancyCount: discrepancies.length,
-      summary,
-    };
+        await txDb.insert(reconciliationRuns).values({
+          id: runId,
+          periodStart,
+          periodEnd,
+          currency,
+          version: nextVersion,
+          status: 'RUNNING',
+          summary: {},
+          discrepancyCount: 0,
+          executedBy,
+          ...(tenantId ? { orgId: tenantId } : {}),
+        });
+
+        // The predecessor points forward to the new run through superseded_by.
+        if (latestRun) {
+          const linked = await txDb
+            .update(reconciliationRuns)
+            .set({ supersededBy: runId })
+            .where(
+              and(eq(reconciliationRuns.id, latestRun.id), isNull(reconciliationRuns.supersededBy)),
+            )
+            .returning({ id: reconciliationRuns.id });
+          if (linked.length !== 1) {
+            throw new ConflictException(
+              'Latest reconciliation run already has a successor; retry the reconciliation',
+            );
+          }
+        }
+
+        const discrepancies: ReconciliationDiscrepancyDraft[] = [];
+        await this.checkMissingRefunds(txDb, startDate, endDate, tenantId, discrepancies);
+        await this.checkRefundFailureStatusParity(
+          txDb,
+          startDate,
+          endDate,
+          tenantId,
+          discrepancies,
+        );
+        await this.checkCommissionReversals(
+          txDb,
+          startDate,
+          endDate,
+          currency,
+          tenantId,
+          discrepancies,
+        );
+        await this.checkSettlementConsistency(
+          txDb,
+          startDate,
+          endDate,
+          currency,
+          tenantId,
+          discrepancies,
+        );
+        await this.checkAdjustmentApprovals(txDb, startDate, endDate, tenantId, discrepancies);
+        await this.checkDeliveryFeeCaps(txDb, startDate, endDate, tenantId, discrepancies);
+        await this.checkDuplicates(txDb, startDate, endDate, tenantId, discrepancies);
+
+        const summary: Record<string, number> = {};
+        for (const discrepancy of discrepancies) {
+          summary[discrepancy.type] = (summary[discrepancy.type] ?? 0) + 1;
+          await txDb.insert(reconciliationDiscrepancies).values({
+            id: crypto.randomUUID(),
+            runId,
+            discrepancyType: discrepancy.type,
+            sourceRef: discrepancy.sourceRef,
+            expectedMinor: discrepancy.expected ?? null,
+            actualMinor: discrepancy.actual ?? null,
+            deltaMinor: discrepancy.delta ?? null,
+            description: discrepancy.description,
+            orgId: tenantId,
+          });
+        }
+
+        await txDb
+          .update(reconciliationRuns)
+          .set({
+            status: 'COMPLETED',
+            summary,
+            discrepancyCount: discrepancies.length,
+            completedAt: new Date(),
+          })
+          .where(eq(reconciliationRuns.id, runId));
+
+        return {
+          runId,
+          version: nextVersion,
+          periodStart,
+          periodEnd,
+          currency,
+          status: 'COMPLETED',
+          discrepancyCount: discrepancies.length,
+          summary,
+        };
+      });
+
+      this.logger.log(
+        `Reconciliation ${result.runId} v${result.version} completed: ${periodStart} to ${periodEnd} ` +
+          `(${currency}) — ${result.discrepancyCount} discrepancies found`,
+      );
+      return result;
+    } catch (error) {
+      // The execution transaction has rolled back, so no partial discrepancy rows remain.
+      // Persist a separate FAILED run for audit history when the database is available.
+      if (failedRunId) {
+        const failedRunIdToPersist = failedRunId;
+        try {
+          await this.db.db.transaction(async (tx) => {
+            const txDb = tx;
+            await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
+            const [latestRun] = await txDb
+              .select()
+              .from(reconciliationRuns)
+              .where(
+                and(
+                  eq(reconciliationRuns.periodStart, periodStart),
+                  eq(reconciliationRuns.periodEnd, periodEnd),
+                  eq(reconciliationRuns.currency, currency),
+                  tenantId
+                    ? eq(reconciliationRuns.orgId, tenantId)
+                    : isNull(reconciliationRuns.orgId),
+                ),
+              )
+              .orderBy(sql`${reconciliationRuns.version} DESC`)
+              .limit(1);
+            const failedVersion = (latestRun?.version ?? 0) + 1;
+            await txDb.insert(reconciliationRuns).values({
+              id: failedRunIdToPersist,
+              periodStart,
+              periodEnd,
+              currency,
+              version: failedVersion,
+              status: 'FAILED',
+              summary: { executionError: 1 },
+              discrepancyCount: 0,
+              executedBy,
+              ...(tenantId ? { orgId: tenantId } : {}),
+              completedAt: new Date(),
+            });
+            if (latestRun) {
+              const linked = await txDb
+                .update(reconciliationRuns)
+                .set({ supersededBy: failedRunIdToPersist })
+                .where(
+                  and(
+                    eq(reconciliationRuns.id, latestRun.id),
+                    isNull(reconciliationRuns.supersededBy),
+                  ),
+                )
+                .returning({ id: reconciliationRuns.id });
+              if (linked.length !== 1) {
+                throw new ConflictException('Latest reconciliation run already has a successor');
+              }
+            }
+          });
+        } catch (recordError) {
+          this.logger.error(
+            `Unable to persist failed reconciliation run ${failedRunIdToPersist}: ${recordError instanceof Error ? recordError.message : 'unknown error'}`,
+          );
+        }
+      }
+      throw error;
+    }
   }
-
   // ═══════════════════════════════════════════════════════════════
   // CHECK IMPLEMENTATIONS (all tenant-scoped via orgId)
   // ═══════════════════════════════════════════════════════════════
 
   /** Check for returns that reached REFUNDED status but have no SUCCEEDED refund. */
   private async checkMissingRefunds(
-    startDate: Date, endDate: Date,
+    db: any,
+    startDate: Date,
+    endDate: Date,
     orgId: string | null | undefined,
-    discrepancies: Array<any>,
+    discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
     // Build org-scoped query: return → sub-order → store → org
-    const refundedReturns = await this.db.db
+    const refundedReturns = await db
       .select({
         id: returnRequests.id,
         requestedRefundMinor: returnRequests.requestedRefundMinor,
@@ -207,12 +402,31 @@ export class ReconciliationService {
       .from(returnRequests)
       .innerJoin(orders, eq(returnRequests.subOrderId, orders.id))
       .innerJoin(stores, eq(orders.storeId, stores.id))
-      .where(and(
-        eq(returnRequests.status, 'REFUNDED'),
-        gte(returnRequests.createdAt, startDate),
-        lte(returnRequests.createdAt, endDate),
-        orgId ? eq(stores.orgId, orgId) : undefined,
-      ));
+      .leftJoin(
+        returnRequestEvents,
+        and(
+          eq(returnRequestEvents.returnRequestId, returnRequests.id),
+          eq(returnRequestEvents.toStatus, 'REFUNDED'),
+        ),
+      )
+      .where(
+        and(
+          eq(returnRequests.status, 'REFUNDED'),
+          // Reconcile the period in which the refund actually completed, not
+          // the period in which the customer originally opened the return.
+          // Legacy rows without a REFUNDED event retain the created_at fallback.
+          sql`(
+          (${returnRequestEvents.id} IS NOT NULL
+            AND ${returnRequestEvents.createdAt} >= ${startDate}
+            AND ${returnRequestEvents.createdAt} <= ${endDate})
+          OR
+          (${returnRequestEvents.id} IS NULL
+            AND ${returnRequests.createdAt} >= ${startDate}
+            AND ${returnRequests.createdAt} <= ${endDate})
+        )`,
+          orgId ? eq(stores.orgId, orgId) : undefined,
+        ),
+      );
 
     for (const ret of refundedReturns) {
       if (!ret.refundId) {
@@ -227,9 +441,7 @@ export class ReconciliationService {
         continue;
       }
 
-      const refund = await this.db.db.query.refunds.findFirst({
-        where: eq(refunds.id, ret.refundId),
-      });
+      const [refund] = await db.select().from(refunds).where(eq(refunds.id, ret.refundId)).limit(1);
       if (!refund) {
         discrepancies.push({
           type: 'INCOMPLETE_SOURCE_DATA' as DiscrepancyType,
@@ -237,26 +449,119 @@ export class ReconciliationService {
           description: `Return ${ret.id} references refund ${ret.refundId} which does not exist`,
         });
       } else if (refund.status !== 'SUCCEEDED') {
+        discrepancies.push(buildRefundStatusMismatchDiscrepancy(ret.id, refund.id, refund.status));
+      }
+    }
+  }
+
+  /**
+   * Verify that failed/pending return states agree with the linked payment refund.
+   * Refund approval may legitimately succeed before the return is finalized, so
+   * REFUND_PENDING accepts active or SUCCEEDED refund states; REFUND_FAILED must
+   * map to FAILED, and a pending retry must never remain linked to FAILED.
+   */
+  private async checkRefundFailureStatusParity(
+    db: any,
+    startDate: Date,
+    endDate: Date,
+    orgId: string | null | undefined,
+    discrepancies: ReconciliationDiscrepancyDraft[],
+  ) {
+    const inFlightReturns = await db
+      .select({
+        id: returnRequests.id,
+        status: returnRequests.status,
+        requestedRefundMinor: returnRequests.requestedRefundMinor,
+        refundId: returnRequests.refundId,
+      })
+      .from(returnRequests)
+      .innerJoin(orders, eq(returnRequests.subOrderId, orders.id))
+      .innerJoin(stores, eq(orders.storeId, stores.id))
+      .leftJoin(
+        returnRequestEvents,
+        and(
+          eq(returnRequestEvents.returnRequestId, returnRequests.id),
+          eq(returnRequestEvents.toStatus, returnRequests.status),
+        ),
+      )
+      .where(
+        and(
+          inArray(returnRequests.status, ['REFUND_FAILED', 'REFUND_PENDING']),
+          orgId ? eq(stores.orgId, orgId) : undefined,
+        ),
+      )
+      .groupBy(
+        returnRequests.id,
+        returnRequests.status,
+        returnRequests.requestedRefundMinor,
+        returnRequests.refundId,
+        returnRequests.createdAt,
+      ).having(sql`COALESCE(
+        MAX(${returnRequestEvents.createdAt}),
+        ${returnRequests.createdAt}
+      ) >= ${startDate} AND COALESCE(
+        MAX(${returnRequestEvents.createdAt}),
+        ${returnRequests.createdAt}
+      ) <= ${endDate}`);
+
+    for (const ret of inFlightReturns) {
+      if (!ret.refundId) {
+        const expected = Number(ret.requestedRefundMinor);
         discrepancies.push({
-          type: 'REFUND_STATUS_MISMATCH' as DiscrepancyType,
-          sourceRef: `return:${ret.id}:refund:${refund.id}`,
-          expected: 'SUCCEEDED',
-          actual: refund.status as any,
-          description: `Return ${ret.id} is REFUNDED but linked refund is ${refund.status}`,
+          type: 'MISSING_REFUND',
+          sourceRef: `return:${ret.id}`,
+          expected,
+          actual: 0,
+          delta: expected,
+          description: `Return ${ret.id} is ${ret.status} but has no linked refund record`,
         });
+        continue;
+      }
+
+      const [refund] = await db.select().from(refunds).where(eq(refunds.id, ret.refundId)).limit(1);
+      if (!refund) {
+        discrepancies.push({
+          type: 'INCOMPLETE_SOURCE_DATA',
+          sourceRef: `return:${ret.id}:refund:${ret.refundId}`,
+          description: `Return ${ret.id} references refund ${ret.refundId} which does not exist`,
+        });
+        continue;
+      }
+
+      const validRefundStatuses =
+        ret.status === 'REFUND_FAILED'
+          ? ['FAILED']
+          : ['REQUESTED', 'PROCESSING', 'APPROVED', 'SUCCEEDED'];
+      if (!validRefundStatuses.includes(refund.status)) {
+        const expectedStatus =
+          ret.status === 'REFUND_FAILED'
+            ? 'FAILED'
+            : 'REQUESTED, PROCESSING, APPROVED or SUCCEEDED';
+        discrepancies.push(
+          buildRefundStatusMismatchDiscrepancy(
+            ret.id,
+            refund.id,
+            refund.status,
+            expectedStatus,
+            ret.status,
+          ),
+        );
       }
     }
   }
 
   /** Check commission reversal consistency for eligible returns. */
   private async checkCommissionReversals(
-    startDate: Date, endDate: Date, currency: string,
+    db: any,
+    startDate: Date,
+    endDate: Date,
+    currency: string,
     orgId: string | null | undefined,
-    discrepancies: Array<any>,
+    discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
     const REVERSAL_CATEGORIES = ['MERCHANT', 'PLATFORM', 'CARRIER_DAMAGE'];
 
-    const eligibleReturns = await this.db.db
+    const eligibleReturns = await db
       .select({
         id: returnRequests.id,
         subOrderId: returnRequests.subOrderId,
@@ -266,21 +571,43 @@ export class ReconciliationService {
       .from(returnRequests)
       .innerJoin(orders, eq(returnRequests.subOrderId, orders.id))
       .innerJoin(stores, eq(orders.storeId, stores.id))
-      .where(and(
-        eq(returnRequests.status, 'REFUNDED'),
-        gte(returnRequests.createdAt, startDate),
-        lte(returnRequests.createdAt, endDate),
-        orgId ? eq(stores.orgId, orgId) : undefined,
-      ));
+      .leftJoin(
+        returnRequestEvents,
+        and(
+          eq(returnRequestEvents.returnRequestId, returnRequests.id),
+          eq(returnRequestEvents.toStatus, 'REFUNDED'),
+        ),
+      )
+      .where(
+        and(
+          eq(returnRequests.status, 'REFUNDED'),
+          // Use the REFUNDED transition timestamp for period attribution;
+          // fall back to created_at only for legacy rows without event history.
+          sql`(
+          (${returnRequestEvents.id} IS NOT NULL
+            AND ${returnRequestEvents.createdAt} >= ${startDate}
+            AND ${returnRequestEvents.createdAt} <= ${endDate})
+          OR
+          (${returnRequestEvents.id} IS NULL
+            AND ${returnRequests.createdAt} >= ${startDate}
+            AND ${returnRequests.createdAt} <= ${endDate})
+        )`,
+          orgId ? eq(stores.orgId, orgId) : undefined,
+        ),
+      );
 
     for (const ret of eligibleReturns) {
-      if (!ret.responsibilityCategory || !REVERSAL_CATEGORIES.includes(ret.responsibilityCategory)) {
+      if (
+        !ret.responsibilityCategory ||
+        !REVERSAL_CATEGORIES.includes(ret.responsibilityCategory)
+      ) {
         continue;
       }
 
-      const reversals = await this.db.db.query.commissionReversals.findMany({
-        where: eq(commissionReversals.returnRequestId, ret.id),
-      });
+      const reversals = await db
+        .select()
+        .from(commissionReversals)
+        .where(eq(commissionReversals.returnRequestId, ret.id));
 
       if (reversals.length === 0) {
         discrepancies.push({
@@ -300,19 +627,42 @@ export class ReconciliationService {
         });
       }
 
-      const breakdown = await this.db.db.query.orderFinancialBreakdown.findFirst({
-        where: eq(orderFinancialBreakdown.orderId, ret.subOrderId),
-      });
+      const [breakdown] = await db
+        .select()
+        .from(orderFinancialBreakdown)
+        .where(eq(orderFinancialBreakdown.orderId, ret.subOrderId))
+        .limit(1);
       if (breakdown) {
-        const totalReversed = reversals.reduce((sum, r) => sum + Number(r.reversalMinor), 0);
-        if (totalReversed > breakdown.commissionMinor) {
+        const originalCommissionMinor = Number(breakdown.commissionMinor);
+        const totalReversed = sumSafeMinorUnitAmounts(
+          reversals.map((reversal: { reversalMinor: number }) => Number(reversal.reversalMinor)),
+        );
+
+        if (
+          !Number.isSafeInteger(originalCommissionMinor) ||
+          originalCommissionMinor < 0 ||
+          totalReversed === null
+        ) {
           discrepancies.push({
-            type: 'EXCESSIVE_REVERSAL' as DiscrepancyType,
+            type: 'INCOMPLETE_SOURCE_DATA',
             sourceRef: `return:${ret.id}`,
-            expected: breakdown.commissionMinor,
-            actual: totalReversed,
-            delta: totalReversed - breakdown.commissionMinor,
-            description: `Return ${ret.id} reversal ${totalReversed} exceeds original commission ${breakdown.commissionMinor}`,
+            description: `Return ${ret.id} commission reversal totals contain an unsafe minor-unit value; exact comparison is unavailable`,
+          });
+          continue;
+        }
+
+        const originalCommission = BigInt(originalCommissionMinor);
+        if (totalReversed > originalCommission) {
+          const delta = totalReversed - originalCommission;
+          const totalReversedNumber = Number(totalReversed);
+          const deltaNumber = Number(delta);
+          discrepancies.push({
+            type: 'EXCESSIVE_REVERSAL',
+            sourceRef: `return:${ret.id}`,
+            expected: originalCommissionMinor,
+            ...(Number.isSafeInteger(totalReversedNumber) ? { actual: totalReversedNumber } : {}),
+            ...(Number.isSafeInteger(deltaNumber) ? { delta: deltaNumber } : {}),
+            description: `Return ${ret.id} reversal ${totalReversed.toString()} exceeds original commission ${originalCommissionMinor}`,
           });
         }
       }
@@ -321,16 +671,24 @@ export class ReconciliationService {
 
   /** Check settlement net = gross - refund - commission - fee. */
   private async checkSettlementConsistency(
-    startDate: Date, endDate: Date, currency: string,
+    db: any,
+    startDate: Date,
+    endDate: Date,
+    currency: string,
     orgId: string | null | undefined,
-    discrepancies: Array<any>,
+    discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
     // Settlement records are scoped by merchantStoreId → store → org
     // For simplicity, we query all settlements in the period with matching currency
     // and filter by org through the store relationship
-    const settlements = await this.db.db
+    const settlements = await db
       .select({
         id: settlementRecords.id,
+        status: settlementRecords.status,
+        isAdjustmentLedgerRow: sql<boolean>`(
+          COALESCE(${settlementRecords.metadata}->>'adjustmentId', '') <> ''
+          OR COALESCE(${settlementRecords.notes}, '') LIKE 'Posted adjustment %'
+        )`,
         grossMinor: settlementRecords.grossMinor,
         refundMinor: settlementRecords.refundMinor,
         commissionMinor: settlementRecords.commissionMinor,
@@ -341,26 +699,44 @@ export class ReconciliationService {
       })
       .from(settlementRecords)
       .innerJoin(stores, eq(settlementRecords.merchantStoreId, stores.id))
-      .where(and(
-        eq(settlementRecords.currency, currency),
-        gte(settlementRecords.calculatedAt, startDate),
-        lte(settlementRecords.calculatedAt, endDate),
-        orgId ? eq(stores.orgId, orgId) : undefined,
-      ));
+      .where(
+        and(
+          eq(settlementRecords.currency, currency),
+          gte(settlementRecords.calculatedAt, startDate),
+          lte(settlementRecords.calculatedAt, endDate),
+          orgId ? eq(stores.orgId, orgId) : undefined,
+        ),
+      );
 
     for (const s of settlements) {
-      const expectedNet = Number(s.grossMinor) - Number(s.refundMinor) -
-        Number(s.commissionMinor) - Number(s.feeMinor);
+      const expectedNet = calculateExpectedSettlementNetMinor(
+        s.status,
+        Number(s.grossMinor),
+        Number(s.refundMinor),
+        Number(s.commissionMinor),
+        Number(s.feeMinor),
+        s.isAdjustmentLedgerRow,
+      );
       const actualNet = Number(s.netMinor);
 
-      if (expectedNet !== actualNet) {
+      if (expectedNet === null || !Number.isSafeInteger(actualNet)) {
         discrepancies.push({
-          type: 'SETTLEMENT_MISMATCH' as DiscrepancyType,
+          type: 'INCOMPLETE_SOURCE_DATA',
+          sourceRef: `settlement:${s.id}`,
+          description: `Settlement ${s.id} contains a minor-unit value outside the safe integer range; exact reconciliation is unavailable`,
+        });
+        continue;
+      }
+
+      if (expectedNet !== actualNet) {
+        const delta = Number(BigInt(actualNet) - BigInt(expectedNet));
+        discrepancies.push({
+          type: 'SETTLEMENT_MISMATCH',
           sourceRef: `settlement:${s.id}`,
           expected: expectedNet,
           actual: actualNet,
-          delta: actualNet - expectedNet,
-          description: `Settlement ${s.id} net ${actualNet} != formula result ${expectedNet}`,
+          ...(Number.isSafeInteger(delta) ? { delta } : {}),
+          description: `Settlement ${s.id} net ${actualNet} != ledger formula result ${expectedNet}`,
         });
       }
     }
@@ -368,35 +744,45 @@ export class ReconciliationService {
 
   /** Check that POSTED adjustments have required approvals. */
   private async checkAdjustmentApprovals(
-    startDate: Date, endDate: Date,
+    db: any,
+    startDate: Date,
+    endDate: Date,
     orgId: string | null | undefined,
-    discrepancies: Array<any>,
+    discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
+    // Reconcile in the accounting period when the adjustment became POSTED.
+    // createdAt is the draft/request timestamp and can belong to an earlier period.
     const conditions: any[] = [
       eq(settlementAdjustments.status, 'POSTED'),
-      gte(settlementAdjustments.createdAt, startDate),
-      lte(settlementAdjustments.createdAt, endDate),
+      gte(settlementAdjustments.updatedAt, startDate),
+      lte(settlementAdjustments.updatedAt, endDate),
     ];
     if (orgId) conditions.push(eq(settlementAdjustments.orgId, orgId));
 
-    const postedAdjustments = await this.db.db
+    const postedAdjustments = await db
       .select()
       .from(settlementAdjustments)
       .where(and(...conditions));
 
     for (const adj of postedAdjustments) {
-      const approvals = await this.db.db.query.settlementAdjustmentApprovals.findMany({
-        where: eq(settlementAdjustmentApprovals.adjustmentId, adj.id),
-      });
+      const approvals = await db
+        .select()
+        .from(settlementAdjustmentApprovals)
+        .where(eq(settlementAdjustmentApprovals.adjustmentId, adj.id));
 
       if (adj.requiresDualApproval) {
-        const financeApprovals = approvals.filter(a => a.approverRole === 'FINANCE');
-        const adminApprovals = approvals.filter(a => a.approverRole === 'ADMIN');
+        const financeApprovals = approvals.filter(
+          (a: { approverRole: string }) => a.approverRole === 'FINANCE',
+        );
+        const adminApprovals = approvals.filter(
+          (a: { approverRole: string }) => a.approverRole === 'ADMIN',
+        );
         if (financeApprovals.length < 1 || adminApprovals.length < 1) {
           discrepancies.push({
             type: 'UNAPPROVED_ADJUSTMENT' as DiscrepancyType,
             sourceRef: `adjustment:${adj.id}`,
-            description: `Adjustment ${adj.id} is POSTED but lacks required dual approval ` +
+            description:
+              `Adjustment ${adj.id} is POSTED but lacks required dual approval ` +
               `(finance=${financeApprovals.length}, admin=${adminApprovals.length})`,
           });
         }
@@ -414,69 +800,135 @@ export class ReconciliationService {
 
   /** Check delivery-fee refund caps. */
   private async checkDeliveryFeeCaps(
-    startDate: Date, endDate: Date,
+    db: any,
+    startDate: Date,
+    endDate: Date,
     orgId: string | null | undefined,
-    discrepancies: Array<any>,
+    discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
+    // Only posted adjustments affect the financial ledger. Attribute them to
+    // the POSTED transition (updatedAt), not the original draft creation time.
     const conditions: any[] = [
-      eq(settlementAdjustments.adjustmentType, 'DELIVERY_FEE_EXCEPTION'),
-      gte(settlementAdjustments.createdAt, startDate),
-      lte(settlementAdjustments.createdAt, endDate),
+      inArray(settlementAdjustments.adjustmentType, [
+        'DELIVERY_FEE_EXCEPTION',
+        'DELIVERY_FEE_REFUND',
+      ]),
+      eq(settlementAdjustments.status, 'POSTED'),
+      gte(settlementAdjustments.updatedAt, startDate),
+      lte(settlementAdjustments.updatedAt, endDate),
     ];
     if (orgId) conditions.push(eq(settlementAdjustments.orgId, orgId));
 
-    const adjustments = await this.db.db
+    const adjustments = await db
       .select()
       .from(settlementAdjustments)
       .where(and(...conditions));
 
     for (const adj of adjustments) {
-      const breakdown = await this.db.db.query.orderFinancialBreakdown.findFirst({
-        where: eq(orderFinancialBreakdown.orderId, adj.subOrderId),
-      });
+      const [breakdown] = await db
+        .select()
+        .from(orderFinancialBreakdown)
+        .where(eq(orderFinancialBreakdown.orderId, adj.subOrderId))
+        .limit(1);
       if (breakdown) {
-        // The delivery fee refund should not exceed the original delivery fee + VAT
-        // VAT is calculated from the breakdown's taxMinor / productsMinor ratio
-        const vatRate = breakdown.productsMinor > 0
-          ? breakdown.taxMinor / breakdown.productsMinor
-          : 0;
-        const maxRefundable = Number(breakdown.deliveryFeeMinor) * (1 + vatRate);
-        if (Number(adj.amountMinor) > maxRefundable) {
+        const productsMinor = Number(breakdown.productsMinor);
+        const discountMinor = Number(breakdown.discountMinor);
+        const deliveryFeeMinor = Number(breakdown.deliveryFeeMinor);
+        const taxMinor = Number(breakdown.taxMinor);
+        const amountMinor = Number(adj.amountMinor);
+        const netGoodsMinor = productsMinor - discountMinor;
+
+        const maxRefundable =
+          Number.isSafeInteger(productsMinor) &&
+          Number.isSafeInteger(discountMinor) &&
+          productsMinor >= 0 &&
+          discountMinor >= 0 &&
+          discountMinor <= productsMinor
+            ? calculateDeliveryFeeRefundCapMinor(deliveryFeeMinor, taxMinor, netGoodsMinor)
+            : null;
+
+        if (maxRefundable === null || !Number.isSafeInteger(amountMinor) || amountMinor < 0) {
           discrepancies.push({
-            type: 'DELIVERY_FEE_OVER_REFUND' as DiscrepancyType,
+            type: 'INCOMPLETE_SOURCE_DATA',
             sourceRef: `adjustment:${adj.id}`,
-            expected: Number(breakdown.deliveryFeeMinor),
-            actual: Number(adj.amountMinor),
-            description: `Delivery fee adjustment ${adj.id} amount ${adj.amountMinor} ` +
-              `exceeds original fee ${breakdown.deliveryFeeMinor} + VAT (max refundable: ${maxRefundable})`,
+            description: `Delivery-fee adjustment ${adj.id} contains unsafe or inconsistent minor-unit source values; exact cap verification is unavailable`,
+          });
+          continue;
+        }
+
+        if (amountMinor > maxRefundable) {
+          discrepancies.push({
+            type: 'DELIVERY_FEE_OVER_REFUND',
+            sourceRef: `adjustment:${adj.id}`,
+            expected: maxRefundable,
+            actual: amountMinor,
+            delta: amountMinor - maxRefundable,
+            description: `Delivery-fee adjustment ${adj.id} amount ${amountMinor} exceeds the exact refundable fee-plus-VAT cap ${maxRefundable}`,
           });
         }
+      } else {
+        discrepancies.push({
+          type: 'INCOMPLETE_SOURCE_DATA',
+          sourceRef: `adjustment:${adj.id}`,
+          description: `Delivery-fee adjustment ${adj.id} has no order financial breakdown; exact cap verification is unavailable`,
+        });
       }
     }
   }
 
   /** Check for duplicate refunds (same return, multiple SUCCEEDED refunds). */
   private async checkDuplicates(
-    startDate: Date, endDate: Date,
+    db: any,
+    startDate: Date,
+    endDate: Date,
     orgId: string | null | undefined,
-    discrepancies: Array<any>,
+    discrepancies: ReconciliationDiscrepancyDraft[],
   ) {
-    const returnRefunds = await this.db.db
-      .select({
-        returnId: returnRequests.id,
-        count: sql<number>`count(*)::int`,
-      })
+    // First identify returns with at least one refund that succeeded in this
+    // accounting period. Then count ALL successful refunds for those returns,
+    // including earlier-period successes, so a cross-period duplicate cannot
+    // disappear from the duplicate check.
+    const periodReturnRows = await db
+      .select({ returnId: refunds.returnRequestId })
       .from(refunds)
       .innerJoin(returnRequests, eq(refunds.returnRequestId, returnRequests.id))
       .innerJoin(orders, eq(returnRequests.subOrderId, orders.id))
       .innerJoin(stores, eq(orders.storeId, stores.id))
-      .where(and(
-        eq(refunds.status, 'SUCCEEDED'),
-        gte(returnRequests.createdAt, startDate),
-        lte(returnRequests.createdAt, endDate),
-        orgId ? eq(stores.orgId, orgId) : undefined,
-      ))
-      .groupBy(returnRequests.id);
+      .where(
+        and(
+          eq(refunds.status, 'SUCCEEDED'),
+          gte(refunds.updatedAt, startDate),
+          lte(refunds.updatedAt, endDate),
+          sql`${refunds.returnRequestId} IS NOT NULL`,
+          orgId ? eq(stores.orgId, orgId) : undefined,
+        ),
+      )
+      .groupBy(refunds.returnRequestId);
+
+    const periodReturnIds = periodReturnRows
+      .map((row: { returnId: string | null }) => row.returnId)
+      .filter((id: string | null): id is string => id !== null);
+
+    const returnRefunds =
+      periodReturnIds.length === 0
+        ? []
+        : await db
+            .select({
+              returnId: returnRequests.id,
+              count: sql<number>`count(*)::int`,
+            })
+            .from(refunds)
+            .innerJoin(returnRequests, eq(refunds.returnRequestId, returnRequests.id))
+            .innerJoin(orders, eq(returnRequests.subOrderId, orders.id))
+            .innerJoin(stores, eq(orders.storeId, stores.id))
+            .where(
+              and(
+                eq(refunds.status, 'SUCCEEDED'),
+                inArray(refunds.returnRequestId, periodReturnIds),
+                orgId ? eq(stores.orgId, orgId) : undefined,
+              ),
+            )
+            .groupBy(returnRequests.id);
 
     for (const row of returnRefunds) {
       if (row.count > 1) {
@@ -504,12 +956,14 @@ export class ReconciliationService {
     });
     if (!run) throw new NotFoundException('Reconciliation run not found');
 
-    const discConditions: any[] = [eq(reconciliationDiscrepancies.runId, runId)];
-    if (orgId) discConditions.push(eq(reconciliationDiscrepancies.orgId, orgId));
-
     const discrepancies = await this.db.db.query.reconciliationDiscrepancies.findMany({
-      where: and(...discConditions),
+      where: eq(reconciliationDiscrepancies.runId, runId),
     });
+    // run_id is an FK, but org_id is an independent denormalized scope field.
+    // Never silently omit a mismatched child row or return it to a caller.
+    if (discrepancies.some((discrepancy) => discrepancy.orgId !== run.orgId)) {
+      throw new ConflictException('Reconciliation discrepancy organization does not match its parent run');
+    }
 
     return { ...run, discrepancies };
   }
@@ -543,15 +997,34 @@ export class ReconciliationService {
     });
     if (!disc) throw new NotFoundException('Discrepancy not found');
 
-    await this.db.db.update(reconciliationDiscrepancies)
+    const parentRun = await this.db.db.query.reconciliationRuns.findFirst({
+      where: eq(reconciliationRuns.id, disc.runId),
+      columns: { id: true, orgId: true },
+    });
+    if (!parentRun || parentRun.orgId !== disc.orgId || (orgId && parentRun.orgId !== orgId)) {
+      throw new NotFoundException('Discrepancy not found');
+    }
+
+    const updateConditions: any[] = [eq(reconciliationDiscrepancies.id, discrepancyId)];
+    if (orgId) {
+      updateConditions.push(eq(reconciliationDiscrepancies.orgId, orgId));
+    }
+    const resolvedAt = new Date();
+    const updated = await this.db.db
+      .update(reconciliationDiscrepancies)
       .set({
         resolved: true,
-        resolvedAt: new Date(),
+        resolvedAt,
         resolvedBy,
         resolutionNotes: notes,
       } as any)
-      .where(eq(reconciliationDiscrepancies.id, discrepancyId));
+      .where(and(...updateConditions))
+      .returning({ id: reconciliationDiscrepancies.id });
 
-    return { ...disc, resolved: true, resolvedAt: new Date(), resolvedBy, resolutionNotes: notes };
+    if (updated.length === 0) {
+      throw new NotFoundException('Discrepancy not found');
+    }
+
+    return { ...disc, resolved: true, resolvedAt, resolvedBy, resolutionNotes: notes };
   }
 }

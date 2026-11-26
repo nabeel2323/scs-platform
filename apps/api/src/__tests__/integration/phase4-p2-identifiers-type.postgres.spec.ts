@@ -33,8 +33,8 @@ import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { products, productVariants } from '../../modules/catalog/catalog.schema';
 import { productTypes } from '../../modules/catalog/catalog.taxonomy.schema';
-import { organizations } from '../../modules/identity/identity.schema';
-import { stores } from '../../modules/merchant/merchant.schema';
+import { organizations, users } from '../../modules/identity/identity.schema';
+import { stores, storeMembers } from '../../modules/merchant/merchant.schema';
 import { merchantOffers } from '../../modules/catalog/catalog.offer.schema';
 import * as schema from '../../drizzle/schema';
 
@@ -77,14 +77,20 @@ let orgId: string;
 let storeId: string;
 let orgId2: string;
 let storeId2: string;
+let merchantUserId: string;
+let otherMerchantUserId: string;
 let ptId1: string;
+
+const merchantActor = () => ({ sub: merchantUserId, role: 'MERCHANT_OWNER', activeOrg: orgId });
+const otherMerchantActor = () => ({ sub: otherMerchantUserId, role: 'MERCHANT_OWNER', activeOrg: orgId2 });
 let ptId2: string;
 
 beforeAll(async () => {
   container = await new PostgreSqlContainer('postgres:16-alpine').start();
   pool = new Pool({ connectionString: container.getConnectionUri() });
   db = drizzle(pool, { schema: schema as any }) as any;
-  database = { db } as DatabaseService;
+  database = new DatabaseService();
+  database.db = db;
 
   const taxonomy = new (await import('../../modules/catalog/catalog.taxonomy.service')).CatalogTaxonomyService(database);
   catalog = makeCatalogService(database, taxonomy);
@@ -100,6 +106,19 @@ beforeAll(async () => {
   await db.insert(stores).values({ id: storeId, orgId, slug: 'p2-store', displayName: 'P2 Store' });
   await db.insert(organizations).values({ id: orgId2, name: 'Other Org', type: 'WHOLESALER', country: 'SA' });
   await db.insert(stores).values({ id: storeId2, orgId: orgId2, slug: 'p2-store-2', displayName: 'P2 Store 2' });
+
+  // Both stores receive real merchant principals. The opposite-store user is
+  // intentionally retained for the cross-tenant negative test below.
+  merchantUserId = randomUUID();
+  otherMerchantUserId = randomUUID();
+  await db.insert(users).values([
+    { id: merchantUserId, fullName: 'P2 Merchant A' },
+    { id: otherMerchantUserId, fullName: 'P2 Merchant B' },
+  ]);
+  await db.insert(storeMembers).values([
+    { storeId, userId: merchantUserId, role: 'OWNER', status: 'ACTIVE' },
+    { storeId: storeId2, userId: otherMerchantUserId, role: 'OWNER', status: 'ACTIVE' },
+  ]);
 
   // Seed product types
   ptId1 = randomUUID();
@@ -131,6 +150,16 @@ async function createProduct(overrides: Record<string, unknown> = {}) {
   return pid;
 }
 
+async function updateProduct(
+  productId: string,
+  input: any,
+  clientUpdatedAt?: string,
+  actor = merchantActor(),
+) {
+  return catalog.updateProduct(productId, input, clientUpdatedAt, actor);
+}
+
+
 // ═══════════════════════════════════════════════════════════════════════════
 // T13: Successful identifier update
 // ═══════════════════════════════════════════════════════════════════════════
@@ -138,7 +167,7 @@ async function createProduct(overrides: Record<string, unknown> = {}) {
 describe('T13 — Successful identifier update', () => {
   it('updates GTIN, EAN, MPN on a product', async () => {
     const pid = await createProduct();
-    const result = await catalog.updateProduct(pid, {
+    const result = await updateProduct(pid, {
       gtin: '1234567890123',
       ean: '9876543210',
       mpn: 'MPN-001',
@@ -160,7 +189,7 @@ describe('T1 — Identifier update + optimistic locking', () => {
     const knownTs = new Date('2026-10-05T11:00:00.000Z');
     await db.update(products).set({ updatedAt: knownTs }).where(eq(products.id, pid));
 
-    const result = await catalog.updateProduct(pid, { gtin: 'T1-GTIN' }, knownTs.toISOString());
+    const result = await updateProduct(pid, { gtin: 'T1-GTIN' }, knownTs.toISOString());
     expect(result['gtin']).toBe('T1-GTIN');
   });
 });
@@ -175,7 +204,7 @@ describe('T2 — Stale identifier update', () => {
     const staleTs = new Date('2020-01-01').toISOString();
 
     try {
-      await catalog.updateProduct(pid, { gtin: 'STALE' }, staleTs);
+      await updateProduct(pid, { gtin: 'STALE' }, staleTs);
       expect.fail('Should have thrown');
     } catch (err: any) {
       expect(err.status).toBe(409);
@@ -196,7 +225,7 @@ describe('T15 — GTIN uniqueness', () => {
     const pid2 = await createProduct();
 
     try {
-      await catalog.updateProduct(pid2, { gtin: 'UNIQUE-GTIN' });
+      await updateProduct(pid2, { gtin: 'UNIQUE-GTIN' });
       expect.fail('Should have thrown');
     } catch (err: any) {
       expect(err.status).toBe(400);
@@ -206,7 +235,7 @@ describe('T15 — GTIN uniqueness', () => {
 
   it('same GTIN on same product → success', async () => {
     const pid = await createProduct({ gtin: 'SELF-GTIN' } as any);
-    const result = await catalog.updateProduct(pid, { gtin: 'SELF-GTIN' });
+    const result = await updateProduct(pid, { gtin: 'SELF-GTIN' });
     expect(result['gtin']).toBe('SELF-GTIN');
   });
 
@@ -214,7 +243,7 @@ describe('T15 — GTIN uniqueness', () => {
     const pid1 = await createProduct({ gtin: 'NULL-TEST' } as any);
     const pid2 = await createProduct({ gtin: null } as any);
     // Setting pid2's gtin to null should succeed (no uniqueness check for null)
-    const result = await catalog.updateProduct(pid2, { gtin: null });
+    const result = await updateProduct(pid2, { gtin: null });
     expect(result['gtin']).toBeNull();
   });
 });
@@ -232,7 +261,7 @@ describe('T6 — Existing variants block productTypeId', () => {
     });
 
     try {
-      await catalog.updateProduct(pid, { productTypeId: ptId1 });
+      await updateProduct(pid, { productTypeId: ptId1 });
       expect.fail('Should have thrown');
     } catch (err: any) {
       expect(err.status).toBe(400);
@@ -254,7 +283,7 @@ describe('T7 — Existing offers block productTypeId', () => {
     } as any);
 
     try {
-      await catalog.updateProduct(pid, { productTypeId: ptId1 });
+      await updateProduct(pid, { productTypeId: ptId1 });
       expect.fail('Should have thrown');
     } catch (err: any) {
       expect(err.status).toBe(400);
@@ -270,7 +299,7 @@ describe('T7 — Existing offers block productTypeId', () => {
 describe('T14 — Combined productTypeId + identifiers', () => {
   it('updates productTypeId + GTIN + MPN atomically', async () => {
     const pid = await createProduct();
-    const result = await catalog.updateProduct(pid, {
+    const result = await updateProduct(pid, {
       productTypeId: ptId1,
       gtin: 'T14-GTIN',
       mpn: 'T14-MPN',
@@ -288,7 +317,7 @@ describe('T14 — Combined productTypeId + identifiers', () => {
 describe('T11 — Missing product', () => {
   it('updateProduct on nonexistent product → 404', async () => {
     try {
-      await catalog.updateProduct(randomUUID(), { gtin: 'X' });
+      await updateProduct(randomUUID(), { gtin: 'X' });
       expect.fail('Should have thrown');
     } catch (err: any) {
       expect(err.status).toBe(404);
@@ -303,31 +332,31 @@ describe('T11 — Missing product', () => {
 describe('T12 — Invalid identifier', () => {
   it('empty string → stored as null', async () => {
     const pid = await createProduct({ gtin: 'OLD' } as any);
-    const result = await catalog.updateProduct(pid, { gtin: '' });
+    const result = await updateProduct(pid, { gtin: '' });
     expect(result['gtin']).toBeNull();
   });
 
   it('whitespace-only → stored as null', async () => {
     const pid = await createProduct({ ean: 'OLD' } as any);
-    const result = await catalog.updateProduct(pid, { ean: '   ' });
+    const result = await updateProduct(pid, { ean: '   ' });
     expect(result['ean']).toBeNull();
   });
 
   it('trims whitespace from GTIN', async () => {
     const pid = await createProduct();
-    const result = await catalog.updateProduct(pid, { gtin: '  TRIMMED  ' });
+    const result = await updateProduct(pid, { gtin: '  TRIMMED  ' });
     expect(result['gtin']).toBe('TRIMMED');
   });
 
   it('preserves internal spaces in MPN', async () => {
     const pid = await createProduct();
-    const result = await catalog.updateProduct(pid, { mpn: 'ABC 123' });
+    const result = await updateProduct(pid, { mpn: 'ABC 123' });
     expect(result['mpn']).toBe('ABC 123');
   });
 
   it('preserves dashes in MPN', async () => {
     const pid = await createProduct();
-    const result = await catalog.updateProduct(pid, { mpn: '123-456' });
+    const result = await updateProduct(pid, { mpn: '123-456' });
     expect(result['mpn']).toBe('123-456');
   });
 });
@@ -343,8 +372,8 @@ describe('T3 — Concurrent productTypeId changes', () => {
     const ts = loaded['updatedAt'] as Date;
 
     const results = await Promise.allSettled([
-      catalog.updateProduct(pid, { productTypeId: ptId1 }, ts.toISOString()),
-      catalog.updateProduct(pid, { productTypeId: ptId2 }, ts.toISOString()),
+      updateProduct(pid, { productTypeId: ptId1 }, ts.toISOString()),
+      updateProduct(pid, { productTypeId: ptId2 }, ts.toISOString()),
     ]);
 
     const fulfilled = results.filter(r => r.status === 'fulfilled');
@@ -372,7 +401,7 @@ describe('T4 — productTypeId vs variant creation', () => {
 
     // Race: productTypeId change (FOR UPDATE) vs variant creation (FOR SHARE)
     const results = await Promise.allSettled([
-      catalog.updateProduct(pid, { productTypeId: ptId1 }, ts.toISOString()),
+      updateProduct(pid, { productTypeId: ptId1 }, ts.toISOString()),
       catalog.createVariant(pid, { sku: 'T4-VARIANT' }),
     ]);
 
@@ -412,7 +441,7 @@ describe('T5 — productTypeId vs offer creation', () => {
 
     // Product type change should succeed even if an offer is being created concurrently
     // (offers don't have FOR SHARE lock — this is the documented deferred race)
-    const result = await catalog.updateProduct(pid, { productTypeId: ptId1 });
+    const result = await updateProduct(pid, { productTypeId: ptId1 });
     expect(result['productTypeId']).toBe(ptId1);
   });
 });
@@ -430,8 +459,8 @@ describe('T8 — Concurrent identifier updates', () => {
     await db.update(products).set({ updatedAt: knownTs }).where(eq(products.id, pid));
 
     const results = await Promise.allSettled([
-      catalog.updateProduct(pid, { gtin: 'T8-A' }, knownTs.toISOString()),
-      catalog.updateProduct(pid, { gtin: 'T8-B' }, knownTs.toISOString()),
+      updateProduct(pid, { gtin: 'T8-A' }, knownTs.toISOString()),
+      updateProduct(pid, { gtin: 'T8-B' }, knownTs.toISOString()),
     ]);
 
     const fulfilled = results.filter(r => r.status === 'fulfilled');
@@ -454,8 +483,8 @@ describe('T9 — productTypeId vs normal product update', () => {
     const pid = await createProduct();
 
     // Without optimistic locking, both should succeed
-    const r1 = await catalog.updateProduct(pid, { productTypeId: ptId1 });
-    const r2 = await catalog.updateProduct(pid, { title: 'Updated Title' });
+    const r1 = await updateProduct(pid, { productTypeId: ptId1 });
+    const r2 = await updateProduct(pid, { title: 'Updated Title' });
 
     expect(r2['productTypeId']).toBe(ptId1);
     expect(r2['title']).toBe('Updated Title');
@@ -468,14 +497,15 @@ describe('T9 — productTypeId vs normal product update', () => {
 
 describe('T10 — Wrong tenant', () => {
   it('product in store A cannot be updated via store B context', async () => {
-    // The authorization check (assertProductInOrg) is done at the controller level.
-    // At the service level, we verify the product exists in the expected store.
-    const pid = await createProduct({ storeId: storeId2 } as any);
+    const pid = await createProduct();
 
-    // Direct service call doesn't check tenant — that's the controller's job.
-    // But we verify the product is in a different store.
+    await expect(
+      updateProduct(pid, { title: 'Cross-tenant attempt' }, undefined, otherMerchantActor()),
+    ).rejects.toThrow('You do not have access to this store');
+
     const product = await catalog.getProduct(pid);
-    expect(product['storeId']).toBe(storeId2);
+    expect(product['storeId']).toBe(storeId);
+    expect(product['title']).toBe('P2 Product');
   });
 });
 
@@ -514,7 +544,7 @@ describe('T16 — Multiple concurrent variant creators', () => {
 
     // Now try to change product type → should fail
     try {
-      await catalog.updateProduct(pid, { productTypeId: ptId2 });
+      await updateProduct(pid, { productTypeId: ptId2 });
       expect.fail('Should have thrown');
     } catch (err: any) {
       expect(err.status).toBe(400);
@@ -529,7 +559,7 @@ describe('T16 — Multiple concurrent variant creators', () => {
     const results = await Promise.allSettled([
       catalog.createVariant(pid, { sku: 'RACE-V1' }),
       catalog.createVariant(pid, { sku: 'RACE-V2' }),
-      catalog.updateProduct(pid, { productTypeId: ptId1 }),
+      updateProduct(pid, { productTypeId: ptId1 }),
     ]);
 
     // The productTypeId change uses FOR UPDATE, variant creation uses FOR SHARE.
@@ -568,7 +598,7 @@ describe('P2 — Nonexistent product type', () => {
   it('setting nonexistent productTypeId → 404', async () => {
     const pid = await createProduct();
     try {
-      await catalog.updateProduct(pid, { productTypeId: randomUUID() });
+      await updateProduct(pid, { productTypeId: randomUUID() });
       expect.fail('Should have thrown');
     } catch (err: any) {
       expect(err.status).toBe(404);
@@ -578,7 +608,7 @@ describe('P2 — Nonexistent product type', () => {
 
   it('setting productTypeId = null clears the type', async () => {
     const pid = await createProduct({ productTypeId: ptId1 } as any);
-    const result = await catalog.updateProduct(pid, { productTypeId: null });
+    const result = await updateProduct(pid, { productTypeId: null });
     expect(result['productTypeId']).toBeNull();
   });
 
@@ -590,7 +620,7 @@ describe('P2 — Nonexistent product type', () => {
     });
 
     // Sending the SAME productTypeId should NOT trigger the guard
-    const result = await catalog.updateProduct(pid, { productTypeId: ptId1 });
+    const result = await updateProduct(pid, { productTypeId: ptId1 });
     expect(result['productTypeId']).toBe(ptId1);
   });
 });

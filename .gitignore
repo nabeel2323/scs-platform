@@ -75,3 +75,7 @@ mobile/packages/api_client/
 
 # Separate CI worktree
 apps/scs-platform-b2-test/
+
+# Temporary audit/agent snapshots must never be committed.
+.m73b6-scratch/
+test-token.txt

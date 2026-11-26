@@ -32,18 +32,21 @@
  *   - Cross-tenant access is rejected.
  */
 import {
-  Injectable, Logger, NotFoundException, BadRequestException,
-  ConflictException, ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
-import {
-  settlementAdjustments, settlementAdjustmentApprovals,
-} from './financial.schema';
-import { settlementRecords } from '../payments/payments.schema';
+import { settlementAdjustments, settlementAdjustmentApprovals } from './financial.schema';
+import { returnRequests } from './returns.schema';
+import { paymentRecords, settlementRecords } from '../payments/payments.schema';
 import { orders } from '../orders/orders.schema';
 import { stores } from '../merchant/merchant.schema';
-import { eq, and, sql, desc, isNull } from 'drizzle-orm';
+import { eq, and, sql, desc, isNull, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /** Valid state transitions for the adjustment state machine. */
@@ -58,13 +61,24 @@ const ADJUSTMENT_TRANSITIONS: Record<string, string[]> = {
 };
 
 /** Permission keys for authorization checks. */
-const FINANCE_PERMISSIONS = new Set([
-  'finance:approvals:read', 'finance:approvals:write',
-]);
+const FINANCE_PERMISSIONS = new Set(['finance:approvals:read', 'finance:approvals:write']);
 const ADMIN_ADJUSTMENT_PERMISSIONS = new Set([
-  'admin:adjustments:approve', 'admin:adjustments:read',
+  'admin:adjustments:approve',
+  'admin:adjustments:read',
   'admin:adjustments:write',
 ]);
+
+/**
+ * Settlement net is gross - refund - commission - fee. A commission reversal
+ * credits commission back to the merchant, so it increases net; other supported
+ * adjustment types in this workflow are debits and reduce net.
+ */
+export function calculateSettlementAdjustmentNetMinor(
+  adjustmentType: string,
+  amountMinor: number,
+): number {
+  return adjustmentType === 'COMMISSION_REVERSAL' ? amountMinor : -amountMinor;
+}
 
 export interface CreateAdjustmentInput {
   subOrderId: string;
@@ -101,31 +115,37 @@ export class SettlementAdjustmentService {
    * are created with fxStatus='BLOCKED' and requiresDualApproval=true.
    * The $10 USD-equivalent threshold cannot be evaluated without a rate.
    */
-  async createAdjustment(
-    input: CreateAdjustmentInput,
-    createdBy: string,
-    orgId?: string | null,
-  ) {
-    if (input.amountMinor <= 0) {
-      throw new BadRequestException('Adjustment amount must be positive');
+  async createAdjustment(input: CreateAdjustmentInput, createdBy: string, orgId?: string | null) {
+    if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0) {
+      throw new BadRequestException(
+        'Adjustment amount must be a positive safe integer in minor units',
+      );
     }
     if (!input.reason || input.reason.trim().length === 0) {
       throw new BadRequestException('Adjustment reason is required');
     }
 
-    // Derive orgId from sub-order if not provided
-    let resolvedOrgId = orgId ?? null;
+    // Tenant ownership is authoritative from sub-order → store → organization.
+    // A caller-supplied orgId is only a scope assertion; it must never override
+    // the relationship derived from the persisted order.
+    const resolvedOrgId = await this.resolveSubOrderOrganization(input.subOrderId);
     if (!resolvedOrgId) {
-      const orderRow = await this.db.db.query.orders.findFirst({
-        where: eq(orders.id, input.subOrderId),
-        columns: { storeId: true },
+      throw new NotFoundException('Sub-order not found');
+    }
+    if (orgId && orgId !== resolvedOrgId) {
+      throw new ForbiddenException('Settlement adjustment organization does not match its sub-order');
+    }
+
+    // A nullable FK only proves that the return exists. It does not prove that
+    // the return belongs to the adjustment's sub-order.
+    if (input.returnRequestId) {
+      const returnRequest = await this.db.db.query.returnRequests.findFirst({
+        where: eq(returnRequests.id, input.returnRequestId),
+        columns: { id: true, subOrderId: true },
       });
-      if (orderRow?.storeId) {
-        const storeRow = await this.db.db.query.stores.findFirst({
-          where: eq(stores.id, orderRow.storeId),
-          columns: { orgId: true },
-        });
-        resolvedOrgId = storeRow?.orgId ?? null;
+      if (!returnRequest) throw new NotFoundException('Return request not found');
+      if (returnRequest.subOrderId !== input.subOrderId) {
+        throw new BadRequestException('Return request does not belong to the adjustment sub-order');
       }
     }
 
@@ -146,13 +166,18 @@ export class SettlementAdjustmentService {
       evaluationTimestamp: new Date().toISOString(),
       currency: input.currency,
       result: 'BLOCKED',
-      reason: 'No authoritative FX provider available. USD-equivalent threshold cannot be evaluated. Dual approval required as safe default.',
+      reason:
+        'No authoritative FX provider available. USD-equivalent threshold cannot be evaluated. Dual approval required as safe default.',
       thresholdMinor: 1000, // $10.00 in cents
     };
 
     // Compute approval hash — binds approval to exact terms including adjustment type
     const approvalHash = this.computeApprovalHash(
-      input.amountMinor, input.currency, input.reason, input.subOrderId, input.adjustmentType,
+      input.amountMinor,
+      input.currency,
+      input.reason,
+      input.subOrderId,
+      input.adjustmentType,
     );
 
     const id = crypto.randomUUID();
@@ -178,12 +203,31 @@ export class SettlementAdjustmentService {
         orgId: resolvedOrgId,
         notes: input.notes ?? null,
       });
+
+      await this.outbox.publish(
+        'settlement_adjustment.created',
+        id,
+        {
+          adjustmentId: id,
+          subOrderId: input.subOrderId,
+          adjustmentType: input.adjustmentType,
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+          createdBy,
+          orgId: resolvedOrgId,
+          status: 'DRAFT',
+          fxStatus,
+        },
+        {},
+        null,
+        tx,
+      );
     });
 
     this.logger.log(
       `Settlement adjustment ${id} created: ${input.adjustmentType} ` +
-      `${input.amountMinor} ${input.currency}, fxStatus=${fxStatus}, ` +
-      `dualApproval=${requiresDualApproval}, orgId=${resolvedOrgId}`,
+        `${input.amountMinor} ${input.currency}, fxStatus=${fxStatus}, ` +
+        `dualApproval=${requiresDualApproval}, orgId=${resolvedOrgId}`,
     );
 
     return this.getAdjustment(id, resolvedOrgId);
@@ -205,16 +249,26 @@ export class SettlementAdjustmentService {
       const adj = await this.lockAdjustment(tx, adjustmentId, orgId);
       this.assertTransition(adj, 'PENDING_APPROVAL');
 
-      await tx.update(settlementAdjustments)
+      await tx
+        .update(settlementAdjustments)
         .set({ status: 'PENDING_APPROVAL', updatedAt: new Date() })
         .where(eq(settlementAdjustments.id, adjustmentId));
 
-      await this.outbox.publish('settlement_adjustment.submitted', adjustmentId, {
-        adjustmentId, submittedBy,
-        amountMinor: adj.amountMinor, currency: adj.currency,
-        requiresDualApproval: adj.requiresDualApproval,
-        fxStatus: adj.fxStatus,
-      }, {}, null, tx);
+      await this.outbox.publish(
+        'settlement_adjustment.submitted',
+        adjustmentId,
+        {
+          adjustmentId,
+          submittedBy,
+          amountMinor: adj.amountMinor,
+          currency: adj.currency,
+          requiresDualApproval: adj.requiresDualApproval,
+          fxStatus: adj.fxStatus,
+        },
+        {},
+        null,
+        tx,
+      );
     });
 
     return this.getAdjustment(adjustmentId, orgId);
@@ -242,10 +296,10 @@ export class SettlementAdjustmentService {
     orgId?: string | null,
   ) {
     // Validate approver role
-    const isFinance = approverRole === 'FINANCE' ||
-      FINANCE_PERMISSIONS.has(input.approverRole ?? '');
-    const isAdmin = approverRole === 'ADMIN' ||
-      ADMIN_ADJUSTMENT_PERMISSIONS.has(input.approverRole ?? '');
+    const isFinance =
+      approverRole === 'FINANCE' || FINANCE_PERMISSIONS.has(input.approverRole ?? '');
+    const isAdmin =
+      approverRole === 'ADMIN' || ADMIN_ADJUSTMENT_PERMISSIONS.has(input.approverRole ?? '');
 
     if (!isFinance && !isAdmin) {
       throw new ForbiddenException(
@@ -272,14 +326,16 @@ export class SettlementAdjustmentService {
         ),
       });
       if (existingApproval) {
-        throw new ConflictException(
-          `Approver ${approverId} has already approved this adjustment`,
-        );
+        throw new ConflictException(`Approver ${approverId} has already approved this adjustment`);
       }
 
       // Verify approval hash matches current terms (including adjustment type)
       const expectedHash = this.computeApprovalHash(
-        adj.amountMinor, adj.currency, adj.reason, adj.subOrderId, adj.adjustmentType,
+        adj.amountMinor,
+        adj.currency,
+        adj.reason,
+        adj.subOrderId,
+        adj.adjustmentType,
       );
       if (adj.approvalHash && adj.approvalHash !== expectedHash) {
         throw new ConflictException(
@@ -291,7 +347,7 @@ export class SettlementAdjustmentService {
       if (adj.requiresDualApproval && adj.createdBy === approverId) {
         throw new ConflictException(
           'Creator cannot approve their own dual-approval adjustment. ' +
-          'Two distinct Finance/admin users who are NOT the creator are required.',
+            'Two distinct Finance/admin users who are NOT the creator are required.',
         );
       }
 
@@ -317,7 +373,9 @@ export class SettlementAdjustmentService {
         .where(eq(settlementAdjustmentApprovals.adjustmentId, adjustmentId));
 
       const { total, financeCount, adminCount } = approvalCounts[0] ?? {
-        total: 0, financeCount: 0, adminCount: 0,
+        total: 0,
+        financeCount: 0,
+        adminCount: 0,
       };
 
       let allApproved = false;
@@ -330,27 +388,45 @@ export class SettlementAdjustmentService {
       }
 
       if (allApproved) {
-        await tx.update(settlementAdjustments)
+        await tx
+          .update(settlementAdjustments)
           .set({ status: 'APPROVED', updatedAt: new Date() })
           .where(eq(settlementAdjustments.id, adjustmentId));
 
-        await this.outbox.publish('settlement_adjustment.approved', adjustmentId, {
+        await this.outbox.publish(
+          'settlement_adjustment.approved',
           adjustmentId,
-          totalApprovals: total,
-          financeApprovals: financeCount,
-          adminApprovals: adminCount,
-        }, {}, null, tx);
+          {
+            adjustmentId,
+            totalApprovals: total,
+            financeApprovals: financeCount,
+            adminApprovals: adminCount,
+          },
+          {},
+          null,
+          tx,
+        );
 
         this.logger.log(
           `Adjustment ${adjustmentId} fully approved: ` +
-          `${total} approvals (finance=${financeCount}, admin=${adminCount})`,
+            `${total} approvals (finance=${financeCount}, admin=${adminCount})`,
         );
       }
 
-      await this.outbox.publish('settlement_adjustment.approval_added', adjustmentId, {
-        adjustmentId, approverId, approverRole: approvalRole,
-        totalApprovals: total, allApproved,
-      }, {}, null, tx);
+      await this.outbox.publish(
+        'settlement_adjustment.approval_added',
+        adjustmentId,
+        {
+          adjustmentId,
+          approverId,
+          approverRole: approvalRole,
+          totalApprovals: total,
+          allApproved,
+        },
+        {},
+        null,
+        tx,
+      );
     });
 
     return this.getAdjustment(adjustmentId, orgId);
@@ -372,18 +448,26 @@ export class SettlementAdjustmentService {
     await this.db.db.transaction(async (tx) => {
       const adj = await this.lockAdjustment(tx, adjustmentId, orgId);
       if (adj.status !== 'PENDING_APPROVAL') {
-        throw new ConflictException(
-          `Cannot reject adjustment in status ${adj.status}`,
-        );
+        throw new ConflictException(`Cannot reject adjustment in status ${adj.status}`);
       }
 
-      await tx.update(settlementAdjustments)
+      await tx
+        .update(settlementAdjustments)
         .set({ status: 'REJECTED', updatedAt: new Date() })
         .where(eq(settlementAdjustments.id, adjustmentId));
 
-      await this.outbox.publish('settlement_adjustment.rejected', adjustmentId, {
-        adjustmentId, rejectedBy, reason,
-      }, {}, null, tx);
+      await this.outbox.publish(
+        'settlement_adjustment.rejected',
+        adjustmentId,
+        {
+          adjustmentId,
+          rejectedBy,
+          reason,
+        },
+        {},
+        null,
+        tx,
+      );
     });
 
     this.logger.log(`Adjustment ${adjustmentId} rejected by ${rejectedBy}`);
@@ -406,6 +490,31 @@ export class SettlementAdjustmentService {
     // after commit (see submitForApproval).
     await this.db.db.transaction(async (tx) => {
       const adj = await this.lockAdjustment(tx, adjustmentId, orgId);
+      if (adj.status === 'POSTED') {
+        // A client may retry after the transaction committed but its response
+        // was lost. Treat that replay as success only when the adjustment ledger
+        // row is present; never emit a second ledger row or outbox event.
+        const [postedLedger] = await tx
+          .select({ id: settlementRecords.id })
+          .from(settlementRecords)
+          .where(
+            and(
+              eq(settlementRecords.subOrderId, adj.subOrderId),
+              eq(settlementRecords.status, 'ADJUSTMENT'),
+              sql`(
+              ${settlementRecords.metadata}->>'adjustmentId' = ${adj.id}
+              OR ${settlementRecords.notes} LIKE ${`Posted adjustment ${adj.id}:%`}
+            )`,
+            ),
+          )
+          .limit(1);
+        if (!postedLedger) {
+          throw new ConflictException(
+            'Adjustment is POSTED but its settlement ledger entry is missing',
+          );
+        }
+        return;
+      }
       if (adj.status !== 'APPROVED') {
         throw new ConflictException(
           `Cannot post adjustment in status ${adj.status}; must be APPROVED`,
@@ -420,7 +529,7 @@ export class SettlementAdjustmentService {
       if (adj.fxStatus !== 'RESOLVED' && adj.fxStatus !== 'NOT_REQUIRED') {
         throw new ConflictException(
           `Cannot post adjustment: FX status is ${adj.fxStatus ?? 'NULL'}, not RESOLVED. ` +
-          'An admin with access to an authoritative rate must resolve the FX status first.',
+            'An admin with access to an authoritative rate must resolve the FX status first.',
         );
       }
 
@@ -435,14 +544,16 @@ export class SettlementAdjustmentService {
         .where(eq(settlementAdjustmentApprovals.adjustmentId, adjustmentId));
 
       const { total, financeCount, adminCount } = approvalCounts[0] ?? {
-        total: 0, financeCount: 0, adminCount: 0,
+        total: 0,
+        financeCount: 0,
+        adminCount: 0,
       };
 
       if (adj.requiresDualApproval) {
         if (financeCount < 1 || adminCount < 1 || total < 2) {
           throw new ConflictException(
             `Adjustment requires dual approval but has insufficient approvals: ` +
-            `total=${total}, finance=${financeCount}, admin=${adminCount}`,
+              `total=${total}, finance=${financeCount}, admin=${adminCount}`,
           );
         }
       } else {
@@ -453,7 +564,11 @@ export class SettlementAdjustmentService {
 
       // Verify approval hash still matches (material changes invalidate)
       const currentHash = this.computeApprovalHash(
-        adj.amountMinor, adj.currency, adj.reason, adj.subOrderId, adj.adjustmentType,
+        adj.amountMinor,
+        adj.currency,
+        adj.reason,
+        adj.subOrderId,
+        adj.adjustmentType,
       );
       if (adj.approvalHash && adj.approvalHash !== currentHash) {
         throw new ConflictException(
@@ -461,55 +576,118 @@ export class SettlementAdjustmentService {
         );
       }
 
-      // Find the latest settlement for this sub-order (scoped by org)
-      const settlement = await tx.query.settlementRecords.findFirst({
-        where: eq(settlementRecords.subOrderId, adj.subOrderId),
-        orderBy: [desc(settlementRecords.calculatedAt)],
-      });
+      // Lock the primary settlement row. This serializes posting against
+      // markSettlementPaid and against other adjustments for this order. Never
+      // mark an adjustment POSTED without a persisted settlement ledger entry.
+      const [settlement] = await tx
+        .select()
+        .from(settlementRecords)
+        .where(
+          and(
+            eq(settlementRecords.subOrderId, adj.subOrderId),
+            inArray(settlementRecords.status, ['PENDING', 'CALCULATED', 'DUE', 'PAID']),
+            // A paid adjustment also has status PAID. Never let a prior
+            // adjustment become the parent of a later adjustment; preserve
+            // compatibility with legacy rows that predate adjustment metadata.
+            sql`COALESCE(${settlementRecords.metadata}->>'adjustmentId', '') = ''
+            AND COALESCE(${settlementRecords.notes}, '') NOT LIKE 'Posted adjustment %'`,
+          ),
+        )
+        .orderBy(desc(settlementRecords.calculatedAt))
+        .limit(1)
+        .for('update');
 
-      // Transition to POSTED
-      await tx.update(settlementAdjustments)
+      if (!settlement) {
+        throw new ConflictException(
+          'Cannot post settlement adjustment before a primary settlement has been calculated',
+        );
+      }
+      if (settlement.currency !== adj.currency) {
+        throw new ConflictException(
+          `Adjustment currency ${adj.currency} does not match primary settlement currency ${settlement.currency}`,
+        );
+      }
+      const [order] = await tx
+        .select({ storeId: orders.storeId })
+        .from(orders)
+        .where(eq(orders.id, adj.subOrderId))
+        .limit(1);
+      if (!order || order.storeId !== settlement.merchantStoreId) {
+        throw new ConflictException(
+          'Primary settlement store does not match the adjustment sub-order',
+        );
+      }
+      // The schema has independent FKs for settlement.sub_order_id and
+      // settlement.payment_record_id. Enforce their cross-column relationship
+      // before using this settlement as the adjustment's financial parent.
+      const payment = await tx.query.paymentRecords.findFirst({
+        where: and(
+          eq(paymentRecords.id, settlement.paymentRecordId),
+          eq(paymentRecords.orderId, adj.subOrderId),
+        ),
+        columns: { id: true },
+      });
+      if (!payment) {
+        throw new ConflictException('Primary settlement payment does not match the adjustment sub-order');
+      }
+
+      // Transition to POSTED only in the same transaction that writes its ledger row.
+      await tx
+        .update(settlementAdjustments)
         .set({
           status: 'POSTED',
-          settlementId: settlement?.id ?? null,
+          settlementId: settlement.id,
           updatedAt: new Date(),
         })
         .where(eq(settlementAdjustments.id, adjustmentId));
 
-      // If there's a settlement, create an ADJUSTMENT settlement record
-      if (settlement) {
-        const orderRow = await tx.query.orders.findFirst({
-          where: eq(orders.id, adj.subOrderId),
-          columns: { storeId: true },
-        });
+      await tx.insert(settlementRecords).values({
+        id: crypto.randomUUID(),
+        subOrderId: adj.subOrderId,
+        paymentRecordId: settlement.paymentRecordId,
+        merchantStoreId: settlement.merchantStoreId,
+        grossMinor: 0,
+        refundMinor:
+          adj.adjustmentType === 'REFUND_SUPPLEMENT' ||
+          adj.adjustmentType === 'DELIVERY_FEE_REFUND' ||
+          adj.adjustmentType === 'DELIVERY_FEE_EXCEPTION'
+            ? adj.amountMinor
+            : 0,
+        commissionMinor: adj.adjustmentType === 'COMMISSION_REVERSAL' ? adj.amountMinor : 0,
+        feeMinor: adj.adjustmentType === 'BALANCE_ADJUSTMENT' ? adj.amountMinor : 0,
+        netMinor: calculateSettlementAdjustmentNetMinor(adj.adjustmentType, adj.amountMinor),
+        currency: adj.currency,
+        status: 'ADJUSTMENT',
+        calculatedAt: new Date(),
+        metadata: {
+          adjustmentId: adj.id,
+          parentSettlementId: settlement.id,
+          postedBy,
+        },
+        notes:
+          `Posted adjustment ${adjustmentId}: ${adj.adjustmentType} ` +
+          `${adj.amountMinor} ${adj.currency} by ${postedBy}`,
+      });
 
-        await tx.insert(settlementRecords).values({
-          id: crypto.randomUUID(),
-          subOrderId: adj.subOrderId,
-          paymentRecordId: settlement.paymentRecordId,
-          merchantStoreId: settlement.merchantStoreId,
-          grossMinor: 0,
-          refundMinor: adj.adjustmentType === 'REFUND_SUPPLEMENT' || adj.adjustmentType === 'DELIVERY_FEE_REFUND' || adj.adjustmentType === 'DELIVERY_FEE_EXCEPTION' ? adj.amountMinor : 0,
-          commissionMinor: adj.adjustmentType === 'COMMISSION_REVERSAL' ? adj.amountMinor : 0,
-          feeMinor: adj.adjustmentType === 'BALANCE_ADJUSTMENT' ? adj.amountMinor : 0,
-          netMinor: -adj.amountMinor,
+      await this.outbox.publish(
+        'settlement_adjustment.posted',
+        adjustmentId,
+        {
+          adjustmentId,
+          postedBy,
+          settlementId: settlement?.id ?? null,
+          amountMinor: adj.amountMinor,
           currency: adj.currency,
-          status: 'ADJUSTMENT',
-          calculatedAt: new Date(),
-          notes: `Posted adjustment ${adjustmentId}: ${adj.adjustmentType} ` +
-                 `${adj.amountMinor} ${adj.currency} by ${postedBy}`,
-        });
-      }
-
-      await this.outbox.publish('settlement_adjustment.posted', adjustmentId, {
-        adjustmentId, postedBy, settlementId: settlement?.id ?? null,
-        amountMinor: adj.amountMinor, currency: adj.currency,
-        orgId: adj.orgId,
-      }, {}, null, tx);
+          orgId: adj.orgId,
+        },
+        {},
+        null,
+        tx,
+      );
 
       this.logger.log(
         `Adjustment ${adjustmentId} posted: ${adj.adjustmentType} ` +
-        `${adj.amountMinor} ${adj.currency}`,
+          `${adj.amountMinor} ${adj.currency}`,
       );
     });
 
@@ -534,6 +712,11 @@ export class SettlementAdjustmentService {
       where: and(...conditions),
     });
     if (!adj) throw new NotFoundException('Settlement adjustment not found');
+
+    const actualOrgId = await this.resolveSubOrderOrganization(adj.subOrderId);
+    if (!actualOrgId || actualOrgId !== adj.orgId || (orgId && actualOrgId !== orgId)) {
+      throw new NotFoundException('Settlement adjustment not found');
+    }
 
     const approvals = await this.db.db.query.settlementAdjustmentApprovals.findMany({
       where: eq(settlementAdjustmentApprovals.adjustmentId, adjustmentId),
@@ -573,6 +756,21 @@ export class SettlementAdjustmentService {
   // INTERNAL HELPERS
   // ═══════════════════════════════════════════════════════════════
 
+  /** Resolve the authoritative organization through sub-order → store ownership. */
+  private async resolveSubOrderOrganization(subOrderId: string): Promise<string | null> {
+    const order = await this.db.db.query.orders.findFirst({
+      where: eq(orders.id, subOrderId),
+      columns: { storeId: true },
+    });
+    if (!order?.storeId) return null;
+
+    const store = await this.db.db.query.stores.findFirst({
+      where: eq(stores.id, order.storeId),
+      columns: { orgId: true },
+    });
+    return store?.orgId ?? null;
+  }
+
   /** Lock an adjustment row FOR UPDATE and return it. Optionally scope by org. */
   private async lockAdjustment(tx: any, adjustmentId: string, orgId?: string | null) {
     const conditions: any[] = [eq(settlementAdjustments.id, adjustmentId)];
@@ -594,7 +792,7 @@ export class SettlementAdjustmentService {
     if (!allowed.includes(targetStatus)) {
       throw new ConflictException(
         `Cannot transition from ${adj.status} to ${targetStatus}. ` +
-        `Allowed: ${allowed.join(', ') || 'none (terminal state)'}`,
+          `Allowed: ${allowed.join(', ') || 'none (terminal state)'}`,
       );
     }
   }
@@ -604,8 +802,11 @@ export class SettlementAdjustmentService {
    * Any change to amount, currency, reason, target, or adjustment type invalidates prior approvals.
    */
   private computeApprovalHash(
-    amountMinor: number, currency: string, reason: string,
-    subOrderId: string, adjustmentType: string,
+    amountMinor: number,
+    currency: string,
+    reason: string,
+    subOrderId: string,
+    adjustmentType: string,
   ): string {
     const payload = `${amountMinor}:${currency}:${reason}:${subOrderId}:${adjustmentType}`;
     return crypto.createHash('sha256').update(payload).digest('hex');

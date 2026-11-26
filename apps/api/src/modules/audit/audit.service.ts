@@ -75,18 +75,37 @@ export class AuditService {
    */
   async record(entry: AuditEntry): Promise<void> {
     try {
-      await this.db.db.insert(auditLogs).values({
-        id: randomUUID(),
-        actorType: entry.actorType,
-        actorId: entry.actorId ?? null,
-        action: entry.action.slice(0, ACTION_MAX),
-        resource: entry.resource.slice(0, RESOURCE_MAX),
-        resourceId: entry.resourceId ?? null,
-        orgId: entry.orgId ?? null,
-        metadata: entry.metadata ?? {},
-        ip: AuditService.normalizeIp(entry.ip),
-        userAgent: entry.userAgent?.slice(0, USER_AGENT_MAX) ?? null,
-      });
+      const persist = async () => {
+        await this.db.db.insert(auditLogs).values({
+          id: randomUUID(),
+          actorType: entry.actorType,
+          actorId: entry.actorId ?? null,
+          action: entry.action.slice(0, ACTION_MAX),
+          resource: entry.resource.slice(0, RESOURCE_MAX),
+          resourceId: entry.resourceId ?? null,
+          orgId: entry.orgId ?? null,
+          metadata: entry.metadata ?? {},
+          ip: AuditService.normalizeIp(entry.ip),
+          userAgent: entry.userAgent?.slice(0, USER_AGENT_MAX) ?? null,
+        });
+      };
+
+      // Preserve a caller/worker transaction when one is already active. For
+      // service calls made after their business DB phase has committed, use the
+      // dedicated audit principal instead of writing through the root pool.
+      if (this.db.currentActorContext) {
+        await persist();
+      } else {
+        await this.db.withActorContext(
+          {
+            actorKind: 'audit',
+            actorId: entry.actorId?.trim() || 'audit-service',
+            actorRole: entry.actorType,
+            activeOrgId: entry.orgId ?? null,
+          },
+          persist,
+        );
+      }
       recordOpsCounter('audit_write_success_total');
     } catch (err) {
       recordOpsCounter(

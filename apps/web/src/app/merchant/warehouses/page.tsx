@@ -1,18 +1,39 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { fetchMyStores, fetchWarehouses, createWarehouse, updateWarehouse, Store, Warehouse } from '../../../lib/api';
-import { hasPerm } from '../../../lib/auth';
+import {
+  fetchMyStores,
+  fetchWarehouses,
+  createWarehouse,
+  updateWarehouse,
+  Store,
+  Warehouse,
+} from '../../../lib/api';
+import { useAuth } from '../../../components/AuthProvider';
 import { pickStore } from '../../../lib/merchant-store';
-import { LoadingSpinner, ErrorBanner, EmptyState, StatusBadge, formatDate } from '../../../components/Shared';
+import {
+  LoadingSpinner,
+  ErrorBanner,
+  EmptyState,
+  StatusBadge,
+  formatDate,
+} from '../../../components/Shared';
 import { PageHeader } from '@scs/ui-kit';
 
 export default function WarehousesPage() {
+  const { user } = useAuth();
+  const activeOrgId = user?.activeOrgId ?? null;
   const [store, setStore] = useState<Store | null>(null);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [storeError, setStoreError] = useState('');
+  const [noStore, setNoStore] = useState(false);
+  const [warehousesLoading, setWarehousesLoading] = useState(false);
+  const [warehousesError, setWarehousesError] = useState('');
   const [error, setError] = useState('');
+  const storeRequestRef = useRef(0);
+  const warehouseRequestRef = useRef(0);
   const [success, setSuccess] = useState('');
 
   // Form state
@@ -26,36 +47,60 @@ export default function WarehousesPage() {
   const [managerPhone, setManagerPhone] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const canEdit = hasPerm('merchant:stores:write');
+  const canEdit = user?.perms?.includes('merchant:stores:write') === true;
 
   const loadWarehouses = useCallback(async (storeId: string) => {
+    const requestId = ++warehouseRequestRef.current;
+    setWarehousesLoading(true);
+    setWarehousesError('');
     try {
-      const whs = await fetchWarehouses(storeId);
-      setWarehouses(whs);
-      setError('');
-    } catch (err: any) {
-      setError(err.message || 'Failed to load warehouses');
+      const result = await fetchWarehouses(storeId);
+      if (requestId === warehouseRequestRef.current) setWarehouses(result);
+    } catch (err: unknown) {
+      if (requestId === warehouseRequestRef.current) {
+        setWarehousesError(err instanceof Error ? err.message : 'Failed to load warehouses');
+      }
+    } finally {
+      if (requestId === warehouseRequestRef.current) setWarehousesLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const stores = await fetchMyStores();
-        const selected = pickStore(stores);
-        if (!selected) {
-          setLoading(false);
-          return;
-        }
-        setStore(selected);
-        await loadWarehouses(selected.id);
-      } catch (err: any) {
-        setError(err.message || 'Failed to load store');
-      } finally {
-        setLoading(false);
+  const resolveStore = useCallback(async () => {
+    const requestId = ++storeRequestRef.current;
+    setLoading(true);
+    setStoreError('');
+    setNoStore(false);
+    setStore(null);
+    setWarehouses([]);
+    try {
+      const stores = await fetchMyStores();
+      if (requestId !== storeRequestRef.current) return;
+      const selected = pickStore(stores);
+      if (!selected) {
+        setStore(null);
+        setWarehouses([]);
+        setNoStore(true);
+        return;
       }
-    })();
-  }, [loadWarehouses]);
+      setStore(selected);
+      await loadWarehouses(selected.id);
+    } catch (err: unknown) {
+      if (requestId === storeRequestRef.current) {
+        setStore(null);
+        setStoreError(err instanceof Error ? err.message : 'Failed to load store');
+      }
+    } finally {
+      if (requestId === storeRequestRef.current) setLoading(false);
+    }
+  }, [loadWarehouses, activeOrgId]);
+
+  useEffect(() => {
+    void resolveStore();
+    return () => {
+      storeRequestRef.current += 1;
+      warehouseRequestRef.current += 1;
+    };
+  }, [resolveStore]);
 
   const resetForm = () => {
     setEditingId(null);
@@ -69,6 +114,7 @@ export default function WarehousesPage() {
   };
 
   const openEditForm = (wh: Warehouse) => {
+    if (!canEdit) return;
     setEditingId(wh.id);
     setName(wh.name);
     const addr = (wh.address || {}) as Record<string, unknown>;
@@ -81,6 +127,7 @@ export default function WarehousesPage() {
   };
 
   const handleSubmit = async () => {
+    if (!canEdit) return;
     if (!store || !name.trim()) {
       setError('Warehouse name is required');
       return;
@@ -124,13 +171,46 @@ export default function WarehousesPage() {
 
   if (loading) return <LoadingSpinner />;
 
-  if (!store) {
+  if (storeError) {
     return (
       <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
         <nav style={breadcrumb}>
-          <Link href="/" style={crumbLink}>Home</Link>
+          <Link href="/" style={crumbLink}>
+            Home
+          </Link>
           <span style={crumbSep}>›</span>
-          <Link href="/merchant" style={crumbLink}>Merchant</Link>
+          <Link href="/merchant" style={crumbLink}>
+            Merchant
+          </Link>
+          <span style={crumbSep}>›</span>
+          <span>Warehouses</span>
+        </nav>
+        <h1 style={h1}>Warehouses</h1>
+        <div role="alert" style={{ marginTop: 16 }}>
+          <ErrorBanner message={storeError} />
+          <button
+            type="button"
+            onClick={() => void resolveStore()}
+            style={{ ...primaryBtn, marginTop: 12 }}
+          >
+            Retry store lookup
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!store && noStore) {
+    return (
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
+        <nav style={breadcrumb}>
+          <Link href="/" style={crumbLink}>
+            Home
+          </Link>
+          <span style={crumbSep}>›</span>
+          <Link href="/merchant" style={crumbLink}>
+            Merchant
+          </Link>
           <span style={crumbSep}>›</span>
           <span>Warehouses</span>
         </nav>
@@ -138,11 +218,17 @@ export default function WarehousesPage() {
         <EmptyState
           title="No store found"
           description="You need a store to manage warehouses."
-          action={<Link href="/merchant/onboard" style={primaryLink}>Onboard a Store</Link>}
+          action={
+            <Link href="/merchant/onboard" style={primaryLink}>
+              Onboard a Store
+            </Link>
+          }
         />
       </div>
     );
   }
+
+  if (!store) return <LoadingSpinner />;
 
   return (
     <>
@@ -155,9 +241,13 @@ export default function WarehousesPage() {
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
         {/* Breadcrumb */}
         <nav style={breadcrumb}>
-          <Link href="/" style={crumbLink}>Home</Link>
+          <Link href="/" style={crumbLink}>
+            Home
+          </Link>
           <span style={crumbSep}>›</span>
-          <Link href="/merchant" style={crumbLink}>Merchant</Link>
+          <Link href="/merchant" style={crumbLink}>
+            Merchant
+          </Link>
           <span style={crumbSep}>›</span>
           <span style={{ color: '#0f3340', fontWeight: 500 }}>Warehouses</span>
         </nav>
@@ -169,13 +259,35 @@ export default function WarehousesPage() {
         />
 
         <div style={{ padding: '0 28px 48px', background: '#f5f7f9', minHeight: 400 }}>
-          {error && <div style={{ marginTop: 20 }}><ErrorBanner message={error} /></div>}
+          {error && (
+            <div style={{ marginTop: 20 }}>
+              <ErrorBanner message={error} />
+            </div>
+          )}
+          {warehousesError && (
+            <div role="alert" style={{ marginTop: 20 }}>
+              <ErrorBanner message={warehousesError} />
+              <button
+                type="button"
+                onClick={() => void loadWarehouses(store.id)}
+                style={{ ...primaryBtn, marginTop: 8 }}
+              >
+                Retry warehouses
+              </button>
+            </div>
+          )}
           {success && <div style={successBanner}>{success}</div>}
 
           {/* Actions */}
           {canEdit && (
             <div style={{ marginTop: 20, display: 'flex', gap: 8 }}>
-              <button onClick={() => { resetForm(); setFormOpen(true); }} style={primaryBtn}>
+              <button
+                onClick={() => {
+                  resetForm();
+                  setFormOpen(true);
+                }}
+                style={primaryBtn}
+              >
                 + Add Warehouse
               </button>
             </div>
@@ -183,36 +295,98 @@ export default function WarehousesPage() {
 
           {/* Form Modal */}
           {formOpen && (
-            <div style={{ ...card, marginTop: 20, background: '#f7f9fa', border: '1px solid #b8d4e3' }}>
+            <div
+              style={{ ...card, marginTop: 20, background: '#f7f9fa', border: '1px solid #b8d4e3' }}
+            >
               <h2 style={sectionTitle}>{editingId ? 'Edit Warehouse' : 'New Warehouse'}</h2>
               <div style={grid}>
-                <label style={label}>Warehouse Name *
-                  <input type="text" value={name} onChange={e => setName(e.target.value)} style={input} placeholder="e.g. Main Warehouse" aria-label="Warehouse name" />
+                <label style={label}>
+                  Warehouse Name *
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    style={input}
+                    placeholder="e.g. Main Warehouse"
+                    aria-label="Warehouse name"
+                  />
                 </label>
-                <label style={label}>Manager Name
-                  <input type="text" value={managerName} onChange={e => setManagerName(e.target.value)} style={input} placeholder="Contact person" aria-label="Manager name" />
+                <label style={label}>
+                  Manager Name
+                  <input
+                    type="text"
+                    value={managerName}
+                    onChange={(e) => setManagerName(e.target.value)}
+                    style={input}
+                    placeholder="Contact person"
+                    aria-label="Manager name"
+                  />
                 </label>
-                <label style={label}>Manager Phone
-                  <input type="tel" value={managerPhone} onChange={e => setManagerPhone(e.target.value)} style={input} placeholder="+966..." aria-label="Manager phone" />
+                <label style={label}>
+                  Manager Phone
+                  <input
+                    type="tel"
+                    value={managerPhone}
+                    onChange={(e) => setManagerPhone(e.target.value)}
+                    style={input}
+                    placeholder="+966..."
+                    aria-label="Manager phone"
+                  />
                 </label>
               </div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#5b6b74', marginBottom: 8, marginTop: 12 }}>Address</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#5b6b74',
+                  marginBottom: 8,
+                  marginTop: 12,
+                }}
+              >
+                Address
+              </div>
               <div style={grid}>
-                <label style={label}>Street
-                  <input type="text" value={street} onChange={e => setStreet(e.target.value)} style={input} placeholder="Street address" aria-label="Street" />
+                <label style={label}>
+                  Street
+                  <input
+                    type="text"
+                    value={street}
+                    onChange={(e) => setStreet(e.target.value)}
+                    style={input}
+                    placeholder="Street address"
+                    aria-label="Street"
+                  />
                 </label>
-                <label style={label}>City
-                  <input type="text" value={city} onChange={e => setCity(e.target.value)} style={input} placeholder="City" aria-label="City" />
+                <label style={label}>
+                  City
+                  <input
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    style={input}
+                    placeholder="City"
+                    aria-label="City"
+                  />
                 </label>
-                <label style={label}>ZIP / Postal Code
-                  <input type="text" value={zip} onChange={e => setZip(e.target.value)} style={input} placeholder="ZIP code" aria-label="ZIP code" />
+                <label style={label}>
+                  ZIP / Postal Code
+                  <input
+                    type="text"
+                    value={zip}
+                    onChange={(e) => setZip(e.target.value)}
+                    style={input}
+                    placeholder="ZIP code"
+                    aria-label="ZIP code"
+                  />
                 </label>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                 <button onClick={handleSubmit} disabled={saving || !name.trim()} style={primaryBtn}>
                   {saving ? 'Saving…' : editingId ? 'Update Warehouse' : 'Create Warehouse'}
                 </button>
-                <button onClick={resetForm} style={ghostBtn}>Cancel</button>
+                <button onClick={resetForm} style={ghostBtn}>
+                  Cancel
+                </button>
               </div>
             </div>
           )}
@@ -220,8 +394,12 @@ export default function WarehousesPage() {
           {/* Warehouse List */}
           <div style={{ ...card, marginTop: 20 }}>
             <h2 style={sectionTitle}>All Warehouses</h2>
-            {warehouses.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '32px 0', color: '#5b6b74', fontSize: 13 }}>
+            {warehousesLoading && warehouses.length === 0 ? (
+              <LoadingSpinner />
+            ) : warehousesError && warehouses.length === 0 ? null : warehouses.length === 0 ? (
+              <div
+                style={{ textAlign: 'center', padding: '32px 0', color: '#5b6b74', fontSize: 13 }}
+              >
                 No warehouses yet. {canEdit && 'Click "Add Warehouse" to create one.'}
               </div>
             ) : (
@@ -239,19 +417,40 @@ export default function WarehousesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {warehouses.map(wh => (
+                    {warehouses.map((wh) => (
                       <tr key={wh.id} className="wh-row" style={tbodyRow}>
                         <td style={{ ...td, fontWeight: 600, color: '#0f3340' }}>{wh.name}</td>
                         <td style={td}>{wh.managerName || '—'}</td>
-                        <td style={{ ...td, color: '#5b6b74', fontSize: 12 }}>{wh.managerPhone || '—'}</td>
-                        <td style={{ ...td, fontSize: 12, color: '#5b6b74' }}>
-                          {(() => { const a = (wh.address || {}) as Record<string, unknown>; return [String(a['street'] ?? ''), String(a['city'] ?? ''), String(a['zip'] ?? '')].filter(Boolean).join(', ') || '—'; })()}
+                        <td style={{ ...td, color: '#5b6b74', fontSize: 12 }}>
+                          {wh.managerPhone || '—'}
                         </td>
-                        <td style={td}><StatusBadge status={wh.status} /></td>
-                        <td style={{ ...td, color: '#5b6b74', fontSize: 12 }}>{formatDate(wh.createdAt)}</td>
+                        <td style={{ ...td, fontSize: 12, color: '#5b6b74' }}>
+                          {(() => {
+                            const a = (wh.address || {}) as Record<string, unknown>;
+                            return (
+                              [
+                                String(a['street'] ?? ''),
+                                String(a['city'] ?? ''),
+                                String(a['zip'] ?? ''),
+                              ]
+                                .filter(Boolean)
+                                .join(', ') || '—'
+                            );
+                          })()}
+                        </td>
+                        <td style={td}>
+                          <StatusBadge status={wh.status} />
+                        </td>
+                        <td style={{ ...td, color: '#5b6b74', fontSize: 12 }}>
+                          {formatDate(wh.createdAt)}
+                        </td>
                         {canEdit && (
                           <td style={td}>
-                            <button onClick={() => openEditForm(wh)} style={editBtn} aria-label={`Edit ${wh.name}`}>
+                            <button
+                              onClick={() => openEditForm(wh)}
+                              style={editBtn}
+                              aria-label={`Edit ${wh.name}`}
+                            >
                               Edit
                             </button>
                           </td>
@@ -271,23 +470,130 @@ export default function WarehousesPage() {
 
 // ── Styles ────────────────────────────────────────────────────
 
-const breadcrumb: React.CSSProperties = { padding: '16px 0 0', fontSize: 13, color: '#5b6b74', display: 'flex', alignItems: 'center', gap: 6 };
+const breadcrumb: React.CSSProperties = {
+  padding: '16px 0 0',
+  fontSize: 13,
+  color: '#5b6b74',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+};
 const crumbLink: React.CSSProperties = { color: '#5b6b74', textDecoration: 'none' };
 const crumbSep: React.CSSProperties = { color: '#d9e2e6' };
-const h1: React.CSSProperties = { fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 4 };
-const primaryLink: React.CSSProperties = { display: 'inline-block', padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#0f3340', color: '#fff', borderRadius: 6, textDecoration: 'none' };
-const card: React.CSSProperties = { background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 24, boxShadow: '0 1px 3px rgba(22,35,43,.04)' };
-const sectionTitle: React.CSSProperties = { fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 };
-const grid: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12 };
-const label: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: '#5b6b74', marginBottom: 8 };
-const input: React.CSSProperties = { padding: '8px 12px', border: '1px solid #d9e2e6', borderRadius: 6, fontSize: 13, fontWeight: 400, color: '#1f2937', background: '#fff' };
-const primaryBtn: React.CSSProperties = { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' };
-const ghostBtn: React.CSSProperties = { padding: '6px 14px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#5b6b74', border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer' };
-const editBtn: React.CSSProperties = { padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#e6f0f5', color: '#0f3340', border: '1px solid #b8d4e3', borderRadius: 4, cursor: 'pointer' };
-const successBanner: React.CSSProperties = { background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', borderRadius: 8, padding: '10px 14px', marginTop: 16, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 };
-const tableWrap: React.CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(22,35,43,.06), 0 4px 14px rgba(22,35,43,.04)' };
+const h1: React.CSSProperties = {
+  fontSize: 24,
+  fontWeight: 700,
+  color: '#0f3340',
+  marginBottom: 4,
+};
+const primaryLink: React.CSSProperties = {
+  display: 'inline-block',
+  padding: '8px 16px',
+  fontSize: 13,
+  fontWeight: 600,
+  background: '#0f3340',
+  color: '#fff',
+  borderRadius: 6,
+  textDecoration: 'none',
+};
+const card: React.CSSProperties = {
+  background: '#fff',
+  border: '1px solid #d9e2e6',
+  borderRadius: 10,
+  padding: 24,
+  boxShadow: '0 1px 3px rgba(22,35,43,.04)',
+};
+const sectionTitle: React.CSSProperties = {
+  fontSize: 16,
+  fontWeight: 600,
+  color: '#0f3340',
+  marginBottom: 12,
+};
+const grid: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+  gap: 12,
+  marginBottom: 12,
+};
+const label: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+  fontSize: 12,
+  fontWeight: 600,
+  color: '#5b6b74',
+  marginBottom: 8,
+};
+const input: React.CSSProperties = {
+  padding: '8px 12px',
+  border: '1px solid #d9e2e6',
+  borderRadius: 6,
+  fontSize: 13,
+  fontWeight: 400,
+  color: '#1f2937',
+  background: '#fff',
+};
+const primaryBtn: React.CSSProperties = {
+  padding: '8px 16px',
+  fontSize: 13,
+  fontWeight: 600,
+  background: '#0f3340',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 6,
+  cursor: 'pointer',
+};
+const ghostBtn: React.CSSProperties = {
+  padding: '6px 14px',
+  fontSize: 13,
+  fontWeight: 600,
+  background: '#fff',
+  color: '#5b6b74',
+  border: '1px solid #d9e2e6',
+  borderRadius: 6,
+  cursor: 'pointer',
+};
+const editBtn: React.CSSProperties = {
+  padding: '4px 10px',
+  fontSize: 11,
+  fontWeight: 600,
+  background: '#e6f0f5',
+  color: '#0f3340',
+  border: '1px solid #b8d4e3',
+  borderRadius: 4,
+  cursor: 'pointer',
+};
+const successBanner: React.CSSProperties = {
+  background: '#d1fae5',
+  border: '1px solid #6ee7b7',
+  color: '#065f46',
+  borderRadius: 8,
+  padding: '10px 14px',
+  marginTop: 16,
+  fontSize: 13,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+};
+const tableWrap: React.CSSProperties = {
+  background: '#fff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 14,
+  overflow: 'hidden',
+  boxShadow: '0 1px 3px rgba(22,35,43,.06), 0 4px 14px rgba(22,35,43,.04)',
+};
 const table: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const theadRow: React.CSSProperties = { background: 'linear-gradient(135deg, #0f3340 0%, #1a4a5c 100%)' };
+const theadRow: React.CSSProperties = {
+  background: 'linear-gradient(135deg, #0f3340 0%, #1a4a5c 100%)',
+};
 const tbodyRow: React.CSSProperties = { borderBottom: '1px solid #e2e8f0' };
-const th: React.CSSProperties = { textAlign: 'left', padding: '14px 18px', fontWeight: 600, color: 'rgba(255,255,255,0.92)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.6px' };
+const th: React.CSSProperties = {
+  textAlign: 'left',
+  padding: '14px 18px',
+  fontWeight: 600,
+  color: 'rgba(255,255,255,0.92)',
+  fontSize: 11,
+  textTransform: 'uppercase',
+  letterSpacing: '0.6px',
+};
 const td: React.CSSProperties = { padding: '14px 18px', color: '#1e2d35', fontSize: 13 };

@@ -41,12 +41,7 @@ import * as bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import { DatabaseService } from '../../common/database/database.service';
 import { AuditService } from '../audit/index';
-import {
-  users,
-  organizations,
-  organizationMembers,
-  roles,
-} from '../identity/identity.schema';
+import { users, organizations, organizationMembers, roles } from '../identity/identity.schema';
 import { bootstrapAuthorizations } from './bootstrap.schema';
 import { validatePasswordStrength } from '../../common/utils/password-validation';
 import { RateLimitService } from '../../common/services/rate-limit.service';
@@ -55,19 +50,14 @@ import { RedisService } from '../../common/redis/redis.service';
 import { OtpDeliveryService } from '../notifications/otp-delivery.service';
 import { ProviderRegistryService } from '../notifications/provider-registry.service';
 import { normalizeEmail, maskEmail } from '../../common/utils/email-normalization';
-import {
-  resolveBootstrapOwnerEmail,
-  resolveOtpHmacSecret,
-} from '../../config/env-gate';
+import { resolveBootstrapOwnerEmail, resolveOtpHmacSecret } from '../../config/env-gate';
 import {
   ACQUIRE_RATE_LIMIT,
   CREATE_CHALLENGE,
   VERIFY_AND_CONSUME,
   CLEANUP_CHALLENGE,
 } from '../../common/redis/otp-lua';
-import {
-  CreateSuperAdminDto,
-} from './dto/bootstrap.dto';
+import { CreateSuperAdminDto } from './dto/bootstrap.dto';
 
 /** Transaction-scoped advisory lock key serializing initialization attempts.
  * Distinct from the CLI issuance lock (0x53435343 = 'SCSC'). */
@@ -144,19 +134,20 @@ export class BootstrapService {
 
   /** Authoritative initialization status. No user data is disclosed. */
   async getStatus(): Promise<StatusResult> {
-    const initialized = await this.isInitialized();
-    const bootstrapAvailable = !initialized && (await this.hasAvailableAuthorization());
-    const ownerEmailConfigured = !!this.ownerEmail;
-    const ownerVerificationRequired =
-      !initialized && ownerEmailConfigured && !bootstrapAvailable;
-    return {
-      initialized,
-      bootstrapAvailable,
-      setupRequired: !initialized,
-      ownerVerificationRequired,
-      ownerEmailConfigured,
-      ownerEmailHint: this.ownerEmail ? maskEmail(this.ownerEmail) : null,
-    };
+    return this.db.withActorContext({ actorKind: 'anonymous' }, async () => {
+      const initialized = await this.isInitialized();
+      const bootstrapAvailable = !initialized && (await this.hasAvailableAuthorization());
+      const ownerEmailConfigured = !!this.ownerEmail;
+      const ownerVerificationRequired = !initialized && ownerEmailConfigured && !bootstrapAvailable;
+      return {
+        initialized,
+        bootstrapAvailable,
+        setupRequired: !initialized,
+        ownerVerificationRequired,
+        ownerEmailConfigured,
+        ownerEmailHint: this.ownerEmail ? maskEmail(this.ownerEmail) : null,
+      };
+    });
   }
 
   /**
@@ -167,10 +158,7 @@ export class BootstrapService {
    * owner email and per client IP. Delivery uses the same OtpDeliveryService
    * as the login OTP flow (mock provider in dev/test, SMTP otherwise).
    */
-  async requestOwnerOtp(
-    rawEmail: string,
-    ip?: string,
-  ): Promise<OwnerOtpRequestResult> {
+  async requestOwnerOtp(rawEmail: string, ip?: string): Promise<OwnerOtpRequestResult> {
     const ownerEmail = this.ownerEmail;
     if (!ownerEmail) {
       throw new BadRequestException('Unable to process request.');
@@ -194,12 +182,13 @@ export class BootstrapService {
     // ── Per-owner-email request rate limit (atomic Lua) ────────────────
     let rateResult: number[];
     try {
-      rateResult = await this.redis.client.eval(
-        ACQUIRE_RATE_LIMIT, 1,
+      rateResult = (await this.redis.client.eval(
+        ACQUIRE_RATE_LIMIT,
+        1,
         `${BOOTSTRAP_OTP_PREFIX}:req:email:${email}`,
         BOOTSTRAP_OTP_REQUEST_LIMIT,
         BOOTSTRAP_OTP_RATE_WINDOW,
-      ) as number[];
+      )) as number[];
     } catch (_redisError) {
       throw new InternalServerErrorException('Rate limit check failed. Please try again.');
     }
@@ -217,12 +206,13 @@ export class BootstrapService {
     // ── Per-IP request rate limit (atomic Lua, fail-closed) ────────────
     if (ip) {
       try {
-        const ipResult = await this.redis.client.eval(
-          ACQUIRE_RATE_LIMIT, 1,
+        const ipResult = (await this.redis.client.eval(
+          ACQUIRE_RATE_LIMIT,
+          1,
           `${BOOTSTRAP_OTP_PREFIX}:ip:${ip}`,
           BOOTSTRAP_OTP_IP_REQUEST_LIMIT,
           BOOTSTRAP_OTP_IP_RATE_WINDOW,
-        ) as number[];
+        )) as number[];
         const ipAllowed = (ipResult[0] ?? 0) as number;
         if (ipAllowed === 0) {
           const ipTtl = (ipResult[2] ?? BOOTSTRAP_OTP_IP_RATE_WINDOW) as number;
@@ -251,9 +241,14 @@ export class BootstrapService {
     const redisKey = `${BOOTSTRAP_OTP_PREFIX}:email:${email}`;
     try {
       await this.redis.client.eval(
-        CREATE_CHALLENGE, 1,
-        redisKey, challengeId, otpHash, salt,
-        BOOTSTRAP_OTP_CHALLENGE_TTL, Date.now().toString(),
+        CREATE_CHALLENGE,
+        1,
+        redisKey,
+        challengeId,
+        otpHash,
+        salt,
+        BOOTSTRAP_OTP_CHALLENGE_TTL,
+        Date.now().toString(),
       );
     } catch (_redisError) {
       throw new InternalServerErrorException('OTP generation failed. Please try again.');
@@ -342,12 +337,13 @@ export class BootstrapService {
     // ── Per-IP verify rate limit (fail-closed) ─────────────────────────
     if (ip) {
       try {
-        const ipResult = await this.redis.client.eval(
-          ACQUIRE_RATE_LIMIT, 1,
+        const ipResult = (await this.redis.client.eval(
+          ACQUIRE_RATE_LIMIT,
+          1,
           `${BOOTSTRAP_OTP_PREFIX}:ip:${ip}`,
           BOOTSTRAP_OTP_IP_REQUEST_LIMIT,
           BOOTSTRAP_OTP_IP_RATE_WINDOW,
-        ) as number[];
+        )) as number[];
         const ipAllowed = (ipResult[0] ?? 0) as number;
         if (ipAllowed === 0) {
           const ipTtl = (ipResult[2] ?? BOOTSTRAP_OTP_IP_RATE_WINDOW) as number;
@@ -392,10 +388,12 @@ export class BootstrapService {
     // ── Atomic verify-and-consume ──────────────────────────────────────
     let verifyStatus: number;
     try {
-      const result = await this.redis.client.eval(
-        VERIFY_AND_CONSUME, 1,
-        redisKey, providedHash,
-      ) as number[];
+      const result = (await this.redis.client.eval(
+        VERIFY_AND_CONSUME,
+        1,
+        redisKey,
+        providedHash,
+      )) as number[];
       verifyStatus = (result[0] ?? -1) as number;
     } catch (_redisError) {
       throw new InternalServerErrorException('Verification failed. Please try again.');
@@ -408,40 +406,53 @@ export class BootstrapService {
       throw new UnauthorizedException('OTP already used.');
     }
     if (verifyStatus === 0) {
-      // Wrong OTP — enforce the verify-failure rate limit, then refuse.
+      // Wrong OTP — enforce the per-owner-address failure budget.
+      let verifyFailureResult: number[] = [];
       try {
-        await this.redis.client.eval(
-          ACQUIRE_RATE_LIMIT, 1,
+        verifyFailureResult = (await this.redis.client.eval(
+          ACQUIRE_RATE_LIMIT,
+          1,
           `${BOOTSTRAP_OTP_PREFIX}:vatt:email:${email}`,
           BOOTSTRAP_OTP_VERIFY_FAIL_LIMIT,
           BOOTSTRAP_OTP_RATE_WINDOW,
-        );
+        )) as number[];
       } catch (_redisError) {
-        /* rate-limit bookkeeping failure must not mask the invalid OTP */
+        // The per-IP limiter was already enforced above. Preserve a generic
+        // invalid-code response if this secondary bookkeeping operation fails.
+      }
+
+      if (Number(verifyFailureResult[0] ?? 1) === 0) {
+        throw new RateLimitException('Too many invalid OTP attempts for this owner address.', {
+          limit: BOOTSTRAP_OTP_VERIFY_FAIL_LIMIT,
+          remaining: 0,
+          retryAfterSeconds: Number(verifyFailureResult[2] ?? BOOTSTRAP_OTP_RATE_WINDOW),
+        });
       }
       throw new UnauthorizedException('Invalid OTP.');
     }
 
     // ── Issue a short-lived, single-use bootstrap authorization ────────
     const authorizationToken = crypto.randomBytes(32).toString('hex');
-    const tokenDigest = crypto
-      .createHash('sha256')
-      .update(authorizationToken)
-      .digest('hex');
+    const tokenDigest = crypto.createHash('sha256').update(authorizationToken).digest('hex');
     const expiresAt = new Date(Date.now() + BOOTSTRAP_AUTHORIZATION_TTL_MS);
     const emailVerifiedAt = new Date();
 
-    await this.db.db.insert(bootstrapAuthorizations).values({
-      id: crypto.randomUUID(),
-      tokenDigest,
-      expiresAt,
-      consumedAt: null,
-      consumed: false,
-      purpose: 'super_admin_bootstrap',
-      createdBy: 'SYSTEM',
-      emailVerifiedAt,
-      createdAt: new Date(),
-    });
+    await this.db.withActorContext(
+      { actorKind: 'bootstrap', actorId: 'bootstrap:owner-otp' },
+      async () => {
+        await this.db.db.insert(bootstrapAuthorizations).values({
+          id: crypto.randomUUID(),
+          tokenDigest,
+          expiresAt,
+          consumedAt: null,
+          consumed: false,
+          purpose: 'super_admin_bootstrap',
+          createdBy: 'SYSTEM',
+          emailVerifiedAt,
+          createdAt: new Date(),
+        });
+      },
+    );
 
     return {
       authorization: authorizationToken,
@@ -463,8 +474,13 @@ export class BootstrapService {
    * Any failure rolls back everything (no partial user, no consumed token
    * without provisioning, no initialized state without a valid Super Admin).
    */
-  async createSuperAdmin(dto: CreateSuperAdminDto, ip?: string): Promise<{ status: 'initialized'; loginUrl: string }> {
-    return await this.db.db.transaction(async (tx) => {
+  async createSuperAdmin(
+    dto: CreateSuperAdminDto,
+    ip?: string,
+  ): Promise<{ status: 'initialized'; loginUrl: string }> {
+    return await this.db.withActorContext(
+      { actorKind: 'bootstrap', actorId: 'bootstrap:initial-super-admin' },
+      () => this.db.db.transaction(async (tx) => {
       // 1. Serialize concurrent initializers (transaction-scoped advisory lock).
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${BOOTSTRAP_ADVISORY_LOCK_KEY})`);
 
@@ -587,7 +603,8 @@ export class BootstrapService {
       });
 
       return { status: 'initialized', loginUrl: '/auth/login' };
-    });
+      }),
+    );
   }
 
   /** Whether an ACTIVE user with an ACTIVE SUPER_ADMIN role membership exists. */

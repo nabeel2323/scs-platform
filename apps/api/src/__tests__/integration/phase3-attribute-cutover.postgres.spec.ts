@@ -130,12 +130,15 @@ let taxonomy2: CatalogTaxonomyService;
 let colorDefId: string, sizeDefId: string, weightDefId: string, organicDefId: string, ptId: string;
 let orgId: string, storeId: string;
 let intDefId: string;
+const adminUserId = randomUUID();
+const adminActor = () => ({ sub: adminUserId, role: 'ADMIN', activeOrg: null });
 
 beforeAll(async () => {
   container = await new PostgreSqlContainer('postgres:16-alpine').start();
   pool = new Pool({ connectionString: container.getConnectionUri() });
   db = drizzle(pool, { schema: schema as any }) as any;
-  database = { db } as DatabaseService;
+  database = new DatabaseService();
+  database.db = db;
   taxonomy = new CatalogTaxonomyService(database);
   taxonomy2 = new CatalogTaxonomyService(database);
   catalog = new CatalogService(
@@ -149,6 +152,10 @@ beforeAll(async () => {
     {} as any, // ProductGovernanceService
   );
   await applyMigrations(pool);
+  await pool.query(
+    `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Cutover Admin', '+19990000123')`,
+    [adminUserId],
+  );
 
   // Seed taxonomy once
   colorDefId = randomUUID();
@@ -442,7 +449,7 @@ describe('T13 — product detail returns typed attributes', () => {
       { attributeDefinitionId: colorDefId, value: 'Cyan' },
     ]);
 
-    const detail = await catalog.getProductDetail(pid);
+    const detail = await catalog.getProductDetail(pid, adminActor());
     expect(detail.attributeValues).toBeDefined();
     expect(detail.attributeValues.length).toBe(1);
     expect(detail.attributeValues[0].code).toBe('color');

@@ -86,6 +86,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
       .toList();
 
   Future<void> _save(String storeId) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('merchant:products:write') != true) return;
     if (_titleCtrl.text.trim().isEmpty) {
       setState(() => _error = 'Title is required');
       return;

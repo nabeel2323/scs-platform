@@ -1,12 +1,12 @@
-import {
-  Controller, Get, Post, Param, Body, UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ReviewsService, CreateReviewInput } from './reviews.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/guards/current-user.decorator';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class ReviewsController {
   constructor(private readonly reviewsService: ReviewsService) {}
 
@@ -29,8 +29,12 @@ export class ReviewsController {
   }
 
   @Get('orders/:orderId/reviews')
-  async getOrderReviews(@Param('orderId') orderId: string) {
-    return this.reviewsService.getReviewsByOrder(orderId);
+  async getOrderReviews(@CurrentUser() user: JwtPayload, @Param('orderId') orderId: string) {
+    return this.reviewsService.getReviewsByOrder(orderId, {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Get('reviews/:id')
@@ -39,10 +43,7 @@ export class ReviewsController {
   }
 
   @Get('trust/:entityType/:entityId')
-  async getTrust(
-    @Param('entityType') entityType: string,
-    @Param('entityId') entityId: string,
-  ) {
+  async getTrust(@Param('entityType') entityType: string, @Param('entityId') entityId: string) {
     return this.reviewsService.getTrustSnapshot(entityId, entityType);
   }
 }

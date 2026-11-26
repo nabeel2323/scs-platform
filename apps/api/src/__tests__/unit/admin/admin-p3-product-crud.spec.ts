@@ -14,6 +14,8 @@ import { ConflictException } from '@nestjs/common';
  * - adminGetProductAttributeValues / adminSetProductAttributeValues delegation
  */
 
+const adminActor = { sub: 'admin-1', role: 'ADMIN', activeOrg: null };
+
 function makeMocks() {
   const db = {
     db: {
@@ -81,16 +83,76 @@ describe('AdminService — P3 product CRUD', () => {
     const fakeResult = { id: 'prod-1', title: 'Updated' };
     mocks.catalogService.updateProduct.mockResolvedValue(fakeResult);
 
-    const result = await admin.adminUpdateProduct('prod-1', input as any, '2026-01-01T00:00:00.000Z');
-    expect(mocks.catalogService.updateProduct).toHaveBeenCalledWith('prod-1', input, '2026-01-01T00:00:00.000Z');
+    const result = await admin.adminUpdateProduct('prod-1', input as any, '2026-01-01T00:00:00.000Z', adminActor);
+    expect(mocks.catalogService.updateProduct).toHaveBeenCalledWith('prod-1', input, '2026-01-01T00:00:00.000Z', adminActor);
     expect(result).toEqual(fakeResult);
   });
 
   it('adminUpdateProduct works without updatedAt (backward compatible)', async () => {
     mocks.catalogService.updateProduct.mockResolvedValue({ id: 'prod-1' });
 
-    await admin.adminUpdateProduct('prod-1', { title: 'X' } as any);
-    expect(mocks.catalogService.updateProduct).toHaveBeenCalledWith('prod-1', { title: 'X' }, undefined);
+    await admin.adminUpdateProduct('prod-1', { title: 'X' } as any, undefined, adminActor);
+    expect(mocks.catalogService.updateProduct).toHaveBeenCalledWith('prod-1', { title: 'X' }, undefined, adminActor);
+  });
+
+  it('productMediaPreviews scopes database reads and signs URLs after commit', async () => {
+    let activeActor: Record<string, unknown> | null = null;
+    const withActorContext = vi.fn(async (context: Record<string, unknown>, operation: () => Promise<unknown>) => {
+      activeActor = context;
+      try {
+        return await operation();
+      } finally {
+        activeActor = null;
+      }
+    });
+    const product = {
+      id: 'prod-1',
+      images: ['products/prod-1/hero.jpg'],
+      deletedAt: null,
+    };
+    const findProduct = vi.fn(async () => {
+      expect(activeActor).toMatchObject({ actorKind: 'user', actorId: adminActor.sub });
+      return product;
+    });
+    const select = vi.fn(() => {
+      const query: any = {};
+      query.from = vi.fn(() => query);
+      query.where = vi.fn(async () => {
+        expect(activeActor).toMatchObject({ actorKind: 'user', actorId: adminActor.sub });
+        return [];
+      });
+      return query;
+    });
+    const storage = {
+      createPresignedGetUrl: vi.fn(async () => {
+        expect(activeActor).toBeNull();
+        return 'https://signed.example.test/hero.jpg';
+      }),
+    };
+    const service = Object.create(AdminService.prototype) as any;
+    service.db = {
+      withActorContext,
+      db: { query: { products: { findFirst: findProduct } }, select },
+    };
+    service.storage = storage;
+
+    const result = await service.productMediaPreviews('prod-1', adminActor);
+
+    expect(withActorContext).toHaveBeenCalledWith(
+      {
+        actorKind: 'user',
+        actorId: adminActor.sub,
+        actorRole: adminActor.role,
+        activeOrgId: null,
+      },
+      expect.any(Function),
+    );
+    expect(findProduct).toHaveBeenCalledOnce();
+    expect(select).toHaveBeenCalledTimes(2);
+    expect(storage.createPresignedGetUrl).toHaveBeenCalledOnce();
+    expect(result.previews['products/prod-1/hero.jpg']).toBe(
+      'https://signed.example.test/hero.jpg',
+    );
   });
 
   // ── adminGetProductAttributeValues ──────────────────────────

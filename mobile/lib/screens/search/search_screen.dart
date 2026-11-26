@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,6 +23,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   String? _selectedCategory;
   String? _selectedBrand;
   String? _searchError;
+  bool _offersOnly = false;
 
   /// PHASE COS-15: dynamic attribute facet filters
   final Map<String, String> _attrFilters = {};
@@ -38,16 +40,50 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   int _offset = 0;
   bool _searching = true;
   bool _loadingMore = false;
+  int _searchRequestVersion = 0;
+  String? _lastSuccessfulSearchKey;
+
+  String _searchKey(String q) {
+    final sortedFilters = Map.fromEntries(
+      _attrFilters.entries.toList()
+        ..sort((a, b) => a.key.compareTo(b.key)),
+    );
+    return jsonEncode({
+      'q': q.trim(),
+      'categoryId': _selectedCategory,
+      'brandId': _selectedBrand,
+      'hasOffers': _offersOnly,
+      'attributeFilters': sortedFilters,
+    });
+  }
 
   void _onChanged(String q) {
+    // Invalidate an in-flight response as soon as the input changes, not only
+    // after the debounce expires.
+    _searchRequestVersion++;
     _debounce?.cancel();
+    setState(() {
+      _searching = true;
+      _searchError = null;
+      _loadingMore = false;
+    });
     _debounce = Timer(const Duration(milliseconds: 300), () => _search(q));
   }
 
   Future<void> _search(String q, {bool append = false}) async {
+    _debounce?.cancel();
+    final searchKey = _searchKey(q);
+    if (append &&
+        (_loadingMore || _lastSuccessfulSearchKey != searchKey)) {
+      return;
+    }
+    final requestVersion = ++_searchRequestVersion;
     ref.read(searchQueryProvider.notifier).state = q;
     if (append) {
-      setState(() => _loadingMore = true);
+      setState(() {
+        _loadingMore = true;
+        _searchError = null;
+      });
     } else {
       setState(() {
         _searching = true;
@@ -57,12 +93,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final offset = append ? _offset : 0;
     try {
       final result = await ref.read(apiServiceProvider).search(
-          q: q.isEmpty ? null : q,
-          categoryId: _selectedCategory,
-          brandId: _selectedBrand,
-          limit: _pageSize,
-          offset: offset);
-      if (!mounted) return;
+            q: q.isEmpty ? null : q,
+            categoryId: _selectedCategory,
+            brandId: _selectedBrand,
+            limit: _pageSize,
+            offset: offset,
+            hasOffers: _offersOnly,
+            attributeFilters: _attrFilters.isEmpty
+                ? null
+                : {
+                    for (final entry in _attrFilters.entries)
+                      entry.key: [entry.value],
+                  },
+          );
+      if (!mounted || requestVersion != _searchRequestVersion) return;
       setState(() {
         _facets = result.facets;
         _total = result.total;
@@ -71,21 +115,32 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         _searching = false;
         _loadingMore = false;
         _searchError = null;
+        _lastSuccessfulSearchKey = searchKey;
       });
       ref.read(searchResultsProvider.notifier).state = result;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || requestVersion != _searchRequestVersion) return;
+      final sameSearch = _lastSuccessfulSearchKey == searchKey;
       setState(() {
         _searching = false;
         _loadingMore = false;
-        // Route through errorMessage so a failed page never prints a raw
-        // Dio/socket string (spec §40).
-        _searchError = ApiService.errorMessage(e);
+        if (!append && !sameSearch) {
+          // Never label results from a different query/filter set as current.
+          _items = [];
+          _facets = [];
+          _total = 0;
+          _offset = 0;
+        }
+        final message = ApiService.errorMessage(e);
+        _searchError = sameSearch && _items.isNotEmpty
+            ? '$message. Showing the last successful results for this search.'
+            : message;
       });
     }
   }
 
   Future<void> _addToCart(Product p) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('orders:write') != true) return;
     // Canonical products (no storeId) require an explicit offer/seller
     // selection — the backend will reject a bare add. Navigate to the PDP
     // where the buyer can pick a merchant offer.
@@ -121,8 +176,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       isScrollControlled: true,
       builder: (_) => _FilterSheet(
         selectedBrand: _selectedBrand,
-        onApply: (brandId) {
-          setState(() => _selectedBrand = brandId);
+        offersOnly: _offersOnly,
+        onApply: (brandId, offersOnly) {
+          setState(() {
+            _selectedBrand = brandId;
+            _offersOnly = offersOnly;
+          });
           _search(_ctrl.text);
         },
       ),
@@ -150,6 +209,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   void dispose() {
+    _searchRequestVersion++;
     _ctrl.dispose();
     _debounce?.cancel();
     super.dispose();
@@ -170,12 +230,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       });
     });
     final activeFilters =
-        (_selectedBrand != null ? 1 : 0) + _attrFilters.length;
-    final hasMore = !_searching && _items.length < _total;
+        (_selectedBrand != null ? 1 : 0) + (_offersOnly ? 1 : 0) + _attrFilters.length;
+    final hasMore = !_searching &&
+        !_loadingMore &&
+        _searchError == null &&
+        _items.length < _total &&
+        _lastSuccessfulSearchKey == _searchKey(_ctrl.text);
     return Scaffold(
         appBar: AppBar(
           title: const Text('Search'),
           actions: [
+            IconButton(
+              tooltip: 'Refresh search',
+              icon: const Icon(Icons.refresh),
+              onPressed: () => _search(_ctrl.text),
+            ),
             IconButton(
               tooltip: 'Filters',
               icon: Badge(
@@ -262,7 +331,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _resultsArea(bool hasMore) {
-    if (_searching) {
+    final canAddToCart = ref.watch(profileProvider).valueOrNull?.hasPermission('orders:write') ?? false;
+    final hasCurrentResults = _items.isNotEmpty &&
+        _lastSuccessfulSearchKey == _searchKey(_ctrl.text);
+    if (_searching && !hasCurrentResults) {
       return Padding(
         padding: const EdgeInsets.all(16),
         child: GridView.count(
@@ -280,6 +352,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ),
       );
     }
+    if (_searchError != null && _items.isEmpty) {
+      return const SizedBox.shrink();
+    }
     if (_items.isEmpty) {
       return const EmptyState(
         title: 'No products found',
@@ -288,6 +363,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
     }
     return Column(children: [
+      if (_searching && hasCurrentResults)
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Refreshing search results… showing the last successful results.',
+              style: TextStyle(fontSize: 12, color: TaifTokens.muted),
+            ),
+          ),
+        ),
       Expanded(
         child: GridView.builder(
           padding: const EdgeInsets.all(16),
@@ -305,7 +391,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             return ProductCard(
                 product: p,
                 onTap: () => context.push('/products/${p.id}'),
-                onAddToCart: () => _addToCart(p));
+                onAddToCart: canAddToCart ? () => _addToCart(p) : null);
           },
         ),
       ),
@@ -350,15 +436,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 /// deliberately omitted rather than rendered as controls that silently do
 /// nothing (BG-3, docs/production/BACKEND-EXTENSION-SPEC.md).
 class _FilterSheet extends ConsumerStatefulWidget {
-  const _FilterSheet({required this.selectedBrand, required this.onApply});
+  const _FilterSheet({required this.selectedBrand, required this.offersOnly, required this.onApply});
   final String? selectedBrand;
-  final ValueChanged<String?> onApply;
+  final bool offersOnly;
+  final void Function(String?, bool) onApply;
   @override
   ConsumerState<_FilterSheet> createState() => _FilterSheetState();
 }
 
 class _FilterSheetState extends ConsumerState<_FilterSheet> {
   late String? _brand = widget.selectedBrand;
+  late bool _offersOnly = widget.offersOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -381,6 +469,15 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
             ]),
             const Divider(height: 1),
             const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Active merchant offers only',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              subtitle: const Text('Only show products with an active offer'),
+              value: _offersOnly,
+              onChanged: (value) => setState(() => _offersOnly = value),
+            ),
+            const SizedBox(height: 8),
             const Text('Brand',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
             const SizedBox(height: 10),
@@ -430,7 +527,7 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
             Row(children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => setState(() => _brand = null),
+                  onPressed: () => setState(() { _brand = null; _offersOnly = false; }),
                   child: const Text('Clear'),
                 ),
               ),
@@ -438,7 +535,7 @@ class _FilterSheetState extends ConsumerState<_FilterSheet> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
-                    widget.onApply(_brand);
+                    widget.onApply(_brand, _offersOnly);
                     Navigator.pop(context);
                   },
                   child: const Text('Apply'),

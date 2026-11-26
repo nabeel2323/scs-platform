@@ -78,7 +78,9 @@ export class WhatsAppProvider implements NotificationProvider {
     try {
       // Mask phone number for logging (show only last 4 digits)
       const maskedPhone = this.maskPhone(phone);
-      logger.log(`Attempting WhatsApp delivery to ${maskedPhone} (correlation: ${correlationId || 'none'})`);
+      logger.log(
+        `Attempting WhatsApp delivery to ${maskedPhone} (correlation: ${correlationId || 'none'})`,
+      );
 
       // Build WhatsApp Cloud API request
       const url = `${WHATSAPP_GRAPH_HOST}/${this.config.apiVersion}/${encodeURIComponent(this.config.phoneNumberId)}/messages`;
@@ -117,7 +119,7 @@ export class WhatsAppProvider implements NotificationProvider {
         const response = await fetch(url, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${this.config.accessToken}`,
+            Authorization: `Bearer ${this.config.accessToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(body),
@@ -142,7 +144,12 @@ export class WhatsAppProvider implements NotificationProvider {
             const errorCode = errorJson.error?.code || errorJson.error?.error_subcode;
 
             // Permanent errors (invalid number, template not found, etc.)
-            if (response.status === 400 || response.status === 401 || response.status === 403 || response.status === 404) {
+            if (
+              response.status === 400 ||
+              response.status === 401 ||
+              response.status === 403 ||
+              response.status === 404
+            ) {
               throw new ProviderPermanentError(
                 `WhatsApp rejected message: ${errorCode || 'unknown'}`,
                 this.name,
@@ -160,7 +167,10 @@ export class WhatsAppProvider implements NotificationProvider {
               );
             }
           } catch (parseError) {
-            if (parseError instanceof ProviderPermanentError || parseError instanceof ProviderTransientError) {
+            if (
+              parseError instanceof ProviderPermanentError ||
+              parseError instanceof ProviderTransientError
+            ) {
               throw parseError;
             }
             // If we can't parse the error, treat as transient
@@ -174,10 +184,14 @@ export class WhatsAppProvider implements NotificationProvider {
         }
 
         // Parse successful response
-        const result: { messages?: Array<{ id?: string }> } = await response.json() as { messages?: Array<{ id?: string }> };
+        const result: { messages?: Array<{ id?: string }> } = (await response.json()) as {
+          messages?: Array<{ id?: string }>;
+        };
         const messageId = result.messages?.[0]?.id;
 
-        logger.log(`WhatsApp delivery accepted (message: ${messageId || 'unknown'}, correlation: ${correlationId || 'none'})`);
+        logger.log(
+          `WhatsApp delivery accepted (message: ${messageId || 'unknown'}, correlation: ${correlationId || 'none'})`,
+        );
 
         return {
           success: true,
@@ -188,7 +202,10 @@ export class WhatsAppProvider implements NotificationProvider {
       } catch (fetchError) {
         clearTimeout(timeoutId);
 
-        if (fetchError instanceof ProviderPermanentError || fetchError instanceof ProviderTransientError) {
+        if (
+          fetchError instanceof ProviderPermanentError ||
+          fetchError instanceof ProviderTransientError
+        ) {
           throw fetchError;
         }
 
@@ -206,7 +223,13 @@ export class WhatsAppProvider implements NotificationProvider {
         }
 
         // Other network errors — delivery outcome is uncertain.
-        logger.error(`WhatsApp API network error: ${fetchError instanceof Error ? fetchError.message : 'unknown'}`);
+        const errorType =
+          fetchError instanceof Error && fetchError.name
+            ? fetchError.name.replace(/[^A-Za-z0-9_]/g, '').slice(0, 48)
+            : 'UnknownError';
+        logger.error(
+          `WhatsApp API network error [${errorType}] (correlation: ${correlationId || 'none'})`,
+        );
         return {
           success: false,
           status: 'failed',
@@ -240,7 +263,11 @@ export class WhatsAppProvider implements NotificationProvider {
       }
 
       // Unexpected error — outcome cannot be established; preserve the challenge.
-      logger.error(`Unexpected error in WhatsApp provider: ${error instanceof Error ? error.message : 'unknown'}`);
+      const errorType =
+        error instanceof Error && error.name
+          ? error.name.replace(/[^A-Za-z0-9_]/g, '').slice(0, 48)
+          : 'UnknownError';
+      logger.error(`Unexpected error in WhatsApp provider [${errorType}]`);
       return {
         success: false,
         status: 'failed',

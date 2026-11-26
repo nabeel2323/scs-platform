@@ -1,8 +1,21 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { reviews, trustSnapshots } from './reviews.schema';
-import { orders } from '../orders/orders.schema';
+import { OrdersService } from '../orders/index';
+import { CatalogReviewLookupService } from '../catalog/index';
+import {
+  CallerContext,
+  assertStoreInOrg,
+  assertStoreMember,
+  isTenantPrivileged,
+} from '../../common/tenant-scope';
 import { eq, and, desc, avg, count } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
@@ -18,23 +31,45 @@ export class ReviewsService {
   constructor(
     private readonly db: DatabaseService,
     private readonly outbox: OutboxDispatcher,
+    private readonly orders: OrdersService,
+    private readonly catalogLookup: CatalogReviewLookupService,
   ) {}
 
   async createReview(input: CreateReviewInput) {
     // Verify order exists and is in reviewable state
-    const order = await this.db.db.query.orders.findFirst({
-      where: eq(orders.id, input.orderId),
-    });
-    if (!order) throw new NotFoundException('Order not found');
+    const order = await this.orders.getOrder(input.orderId);
 
     const reviewable = ['DELIVERED', 'COMPLETED'];
     if (!reviewable.includes(order['status'])) {
       throw new BadRequestException('Order must be DELIVERED or COMPLETED to review');
     }
 
-    // Check if reviewer is a participant
-    if (order['buyerId'] !== input.reviewerId && order['storeId'] !== input.reviewerId) {
-      throw new BadRequestException('Only order participants can review');
+    // Reviews are buyer-authored. A merchant/store ID is not a user identity.
+    if (order['buyerId'] !== input.reviewerId) {
+      throw new ForbiddenException('Only the buyer who placed the order can review it');
+    }
+
+    const subjectType = input.subjectType.trim().toUpperCase();
+    if (subjectType === 'STORE') {
+      if (order['storeId'] !== input.subjectId) {
+        throw new BadRequestException('A store review must target the store on the order');
+      }
+    } else if (subjectType === 'PRODUCT') {
+      const purchasedVariantIds = await this.orders.listPurchasedVariantIds(input.orderId);
+      if (purchasedVariantIds.length === 0) {
+        throw new BadRequestException('The order contains no reviewable product lines');
+      }
+      const purchasedProduct = await this.catalogLookup.hasVariantForProduct(
+        purchasedVariantIds,
+        input.subjectId,
+      );
+      if (!purchasedProduct) {
+        throw new BadRequestException(
+          'A product review must target a product included in the order',
+        );
+      }
+    } else {
+      throw new BadRequestException('subjectType must be STORE or PRODUCT');
     }
 
     // Check for existing review (unique constraint)
@@ -43,7 +78,7 @@ export class ReviewsService {
         eq(reviews.orderId, input.orderId),
         eq(reviews.reviewerId, input.reviewerId),
         eq(reviews.subjectId, input.subjectId),
-        eq(reviews.subjectType, input.subjectType),
+        eq(reviews.subjectType, subjectType),
       ),
     });
     if (existing) throw new ConflictException('Review already exists for this subject');
@@ -54,7 +89,7 @@ export class ReviewsService {
       orderId: input.orderId,
       reviewerId: input.reviewerId,
       subjectId: input.subjectId,
-      subjectType: input.subjectType,
+      subjectType,
       rating: input.rating,
       title: input.title || null,
       body: input.body || null,
@@ -62,14 +97,14 @@ export class ReviewsService {
     });
 
     // Recompute trust score for the subject
-    await this.recomputeTrust(input.subjectId, input.subjectType);
+    await this.recomputeTrust(input.subjectId, subjectType);
 
     // Emit event
     await this.outbox.publish('review.created', id, {
       reviewId: id,
       orderId: input.orderId,
       subjectId: input.subjectId,
-      subjectType: input.subjectType,
+      subjectType,
       rating: input.rating,
     });
 
@@ -91,7 +126,14 @@ export class ReviewsService {
     });
   }
 
-  async getReviewsByOrder(orderId: string) {
+  async getReviewsByOrder(orderId: string, caller: CallerContext) {
+    const order = await this.orders.getOrder(orderId);
+
+    if (!isTenantPrivileged(caller) && order.buyerId !== caller.sub) {
+      await assertStoreInOrg(this.db, caller, order.storeId);
+      await assertStoreMember(this.db, caller, order.storeId);
+    }
+
     return this.db.db.query.reviews.findMany({
       where: eq(reviews.orderId, orderId),
       orderBy: [desc(reviews.createdAt)],
@@ -168,7 +210,7 @@ export interface CreateReviewInput {
   orderId: string;
   reviewerId: string;
   subjectId: string;
-  subjectType: string;
+  subjectType: 'STORE' | 'PRODUCT';
   rating: number;
   title?: string;
   body?: string;

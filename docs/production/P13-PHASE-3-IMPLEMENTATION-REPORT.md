@@ -27,6 +27,7 @@ Traced the complete path from return approval through refund execution, settleme
 ### 3B. Commission Reversal Ledger
 
 **Migration 0061** (`0061_phase3_financial_correctness.sql`, 234 lines):
+
 - `commission_reversals` table with idempotency key, CHECK constraints
 - `settlement_adjustments` + `settlement_adjustment_approvals` for approval workflow
 - `reconciliation_runs` + `reconciliation_discrepancies` for monthly reconciliation
@@ -35,11 +36,13 @@ Traced the complete path from return approval through refund execution, settleme
 - Fixed `chk_settlement_status` to include ADJUSTMENT, REJECTED
 
 **New files:**
+
 - `financial.schema.ts` (106 lines) — Drizzle ORM schema for 5 new tables
 - `commission-reversal.service.ts` (235 lines) — responsibility-based reversal with cumulative-target rounding
 - `commission-reversal.spec.ts` (186 lines, 21 tests) — all pass
 
 **Key fix:** `adjustSettlement()` in `returns.service.ts` now:
+
 1. Calculates proportional commission reversal based on responsibility category
 2. Sets `commissionMinor` to the reversal amount (not 0)
 3. Adjusts `netMinor` to include the commission credit
@@ -47,6 +50,7 @@ Traced the complete path from return approval through refund execution, settleme
 5. Works for both PENDING/CALCULATED (in-place update) and PAID/DUE (ADJUSTMENT record) cases
 
 **Responsibility-based reversal policy:**
+
 - MERCHANT, PLATFORM, CARRIER_DAMAGE → reverse proportional commission
 - BUYER_REMORSE → retain original commission (no reversal)
 - Cumulative-target rounding: `floor(originalCommission × returnNetGoods / orderNetGoods)`, capped at remaining
@@ -58,6 +62,7 @@ Traced the complete path from return approval through refund execution, settleme
 State machine: `DRAFT → PENDING_APPROVAL → APPROVED → POSTED` (plus REJECTED, FAILED)
 
 **Approval rules (§3.2):**
+
 - SYP → `fxStatus = NOT_REQUIRED`, single approval sufficient
 - Non-SYP → `fxStatus = BLOCKED`, dual approval required (no FX provider exists)
 - Dual approval: 1 Finance + 1 admin, distinct users
@@ -66,12 +71,14 @@ State machine: `DRAFT → PENDING_APPROVAL → APPROVED → POSTED` (plus REJECT
 - Approval hash binds to exact (amount, currency, reason, subOrderId) — material changes invalidate
 
 **FX safety (§3.3):**
+
 - No hardcoded exchange rates
 - No fake FX provider
 - Non-SYP adjustments blocked with explicit `fxStatus = 'BLOCKED'`
 - Original transaction currency preserved
 
 **Admin API endpoints (7):**
+
 - `GET /v1/admin/settlement-adjustments` — list
 - `GET /v1/admin/settlement-adjustments/:id` — detail with approvals
 - `POST /v1/admin/settlement-adjustments` — create
@@ -85,17 +92,20 @@ State machine: `DRAFT → PENDING_APPROVAL → APPROVED → POSTED` (plus REJECT
 ### 3D. Delivery-Fee Exceptions and Voucher/Payment Behavior
 
 **Delivery-fee rules (§3.4):**
+
 - Full return → auto-refund full delivery fee + VAT (existing behavior preserved)
 - Partial return with exception → settlement adjustment created, requires dual approval
 - Carrier damage (whole sub-order) → treated as full return
 - Limited-impact carrier damage → admin review via exception flow
 
 **Implementation:**
+
 - `CreateReturnInput.deliveryFeeException` optional field added
 - `createReturnRequest()` creates a `DELIVERY_FEE_EXCEPTION` settlement adjustment after the return is persisted
 - Uses original persisted delivery fee from `orderFinancialBreakdown.deliveryFeeMinor`
 
 **Voucher/payment safety (§3.5):**
+
 - Cash refund to original payment method (existing `approveRefund()` flow)
 - No replacement vouchers issued (no voucher backend exists)
 - Payment provider failure → refund stays in FAILED state (existing behavior)
@@ -108,6 +118,7 @@ State machine: `DRAFT → PENDING_APPROVAL → APPROVED → POSTED` (plus REJECT
 **New file:** `reconciliation.service.ts` (473 lines)
 
 **Checks performed:**
+
 1. Missing refunds (REFUNDED return with no SUCCEEDED refund)
 2. Commission reversal consistency (eligible returns without reversals, excessive reversals, duplicates)
 3. Settlement formula verification (`net = gross - refund - commission - fee`)
@@ -116,12 +127,14 @@ State machine: `DRAFT → PENDING_APPROVAL → APPROVED → POSTED` (plus REJECT
 6. Duplicate detection (multiple SUCCEEDED refunds per return)
 
 **Properties:**
+
 - Rerunnable (clears previous discrepancies before re-executing)
 - Never alters finalized financial records
 - Deterministic output for same period/currency
 - Tenant-scoped
 
 **Admin API endpoints (3):**
+
 - `GET /v1/admin/reconciliation` — list runs
 - `GET /v1/admin/reconciliation/:id` — run with discrepancies
 - `POST /v1/admin/reconciliation/run` — execute for period
@@ -133,6 +146,7 @@ State machine: `DRAFT → PENDING_APPROVAL → APPROVED → POSTED` (plus REJECT
 **TypeScript compilation:** 0 new errors (7 pre-existing TS18048 in test files)
 
 **Unit test suite:** 1925/1926 pass (100/101 files)
+
 - Single failure: `webhook-rate-limiting.spec.ts` timeout (pre-existing, known flaky)
 - Phase 3 tests: 205/205 pass across 6 files
 
@@ -140,27 +154,28 @@ State machine: `DRAFT → PENDING_APPROVAL → APPROVED → POSTED` (plus REJECT
 
 ## 4. Changed Files Summary
 
-| File | Operation | Lines |
-|------|-----------|-------|
-| `infra/drizzle/migrations/0061_phase3_financial_correctness.sql` | Create | 234 |
-| `modules/returns/financial.schema.ts` | Create | 106 |
-| `modules/returns/commission-reversal.service.ts` | Create | 235 |
-| `modules/returns/settlement-adjustment.service.ts` | Create | 531 |
-| `modules/returns/reconciliation.service.ts` | Create | 473 |
-| `modules/returns/returns.service.ts` | Modify | +140 |
-| `modules/returns/returns.controller.ts` | Modify | +116 |
-| `modules/returns/returns.module.ts` | Modify | +15 |
-| `__tests__/unit/returns/commission-reversal.spec.ts` | Create | 186 |
-| `__tests__/unit/returns/settlement-adjustment.spec.ts` | Create | 247 |
-| `__tests__/unit/returns/delivery-fee-voucher.spec.ts` | Create | 209 |
-| `__tests__/unit/returns/reconciliation.spec.ts` | Create | 176 |
-| `__tests__/integration/p13-returns.postgres.spec.ts` | Modify | +10 |
-| `__tests__/integration/p13-financial-dispute.postgres.spec.ts` | Modify | +10 |
-| `infra/drizzle/seed-pg.ts` | Modify | +30 |
+| File                                                             | Operation | Lines |
+| ---------------------------------------------------------------- | --------- | ----- |
+| `infra/drizzle/migrations/0061_phase3_financial_correctness.sql` | Create    | 234   |
+| `modules/returns/financial.schema.ts`                            | Create    | 106   |
+| `modules/returns/commission-reversal.service.ts`                 | Create    | 235   |
+| `modules/returns/settlement-adjustment.service.ts`               | Create    | 531   |
+| `modules/returns/reconciliation.service.ts`                      | Create    | 473   |
+| `modules/returns/returns.service.ts`                             | Modify    | +140  |
+| `modules/returns/returns.controller.ts`                          | Modify    | +116  |
+| `modules/returns/returns.module.ts`                              | Modify    | +15   |
+| `__tests__/unit/returns/commission-reversal.spec.ts`             | Create    | 186   |
+| `__tests__/unit/returns/settlement-adjustment.spec.ts`           | Create    | 247   |
+| `__tests__/unit/returns/delivery-fee-voucher.spec.ts`            | Create    | 209   |
+| `__tests__/unit/returns/reconciliation.spec.ts`                  | Create    | 176   |
+| `__tests__/integration/p13-returns.postgres.spec.ts`             | Modify    | +10   |
+| `__tests__/integration/p13-financial-dispute.postgres.spec.ts`   | Modify    | +10   |
+| `infra/drizzle/seed-pg.ts`                                       | Modify    | +30   |
 
 ## 5. Authorization
 
 **New permissions (9):**
+
 - `admin:commission:read`, `admin:commission:write`
 - `admin:adjustments:approve`, `admin:adjustments:read`, `admin:adjustments:write`
 - `admin:reconciliation:read`, `admin:reconciliation:write`
@@ -184,3 +199,17 @@ State machine: `DRAFT → PENDING_APPROVAL → APPROVED → POSTED` (plus REJECT
 - FOR UPDATE row locks prevent concurrent approval/posting races
 - Idempotency keys prevent duplicate financial operations
 - No secrets or payment credentials in logs
+
+## FIN-025 — Durable payment-proof upload recovery — 23 November 2026
+
+- Migration 0075 creates `payment_proof_upload_intents`; it is forward-only and has not been applied to a shared/staging database.
+- Each generated payment-proof object key receives a durable UPLOADING intent before S3 is called. Successful proof submission atomically commits the payment row, payment event, outbox event and intent COMMITTED state.
+- The callable cleanup service uses a 60-minute stale threshold, SKIP LOCKED claims and a five-minute lease. It checks the payment row before deleting, uses exact-key HEAD/DELETE only, applies bounded exponential retry and moves exhausted cleanup to FAILED.
+- No bucket listing, broad object deletion, automatic timer, worker registration or worker activation is included. Any future scheduler activation remains subject to the existing operational approval gates.
+- PostgreSQL FIN-DSH-46–53 were added/updated; tests and isolated migration apply remain pending the consolidated Phase 3 campaign.
+
+- Replaced managed proofs are retired through a durable cleanup intent created in the same payment transaction; process crashes after commit cannot strand the previous key without a recovery record.
+
+## FIN-026 — Payment event actor attribution — 23 November 2026
+
+Payment verification, COD cash confirmation and privileged return transitions now persist ADMIN versus MERCHANT/BUYER according to the authenticated caller. This corrects prior hardcoded actor classes without changing authorization or state behavior. PostgreSQL FIN-DSH-54/55 cover merchant bank-transfer verification, administrator COD cash confirmation and privileged return overrides. No migration; tests remain pending the consolidated Phase 3 campaign.

@@ -37,22 +37,39 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
   @override
   Widget build(BuildContext context) {
     final storeAsync = ref.watch(activeStoreProvider);
+    final profile = ref.watch(profileProvider).valueOrNull;
+    final canCreate = profile?.hasPermission('merchant:products:write') ?? false;
+    final canDelete =
+        profile?.hasPermission('catalog:products:delete') ?? false;
+    final canReadOffers =
+        profile?.hasPermission('merchant:stores:read') ?? false;
+    final canReadCategories =
+        profile?.hasPermission('catalog:categories:read') ?? false;
     return Scaffold(
-      appBar: AppBar(title: const Text('Catalog'), actions: [
-        IconButton(
-            icon: const Icon(Icons.local_offer_outlined),
-            tooltip: 'Offers',
-            onPressed: () => context.push('/merchant/offers')),
-        IconButton(
-            icon: const Icon(Icons.category),
-            tooltip: 'Categories',
-            onPressed: () => context.push('/merchant/categories')),
-        IconButton(
+      appBar: AppBar(
+        title: const Text('Catalog'),
+        actions: [
+          if (canReadOffers)
+            IconButton(
+              icon: const Icon(Icons.local_offer_outlined),
+              tooltip: 'Offers',
+              onPressed: () => context.push('/merchant/offers'),
+            ),
+          if (canReadCategories)
+            IconButton(
+              icon: const Icon(Icons.category),
+              tooltip: 'Categories',
+              onPressed: () => context.push('/merchant/categories'),
+            ),
+          IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(myStoresProvider)),
-      ]),
+            tooltip: 'Refresh catalog',
+            onPressed: () => _refreshCatalog(storeAsync.valueOrNull?.id),
+          ),
+        ],
+      ),
       floatingActionButton: storeAsync.maybeWhen(
-        data: (store) => store == null
+        data: (store) => store == null || !canCreate
             ? null
             : FloatingActionButton.extended(
                 onPressed: () => context.push('/merchant/catalog/new'),
@@ -63,35 +80,108 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
         orElse: () => null,
       ),
       body: storeAsync.when(
-        loading: () => const LoadingSpinner(),
-        error: (e, _) => EmptyState(
-            title: 'Error',
-            description: ApiService.errorMessage(e),
-            onAction: () => ref.invalidate(myStoresProvider)),
+        skipLoadingOnRefresh: true,
+        skipLoadingOnReload: true,
+        skipError: true,
         data: (store) {
           if (store == null) {
             return const EmptyState(
-                title: 'No store',
-                description:
-                    'Your organization has no storefront yet. Complete merchant registration first.',
-                icon: Icons.storefront_outlined);
+              title: 'No store',
+              description:
+                  'Your organization has no storefront yet. Complete merchant registration first.',
+              icon: Icons.storefront_outlined,
+            );
           }
-          return _productList(context, store.id);
+          final content = _productList(
+            context,
+            store.id,
+            canCreate,
+            canDelete,
+          );
+          if (!storeAsync.isRefreshing && !storeAsync.hasError) {
+            return content;
+          }
+          return Column(
+            children: [
+              _catalogReadNotice(
+                storeAsync.isRefreshing
+                    ? 'Refreshing storefront… showing the last successfully loaded store.'
+                    : 'Could not refresh storefront: ${ApiService.errorMessage(storeAsync.error!)}. Showing the last successfully loaded store.',
+                () => ref.invalidate(activeStoreProvider),
+              ),
+              Expanded(child: content),
+            ],
+          );
         },
+        loading: () => const LoadingSpinner(),
+        error: (e, _) => EmptyState(
+          title: 'Error',
+          description: ApiService.errorMessage(e),
+          onAction: () => ref.invalidate(activeStoreProvider),
+        ),
       ),
     );
   }
 
-  Widget _productList(BuildContext context, String storeId) {
+  Future<void> _refreshRead<T>(Future<T> read) async {
+    try {
+      await read;
+    } catch (_) {
+      // Independent store/product reads retain their own AsyncValue errors.
+    }
+  }
+
+  Future<void> _refreshCatalog(String? storeId) async {
+    await _refreshRead(ref.refresh(activeStoreProvider.future));
+    final currentStoreId =
+        ref.read(activeStoreProvider).valueOrNull?.id ?? storeId;
+    if (currentStoreId != null) {
+      await _refreshRead(
+        ref.refresh(storeProductsProvider(currentStoreId).future),
+      );
+    }
+  }
+
+  Future<void> _refreshProducts(String storeId) async {
+    await _refreshRead(ref.refresh(storeProductsProvider(storeId).future));
+  }
+
+  Widget _catalogReadNotice(String message, VoidCallback onRetry) => Container(
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: TaifTokens.err.withValues(alpha: 0.06),
+          border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+              ),
+            ),
+            TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
+      );
+
+  Widget _productList(
+      BuildContext context, String storeId, bool canEdit, bool canDelete) {
     final products = ref.watch(storeProductsProvider(storeId));
     return products.when(
+      skipLoadingOnRefresh: true,
+      skipError: true,
       loading: () => const LoadingSpinner(),
       error: (e, _) => EmptyState(
-          title: 'Error',
-          description: ApiService.errorMessage(e),
-          onAction: () => ref.invalidate(storeProductsProvider(storeId))),
+        title: 'Error',
+        description: ApiService.errorMessage(e),
+        onAction: () => ref.invalidate(storeProductsProvider(storeId)),
+      ),
       data: (list) {
-        // Apply search + status filters
+        // Apply search + status filters.
         final query = _searchCtrl.text.toLowerCase();
         final filtered = list.where((p) {
           if (_statusFilter.isNotEmpty && p.status != _statusFilter) {
@@ -105,83 +195,92 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
           return true;
         }).toList();
 
-        // Count by status for filter chips
+        // Count by status for filter chips.
         final statusCounts = <String, int>{};
         for (final p in list) {
           statusCounts[p.status] = (statusCounts[p.status] ?? 0) + 1;
         }
+        final showNotice = products.isRefreshing || products.hasError;
+        final children = <Widget>[
+          if (showNotice)
+            _catalogReadNotice(
+              products.isRefreshing
+                  ? 'Refreshing products… showing the last successfully loaded catalogue.'
+                  : 'Could not refresh products: ${ApiService.errorMessage(products.error!)}. Showing the last successfully loaded catalogue.',
+              () => ref.invalidate(storeProductsProvider(storeId)),
+            ),
+          if (list.isEmpty)
+            const SizedBox(
+              height: 320,
+              child: EmptyState(
+                title: 'No products',
+                description: 'Tap "New Product" to add your first product.',
+                icon: Icons.inventory_2_outlined,
+              ),
+            )
+          else ...[
+            // Search field.
+            TextField(
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: 'Search your products...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: query.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          setState(() {});
+                        },
+                      )
+                    : null,
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _statusChip('All', list.length, ''),
+                  ...statusCounts.entries.map(
+                    (e) => _statusChip(e.key, e.value, e.key),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${filtered.length} of ${list.length} products',
+              style: const TextStyle(fontSize: 12, color: TaifTokens.muted),
+            ),
+            const SizedBox(height: 8),
+            if (filtered.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 40),
+                child: EmptyState(
+                  title: 'No matches',
+                  description: 'Try a different search term or filter',
+                  icon: Icons.search_off,
+                ),
+              )
+            else
+              ...filtered.map((p) => _buildProductCard(context, p, storeId, canEdit, canDelete)),
+          ],
+        ];
 
         return RefreshIndicator(
-          onRefresh: () async => ref.invalidate(storeProductsProvider(storeId)),
-          child: list.isEmpty
-              ? ListView(children: const [
-                  SizedBox(height: 80),
-                  EmptyState(
-                      title: 'No products',
-                      description:
-                          'Tap "New Product" to add your first product.',
-                      icon: Icons.inventory_2_outlined)
-                ])
-              : ListView(
-                  padding: const EdgeInsets.all(12),
-                  children: [
-                    // Search field
-                    TextField(
-                      controller: _searchCtrl,
-                      decoration: InputDecoration(
-                        hintText: 'Search your products...',
-                        prefixIcon: const Icon(Icons.search, size: 20),
-                        suffixIcon: query.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, size: 18),
-                                onPressed: () {
-                                  _searchCtrl.clear();
-                                  setState(() {});
-                                })
-                            : null,
-                        isDense: true,
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 8),
-                    // Status filter chips
-                    SizedBox(
-                      height: 36,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          _statusChip('All', list.length, ''),
-                          ...statusCounts.entries.map(
-                            (e) => _statusChip(e.key, e.value, e.key),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Summary
-                    Text(
-                      '${filtered.length} of ${list.length} products',
-                      style: const TextStyle(
-                          fontSize: 12, color: TaifTokens.muted),
-                    ),
-                    const SizedBox(height: 8),
-                    // Product cards
-                    if (filtered.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 40),
-                        child: EmptyState(
-                            title: 'No matches',
-                            description:
-                                'Try a different search term or filter',
-                            icon: Icons.search_off),
-                      )
-                    else
-                      ...filtered
-                          .map((p) => _buildProductCard(context, p, storeId)),
-                  ],
-                ),
+          onRefresh: () => _refreshProducts(storeId),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(12),
+            children: children,
+          ),
         );
       },
     );
@@ -206,7 +305,8 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
     );
   }
 
-  Widget _buildProductCard(BuildContext context, Product p, String storeId) {
+  Widget _buildProductCard(
+      BuildContext context, Product p, String storeId, bool canEdit, bool canDelete) {
     final activeVariants = p.variants.where((v) => v.isActive).length;
     final statusColor = _statusColors[p.status] ?? TaifTokens.muted;
     final hasImage = p.imageUrl != null;
@@ -330,12 +430,12 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
               // Actions
               Column(
                 children: [
-                  IconButton(
+                  if (canEdit) IconButton(
                       icon: const Icon(Icons.edit_outlined,
                           color: TaifTokens.brandPrimary, size: 20),
                       onPressed: () =>
                           context.push('/merchant/catalog/product/${p.id}')),
-                  IconButton(
+                  if (canDelete) IconButton(
                       icon: const Icon(Icons.delete_outline,
                           color: TaifTokens.err, size: 20),
                       onPressed: () =>
@@ -351,6 +451,7 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
 
   Future<void> _confirmDelete(
       BuildContext context, WidgetRef ref, String storeId, Product p) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('catalog:products:delete') != true) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

@@ -5,47 +5,257 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { isAuthenticated, getUser, logout } from '../lib/auth';
 import './AdminSidebar.css';
+import { hasAdminNavAccess } from '../lib/admin-nav-permissions';
 import {
-  IconHome, IconUsers, IconPackage, IconStore, IconBuilding,
-  IconShield, IconFolder, IconTag, IconScale, IconBox,
-  IconBarChart, IconClipboard, IconLock, IconLogOut, IconMenu, IconX,
-  IconSettings, IconFilter, IconStar, IconActivity, IconUpload,
+  IconHome,
+  IconUsers,
+  IconPackage,
+  IconStore,
+  IconBuilding,
+  IconShield,
+  IconFolder,
+  IconTag,
+  IconScale,
+  IconBox,
+  IconBarChart,
+  IconClipboard,
+  IconLock,
+  IconLogOut,
+  IconMenu,
+  IconX,
+  IconSettings,
+  IconFilter,
+  IconStar,
+  IconActivity,
+  IconUpload,
 } from '@scs/ui-kit';
 
-/** Navigation items with SVG icons and permission requirements. */
-const navItems: { href: string; label: string; icon: React.ReactNode; perms: string[] }[] = [
-  { href: '/', label: 'Dashboard', icon: <IconHome size={18} />, perms: [] },
-  { href: '/users', label: 'Users', icon: <IconUsers size={18} />, perms: ['admin:users:read'] },
-  { href: '/roles', label: 'Roles', icon: <IconShield size={18} />, perms: ['admin:users:read'] },
-  { href: '/orders', label: 'Orders', icon: <IconPackage size={18} />, perms: ['admin:orders:read'] },
-  { href: '/shipments', label: 'Ship Operations', icon: <IconBox size={18} />, perms: ['fulfillment:shipments:read'] },
-  { href: '/carrier', label: 'Carrier & Recovery', icon: <IconSettings size={18} />, perms: ['admin:carrier:read'] },
-  { href: '/merchants', label: 'Merchants', icon: <IconStore size={18} />, perms: ['admin:merchants:read'] },
-  { href: '/organizations', label: 'Organizations', icon: <IconBuilding size={18} />, perms: ['admin:users:read'] },
-  { href: '/verification', label: 'Verification', icon: <IconShield size={18} />, perms: ['merchant:verification:review'] },
-  { href: '/categories', label: 'Categories', icon: <IconFolder size={18} />, perms: ['catalog:categories:write'] },
-  { href: '/brands', label: 'Brands', icon: <IconTag size={18} />, perms: ['catalog:brands:manage'] },
-  { href: '/attributes', label: 'Attributes', icon: <IconSettings size={18} />, perms: ['catalog:attributes:manage'] },
-  { href: '/attribute-groups', label: 'Attr. Groups', icon: <IconFilter size={18} />, perms: ['catalog:attributes:manage'] },
-  { href: '/product-types', label: 'Product Types', icon: <IconStar size={18} />, perms: ['catalog:product-types:manage'] },
-  { href: '/disputes', label: 'Disputes', icon: <IconScale size={18} />, perms: ['support:disputes:resolve'] },
-  { href: '/payments', label: 'Payments', icon: <IconShield size={18} />, perms: ['admin:payments:read'] },
-  { href: '/settlements', label: 'Settlements', icon: <IconBarChart size={18} />, perms: ['admin:settlements:read'] },
-  { href: '/returns', label: 'Returns', icon: <IconPackage size={18} />, perms: ['admin:returns:read'] },
-  { href: '/commission', label: 'Commission', icon: <IconBarChart size={18} />, perms: ['admin:commission:read'] },
-  { href: '/settlement-adjustments', label: 'Adjustments', icon: <IconClipboard size={18} />, perms: ['admin:adjustments:read'] },
-  { href: '/reconciliation', label: 'Reconciliation', icon: <IconActivity size={18} />, perms: ['admin:reconciliation:read'] },
-  { href: '/products', label: 'Products', icon: <IconBox size={18} />, perms: ['admin:merchants:read'] },
-  { href: '/offers', label: 'Offers', icon: <IconBox size={18} />, perms: ['catalog:offers:govern'] },
-  { href: '/requests', label: 'Requests', icon: <IconClipboard size={18} />, perms: ['catalog:categories:write'] },
-  { href: '/data-quality', label: 'Data Quality', icon: <IconActivity size={18} />, perms: ['catalog:product-types:manage'] },
-  { href: '/catalog-import', label: 'Import Center', icon: <IconUpload size={18} />, perms: ['catalog:imports:manage'] },
-  { href: '/offers-kpis', label: 'Offer KPIs', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
-  { href: '/offers-trend', label: 'Offer Trend', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
-  { href: '/kpis', label: 'KPIs', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
-  { href: '/analytics', label: 'Analytics', icon: <IconActivity size={18} />, perms: ['analytics:read'] },
-  { href: '/audit', label: 'Audit Log', icon: <IconClipboard size={18} />, perms: ['admin:audit:read'] },
-  { href: '/account', label: 'Account Security', icon: <IconLock size={18} />, perms: [] },
+/** Navigation grouped by the operational domain while preserving each route's permission contract. */
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  perms: string[];
+  anyPerms?: string[];
+};
+const navGroups: { label: string; items: NavItem[] }[] = [
+  {
+    label: 'Overview',
+    items: [{ href: '/', label: 'Dashboard', icon: <IconHome size={18} />, perms: [] }],
+  },
+  {
+    label: 'Platform Management',
+    items: [
+      {
+        href: '/users',
+        label: 'Users',
+        icon: <IconUsers size={18} />,
+        perms: ['admin:users:read'],
+      },
+      {
+        href: '/roles',
+        label: 'Roles',
+        icon: <IconShield size={18} />,
+        perms: ['admin:users:read'],
+      },
+      {
+        href: '/merchants',
+        label: 'Merchants',
+        icon: <IconStore size={18} />,
+        perms: ['admin:merchants:read'],
+      },
+      {
+        href: '/organizations',
+        label: 'Organizations',
+        icon: <IconBuilding size={18} />,
+        perms: ['admin:users:read'],
+      },
+      {
+        href: '/verification',
+        label: 'Verification',
+        icon: <IconShield size={18} />,
+        perms: ['merchant:verification:review'],
+      },
+    ],
+  },
+  {
+    label: 'Orders & Fulfillment',
+    items: [
+      {
+        href: '/orders',
+        label: 'Orders',
+        icon: <IconPackage size={18} />,
+        perms: ['admin:orders:read'],
+      },
+      {
+        href: '/shipments',
+        label: 'Ship Operations',
+        icon: <IconBox size={18} />,
+        perms: ['fulfillment:shipments:read'],
+      },
+      {
+        href: '/carrier',
+        label: 'Carrier & Recovery',
+        icon: <IconSettings size={18} />,
+        perms: [],
+        anyPerms: ['admin:carrier:read', 'admin:shipping:recovery'],
+      },
+      {
+        href: '/returns',
+        label: 'Returns',
+        icon: <IconPackage size={18} />,
+        perms: ['admin:returns:read'],
+      },
+    ],
+  },
+  {
+    label: 'Catalog',
+    items: [
+      {
+        href: '/categories',
+        label: 'Categories',
+        icon: <IconFolder size={18} />,
+        perms: ['catalog:categories:write'],
+      },
+      {
+        href: '/brands',
+        label: 'Brands',
+        icon: <IconTag size={18} />,
+        perms: ['catalog:brands:manage'],
+      },
+      {
+        href: '/attributes',
+        label: 'Attributes',
+        icon: <IconSettings size={18} />,
+        perms: ['catalog:attributes:manage'],
+      },
+      {
+        href: '/attribute-groups',
+        label: 'Attr. Groups',
+        icon: <IconFilter size={18} />,
+        perms: ['catalog:attributes:manage'],
+      },
+      {
+        href: '/product-types',
+        label: 'Product Types',
+        icon: <IconStar size={18} />,
+        perms: ['catalog:product-types:manage'],
+      },
+      {
+        href: '/products',
+        label: 'Products',
+        icon: <IconBox size={18} />,
+        perms: ['admin:merchants:read'],
+      },
+      {
+        href: '/offers',
+        label: 'Offers',
+        icon: <IconBox size={18} />,
+        perms: ['catalog:offers:govern'],
+      },
+      {
+        href: '/requests',
+        label: 'Requests',
+        icon: <IconClipboard size={18} />,
+        perms: ['catalog:requests:manage'],
+      },
+      {
+        href: '/data-quality',
+        label: 'Data Quality',
+        icon: <IconActivity size={18} />,
+        perms: ['catalog:product-types:manage'],
+      },
+      {
+        href: '/catalog-import',
+        label: 'Import Center',
+        icon: <IconUpload size={18} />,
+        perms: ['catalog:imports:manage'],
+      },
+    ],
+  },
+  {
+    label: 'Finance',
+    items: [
+      {
+        href: '/payments',
+        label: 'Payments',
+        icon: <IconShield size={18} />,
+        perms: [],
+        anyPerms: ['admin:payments:read', 'admin:payments:verify', 'admin:refunds:approve'],
+      },
+      {
+        href: '/settlements',
+        label: 'Settlements',
+        icon: <IconBarChart size={18} />,
+        perms: ['admin:settlements:read'],
+      },
+      {
+        href: '/commission',
+        label: 'Commission',
+        icon: <IconBarChart size={18} />,
+        perms: ['admin:commission:read'],
+      },
+      {
+        href: '/settlement-adjustments',
+        label: 'Adjustments',
+        icon: <IconClipboard size={18} />,
+        perms: ['admin:adjustments:read'],
+      },
+      {
+        href: '/reconciliation',
+        label: 'Reconciliation',
+        icon: <IconActivity size={18} />,
+        perms: ['admin:reconciliation:read'],
+      },
+    ],
+  },
+  {
+    label: 'Analytics & Governance',
+    items: [
+      {
+        href: '/offers-kpis',
+        label: 'Offer KPIs',
+        icon: <IconBarChart size={18} />,
+        perms: ['admin:kpis:read'],
+      },
+      {
+        href: '/offers-trend',
+        label: 'Offer Trend',
+        icon: <IconBarChart size={18} />,
+        perms: ['admin:kpis:read'],
+      },
+      {
+        href: '/kpis',
+        label: 'KPIs',
+        icon: <IconBarChart size={18} />,
+        perms: ['admin:kpis:read'],
+      },
+      {
+        href: '/analytics',
+        label: 'Analytics',
+        icon: <IconActivity size={18} />,
+        perms: ['analytics:read'],
+      },
+      {
+        href: '/audit',
+        label: 'Audit Log',
+        icon: <IconClipboard size={18} />,
+        perms: ['admin:audit:read'],
+      },
+      {
+        href: '/disputes',
+        label: 'Disputes',
+        icon: <IconScale size={18} />,
+        perms: ['support:disputes:resolve'],
+      },
+    ],
+  },
+  {
+    label: 'Account',
+    items: [
+      { href: '/account', label: 'Account Security', icon: <IconLock size={18} />, perms: [] },
+    ],
+  },
 ];
 
 const SIDEBAR_WIDTH = 220;
@@ -72,92 +282,175 @@ export function AdminSidebar() {
   }, []);
 
   // Close mobile overlay on navigation
-  useEffect(() => { setMobileOpen(false); }, [pathname]);
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   const handleLogout = useCallback(async () => {
     await logout();
     router.push('/auth/login');
   }, [router]);
 
-  const sidebarWidth = isMobile ? 0 : (collapsed ? COLLAPSED_WIDTH : SIDEBAR_WIDTH);
+  const sidebarWidth = isMobile ? 0 : collapsed ? COLLAPSED_WIDTH : SIDEBAR_WIDTH;
 
   // Sync sidebar width to a CSS variable so the layout content area can respond
   useEffect(() => {
     document.documentElement.style.setProperty('--admin-sidebar-width', `${sidebarWidth}px`);
-    return () => { document.documentElement.style.removeProperty('--admin-sidebar-width'); };
+    return () => {
+      document.documentElement.style.removeProperty('--admin-sidebar-width');
+    };
   }, [sidebarWidth]);
 
   const sidebarContent = (
     <>
       {/* Header */}
-      <div style={{ padding: collapsed && !isMobile ? '24px 12px 20px' : '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: collapsed && !isMobile ? 'center' : 'space-between' }}>
+      <div
+        style={{
+          padding: collapsed && !isMobile ? '24px 12px 20px' : '24px 20px 20px',
+          borderBottom: '1px solid rgba(255,255,255,0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: collapsed && !isMobile ? 'center' : 'space-between',
+        }}
+      >
         {(!collapsed || isMobile) && (
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>SCS Admin</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>Platform Operations</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>
+              SCS Admin
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>
+              Platform Operations
+            </div>
           </div>
         )}
         {collapsed && !isMobile && (
           <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>S</div>
         )}
         {isMobile && (
-          <button onClick={() => setMobileOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', padding: 4 }} aria-label="Close menu">
+          <button
+            onClick={() => setMobileOpen(false)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'rgba(255,255,255,0.7)',
+              cursor: 'pointer',
+              padding: 4,
+            }}
+            aria-label="Close menu"
+          >
             <IconX size={20} />
           </button>
         )}
       </div>
 
       {/* Navigation */}
-      <nav className="admin-sidebar-nav" aria-label="Main navigation" style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
-        {navItems
-          .filter((item) => {
-            if (item.perms.length === 0) return true;
-            const userPerms = user?.perms ?? [];
-            return item.perms.every((p) => userPerms.includes(p));
-          })
-          .map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="admin-sidebar-link"
-                data-active={isActive}
-                style={{
-                  padding: collapsed && !isMobile ? '10px 0' : '10px 20px',
-                  justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
-                  fontSize: 13,
-                  fontWeight: isActive ? 600 : 400,
-                  color: isActive ? '#fff' : 'rgba(255,255,255,0.65)',
-                }}
-              >
-                <span style={{ color: isActive ? '#fff' : 'rgba(255,255,255,0.55)', flexShrink: 0, display: 'flex' }}>
-                  {item.icon}
-                </span>
-                {(!collapsed || isMobile) && item.label}
-                {collapsed && !isMobile && (
-                  <span className="admin-sidebar-tooltip">{item.label}</span>
-                )}
-              </Link>
-            );
-          })}
+      <nav
+        className="admin-sidebar-nav"
+        aria-label="Main navigation"
+        style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}
+      >
+        {navGroups.map((group, groupIndex) => {
+          const userPerms = user?.perms ?? [];
+          const visibleItems = group.items.filter((item) => hasAdminNavAccess(item, userPerms));
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <div key={group.label} role="group" aria-label={group.label}>
+              {!collapsed || isMobile ? (
+                <div className="admin-sidebar-group-label">{group.label}</div>
+              ) : groupIndex > 0 ? (
+                <div className="admin-sidebar-group-divider" aria-hidden="true" />
+              ) : null}
+              {visibleItems.map((item) => {
+                const isActive =
+                  pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="admin-sidebar-link"
+                    data-active={isActive}
+                    style={{
+                      padding: collapsed && !isMobile ? '10px 0' : '10px 20px',
+                      justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
+                      fontSize: 13,
+                      fontWeight: isActive ? 600 : 400,
+                      color: isActive ? '#fff' : 'rgba(255,255,255,0.65)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: isActive ? '#fff' : 'rgba(255,255,255,0.55)',
+                        flexShrink: 0,
+                        display: 'flex',
+                      }}
+                    >
+                      {item.icon}
+                    </span>
+                    {(!collapsed || isMobile) && item.label}
+                    {collapsed && !isMobile && (
+                      <span className="admin-sidebar-tooltip">{item.label}</span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })}
       </nav>
 
       {/* Footer */}
-      <div role="contentinfo" style={{ padding: collapsed && !isMobile ? '12px 8px' : '12px 20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+      <div
+        role="contentinfo"
+        style={{
+          padding: collapsed && !isMobile ? '12px 8px' : '12px 20px',
+          borderTop: '1px solid rgba(255,255,255,0.1)',
+        }}
+      >
         {(!collapsed || isMobile) && user && (
           <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: 'rgba(255,255,255,0.8)',
+                fontWeight: 600,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {user.fullName}
             </div>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{user.role}</div>
+            <div
+              style={{
+                fontSize: 10,
+                color: 'rgba(255,255,255,0.4)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.3px',
+              }}
+            >
+              {user.role}
+            </div>
           </div>
         )}
-        <div style={{ display: 'flex', justifyContent: collapsed && !isMobile ? 'center' : 'space-between', alignItems: 'center' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: collapsed && !isMobile ? 'center' : 'space-between',
+            alignItems: 'center',
+          }}
+        >
           {(!collapsed || isMobile) && (
             <button
               onClick={() => setCollapsed(true)}
-              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', padding: 4, display: 'flex' }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'rgba(255,255,255,0.45)',
+                cursor: 'pointer',
+                padding: 4,
+                display: 'flex',
+              }}
               aria-label="Collapse sidebar"
               title="Collapse sidebar"
             >
@@ -167,7 +460,14 @@ export function AdminSidebar() {
           {collapsed && !isMobile && (
             <button
               onClick={() => setCollapsed(false)}
-              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', padding: 4, display: 'flex' }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'rgba(255,255,255,0.45)',
+                cursor: 'pointer',
+                padding: 4,
+                display: 'flex',
+              }}
               aria-label="Expand sidebar"
               title="Expand sidebar"
             >
@@ -178,12 +478,16 @@ export function AdminSidebar() {
             <button
               onClick={handleLogout}
               style={{
-                display: 'flex', alignItems: 'center', gap: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
                 padding: collapsed && !isMobile ? '4px' : '4px 8px',
-                fontSize: 11, color: 'rgba(255,255,255,0.5)',
+                fontSize: 11,
+                color: 'rgba(255,255,255,0.5)',
                 background: 'rgba(255,255,255,0.08)',
                 border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: 4, cursor: 'pointer',
+                borderRadius: 4,
+                cursor: 'pointer',
                 transition: 'background 0.15s ease',
               }}
               title="Logout"
@@ -206,11 +510,20 @@ export function AdminSidebar() {
           <button
             onClick={() => setMobileOpen(true)}
             style={{
-              position: 'fixed', top: 12, left: 12, zIndex: 99,
-              width: 40, height: 40, borderRadius: 8,
-              background: '#0f3340', color: '#fff',
-              border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              position: 'fixed',
+              top: 12,
+              left: 12,
+              zIndex: 99,
+              width: 40,
+              height: 40,
+              borderRadius: 8,
+              background: '#0f3340',
+              color: '#fff',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
             }}
             aria-label="Open navigation menu"
@@ -225,11 +538,20 @@ export function AdminSidebar() {
               onClick={() => setMobileOpen(false)}
               style={{ position: 'fixed', inset: 0, background: 'rgba(7,30,50,0.5)', zIndex: 100 }}
             />
-            <aside style={{
-              position: 'fixed', top: 0, left: 0, bottom: 0,
-              width: SIDEBAR_WIDTH, background: '#0f3340', color: '#fff',
-              display: 'flex', flexDirection: 'column', zIndex: 101,
-            }}>
+            <aside
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                bottom: 0,
+                width: SIDEBAR_WIDTH,
+                background: '#0f3340',
+                color: '#fff',
+                display: 'flex',
+                flexDirection: 'column',
+                zIndex: 101,
+              }}
+            >
               {sidebarContent}
             </aside>
           </>
@@ -245,10 +567,15 @@ export function AdminSidebar() {
     <aside
       className={collapsed ? 'admin-sidebar-collapsed' : ''}
       style={{
-        position: 'fixed', top: 0, left: 0, bottom: 0,
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        bottom: 0,
         width: sidebarWidth,
-        background: '#0f3340', color: '#fff',
-        display: 'flex', flexDirection: 'column',
+        background: '#0f3340',
+        color: '#fff',
+        display: 'flex',
+        flexDirection: 'column',
         transition: 'width 0.2s ease',
         zIndex: 100,
         overflow: 'hidden',

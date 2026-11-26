@@ -1,16 +1,25 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ProductTypeSchema, AttributeDefinition,
-  fetchProductTypeSchema, fetchAttributes,
-  setProductTypeAttributes, setVariantDimensions, publishProductType,
-  adminRequest, type AdminRecord,
+  ProductTypeSchema,
+  AttributeDefinition,
+  fetchProductTypeSchema,
+  fetchAttributes,
+  setProductTypeAttributes,
+  setVariantDimensions,
+  publishProductType,
+  adminRequest,
+  type AdminRecord,
 } from '../../../lib/api';
 import { useRequirePerms, AccessDenied } from '../../../hooks/useRequirePerms';
-import { AttributeTree, AttributeConfigPanel, VariantDimensionSelector } from '../../../components/product-type-builder';
+import {
+  AttributeTree,
+  AttributeConfigPanel,
+  VariantDimensionSelector,
+} from '../../../components/product-type-builder';
 import {
   AdminDetailHeader,
   AdminDetailTabs,
@@ -36,7 +45,9 @@ interface PublishValidationResult {
 
 /** Fetch publish-readiness for a product type. */
 function fetchProductTypePublishReadiness(id: string): Promise<PublishValidationResult> {
-  return adminRequest<PublishValidationResult>(`admin/product-types/${encodeURIComponent(id)}/publish-readiness`);
+  return adminRequest<PublishValidationResult>(
+    `admin/product-types/${encodeURIComponent(id)}/publish-readiness`,
+  );
 }
 
 /** Banner showing publish-readiness errors/warnings for DRAFT product types. */
@@ -44,22 +55,34 @@ function PublishReadinessBanner({ readiness }: { readiness: PublishValidationRes
   if (!readiness) return null;
   if (readiness.canPublish && readiness.warnings.length === 0) return null;
   return (
-    <div style={{
-      margin: '0 32px', padding: '10px 16px', borderRadius: 8,
-      background: readiness.canPublish ? '#fef3c7' : '#fef2f2',
-      border: `1px solid ${readiness.canPublish ? '#fcd34d' : '#fca5a5'}`,
-      fontSize: 13,
-    }}>
+    <div
+      style={{
+        margin: '0 32px',
+        padding: '10px 16px',
+        borderRadius: 8,
+        background: readiness.canPublish ? '#fef3c7' : '#fef2f2',
+        border: `1px solid ${readiness.canPublish ? '#fcd34d' : '#fca5a5'}`,
+        fontSize: 13,
+      }}
+    >
       {readiness.canPublish ? (
-        <div style={{ fontWeight: 600, color: '#92400e', marginBottom: 4 }}>Publishable with warnings</div>
+        <div style={{ fontWeight: 600, color: '#92400e', marginBottom: 4 }}>
+          Publishable with warnings
+        </div>
       ) : (
-        <div style={{ fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>Cannot publish — {readiness.errors.length} error(s)</div>
+        <div style={{ fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>
+          Cannot publish — {readiness.errors.length} error(s)
+        </div>
       )}
       {readiness.errors.map((e, i) => (
-        <div key={`e${i}`} style={{ color: '#991b1b', fontSize: 12 }}>[{e.code}] {e.message}</div>
+        <div key={`e${i}`} style={{ color: '#991b1b', fontSize: 12 }}>
+          [{e.code}] {e.message}
+        </div>
       ))}
       {readiness.warnings.map((w, i) => (
-        <div key={`w${i}`} style={{ color: '#92400e', fontSize: 12 }}>[{w.code}] {w.message}</div>
+        <div key={`w${i}`} style={{ color: '#92400e', fontSize: 12 }}>
+          [{w.code}] {w.message}
+        </div>
       ))}
     </div>
   );
@@ -84,10 +107,16 @@ export default function ProductTypeBuilderPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [savingAttributes, setSavingAttributes] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const savePending = useRef(false);
+  const publishPending = useRef(false);
 
   // Builder working state
   const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set());
-  const [attrConfigs, setAttrConfigs] = useState<Map<string, ProductTypeSchema['attributes'][0]>>(new Map());
+  const [attrConfigs, setAttrConfigs] = useState<Map<string, ProductTypeSchema['attributes'][0]>>(
+    new Map(),
+  );
   const [variantDimIds, setVariantDimIds] = useState<Set<string>>(new Set());
   const [selectedAttrId, setSelectedAttrId] = useState<string | null>(null);
 
@@ -95,14 +124,23 @@ export default function ProductTypeBuilderPage() {
   const [activeTab, setActiveTab] = useState('overview');
 
   // Products tab state
-  const [ptProducts, setPtProducts] = useState<{ products: AdminRecord[]; totalCount: number; totalVariantCount: number }>({ products: [], totalCount: 0, totalVariantCount: 0 });
+  const [ptProducts, setPtProducts] = useState<{
+    products: AdminRecord[];
+    totalCount: number;
+    totalVariantCount: number;
+  }>({ products: [], totalCount: 0, totalVariantCount: 0 });
   const [ptProdLoading, setPtProdLoading] = useState(false);
+  const [ptProdError, setPtProdError] = useState('');
+  const ptProductsRequestVersion = useRef(0);
+  const schemaRequestVersion = useRef(0);
 
   // Dirty tracking
   const [dirty, setDirty] = useState(false);
 
   // Load schema + all available attributes
   const load = useCallback(async () => {
+    if (!hasAccess || !id) return;
+    const requestId = ++schemaRequestVersion.current;
     setLoading(true);
     setError(null);
     try {
@@ -110,12 +148,13 @@ export default function ProductTypeBuilderPage() {
         fetchProductTypeSchema(id),
         fetchAttributes(),
       ]);
+      if (requestId !== schemaRequestVersion.current) return;
       setSchema(schemaData);
       setAllAttributes(allAttrs);
 
       // Initialize working state from schema
-      const aIds = new Set(schemaData.attributes.map(a => a.attributeDefinitionId));
-      const configs = new Map(schemaData.attributes.map(a => [a.attributeDefinitionId, a]));
+      const aIds = new Set(schemaData.attributes.map((a) => a.attributeDefinitionId));
+      const configs = new Map(schemaData.attributes.map((a) => [a.attributeDefinitionId, a]));
       const vDims = new Set(schemaData.variantDimensions ?? []);
 
       setAssignedIds(aIds);
@@ -130,108 +169,143 @@ export default function ProductTypeBuilderPage() {
       if (schemaData.status === 'DRAFT') {
         try {
           const r = await fetchProductTypePublishReadiness(id);
-          setReadiness(r);
+          if (requestId === schemaRequestVersion.current) setReadiness(r);
         } catch {
-          setReadiness(null);
+          if (requestId === schemaRequestVersion.current) setReadiness(null);
         }
       } else {
         setReadiness(null);
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load product type schema');
+      if (requestId === schemaRequestVersion.current) {
+        setError(e instanceof Error ? e.message : 'Failed to load product type schema');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === schemaRequestVersion.current) setLoading(false);
     }
-  }, [id]);
+  }, [hasAccess, id]);
 
-  useEffect(() => { if (ready && hasAccess && id) load(); }, [ready, hasAccess, id, load]);
-
-  // Load products when the Products tab is activated
   useEffect(() => {
-    if (activeTab !== 'products' || !id) return;
+    if (!ready || !hasAccess || !id) return;
+    void load();
+    return () => {
+      schemaRequestVersion.current += 1;
+    };
+  }, [ready, hasAccess, id, load]);
+
+  // Load products when the Products tab is activated.
+  const loadProducts = useCallback(async () => {
+    if (!hasAccess || !id) return;
+    const requestId = ++ptProductsRequestVersion.current;
     setPtProdLoading(true);
-    adminRequest<{ products: AdminRecord[]; totalCount: number; totalVariantCount: number }>(
-      `product-types/products/${encodeURIComponent(id)}`,
-    )
-      .then(res => {
+    setPtProdError('');
+    try {
+      const result = await adminRequest<{
+        products: AdminRecord[];
+        totalCount: number;
+        totalVariantCount: number;
+      }>(`product-types/products/${encodeURIComponent(id)}`);
+      if (requestId === ptProductsRequestVersion.current) {
         setPtProducts({
-          products: res?.products ?? [],
-          totalCount: res?.totalCount ?? 0,
-          totalVariantCount: res?.totalVariantCount ?? 0,
+          products: result?.products ?? [],
+          totalCount: result?.totalCount ?? 0,
+          totalVariantCount: result?.totalVariantCount ?? 0,
         });
-        setPtProdLoading(false);
-      })
-      .catch(() => { setPtProdLoading(false); });
-  }, [activeTab, id]);
+      }
+    } catch (err) {
+      if (requestId === ptProductsRequestVersion.current) {
+        setPtProdError(err instanceof Error ? err.message : 'Failed to load product-type products');
+      }
+    } finally {
+      if (requestId === ptProductsRequestVersion.current) setPtProdLoading(false);
+    }
+  }, [hasAccess, id]);
+
+  useEffect(() => {
+    if (activeTab !== 'products' || !hasAccess) return;
+    void loadProducts();
+    return () => {
+      ptProductsRequestVersion.current += 1;
+    };
+  }, [activeTab, hasAccess, loadProducts]);
 
   // Handlers
-  const handleAddAttribute = useCallback((attrId: string) => {
-    setAssignedIds(prev => {
-      const next = new Set(prev);
-      next.add(attrId);
-      return next;
-    });
-    // Initialize config with defaults
-    const attr = allAttributes.find(a => a.id === attrId);
-    if (attr) {
-      setAttrConfigs(prev => {
-        const next = new Map(prev);
-        next.set(attrId, {
-          attributeDefinitionId: attrId,
-          displayOrder: prev.size,
-          isRequired: false,
-          isFilterable: false,
-          isSearchable: false,
-          isComparable: false,
-          visibleInListing: true,
-          visibleInDetail: true,
-          conditionalRules: null,
-          validationOverride: null,
-          definition: attr,
-          options: [],
-        });
+  const handleAddAttribute = useCallback(
+    (attrId: string) => {
+      setAssignedIds((prev) => {
+        const next = new Set(prev);
+        next.add(attrId);
         return next;
       });
-    }
-    setDirty(true);
-  }, [allAttributes]);
-
-  const handleRemoveAttribute = useCallback((attrId: string) => {
-    setAssignedIds(prev => {
-      const next = new Set(prev);
-      next.delete(attrId);
-      return next;
-    });
-    setAttrConfigs(prev => {
-      const next = new Map(prev);
-      next.delete(attrId);
-      return next;
-    });
-    // Also remove from variant dimensions if present
-    setVariantDimIds(prev => {
-      if (!prev.has(attrId)) return prev;
-      const next = new Set(prev);
-      next.delete(attrId);
-      return next;
-    });
-    if (selectedAttrId === attrId) setSelectedAttrId(null);
-    setDirty(true);
-  }, [selectedAttrId]);
-
-  const handleConfigChange = useCallback((attrId: string, updates: Partial<ProductTypeSchema['attributes'][0]>) => {
-    setAttrConfigs(prev => {
-      const next = new Map(prev);
-      const existing = next.get(attrId);
-      if (existing) {
-        next.set(attrId, { ...existing, ...updates });
+      // Initialize config with defaults
+      const attr = allAttributes.find((a) => a.id === attrId);
+      if (attr) {
+        setAttrConfigs((prev) => {
+          const next = new Map(prev);
+          next.set(attrId, {
+            attributeDefinitionId: attrId,
+            displayOrder: prev.size,
+            isRequired: false,
+            isFilterable: false,
+            isSearchable: false,
+            isComparable: false,
+            visibleInListing: true,
+            visibleInDetail: true,
+            conditionalRules: null,
+            validationOverride: null,
+            definition: attr,
+            options: [],
+          });
+          return next;
+        });
       }
-      return next;
-    });
-    setDirty(true);
-  }, []);
+      setDirty(true);
+    },
+    [allAttributes],
+  );
+
+  const handleRemoveAttribute = useCallback(
+    (attrId: string) => {
+      setAssignedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(attrId);
+        return next;
+      });
+      setAttrConfigs((prev) => {
+        const next = new Map(prev);
+        next.delete(attrId);
+        return next;
+      });
+      // Also remove from variant dimensions if present
+      setVariantDimIds((prev) => {
+        if (!prev.has(attrId)) return prev;
+        const next = new Set(prev);
+        next.delete(attrId);
+        return next;
+      });
+      if (selectedAttrId === attrId) setSelectedAttrId(null);
+      setDirty(true);
+    },
+    [selectedAttrId],
+  );
+
+  const handleConfigChange = useCallback(
+    (attrId: string, updates: Partial<ProductTypeSchema['attributes'][0]>) => {
+      setAttrConfigs((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(attrId);
+        if (existing) {
+          next.set(attrId, { ...existing, ...updates });
+        }
+        return next;
+      });
+      setDirty(true);
+    },
+    [],
+  );
 
   const handleToggleVariantDimension = useCallback((attrId: string) => {
-    setVariantDimIds(prev => {
+    setVariantDimIds((prev) => {
       const next = new Set(prev);
       if (next.has(attrId)) {
         next.delete(attrId);
@@ -243,8 +317,14 @@ export default function ProductTypeBuilderPage() {
     setDirty(true);
   }, []);
 
-  // Save attributes configuration
-  const handleSaveAttributes = async () => {
+  // Save attributes configuration. Return an explicit result so Publish
+  // cannot proceed after a failed save. The ref prevents same-tick duplicate
+  // dispatches; the permission is checked at the action boundary.
+  const saveAttributes = async (allowDuringPublish = false): Promise<boolean> => {
+    if (!hasAccess || savePending.current || (publishPending.current && !allowDuringPublish))
+      return false;
+    savePending.current = true;
+    setSavingAttributes(true);
     setError(null);
     setSaveSuccess(null);
     try {
@@ -265,28 +345,48 @@ export default function ProductTypeBuilderPage() {
       setDirty(false);
       setSaveSuccess('Saved successfully');
       setTimeout(() => setSaveSuccess(null), 3000);
+      return true;
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Save failed');
+      return false;
+    } finally {
+      savePending.current = false;
+      setSavingAttributes(false);
     }
+  };
+
+  const handleSaveAttributes = async () => {
+    await saveAttributes();
   };
 
   // Publish
   const handlePublish = async () => {
-    if (!window.confirm('Publish this product type? It will become available for merchants.')) return;
+    if (!hasAccess || publishPending.current || savePending.current) return;
+    if (!window.confirm('Publish this product type? It will become available for merchants.'))
+      return;
+    if (!hasAccess || publishPending.current || savePending.current) return;
+
+    publishPending.current = true;
+    setPublishing(true);
+    setError(null);
     try {
-      // Save first if dirty
-      if (dirty) await handleSaveAttributes();
+      // Do not publish unless the dirty configuration has been fully saved.
+      if (dirty && !(await saveAttributes(true))) return;
+      if (!hasAccess) return;
       await publishProductType(id);
-      load();
+      await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Publish failed');
+    } finally {
+      publishPending.current = false;
+      setPublishing(false);
     }
   };
 
   // Derived state
   const selectedAttr = useMemo(() => {
     if (!selectedAttrId) return null;
-    return allAttributes.find(a => a.id === selectedAttrId) ?? null;
+    return allAttributes.find((a) => a.id === selectedAttrId) ?? null;
   }, [allAttributes, selectedAttrId]);
 
   const selectedConfig = useMemo(() => {
@@ -295,9 +395,19 @@ export default function ProductTypeBuilderPage() {
   }, [attrConfigs, selectedAttrId]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
-  if (!hasAccess) return <AccessDenied requiredPerms={['catalog:product-types:manage']} missingPerms={missingPerms} />;
+  if (!hasAccess)
+    return (
+      <AccessDenied requiredPerms={['catalog:product-types:manage']} missingPerms={missingPerms} />
+    );
   if (loading) return <AdminLoadingSkeleton kvRows={8} />;
-  if (!schema) return <AdminErrorState title="Product type not found" message={error || 'The requested product type could not be loaded.'} />;
+  if (!schema)
+    return (
+      <AdminErrorState
+        title="Product type not found"
+        message={error || 'The requested product type could not be loaded.'}
+        onRetry={load}
+      />
+    );
 
   const tabs = [
     { key: 'overview', label: 'Overview' },
@@ -308,24 +418,50 @@ export default function ProductTypeBuilderPage() {
   const overviewItems: KVItem[] = [
     { key: 'name', label: 'Name', value: schema.name || 'Not set' },
     { key: 'nameAr', label: 'Name (Arabic)', value: schema.nameAr || 'Not set' },
-    { key: 'code', label: 'Code', value: <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{schema.code}</span> },
+    {
+      key: 'code',
+      label: 'Code',
+      value: <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{schema.code}</span>,
+    },
     { key: 'description', label: 'Description', value: schema.description || '—' },
     { key: 'status', label: 'Status', value: <AdminStatusBadge status={schema.status} /> },
     { key: 'version', label: 'Version', value: `v${schema.version}` },
-    { key: 'categoryId', label: 'Category', value: schema.categoryId ? (
-      <AdminEntityLink type="category" id={schema.categoryId} name={schema.categoryId.slice(0, 12) + '…'} showIcon />
-    ) : 'Not assigned' },
+    {
+      key: 'categoryId',
+      label: 'Category',
+      value: schema.categoryId ? (
+        <AdminEntityLink
+          type="category"
+          id={schema.categoryId}
+          name={schema.categoryId.slice(0, 12) + '…'}
+          showIcon
+        />
+      ) : (
+        'Not assigned'
+      ),
+    },
     { key: 'attributeCount', label: 'Attributes', value: String(schema.attributes.length) },
-    { key: 'variantDimensions', label: 'Variant Dimensions', value: schema.variantDimensions.length > 0 ? `${schema.variantDimensions.length} dimension(s)` : 'None' },
+    {
+      key: 'variantDimensions',
+      label: 'Variant Dimensions',
+      value:
+        schema.variantDimensions.length > 0
+          ? `${schema.variantDimensions.length} dimension(s)`
+          : 'None',
+    },
     { key: 'publishedAt', label: 'Published', value: formatDate(schema.publishedAt) },
     { key: 'createdAt', label: 'Created', value: formatDate(schema.createdAt) },
     { key: 'updatedAt', label: 'Updated', value: formatDate(schema.updatedAt) },
-    { key: 'id', label: 'Product Type ID', value: (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{id}</span>
-        <AdminCopyButton value={id} label="" />
-      </span>
-    )},
+    {
+      key: 'id',
+      label: 'Product Type ID',
+      value: (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{id}</span>
+          <AdminCopyButton value={id} label="" />
+        </span>
+      ),
+    },
   ];
 
   return (
@@ -352,28 +488,40 @@ export default function ProductTypeBuilderPage() {
           <>
             <button
               type="button"
-              onClick={handleSaveAttributes}
-              disabled={!dirty}
+              onClick={() => void handleSaveAttributes()}
+              disabled={!dirty || savingAttributes || publishing}
               style={{
-                padding: '8px 16px', fontSize: 13, fontWeight: 600, borderRadius: 6,
-                border: '1px solid rgba(255,255,255,0.3)', cursor: dirty ? 'pointer' : 'not-allowed',
+                padding: '8px 16px',
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 6,
+                border: '1px solid rgba(255,255,255,0.3)',
+                cursor: dirty ? 'pointer' : 'not-allowed',
                 background: dirty ? 'rgba(255,255,255,0.15)' : 'transparent',
-                color: '#fff', opacity: dirty ? 1 : 0.5,
+                color: '#fff',
+                opacity: dirty ? 1 : 0.5,
               }}
             >
-              Save
+              {savingAttributes ? 'Saving…' : 'Save'}
             </button>
             {schema.status === 'DRAFT' && (
               <button
                 type="button"
-                onClick={handlePublish}
+                onClick={() => void handlePublish()}
+                disabled={savingAttributes || publishing}
                 style={{
-                  padding: '8px 16px', fontSize: 13, fontWeight: 600, borderRadius: 6,
-                  border: 'none', cursor: 'pointer',
-                  background: '#22c55e', color: '#fff',
+                  padding: '8px 16px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  borderRadius: 6,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: '#22c55e',
+                  color: '#fff',
+                  opacity: publishing ? 0.65 : 1,
                 }}
               >
-                Publish
+                {publishing ? 'Publishing…' : 'Publish'}
               </button>
             )}
           </>
@@ -405,16 +553,30 @@ export default function ProductTypeBuilderPage() {
       {activeTab === 'builder' && (
         <>
           {/* Status messages */}
-          {error && <div className={styles['error']} style={{ margin: '0 24px' }}>{error}</div>}
-          {saveSuccess && <div className={styles['notice']} style={{ margin: '0 24px' }}>{saveSuccess}</div>}
+          {error && (
+            <div className={styles['error']} style={{ margin: '0 24px' }}>
+              {error}
+            </div>
+          )}
+          {saveSuccess && (
+            <div className={styles['notice']} style={{ margin: '0 24px' }}>
+              {saveSuccess}
+            </div>
+          )}
 
           {/* Three-panel layout */}
           <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
             {/* Left: Attribute Tree */}
-            <div style={{
-              width: 300, flexShrink: 0, borderRight: '1px solid #d9e2e6',
-              overflow: 'hidden', display: 'flex', flexDirection: 'column',
-            }}>
+            <div
+              style={{
+                width: 300,
+                flexShrink: 0,
+                borderRight: '1px solid #d9e2e6',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
               <AttributeTree
                 allAttributes={allAttributes}
                 groups={schema.groups}
@@ -432,14 +594,25 @@ export default function ProductTypeBuilderPage() {
                 <AttributeConfigPanel
                   attribute={selectedAttr}
                   config={selectedConfig}
-                  onChange={updates => handleConfigChange(selectedAttr.id, updates)}
+                  onChange={(updates) => handleConfigChange(selectedAttr.id, updates)}
                 />
               ) : (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+                <div
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 32,
+                  }}
+                >
                   <div style={{ textAlign: 'center', color: '#5b6b74' }}>
-                    <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 8 }}>Select an attribute</p>
+                    <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 8 }}>
+                      Select an attribute
+                    </p>
                     <p style={{ fontSize: 12 }}>
-                      Click an assigned attribute on the left to configure its properties, or add new attributes from the available list.
+                      Click an assigned attribute on the left to configure its properties, or add
+                      new attributes from the available list.
                     </p>
                   </div>
                 </div>
@@ -447,10 +620,16 @@ export default function ProductTypeBuilderPage() {
             </div>
 
             {/* Right: Variant Dimensions */}
-            <div style={{
-              width: 280, flexShrink: 0, borderLeft: '1px solid #d9e2e6',
-              overflow: 'hidden', display: 'flex', flexDirection: 'column',
-            }}>
+            <div
+              style={{
+                width: 280,
+                flexShrink: 0,
+                borderLeft: '1px solid #d9e2e6',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
               <VariantDimensionSelector
                 allAttributes={allAttributes}
                 assignedIds={assignedIds}
@@ -465,30 +644,62 @@ export default function ProductTypeBuilderPage() {
       {/* Products Tab */}
       {activeTab === 'products' && (
         <div style={{ padding: '0 32px 48px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <AdminDetailSection title={`Products (${ptProducts.totalCount}) · ${ptProducts.totalVariantCount} variants`}>
-            {ptProdLoading && <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading products…</div>}
-            {!ptProdLoading && ptProducts.products.length === 0 && (
-              <AdminEmptyState title="No products" description="No canonical products use this Product Type yet." />
+          <AdminDetailSection
+            title={`Products (${ptProducts.totalCount}) · ${ptProducts.totalVariantCount} variants`}
+          >
+            {ptProdLoading && (
+              <div role="status" style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>
+                Loading products…
+              </div>
             )}
-            {ptProducts.products.length > 0 && (
+            {!ptProdLoading && ptProdError && (
+              <AdminErrorState
+                title="Unable to load product-type products"
+                message={ptProdError}
+                onRetry={loadProducts}
+              />
+            )}
+            {!ptProdLoading && !ptProdError && ptProducts.products.length === 0 && (
+              <AdminEmptyState
+                title="No products"
+                description="No canonical products use this Product Type yet."
+              />
+            )}
+            {!ptProdLoading && !ptProdError && ptProducts.products.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {ptProducts.products.map(p => (
+                {ptProducts.products.map((p) => (
                   <Link
                     key={p.id}
                     href={`/products/${p.id}`}
                     style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '10px 14px', border: '1px solid #d9e2e6', borderRadius: 8,
-                      textDecoration: 'none', color: '#16232b', transition: 'background 0.12s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      border: '1px solid #d9e2e6',
+                      borderRadius: 8,
+                      textDecoration: 'none',
+                      color: '#16232b',
+                      transition: 'background 0.12s',
                     }}
                   >
                     <div>
                       <span style={{ fontWeight: 500 }}>{String(p['title'] || p['slug'])}</span>
-                      {p['brandName'] != null && String(p['brandName']) && <span style={{ marginLeft: 8, fontSize: 12, color: '#5b6b74' }}>{String(p['brandName'])}</span>}
-                      {p['categoryName'] != null && String(p['categoryName']) && <span style={{ marginLeft: 8, fontSize: 11, color: '#9ca3af' }}>{String(p['categoryName'])}</span>}
+                      {p['brandName'] != null && String(p['brandName']) && (
+                        <span style={{ marginLeft: 8, fontSize: 12, color: '#5b6b74' }}>
+                          {String(p['brandName'])}
+                        </span>
+                      )}
+                      {p['categoryName'] != null && String(p['categoryName']) && (
+                        <span style={{ marginLeft: 8, fontSize: 11, color: '#9ca3af' }}>
+                          {String(p['categoryName'])}
+                        </span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 12, color: '#5b6b74' }}>{String(p['variantCount'] ?? 0)} variants</span>
+                      <span style={{ fontSize: 12, color: '#5b6b74' }}>
+                        {String(p['variantCount'] ?? 0)} variants
+                      </span>
                       <AdminStatusBadge status={String(p['status'] || 'DRAFT')} />
                     </div>
                   </Link>

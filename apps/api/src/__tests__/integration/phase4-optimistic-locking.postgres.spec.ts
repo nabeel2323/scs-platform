@@ -28,8 +28,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { products, productVariants } from '../../modules/catalog/catalog.schema';
-import { organizations } from '../../modules/identity/identity.schema';
-import { stores } from '../../modules/merchant/merchant.schema';
+import { organizations, users } from '../../modules/identity/identity.schema';
+import { stores, storeMembers } from '../../modules/merchant/merchant.schema';
 import * as schema from '../../drizzle/schema';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
@@ -71,14 +71,18 @@ let database: DatabaseService;
 let catalog: CatalogService;
 let orgId: string;
 let storeId: string;
+let merchantUserId: string;
 let productId: string;
+
+const merchantActor = () => ({ sub: merchantUserId, role: 'MERCHANT_OWNER', activeOrg: orgId });
 let variantId: string;
 
 beforeAll(async () => {
   container = await new PostgreSqlContainer('postgres:16-alpine').start();
   pool = new Pool({ connectionString: container.getConnectionUri() });
   db = drizzle(pool, { schema: schema as any }) as any;
-  database = { db } as DatabaseService;
+  database = new DatabaseService();
+  database.db = db;
 
   const taxonomy = new (await import('../../modules/catalog/catalog.taxonomy.service')).CatalogTaxonomyService(database);
   catalog = makeCatalogService(database, taxonomy);
@@ -90,6 +94,15 @@ beforeAll(async () => {
   storeId = randomUUID();
   await db.insert(organizations).values({ id: orgId, name: 'Test Org', type: 'WHOLESALER', country: 'SA' });
   await db.insert(stores).values({ id: storeId, orgId, slug: 'opt-lock-store', displayName: 'OptLock Store' });
+
+  merchantUserId = randomUUID();
+  await db.insert(users).values({ id: merchantUserId, fullName: 'Optimistic Lock Store Owner' });
+  await db.insert(storeMembers).values({
+    storeId,
+    userId: merchantUserId,
+    role: 'OWNER',
+    status: 'ACTIVE',
+  });
 
   // Seed a product
   productId = randomUUID();
@@ -113,6 +126,12 @@ beforeAll(async () => {
 
 afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
 
+async function updateProduct(productId: string, input: any, clientUpdatedAt?: string) {
+  return catalog.updateProduct(productId, input, clientUpdatedAt, merchantActor());
+}
+
+
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST 1: Two concurrent product writers — exactly one wins
 // ═══════════════════════════════════════════════════════════════════════════
@@ -131,13 +150,13 @@ describe('TEST 1 — Two concurrent product writers', () => {
     const ts = loaded['updatedAt'] as Date;
 
     // Client A updates with the loaded timestamp
-    const resultA = await catalog.updateProduct(pid, { title: 'Client A' }, ts.toISOString());
+    const resultA = await updateProduct(pid, { title: 'Client A' }, ts.toISOString());
     expect(resultA).toBeDefined();
     expect(resultA['title']).toBe('Client A');
 
     // Client B tries to update with the same (now stale) timestamp
     try {
-      await catalog.updateProduct(pid, { title: 'Client B' }, ts.toISOString());
+      await updateProduct(pid, { title: 'Client B' }, ts.toISOString());
       expect.fail('Client B should have received 409');
     } catch (err: any) {
       expect(err.status).toBe(409);
@@ -206,7 +225,7 @@ describe('TEST 3 — 10 concurrent product writers', () => {
 
     // 10 concurrent writers, all with the same timestamp
     const promises = Array.from({ length: 10 }, (_, i) =>
-      catalog.updateProduct(pid, { title: `Writer-${i}` }, ts),
+      updateProduct(pid, { title: `Writer-${i}` }, ts),
     );
     const results = await Promise.allSettled(promises);
 
@@ -239,7 +258,7 @@ describe('TEST 4 — 50 concurrent product writers', () => {
     const ts = (loaded['updatedAt'] as Date).toISOString();
 
     const promises = Array.from({ length: 50 }, (_, i) =>
-      catalog.updateProduct(pid, { title: `W-${i}` }, ts),
+      updateProduct(pid, { title: `W-${i}` }, ts),
     );
     const results = await Promise.allSettled(promises);
 
@@ -272,7 +291,7 @@ describe('TEST 5 — Fresh timestamp allows sequential updates', () => {
     const ts1 = (v1['updatedAt'] as Date).toISOString();
 
     // First update
-    const v2 = await catalog.updateProduct(pid, { title: 'T5 Updated' }, ts1);
+    const v2 = await updateProduct(pid, { title: 'T5 Updated' }, ts1);
     expect(v2['title']).toBe('T5 Updated');
 
     // Second load — get fresh timestamp
@@ -280,7 +299,7 @@ describe('TEST 5 — Fresh timestamp allows sequential updates', () => {
     expect(ts2).not.toBe(ts1); // timestamp should have changed
 
     // Second update with fresh timestamp
-    const v3 = await catalog.updateProduct(pid, { title: 'T5 Updated Again' }, ts2);
+    const v3 = await updateProduct(pid, { title: 'T5 Updated Again' }, ts2);
     expect(v3['title']).toBe('T5 Updated Again');
   });
 });
@@ -302,11 +321,11 @@ describe('TEST 6 — Stale timestamp after successful update → 409', () => {
     const ts1 = (v1['updatedAt'] as Date).toISOString();
 
     // First update succeeds
-    await catalog.updateProduct(pid, { title: 'T6 V2' }, ts1);
+    await updateProduct(pid, { title: 'T6 V2' }, ts1);
 
     // Second update with OLD timestamp → 409
     try {
-      await catalog.updateProduct(pid, { title: 'T6 V3' }, ts1);
+      await updateProduct(pid, { title: 'T6 V3' }, ts1);
       expect.fail('Should have received 409');
     } catch (err: any) {
       expect(err.status).toBe(409);
@@ -326,7 +345,7 @@ describe('TEST 6 — Stale timestamp after successful update → 409', () => {
 describe('TEST 7 — Product does not exist → 404', () => {
   it('updateProduct on missing product throws NotFoundException', async () => {
     try {
-      await catalog.updateProduct(randomUUID(), { title: 'Ghost' }, new Date().toISOString());
+      await updateProduct(randomUUID(), { title: 'Ghost' }, new Date().toISOString());
       expect.fail('Should have thrown');
     } catch (err: any) {
       expect(err.status).toBe(404);
@@ -395,11 +414,11 @@ describe('TEST 10 — Legacy update without updatedAt', () => {
     });
 
     // Update without optimistic locking
-    const result = await catalog.updateProduct(pid, { title: 'T10 Updated' });
+    const result = await updateProduct(pid, { title: 'T10 Updated' });
     expect(result!['title']).toBe('T10 Updated');
 
     // Second update also succeeds (no conflict detection)
-    const result2 = await catalog.updateProduct(pid, { title: 'T10 Updated Again' });
+    const result2 = await updateProduct(pid, { title: 'T10 Updated Again' });
     expect(result2!['title']).toBe('T10 Updated Again');
   });
 
@@ -435,7 +454,7 @@ describe('TEST 11 — Product timestamp precision round-trip', () => {
     const ts1 = v1['updatedAt'] as Date;
 
     // Immediately update using the exact returned timestamp
-    const v2 = await catalog.updateProduct(pid, { title: 'T11 Updated' }, ts1.toISOString());
+    const v2 = await updateProduct(pid, { title: 'T11 Updated' }, ts1.toISOString());
     expect(v2['title']).toBe('T11 Updated');
 
     // Capture new timestamp
@@ -443,14 +462,14 @@ describe('TEST 11 — Product timestamp precision round-trip', () => {
 
     // Old timestamp should fail
     try {
-      await catalog.updateProduct(pid, { title: 'T11 Stale' }, ts1.toISOString());
+      await updateProduct(pid, { title: 'T11 Stale' }, ts1.toISOString());
       expect.fail('Should have received 409');
     } catch (err: any) {
       expect(err.status).toBe(409);
     }
 
     // New timestamp should succeed
-    const v3 = await catalog.updateProduct(pid, { title: 'T11 Final' }, ts2.toISOString());
+    const v3 = await updateProduct(pid, { title: 'T11 Final' }, ts2.toISOString());
     expect(v3['title']).toBe('T11 Final');
   });
 });

@@ -52,6 +52,8 @@ const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql'])
 /** The service's own digest rule, asserted rather than assumed. */
 const digest = (credential: string) => createHash('sha256').update(credential).digest('hex');
 
+const TEST_IDENTITY_ACTOR = { role: 'BUYER', activeOrg: null };
+
 describe('Device-trust credential lifecycle (S-1)', () => {
   let container: StartedPostgreSqlContainer;
   let pool: Pool;
@@ -1032,7 +1034,7 @@ describe('Device-trust credential lifecycle (S-1)', () => {
       const b = await enrolViaOtp(alice.phone, '710710', 'phone-B');
       const bobCredential = await service.issueDeviceCredential(bob.id, { label: 'bob unaffected' });
 
-      const out = await service.changePassword(alice.id, alice.password, rotated);
+      const out = await service.changePassword(alice.id, alice.password, rotated, TEST_IDENTITY_ACTOR);
       expect(out.success).toBe(true);
 
       for (const credential of [a.credential, b.credential]) {
@@ -1067,11 +1069,11 @@ describe('Device-trust credential lifecycle (S-1)', () => {
       const enrolled = await enrolViaOtp(alice.phone, '720720', 'browser-fail');
 
       await expect(
-        service.changePassword(alice.id, 'Wrong#OldPassword1', rotated),
+        service.changePassword(alice.id, 'Wrong#OldPassword1', rotated, TEST_IDENTITY_ACTOR),
       ).rejects.toThrow(/incorrect/i);
       expect((await rowByDigest(enrolled.credential)).revoked_at).toBeNull();
 
-      await expect(service.changePassword(alice.id, alice.password, 'short')).rejects.toThrow(
+      await expect(service.changePassword(alice.id, alice.password, 'short', TEST_IDENTITY_ACTOR)).rejects.toThrow(
         /at least 12 characters/i,
       );
       expect((await rowByDigest(enrolled.credential)).revoked_at).toBeNull();
@@ -1095,7 +1097,7 @@ describe('Device-trust credential lifecycle (S-1)', () => {
     it('audits the de-trust with a reason and no credential material', async () => {
       const enrolled = await enrolViaOtp(alice.phone, '730730', 'audit-browser');
 
-      await service.changePassword(alice.id, alice.password, rotated);
+      await service.changePassword(alice.id, alice.password, rotated, TEST_IDENTITY_ACTOR);
 
       const calls = mockAudit.record.mock.calls as unknown as Array<[any]>;
       const entry = calls.find(([e]) => e?.action === 'auth.device_trust_revoked')?.[0];
@@ -1124,7 +1126,7 @@ describe('Device-trust credential lifecycle (S-1)', () => {
       const a = await enrolViaOtp(alice.phone, '740740', 'device-A');
       const b = await enrolViaOtp(alice.phone, '750750', 'device-B');
 
-      await service.changePassword(alice.id, alice.password, rotated, 'device-A');
+      await service.changePassword(alice.id, alice.password, rotated, TEST_IDENTITY_ACTOR, 'device-A');
 
       // Credentials: account-wide.
       expect((await rowByDigest(a.credential)).revoked_reason).toBe('PASSWORD_CHANGE');
@@ -1148,7 +1150,7 @@ describe('Device-trust credential lifecycle (S-1)', () => {
 
     it('lets a browser earn trust again after the change, with a different credential', async () => {
       const enrolled = await enrolViaOtp(alice.phone, '760760', 'browser-recover');
-      await service.changePassword(alice.id, alice.password, rotated);
+      await service.changePassword(alice.id, alice.password, rotated, TEST_IDENTITY_ACTOR);
 
       const challenged = await service.loginWithPassword(
         alice.email,

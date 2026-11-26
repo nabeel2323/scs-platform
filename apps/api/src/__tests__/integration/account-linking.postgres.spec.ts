@@ -37,6 +37,8 @@ const HMAC_SECRET = 'dev-hmac-secret-change-me-in-production-64chars-minimum!!';
 /** Every OTP the service generates in this file, so tests need no real mailbox. */
 const PINNED_OTP = '246810';
 
+const TEST_IDENTITY_ACTOR = { role: 'BUYER', activeOrg: null };
+
 describe('Account Linking Integration (S1.35 Phase 1)', () => {
   let container: StartedPostgreSqlContainer;
   let pool: Pool;
@@ -151,7 +153,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
       const userId = await makePhoneOnlyUser('+966500000099');
       const otp = await issueEmailOtp('NewEmail@Example.COM');
 
-      const result = await service.linkEmailToAccount(userId, 'NewEmail@Example.COM', otp);
+      const result = await service.linkEmailToAccount(userId, 'NewEmail@Example.COM', otp, TEST_IDENTITY_ACTOR);
       expect(result.success).toBe(true);
 
       // Verify DB state
@@ -176,7 +178,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
 
       // No OTP was ever issued for this address.
       await expect(
-        service.linkEmailToAccount(userId, 'someone.elses@mailbox.com', '246810'),
+        service.linkEmailToAccount(userId, 'someone.elses@mailbox.com', '246810', TEST_IDENTITY_ACTOR),
       ).rejects.toThrow(/OTP|expired|not found/i);
 
       const row = await pool.query(`SELECT email, email_verified_at FROM users WHERE id = $1`, [userId]);
@@ -194,7 +196,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
       await service.requestEmailOtp('wrongcode@example.com');
 
       await expect(
-        service.linkEmailToAccount(userId, 'wrongcode@example.com', '999999'),
+        service.linkEmailToAccount(userId, 'wrongcode@example.com', '999999', TEST_IDENTITY_ACTOR),
       ).rejects.toThrow(/OTP/i);
 
       const row = await pool.query(`SELECT email FROM users WHERE id = $1`, [userId]);
@@ -208,13 +210,13 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
       const otp = await issueEmailOtp('replay@example.com');
 
       await expect(
-        service.linkEmailToAccount(userId, 'replay@example.com', otp),
+        service.linkEmailToAccount(userId, 'replay@example.com', otp, TEST_IDENTITY_ACTOR),
       ).resolves.toEqual({ success: true });
 
       // The same code must no longer be usable, so it cannot be turned into a
       // login against the freshly attached address either.
       await expect(
-        service.linkEmailToAccount(userId, 'replay@example.com', otp),
+        service.linkEmailToAccount(userId, 'replay@example.com', otp, TEST_IDENTITY_ACTOR),
       ).rejects.toThrow(/OTP|expired|not found/i);
 
       const logs = await pool.query(`SELECT action FROM account_link_log WHERE user_id = $1`, [userId]);
@@ -235,7 +237,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
       // eq(users.email, 'caseowned@example.com') does not match the stored row,
       // so only the unique index can stop this write.
       await expect(
-        service.linkEmailToAccount(attacker, 'caseowned@example.com', otp),
+        service.linkEmailToAccount(attacker, 'caseowned@example.com', otp, TEST_IDENTITY_ACTOR),
       ).rejects.toThrow(/EMAIL_ALREADY_IN_USE/i);
 
       const stillOwned = await pool.query(`SELECT email FROM users WHERE id = $1`, [owner]);
@@ -256,7 +258,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
         [userB],
       );
 
-      await expect(service.linkEmailToAccount(userB, 'taken@example.com', await issueEmailOtp('taken@example.com')))
+      await expect(service.linkEmailToAccount(userB, 'taken@example.com', await issueEmailOtp('taken@example.com'), TEST_IDENTITY_ACTOR))
         .rejects.toThrow(/EMAIL_ALREADY_IN_USE|conflict/i);
 
       await pool.query(`DELETE FROM users WHERE id IN ($1, $2)`, [userA, userB]);
@@ -274,7 +276,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
       );
 
       const otp = await issuePhoneOtp('+966500000099');
-      const result = await service.linkPhoneToAccount(userId, '+966500000099', otp);
+      const result = await service.linkPhoneToAccount(userId, '+966500000099', otp, TEST_IDENTITY_ACTOR);
       expect(result.success).toBe(true);
 
       const row = await pool.query(`SELECT phone FROM users WHERE id = $1`, [userId]);
@@ -301,7 +303,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
 
       // No OTP was ever issued for this number.
       await expect(
-        service.linkPhoneToAccount(userId, '+966500000090', PINNED_OTP),
+        service.linkPhoneToAccount(userId, '+966500000090', PINNED_OTP, TEST_IDENTITY_ACTOR),
       ).rejects.toThrow(/OTP|expired|not found/i);
 
       const row = await pool.query(`SELECT phone FROM users WHERE id = $1`, [userId]);
@@ -322,7 +324,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
       await service.requestOtp('+966500000089');
 
       await expect(
-        service.linkPhoneToAccount(userId, '+966500000089', '999999'),
+        service.linkPhoneToAccount(userId, '+966500000089', '999999', TEST_IDENTITY_ACTOR),
       ).rejects.toThrow(/OTP/i);
 
       const row = await pool.query(`SELECT phone FROM users WHERE id = $1`, [userId]);
@@ -340,13 +342,13 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
       const otp = await issuePhoneOtp('+966500000088');
 
       await expect(
-        service.linkPhoneToAccount(userId, '+966500000088', otp),
+        service.linkPhoneToAccount(userId, '+966500000088', otp, TEST_IDENTITY_ACTOR),
       ).resolves.toEqual({ success: true });
 
       // The consumed code must not be reusable, so it cannot be turned into a
       // session against the freshly attached number either.
       await expect(
-        service.linkPhoneToAccount(userId, '+966500000088', otp),
+        service.linkPhoneToAccount(userId, '+966500000088', otp, TEST_IDENTITY_ACTOR),
       ).rejects.toThrow(/OTP|expired|not found/i);
       await expect(service.verifyOtp('+966500000088', otp)).rejects.toThrow(/OTP|expired|not found/i);
 
@@ -367,7 +369,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
       );
 
       const otp = await issuePhoneOtp('+966500000010');
-      await expect(service.linkPhoneToAccount(userB, '+966500000010', otp))
+      await expect(service.linkPhoneToAccount(userB, '+966500000010', otp, TEST_IDENTITY_ACTOR))
         .rejects.toThrow(/PHONE_ALREADY_IN_USE|conflict/i);
 
       // The refused link must not have touched the owner's row.
@@ -389,7 +391,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
         [userId],
       );
 
-      const result = await service.unlinkEmailFromAccount(userId);
+      const result = await service.unlinkEmailFromAccount(userId, TEST_IDENTITY_ACTOR);
       expect(result.success).toBe(true);
 
       const row = await pool.query(`SELECT email, email_verified_at FROM users WHERE id = $1`, [userId]);
@@ -412,7 +414,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
         [userId],
       );
 
-      await expect(service.unlinkEmailFromAccount(userId))
+      await expect(service.unlinkEmailFromAccount(userId, TEST_IDENTITY_ACTOR))
         .rejects.toThrow(/cannot remove|last.*auth|at least one/i);
 
       await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
@@ -430,7 +432,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
         [userId],
       );
 
-      const result = await service.unlinkPhoneFromAccount(userId);
+      const result = await service.unlinkPhoneFromAccount(userId, TEST_IDENTITY_ACTOR);
       expect(result.success).toBe(true);
 
       const row = await pool.query(`SELECT phone FROM users WHERE id = $1`, [userId]);
@@ -447,7 +449,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
         [userId],
       );
 
-      await expect(service.unlinkPhoneFromAccount(userId))
+      await expect(service.unlinkPhoneFromAccount(userId, TEST_IDENTITY_ACTOR))
         .rejects.toThrow(/cannot remove|last.*auth|at least one/i);
 
       await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
@@ -467,14 +469,14 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
       // Link email
       await service.linkEmailToAccount(
         userId, 'roundtrip@example.com', await issueEmailOtp('roundtrip@example.com'),
-      );
+       TEST_IDENTITY_ACTOR);
       let row = await pool.query(`SELECT * FROM users WHERE id = $1`, [userId]);
       expect(row.rows[0].id).toBe(userId);
       expect(row.rows[0].email).toBe('roundtrip@example.com');
       expect(row.rows[0].phone).toBe('+966500000050');
 
       // Unlink email
-      await service.unlinkEmailFromAccount(userId);
+      await service.unlinkEmailFromAccount(userId, TEST_IDENTITY_ACTOR);
       row = await pool.query(`SELECT * FROM users WHERE id = $1`, [userId]);
       expect(row.rows[0].id).toBe(userId);
       expect(row.rows[0].email).toBeNull();

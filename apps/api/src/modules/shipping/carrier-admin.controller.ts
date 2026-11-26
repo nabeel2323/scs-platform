@@ -1,20 +1,40 @@
 import {
-  Controller, Get, Post, Patch, Param, Body, Query, UseGuards, HttpCode,
-  Logger, NotFoundException,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  HttpCode,
+  Logger,
+  NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { eq, and, or, isNull, inArray } from 'drizzle-orm';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import {
-  CurrentUser, JwtPayload, RequirePermission,
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
 } from '../../common/guards/current-user.decorator';
-import { isTenantPrivileged } from '../../common/tenant-scope';
-import { CarrierCredentialsService, CreateCarrierCredentialInput } from './carrier-credentials.service';
-import { CarrierConfigurationsService, CreateCarrierConfigurationInput, UpdateCarrierConfigurationInput } from './carrier-configurations.service';
+import { assertActiveOrgMembership, isTenantPrivileged } from '../../common/tenant-scope';
+import {
+  CarrierCredentialsService,
+  CreateCarrierCredentialInput,
+} from './carrier-credentials.service';
+import {
+  CarrierConfigurationsService,
+  CreateCarrierConfigurationInput,
+  UpdateCarrierConfigurationInput,
+} from './carrier-configurations.service';
 import { CarrierReconciliationService } from './carrier-reconciliation.service';
 import { AuditService } from '../audit/audit.service';
 import { DatabaseService } from '../../common/database/database.service';
 import { shipments } from '../orders/shipment.schema';
+import { orders } from '../orders/orders.schema';
 import { stores } from '../merchant/merchant.schema';
 
 /**
@@ -66,10 +86,7 @@ export class CarrierAdminController {
   @Get('credentials')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:carrier:read')
-  async listCredentials(
-    @CurrentUser() user: JwtPayload,
-    @Query('orgId') orgId: string,
-  ) {
+  async listCredentials(@CurrentUser() user: JwtPayload, @Query('orgId') orgId: string) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     const items = await this.credentials.listForOrg(orgId, caller);
     return { credentials: items };
@@ -78,10 +95,7 @@ export class CarrierAdminController {
   @Get('credentials/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:carrier:read')
-  async getCredential(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async getCredential(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.credentials.getById(id, caller);
   }
@@ -101,10 +115,7 @@ export class CarrierAdminController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:carrier:write')
   @HttpCode(200)
-  async deactivateCredential(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async deactivateCredential(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.credentials.deactivate(id, caller);
   }
@@ -114,10 +125,7 @@ export class CarrierAdminController {
   @Get('configurations')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:carrier:read')
-  async listConfigurations(
-    @CurrentUser() user: JwtPayload,
-    @Query('orgId') orgId: string,
-  ) {
+  async listConfigurations(@CurrentUser() user: JwtPayload, @Query('orgId') orgId: string) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     const items = await this.configurations.listForOrg(orgId, caller);
     return { configurations: items };
@@ -126,10 +134,7 @@ export class CarrierAdminController {
   @Get('configurations/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:carrier:read')
-  async getConfiguration(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async getConfiguration(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.configurations.getById(id, caller);
   }
@@ -161,10 +166,7 @@ export class CarrierAdminController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:carrier:write')
   @HttpCode(200)
-  async deactivateConfiguration(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async deactivateConfiguration(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.configurations.deactivate(id, caller);
   }
@@ -188,77 +190,95 @@ export class CarrierAdminController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:shipping:recovery')
   @HttpCode(200)
-  async recoverShipment(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
-    // Fetch the shipment
-    const shipment = await this.db.db.query.shipments.findFirst({
-      where: eq(shipments.id, id),
-    });
-
-    if (!shipment) {
-      throw new NotFoundException(`Shipment ${id} not found`);
-    }
-
-    // M7.2.4-A Phase 6: Tenant isolation — verify shipment's store belongs to caller's org.
-    // Resolve: shipment → store → organization. Compare against caller's activeOrg.
-    // Cross-tenant → 404 (not 403) to avoid revealing another org's shipment exists.
+  async recoverShipment(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    if (!isTenantPrivileged(caller)) {
-      const store = await this.db.db.query.stores.findFirst({
-        where: eq(stores.id, shipment.storeId),
-        columns: { orgId: true },
+    const actorContext = {
+      actorKind: 'user' as const,
+      actorId: user.sub,
+      actorRole: user.role,
+      activeOrgId: typeof user.activeOrg === 'string' ? user.activeOrg : null,
+    };
+
+    // Read, authorize, mark ADMIN_TRIGGERED and re-read in one short user scope.
+    const { shipment, freshShipment } = await this.db.withActorContext(actorContext, async () => {
+      const shipment = await this.db.db.query.shipments.findFirst({
+        where: eq(shipments.id, id),
       });
-      if (!store || store.orgId !== user.activeOrg) {
+      if (!shipment) throw new NotFoundException(`Shipment ${id} not found`);
+
+      // The order and store are independent shipment FKs. Validate their
+      // relationship before tenant authorization or privileged-role bypass.
+      const [store, order] = await Promise.all([
+        this.db.db.query.stores.findFirst({
+          where: eq(stores.id, shipment.storeId),
+          columns: { orgId: true },
+        }),
+        this.db.db.query.orders.findFirst({
+          where: eq(orders.id, shipment.orderId),
+          columns: { storeId: true },
+        }),
+      ]);
+      if (!store?.orgId || !order || order.storeId !== shipment.storeId) {
         throw new NotFoundException(`Shipment ${id} not found`);
       }
-    }
 
-    // Verify the shipment is in a recoverable state (create or cancel)
-    const recoverableCreateStatuses = ['PENDING', 'IN_PROGRESS', 'FAILED', 'RECOVERY_REQUIRED'];
-    const recoverableCancelStatuses = ['UNKNOWN', 'RECONCILIATION_REQUIRED'];
-    const isCreateRecoverable = recoverableCreateStatuses.includes(shipment.carrierCreateStatus || '');
-    const isCancelRecoverable = recoverableCancelStatuses.includes(shipment.carrierCancelStatus || '');
-    if (!isCreateRecoverable && !isCancelRecoverable) {
-      throw new NotFoundException(`Shipment ${id} not found`);
-    }
+      if (!isTenantPrivileged(caller)) {
+        if (!user.activeOrg || store.orgId !== user.activeOrg) {
+          throw new NotFoundException(`Shipment ${id} not found`);
+        }
+        await assertActiveOrgMembership(this.db, caller, store.orgId);
+      }
 
-    // Schedule immediate reconciliation by setting nextReconciliationAt to now
-    await this.db.db
-      .update(shipments)
-      .set({
-        recoveryStatus: 'ADMIN_TRIGGERED',
-        nextReconciliationAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(shipments.id, id));
+      const recoverableCreateStatuses = ['PENDING', 'IN_PROGRESS', 'FAILED', 'RECOVERY_REQUIRED'];
+      const recoverableCancelStatuses = ['UNKNOWN', 'RECONCILIATION_REQUIRED'];
+      const isCreateRecoverable = recoverableCreateStatuses.includes(shipment.carrierCreateStatus || '');
+      const isCancelRecoverable = recoverableCancelStatuses.includes(shipment.carrierCancelStatus || '');
+      if (!isCreateRecoverable && !isCancelRecoverable) {
+        throw new NotFoundException(`Shipment ${id} not found`);
+      }
 
-    // M7.2.4-A Phase 8: Re-fetch the shipment after the update so reconciliation
-    // sees the authoritative current state (not a stale snapshot).
-    const freshShipment = await this.db.db.query.shipments.findFirst({
-      where: eq(shipments.id, id),
+      await this.db.db
+        .update(shipments)
+        .set({
+          recoveryStatus: 'ADMIN_TRIGGERED',
+          nextReconciliationAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(shipments.id, id), eq(shipments.storeId, shipment.storeId)));
+
+      const freshShipment = await this.db.db.query.shipments.findFirst({
+        where: eq(shipments.id, id),
+      });
+      if (!freshShipment) throw new NotFoundException(`Shipment ${id} not found`);
+      return { shipment, freshShipment };
     });
 
-    // Run reconciliation with fresh state (routes to create or cancel path)
-    const result = await this.reconciliation.reconcileShipment(freshShipment!);
+    // Carrier tracking/network work must never hold the user transaction open.
+    const result = await this.reconciliation.reconcileShipment(freshShipment);
 
-    // Audit trail
-    await this.audit.record({
-      actorType: AuditService.actorTypeForRole(user.role),
-      actorId: user.sub,
-      action: 'carrier.shipment.recover',
-      resource: 'shipments',
-      resourceId: id,
-      orgId: user.activeOrg || undefined,
-      metadata: {
-        outcome: result.outcome,
-        detail: result.detail,
-        previousCreateStatus: shipment.carrierCreateStatus,
-        previousCancelStatus: shipment.carrierCancelStatus,
-        previousRecoveryStatus: shipment.recoveryStatus,
+    await this.db.withActorContext(
+      {
+        actorKind: 'audit',
+        actorId: user.sub,
+        actorRole: user.role,
+        activeOrgId: typeof user.activeOrg === 'string' ? user.activeOrg : null,
       },
-    });
+      () => this.audit.record({
+        actorType: AuditService.actorTypeForRole(user.role),
+        actorId: user.sub,
+        action: 'carrier.shipment.recover',
+        resource: 'shipments',
+        resourceId: id,
+        orgId: user.activeOrg || undefined,
+        metadata: {
+          outcome: result.outcome,
+          detail: result.detail,
+          previousCreateStatus: shipment.carrierCreateStatus,
+          previousCancelStatus: shipment.carrierCancelStatus,
+          previousRecoveryStatus: shipment.recoveryStatus,
+        },
+      }),
+    );
 
     this.logger.log(
       `Admin recovery triggered for shipment ${id} by ${user.sub}: ${result.outcome}`,
@@ -270,7 +290,6 @@ export class CarrierAdminController {
       detail: result.detail,
     };
   }
-
   /**
    * GET /v1/carrier/recovery/queue
    *
@@ -283,80 +302,85 @@ export class CarrierAdminController {
   @Get('recovery/queue')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:shipping:recovery')
-  async getRecoveryQueue(
-    @CurrentUser() user: JwtPayload,
-    @Query('limit') limit?: string,
-  ) {
+  async getRecoveryQueue(@CurrentUser() user: JwtPayload, @Query('limit') limit?: string) {
     const maxItems = Math.min(parseInt(limit || '50', 10) || 50, 200);
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-
-    // M7.2.4-A Phase 7: For non-privileged callers, scope to their org's stores.
-    // Resolve the caller's store IDs and filter shipments by those stores.
-    let orgStoreIds: string[] | null = null;
-    if (!isTenantPrivileged(caller) && user.activeOrg) {
-      const storeRows = await this.db.db.query.stores.findMany({
-        where: eq(stores.orgId, user.activeOrg),
-        columns: { id: true },
-      });
-      orgStoreIds = storeRows.map(s => s.id);
-      // If the org has no stores, return empty queue
-      if (orgStoreIds.length === 0) {
-        return { queue: [], count: 0, limit: maxItems };
-      }
+    if (!isTenantPrivileged(caller) && !user.activeOrg) {
+      throw new ForbiddenException(
+        'An active organization is required to view the recovery queue',
+      );
     }
 
-    // Build the base query — includes both create and cancel recovery states
-    const baseWhere = and(
-      or(
-        // Create recovery states
-        or(
-          eq(shipments.carrierCreateStatus, 'RECOVERY_REQUIRED' as any),
-          and(
+    return this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: user.sub,
+        actorRole: user.role,
+        activeOrgId: typeof user.activeOrg === 'string' ? user.activeOrg : null,
+      },
+      async () => {
+        let orgStoreIds: string[] | null = null;
+        if (!isTenantPrivileged(caller)) {
+          await assertActiveOrgMembership(this.db, caller, user.activeOrg as string);
+          const storeRows = await this.db.db.query.stores.findMany({
+            where: eq(stores.orgId, user.activeOrg as string),
+            columns: { id: true },
+          });
+          orgStoreIds = storeRows.map((store) => store.id);
+          if (orgStoreIds.length === 0) {
+            return { queue: [], count: 0, limit: maxItems };
+          }
+        }
+
+        const baseWhere = and(
+          or(
             or(
-              eq(shipments.carrierCreateStatus, 'PENDING' as any),
-              eq(shipments.carrierCreateStatus, 'IN_PROGRESS' as any),
-              eq(shipments.carrierCreateStatus, 'FAILED' as any),
+              eq(shipments.carrierCreateStatus, 'RECOVERY_REQUIRED' as any),
+              and(
+                or(
+                  eq(shipments.carrierCreateStatus, 'PENDING' as any),
+                  eq(shipments.carrierCreateStatus, 'IN_PROGRESS' as any),
+                  eq(shipments.carrierCreateStatus, 'FAILED' as any),
+                ),
+              ),
             ),
+            eq(shipments.carrierCancelStatus, 'UNKNOWN' as any),
+            eq(shipments.carrierCancelStatus, 'RECONCILIATION_REQUIRED' as any),
           ),
-        ),
-        // B.3.3.3: Cancel recovery states
-        eq(shipments.carrierCancelStatus, 'UNKNOWN' as any),
-        eq(shipments.carrierCancelStatus, 'RECONCILIATION_REQUIRED' as any),
-      ),
-      // M7.2.4-A: tenant scope filter
-      orgStoreIds ? inArray(shipments.storeId, orgStoreIds) : undefined,
+          orgStoreIds ? inArray(shipments.storeId, orgStoreIds) : undefined,
+        );
+
+        const queue = await this.db.db
+          .select({
+            id: shipments.id,
+            orderId: shipments.orderId,
+            storeId: shipments.storeId,
+            carrierCreateStatus: shipments.carrierCreateStatus,
+            carrierCreateError: shipments.carrierCreateError,
+            carrierCreateErrorClass: shipments.carrierCreateErrorClass,
+            carrierCreateRetries: shipments.carrierCreateRetries,
+            carrierCancelStatus: shipments.carrierCancelStatus,
+            carrierCancelError: shipments.carrierCancelError,
+            carrierCancelErrorClass: shipments.carrierCancelErrorClass,
+            carrierCancelRetries: shipments.carrierCancelRetries,
+            recoveryStatus: shipments.recoveryStatus,
+            nextReconciliationAt: shipments.nextReconciliationAt,
+            shippingProviderKey: shipments.shippingProviderKey,
+            carrierShipmentId: shipments.carrierShipmentId,
+            createdAt: shipments.createdAt,
+            updatedAt: shipments.updatedAt,
+          })
+          .from(shipments)
+          .innerJoin(
+            orders,
+            and(eq(orders.id, shipments.orderId), eq(orders.storeId, shipments.storeId)),
+          )
+          .where(baseWhere)
+          .orderBy(shipments.createdAt)
+          .limit(maxItems);
+
+        return { queue, count: queue.length, limit: maxItems };
+      },
     );
-
-    const queue = await this.db.db
-      .select({
-        id: shipments.id,
-        orderId: shipments.orderId,
-        storeId: shipments.storeId,
-        carrierCreateStatus: shipments.carrierCreateStatus,
-        carrierCreateError: shipments.carrierCreateError,
-        carrierCreateErrorClass: shipments.carrierCreateErrorClass,
-        carrierCreateRetries: shipments.carrierCreateRetries,
-        // B.3.3.3: Cancel state fields
-        carrierCancelStatus: shipments.carrierCancelStatus,
-        carrierCancelError: shipments.carrierCancelError,
-        carrierCancelErrorClass: shipments.carrierCancelErrorClass,
-        carrierCancelRetries: shipments.carrierCancelRetries,
-        recoveryStatus: shipments.recoveryStatus,
-        nextReconciliationAt: shipments.nextReconciliationAt,
-        shippingProviderKey: shipments.shippingProviderKey,
-        carrierShipmentId: shipments.carrierShipmentId,
-        createdAt: shipments.createdAt,
-        updatedAt: shipments.updatedAt,
-      })
-      .from(shipments)
-      .where(baseWhere)
-      .orderBy(shipments.createdAt)
-      .limit(maxItems);
-
-    return {
-      queue,
-      count: queue.length,
-      limit: maxItems,
-    };
   }
 }

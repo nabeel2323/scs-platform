@@ -1,64 +1,65 @@
-import { Pool } from "pg";
-import fs from "node:fs";
-import crypto from "node:crypto";
+import { Pool } from 'pg';
+import { assertStagingBootstrapTarget, setStagingBootstrapActorContext } from './scripts/staging-bootstrap-safety';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
 
 const PERMISSIONS = [
-  "identity:users:read",
-  "identity:users:write",
-  "identity:users:delete",
-  "identity:roles:read",
-  "identity:roles:write",
+  'identity:users:read',
+  'identity:users:write',
+  'identity:users:delete',
+  'identity:roles:read',
+  'identity:roles:write',
 
-  "merchant:stores:read",
-  "merchant:stores:write",
-  "merchant:stores:verify",
-  "merchant:stores:reject",
-  "merchant:verification:review",
-  "merchant:products:write",
-  "merchant:orders:write",
-  "merchant:promotions:write",
+  'merchant:stores:read',
+  'merchant:stores:write',
+  'merchant:stores:verify',
+  'merchant:stores:reject',
+  'merchant:verification:review',
+  'merchant:products:write',
+  'merchant:orders:write',
+  'merchant:promotions:write',
 
-  "merchant:inventory:read",
-  "merchant:inventory:write",
-  "merchant:pricing:read",
-  "merchant:pricing:write",
+  'merchant:inventory:read',
+  'merchant:inventory:write',
+  'merchant:pricing:read',
+  'merchant:pricing:write',
 
-  "catalog:products:read",
-  "catalog:products:write",
-  "catalog:products:delete",
-  "catalog:categories:read",
-  "catalog:categories:write",
-  "catalog:brands:manage",
+  'catalog:products:read',
+  'catalog:products:write',
+  'catalog:products:delete',
+  'catalog:categories:read',
+  'catalog:categories:write',
+  'catalog:brands:manage',
 
-  "orders:read",
-  "orders:write",
-  "orders:cancel",
-  "orders:refund",
+  'orders:read',
+  'orders:write',
+  'orders:cancel',
+  'orders:refund',
 
-  "payments:read",
-  "payments:refund",
+  'payments:read',
+  'payments:refund',
 
-  "analytics:read",
-  "audit:read",
+  'analytics:read',
+  'audit:read',
 
-  "support:tickets:read",
-  "support:tickets:write",
-  "support:tickets:escalate",
-  "support:disputes:resolve",
-  "support:disputes:write",
+  'support:tickets:read',
+  'support:tickets:write',
+  'support:tickets:escalate',
+  'support:disputes:resolve',
+  'support:disputes:write',
 
-  "identity:organizations:write",
+  'identity:organizations:write',
 
-  "ads:campaigns:read",
-  "ads:campaigns:write",
-  "ads:campaigns:approve",
+  'ads:campaigns:read',
+  'ads:campaigns:write',
+  'ads:campaigns:approve',
 
-  "admin:orders:read",
-  "admin:merchants:read",
-  "admin:kpis:read",
-  "admin:audit:read",
-  "admin:users:read",
-  "admin:users:write",
+  'admin:orders:read',
+  'admin:merchants:read',
+  'admin:kpis:read',
+  'admin:audit:read',
+  'admin:users:read',
+  'admin:users:write',
 ];
 
 const ROLES: {
@@ -67,138 +68,138 @@ const ROLES: {
   permissions: string[];
 }[] = [
   {
-    key: "SUPER_ADMIN",
-    name: "Super Admin",
+    key: 'SUPER_ADMIN',
+    name: 'Super Admin',
     permissions: PERMISSIONS,
   },
   {
-    key: "ADMIN",
-    name: "Platform Admin",
+    key: 'ADMIN',
+    name: 'Platform Admin',
     permissions: [
-      "identity:users:read",
-      "identity:roles:read",
-      "merchant:stores:read",
-      "merchant:stores:write",
-      "merchant:stores:verify",
-      "merchant:stores:reject",
-      "merchant:verification:review",
-      "catalog:products:read",
-      "orders:read",
-      "orders:cancel",
-      "orders:refund",
-      "payments:read",
-      "payments:refund",
-      "analytics:read",
-      "audit:read",
-      "support:tickets:read",
-      "support:tickets:write",
-      "support:tickets:escalate",
-      "support:disputes:resolve",
-      "support:disputes:write",
-      "merchant:inventory:read",
-      "merchant:inventory:write",
-      "merchant:pricing:read",
-      "merchant:pricing:write",
-      "identity:organizations:write",
-      "admin:orders:read",
-      "admin:merchants:read",
-      "admin:kpis:read",
-      "admin:audit:read",
-      "admin:users:read",
-      "admin:users:write",
+      'identity:users:read',
+      'identity:roles:read',
+      'merchant:stores:read',
+      'merchant:stores:write',
+      'merchant:stores:verify',
+      'merchant:stores:reject',
+      'merchant:verification:review',
+      'catalog:products:read',
+      'orders:read',
+      'orders:cancel',
+      'orders:refund',
+      'payments:read',
+      'payments:refund',
+      'analytics:read',
+      'audit:read',
+      'support:tickets:read',
+      'support:tickets:write',
+      'support:tickets:escalate',
+      'support:disputes:resolve',
+      'support:disputes:write',
+      'merchant:inventory:read',
+      'merchant:inventory:write',
+      'merchant:pricing:read',
+      'merchant:pricing:write',
+      'identity:organizations:write',
+      'admin:orders:read',
+      'admin:merchants:read',
+      'admin:kpis:read',
+      'admin:audit:read',
+      'admin:users:read',
+      'admin:users:write',
     ],
   },
   {
-    key: "MODERATOR",
-    name: "Moderator",
+    key: 'MODERATOR',
+    name: 'Moderator',
     permissions: [
-      "catalog:products:read",
-      "catalog:products:write",
-      "catalog:products:delete",
-      "catalog:categories:read",
-      "catalog:categories:write",
-      "merchant:products:write",
-      "support:tickets:read",
-      "support:tickets:write",
-      "support:tickets:escalate",
-      "orders:read",
-      "merchant:verification:review",
-      "merchant:inventory:read",
-      "merchant:pricing:read",
-      "support:disputes:write",
+      'catalog:products:read',
+      'catalog:products:write',
+      'catalog:products:delete',
+      'catalog:categories:read',
+      'catalog:categories:write',
+      'merchant:products:write',
+      'support:tickets:read',
+      'support:tickets:write',
+      'support:tickets:escalate',
+      'orders:read',
+      'merchant:verification:review',
+      'merchant:inventory:read',
+      'merchant:pricing:read',
+      'support:disputes:write',
     ],
   },
   {
-    key: "MERCHANT_OWNER",
-    name: "Merchant Owner",
+    key: 'MERCHANT_OWNER',
+    name: 'Merchant Owner',
     permissions: [
-      "catalog:products:read",
-      "catalog:products:write",
-      "catalog:products:delete",
-      "catalog:categories:read",
-      "catalog:categories:write",
-      "orders:read",
-      "orders:write",
-      "merchant:stores:read",
-      "merchant:stores:write",
-      "merchant:products:write",
-      "merchant:orders:write",
-      "merchant:promotions:write",
-      "merchant:inventory:read",
-      "merchant:inventory:write",
-      "merchant:pricing:read",
-      "merchant:pricing:write",
-      "identity:organizations:write",
+      'catalog:products:read',
+      'catalog:products:write',
+      'catalog:products:delete',
+      'catalog:categories:read',
+      'catalog:categories:write',
+      'orders:read',
+      'orders:write',
+      'merchant:stores:read',
+      'merchant:stores:write',
+      'merchant:products:write',
+      'merchant:orders:write',
+      'merchant:promotions:write',
+      'merchant:inventory:read',
+      'merchant:inventory:write',
+      'merchant:pricing:read',
+      'merchant:pricing:write',
+      'identity:organizations:write',
     ],
   },
   {
-    key: "MERCHANT_STAFF",
-    name: "Merchant Staff",
+    key: 'MERCHANT_STAFF',
+    name: 'Merchant Staff',
     permissions: [
-      "catalog:products:read",
-      "catalog:products:write",
-      "catalog:categories:read",
-      "catalog:categories:write",
-      "orders:read",
-      "orders:write",
-      "merchant:products:write",
-      "merchant:orders:write",
-      "merchant:promotions:write",
-      "merchant:inventory:read",
-      "merchant:inventory:write",
-      "merchant:pricing:read",
-      "merchant:pricing:write",
+      'catalog:products:read',
+      'catalog:products:write',
+      'catalog:categories:read',
+      'catalog:categories:write',
+      'orders:read',
+      'orders:write',
+      'merchant:products:write',
+      'merchant:orders:write',
+      'merchant:promotions:write',
+      'merchant:inventory:read',
+      'merchant:inventory:write',
+      'merchant:pricing:read',
+      'merchant:pricing:write',
     ],
   },
   {
-    key: "BUYER",
-    name: "Buyer",
+    key: 'BUYER',
+    name: 'Buyer',
     permissions: [
-      "catalog:products:read",
-      "orders:read",
-      "orders:write",
-      "orders:cancel",
-      "merchant:stores:read",
+      'catalog:products:read',
+      'orders:read',
+      'orders:write',
+      'orders:cancel',
+      'merchant:stores:read',
     ],
   },
 ];
 
 async function main() {
-  const connectionString = process.env["DATABASE_URL"];
-  const caFile = process.env["PGSSLROOTCERT"];
+  const connectionString = process.env['DATABASE_URL'];
+  const caFile = process.env['PGSSLROOTCERT'];
 
   if (!connectionString) {
-    throw new Error("DATABASE_URL is not set");
+    throw new Error('DATABASE_URL is not set');
   }
 
   if (!caFile) {
-    throw new Error("PGSSLROOTCERT is not set");
+    throw new Error('PGSSLROOTCERT is not set');
   }
 
   const pool = new Pool({
     connectionString,
     ssl: {
-      ca: fs.readFileSync(caFile, "utf8"),
+      ca: fs.readFileSync(caFile, 'utf8'),
       rejectUnauthorized: true,
     },
   });
@@ -206,9 +207,11 @@ async function main() {
   const client = await pool.connect();
 
   try {
-    await client.query("BEGIN");
+    await assertStagingBootstrapTarget(client, 'bootstrap-staging-rbac');
+    await client.query('BEGIN');
+    await setStagingBootstrapActorContext(client, 'bootstrap-staging-rbac');
 
-    console.log("Creating permissions...");
+    console.log('Creating permissions...');
 
     for (const key of PERMISSIONS) {
       await client.query(
@@ -221,7 +224,7 @@ async function main() {
       );
     }
 
-    console.log("Creating roles and role permissions...");
+    console.log('Creating roles and role permissions...');
 
     for (const role of ROLES) {
       await client.query(
@@ -233,23 +236,17 @@ async function main() {
         [crypto.randomUUID(), role.key, role.name],
       );
 
-      const roleResult = await client.query(
-        `SELECT id FROM roles WHERE key = $1`,
-        [role.key],
-      );
+      const roleResult = await client.query(`SELECT id FROM roles WHERE key = $1`, [role.key]);
 
       const roleId = roleResult.rows[0].id;
 
       for (const permissionKey of role.permissions) {
-        const permissionResult = await client.query(
-          `SELECT id FROM permissions WHERE key = $1`,
-          [permissionKey],
-        );
+        const permissionResult = await client.query(`SELECT id FROM permissions WHERE key = $1`, [
+          permissionKey,
+        ]);
 
         if (permissionResult.rows.length === 0) {
-          throw new Error(
-            `Missing permission: ${permissionKey}`,
-          );
+          throw new Error(`Missing permission: ${permissionKey}`);
         }
 
         await client.query(
@@ -263,14 +260,17 @@ async function main() {
       }
     }
 
-    await client.query("COMMIT");
+    await client.query('COMMIT');
 
-    console.log("");
-    console.log("Staging RBAC bootstrap complete.");
+    console.log('');
+    console.log('Staging RBAC bootstrap complete.');
     console.log(`Permissions: ${PERMISSIONS.length}`);
     console.log(`Roles: ${ROLES.length}`);
 
-    const verification = await pool.query(`
+    await client.query('BEGIN');
+    await setStagingBootstrapActorContext(client, 'bootstrap-staging-rbac:verification');
+
+    const verification = await client.query(`
       SELECT
         r.key AS role,
         COUNT(rp.permission_id)::int AS permissions
@@ -291,15 +291,16 @@ async function main() {
 
     console.table(verification.rows);
 
-    const merchantPermission = await pool.query(`
+    const merchantPermission = await client.query(`
       SELECT id, key
       FROM permissions
       WHERE key = 'merchant:products:write';
     `);
 
     console.table(merchantPermission.rows);
+    await client.query('COMMIT');
   } catch (error) {
-    await client.query("ROLLBACK");
+    await client.query('ROLLBACK');
     throw error;
   } finally {
     client.release();
@@ -308,6 +309,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("RBAC bootstrap failed:", error);
+  console.error('RBAC bootstrap failed:', error);
   process.exit(1);
 });

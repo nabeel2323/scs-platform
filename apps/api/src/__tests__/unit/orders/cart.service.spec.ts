@@ -60,6 +60,143 @@ function line(overrides: Record<string, unknown>) {
   };
 }
 
+describe('CartService.addItem selected offer pricing', () => {
+  it('stores the exact selected offer and the same resolved unit price shown on its card', async () => {
+    const inserted: any[] = [];
+    const offer = {
+      id: 'offer-seller',
+      storeId: 'store-seller',
+      productId: 'product-1',
+      variantId: 'variant-1',
+      status: 'ACTIVE',
+      isAvailable: true,
+      currency: 'SAR',
+      basePriceMinor: 900,
+      moq: 5,
+      priceListId: 'price-list-seller',
+    };
+    const builder: Record<string, any> = {};
+    builder['from'] = () => builder;
+    builder['innerJoin'] = () => builder;
+    builder['where'] = () => builder;
+    builder['then'] = (resolve: (rows: unknown[]) => unknown) =>
+      Promise.resolve([
+        {
+          priceListId: 'price-list-seller',
+          priceListStoreId: 'store-seller',
+          priceListName: 'Seller price book',
+          currency: 'SAR',
+          variantId: 'variant-1',
+          minQty: 5,
+          maxQty: null,
+          unitPriceMinor: 950,
+        },
+      ]).then(resolve);
+
+    const db = {
+      query: {
+        productVariants: {
+          findFirst: vi.fn(async () => ({
+            id: 'variant-1',
+            productId: 'product-1',
+            isActive: true,
+          })),
+        },
+        products: { findFirst: vi.fn(async () => ({ id: 'product-1', storeId: 'owner-store' })) },
+        merchantOffers: { findFirst: vi.fn(async () => offer) },
+        cartItems: { findFirst: vi.fn(async () => null) },
+      },
+      select: vi.fn(() => builder),
+      insert: vi.fn(() => ({
+        values: vi.fn(async (value: unknown) => {
+          inserted.push(value);
+          return [];
+        }),
+      })),
+      update: vi.fn(),
+    };
+
+    const svc = new CartService({ db } as any, { resolveApplicable: async () => null } as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1', userId: 'buyer-1' }));
+    (svc as any).recalculateTotal = vi.fn(async () => undefined);
+    (svc as any).getActiveCartWithItems = vi.fn(async () => ({ id: 'cart-1', items: [] }));
+
+    await svc.addItem('buyer-1', {
+      variantId: 'variant-1',
+      quantity: 5,
+      offerId: 'offer-seller',
+    });
+
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).toMatchObject({
+      cartId: 'cart-1',
+      storeId: 'store-seller',
+      variantId: 'variant-1',
+      quantity: 5,
+      priceMinor: 950,
+      tierMinQty: 5,
+      offerId: 'offer-seller',
+      lineTotalMinor: 4750,
+    });
+    expect(db.select).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not merge an owner-priced line into an existing seller-offer line', async () => {
+    let cartItemWhere: unknown;
+    const builder: Record<string, any> = {};
+    builder['from'] = () => builder;
+    builder['innerJoin'] = () => builder;
+    builder['where'] = () => builder;
+    builder['orderBy'] = () => builder;
+    builder['then'] = (resolve: (rows: unknown[]) => unknown) =>
+      Promise.resolve([
+        {
+          variantId: 'variant-1',
+          minQty: 1,
+          unitPriceMinor: 1000,
+          priceListId: 'owner-list',
+          priceListName: 'Owner',
+          currency: 'SAR',
+        },
+      ]).then(resolve);
+
+    const db = {
+      query: {
+        productVariants: {
+          findFirst: vi.fn(async () => ({
+            id: 'variant-1',
+            productId: 'product-1',
+            isActive: true,
+          })),
+          findMany: vi.fn(async () => [{ id: 'variant-1', productId: 'product-1' }]),
+        },
+        products: { findFirst: vi.fn(async () => ({ id: 'product-1', storeId: 'owner-store' })) },
+        merchantOffers: { findMany: vi.fn(async () => []) },
+        cartItems: {
+          findFirst: vi.fn(async (query: { where: unknown }) => {
+            cartItemWhere = query.where;
+            return null;
+          }),
+        },
+      },
+      select: vi.fn(() => builder),
+      insert: vi.fn(() => ({ values: vi.fn(async () => []) })),
+      update: vi.fn(),
+    };
+
+    const svc = new CartService({ db } as any, { resolveApplicable: async () => null } as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1', userId: 'buyer-1' }));
+    (svc as any).recalculateTotal = vi.fn(async () => undefined);
+    (svc as any).getActiveCartWithItems = vi.fn(async () => ({ id: 'cart-1', items: [] }));
+
+    await svc.addItem('buyer-1', { variantId: 'variant-1', quantity: 1 });
+
+    const predicate = inspect(cartItemWhere, { depth: 12, breakLength: Infinity, compact: true });
+    expect(predicate).toContain('offer_id');
+    expect(predicate).toMatch(/is null/i);
+  });
+});
+
 describe('CartService.listCartItems', () => {
   it('filters the join by the requested cart', async () => {
     const captured: Captured = {};
@@ -79,7 +216,14 @@ describe('CartService.listCartItems', () => {
     const svc = service(
       [
         {
-          item: line({ id: 'ci-1', storeId: 'st-1', variantId: 'v-1', quantity: 2, priceMinor: 1500, lineTotalMinor: 3000 }),
+          item: line({
+            id: 'ci-1',
+            storeId: 'st-1',
+            variantId: 'v-1',
+            quantity: 2,
+            priceMinor: 1500,
+            lineTotalMinor: 3000,
+          }),
           variantTitle: null,
           productTitle: 'Rice 5kg',
           sku: 'SKU-RICE-5',
@@ -121,7 +265,13 @@ describe('CartService.listCartItems', () => {
     const svc = service(
       [
         {
-          item: line({ id: 'ci-3', storeId: 'st-3', variantId: 'v-3', quantity: 5, lineTotalMinor: 500 }),
+          item: line({
+            id: 'ci-3',
+            storeId: 'st-3',
+            variantId: 'v-3',
+            quantity: 5,
+            lineTotalMinor: 500,
+          }),
           variantTitle: null,
           productTitle: null,
           sku: null,
@@ -178,7 +328,7 @@ describe('CartService.addItems', () => {
 
     expect(result.added).toEqual([]);
     expect(result.skipped).toHaveLength(2);
-    expect(result.skipped.every(s => s.reason === 'Invalid quantity')).toBe(true);
+    expect(result.skipped.every((s) => s.reason === 'Invalid quantity')).toBe(true);
     // The variant lookup should never be called for invalid quantities.
     expect(db.query.productVariants.findFirst).not.toHaveBeenCalled();
   });
@@ -186,5 +336,171 @@ describe('CartService.addItems', () => {
   it('rejects an empty items array', async () => {
     const svc = new CartService({} as any, {} as any);
     await expect(svc.addItems('u-1', [])).rejects.toThrow('items must be a non-empty array');
+  });
+});
+
+describe('CartService MOQ and order-increment enforcement', () => {
+  const offer = {
+    id: 'offer-1',
+    storeId: 'store-1',
+    productId: 'product-1',
+    variantId: 'variant-1',
+    status: 'ACTIVE',
+    isAvailable: true,
+    moq: 5,
+    orderIncrement: 3,
+    currency: 'SAR',
+    basePriceMinor: 100,
+    priceListId: null,
+  };
+
+  it('rejects an invalid final quantity when adding to a selected offer', async () => {
+    const db = {
+      query: {
+        productVariants: {
+          findFirst: vi.fn(async () => ({
+            id: 'variant-1',
+            productId: 'product-1',
+            isActive: true,
+          })),
+        },
+        products: { findFirst: vi.fn(async () => ({ id: 'product-1', storeId: 'store-1' })) },
+        merchantOffers: { findFirst: vi.fn(async () => offer) },
+        cartItems: { findFirst: vi.fn(async () => ({ id: 'line-1', quantity: 5 })) },
+      },
+      select: vi.fn(),
+      insert: vi.fn(),
+    };
+    const svc = new CartService({ db } as any, {} as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
+
+    await expect(
+      svc.addItem('buyer-1', { variantId: 'variant-1', quantity: 1, offerId: 'offer-1' }),
+    ).rejects.toThrow('increments of 3');
+    expect(db.select).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it('skips an invalid batch-added quantity without persisting it', async () => {
+    const db = {
+      query: {
+        productVariants: {
+          findFirst: vi.fn(async () => ({
+            id: 'variant-1',
+            productId: 'product-1',
+            isActive: true,
+          })),
+        },
+        products: { findFirst: vi.fn(async () => ({ id: 'product-1', storeId: 'store-1' })) },
+        merchantOffers: { findFirst: vi.fn(async () => offer) },
+        cartItems: { findFirst: vi.fn(async () => ({ id: 'line-1', quantity: 5 })) },
+      },
+      insert: vi.fn(),
+    };
+    const svc = new CartService({ db } as any, {} as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
+    (svc as any).recalculateTotal = vi.fn(async () => undefined);
+    (svc as any).getActiveCartWithItems = vi.fn(async () => ({ id: 'cart-1', items: [] }));
+
+    const result = await svc.addItems('buyer-1', [
+      { variantId: 'variant-1', quantity: 1, offerId: 'offer-1' },
+    ]);
+    expect(result.added).toEqual([]);
+    expect(result.skipped[0]?.reason).toContain('increments of 3');
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid quantity update before repricing', async () => {
+    const db = {
+      query: {
+        carts: { findFirst: vi.fn(async () => ({ id: 'cart-1' })) },
+        cartItems: {
+          findFirst: vi.fn(async () => ({
+            id: 'line-1',
+            cartId: 'cart-1',
+            variantId: 'variant-1',
+            storeId: 'store-1',
+            offerId: 'offer-1',
+          })),
+        },
+        merchantOffers: { findFirst: vi.fn(async () => offer) },
+      },
+      select: vi.fn(),
+      update: vi.fn(),
+    };
+    const svc = new CartService({ db } as any, {} as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
+
+    await expect(svc.updateItemQuantity('buyer-1', 'line-1', 7)).rejects.toThrow('increments of 3');
+    expect(db.select).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects fractional quantities in quantity updates', async () => {
+    const db = {
+      query: {
+        carts: { findFirst: vi.fn(async () => ({ id: 'cart-1' })) },
+        cartItems: { findFirst: vi.fn(async () => ({ id: 'line-1', cartId: 'cart-1' })) },
+      },
+    };
+    const svc = new CartService({ db } as any, {} as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
+    await expect(svc.updateItemQuantity('buyer-1', 'line-1', 2.5)).rejects.toThrow(
+      'positive integer',
+    );
+  });
+
+  it('rejects negative quantity updates without deleting the cart line', async () => {
+    const svc = new CartService({ db: {} } as any, {} as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
+    (svc as any).getCartItem = vi.fn(async () => ({ id: 'line-1', cartId: 'cart-1' }));
+    const remove = vi.fn();
+    (svc as any).removeItem = remove;
+
+    await expect(svc.updateItemQuantity('buyer-1', 'line-1', -1)).rejects.toThrow(
+      'positive integer or zero',
+    );
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('keeps zero as the explicit remove-item operation', async () => {
+    const svc = new CartService({ db: {} } as any, {} as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
+    (svc as any).getCartItem = vi.fn(async () => ({ id: 'line-1', cartId: 'cart-1' }));
+    const remove = vi.fn(async () => ({ removed: true }));
+    (svc as any).removeItem = remove;
+
+    await expect(svc.updateItemQuantity('buyer-1', 'line-1', 0)).resolves.toEqual({
+      removed: true,
+    });
+    expect(remove).toHaveBeenCalledWith('buyer-1', 'line-1');
+  });
+});
+
+describe('CartService.removePromoCode', () => {
+  it('clears both the promo code and resolved promotion id for the active buyer cart', async () => {
+    const where = vi.fn().mockResolvedValue(undefined);
+    const set = vi.fn().mockReturnValue({ where });
+    const update = vi.fn().mockReturnValue({ set });
+    const svc = new CartService({ db: { update } } as any, {} as any);
+    vi.spyOn(svc, 'getOrCreateCart').mockResolvedValue({ id: 'cart-1' } as any);
+    vi.spyOn(svc, 'getActiveCartWithItems').mockResolvedValue({
+      id: 'cart-1',
+      promoCode: null,
+      promotionId: null,
+      items: [],
+    } as any);
+
+    const result = await svc.removePromoCode('buyer-1');
+
+    expect(update).toHaveBeenCalledOnce();
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        promoCode: null,
+        promotionId: null,
+      }),
+    );
+    expect(where).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({ id: 'cart-1', promoCode: null, promotionId: null });
   });
 });

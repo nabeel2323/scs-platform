@@ -16,6 +16,6 @@
     "target": "ES2022",
     "types": ["node"]
   },
-  "include": ["src/**/*", "drizzle.config.ts", "infra/**/*"],
+  "include": ["src/**/*", "drizzle.config.ts", "infra/**/*", "scripts/audit-db-access.ts"],
   "exclude": ["node_modules", "dist", "coverage"]
 }

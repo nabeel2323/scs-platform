@@ -29,6 +29,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
   }
 
   Future<void> _createOrg() async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('identity:organizations:create') != true) return;
     if (_nameCtrl.text.isEmpty || _countryCtrl.text.isEmpty) return;
     setState(() => _creating = true);
     try {
@@ -68,8 +69,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
       );
       ref.read(apiClientProvider).setAccessToken(res.accessToken);
       ref.read(activeOrgIdProvider.notifier).state = orgId;
-      ref.invalidate(profileProvider);
-      ref.invalidate(myOrganizationsProvider);
+      invalidateOrganizationScopedProviders(ref);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Organization switched')),
@@ -89,18 +89,25 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
   Widget build(BuildContext context) {
     final orgs = ref.watch(myOrganizationsProvider);
     final activeOrg = ref.watch(activeOrgIdProvider);
+    final canCreate = ref.watch(profileProvider).valueOrNull?.hasPermission('identity:organizations:create') ?? false;
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Organizations'),
         actions: [
           IconButton(
-            icon: Icon(_showCreate ? Icons.close : Icons.add),
-            onPressed: () => setState(() => _showCreate = !_showCreate),
+            tooltip: 'Refresh organizations',
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.invalidate(myOrganizationsProvider),
           ),
+          if (canCreate)
+            IconButton(
+              icon: Icon(_showCreate ? Icons.close : Icons.add),
+              onPressed: () => setState(() => _showCreate = !_showCreate),
+            ),
         ],
       ),
       body: Column(children: [
-        if (_showCreate)
+        if (_showCreate && canCreate)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -148,63 +155,110 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
           ),
         Expanded(
           child: orgs.when(
-            data: (list) => list.isEmpty
-                ? const EmptyState(
-                    title: 'No organizations',
-                    description: 'Create one to get started')
-                : RefreshIndicator(
-                    onRefresh: () async =>
-                        ref.invalidate(myOrganizationsProvider),
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: list.length,
-                      itemBuilder: (_, i) {
-                        final o = list[i];
-                        final isActive =
-                            o.orgId.isNotEmpty && o.orgId == activeOrg;
-                        final initial = o.orgName.isNotEmpty
-                            ? o.orgName.substring(0, 1).toUpperCase()
-                            : '?';
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: isActive
-                                  ? TaifTokens.ok
-                                  : TaifTokens.brandPrimary
-                                      .withValues(alpha: 0.15),
-                              child: Text(initial,
-                                  style: TextStyle(
-                                      color: isActive
-                                          ? Colors.white
-                                          : TaifTokens.brandPrimary)),
-                            ),
-                            title: Text(o.orgName,
-                                style: TextStyle(
-                                    fontWeight: isActive
-                                        ? FontWeight.w700
-                                        : FontWeight.w500)),
-                            subtitle: Text('${o.role} · ${o.orgType}'),
-                            trailing: isActive
-                                ? const Chip(
-                                    label: Text('Active'),
-                                    backgroundColor: Color(0xFFDCFCE7))
-                                : TextButton(
-                                    onPressed: o.orgId.isNotEmpty
-                                        ? () => _switchOrg(o.orgId)
-                                        : null,
-                                    child: const Text('Switch',
-                                        style: TextStyle(fontSize: 12)),
-                                  ),
-                            onTap: o.orgId.isNotEmpty
-                                ? () =>
-                                    context.push('/organizations/${o.orgId}')
-                                : null,
-                          ),
-                        );
+            skipLoadingOnRefresh: true,
+            skipError: true,
+            data: (list) {
+              final content = list.isEmpty
+                  ? EmptyState(
+                      title: 'No organizations',
+                      description: canCreate ? 'Create one to get started' : 'No organizations are available to this account')
+                  : RefreshIndicator(
+                      onRefresh: () async {
+                        try {
+                          await ref.refresh(myOrganizationsProvider.future).then<void>((_) {});
+                        } catch (_) {
+                          // Keep the last successful membership list visible.
+                        }
                       },
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: list.length,
+                        itemBuilder: (_, i) {
+                          final o = list[i];
+                          final isActive =
+                              o.orgId.isNotEmpty && o.orgId == activeOrg;
+                          final initial = o.orgName.isNotEmpty
+                              ? o.orgName.substring(0, 1).toUpperCase()
+                              : '?';
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: isActive
+                                    ? TaifTokens.ok
+                                    : TaifTokens.brandPrimary
+                                        .withValues(alpha: 0.15),
+                                child: Text(initial,
+                                    style: TextStyle(
+                                        color: isActive
+                                            ? Colors.white
+                                            : TaifTokens.brandPrimary)),
+                              ),
+                              title: Text(o.orgName,
+                                  style: TextStyle(
+                                      fontWeight: isActive
+                                          ? FontWeight.w700
+                                          : FontWeight.w500)),
+                              subtitle: Text('${o.role} · ${o.orgType}'),
+                              trailing: isActive
+                                  ? const Chip(
+                                      label: Text('Active'),
+                                      backgroundColor: Color(0xFFDCFCE7))
+                                  : TextButton(
+                                      onPressed: o.orgId.isNotEmpty
+                                          ? () => _switchOrg(o.orgId)
+                                          : null,
+                                      child: const Text('Switch',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                              onTap: o.orgId.isNotEmpty
+                                  ? () => context.push('/organizations/${o.orgId}')
+                                  : null,
+                            ),
+                          );
+                        },
+                      ),
+                    );
+
+              if (!orgs.isRefreshing && !orgs.hasError) return content;
+              return Column(children: [
+                if (orgs.isRefreshing)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(children: [
+                      SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                      SizedBox(width: 8),
+                      Text('Refreshing organizations… showing the last successful list.',
+                          style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+                    ]),
+                  ),
+                if (orgs.hasError)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: TaifTokens.err.withValues(alpha: 0.06),
+                        border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+                        borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+                      ),
+                      child: Row(children: [
+                        Expanded(
+                          child: Text(
+                            'Could not refresh organizations: ${ApiService.errorMessage(orgs.error!)}. Showing the last successfully loaded list.',
+                            style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => ref.invalidate(myOrganizationsProvider),
+                          child: const Text('Retry'),
+                        ),
+                      ]),
                     ),
                   ),
+                Expanded(child: content),
+              ]);
+            },
             loading: () => const LoadingSpinner(),
             error: (e, _) => EmptyState(
               title: 'Error',

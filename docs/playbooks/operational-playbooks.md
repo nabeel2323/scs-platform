@@ -1,10 +1,13 @@
 # Operational Playbooks
 
+> **Operational safety — 19 November 2026.** These playbooks are procedure templates, not authorization to run SQL or trigger business side effects. Use read-only queries only with an approved operational identity; never expose database credentials or run unreviewed SQL from a client. Do not create live shipments, send customer notifications, capture payments, change worker flags, apply migrations or write shared-database records without the relevant release/operations approval. Current deployment and migration constraints are in [the remediation runbook](../deployment/REMEDIATION-DEPLOYMENT-AND-MIGRATION-RUNBOOK.md).
+
 ## 1. Concierge Catalog Import
 
 **When:** A new merchant needs their catalog imported but cannot do it themselves.
 
 **Steps:**
+
 1. Receive catalog data (CSV/Excel) from merchant via ops email
 2. Admin logs in → Merchant Onboarding → Verification Queue
 3. Verify merchant's store is APPROVED
@@ -24,6 +27,7 @@
 **SLA:** 48 hours from submission.
 
 **Steps:**
+
 1. Monitor `GET /v1/verification/queue` for SUBMITTED requests
 2. For each request:
    - Review store details (name, address, category)
@@ -46,6 +50,7 @@
 **Response time:** < 30 minutes.
 
 **Triage:**
+
 1. Check `/healthz` and `/readyz` — is the API healthy?
 2. Check outbox dispatcher — are events being processed?
    ```sql
@@ -53,20 +58,22 @@
    ```
 3. Check order status — are orders stuck in SUBMITTED?
    ```sql
-   SELECT status, COUNT(*) FROM orders 
-   WHERE created_at > NOW() - INTERVAL '1 hour' 
+   SELECT status, COUNT(*) FROM orders
+   WHERE created_at > NOW() - INTERVAL '1 hour'
    GROUP BY status;
    ```
 4. Check database connections — is PgBouncer saturated?
 5. Check Redis — is OTP/refresh token store accessible?
 
 **Common causes:**
+
 - Outbox dispatcher crash → restart dispatcher pod
 - DB connection pool exhausted → check PgBouncer, increase pool if needed
 - Redis down → OTP fails → fallback to manual verification
 - Merchant not accepting orders → send notification, escalate after 2h
 
 **Post-incident:**
+
 1. Write incident report (what, when, impact, root cause, fix)
 2. Add monitoring/alerting for the failure mode
 3. Update this playbook if needed
@@ -78,10 +85,11 @@
 **When:** A user abandons checkout or leaves the app mid-flow.
 
 **Tracking:**
+
 - `analytics_events` table captures: `checkout_started`, `cart_item_added`, `checkout_abandoned`
 - Query drop-off rate:
   ```sql
-  SELECT 
+  SELECT
     COUNT(DISTINCT CASE WHEN event_type = 'checkout_started' THEN user_id END) AS started,
     COUNT(DISTINCT CASE WHEN event_type = 'order_submitted' THEN user_id END) AS completed
   FROM analytics_events
@@ -89,6 +97,7 @@
   ```
 
 **Action items:**
+
 - If drop-off > 50%: investigate UX friction points
 - If drop-off increases after a deploy: check for regressions
 - Log reasons (price too high, delivery fee, payment failure) in metadata
@@ -100,6 +109,7 @@
 **Frequency:** Monthly.
 
 **Steps:**
+
 1. Identify primary SMS provider
 2. Simulate provider failure (disable primary in config)
 3. Verify OTP requests route to secondary provider
@@ -109,6 +119,7 @@
 7. Document results and any issues found
 
 **Success criteria:**
+
 - Failover completes within 30s
 - No OTP delivery failures during drill
 - All users receive OTP within 15s of failover

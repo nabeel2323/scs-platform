@@ -1,8 +1,9 @@
 # Role and Permission Management Guide
 
-**Version:** 1.0
+**Version:** 1.1
+**Last updated:** 19 November 2026
 **Status:** Implemented & Unit Tested
-**Branch:** `feature/admin-user-management-rbac-2026`
+**Current implementation:** `remediation/phase-0-1-tenant-security`
 
 ## Overview
 
@@ -24,22 +25,23 @@ Users receive permissions through their active organization membership roles. Ch
 
 ## Platform Roles
 
-| Role | Description | Permissions |
-|------|-------------|-------------|
-| SUPER_ADMIN | Platform super administrator | All permissions (protected) |
-| ADMIN | Platform administrator | Most permissions including user management |
-| MODERATOR | Content moderator | Moderation-related permissions |
-| BUYER | Platform buyer | Buyer-specific permissions |
-| MERCHANT_OWNER | Merchant organization owner | Merchant organization management |
-| MERCHANT_STAFF | Merchant staff | Merchant operational permissions |
-| FINANCE | Finance role | Financial permissions |
-| DRIVER | Delivery driver | Delivery-related permissions |
+| Role           | Description                  | Permissions                                |
+| -------------- | ---------------------------- | ------------------------------------------ |
+| SUPER_ADMIN    | Platform super administrator | All permissions (protected)                |
+| ADMIN          | Platform administrator       | Most permissions including user management |
+| MODERATOR      | Content moderator            | Moderation-related permissions             |
+| BUYER          | Platform buyer               | Buyer-specific permissions                 |
+| MERCHANT_OWNER | Merchant organization owner  | Merchant organization management           |
+| MERCHANT_STAFF | Merchant staff               | Merchant operational permissions           |
+| FINANCE        | Finance role                 | Financial permissions                      |
+| DRIVER         | Delivery driver              | Delivery-related permissions               |
 
 ## Permission Management
 
 ### Viewing Role Permissions
 
 Navigate to `/roles/:id` to view a role's complete permission list. Permissions are displayed with:
+
 - Permission key (e.g., `admin:users:read`)
 - Human-readable description
 - Domain/category
@@ -53,6 +55,7 @@ Administrators with `admin:roles:write` can edit role permissions:
 3. Click **Save Permissions**
 
 **Security:**
+
 - `SUPER_ADMIN` role permissions are protected and cannot be modified
 - `admin:roles:write` is only assigned to `SUPER_ADMIN` and `ADMIN` roles
 - All permission changes are audited with before/after values
@@ -73,6 +76,7 @@ The permission catalog (`GET /v1/admin/permissions`) lists all available permiss
 ### Merchant Restrictions
 
 Merchant users (`MERCHANT_OWNER`, `MERCHANT_STAFF`) cannot:
+
 - Assign `SUPER_ADMIN`, `ADMIN`, or `MODERATOR` roles
 - Manage platform-level permissions
 - Access admin user management
@@ -95,11 +99,11 @@ Merchant users (`MERCHANT_OWNER`, `MERCHANT_STAFF`) cannot:
 
 All security-critical mutations use database transactions with PostgreSQL `FOR UPDATE` row locking:
 
-| Operation | Locking Strategy |
-|-----------|-----------------|
-| User status change | `FOR UPDATE` on user + SUPER_ADMIN membership rows |
-| Membership removal | `FOR UPDATE` on target membership + SUPER_ADMIN membership rows |
-| Role permission update | `FOR UPDATE` on role row |
+| Operation              | Locking Strategy                                                |
+| ---------------------- | --------------------------------------------------------------- |
+| User status change     | `FOR UPDATE` on user + SUPER_ADMIN membership rows              |
+| Membership removal     | `FOR UPDATE` on target membership + SUPER_ADMIN membership rows |
+| Role permission update | `FOR UPDATE` on role row                                        |
 
 Concurrent updates to the same role or user are serialized. The second transaction waits for the first to commit, then operates on the updated state. This prevents lost updates and write-skew anomalies.
 
@@ -114,3 +118,9 @@ Concurrent updates to the same role or user are serialized. The second transacti
 - Permission creation/deletion is not supported (permissions are seeded)
 - Direct user permission assignments (bypassing roles) are not supported
 - Role inheritance/hierarchy is not supported
+
+## Product Moderation Access
+
+Viewing the Admin Products list and changing a product are separate permissions. `admin:merchants:read` allows a user to inspect the product moderation list and detail; `admin:products:moderate` is required to approve, reject or archive a product. The seeded SUPER_ADMIN, ADMIN and MODERATOR roles receive the moderation permission. A custom read-only role must not receive it.
+
+The Admin UI hides moderation actions when the permission is absent, but the API guard is authoritative. The RBAC seed adds the permission and role mappings idempotently; the release workflow runs the seed after migrations. Existing JWT permission claims are snapshots, so users may need to refresh their session after the seed is applied.

@@ -3,6 +3,7 @@
 ## 1. Migration Identifier
 
 **Migration 0061:** `0061_phase3_financial_correctness.sql`
+
 - Location: `scs-platform/infra/drizzle/migrations/`
 - Size: 234 lines
 - Status: Created and applied to development PostgreSQL
@@ -11,22 +12,22 @@
 
 ### New Tables (5)
 
-| Table | Purpose | Key Constraints |
-|-------|---------|-----------------|
-| `commission_reversals` | Responsibility-based commission reversal ledger | UNIQUE(idempotency_key), CHECK(status), CHECK(reversal_minor >= 0) |
-| `settlement_adjustments` | Approval workflow for financial adjustments | CHECK(status), CHECK(fx_status) |
-| `settlement_adjustment_approvals` | Dual-approver tracking | UNIQUE(adjustment_id, approver_id) |
-| `reconciliation_runs` | Monthly reconciliation execution records | CHECK(status) |
-| `reconciliation_discrepancies` | Identified financial discrepancies | FK to reconciliation_runs |
+| Table                             | Purpose                                         | Key Constraints                                                    |
+| --------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
+| `commission_reversals`            | Responsibility-based commission reversal ledger | UNIQUE(idempotency_key), CHECK(status), CHECK(reversal_minor >= 0) |
+| `settlement_adjustments`          | Approval workflow for financial adjustments     | CHECK(status), CHECK(fx_status)                                    |
+| `settlement_adjustment_approvals` | Dual-approver tracking                          | UNIQUE(adjustment_id, approver_id)                                 |
+| `reconciliation_runs`             | Monthly reconciliation execution records        | CHECK(status)                                                      |
+| `reconciliation_discrepancies`    | Identified financial discrepancies              | FK to reconciliation_runs                                          |
 
 ### Schema Modifications (3)
 
-| Change | Details |
-|--------|---------|
+| Change                             | Details                                      |
+| ---------------------------------- | -------------------------------------------- |
 | `chk_settlement_status` constraint | Added ADJUSTMENT, REJECTED to allowed values |
-| `refunds.return_request_id` | FK to return_requests (nullable) |
-| `refunds.dispute_id` | FK to disputes (nullable) |
-| `order_items.delivery_fee_minor` | bigint, default 0 |
+| `refunds.return_request_id`        | FK to return_requests (nullable)             |
+| `refunds.dispute_id`               | FK to disputes (nullable)                    |
+| `order_items.delivery_fee_minor`   | bigint, default 0                            |
 
 ### Indexes
 
@@ -92,16 +93,17 @@ COMMIT;
 
 ### Rollback Risks
 
-| Risk | Severity | Mitigation |
-|------|----------|------------|
-| Data in commission_reversals | HIGH | Export data before rollback; manual re-entry required |
-| ADJUSTMENT settlements reference new constraint | MEDIUM | Revert settlements to CALCULATED status first |
-| Refund-to-return linkage lost | LOW | return_request_id is nullable; existing refunds unaffected |
-| Delivery fee data in order_items | LOW | Column default 0; existing orders unaffected |
+| Risk                                            | Severity | Mitigation                                                 |
+| ----------------------------------------------- | -------- | ---------------------------------------------------------- |
+| Data in commission_reversals                    | HIGH     | Export data before rollback; manual re-entry required      |
+| ADJUSTMENT settlements reference new constraint | MEDIUM   | Revert settlements to CALCULATED status first              |
+| Refund-to-return linkage lost                   | LOW      | return_request_id is nullable; existing refunds unaffected |
+| Delivery fee data in order_items                | LOW      | Column default 0; existing orders unaffected               |
 
 ### Rollback Verification
 
 After rollback, verify:
+
 ```sql
 -- Confirm tables removed
 SELECT COUNT(*) FROM information_schema.tables
@@ -118,6 +120,7 @@ WHERE constraint_name = 'chk_settlement_status';
 ## 6. Code Rollback
 
 If the migration is rolled back, the following code changes must also be reverted:
+
 - `financial.schema.ts` — Drizzle schema for new tables
 - `commission-reversal.service.ts` — Commission reversal logic
 - `settlement-adjustment.service.ts` — Approval workflow
@@ -130,3 +133,11 @@ If the migration is rolled back, the following code changes must also be reverte
 ## 7. No Production Deployment
 
 **This migration has NOT been deployed to production.** It was applied only to the local development PostgreSQL instance. No production data is affected.
+
+## Additive follow-up migrations — FIN-021 / FIN-025
+
+Migrations `0074_reconciliation_tenant_version_integrity.sql` and `0075_payment_proof_upload_intents.sql` are later forward-only changes and are not covered by the historical rollback snippets above.
+
+- 0074 repairs legacy reconciliation supersession links and scopes unique run versions by organization.
+- 0075 creates durable payment-proof upload intent and recovery state, with a payment-record foreign key and bounded cleanup indexes.
+- Both migrations remain source-only pending isolated full-migration CI. Neither has been applied to staging or production. Do not run either against a shared database under this remediation session; existing G-002 access review and deployment gates remain in force.

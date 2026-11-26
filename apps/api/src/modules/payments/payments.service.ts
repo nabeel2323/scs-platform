@@ -33,12 +33,9 @@ import {
   paymentEvents,
   refunds,
   settlementRecords,
+  paymentProofUploadIntents,
 } from './payments.schema';
-import {
-  orders,
-  orderFinancialBreakdown,
-  orderStatusHistory,
-} from '../orders/orders.schema';
+import { orders, orderFinancialBreakdown, orderStatusHistory } from '../orders/orders.schema';
 import { stores } from '../merchant/merchant.schema';
 import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 import crypto from 'node:crypto';
@@ -55,18 +52,66 @@ import {
   PaymentStatus,
   RefundReason,
   REFUND_REASONS,
-  PAYMENT_METHODS,
+  isSupportedPaymentMethod,
+  SUPPORTED_PAYMENT_METHODS,
   DEFAULT_PAYMENT_EXPIRY_HOURS,
 } from './payments.types';
+import { normalizeSettlementPagination } from './settlement-pagination';
 
 // ── Allowed upload MIME types for payment proofs ────────────────
-const ALLOWED_PROOF_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'application/pdf',
-]);
+const ALLOWED_PROOF_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const MAX_PROOF_SIZE = 10 * 1024 * 1024; // 10 MB
+const PROOF_UPLOAD_STALE_MINUTES = 60;
+const PROOF_UPLOAD_LEASE_MINUTES = 30;
+const PROOF_CLEANUP_LEASE_MINUTES = 5;
+const PROOF_CLEANUP_MAX_ATTEMPTS = 12;
+
+function isStorageObjectNotFound(error: any): boolean {
+  const status = error?.$metadata?.httpStatusCode;
+  const codes = [error?.name, error?.Code, error?.code];
+  return (
+    status === 404 || codes.some((code) => ['NotFound', 'NoSuchKey', 'NoSuchObject'].includes(code))
+  );
+}
+
+function assertPositiveMinorAmount(amount: number, fieldName: string): void {
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
+    throw new BadRequestException(`${fieldName} must be a positive safe integer in minor units`);
+  }
+}
+
+/**
+ * PostgreSQL SUM(bigint) returns numeric, which node-postgres exposes as text.
+ * Preserve exactness until the aggregate is proven safe for JS minor-unit math.
+ */
+export function toSafeMinorUnitTotal(
+  value: string | number | bigint | null | undefined,
+  fieldName: string,
+): number {
+  let total: bigint;
+  try {
+    total = BigInt(value ?? 0);
+  } catch {
+    throw new ConflictException(`${fieldName} aggregate is not a valid integer`);
+  }
+  if (total < 0n || total > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new ConflictException(`${fieldName} aggregate exceeds the supported safe integer range`);
+  }
+  return Number(total);
+}
+
+function toSafeSettlementCount(value: string | number | bigint | null | undefined): number {
+  let total: bigint;
+  try {
+    total = BigInt(value ?? 0);
+  } catch {
+    throw new ConflictException('Settlement count is not a valid integer');
+  }
+  if (total < 0n || total > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new ConflictException('Settlement count exceeds the supported safe integer range');
+  }
+  return Number(total);
+}
 
 @Injectable()
 export class PaymentsService {
@@ -78,6 +123,26 @@ export class PaymentsService {
     private readonly registry: PaymentProviderRegistry,
     @Optional() private readonly storage?: StorageService,
   ) {}
+
+  private runWithUserActor<T>(caller: CallerContext, operation: () => Promise<T>): Promise<T> {
+    const actorRole = typeof caller.role === 'string' ? caller.role.trim() : '';
+    if (!actorRole) {
+      throw new ForbiddenException('Authenticated caller role is required for payment database access');
+    }
+    return this.db.withActorContext(
+      {
+        actorKind: 'user',
+        actorId: caller.sub,
+        actorRole,
+        activeOrgId: caller.activeOrg ?? null,
+      },
+      operation,
+    );
+  }
+
+  private runWithProofCleanupActor<T>(workerId: string, operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext({ actorKind: 'worker', workerId }, operation);
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // PAYMENT CREATION (called from checkout)
@@ -94,21 +159,26 @@ export class PaymentsService {
     currency: string,
     paymentMethod: PaymentMethod,
     idempotencyKey: string,
+    buyerId?: string,
   ): Promise<string> {
+    if (!isSupportedPaymentMethod(paymentMethod)) {
+      throw new BadRequestException(
+        `Unsupported payment method: ${paymentMethod}. Supported methods: ${SUPPORTED_PAYMENT_METHODS.join(', ')}`,
+      );
+    }
+
     const id = crypto.randomUUID();
     const provider = this.registry.getDefault();
 
     // Compute expiry for bank transfers
     let expiresAt: Date | null = null;
     if (paymentMethod === 'BANK_TRANSFER') {
-      const hours = Number(
-        process.env['PAYMENT_EXPIRY_HOURS'] || DEFAULT_PAYMENT_EXPIRY_HOURS,
-      );
+      const hours = Number(process.env['PAYMENT_EXPIRY_HOURS'] || DEFAULT_PAYMENT_EXPIRY_HOURS);
       expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
     }
 
-    // COD starts at AWAITING_PAYMENT (confirmed at delivery)
-    // Bank transfer starts at CREATED → AWAITING_PAYMENT (post-checkout side effect)
+    // COD begins in AWAITING_PAYMENT. Bank transfer is created as CREATED,
+    // then advanced to AWAITING_PAYMENT inside the same checkout transaction.
     const initialStatus: PaymentStatus =
       paymentMethod === 'CASH_ON_DELIVERY' ? 'AWAITING_PAYMENT' : 'CREATED';
 
@@ -136,6 +206,56 @@ export class PaymentsService {
       notes: `Payment created at checkout — ${paymentMethod}`,
     });
 
+    await this.outbox.publish(
+      'payment.created',
+      id,
+      {
+        paymentId: id,
+        orderId,
+        paymentMethod,
+        amountMinor,
+        currency,
+        status: initialStatus,
+      },
+      {},
+      null,
+      tx,
+    );
+
+    // Bank-transfer payment gating is part of checkout persistence, not a
+    // best-effort post-commit side effect. Preserve the CREATED → AWAITING_PAYMENT
+    // history sequence while keeping both states and outbox records in checkout's tx.
+    if (paymentMethod === 'BANK_TRANSFER') {
+      await tx
+        .update(paymentRecords)
+        .set({ status: 'AWAITING_PAYMENT', updatedAt: new Date() })
+        .where(eq(paymentRecords.id, id));
+      await tx.insert(paymentEvents).values({
+        id: crypto.randomUUID(),
+        paymentRecordId: id,
+        eventType: 'PAYMENT_AWAITING',
+        fromStatus: 'CREATED',
+        toStatus: 'AWAITING_PAYMENT',
+        actorId: buyerId ?? null,
+        actorType: 'SYSTEM',
+        notes: 'Bank transfer checkout — awaiting buyer proof upload',
+      });
+      await this.outbox.publish(
+        'payment.awaiting_payment',
+        id,
+        {
+          paymentId: id,
+          orderId,
+          buyerId: buyerId ?? null,
+          fromStatus: 'CREATED',
+          toStatus: 'AWAITING_PAYMENT',
+        },
+        {},
+        null,
+        tx,
+      );
+    }
+
     return id;
   }
 
@@ -162,97 +282,374 @@ export class PaymentsService {
     },
     caller: CallerContext,
   ) {
-    const payment = await this.getPaymentOrThrow(paymentId);
-    const order = await this.getOrderForPayment(payment.orderId);
+    const { payment, order } = await this.runWithUserActor(caller, async () => {
+      const payment = await this.getPaymentOrThrow(paymentId);
+      const order = await this.getOrderForPayment(payment.orderId);
+      return { payment, order };
+    });
 
-    // Buyer owns this payment
     if (order.buyerId !== caller.sub && !isTenantPrivileged(caller)) {
       throw new ForbiddenException('You do not have access to this payment');
     }
-
     if (payment.paymentMethod !== 'BANK_TRANSFER') {
       throw new BadRequestException('Proof submission is only for bank transfer payments');
     }
-
-    // Valid states for proof submission
     if (!['AWAITING_PAYMENT', 'REJECTED'].includes(payment.status)) {
-      throw new ConflictException(
-        `Cannot submit proof in ${payment.status} status`,
-      );
+      throw new ConflictException(`Cannot submit proof in ${payment.status} status`);
     }
 
-    // Handle file upload if provided
-    let storedReceiptUrl = input.receiptUrl || null;
-    if (input.fileBuffer && this.storage) {
-      const ext = (input.fileName || 'receipt').split('.').pop() || 'jpg';
-      const storageKey = `payment-proofs/${paymentId}/${crypto.randomUUID()}.${ext}`;
-      await this.storage.putObject({
-        bucket: process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads',
-        key: storageKey,
-        body: input.fileBuffer,
-        contentType: input.contentType || 'image/jpeg',
-      });
-      storedReceiptUrl = storageKey;
-    }
-
-    // Atomic transition
+    const previousReceiptUrl = payment.receiptUrl ?? null;
+    const uploadsBucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
     const fromStatus = payment.status;
     const toStatus = 'AWAITING_VERIFICATION';
     assertPaymentTransition(fromStatus, toStatus);
 
-    await this.db.db.transaction(async (tx) => {
-      const flip = await tx
-        .update(paymentRecords)
-        .set({
-          status: toStatus,
-          receiptUrl: storedReceiptUrl,
-          receiptReference: input.receiptReference || payment.receiptReference,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(paymentRecords.id, paymentId),
-            eq(paymentRecords.status, fromStatus),
-          ),
-        )
-        .returning({ id: paymentRecords.id });
+    let storedReceiptUrl = input.receiptUrl || previousReceiptUrl;
+    let pendingCommitIntent: { id: string; leaseOwner: string } | null = null;
+    let pendingCleanupIntent: { id: string; storageKey: string; leaseOwner: string } | null = null;
 
-      if (flip.length === 0) {
-        throw new ConflictException('Payment status already changed — concurrent update');
+    if (input.fileBuffer) {
+      const fileBuffer = input.fileBuffer;
+      if (!this.storage) {
+        throw new BadRequestException('Payment proof storage is not configured');
       }
+      if (fileBuffer.length === 0) {
+        throw new BadRequestException('Payment proof file cannot be empty');
+      }
+      if (fileBuffer.length > MAX_PROOF_SIZE) {
+        throw new BadRequestException('Payment proof exceeds the 10 MB upload limit');
+      }
+      const contentType = input.contentType || 'image/jpeg';
+      if (!ALLOWED_PROOF_TYPES.has(contentType)) {
+        throw new BadRequestException('Unsupported payment proof file type');
+      }
+      const rawExtension = input.fileName?.includes('.') ? input.fileName.split('.').pop() : 'jpg';
+      const extension =
+        (rawExtension || 'jpg')
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '')
+          .slice(0, 8) || 'jpg';
+      const storageKey = `payment-proofs/${paymentId}/${crypto.randomUUID()}.${extension}`;
+      const intentId = crypto.randomUUID();
+      const leaseOwner = `proof-upload-${crypto.randomUUID()}`;
+      pendingCommitIntent = { id: intentId, leaseOwner };
+      pendingCleanupIntent = { id: intentId, storageKey, leaseOwner };
 
-      await tx.insert(paymentEvents).values({
-        id: crypto.randomUUID(),
-        paymentRecordId: paymentId,
-        eventType: 'PAYMENT_PROOF_SUBMITTED',
-        fromStatus,
-        toStatus,
-        actorId: buyerId,
-        actorType: 'BUYER',
-        notes: input.notes || null,
-        receiptUrl: storedReceiptUrl,
-      });
-
-      await this.outbox.publish(
-        'payment.proof_submitted',
-        paymentId,
-        {
-          paymentId,
-          orderId: payment.orderId,
-          receiptUrl: storedReceiptUrl,
-          receiptReference: input.receiptReference,
-        },
-        {},
-        null,
-        tx,
+      // The intent is durable before any object-store side effect. A process
+      // crash at any later point is recoverable without listing the bucket.
+      await this.runWithUserActor(caller, () =>
+        this.db.db.insert(paymentProofUploadIntents).values({
+          id: intentId,
+          paymentRecordId: paymentId,
+          storageBucket: uploadsBucket,
+          storageKey,
+          contentType,
+          sizeBytes: fileBuffer.length,
+          status: 'UPLOADING',
+          attemptCount: 0,
+          leaseOwner,
+          leaseExpiresAt: new Date(Date.now() + PROOF_UPLOAD_LEASE_MINUTES * 60_000),
+        }),
       );
-    });
 
-    this.logger.log(
-      `Payment ${paymentId}: proof submitted by buyer ${buyerId}`,
-    );
+      try {
+        await this.storage.putObject({
+          bucket: uploadsBucket,
+          key: storageKey,
+          body: fileBuffer,
+          contentType,
+        });
+        const uploaded = await this.runWithUserActor(caller, () =>
+          this.db.db
+            .update(paymentProofUploadIntents)
+            .set({
+              status: 'UPLOADED',
+              uploadedAt: new Date(),
+              leaseExpiresAt: new Date(Date.now() + PROOF_UPLOAD_LEASE_MINUTES * 60_000),
+              updatedAt: new Date(),
+            })
+            .where(and(
+              eq(paymentProofUploadIntents.id, intentId),
+              eq(paymentProofUploadIntents.status, 'UPLOADING'),
+              eq(paymentProofUploadIntents.leaseOwner, leaseOwner),
+            ))
+            .returning({ id: paymentProofUploadIntents.id }),
+        );
 
-    return this.getPaymentOrThrow(paymentId);
+        if (uploaded.length !== 1) {
+          // A stale cleanup claimant fenced this upload. Compensate the late
+          // object write; if deletion fails, reopen the durable intent.
+          try {
+            await this.storage.deleteObject(uploadsBucket, storageKey);
+            await this.runWithUserActor(caller, () => this.db.db
+              .update(paymentProofUploadIntents)
+              .set({ status: 'CLEANED', leaseOwner: null, leaseExpiresAt: null, cleanedAt: new Date(), updatedAt: new Date() })
+              .where(eq(paymentProofUploadIntents.id, intentId)));
+
+          } catch {
+            await this.runWithUserActor(caller, () => this.db.db
+              .update(paymentProofUploadIntents)
+              .set({ status: 'CLEANUP_PENDING', leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: new Date(), lastErrorCode: 'LATE_UPLOAD_COMPENSATION_FAILED', updatedAt: new Date() })
+              .where(eq(paymentProofUploadIntents.id, intentId)));
+
+          }
+          throw new ConflictException('Payment proof upload lost its recovery lease; please retry');
+        }
+      } catch (uploadError) {
+        // Do not delete directly here: the request may have been interrupted
+        // after the object store accepted the upload. The durable sweeper will
+        // verify the payment reference and object existence before cleanup.
+        try {
+          await this.runWithUserActor(caller, () => this.db.db
+            .update(paymentProofUploadIntents)
+            .set({ status: 'CLEANUP_PENDING', leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: new Date(), lastErrorCode: 'UPLOAD_OR_INTENT_UPDATE_FAILED', updatedAt: new Date() })
+            .where(and(eq(paymentProofUploadIntents.id, intentId), eq(paymentProofUploadIntents.status, 'UPLOADING'))));
+
+        } catch {
+          // The original UPLOADING lease remains recoverable after its expiry.
+        }
+        throw uploadError;
+      }
+      storedReceiptUrl = storageKey;
+    }
+
+    const uploadIntentForCommit = pendingCommitIntent;
+    const uploadIntentForCleanup = pendingCleanupIntent;
+
+    try {
+      await this.runWithUserActor(caller, () => this.db.db.transaction(async (tx) => {
+        const flip = await tx
+          .update(paymentRecords)
+          .set({
+            status: toStatus,
+            receiptUrl: storedReceiptUrl,
+            receiptReference: input.receiptReference || payment.receiptReference,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(paymentRecords.id, paymentId), eq(paymentRecords.status, fromStatus)))
+          .returning({ id: paymentRecords.id });
+        if (flip.length === 0) {
+          throw new ConflictException('Payment status already changed — concurrent update');
+        }
+
+        await tx.insert(paymentEvents).values({
+          id: crypto.randomUUID(),
+          paymentRecordId: paymentId,
+          eventType: 'PAYMENT_PROOF_SUBMITTED',
+          fromStatus,
+          toStatus,
+          actorId: buyerId,
+          actorType: 'BUYER',
+          notes: input.notes || null,
+          receiptUrl: storedReceiptUrl,
+        });
+        await this.outbox.publish(
+          'payment.proof_submitted',
+          paymentId,
+          {
+            paymentId,
+            orderId: payment.orderId,
+            receiptUrl: storedReceiptUrl,
+            receiptReference: input.receiptReference,
+          },
+          {},
+          null,
+          tx,
+        );
+
+        if (uploadIntentForCommit) {
+          const committed = await tx
+            .update(paymentProofUploadIntents)
+            .set({
+              status: 'COMMITTED',
+              leaseOwner: null,
+              leaseExpiresAt: null,
+              nextAttemptAt: null,
+              committedAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(paymentProofUploadIntents.id, uploadIntentForCommit.id),
+                eq(paymentProofUploadIntents.status, 'UPLOADED'),
+                eq(paymentProofUploadIntents.leaseOwner, uploadIntentForCommit.leaseOwner),
+              ),
+            )
+            .returning({ id: paymentProofUploadIntents.id });
+          if (committed.length !== 1) {
+            throw new ConflictException(
+              'Payment proof upload lease expired before commit; please retry',
+            );
+          }
+        }
+
+        // Retire a prior managed proof durably in the same transaction as
+        // replacing its payment-row reference. A process crash after commit
+        // therefore cannot strand the previous object without a cleanup intent.
+        const managedPrefix = `payment-proofs/${paymentId}/`;
+        if (
+          previousReceiptUrl &&
+          previousReceiptUrl.startsWith(managedPrefix) &&
+          previousReceiptUrl !== storedReceiptUrl
+        ) {
+          const [previousIntent] = await tx
+            .select()
+            .from(paymentProofUploadIntents)
+            .where(eq(paymentProofUploadIntents.storageKey, previousReceiptUrl))
+            .limit(1);
+          if (previousIntent) {
+            if (previousIntent.status !== 'CLEANED') {
+              await tx
+                .update(paymentProofUploadIntents)
+                .set({
+                  status: 'CLEANUP_PENDING',
+                  leaseOwner: null,
+                  leaseExpiresAt: null,
+                  nextAttemptAt: new Date(),
+                  updatedAt: new Date(),
+                })
+                .where(eq(paymentProofUploadIntents.id, previousIntent.id));
+            }
+          } else {
+            await tx.insert(paymentProofUploadIntents).values({
+              id: crypto.randomUUID(),
+              paymentRecordId: paymentId,
+              storageBucket: uploadsBucket,
+              storageKey: previousReceiptUrl,
+              contentType: 'application/octet-stream',
+              sizeBytes: 0,
+              status: 'CLEANUP_PENDING',
+              attemptCount: 0,
+              nextAttemptAt: new Date(),
+            });
+          }
+        }
+      }));
+    } catch (error) {
+      if (uploadIntentForCleanup) {
+        try {
+          const paymentReferenceExists = await this.runWithUserActor(caller, async () => {
+            const [persisted] = await this.db.db.select({ receiptUrl: paymentRecords.receiptUrl }).from(paymentRecords).where(eq(paymentRecords.id, paymentId)).limit(1);
+            if (persisted?.receiptUrl === uploadIntentForCleanup.storageKey) return true;
+            await this.db.db.update(paymentProofUploadIntents)
+              .set({ status: 'CLEANUP_PENDING', leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: new Date(), lastErrorCode: 'PAYMENT_COMMIT_FAILED', updatedAt: new Date() })
+              .where(and(eq(paymentProofUploadIntents.id, uploadIntentForCleanup.id), eq(paymentProofUploadIntents.status, 'UPLOADED'), eq(paymentProofUploadIntents.leaseOwner, uploadIntentForCleanup.leaseOwner)));
+            return false;
+          });
+          if (paymentReferenceExists) return this.runWithUserActor(caller, () => this.getPaymentOrThrow(paymentId));
+        } catch (cleanupError: any) {
+          this.logger.warn(
+            `Payment proof cleanup scheduling deferred for intent ${uploadIntentForCleanup.id}: ${cleanupError?.message || 'database verification failed'}`,
+          );
+        }
+      }
+      throw error;
+    }
+
+    this.logger.log(`Payment ${paymentId}: proof submitted by buyer ${buyerId}`);
+    return this.runWithUserActor(caller, () => this.getPaymentOrThrow(paymentId));
+  }
+
+  /**
+   * Recover stale proof uploads without bucket listing. Only durable intent
+   * rows older than the grace period are eligible; each batch is claimed with
+   * SKIP LOCKED and a fencing owner. No scheduler/worker is activated here.
+   */
+  async cleanupStaleProofUploads(batchSize = 25): Promise<{
+    claimed: number;
+    committed: number;
+    cleaned: number;
+    retried: number;
+    failed: number;
+  }> {
+    if (!this.storage) {
+      throw new BadRequestException('Payment proof storage is not configured');
+    }
+    const limit = Math.max(1, Math.min(100, Math.floor(batchSize) || 25));
+    const workerId = `proof-cleanup-${crypto.randomUUID()}`;
+    const claimed = await this.runWithProofCleanupActor(workerId, () => this.db.db.transaction(async (tx) => {
+      const result = await tx.execute(sql`
+        WITH candidates AS (
+          SELECT id
+          FROM payment_proof_upload_intents
+          WHERE status IN ('UPLOADING', 'UPLOADED', 'CLEANUP_PENDING', 'CLEANING')
+            AND created_at <= now() - make_interval(mins => ${PROOF_UPLOAD_STALE_MINUTES})
+            AND (lease_expires_at IS NULL OR lease_expires_at <= now())
+            AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+          ORDER BY created_at, id
+          LIMIT ${limit}
+          FOR UPDATE SKIP LOCKED
+        )
+        UPDATE payment_proof_upload_intents AS intent
+        SET status = 'CLEANING',
+            lease_owner = ${workerId},
+            lease_expires_at = now() + make_interval(mins => ${PROOF_CLEANUP_LEASE_MINUTES}),
+            attempt_count = attempt_count + 1,
+            updated_at = now()
+        FROM candidates
+        WHERE intent.id = candidates.id
+        RETURNING
+          intent.id,
+          intent.storage_bucket AS "storageBucket",
+          intent.storage_key AS "storageKey",
+          intent.attempt_count AS "attemptCount"
+      `);
+      return ((result as any).rows ?? []) as Array<{
+        id: string;
+        storageBucket: string;
+        storageKey: string;
+        attemptCount: number;
+      }>;
+    }));
+
+    const summary = { claimed: claimed.length, committed: 0, cleaned: 0, retried: 0, failed: 0 };
+    for (const intent of claimed) {
+      try {
+        // Check every payment row, not only the intent's original payment:
+        // a shared/misreferenced key must never be deleted while any payment uses it.
+        const paymentReferenceExists = await this.runWithProofCleanupActor(workerId, async () => {
+          const [paymentReference] = await this.db.db.select({ id: paymentRecords.id }).from(paymentRecords).where(eq(paymentRecords.receiptUrl, intent.storageKey)).limit(1);
+          if (!paymentReference) return false;
+          await this.db.db.update(paymentProofUploadIntents)
+            .set({ status: 'COMMITTED', leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: null, committedAt: new Date(), updatedAt: new Date() })
+            .where(and(eq(paymentProofUploadIntents.id, intent.id), eq(paymentProofUploadIntents.status, 'CLEANING'), eq(paymentProofUploadIntents.leaseOwner, workerId)));
+          return true;
+        });
+        if (paymentReferenceExists) { summary.committed += 1; continue; }
+
+        let objectExists = true;
+        try {
+          await this.storage.headObject(intent.storageBucket, intent.storageKey);
+        } catch (storageError) {
+          if (isStorageObjectNotFound(storageError)) {
+            objectExists = false;
+          } else {
+            throw storageError;
+          }
+        }
+        if (objectExists) {
+          try {
+            await this.storage.deleteObject(intent.storageBucket, intent.storageKey);
+          } catch (storageError) {
+            if (!isStorageObjectNotFound(storageError)) throw storageError;
+          }
+        }
+
+        await this.runWithProofCleanupActor(workerId, () => this.db.db.update(paymentProofUploadIntents)
+          .set({ status: 'CLEANED', leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: null, cleanedAt: new Date(), lastErrorCode: null, updatedAt: new Date() })
+          .where(and(eq(paymentProofUploadIntents.id, intent.id), eq(paymentProofUploadIntents.status, 'CLEANING'), eq(paymentProofUploadIntents.leaseOwner, workerId))));
+        summary.cleaned += 1;
+      } catch {
+        const terminal = intent.attemptCount >= PROOF_CLEANUP_MAX_ATTEMPTS;
+        const backoffSeconds = Math.min(3600, 30 * 2 ** Math.min(intent.attemptCount - 1, 7));
+        await this.runWithProofCleanupActor(workerId, () => this.db.db.update(paymentProofUploadIntents)
+          .set({ status: terminal ? 'FAILED' : 'CLEANUP_PENDING', leaseOwner: null, leaseExpiresAt: null, nextAttemptAt: terminal ? null : new Date(Date.now() + backoffSeconds * 1000), lastErrorCode: 'STORAGE_CLEANUP_FAILED', updatedAt: new Date() })
+          .where(and(eq(paymentProofUploadIntents.id, intent.id), eq(paymentProofUploadIntents.status, 'CLEANING'), eq(paymentProofUploadIntents.leaseOwner, workerId))));
+        if (terminal) summary.failed += 1;
+        else summary.retried += 1;
+      }
+    }
+    return summary;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -296,6 +693,7 @@ export class PaymentsService {
 
     const fromStatus = payment.status;
     const confirmedAmount = input?.verifiedAmountMinor ?? payment.amountMinor;
+    assertPositiveMinorAmount(confirmedAmount, 'Verified amount');
 
     await this.db.db.transaction(async (tx) => {
       // Optimistic lock: only one concurrent verifier wins
@@ -310,12 +708,7 @@ export class PaymentsService {
           confirmedAt: decision === 'CONFIRMED' ? new Date() : null,
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(paymentRecords.id, paymentId),
-            eq(paymentRecords.status, fromStatus),
-          ),
-        )
+        .where(and(eq(paymentRecords.id, paymentId), eq(paymentRecords.status, fromStatus)))
         .returning({ id: paymentRecords.id });
 
       if (flip.length === 0) {
@@ -332,7 +725,7 @@ export class PaymentsService {
         fromStatus,
         toStatus: decision,
         actorId,
-        actorType: 'ADMIN',
+        actorType: isTenantPrivileged(caller) ? 'ADMIN' : 'MERCHANT',
         amountMinor: decision === 'CONFIRMED' ? confirmedAmount : null,
         notes: input?.notes || null,
       });
@@ -341,7 +734,10 @@ export class PaymentsService {
       if (decision === 'CONFIRMED') {
         await this.finalizeFinancialBreakdown(tx, payment.orderId);
         await this.transitionOrderAfterPaymentConfirmation(
-          tx, payment.orderId, actorId,
+          tx,
+          payment.orderId,
+          actorId,
+          isTenantPrivileged(caller) ? 'ADMIN' : 'MERCHANT',
         );
       }
 
@@ -361,9 +757,7 @@ export class PaymentsService {
       );
     });
 
-    this.logger.log(
-      `Payment ${paymentId}: ${decision} by ${actorId}`,
-    );
+    this.logger.log(`Payment ${paymentId}: ${decision} by ${actorId}`);
 
     return this.getPaymentOrThrow(paymentId);
   }
@@ -397,12 +791,11 @@ export class PaymentsService {
     }
 
     if (payment.status !== 'AWAITING_PAYMENT') {
-      throw new ConflictException(
-        `Cannot confirm cash in ${payment.status} status`,
-      );
+      throw new ConflictException(`Cannot confirm cash in ${payment.status} status`);
     }
 
     const collectedAmount = input?.amountCollectedMinor ?? payment.amountMinor;
+    assertPositiveMinorAmount(collectedAmount, 'Collected amount');
     const fromStatus = payment.status;
 
     await this.db.db.transaction(async (tx) => {
@@ -417,20 +810,21 @@ export class PaymentsService {
           verificationNotes: input?.notes || null,
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(paymentRecords.id, paymentId),
-            eq(paymentRecords.status, fromStatus),
-          ),
-        )
+        .where(and(eq(paymentRecords.id, paymentId), eq(paymentRecords.status, fromStatus)))
         .returning({ id: paymentRecords.id });
 
       if (flip.length === 0) {
         throw new ConflictException('Payment already confirmed — concurrent confirmation');
       }
 
-      // Finalize financials
+      // Finalize financials and synchronize the denormalized order payment state.
+      // COD orders are allowed to progress through fulfillment before collection,
+      // so confirmation must not rewind their operational order status.
       await this.finalizeFinancialBreakdown(tx, payment.orderId);
+      await tx
+        .update(orders)
+        .set({ paymentStatus: 'CONFIRMED', updatedAt: new Date() })
+        .where(eq(orders.id, payment.orderId));
 
       // Append event
       await tx.insert(paymentEvents).values({
@@ -440,7 +834,7 @@ export class PaymentsService {
         fromStatus,
         toStatus: 'CONFIRMED',
         actorId,
-        actorType: 'MERCHANT',
+        actorType: isTenantPrivileged(caller) ? 'ADMIN' : 'MERCHANT',
         amountMinor: collectedAmount,
         notes: input?.notes || 'Cash collected at delivery',
       });
@@ -460,9 +854,7 @@ export class PaymentsService {
       );
     });
 
-    this.logger.log(
-      `Payment ${paymentId}: COD cash confirmed (${collectedAmount}) by ${actorId}`,
-    );
+    this.logger.log(`Payment ${paymentId}: COD cash confirmed (${collectedAmount}) by ${actorId}`);
 
     return this.getPaymentOrThrow(paymentId);
   }
@@ -475,26 +867,43 @@ export class PaymentsService {
    * Set finalizedAt on the order's financial breakdown.
    * After this, no UPDATE to the breakdown is permitted.
    */
-  private async finalizeFinancialBreakdown(
-    tx: any,
-    orderId: string,
-  ): Promise<void> {
+  private async finalizeFinancialBreakdown(tx: any, orderId: string): Promise<void> {
+    // Lock and distinguish an already-finalized row from a missing financial
+    // record. A missing breakdown must abort payment confirmation; otherwise
+    // the payment could become CONFIRMED while settlement can never be built.
+    const [breakdown] = await tx
+      .select({
+        id: orderFinancialBreakdown.id,
+        finalizedAt: orderFinancialBreakdown.finalizedAt,
+      })
+      .from(orderFinancialBreakdown)
+      .where(eq(orderFinancialBreakdown.orderId, orderId))
+      .for('update')
+      .limit(1);
+
+    if (!breakdown) {
+      throw new ConflictException(
+        'Financial breakdown is missing; payment confirmation cannot proceed',
+      );
+    }
+
+    // Finalization is intentionally idempotent for an existing immutable row.
+    if (breakdown.finalizedAt) return;
+
     const result = await tx
       .update(orderFinancialBreakdown)
       .set({ finalizedAt: new Date(), updatedAt: new Date() })
       .where(
         and(
-          eq(orderFinancialBreakdown.orderId, orderId),
+          eq(orderFinancialBreakdown.id, breakdown.id),
           sql`${orderFinancialBreakdown.finalizedAt} IS NULL`,
         ),
       )
       .returning({ id: orderFinancialBreakdown.id });
 
-    // If no rows updated, either already finalized or no breakdown exists.
-    // Already finalized is fine (idempotent). No breakdown is a data issue.
     if (result.length === 0) {
-      this.logger.warn(
-        `Financial breakdown for order ${orderId} already finalized or missing`,
+      throw new ConflictException(
+        'Financial breakdown changed during payment confirmation; retry the operation',
       );
     }
   }
@@ -530,12 +939,7 @@ export class PaymentsService {
       const flip = await tx
         .update(paymentRecords)
         .set({ status: toStatus, updatedAt: new Date() })
-        .where(
-          and(
-            eq(paymentRecords.id, paymentId),
-            eq(paymentRecords.status, fromStatus),
-          ),
-        )
+        .where(and(eq(paymentRecords.id, paymentId), eq(paymentRecords.status, fromStatus)))
         .returning({ id: paymentRecords.id });
 
       if (flip.length > 0) {
@@ -549,6 +953,20 @@ export class PaymentsService {
           actorType: 'SYSTEM',
           notes: 'Payment ready — awaiting buyer proof upload',
         });
+        await this.outbox.publish(
+          'payment.awaiting_payment',
+          paymentId,
+          {
+            paymentId,
+            orderId: payment.orderId,
+            buyerId,
+            fromStatus,
+            toStatus,
+          },
+          {},
+          null,
+          tx,
+        );
       }
     });
   }
@@ -565,6 +983,7 @@ export class PaymentsService {
     tx: any,
     orderId: string,
     actorId: string,
+    actorType: 'ADMIN' | 'MERCHANT',
   ): Promise<void> {
     const order = await this.getOrderForPayment(orderId);
     const currentStatus = order.status;
@@ -577,12 +996,7 @@ export class PaymentsService {
           paymentStatus: 'CONFIRMED',
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(orders.id, orderId),
-            eq(orders.status, 'PAYMENT_PENDING'),
-          ),
-        )
+        .where(and(eq(orders.id, orderId), eq(orders.status, 'PAYMENT_PENDING')))
         .returning({ id: orders.id });
 
       if (flip.length > 0) {
@@ -592,7 +1006,7 @@ export class PaymentsService {
           fromStatus: 'PAYMENT_PENDING',
           toStatus: 'PAYMENT_CONFIRMED',
           changedBy: actorId,
-          actorType: 'SYSTEM',
+          actorType,
           reason: 'Payment confirmed',
         });
       }
@@ -619,6 +1033,7 @@ export class PaymentsService {
     requestedBy: string,
     caller: CallerContext,
     input?: { idempotencyKey?: string; notes?: string },
+    transactionClient?: any,
   ) {
     // Validate reason
     if (!REFUND_REASONS.includes(reason as RefundReason)) {
@@ -627,31 +1042,30 @@ export class PaymentsService {
       );
     }
 
-    if (amountMinor <= 0) {
-      throw new BadRequestException('Refund amount must be positive');
-    }
+    assertPositiveMinorAmount(amountMinor, 'Refund amount');
 
     const payment = await this.getPaymentOrThrow(paymentId);
     const order = await this.getOrderForPayment(payment.orderId);
 
-    // Buyer can only refund own payment; admin can refund any
+    // Buyers may request refunds for their own payments. Platform staff may
+    // manage any payment. A merchant may create only the system-generated
+    // MERCHANT_REJECTION request for an order in the merchant's active org.
+    const merchantRejection =
+      reason === 'MERCHANT_REJECTION' && Boolean(caller.role?.startsWith('MERCHANT_'));
     if (!isTenantPrivileged(caller) && order.buyerId !== caller.sub) {
-      throw new ForbiddenException('You do not have access to this payment');
+      if (!merchantRejection) {
+        throw new ForbiddenException('You do not have access to this payment');
+      }
+      await assertOrderAccessible(this.db, caller, order);
     }
 
-    // Payment must be in a refundable state
-    const refundableStatuses = ['CONFIRMED', 'CAPTURED', 'PARTIALLY_REFUNDED'];
-    if (!refundableStatuses.includes(payment.status)) {
-      throw new ConflictException(
-        `Cannot refund payment in ${payment.status} status`,
-      );
-    }
-
-    const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
+    // Use the caller key when supplied; a generated key preserves a unique
+    // record for legacy callers that do not yet send an idempotency key.
     const idempotencyKey = input?.idempotencyKey || crypto.randomUUID();
 
-    // Row-level lock + refundable calculation in a transaction
-    return this.db.db.transaction(async (tx) => {
+    // Reuse a caller transaction when refund creation is part of a larger
+    // cross-ledger transition (e.g. dispute resolution). Otherwise own the tx.
+    const execute = async (tx: any) => {
       // Lock the payment row
       const [lockedPayment] = await tx
         .select()
@@ -664,11 +1078,45 @@ export class PaymentsService {
         throw new NotFoundException('Payment not found');
       }
 
+      // Idempotency is checked under the payment lock before refundable-state
+      // validation, so a retry remains safe even after the first request was
+      // approved and the payment status changed.
+      const [existingRefund] = await tx
+        .select()
+        .from(refunds)
+        .where(eq(refunds.idempotencyKey, idempotencyKey))
+        .limit(1);
+
+      if (existingRefund) {
+        if (
+          existingRefund.paymentRecordId !== paymentId ||
+          existingRefund.orderId !== lockedPayment.orderId ||
+          existingRefund.currency !== lockedPayment.currency ||
+          Number(existingRefund.amountMinor) !== amountMinor ||
+          existingRefund.reason !== reason ||
+          existingRefund.requestedBy !== requestedBy
+        ) {
+          throw new ConflictException(
+            'Refund idempotency key was already used for a different request',
+          );
+        }
+        return {
+          refundId: existingRefund.id,
+          amountMinor: existingRefund.amountMinor,
+          status: existingRefund.status,
+        };
+      }
+
+      const refundableStatuses = ['CONFIRMED', 'CAPTURED', 'PARTIALLY_REFUNDED'];
+      if (!refundableStatuses.includes(lockedPayment.status)) {
+        throw new ConflictException(`Cannot refund payment in ${lockedPayment.status} status`);
+      }
+
       const lockedConfirmed = lockedPayment.confirmedAmountMinor ?? lockedPayment.amountMinor;
 
       // Calculate already-refunded amount
       const existingRefunds = await tx
-        .select({ total: sql<number>`COALESCE(SUM(amount_minor), 0)` })
+        .select({ total: sql<string>`COALESCE(SUM(amount_minor), 0)::text` })
         .from(refunds)
         .where(
           and(
@@ -677,7 +1125,7 @@ export class PaymentsService {
           ),
         );
 
-      const alreadyRefunded = existingRefunds[0]?.total ?? 0;
+      const alreadyRefunded = toSafeMinorUnitTotal(existingRefunds[0]?.total, 'Refunded amount');
       const refundable = lockedConfirmed - alreadyRefunded;
 
       if (amountMinor > refundable) {
@@ -687,18 +1135,50 @@ export class PaymentsService {
       }
 
       const refundId = crypto.randomUUID();
-      await tx.insert(refunds).values({
-        id: refundId,
-        paymentRecordId: paymentId,
-        orderId: lockedPayment.orderId,
-        idempotencyKey,
-        amountMinor,
-        currency: lockedPayment.currency,
-        status: 'REQUESTED',
-        reason,
-        notes: input?.notes || null,
-        requestedBy,
-      });
+      const [insertedRefund] = await tx
+        .insert(refunds)
+        .values({
+          id: refundId,
+          paymentRecordId: paymentId,
+          orderId: lockedPayment.orderId,
+          idempotencyKey,
+          amountMinor,
+          currency: lockedPayment.currency,
+          status: 'REQUESTED',
+          reason,
+          notes: input?.notes || null,
+          requestedBy,
+        })
+        .onConflictDoNothing()
+        .returning({ id: refunds.id });
+
+      // The payment lock serializes same-payment requests. This conflict path
+      // additionally handles a key reused concurrently against another payment.
+      if (!insertedRefund) {
+        const [conflictingRefund] = await tx
+          .select()
+          .from(refunds)
+          .where(eq(refunds.idempotencyKey, idempotencyKey))
+          .limit(1);
+        if (
+          !conflictingRefund ||
+          conflictingRefund.paymentRecordId !== paymentId ||
+          conflictingRefund.orderId !== lockedPayment.orderId ||
+          conflictingRefund.currency !== lockedPayment.currency ||
+          Number(conflictingRefund.amountMinor) !== amountMinor ||
+          conflictingRefund.reason !== reason ||
+          conflictingRefund.requestedBy !== requestedBy
+        ) {
+          throw new ConflictException(
+            'Refund idempotency key was already used for a different request',
+          );
+        }
+        return {
+          refundId: conflictingRefund.id,
+          amountMinor: conflictingRefund.amountMinor,
+          status: conflictingRefund.status,
+        };
+      }
 
       await tx.insert(paymentEvents).values({
         id: crypto.randomUUID(),
@@ -707,7 +1187,7 @@ export class PaymentsService {
         fromStatus: lockedPayment.status,
         toStatus: lockedPayment.status,
         actorId: requestedBy,
-        actorType: isTenantPrivileged(caller) ? 'ADMIN' : 'BUYER',
+        actorType: isTenantPrivileged(caller) ? 'ADMIN' : merchantRejection ? 'MERCHANT' : 'BUYER',
         amountMinor,
         notes: `Refund requested: ${reason}`,
       });
@@ -728,34 +1208,70 @@ export class PaymentsService {
       );
 
       return { refundId, amountMinor, status: 'REQUESTED' };
-    });
+    };
+
+    return transactionClient ? execute(transactionClient) : this.db.db.transaction(execute);
   }
 
   /**
    * Approve a refund request. Admin action.
    * Transitions refund to SUCCEEDED and updates payment status if fully refunded.
    */
-  async approveRefund(
-    refundId: string,
-    approverId: string,
-    caller: CallerContext,
-  ) {
+  async approveRefund(refundId: string, approverId: string, caller: CallerContext) {
     if (!isTenantPrivileged(caller)) {
       throw new ForbiddenException('Only admins can approve refunds');
     }
 
-    const refundRow = await this.db.db.query.refunds.findFirst({
+    const refundSnapshot = await this.db.db.query.refunds.findFirst({
       where: eq(refunds.id, refundId),
     });
-    if (!refundRow) throw new NotFoundException('Refund not found');
-    if (refundRow.status !== 'REQUESTED') {
-      throw new ConflictException(`Refund is in ${refundRow.status} status — must be REQUESTED`);
-    }
+    if (!refundSnapshot) throw new NotFoundException('Refund not found');
 
-    const payment = await this.getPaymentOrThrow(refundRow.paymentRecordId);
-    const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
-
+    let alreadySucceeded = false;
     await this.db.db.transaction(async (tx) => {
+      // Serialize all refund approvals for a payment on the same row lock used
+      // by requestRefund. Without this, two partial approvals can both observe
+      // only their own committed amount and leave a fully refunded payment
+      // incorrectly marked PARTIALLY_REFUNDED.
+      const [payment] = await tx
+        .select()
+        .from(paymentRecords)
+        .where(eq(paymentRecords.id, refundSnapshot.paymentRecordId))
+        .for('update')
+        .limit(1);
+
+      if (!payment) throw new NotFoundException('Payment not found');
+
+      const [refundRow] = await tx
+        .select()
+        .from(refunds)
+        .where(and(eq(refunds.id, refundId), eq(refunds.paymentRecordId, payment.id)))
+        .for('update')
+        .limit(1);
+
+      if (!refundRow) throw new NotFoundException('Refund not found');
+      if (refundRow.orderId !== payment.orderId || refundRow.currency !== payment.currency) {
+        throw new ConflictException('Refund order/currency does not match its payment');
+      }
+      // The first approval and its history/outbox commit atomically. A retried
+      // command after a lost response is therefore a read-only success, not a
+      // second approval event or a duplicate notification.
+      if (refundRow.status === 'SUCCEEDED') {
+        alreadySucceeded = true;
+        return;
+      }
+      if (refundRow.status !== 'REQUESTED') {
+        throw new ConflictException(`Refund is in ${refundRow.status} status — must be REQUESTED`);
+      }
+
+      const refundableStatuses = ['CONFIRMED', 'CAPTURED', 'PARTIALLY_REFUNDED'];
+      if (!refundableStatuses.includes(payment.status)) {
+        throw new ConflictException(
+          `Cannot approve refund for payment in ${payment.status} status`,
+        );
+      }
+
+      const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
       const flip = await tx
         .update(refunds)
         .set({
@@ -763,21 +1279,17 @@ export class PaymentsService {
           approvedBy: approverId,
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(refunds.id, refundId),
-            eq(refunds.status, 'REQUESTED'),
-          ),
-        )
+        .where(and(eq(refunds.id, refundId), eq(refunds.status, 'REQUESTED')))
         .returning({ id: refunds.id });
 
       if (flip.length === 0) {
         throw new ConflictException('Refund already processed');
       }
 
-      // Check if fully refunded → update payment status
+      // Recompute after acquiring the payment lock so concurrent approvals
+      // contribute to one serialized total.
       const allRefunds = await tx
-        .select({ total: sql<number>`COALESCE(SUM(amount_minor), 0)` })
+        .select({ total: sql<string>`COALESCE(SUM(amount_minor), 0)::text` })
         .from(refunds)
         .where(
           and(
@@ -786,7 +1298,7 @@ export class PaymentsService {
           ),
         );
 
-      const totalRefunded = allRefunds[0]?.total ?? 0;
+      const totalRefunded = toSafeMinorUnitTotal(allRefunds[0]?.total, 'Refunded amount');
 
       let newPaymentStatus = payment.status;
       if (totalRefunded >= confirmedAmount) {
@@ -801,6 +1313,13 @@ export class PaymentsService {
           .set({ status: newPaymentStatus, updatedAt: new Date() })
           .where(eq(paymentRecords.id, payment.id));
       }
+
+      // Keep the denormalized order projection in sync with the authoritative
+      // payment state. Refunds never alter fulfillment/order status.
+      await tx
+        .update(orders)
+        .set({ paymentStatus: newPaymentStatus, updatedAt: new Date() })
+        .where(eq(orders.id, payment.orderId));
 
       await tx.insert(paymentEvents).values({
         id: crypto.randomUUID(),
@@ -829,8 +1348,192 @@ export class PaymentsService {
       );
     });
 
-    this.logger.log(`Refund ${refundId} approved by ${approverId}`);
+    if (!alreadySucceeded) {
+      this.logger.log(`Refund ${refundId} approved by ${approverId}`);
+    }
     return this.getRefund(refundId);
+  }
+
+  /**
+   * Record a failed refund attempt in the caller-owned payment/return transaction.
+   * The caller must already hold the payment → refund locks and persist its
+   * corresponding domain transition before committing this transaction.
+   */
+  async failRefundInTransaction(
+    tx: any,
+    payment: any,
+    refund: any,
+    caller: CallerContext,
+    failureReason?: string,
+  ): Promise<void> {
+    if (!isTenantPrivileged(caller)) {
+      throw new ForbiddenException('Only platform staff can mark a refund as failed');
+    }
+    if (
+      refund.paymentRecordId !== payment.id ||
+      refund.orderId !== payment.orderId ||
+      refund.currency !== payment.currency
+    ) {
+      throw new ConflictException('Refund does not belong to the supplied payment');
+    }
+    const retryableStatuses = ['REQUESTED', 'PROCESSING', 'APPROVED'];
+    if (!retryableStatuses.includes(refund.status)) {
+      throw new ConflictException(`Cannot fail refund in ${refund.status} status`);
+    }
+
+    const [updated] = await tx
+      .update(refunds)
+      .set({ status: 'FAILED', updatedAt: new Date() })
+      .where(
+        and(
+          eq(refunds.id, refund.id),
+          eq(refunds.paymentRecordId, payment.id),
+          inArray(refunds.status, retryableStatuses),
+        ),
+      )
+      .returning({ id: refunds.id });
+    if (!updated) {
+      throw new ConflictException('Refund status changed before failure was recorded');
+    }
+
+    const reason = failureReason?.trim() || null;
+    await tx.insert(paymentEvents).values({
+      id: crypto.randomUUID(),
+      paymentRecordId: payment.id,
+      eventType: 'PAYMENT_REFUND_FAILED',
+      fromStatus: payment.status,
+      toStatus: payment.status,
+      actorId: caller.sub,
+      actorType: 'ADMIN',
+      amountMinor: refund.amountMinor,
+      notes: reason ? `Refund failed: ${reason}` : `Refund failed: ${refund.id}`,
+      metadata: {
+        refundId: refund.id,
+        returnRequestId: refund.returnRequestId ?? null,
+      },
+    });
+
+    await this.outbox.publish(
+      'payment.refund_failed',
+      payment.id,
+      {
+        refundId: refund.id,
+        paymentId: payment.id,
+        orderId: payment.orderId,
+        amountMinor: refund.amountMinor,
+        currency: refund.currency,
+        reason,
+      },
+      {},
+      null,
+      tx,
+    );
+  }
+
+  /**
+   * Re-open a failed return refund as the same logical refund request.
+   * The payment row is already locked by the caller; FAILED refunds do not
+   * reserve balance, so re-check the remaining amount before restoring REQUESTED.
+   */
+  async retryFailedRefundInTransaction(
+    tx: any,
+    payment: any,
+    refund: any,
+    caller: CallerContext,
+    retryNotes?: string,
+    originatingReturnId?: string | null,
+  ): Promise<void> {
+    if (!isTenantPrivileged(caller)) {
+      throw new ForbiddenException('Only platform staff can retry a failed refund');
+    }
+    if (
+      refund.paymentRecordId !== payment.id ||
+      refund.orderId !== payment.orderId ||
+      refund.currency !== payment.currency
+    ) {
+      throw new ConflictException('Refund does not belong to the supplied payment');
+    }
+    if (refund.status !== 'FAILED') {
+      throw new ConflictException(`Cannot retry refund in ${refund.status} status`);
+    }
+    if (!['CONFIRMED', 'CAPTURED', 'PARTIALLY_REFUNDED'].includes(payment.status)) {
+      throw new ConflictException(`Cannot retry refund for payment in ${payment.status} status`);
+    }
+
+    assertPositiveMinorAmount(Number(refund.amountMinor), 'Refund amount');
+    const confirmedAmount = Number(payment.confirmedAmountMinor ?? payment.amountMinor);
+    assertPositiveMinorAmount(confirmedAmount, 'Confirmed payment amount');
+    const reservedRows = await tx
+      .select({ total: sql<string>`COALESCE(SUM(amount_minor), 0)::text` })
+      .from(refunds)
+      .where(
+        and(
+          eq(refunds.paymentRecordId, payment.id),
+          inArray(refunds.status, ['REQUESTED', 'PROCESSING', 'SUCCEEDED', 'APPROVED']),
+        ),
+      );
+    const alreadyReserved = toSafeMinorUnitTotal(reservedRows[0]?.total, 'Reserved refund amount');
+    const refundable = confirmedAmount - alreadyReserved;
+    if (Number(refund.amountMinor) > refundable) {
+      throw new BadRequestException(
+        `Refund retry amount ${refund.amountMinor} exceeds refundable balance ${refundable}`,
+      );
+    }
+
+    const [updated] = await tx
+      .update(refunds)
+      .set({
+        status: 'REQUESTED',
+        approvedBy: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(refunds.id, refund.id),
+          eq(refunds.paymentRecordId, payment.id),
+          eq(refunds.status, 'FAILED'),
+        ),
+      )
+      .returning({ id: refunds.id });
+    if (!updated) {
+      throw new ConflictException('Refund status changed before retry was recorded');
+    }
+
+    const note = retryNotes?.trim();
+    const returnRequestId = originatingReturnId ?? refund.returnRequestId ?? null;
+    await tx.insert(paymentEvents).values({
+      id: crypto.randomUUID(),
+      paymentRecordId: payment.id,
+      eventType: 'PAYMENT_REFUND_REQUESTED',
+      fromStatus: payment.status,
+      toStatus: payment.status,
+      actorId: caller.sub,
+      actorType: 'ADMIN',
+      amountMinor: refund.amountMinor,
+      notes: note ? `Refund retry requested: ${note}` : `Refund retry requested: ${refund.id}`,
+      metadata: {
+        refundId: refund.id,
+        returnRequestId,
+        retry: true,
+      },
+    });
+
+    await this.outbox.publish(
+      'payment.refund_requested',
+      payment.id,
+      {
+        refundId: refund.id,
+        paymentId: payment.id,
+        orderId: payment.orderId,
+        amountMinor: refund.amountMinor,
+        reason: refund.reason,
+        returnRequestId,
+        retry: true,
+      },
+      {},
+      null,
+      tx,
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -841,71 +1544,124 @@ export class PaymentsService {
    * Calculate and create a settlement record for a sub-order.
    * Uses the finalized financial breakdown — never recalculates from mutable data.
    */
-  async calculateSettlement(
-    subOrderId: string,
-    actorId: string,
-    caller: CallerContext,
-  ) {
+  async calculateSettlement(subOrderId: string, actorId: string, caller: CallerContext) {
     if (!isTenantPrivileged(caller)) {
       throw new ForbiddenException('Only admins can calculate settlements');
     }
 
-    const order = await this.getOrderForPayment(subOrderId);
-    const payment = await this.getPaymentForOrder(subOrderId);
-    if (!payment) throw new NotFoundException('No payment found for this order');
+    // Serialize settlement calculation with refund requests/approvals on the
+    // same payment row. This also makes concurrent calculate calls observe
+    // the first committed settlement instead of attempting a second payout.
+    const result = await this.db.db.transaction(async (tx) => {
+      const [order] = await tx.select().from(orders).where(eq(orders.id, subOrderId)).limit(1);
+      if (!order) throw new NotFoundException('Order not found');
 
-    const breakdown = await this.db.db.query.orderFinancialBreakdown.findFirst({
-      where: eq(orderFinancialBreakdown.orderId, subOrderId),
-    });
-    if (!breakdown) throw new NotFoundException('Financial breakdown not found');
+      const [payment] = await tx
+        .select()
+        .from(paymentRecords)
+        .where(eq(paymentRecords.orderId, subOrderId))
+        .for('update')
+        .limit(1);
+      if (!payment) throw new NotFoundException('No payment found for this order');
 
-    const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
+      // Settlement is a distribution of confirmed funds, not an estimate of
+      // the order amount. Never create a payable record before confirmation.
+      const settlementEligibleStatuses = [
+        'CONFIRMED',
+        'CAPTURED',
+        'PARTIALLY_REFUNDED',
+        'REFUNDED',
+      ];
+      if (!settlementEligibleStatuses.includes(payment.status)) {
+        throw new ConflictException(
+          `Cannot calculate settlement for payment in ${payment.status} status`,
+        );
+      }
 
-    // Calculate total refunds
-    const refundResult = await this.db.db
-      .select({ total: sql<number>`COALESCE(SUM(amount_minor), 0)` })
-      .from(refunds)
-      .where(
-        and(
-          eq(refunds.paymentRecordId, payment.id),
-          eq(refunds.status, 'SUCCEEDED'),
-        ),
-      );
-    const totalRefunded = refundResult[0]?.total ?? 0;
+      const [existingSettlement] = await tx
+        .select()
+        .from(settlementRecords)
+        .where(
+          and(
+            eq(settlementRecords.subOrderId, subOrderId),
+            eq(settlementRecords.paymentRecordId, payment.id),
+            // Adjustment ledger rows are independent payout entries, not the
+            // primary settlement. Exclude both metadata-linked new rows and
+            // legacy rows identified by their stable posting note prefix.
+            sql`COALESCE(${settlementRecords.metadata}->>'adjustmentId', '') = ''
+            AND COALESCE(${settlementRecords.notes}, '') NOT LIKE 'Posted adjustment %'`,
+          ),
+        )
+        .orderBy(desc(settlementRecords.createdAt))
+        .limit(1);
 
-    // Settlement formula: gross - refunds - commission - fees = net
-    const grossMinor = confirmedAmount;
-    const refundMinor = totalRefunded;
-    const commissionMinor = breakdown.commissionMinor;
-    const feeMinor = breakdown.deliveryFeeMinor;
-    const netMinor = grossMinor - refundMinor - commissionMinor - feeMinor;
+      if (existingSettlement) {
+        if (['PENDING', 'CALCULATED', 'DUE'].includes(existingSettlement.status)) {
+          return { settlement: existingSettlement, created: false };
+        }
+        // A paid settlement is immutable. Any subsequent refund or commercial
+        // correction must use the explicit adjustment workflow, never a fresh
+        // payable settlement calculation.
+        throw new ConflictException(
+          `Settlement already exists in ${existingSettlement.status} status; use the settlement adjustment workflow`,
+        );
+      }
 
-    const settlementId = crypto.randomUUID();
-
-    await this.db.db.transaction(async (tx) => {
-      await tx.insert(settlementRecords).values({
-        id: settlementId,
-        subOrderId,
-        paymentRecordId: payment.id,
-        merchantStoreId: order.storeId,
-        grossMinor,
-        refundMinor,
-        commissionMinor,
-        feeMinor,
-        netMinor,
-        currency: payment.currency,
-        status: 'CALCULATED',
-        calculatedAt: new Date(),
+      const breakdown = await tx.query.orderFinancialBreakdown.findFirst({
+        where: eq(orderFinancialBreakdown.orderId, subOrderId),
       });
+      if (!breakdown) throw new NotFoundException('Financial breakdown not found');
+
+      const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
+      assertPositiveMinorAmount(confirmedAmount, 'Confirmed payment amount');
+      const refundResult = await tx
+        .select({ total: sql<string>`COALESCE(SUM(amount_minor), 0)::text` })
+        .from(refunds)
+        .where(and(eq(refunds.paymentRecordId, payment.id), eq(refunds.status, 'SUCCEEDED')));
+      const totalRefunded = toSafeMinorUnitTotal(
+        refundResult[0]?.total,
+        'Settlement refund amount',
+      );
+
+      // Settlement formula: gross - refunds - commission - fees = net
+      const grossMinor = confirmedAmount;
+      const refundMinor = totalRefunded;
+      const commissionMinor = breakdown.commissionMinor;
+      const feeMinor = breakdown.deliveryFeeMinor;
+      const netMinor = grossMinor - refundMinor - commissionMinor - feeMinor;
+      const settlementId = crypto.randomUUID();
+
+      const [settlement] = await tx
+        .insert(settlementRecords)
+        .values({
+          id: settlementId,
+          subOrderId,
+          paymentRecordId: payment.id,
+          merchantStoreId: order.storeId,
+          grossMinor,
+          refundMinor,
+          commissionMinor,
+          feeMinor,
+          netMinor,
+          currency: payment.currency,
+          status: 'CALCULATED',
+          calculatedAt: new Date(),
+        })
+        .returning();
+      if (!settlement) {
+        throw new Error('Settlement insert completed without returning a persisted record');
+      }
 
       await tx.insert(paymentEvents).values({
         id: crypto.randomUUID(),
         paymentRecordId: payment.id,
-        eventType: 'PAYMENT_REFUND_SUCCEEDED',
+        eventType: 'PAYMENT_SETTLEMENT_CALCULATED',
         fromStatus: payment.status,
         toStatus: payment.status,
-        actorId: actorId,
-        actorType: 'SYSTEM',
+        actorId,
+        // Settlement calculation is an explicitly privileged admin action,
+        // not a background/system transition.
+        actorType: 'ADMIN',
         amountMinor: netMinor,
         notes: `Settlement calculated: gross=${grossMinor}, refund=${refundMinor}, commission=${commissionMinor}, fee=${feeMinor}, net=${netMinor}`,
       });
@@ -924,10 +1680,14 @@ export class PaymentsService {
         null,
         tx,
       );
+
+      return { settlement, created: true };
     });
 
-    this.logger.log(`Settlement ${settlementId} calculated for order ${subOrderId}`);
-    return this.getSettlement(settlementId);
+    if (result.created) {
+      this.logger.log(`Settlement ${result.settlement.id} calculated for order ${subOrderId}`);
+    }
+    return result.settlement;
   }
 
   /**
@@ -939,30 +1699,96 @@ export class PaymentsService {
     caller: CallerContext,
     input?: { paymentReference?: string; notes?: string },
   ) {
+    const settlementSnapshot = await this.getSettlement(settlementId);
     if (!isTenantPrivileged(caller)) {
-      await assertStoreInOrg(this.db, caller, (await this.getSettlement(settlementId)).merchantStoreId);
+      await assertStoreInOrg(this.db, caller, settlementSnapshot.merchantStoreId);
     }
 
-    const flip = await this.db.db
-      .update(settlementRecords)
-      .set({
-        status: 'PAID',
-        paidAt: new Date(),
-        paymentReference: input?.paymentReference || null,
-        notes: input?.notes || null,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(settlementRecords.id, settlementId),
-          inArray(settlementRecords.status, ['CALCULATED', 'DUE']),
-        ),
-      )
-      .returning({ id: settlementRecords.id });
+    await this.db.db.transaction(async (tx) => {
+      // Lock the settlement row so concurrent pay attempts produce exactly
+      // one terminal transition, immutable history row and outbox event.
+      const [settlement] = await tx
+        .select()
+        .from(settlementRecords)
+        .where(eq(settlementRecords.id, settlementId))
+        .for('update')
+        .limit(1);
 
-    if (flip.length === 0) {
-      throw new ConflictException('Settlement not in payable status');
-    }
+      if (!settlement) throw new NotFoundException('Settlement not found');
+      if (settlement.status === 'PAID') {
+        const requestedReference = input?.paymentReference?.trim() || null;
+        const recordedReference = settlement.paymentReference ?? null;
+        if (requestedReference !== recordedReference) {
+          throw new ConflictException('Settlement already paid with a different payment reference');
+        }
+        return;
+      }
+      if (!['CALCULATED', 'DUE', 'ADJUSTMENT'].includes(settlement.status)) {
+        throw new ConflictException('Settlement not in payable status');
+      }
+
+      const paidAt = new Date();
+      const [updated] = await tx
+        .update(settlementRecords)
+        .set({
+          status: 'PAID',
+          paidAt,
+          paymentReference: input?.paymentReference || null,
+          // Preserve the legacy adjustment marker when paying an adjustment
+          // ledger row. Primary settlement notes retain their existing replace
+          // semantics; adjustment notes remain identifiable for old rows that
+          // do not carry adjustmentId metadata.
+          notes:
+            settlement.status === 'ADJUSTMENT'
+              ? [settlement.notes, input?.notes].filter(Boolean).join('\n') || null
+              : input?.notes || null,
+          updatedAt: paidAt,
+        })
+        .where(
+          and(
+            eq(settlementRecords.id, settlementId),
+            inArray(settlementRecords.status, ['CALCULATED', 'DUE', 'ADJUSTMENT']),
+          ),
+        )
+        .returning({ id: settlementRecords.id });
+
+      if (!updated) {
+        throw new ConflictException('Settlement not in payable status');
+      }
+
+      await tx.insert(paymentEvents).values({
+        id: crypto.randomUUID(),
+        paymentRecordId: settlement.paymentRecordId,
+        eventType: 'PAYMENT_SETTLEMENT_PAID',
+        fromStatus: settlement.status,
+        toStatus: 'PAID',
+        actorId,
+        actorType: isTenantPrivileged(caller) ? 'ADMIN' : 'MERCHANT',
+        amountMinor: settlement.netMinor,
+        notes: input?.notes || 'Settlement marked as paid',
+        metadata: {
+          settlementId,
+          paymentReference: input?.paymentReference || null,
+        },
+      });
+
+      await this.outbox.publish(
+        'payment.settlement_paid',
+        settlement.paymentRecordId,
+        {
+          settlementId,
+          subOrderId: settlement.subOrderId,
+          paymentId: settlement.paymentRecordId,
+          merchantStoreId: settlement.merchantStoreId,
+          netMinor: settlement.netMinor,
+          currency: settlement.currency,
+          paymentReference: input?.paymentReference || null,
+        },
+        {},
+        null,
+        tx,
+      );
+    });
 
     return this.getSettlement(settlementId);
   }
@@ -990,12 +1816,7 @@ export class PaymentsService {
         cancelledAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(
-        and(
-          eq(paymentRecords.id, paymentId),
-          eq(paymentRecords.status, fromStatus),
-        ),
-      )
+      .where(and(eq(paymentRecords.id, paymentId), eq(paymentRecords.status, fromStatus)))
       .returning({ id: paymentRecords.id });
 
     if (flip.length > 0) {
@@ -1032,6 +1853,10 @@ export class PaymentsService {
   async expirePayment(paymentId: string) {
     const payment = await this.getPaymentOrThrow(paymentId);
 
+    // COD is collected at delivery, so it must not expire merely because
+    // the order has been awaiting collection for longer than the bank-transfer window.
+    if (payment.paymentMethod === 'CASH_ON_DELIVERY') return;
+
     if (payment.status !== 'AWAITING_PAYMENT' && payment.status !== 'AWAITING_VERIFICATION') {
       return; // Already handled or not expirable
     }
@@ -1045,12 +1870,7 @@ export class PaymentsService {
           status: 'EXPIRED',
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(paymentRecords.id, paymentId),
-            eq(paymentRecords.status, fromStatus),
-          ),
-        )
+        .where(and(eq(paymentRecords.id, paymentId), eq(paymentRecords.status, fromStatus)))
         .returning({ id: paymentRecords.id });
 
       if (flip.length === 0) return; // Concurrent handler already expired
@@ -1068,24 +1888,24 @@ export class PaymentsService {
       // Transition order to CANCELLED if still in payment-pending state
       const order = await this.getOrderForPayment(payment.orderId);
       if (['PAYMENT_PENDING'].includes(order.status)) {
-        await tx
+        const orderFlip = await tx
           .update(orders)
           .set({ status: 'CANCELLED', paymentStatus: 'EXPIRED', updatedAt: new Date() })
-          .where(
-            and(
-              eq(orders.id, payment.orderId),
-              eq(orders.status, 'PAYMENT_PENDING'),
-            ),
-          );
+          .where(and(eq(orders.id, payment.orderId), eq(orders.status, 'PAYMENT_PENDING')))
+          .returning({ id: orders.id });
 
-        await tx.insert(orderStatusHistory).values({
-          id: crypto.randomUUID(),
-          orderId: payment.orderId,
-          fromStatus: 'PAYMENT_PENDING',
-          toStatus: 'CANCELLED',
-          actorType: 'SYSTEM',
-          reason: 'Payment expired',
-        });
+        // A concurrent order lifecycle action can win after the read above.
+        // Append cancellation history only when this transaction changed the row.
+        if (orderFlip.length > 0) {
+          await tx.insert(orderStatusHistory).values({
+            id: crypto.randomUUID(),
+            orderId: payment.orderId,
+            fromStatus: 'PAYMENT_PENDING',
+            toStatus: 'CANCELLED',
+            actorType: 'SYSTEM',
+            reason: 'Payment expired',
+          });
+        }
       }
 
       await this.outbox.publish(
@@ -1167,7 +1987,9 @@ export class PaymentsService {
       conditions.push(eq(paymentRecords.paymentMethod, filters.paymentMethod));
     }
 
-    // If filtering by store or buyer, join through orders
+    // If filtering by store or buyer, resolve matching order IDs first.
+    // The previous implementation constructed orderConditions but never
+    // applied them, which silently widened a filtered request to all payments.
     if (filters?.storeId || filters?.buyerId) {
       const orderConditions = [];
       if (filters.storeId) {
@@ -1177,11 +1999,13 @@ export class PaymentsService {
         orderConditions.push(eq(orders.buyerId, filters.buyerId));
       }
 
-      return this.db.db.query.paymentRecords.findMany({
-        where: and(...conditions),
-        orderBy: [desc(paymentRecords.createdAt)],
-        limit: 100,
+      const matchingOrders = await this.db.db.query.orders.findMany({
+        where: and(...orderConditions),
+        columns: { id: true },
       });
+      const orderIds = matchingOrders.map((order) => order.id);
+      if (orderIds.length === 0) return [];
+      conditions.push(inArray(paymentRecords.orderId, orderIds));
     }
 
     return this.db.db.query.paymentRecords.findMany({
@@ -1189,6 +2013,97 @@ export class PaymentsService {
       orderBy: [desc(paymentRecords.createdAt)],
       limit: 100,
     });
+  }
+
+  /**
+   * List payments visible to an authenticated merchant.
+   *
+   * Scope is derived from the caller's active organization, matching the
+   * platform's org-wide merchant order-read permission. A supplied storeId
+   * narrows that scope and must belong to the active organization.
+   */
+  async listMerchantPayments(
+    caller: CallerContext,
+    filters?: { storeId?: string; status?: string; paymentMethod?: string },
+  ) {
+    if (isTenantPrivileged(caller)) {
+      return this.listPayments(filters);
+    }
+    if (!caller.activeOrg) {
+      throw new ForbiddenException('An active organization is required to view merchant payments');
+    }
+    if (filters?.storeId) {
+      await assertStoreInOrg(this.db, caller, filters.storeId);
+    }
+
+    const conditions = [eq(stores.orgId, caller.activeOrg)];
+    if (filters?.storeId) conditions.push(eq(stores.id, filters.storeId));
+    if (filters?.status) conditions.push(eq(paymentRecords.status, filters.status));
+    if (filters?.paymentMethod)
+      conditions.push(eq(paymentRecords.paymentMethod, filters.paymentMethod));
+
+    const rows = await this.db.db
+      .select({ payment: paymentRecords })
+      .from(paymentRecords)
+      .innerJoin(orders, eq(paymentRecords.orderId, orders.id))
+      .innerJoin(stores, eq(orders.storeId, stores.id))
+      .where(and(...conditions))
+      .orderBy(desc(paymentRecords.createdAt))
+      .limit(100);
+
+    return rows.map((row) => row.payment);
+  }
+
+  /**
+   * List settlements visible to an authenticated merchant.
+   *
+   * Scope is derived from the caller's active organization, matching the
+   * platform's org-wide merchant settlement-read permission. A supplied storeId
+   * narrows that scope and must belong to the active organization.
+   */
+  async listMerchantSettlements(
+    caller: CallerContext,
+    filters?: { storeId?: string; status?: string; limit?: number; offset?: number },
+  ) {
+    if (isTenantPrivileged(caller)) {
+      return this.listSettlements(filters);
+    }
+    if (!caller.activeOrg) {
+      throw new ForbiddenException(
+        'An active organization is required to view merchant settlements',
+      );
+    }
+    if (filters?.storeId) {
+      await assertStoreInOrg(this.db, caller, filters.storeId);
+    }
+
+    const pagination = normalizeSettlementPagination(filters);
+    const conditions = [eq(stores.orgId, caller.activeOrg)];
+    if (filters?.storeId) conditions.push(eq(stores.id, filters.storeId));
+    if (filters?.status) conditions.push(eq(settlementRecords.status, filters.status));
+    const where = and(...conditions);
+
+    const [rows, countRows] = await Promise.all([
+      this.db.db
+        .select({ settlement: settlementRecords })
+        .from(settlementRecords)
+        .innerJoin(stores, eq(settlementRecords.merchantStoreId, stores.id))
+        .where(where)
+        .orderBy(desc(settlementRecords.createdAt), desc(settlementRecords.id))
+        .limit(pagination.limit)
+        .offset(pagination.offset),
+      this.db.db
+        .select({ total: sql.raw('count(*)::text') })
+        .from(settlementRecords)
+        .innerJoin(stores, eq(settlementRecords.merchantStoreId, stores.id))
+        .where(where),
+    ]);
+
+    return {
+      data: rows.map((row) => row.settlement),
+      total: toSafeSettlementCount(countRows[0]?.total as string | number | bigint | undefined),
+      ...pagination,
+    };
   }
 
   /**
@@ -1207,7 +2122,10 @@ export class PaymentsService {
   async listSettlements(filters?: {
     storeId?: string;
     status?: string;
+    limit?: number;
+    offset?: number;
   }) {
+    const pagination = normalizeSettlementPagination(filters);
     const conditions = [];
     if (filters?.storeId) {
       conditions.push(eq(settlementRecords.merchantStoreId, filters.storeId));
@@ -1215,9 +2133,36 @@ export class PaymentsService {
     if (filters?.status) {
       conditions.push(eq(settlementRecords.status, filters.status));
     }
-    return this.db.db.query.settlementRecords.findMany({
-      where: conditions.length > 0 ? and(...conditions) : undefined,
-      orderBy: [desc(settlementRecords.createdAt)],
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [data, countRows] = await Promise.all([
+      this.db.db.query.settlementRecords.findMany({
+        where,
+        orderBy: [desc(settlementRecords.createdAt), desc(settlementRecords.id)],
+        limit: pagination.limit,
+        offset: pagination.offset,
+      }),
+      this.db.db
+        .select({ total: sql.raw('count(*)::text') })
+        .from(settlementRecords)
+        .where(where),
+    ]);
+
+    return {
+      data,
+      total: toSafeSettlementCount(countRows[0]?.total as string | number | bigint | undefined),
+      ...pagination,
+    };
+  }
+
+  /**
+   * List refund requests awaiting an explicit admin decision.
+   * The queue is read-only; approval remains a separate guarded action.
+   */
+  async getRequestedRefunds() {
+    return this.db.db.query.refunds.findMany({
+      where: eq(refunds.status, 'REQUESTED'),
+      orderBy: [desc(refunds.createdAt)],
       limit: 100,
     });
   }
@@ -1237,14 +2182,13 @@ export class PaymentsService {
    * Get stale payments for reconciliation.
    */
   async getStalePayments() {
-    const hours = Number(
-      process.env['PAYMENT_EXPIRY_HOURS'] || DEFAULT_PAYMENT_EXPIRY_HOURS,
-    );
+    const hours = Number(process.env['PAYMENT_EXPIRY_HOURS'] || DEFAULT_PAYMENT_EXPIRY_HOURS);
     const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
 
     return this.db.db.query.paymentRecords.findMany({
       where: and(
         inArray(paymentRecords.status, ['AWAITING_PAYMENT', 'AWAITING_VERIFICATION']),
+        sql`${paymentRecords.paymentMethod} IS DISTINCT FROM 'CASH_ON_DELIVERY'`,
         sql`${paymentRecords.createdAt} < ${cutoff.toISOString()}`,
       ),
       orderBy: [paymentRecords.createdAt],

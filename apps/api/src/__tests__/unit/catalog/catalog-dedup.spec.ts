@@ -46,15 +46,19 @@ function makeHarness(
 
   const db = {
     db: {
-      query: Object.fromEntries(
-        Object.entries(queries).map(([k, v]) => [k, q(v)]),
-      ),
+      query: Object.fromEntries(Object.entries(queries).map(([k, v]) => [k, q(v)])),
       insert: () => ({
-        values: (rows: unknown) => { inserted.push(rows); return Promise.resolve(); },
+        values: (rows: unknown) => {
+          inserted.push(rows);
+          return Promise.resolve();
+        },
       }),
       update: () => ({
         set: (patch: unknown) => ({
-          where: () => { inserted.push(patch); return Promise.resolve(); },
+          where: () => {
+            inserted.push(patch);
+            return Promise.resolve();
+          },
         }),
       }),
       execute: async (...args: unknown[]) => {
@@ -71,7 +75,15 @@ function makeHarness(
 
   // RedisService, OutboxDispatcher, StorageService, AuditService are irrelevant — cast
   // @ts-expect-error — partial mock sufficient
-  const svc = new CatalogService(db, {}, {}, {}, { record: async () => {} }, { evaluate: () => ({ effects: new Map(), errors: [] }) }, { setVariantAttributeValues: async () => [], setProductAttributeValues: async () => [] });
+  const svc = new CatalogService(
+    db,
+    {},
+    {},
+    {},
+    { record: async () => {} },
+    { evaluate: () => ({ effects: new Map(), errors: [] }) },
+    { setVariantAttributeValues: async () => [], setProductAttributeValues: async () => [] },
+  );
   return { svc, inserted, executeCalls };
 }
 
@@ -83,7 +95,14 @@ describe('findProductByIdentifiers', () => {
   });
 
   it('returns match when GTIN is found', async () => {
-    const product = { id: 'p1', title: 'Widget', slug: 'widget', gtin: '123', ean: null, mpn: null };
+    const product = {
+      id: 'p1',
+      title: 'Widget',
+      slug: 'widget',
+      gtin: '123',
+      ean: null,
+      mpn: null,
+    };
     const { svc } = makeHarness({ products: { findFirst: product } });
     const result = await svc.findProductByIdentifiers({ gtin: '123' });
     expect(result).toEqual({ id: 'p1', title: 'Widget', slug: 'widget', matched: 'gtin' });
@@ -99,7 +118,7 @@ describe('findProductByIdentifiers', () => {
     // First findFirst (gtin) → null; second findFirst (ean) → null; third (mpn) → match
     const match = { id: 'p9', title: 'MPN Product', slug: 'mpn-prod' };
     const { svc } = makeHarness({
-      products: { findFirst: [null, null, null, match] },
+      products: { findFirst: [null, null, match] },
     });
     const result = await svc.findProductByIdentifiers({ gtin: 'G1', ean: 'E1', mpn: 'M1' });
     // The primary search (AND with first non-null = gtin) returns null
@@ -111,12 +130,22 @@ describe('findProductByIdentifiers', () => {
 describe('findPotentialDuplicates', () => {
   it('returns groups from raw SQL', async () => {
     const rows = [
-      { category_id: 'c1', norm_title: 'widget', dup_count: 3, product_ids: ['p1', 'p2', 'p3'], store_ids: ['s1', 's2'] },
+      {
+        category_id: 'c1',
+        norm_title: 'widget',
+        dup_count: 3,
+        product_ids: ['p1', 'p2', 'p3'],
+        store_ids: ['s1', 's2'],
+      },
     ];
     const { svc } = makeHarness({}, { rows });
     const result = await svc.findPotentialDuplicates('c1');
     expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ categoryId: 'c1', normalizedTitle: 'widget', duplicateCount: 3 });
+    expect(result[0]).toMatchObject({
+      categoryId: 'c1',
+      normalizedTitle: 'widget',
+      duplicateCount: 3,
+    });
     expect(result[0]!.productIds).toEqual(['p1', 'p2', 'p3']);
   });
 

@@ -18,16 +18,20 @@
  * Idempotency: each reversal has a unique idempotency key derived from the
  * return request + line item, preventing duplicate reversals from retries.
  */
-import { Injectable, Logger, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { recordOpsCounter } from '../operations/ops-counters';
 import { commissionReversals } from './financial.schema';
 import { returnRequests, returnRequestItems } from './returns.schema';
 import { orders, orderFinancialBreakdown, orderItems } from '../orders/orders.schema';
-import { settlementRecords } from '../payments/payments.schema';
+import { paymentRecords, settlementRecords } from '../payments/payments.schema';
+import {
+  calculateProportionalCommissionReversalMinor,
+  calculateReturnNetGoodsMinor,
+} from './returns-financials';
 import { stores } from '../merchant/merchant.schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray, ne } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /** Categories that trigger commission reversal. */
@@ -73,6 +77,29 @@ export class CommissionReversalService {
     });
     if (!ret) throw new BadRequestException('Return request not found');
 
+    const payment = await this.db.db.query.paymentRecords.findFirst({
+      where: eq(paymentRecords.id, ret.paymentRecordId),
+    });
+    if (!payment) throw new BadRequestException('Payment record not found for return');
+    if (payment.orderId !== ret.subOrderId) {
+      throw new BadRequestException('Return payment record does not belong to its sub-order');
+    }
+
+    const order = await this.db.db.query.orders.findFirst({
+      where: eq(orders.id, ret.subOrderId),
+      columns: { storeId: true },
+    });
+    if (!order?.storeId) throw new BadRequestException('Return sub-order has no merchant store');
+    const store = await this.db.db.query.stores.findFirst({
+      where: eq(stores.id, order.storeId),
+      columns: { orgId: true },
+    });
+    if (!store?.orgId) throw new BadRequestException('Return sub-order has no owning organization');
+    const resolvedOrgId = store.orgId;
+    if (orgId && orgId !== resolvedOrgId) {
+      throw new ForbiddenException('Commission reversal organization does not match its return sub-order');
+    }
+
     // Load the financial breakdown for this sub-order
     const breakdown = await this.db.db.query.orderFinancialBreakdown.findFirst({
       where: eq(orderFinancialBreakdown.orderId, ret.subOrderId),
@@ -91,7 +118,7 @@ export class CommissionReversalService {
       .from(commissionReversals)
       .innerJoin(returnRequests, eq(commissionReversals.returnRequestId, returnRequests.id))
       .where(eq(returnRequests.subOrderId, ret.subOrderId));
-    const alreadyReversed = existingReversals[0]?.total ?? 0;
+    const alreadyReversed = Number(existingReversals[0]?.total ?? 0);
     const remainingCommission = originalCommission - alreadyReversed;
 
     if (remainingCommission <= 0) {
@@ -108,21 +135,35 @@ export class CommissionReversalService {
     }
 
     // Load order items for net-goods basis per line
-    const orderItemIds = items.map(i => i.orderItemId);
+    const orderItemIds = items.map((i) => i.orderItemId);
     const orderItemRows = await this.db.db.query.orderItems.findMany({
-      where: sql`${orderItems.id} IN (${sql.join(orderItemIds.map(id => sql`${id}`), sql`, `)})`,
+      where: and(
+        inArray(orderItems.id, orderItemIds),
+        eq(orderItems.orderId, ret.subOrderId),
+      ),
     });
-    const orderItemMap = new Map(orderItemRows.map(oi => [oi.id, oi]));
+    if (orderItemRows.length !== new Set(orderItemIds).size) {
+      throw new BadRequestException('Return items must belong to the return sub-order');
+    }
+    const orderItemMap = new Map(orderItemRows.map((oi) => [oi.id, oi]));
 
     // Calculate the net-goods basis for this return's items
-    const returnNetGoods = items.reduce((sum, item) => {
+    const returnGrossGoods = items.reduce((sum: bigint, item) => {
       const oi = orderItemMap.get(item.orderItemId);
       if (!oi) return sum;
-      const unitPrice = Number(oi.unitPriceMinor);
-      return sum + (unitPrice * item.quantity);
-    }, 0);
+      const unitPriceMinor = Number(oi.unitPriceMinor);
+      if (!Number.isSafeInteger(unitPriceMinor) || unitPriceMinor < 0) {
+        throw new RangeError('Returned order item price must be a non-negative safe integer');
+      }
+      return sum + BigInt(unitPriceMinor) * BigInt(item.quantity);
+    }, 0n);
 
-    // Total order net goods (from breakdown)
+    // Allocate the order-level discount proportionally to the returned goods.
+    const returnNetGoods = calculateReturnNetGoodsMinor(
+      returnGrossGoods,
+      breakdown.productsMinor,
+      breakdown.discountMinor,
+    );
     const orderNetGoods = breakdown.productsMinor - breakdown.discountMinor;
 
     if (orderNetGoods <= 0 || returnNetGoods <= 0) {
@@ -132,9 +173,12 @@ export class CommissionReversalService {
     // Cumulative-target reversal calculation:
     // reversal = floor(originalCommission × returnNetGoods / orderNetGoods)
     // capped at remainingCommission to prevent over-reversal.
-    let rawReversal = Math.floor((originalCommission * returnNetGoods) / orderNetGoods);
-    rawReversal = Math.min(rawReversal, remainingCommission);
-    const reversalMinor = Math.max(0, rawReversal);
+    const reversalMinor = calculateProportionalCommissionReversalMinor(
+      originalCommission,
+      orderNetGoods,
+      returnNetGoods,
+      alreadyReversed,
+    );
 
     if (reversalMinor === 0) {
       return { totalReversalMinor: 0, reversalIds: [] };
@@ -142,7 +186,12 @@ export class CommissionReversalService {
 
     // Find the settlement for this sub-order (if any)
     const settlement = await this.db.db.query.settlementRecords.findFirst({
-      where: eq(settlementRecords.subOrderId, ret.subOrderId),
+      where: and(
+        eq(settlementRecords.subOrderId, ret.subOrderId),
+        eq(settlementRecords.paymentRecordId, payment.id),
+        eq(settlementRecords.merchantStoreId, order.storeId),
+        ne(settlementRecords.status, 'ADJUSTMENT'),
+      ),
     });
 
     // Post the reversal — use external tx if provided (caller manages atomicity),
@@ -150,30 +199,45 @@ export class CommissionReversalService {
     const idempotencyKey = `commission-reversal:${returnRequestId}:${responsibilityCategory}`;
     const reversalId = crypto.randomUUID();
 
-    // Resolve orgId from the sub-order's store if not provided
-    let resolvedOrgId = orgId ?? null;
-    if (!resolvedOrgId) {
-      const orderRow = await this.db.db.query.orders.findFirst({
-        where: eq(orders.id, ret.subOrderId),
-        columns: { storeId: true },
-      });
-      if (orderRow?.storeId) {
-        const storeRow = await this.db.db.query.stores.findFirst({
-          where: eq(stores.id, orderRow.storeId),
-          columns: { orgId: true },
-        });
-        resolvedOrgId = storeRow?.orgId ?? null;
-      }
-    }
-
     const runTx = externalTx ?? this.db.db;
     try {
       await (externalTx
-        ? this.postReversalInTx(externalTx, reversalId, returnRequestId, ret.refundId, settlement?.id, originalCommission, reversalMinor, responsibilityCategory, idempotencyKey, returnNetGoods, orderNetGoods, originalCommission, createdBy, resolvedOrgId)
+        ? this.postReversalInTx(
+            externalTx,
+            reversalId,
+            returnRequestId,
+            ret.refundId,
+            settlement?.id,
+            payment.currency,
+            originalCommission,
+            reversalMinor,
+            responsibilityCategory,
+            idempotencyKey,
+            returnNetGoods,
+            orderNetGoods,
+            originalCommission,
+            createdBy,
+            resolvedOrgId,
+          )
         : runTx.transaction(async (tx: any) => {
-            await this.postReversalInTx(tx, reversalId, returnRequestId, ret.refundId, settlement?.id, originalCommission, reversalMinor, responsibilityCategory, idempotencyKey, returnNetGoods, orderNetGoods, originalCommission, createdBy, resolvedOrgId);
-          })
-        );
+            await this.postReversalInTx(
+              tx,
+              reversalId,
+              returnRequestId,
+              ret.refundId,
+              settlement?.id,
+              payment.currency,
+              originalCommission,
+              reversalMinor,
+              responsibilityCategory,
+              idempotencyKey,
+              returnNetGoods,
+              orderNetGoods,
+              originalCommission,
+              createdBy,
+              resolvedOrgId,
+            );
+          }));
     } catch (err) {
       // Alert 6 input: a reversal that failed for a reason other than the
       // idempotency conflict is a financial-integrity signal. The error is
@@ -191,7 +255,7 @@ export class CommissionReversalService {
 
     this.logger.log(
       `Commission reversal posted: ${reversalMinor} minor (${responsibilityCategory}) ` +
-      `for return ${returnRequestId}`,
+        `for return ${returnRequestId}`,
     );
 
     return { totalReversalMinor: reversalMinor, reversalIds: [reversalId] };
@@ -199,11 +263,21 @@ export class CommissionReversalService {
 
   /** Internal: insert commission_reversals row + outbox event inside the given tx. */
   private async postReversalInTx(
-    tx: any, reversalId: string, returnRequestId: string, refundId: string | null,
-    settlementId: string | undefined | null, originalCommission: number,
-    reversalMinor: number, responsibilityCategory: string, idempotencyKey: string,
-    returnNetGoods: number, orderNetGoods: number, origCommission: number,
-    createdBy: string | null, orgId?: string | null,
+    tx: any,
+    reversalId: string,
+    returnRequestId: string,
+    refundId: string | null,
+    settlementId: string | undefined | null,
+    currency: string,
+    originalCommission: number,
+    reversalMinor: number,
+    responsibilityCategory: string,
+    idempotencyKey: string,
+    returnNetGoods: number,
+    orderNetGoods: number,
+    origCommission: number,
+    createdBy: string | null,
+    orgId?: string | null,
   ) {
     // Idempotency check
     const existing = await tx.query.commissionReversals.findFirst({
@@ -227,9 +301,10 @@ export class CommissionReversalService {
       responsibilityCategory,
       idempotencyKey,
       status: 'POSTED',
-      currency: 'SYP',
-      notes: `Commission reversal for return ${returnRequestId}: ${responsibilityCategory} responsibility, ` +
-             `netGoods=${returnNetGoods}/${orderNetGoods}, commission=${originalCommission}`,
+      currency,
+      notes:
+        `Commission reversal for return ${returnRequestId}: ${responsibilityCategory} responsibility, ` +
+        `netGoods=${returnNetGoods}/${orderNetGoods}, commission=${originalCommission}`,
       createdBy,
       orgId: orgId ?? null,
     });
@@ -244,7 +319,7 @@ export class CommissionReversalService {
         reversalMinor,
         originalCommissionMinor: origCommission,
         responsibilityCategory,
-        currency: 'SYP',
+        currency,
       },
       {},
       null,

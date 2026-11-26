@@ -1,8 +1,14 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { priceLists, priceTiers } from './pricing.schema';
-import { eq, and, desc, lte } from 'drizzle-orm';
+import { CatalogPricingLookupService } from '../catalog/catalog-pricing-lookup.service';
+import { eq, and, desc, lte, asc } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**
@@ -16,7 +22,20 @@ export class PricingService {
   constructor(
     private readonly db: DatabaseService,
     private readonly outbox: OutboxDispatcher,
+    private readonly catalogLookup: CatalogPricingLookupService,
   ) {}
+
+  /**
+   * A price tier is a child of a store-owned price list and must reference a
+   * variant whose product belongs to that same store. Controller checks are
+   * retained, but the cross-parent invariant is enforced here as well so
+   * internal service callers cannot create or resolve a cross-store tier.
+   */
+  private async assertVariantBelongsToStore(variantId: string, storeId: string): Promise<void> {
+    if (!(await this.catalogLookup.variantBelongsToStore(variantId, storeId))) {
+      throw new ForbiddenException('The variant does not belong to this price list store');
+    }
+  }
 
   // ── Price Lists ──────────────────────────────────────────────
 
@@ -72,7 +91,8 @@ export class PricingService {
   // ── Price Tiers ──────────────────────────────────────────────
 
   async addTier(priceListId: string, input: CreateTierInput) {
-    await this.getPriceList(priceListId);
+    const list = await this.getPriceList(priceListId);
+    await this.assertVariantBelongsToStore(input.variantId, list.storeId);
     const id = crypto.randomUUID();
 
     await this.db.db.insert(priceTiers).values({
@@ -101,30 +121,65 @@ export class PricingService {
   }
 
   async listTiersByPriceList(priceListId: string) {
-    return this.db.db.query.priceTiers.findMany({
+    const tiers = await this.db.db.query.priceTiers.findMany({
       where: eq(priceTiers.priceListId, priceListId),
-      orderBy: [priceTiers.variantId, priceTiers.minQty],
+      orderBy: [asc(priceTiers.minQty)],
     });
+    const variantDetails = await this.catalogLookup.getVariantPricingDetails(
+      tiers.map((tier) => tier.variantId),
+    );
+    const tiersByVariant = new Map<string, typeof tiers>();
+    for (const tier of tiers) {
+      const variantTiers = tiersByVariant.get(tier.variantId) ?? [];
+      variantTiers.push(tier);
+      tiersByVariant.set(tier.variantId, variantTiers);
+    }
+
+    return variantDetails.flatMap((variant) =>
+      (tiersByVariant.get(variant.variantId) ?? []).map((tier) => ({
+        id: tier.id,
+        priceListId: tier.priceListId,
+        variantId: tier.variantId,
+        minQty: tier.minQty,
+        maxQty: tier.maxQty,
+        unitPriceMinor: tier.unitPriceMinor,
+        variantSku: variant.variantSku,
+        variantTitle: variant.variantTitle,
+        productTitle: variant.productTitle,
+      })),
+    );
   }
 
-  async listTiersByVariant(variantId: string, priceListId?: string) {
-    if (priceListId) {
-      return this.db.db.query.priceTiers.findMany({
-        where: and(
-          eq(priceTiers.variantId, variantId),
-          eq(priceTiers.priceListId, priceListId),
-        ),
-        orderBy: [priceTiers.minQty],
-      });
+  async listTiersByVariant(variantId: string, priceListId?: string, storeId?: string) {
+    if (!storeId) {
+      throw new BadRequestException('storeId is required when listing variant pricing tiers');
     }
-    return this.db.db.query.priceTiers.findMany({
-      where: eq(priceTiers.variantId, variantId),
-      orderBy: [priceTiers.priceListId, priceTiers.minQty],
-    });
+
+    return this.db.db
+      .select({
+        id: priceTiers.id,
+        priceListId: priceTiers.priceListId,
+        variantId: priceTiers.variantId,
+        minQty: priceTiers.minQty,
+        maxQty: priceTiers.maxQty,
+        unitPriceMinor: priceTiers.unitPriceMinor,
+      })
+      .from(priceTiers)
+      .innerJoin(priceLists, eq(priceTiers.priceListId, priceLists.id))
+      .where(
+        and(
+          eq(priceTiers.variantId, variantId),
+          eq(priceLists.storeId, storeId),
+          ...(priceListId ? [eq(priceTiers.priceListId, priceListId)] : []),
+        ),
+      )
+      .orderBy(desc(priceLists.priority), asc(priceTiers.minQty));
   }
 
   async updateTier(id: string, input: UpdateTierInput) {
-    await this.getTier(id);
+    const tier = await this.getTier(id);
+    const list = await this.getPriceList(tier.priceListId);
+    await this.assertVariantBelongsToStore(tier.variantId, list.storeId);
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
     if (input.minQty !== undefined) updates['minQty'] = input.minQty;
@@ -136,7 +191,9 @@ export class PricingService {
   }
 
   async removeTier(id: string) {
-    await this.getTier(id);
+    const tier = await this.getTier(id);
+    const list = await this.getPriceList(tier.priceListId);
+    await this.assertVariantBelongsToStore(tier.variantId, list.storeId);
     await this.db.db.delete(priceTiers).where(eq(priceTiers.id, id));
     return { success: true };
   }
@@ -147,7 +204,14 @@ export class PricingService {
    * Resolve the unit price for a variant in a price list at a given quantity.
    * Finds the tier where min_qty <= qty AND (max_qty IS NULL OR qty < max_qty).
    */
-  async resolvePrice(variantId: string, priceListId: string, qty: number): Promise<{ unitPriceMinor: number; tierId: string }> {
+  async resolvePrice(
+    variantId: string,
+    priceListId: string,
+    qty: number,
+  ): Promise<{ unitPriceMinor: number; tierId: string }> {
+    const list = await this.getPriceList(priceListId);
+    await this.assertVariantBelongsToStore(variantId, list.storeId);
+
     const tiers = await this.db.db.query.priceTiers.findMany({
       where: and(
         eq(priceTiers.variantId, variantId),
@@ -177,11 +241,9 @@ export class PricingService {
    * Get pricing for a product variant across all active price lists for a store.
    */
   async getProductPricing(variantId: string, storeId: string) {
+    await this.assertVariantBelongsToStore(variantId, storeId);
     const lists = await this.db.db.query.priceLists.findMany({
-      where: and(
-        eq(priceLists.storeId, storeId),
-        eq(priceLists.isActive, true),
-      ),
+      where: and(eq(priceLists.storeId, storeId), eq(priceLists.isActive, true)),
       orderBy: [desc(priceLists.priority)],
     });
 
@@ -203,7 +265,7 @@ export class PricingService {
           channel: list['channel'],
           audience: list['audience'],
           currency: list['currency'],
-          tiers: tiers.map(t => ({
+          tiers: tiers.map((t) => ({
             minQty: t['minQty'],
             maxQty: t['maxQty'] ?? null,
             unitPriceMinor: t['unitPriceMinor'],

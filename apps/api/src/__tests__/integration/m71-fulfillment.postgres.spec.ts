@@ -96,7 +96,8 @@ describe('M7.1 — Order Fulfillment Lifecycle', () => {
     const client = await pool.connect();
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
-    database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
 
     // Create services
     const promotions = new PromotionsService(database);
@@ -138,7 +139,7 @@ describe('M7.1 — Order Fulfillment Lifecycle', () => {
     await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerId]);
     await pool.query(`INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id) VALUES ($1, $2, $3, $4, 5, 1000, 5000, $5)`, [randomUUID(), cartId, storeId, variantId, offerId]);
 
-    const co = await ordersService.checkout({ buyerId, deliveryAddress: {}, idempotencyKey: `m71-test-${randomUUID()}` });
+    const co = await ordersService.checkout({ buyerId, deliveryAddress: {}, idempotencyKey: `m71-test-${randomUUID()}` }, { sub: buyerId, role: 'BUYER', activeOrg: orgId });
     orderId = co.subOrders[0]!.id;
 
     // Accept the order (creates shipment)
@@ -238,7 +239,7 @@ describe('M7.1 — Order Fulfillment Lifecycle', () => {
     await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId2, buyerId]);
     await pool.query(`INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id) VALUES ($1, $2, $3, $4, 2, 1000, 2000, $5)`, [randomUUID(), cartId2, storeId, variantId, offerId]);
 
-    const co2 = await ordersService.checkout({ buyerId, deliveryAddress: {}, idempotencyKey: `m71-driver-test-${randomUUID()}` });
+    const co2 = await ordersService.checkout({ buyerId, deliveryAddress: {}, idempotencyKey: `m71-driver-test-${randomUUID()}` }, { sub: buyerId, role: 'BUYER', activeOrg: orgId });
     const order2Id = co2.subOrders[0]!.id;
 
     const mCaller = { sub: merchantId, role: 'MERCHANT_OWNER', activeOrg: orgId };

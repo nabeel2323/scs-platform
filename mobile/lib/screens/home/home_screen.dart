@@ -13,12 +13,31 @@ import '../../widgets/common_widgets.dart';
 /// "recommendations" or hardcoded promo banners. Merchant tooling is gated to
 /// merchant roles so buyers never see dead "Merchant Dashboard" launchers
 /// (fixes the role leakage the audit flagged at the old home L164-170).
+Future<void> _refreshRead<T>(Future<T> read) async {
+  try {
+    await read;
+  } catch (_) {
+    // Each provider owns its error state; one failed section must not cancel
+    // refresh of the other independent home sections.
+  }
+}
+
+Future<void> _refreshHome(WidgetRef ref) async {
+  await Future.wait<void>([
+    _refreshRead(ref.refresh(profileProvider.future)),
+    _refreshRead(ref.refresh(unreadCountProvider.future)),
+    _refreshRead(ref.refresh(categoriesProvider.future)),
+    _refreshRead(ref.refresh(featuredProductsProvider.future)),
+    _refreshRead(ref.refresh(storesProvider.future)),
+  ]);
+}
+
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unread = ref.watch(unreadCountProvider).valueOrNull ?? 0;
+    final unread = ref.watch(unreadCountProvider).valueOrNull;
     final profile = ref.watch(profileProvider).valueOrNull;
     // activeOrgIdProvider updates immediately on switch; the profile's
     // activeOrgId is the fallback until the provider is populated.
@@ -32,6 +51,11 @@ class HomeScreen extends ConsumerWidget {
     final role = profile?.role;
     final isMerchant = role == 'MERCHANT_OWNER' || role == 'MERCHANT_STAFF';
     final isDriver = role == 'DRIVER';
+    final canBrowseCatalog = profile?.hasPermission('catalog:products:read') ?? false;
+    final canReadStores = profile?.hasPermission('merchant:stores:read') ?? false;
+    final canCreateOrganization = profile?.hasPermission('identity:organizations:create') ?? false;
+    final canOpenMerchantTools = profile?.hasAnyPermission(['merchant:stores:read', 'merchant:orders:read', 'catalog:products:read', 'merchant:inventory:read']) ?? false;
+    final canOpenDriverTools = profile?.hasPermission('fulfillment:shipments:read') ?? false;
     final phone = ref.watch(currentUserPhoneProvider);
     final email = ref.watch(currentUserEmailProvider);
     final fullName = profile?.fullName;
@@ -49,23 +73,22 @@ class HomeScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Smart Commerce'), actions: [
         IconButton(
+          tooltip: 'Refresh home',
+          icon: const Icon(Icons.refresh),
+          onPressed: () => _refreshHome(ref),
+        ),
+        IconButton(
           tooltip: 'Notifications',
           icon: Badge(
-            isLabelVisible: unread > 0,
-            label: Text(unread > 99 ? '99+' : '$unread'),
+            isLabelVisible: unread != null && unread > 0,
+            label: Text(unread != null && unread > 99 ? '99+' : '${unread ?? ''}'),
             child: const Icon(Icons.notifications_outlined),
           ),
           onPressed: () => context.push('/notifications'),
         ),
       ]),
       body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(profileProvider);
-          ref.invalidate(unreadCountProvider);
-          ref.invalidate(categoriesProvider);
-          ref.invalidate(featuredProductsProvider);
-          ref.invalidate(storesProvider);
-        },
+        onRefresh: () => _refreshHome(ref),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
@@ -78,16 +101,18 @@ class HomeScreen extends ConsumerWidget {
             if (activeOrg == null &&
                 (profile?.organizations.isEmpty ?? true)) ...[
               const SizedBox(height: 12),
-              _registerCta(context),
+              _registerCta(context, canCreate: canCreateOrganization),
             ],
             const SizedBox(height: 16),
-            _searchBar(context),
-            const SizedBox(height: 20),
-            _categoriesSection(context, ref),
-            _popularSection(context, ref),
-            _suppliersSection(context, ref),
-            if (isMerchant) _manageSection(context),
-            if (isDriver) _driverSection(context),
+            if (canBrowseCatalog) ...[
+              _searchBar(context),
+              const SizedBox(height: 20),
+              _categoriesSection(context, ref),
+              _popularSection(context, ref),
+            ],
+            if (canReadStores) _suppliersSection(context, ref),
+            if (isMerchant && canOpenMerchantTools) _manageSection(context, profile!.perms),
+            if (isDriver && canOpenDriverTools) _driverSection(context),
             const SizedBox(height: 24),
           ],
         ),
@@ -155,7 +180,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _registerCta(BuildContext context) {
+  Widget _registerCta(BuildContext context, {required bool canCreate}) {
     return GestureDetector(
       onTap: () => context.push('/merchant/register'),
       child: Container(
@@ -166,18 +191,18 @@ class HomeScreen extends ConsumerWidget {
           border:
               Border.all(color: TaifTokens.brandAccent.withValues(alpha: 0.4)),
         ),
-        child: const Row(children: [
+        child: Row(children: [
           Icon(Icons.store, size: 24, color: TaifTokens.brandAccent),
           SizedBox(width: 12),
           Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Register Your Store',
+              Text(canCreate ? 'Register Your Store' : 'Join an Organization',
                   style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: TaifTokens.ink)),
-              Text('Set up your business on the platform',
+              Text(canCreate ? 'Set up your business on the platform' : 'Use an invitation code to join an existing business',
                   style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
             ]),
           ),
@@ -230,23 +255,51 @@ class HomeScreen extends ConsumerWidget {
 
   Widget _categoriesSection(BuildContext context, WidgetRef ref) {
     final cats = ref.watch(categoriesProvider);
-    return cats.maybeWhen(
-      data: (list) => list.isEmpty
-          ? const SizedBox.shrink()
-          : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return cats.when(
+      skipLoadingOnRefresh: true,
+      skipError: true,
+      data: (list) {
+        final showNotice = cats.isRefreshing || cats.hasError;
+        if (list.isEmpty && !showNotice) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showNotice)
+              _homeReadNotice(
+                cats.isRefreshing
+                    ? 'Refreshing categories… showing the last successfully loaded list.'
+                    : 'Could not refresh categories: ${ApiService.errorMessage(cats.error!)}. Showing the last successfully loaded list.',
+                () => ref.invalidate(categoriesProvider),
+              ),
+            if (list.isNotEmpty) ...[
               _sectionHeader(context, 'Categories'),
               SizedBox(
                 height: 96,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   children: [
-                    for (final c in list) _categoryTile(context, ref, c),
+                    for (final category in list)
+                      _categoryTile(context, ref, category),
                   ],
                 ),
               ),
               const SizedBox(height: 24),
-            ]),
-      orElse: () => const SizedBox.shrink(),
+            ],
+          ],
+        );
+      },
+      loading: () => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(context, 'Categories'),
+          const LinearProgressIndicator(),
+          const SizedBox(height: 24),
+        ],
+      ),
+      error: (e, _) => _homeReadNotice(
+        'Categories unavailable: ${ApiService.errorMessage(e)}',
+        () => ref.invalidate(categoriesProvider),
+      ),
     );
   }
 
@@ -261,7 +314,7 @@ class HomeScreen extends ConsumerWidget {
         },
         child: Container(
           width: 84,
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 6),
           decoration: BoxDecoration(
             color: TaifTokens.surface,
             borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
@@ -269,8 +322,8 @@ class HomeScreen extends ConsumerWidget {
           ),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: TaifTokens.brandPrimary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
@@ -278,7 +331,7 @@ class HomeScreen extends ConsumerWidget {
               child: const Icon(Icons.category_outlined,
                   size: 20, color: TaifTokens.brandPrimary),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               child: Text(c.name,
@@ -296,27 +349,50 @@ class HomeScreen extends ConsumerWidget {
 
   Widget _popularSection(BuildContext context, WidgetRef ref) {
     final feed = ref.watch(featuredProductsProvider);
+    final canAddToCart =
+        ref.watch(profileProvider).valueOrNull?.hasPermission('orders:write') ??
+            false;
     return feed.when(
-      data: (res) => res.products.isEmpty
-          ? const SizedBox.shrink()
-          : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _sectionHeader(context, 'Popular products',
-                  actionLabel: 'See all',
-                  onAction: () => context.go('/search')),
+      skipLoadingOnRefresh: true,
+      skipError: true,
+      data: (res) {
+        final showNotice = feed.isRefreshing || feed.hasError;
+        if (res.products.isEmpty && !showNotice) {
+          return const SizedBox.shrink();
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showNotice)
+              _homeReadNotice(
+                feed.isRefreshing
+                    ? 'Refreshing popular products… showing the last successful results.'
+                    : 'Could not refresh popular products: ${ApiService.errorMessage(feed.error!)}. Showing the last successful results.',
+                () => ref.invalidate(featuredProductsProvider),
+              ),
+            if (res.products.isNotEmpty) ...[
+              _sectionHeader(
+                context,
+                'Popular products',
+                actionLabel: 'See all',
+                onAction: () => context.go('/search'),
+              ),
               SizedBox(
                 height: 288,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   children: [
-                    for (final p in res.products)
+                    for (final product in res.products)
                       Padding(
                         padding: const EdgeInsets.only(right: 12),
                         child: SizedBox(
                           width: 168,
                           child: ProductCard(
-                            product: p,
-                            onTap: () => context.push('/products/${p.id}'),
-                            onAddToCart: () => _addToCart(context, ref, p),
+                            product: product,
+                            onTap: () => context.push('/products/${product.id}'),
+                            onAddToCart: canAddToCart
+                                ? () => _addToCart(context, ref, product)
+                                : null,
                           ),
                         ),
                       ),
@@ -324,52 +400,113 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 24),
-            ]),
-      loading: () =>
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _sectionHeader(context, 'Popular products'),
-        SizedBox(
-          height: 288,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: const [
-              SizedBox(width: 168, child: AppSkeletonProductCard()),
-              SizedBox(width: 12),
-              SizedBox(width: 168, child: AppSkeletonProductCard()),
-              SizedBox(width: 12),
-              SizedBox(width: 168, child: AppSkeletonProductCard()),
             ],
+          ],
+        );
+      },
+      loading: () => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(context, 'Popular products'),
+          SizedBox(
+            height: 288,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: const [
+                SizedBox(width: 168, child: AppSkeletonProductCard()),
+                SizedBox(width: 12),
+                SizedBox(width: 168, child: AppSkeletonProductCard()),
+                SizedBox(width: 12),
+                SizedBox(width: 168, child: AppSkeletonProductCard()),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 24),
-      ]),
-      error: (_, __) => const SizedBox.shrink(),
+          const SizedBox(height: 24),
+        ],
+      ),
+      error: (e, _) => _homeReadNotice(
+        'Popular products unavailable: ${ApiService.errorMessage(e)}',
+        () => ref.invalidate(featuredProductsProvider),
+      ),
     );
   }
 
   Widget _suppliersSection(BuildContext context, WidgetRef ref) {
     final stores = ref.watch(storesProvider);
-    return stores.maybeWhen(
-      data: (list) => list.isEmpty
-          ? const SizedBox.shrink()
-          : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _sectionHeader(context, 'Suppliers',
-                  actionLabel: 'See all',
-                  onAction: () => context.push('/stores')),
+    return stores.when(
+      skipLoadingOnRefresh: true,
+      skipError: true,
+      data: (list) {
+        final showNotice = stores.isRefreshing || stores.hasError;
+        if (list.isEmpty && !showNotice) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showNotice)
+              _homeReadNotice(
+                stores.isRefreshing
+                    ? 'Refreshing suppliers… showing the last successfully loaded list.'
+                    : 'Could not refresh suppliers: ${ApiService.errorMessage(stores.error!)}. Showing the last successfully loaded list.',
+                () => ref.invalidate(storesProvider),
+              ),
+            if (list.isNotEmpty) ...[
+              _sectionHeader(
+                context,
+                'Suppliers',
+                actionLabel: 'See all',
+                onAction: () => context.push('/stores'),
+              ),
               SizedBox(
                 height: 92,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   children: [
-                    for (final s in list.take(12)) _storeTile(context, s),
+                    for (final store in list.take(12))
+                      _storeTile(context, store),
                   ],
                 ),
               ),
               const SizedBox(height: 24),
-            ]),
-      orElse: () => const SizedBox.shrink(),
+            ],
+          ],
+        );
+      },
+      loading: () => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(context, 'Suppliers'),
+          const LinearProgressIndicator(),
+          const SizedBox(height: 24),
+        ],
+      ),
+      error: (e, _) => _homeReadNotice(
+        'Suppliers unavailable: ${ApiService.errorMessage(e)}',
+        () => ref.invalidate(storesProvider),
+      ),
     );
   }
+
+  Widget _homeReadNotice(String message, VoidCallback onRetry) => Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: TaifTokens.err.withValues(alpha: 0.06),
+          border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+              ),
+            ),
+            TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
+      );
 
   Widget _storeTile(BuildContext context, Store s) {
     final verified = s.verificationStatus == 'VERIFIED';
@@ -463,24 +600,29 @@ class HomeScreen extends ConsumerWidget {
 
   /// Merchant tooling — rendered ONLY for merchant roles. Buyers never see
   /// these launchers (the old home showed them to everyone).
-  Widget _manageSection(BuildContext context) {
+  Widget _manageSection(BuildContext context, List<String> permissions) {
+    final cards = <Widget>[];
+    if (permissions.contains('merchant:stores:read')) {
+      cards.add(_navCard(context, 'Dashboard', Icons.dashboard, '/merchant', TaifTokens.brandPrimary));
+    }
+    if (permissions.contains('merchant:orders:read')) {
+      cards.add(_navCard(context, 'Orders', Icons.receipt_long, '/merchant?tab=orders', const Color(0xFF7C3AED)));
+    }
+    if (permissions.contains('catalog:products:read')) {
+      cards.add(_navCard(context, 'Catalog', Icons.inventory_2, '/merchant?tab=catalog', TaifTokens.info));
+    }
+    if (permissions.contains('merchant:inventory:read')) {
+      cards.add(_navCard(context, 'Inventory', Icons.warehouse, '/merchant?tab=inventory', TaifTokens.warn));
+    }
+    final rows = <Widget>[];
+    for (var i = 0; i < cards.length; i += 2) {
+      rows.add(Row(children: [cards[i], if (i + 1 < cards.length) cards[i + 1] else const Expanded(child: SizedBox.shrink())]));
+      if (i + 2 < cards.length) rows.add(const SizedBox(height: 12));
+    }
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _sectionHeader(context, 'Manage'),
-      Row(children: [
-        _navCard(context, 'Dashboard', Icons.dashboard, '/merchant',
-            TaifTokens.brandPrimary),
-        const SizedBox(width: 12),
-        _navCard(context, 'Orders', Icons.receipt_long, '/merchant?tab=orders',
-            const Color(0xFF7C3AED)),
-      ]),
       const SizedBox(height: 12),
-      Row(children: [
-        _navCard(context, 'Catalog', Icons.inventory_2, '/merchant?tab=catalog',
-            TaifTokens.info),
-        const SizedBox(width: 12),
-        _navCard(context, 'Inventory', Icons.warehouse,
-            '/merchant?tab=inventory', TaifTokens.warn),
-      ]),
+      ...rows,
       const SizedBox(height: 24),
     ]);
   }
@@ -508,6 +650,7 @@ class HomeScreen extends ConsumerWidget {
 
   Future<void> _addToCart(
       BuildContext context, WidgetRef ref, Product p) async {
+    if (ref.read(profileProvider).valueOrNull?.hasPermission('orders:write') != true) return;
     try {
       await ref.read(apiServiceProvider).addProductToCart(p);
       ref.invalidate(cartProvider);

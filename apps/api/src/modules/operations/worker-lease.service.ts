@@ -79,16 +79,23 @@ export class WorkerLeaseService {
     this.holderId = `${hostname()}-${process.pid}-${randomUUID().slice(0, 8)}`;
   }
 
+  private withWorkerContext<T>(operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext(
+      { actorKind: 'worker', workerId: this.holderId },
+      operation,
+    );
+  }
+
   /**
    * Ensure the lease row exists so acquisition is always an UPDATE. Safe to call
    * repeatedly and from several processes at once.
    */
   async ensureLeaseRow(leaseKey: string = P13_LEASE_KEY): Promise<void> {
-    await this.db.db.execute(sql`
+    await this.withWorkerContext(() => this.db.db.execute(sql`
       INSERT INTO worker_leases (lease_key)
       VALUES (${leaseKey})
       ON CONFLICT (lease_key) DO NOTHING
-    `);
+    `));
   }
 
   /**
@@ -98,13 +105,11 @@ export class WorkerLeaseService {
    * stopped heartbeating), or already ours. Otherwise returns HELD_BY_OTHER and
    * the caller must stay in standby — it must never run the protected job.
    */
-  async tryAcquire(
-    leaseKey: string = P13_LEASE_KEY,
-  ): Promise<LeaseAcquireResult> {
+  async tryAcquire(leaseKey: string = P13_LEASE_KEY): Promise<LeaseAcquireResult> {
     try {
       await this.ensureLeaseRow(leaseKey);
 
-      const result = await this.db.db.execute(sql`
+      const result = await this.withWorkerContext(() => this.db.db.execute(sql`
         UPDATE worker_leases
         SET holder_id     = ${this.holderId},
             holder_host   = ${hostname()},
@@ -122,7 +127,7 @@ export class WorkerLeaseService {
                OR expires_at <= now()
                OR holder_id = ${this.holderId})
         RETURNING epoch
-      `);
+      `));
 
       const rows = readRows<{ epoch: number | string }>(result);
       const first = rows[0];
@@ -151,12 +156,9 @@ export class WorkerLeaseService {
    * Returns false when ownership is lost (taken over, released, or the row was
    * reset). Callers MUST treat false as "stop modifying state immediately".
    */
-  async renewAndFence(
-    epoch: number,
-    leaseKey: string = P13_LEASE_KEY,
-  ): Promise<boolean> {
+  async renewAndFence(epoch: number, leaseKey: string = P13_LEASE_KEY): Promise<boolean> {
     if (!Number.isFinite(epoch) || epoch <= 0) return false;
-    const result = await this.db.db.execute(sql`
+    const result = await this.withWorkerContext(() => this.db.db.execute(sql`
       UPDATE worker_leases
       SET heartbeat_at = now(),
           expires_at   = now() + make_interval(secs => ${this.config.leaseTtlSeconds}),
@@ -164,15 +166,22 @@ export class WorkerLeaseService {
       WHERE lease_key = ${leaseKey}
         AND holder_id = ${this.holderId}
         AND epoch     = ${epoch}
+        AND expires_at > now()
       RETURNING lease_key
-    `);
+    `));
     return readRows<{ lease_key: string }>(result).length > 0;
   }
 
-  /** Heartbeat without a fencing check — used by read-only observability paths. */
+  /** Read-only ownership check; an expired row is never a live lease. */
   async isLiveHolder(epoch: number, leaseKey: string = P13_LEASE_KEY): Promise<boolean> {
     const record = await this.read(leaseKey);
-    return !!record && record.holderId === this.holderId && record.epoch === epoch;
+    return (
+      !!record &&
+      record.holderId === this.holderId &&
+      record.epoch === epoch &&
+      !!record.expiresAt &&
+      record.expiresAt.getTime() > Date.now()
+    );
   }
 
   /**
@@ -184,7 +193,7 @@ export class WorkerLeaseService {
     summary: string,
     leaseKey: string = P13_LEASE_KEY,
   ): Promise<void> {
-    await this.db.db.execute(sql`
+    await this.withWorkerContext(() => this.db.db.execute(sql`
       UPDATE worker_leases
       SET poll_failures    = 0,
           last_error_code  = NULL,
@@ -194,7 +203,8 @@ export class WorkerLeaseService {
       WHERE lease_key = ${leaseKey}
         AND holder_id = ${this.holderId}
         AND epoch     = ${epoch}
-    `);
+        AND expires_at > now()
+    `));
   }
 
   /**
@@ -207,7 +217,7 @@ export class WorkerLeaseService {
     errorCode: string,
     leaseKey: string = P13_LEASE_KEY,
   ): Promise<number | null> {
-    const result = await this.db.db.execute(sql`
+    const result = await this.withWorkerContext(() => this.db.db.execute(sql`
       UPDATE worker_leases
       SET poll_failures   = poll_failures + 1,
           last_error_code = ${errorCode.slice(0, 60)},
@@ -215,8 +225,9 @@ export class WorkerLeaseService {
       WHERE lease_key = ${leaseKey}
         AND holder_id = ${this.holderId}
         AND epoch     = ${epoch}
+        AND expires_at > now()
       RETURNING poll_failures
-    `);
+    `));
     const rows = readRows<{ poll_failures: number }>(result);
     const first = rows[0];
     return !first ? null : toNumber(first.poll_failures, 0);
@@ -227,7 +238,7 @@ export class WorkerLeaseService {
    * Fenced: a stale worker cannot release the current owner's lease.
    */
   async release(epoch: number, leaseKey: string = P13_LEASE_KEY): Promise<boolean> {
-    const result = await this.db.db.execute(sql`
+    const result = await this.withWorkerContext(() => this.db.db.execute(sql`
       UPDATE worker_leases
       SET holder_id   = NULL,
           holder_host = NULL,
@@ -238,33 +249,38 @@ export class WorkerLeaseService {
       WHERE lease_key = ${leaseKey}
         AND holder_id = ${this.holderId}
         AND epoch     = ${epoch}
+        AND expires_at > now()
       RETURNING lease_key
-    `);
+    `));
     return readRows<{ lease_key: string }>(result).length > 0;
   }
 
   /** Read a lease row — the observability primitive. */
   async read(leaseKey: string = P13_LEASE_KEY): Promise<LeaseRecord | null> {
-    const rows = readRows<RawLeaseRow>(await this.db.db.execute(sql`
+    const rows = readRows<RawLeaseRow>(
+      await this.withWorkerContext(() => this.db.db.execute(sql`
       SELECT lease_key, holder_id, holder_host, holder_pid, epoch,
              acquired_at, heartbeat_at, expires_at,
              poll_failures, last_error_code, last_job_at, last_job_summary
       FROM worker_leases
       WHERE lease_key = ${leaseKey}
-    `));
+    `)),
+    );
     const first = rows[0];
     return first ? mapLeaseRow(first) : null;
   }
 
   /** Every lease — powers the "zero or multiple live holders" alert. */
   async readAll(): Promise<LeaseRecord[]> {
-    const rows = readRows<RawLeaseRow>(await this.db.db.execute(sql`
+    const rows = readRows<RawLeaseRow>(
+      await this.withWorkerContext(() => this.db.db.execute(sql`
       SELECT lease_key, holder_id, holder_host, holder_pid, epoch,
              acquired_at, heartbeat_at, expires_at,
              poll_failures, last_error_code, last_job_at, last_job_summary
       FROM worker_leases
       ORDER BY lease_key
-    `));
+    `)),
+    );
     return rows.map(mapLeaseRow);
   }
 
@@ -274,7 +290,7 @@ export class WorkerLeaseService {
    */
   async liveHolderCounts(): Promise<Array<{ leaseKey: string; liveHolders: number }>> {
     const rows = readRows<{ lease_key: string; live_holders: number }>(
-      await this.db.db.execute(sql`
+      await this.withWorkerContext(() => this.db.db.execute(sql`
         SELECT lease_key, COUNT(DISTINCT holder_id)::int AS live_holders
         FROM worker_leases
         WHERE holder_id IS NOT NULL
@@ -282,7 +298,7 @@ export class WorkerLeaseService {
           AND expires_at > now()
         GROUP BY lease_key
         ORDER BY lease_key
-      `),
+      `)),
     );
     return rows.map((r) => ({ leaseKey: r.lease_key, liveHolders: toNumber(r.live_holders, 0) }));
   }
@@ -292,11 +308,11 @@ export class WorkerLeaseService {
    * Not exposed over HTTP: it is a manual recovery step in the runbook only.
    */
   async forceExpire(leaseKey: string = P13_LEASE_KEY): Promise<void> {
-    await this.db.db.execute(sql`
+    await this.db.withActorContext({ actorKind: 'system', actorId: this.holderId, actorRole: 'SYSTEM' }, () => this.db.db.execute(sql`
       UPDATE worker_leases
       SET expires_at = now() - interval '1 second', updated_at = now()
       WHERE lease_key = ${leaseKey}
-    `);
+    `));
   }
 }
 

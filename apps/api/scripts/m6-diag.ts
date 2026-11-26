@@ -4,38 +4,63 @@
 import { Pool } from 'pg';
 import Redis from 'ioredis';
 import crypto from 'node:crypto';
+import { assertLocalUatExecution } from './local-uat-safety';
 
 const API = 'http://localhost:3000/v1';
 const DB_URL = 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform';
+const REDIS_URL = 'redis://localhost:6379';
+assertLocalUatExecution('m6-diag', { databaseUrl: DB_URL, apiUrl: API, redisUrl: REDIS_URL });
 
 async function getToken(email: string, password: string, phone: string): Promise<string> {
-  const redis = new Redis('redis://localhost:6379');
+  const redis = new Redis(REDIS_URL);
   const loginRes = await fetch(`${API}/auth/login/password`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password, deviceId: 'm6-diag-' + email }),
   });
-  const loginData = await loginRes.json() as any;
-  if (loginData.accessToken) { await redis.quit(); return loginData.accessToken; }
+  const loginData = (await loginRes.json()) as any;
+  if (loginData.accessToken) {
+    await redis.quit();
+    return loginData.accessToken;
+  }
   await fetch(`${API}/auth/otp/request`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ phone }),
   });
   const otp = await redis.get(`otp:${phone}`);
   await redis.quit();
   if (!otp) throw new Error('No OTP');
   const verifyRes = await fetch(`${API}/auth/otp/verify`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phone, otp, deviceId: 'm6-diag-' + email, deviceInfo: { platform: 'web', userAgent: 'M6-Diag/1.0' } }),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      phone,
+      otp,
+      deviceId: 'm6-diag-' + email,
+      deviceInfo: { platform: 'web', userAgent: 'M6-Diag/1.0' },
+    }),
   });
-  const vd = await verifyRes.json() as any;
+  const vd = (await verifyRes.json()) as any;
   return vd.accessToken;
 }
 
-function auth(t: string) { return { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' }; }
+function auth(t: string) {
+  return { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' };
+}
 async function api(m: string, p: string, t: string, b?: any) {
-  const r = await fetch(`${API}${p}`, { method: m, headers: auth(t), body: b ? JSON.stringify(b) : undefined });
+  const r = await fetch(`${API}${p}`, {
+    method: m,
+    headers: auth(t),
+    body: b ? JSON.stringify(b) : undefined,
+  });
   const text = await r.text();
-  let data: any; try { data = JSON.parse(text); } catch { data = text; }
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = text;
+  }
   return { status: r.status, data };
 }
 
@@ -47,21 +72,35 @@ async function main() {
   console.log('Admin role:', adminPayload.role, 'org:', adminPayload.activeOrg?.substring(0, 8));
 
   // Get existing infrastructure from the previous run
-  const stores = await pool.query('SELECT id, display_name, org_id FROM stores ORDER BY display_name');
+  const stores = await pool.query(
+    'SELECT id, display_name, org_id FROM stores ORDER BY display_name',
+  );
   console.log('\nStores:');
-  for (const s of stores.rows) console.log(`  ${s.id.substring(0,8)} ${s.display_name} org=${s.org_id?.substring(0,8)}`);
+  for (const s of stores.rows)
+    console.log(`  ${s.id.substring(0, 8)} ${s.display_name} org=${s.org_id?.substring(0, 8)}`);
 
-  const offers = await pool.query('SELECT id, store_id, variant_id, product_id, status, base_price_minor, moq FROM merchant_offers');
+  const offers = await pool.query(
+    'SELECT id, store_id, variant_id, product_id, status, base_price_minor, moq FROM merchant_offers',
+  );
   console.log('\nOffers:');
-  for (const o of offers.rows) console.log(`  ${o.id.substring(0,8)} store=${o.store_id.substring(0,8)} var=${o.variant_id?.substring(0,8)} prod=${o.product_id.substring(0,8)} ${o.status} price=${o.base_price_minor} moq=${o.moq}`);
+  for (const o of offers.rows)
+    console.log(
+      `  ${o.id.substring(0, 8)} store=${o.store_id.substring(0, 8)} var=${o.variant_id?.substring(0, 8)} prod=${o.product_id.substring(0, 8)} ${o.status} price=${o.base_price_minor} moq=${o.moq}`,
+    );
 
-  const inv = await pool.query('SELECT id, variant_id, warehouse_id, qty_on_hand, qty_reserved FROM inventory_items');
+  const inv = await pool.query(
+    'SELECT id, variant_id, warehouse_id, qty_on_hand, qty_reserved FROM inventory_items',
+  );
   console.log('\nInventory:');
-  for (const r of inv.rows) console.log(`  ${r.id.substring(0,8)} var=${r.variant_id.substring(0,8)} wh=${r.warehouse_id.substring(0,8)} onHand=${r.qty_on_hand} reserved=${r.qty_reserved}`);
+  for (const r of inv.rows)
+    console.log(
+      `  ${r.id.substring(0, 8)} var=${r.variant_id.substring(0, 8)} wh=${r.warehouse_id.substring(0, 8)} onHand=${r.qty_on_hand} reserved=${r.qty_reserved}`,
+    );
 
   const wh = await pool.query('SELECT id, store_id, name FROM warehouses');
   console.log('\nWarehouses:');
-  for (const w of wh.rows) console.log(`  ${w.id.substring(0,8)} store=${w.store_id.substring(0,8)} ${w.name}`);
+  for (const w of wh.rows)
+    console.log(`  ${w.id.substring(0, 8)} store=${w.store_id.substring(0, 8)} ${w.name}`);
 
   // ── Test 1: Inventory reservation with valid UUID referenceId ──
   console.log('\n=== TEST: Stock reservation with UUID referenceId ===');
@@ -69,26 +108,34 @@ async function main() {
   if (invItemId) {
     const testRefId = crypto.randomUUID();
     const res1 = await api('POST', '/inventory/reserve', adminToken, {
-      inventoryItemId: invItemId, quantity: 5, referenceType: 'SALE', referenceId: testRefId,
+      inventoryItemId: invItemId,
+      quantity: 5,
+      referenceType: 'SALE',
+      referenceId: testRefId,
     });
     console.log('  Reserve (UUID ref):', res1.status, JSON.stringify(res1.data).substring(0, 300));
 
     if (res1.status === 201) {
       // Release it back
       const rel1 = await api('POST', '/inventory/release', adminToken, {
-        inventoryItemId: invItemId, quantity: 5, referenceType: 'SALE', referenceId: testRefId,
+        inventoryItemId: invItemId,
+        quantity: 5,
+        referenceType: 'SALE',
+        referenceId: testRefId,
       });
       console.log('  Release:', rel1.status, JSON.stringify(rel1.data).substring(0, 200));
     }
 
     // Also test without referenceId
     const res2 = await api('POST', '/inventory/reserve', adminToken, {
-      inventoryItemId: invItemId, quantity: 3,
+      inventoryItemId: invItemId,
+      quantity: 3,
     });
     console.log('  Reserve (no ref):', res2.status, JSON.stringify(res2.data).substring(0, 300));
     if (res2.status === 201) {
       const rel2 = await api('POST', '/inventory/release', adminToken, {
-        inventoryItemId: invItemId, quantity: 3,
+        inventoryItemId: invItemId,
+        quantity: 3,
       });
       console.log('  Release:', rel2.status);
     }
@@ -107,7 +154,9 @@ async function main() {
   console.log('Active variant-scoped offers:');
   const offerMap = new Map<string, any[]>();
   for (const o of competingOffers.rows) {
-    console.log(`  ${o.id.substring(0,8)} store=${o.display_name} var=${o.variant_id.substring(0,8)} moq=${o.moq}`);
+    console.log(
+      `  ${o.id.substring(0, 8)} store=${o.display_name} var=${o.variant_id.substring(0, 8)} moq=${o.moq}`,
+    );
     const key = o.variant_id;
     if (!offerMap.has(key)) offerMap.set(key, []);
     offerMap.get(key)!.push(o);
@@ -117,7 +166,7 @@ async function main() {
   let testVariant: string | null = null;
   let testOffers: any[] = [];
   for (const [varId, offs] of offerMap) {
-    const uniqueStores = new Set(offs.map(o => o.store_id));
+    const uniqueStores = new Set(offs.map((o) => o.store_id));
     if (uniqueStores.size >= 2) {
       testVariant = varId;
       testOffers = offs;
@@ -138,7 +187,9 @@ async function main() {
     } catch (e: any) {
       if (e.code === '23505') {
         // User exists, get id
-        const existing = await pool.query("SELECT id FROM users WHERE email = 'diag-buyer@scsp.dev'");
+        const existing = await pool.query(
+          "SELECT id FROM users WHERE email = 'diag-buyer@scsp.dev'",
+        );
         // Use the existing user
       } else {
         console.log('  User creation error:', e.message);
@@ -153,22 +204,36 @@ async function main() {
 
     // Add first offer
     const add1 = await api('POST', '/cart/items', buyerToken, {
-      variantId: testVariant, quantity: 1, offerId: testOffers[0].id,
+      variantId: testVariant,
+      quantity: 1,
+      offerId: testOffers[0].id,
     });
-    console.log(`  Add offer 1 (${testOffers[0].display_name}):`, add1.status, JSON.stringify(add1.data).substring(0, 200));
+    console.log(
+      `  Add offer 1 (${testOffers[0].display_name}):`,
+      add1.status,
+      JSON.stringify(add1.data).substring(0, 200),
+    );
 
     // Add second offer (same variant, different store)
     const add2 = await api('POST', '/cart/items', buyerToken, {
-      variantId: testVariant, quantity: 1, offerId: testOffers[1].id,
+      variantId: testVariant,
+      quantity: 1,
+      offerId: testOffers[1].id,
     });
-    console.log(`  Add offer 2 (${testOffers[1].display_name}):`, add2.status, JSON.stringify(add2.data).substring(0, 400));
+    console.log(
+      `  Add offer 2 (${testOffers[1].display_name}):`,
+      add2.status,
+      JSON.stringify(add2.data).substring(0, 400),
+    );
 
     // Check cart
     const cart = await api('GET', '/cart', buyerToken);
     const items = cart.data?.items || [];
     console.log(`  Cart items: ${items.length}`);
     for (const i of items) {
-      console.log(`    ${i.id?.substring(0,8)} variant=${i.variantId?.substring(0,8)} offer=${i.offerId?.substring(0,8)} store=${i.storeId?.substring(0,8)} qty=${i.quantity} price=${i.priceMinor}`);
+      console.log(
+        `    ${i.id?.substring(0, 8)} variant=${i.variantId?.substring(0, 8)} offer=${i.offerId?.substring(0, 8)} store=${i.storeId?.substring(0, 8)} qty=${i.quantity} price=${i.priceMinor}`,
+      );
     }
   } else {
     console.log('  No variant with 2+ competing offers found');
@@ -184,7 +249,10 @@ async function main() {
     WHERE r.key = 'MERCHANT_OWNER' AND p.key LIKE 'merchant:%'
     ORDER BY p.key
   `);
-  console.log('MERCHANT_OWNER merchant permissions:', perms.rows.map((r: any) => r.key));
+  console.log(
+    'MERCHANT_OWNER merchant permissions:',
+    perms.rows.map((r: any) => r.key),
+  );
 
   // Check the inventory list endpoint — does it verify store ownership?
   // The route is GET /stores/:storeId/inventory with merchant:inventory:read permission
@@ -194,17 +262,27 @@ async function main() {
     const storeBId = stores.rows.find((s: any) => s.display_name === 'Merchant B Store')?.id;
     if (storeBId) {
       const idor = await api('GET', `/stores/${storeBId}/inventory`, merchantToken);
-      console.log(`  Merchant A reading Store B inventory: ${idor.status} items=${Array.isArray(idor.data) ? idor.data.length : '?'}`);
+      console.log(
+        `  Merchant A reading Store B inventory: ${idor.status} items=${Array.isArray(idor.data) ? idor.data.length : '?'}`,
+      );
     }
   }
 
   // ── Test 4: Idempotency ──
   console.log('\n=== TEST: Idempotency ===');
   // Check master_orders table for idempotency_key column
-  const moCols = await pool.query(`SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'master_orders' ORDER BY ordinal_position`);
-  console.log('master_orders columns:', moCols.rows.map((r: any) => `${r.column_name}(${r.data_type})`).join(', '));
+  const moCols = await pool.query(
+    `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'master_orders' ORDER BY ordinal_position`,
+  );
+  console.log(
+    'master_orders columns:',
+    moCols.rows.map((r: any) => `${r.column_name}(${r.data_type})`).join(', '),
+  );
 
   await pool.end();
 }
 
-main().catch(e => { console.error('FATAL:', e); process.exit(1); });
+main().catch((e) => {
+  console.error('FATAL:', e);
+  process.exit(1);
+});

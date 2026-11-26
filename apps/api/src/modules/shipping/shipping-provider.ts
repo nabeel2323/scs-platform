@@ -82,7 +82,7 @@ export abstract class ShippingProvider {
    * M7.2.3-A: Returns a typed TrackingInfo object.  Providers that do not
    * support tracking return null.
    */
-  async getTrackingInfo(_trackingId: string): Promise<TrackingInfo | null> {
+  async getTrackingInfo(_trackingId: string, _storeId?: string): Promise<TrackingInfo | null> {
     return null;
   }
 
@@ -90,7 +90,7 @@ export abstract class ShippingProvider {
    * Validate a delivery address.
    * Optional — only providers with address validation implement this.
    */
-  async validateAddress(_address: ShippingAddress): Promise<boolean> {
+  async validateAddress(_address: ShippingAddress, _storeId?: string): Promise<boolean> {
     return true;
   }
 

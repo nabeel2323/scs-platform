@@ -1,9 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import {
-  AttributeGroup, AttributeDefinition,
-  fetchAttributeGroups, createAttributeGroup, fetchAttributes,
+  AttributeGroup,
+  AttributeDefinition,
+  fetchAttributeGroups,
+  createAttributeGroup,
+  fetchAttributes,
 } from '../../lib/api';
 import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 import { SkeletonTable } from '@scs/ui-kit';
@@ -21,58 +24,92 @@ export default function AttributeGroupsPage() {
   const [attrs, setAttrs] = useState<AttributeDefinition[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
 
   // Dialogs
   const [creating, setCreating] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<AttributeGroup | null>(null);
 
   const load = useCallback(async () => {
+    if (!ready || !hasAccess) return;
+    const requestId = ++requestVersion.current;
     setLoading(true);
     setError(null);
     try {
-      const [groupData, attrData] = await Promise.all([
-        fetchAttributeGroups(),
-        fetchAttributes(),
-      ]);
-      setGroups(groupData);
-      setAttrs(attrData);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load data');
+      const [groupData, attrData] = await Promise.all([fetchAttributeGroups(), fetchAttributes()]);
+      if (requestId === requestVersion.current) {
+        setGroups(groupData);
+        setAttrs(attrData);
+      }
+    } catch (err: unknown) {
+      if (requestId === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load data');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestVersion.current) setLoading(false);
     }
-  }, []);
+  }, [ready, hasAccess]);
 
-  useEffect(() => { if (ready && hasAccess) load(); }, [ready, hasAccess, load]);
+  useEffect(() => {
+    void load();
+    return () => {
+      requestVersion.current += 1;
+    };
+  }, [load]);
 
   // Count attributes per group (via metadata or simple heuristic)
-  const attrCountByGroup = useCallback((groupId: string) => {
-    // The attribute definitions don't carry a groupId directly in the current schema;
-    // productTypeAttributes link attributes to groups. We show total attributes for now.
-    return attrs.length;
-  }, [attrs]);
+  const attrCountByGroup = useCallback(
+    (groupId: string) => {
+      // The attribute definitions don't carry a groupId directly in the current schema;
+      // productTypeAttributes link attributes to groups. We show total attributes for now.
+      return attrs.length;
+    },
+    [attrs],
+  );
 
   if (!ready) return <p style={{ padding: 32 }}>Loading…</p>;
-  if (!hasAccess) return <AccessDenied requiredPerms={['catalog:attributes:manage']} missingPerms={missingPerms} />;
+  if (!hasAccess)
+    return (
+      <AccessDenied requiredPerms={['catalog:attributes:manage']} missingPerms={missingPerms} />
+    );
 
   return (
     <div className={styles['shell']}>
       <header className={styles['header']}>
         <h1>Attribute Groups</h1>
-        <p>{groups.length} group{groups.length !== 1 ? 's' : ''} — organize attributes into logical sections for product type builders</p>
+        <p>
+          {error
+            ? 'Group and attribute counts unavailable'
+            : `${groups.length} group${groups.length !== 1 ? 's' : ''} — organize attributes into logical sections for product type builders`}
+        </p>
       </header>
 
       <div className={styles['content']}>
         <div className={styles['toolbar']}>
-          <button type="button" onClick={load}>Refresh</button>
-          <button type="button" onClick={() => setCreating(true)}>Create group</button>
+          <button type="button" onClick={load}>
+            Refresh
+          </button>
+          <button type="button" onClick={() => setCreating(true)}>
+            Create group
+          </button>
         </div>
 
-        {error && <div className={styles['error']}>{error} <button type="button" onClick={load} style={{ marginLeft: 8 }}>Retry</button></div>}
-        {loading ? <SkeletonTable rows={4} cols={5} /> : (
+        {error && (
+          <div role="alert" className={styles['error']}>
+            {error}{' '}
+            <button type="button" onClick={() => void load()} style={{ marginLeft: 8 }}>
+              Retry
+            </button>
+          </div>
+        )}
+        {loading ? (
+          <SkeletonTable rows={4} cols={5} />
+        ) : (
           <div className={styles['tableWrap']}>
             <table>
-              <caption style={{ textAlign: 'left', padding: 12 }}>Attribute Groups — {groups.length} results</caption>
+              <caption style={{ textAlign: 'left', padding: 12 }}>
+                Attribute Groups — {error ? 'unavailable' : `${groups.length} results`}
+              </caption>
               <thead>
                 <tr>
                   <th scope="col">Name</th>
@@ -83,24 +120,40 @@ export default function AttributeGroupsPage() {
                 </tr>
               </thead>
               <tbody>
-                {groups.map(group => (
-                  <tr key={group.id} onClick={e => {
-                    if (e.target instanceof Element && !e.target.closest('button,a,input,select')) {
-                      setSelectedGroup(group);
-                    }
-                  }}>
+                {groups.map((group) => (
+                  <tr
+                    key={group.id}
+                    onClick={(e) => {
+                      if (
+                        e.target instanceof Element &&
+                        !e.target.closest('button,a,input,select')
+                      ) {
+                        setSelectedGroup(group);
+                      }
+                    }}
+                  >
                     <td style={{ fontWeight: 600 }}>{group.name}</td>
                     <td dir="rtl">{group.nameAr ?? '—'}</td>
                     <td>{group.kind ?? '—'}</td>
-                    <td><time dateTime={group.createdAt}>{new Date(group.createdAt).toLocaleDateString()}</time></td>
+                    <td>
+                      <time dateTime={group.createdAt}>
+                        {new Date(group.createdAt).toLocaleDateString()}
+                      </time>
+                    </td>
                     <td>
                       <div className={styles['actions']}>
-                        <button type="button" onClick={() => setSelectedGroup(group)}>View</button>
+                        <button type="button" onClick={() => setSelectedGroup(group)}>
+                          View
+                        </button>
                       </div>
                     </td>
                   </tr>
                 ))}
-                {!groups.length && <tr><td colSpan={5}>No attribute groups found.</td></tr>}
+                {!loading && !error && !groups.length && (
+                  <tr>
+                    <td colSpan={5}>No attribute groups found.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -110,7 +163,11 @@ export default function AttributeGroupsPage() {
         {creating && (
           <DetailDialog title="New Attribute Group" onClose={() => setCreating(false)}>
             <GroupForm
-              onDone={() => { setCreating(false); load(); }}
+              canManage={hasAccess}
+              onDone={() => {
+                setCreating(false);
+                load();
+              }}
               onCancel={() => setCreating(false)}
             />
           </DetailDialog>
@@ -118,8 +175,11 @@ export default function AttributeGroupsPage() {
 
         {/* Detail dialog */}
         {selectedGroup && (
-          <DetailDialog title={`Group — ${selectedGroup.name}`} onClose={() => setSelectedGroup(null)}>
-            <GroupDetail group={selectedGroup} attributes={attrs} />
+          <DetailDialog
+            title={`Group — ${selectedGroup.name}`}
+            onClose={() => setSelectedGroup(null)}
+          >
+            <GroupDetail group={selectedGroup} attributes={attrs} error={error} />
           </DetailDialog>
         )}
       </div>
@@ -129,7 +189,15 @@ export default function AttributeGroupsPage() {
 
 /* ── Group Form ────────────────────────────────────────────── */
 
-function GroupForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+function GroupForm({
+  canManage,
+  onDone,
+  onCancel,
+}: {
+  canManage: boolean;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
   const [name, setName] = useState('');
   const [nameAr, setNameAr] = useState('');
   const [kind, setKind] = useState('');
@@ -137,7 +205,11 @@ function GroupForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
   const [formError, setFormError] = useState<string | null>(null);
 
   const handleSave = async () => {
-    if (!name.trim()) { setFormError('Name is required'); return; }
+    if (!canManage || busy) return;
+    if (!name.trim()) {
+      setFormError('Name is required');
+      return;
+    }
     setBusy(true);
     setFormError(null);
     try {
@@ -160,25 +232,47 @@ function GroupForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
       <div className={styles['fields']}>
         <div>
           <dt>Name *</dt>
-          <dd><input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Hardware Specifications" maxLength={200} /></dd>
+          <dd>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Hardware Specifications"
+              maxLength={200}
+            />
+          </dd>
         </div>
         <div>
           <dt>Name (Arabic)</dt>
-          <dd><input value={nameAr} onChange={e => setNameAr(e.target.value)} dir="rtl" placeholder="مثال: مواصفات الأجهزة" maxLength={200} /></dd>
+          <dd>
+            <input
+              value={nameAr}
+              onChange={(e) => setNameAr(e.target.value)}
+              dir="rtl"
+              placeholder="مثال: مواصفات الأجهزة"
+              maxLength={200}
+            />
+          </dd>
         </div>
         <div>
           <dt>Kind</dt>
           <dd>
-            <input value={kind} onChange={e => setKind(e.target.value)} placeholder="e.g. SPECIFICATION, PHYSICAL" maxLength={100} />
+            <input
+              value={kind}
+              onChange={(e) => setKind(e.target.value)}
+              placeholder="e.g. SPECIFICATION, PHYSICAL"
+              maxLength={100}
+            />
             <small className={styles['muted']}>Optional category hint for the group.</small>
           </dd>
         </div>
       </div>
       <div className={styles['actions']} style={{ marginTop: 20 }}>
-        <button type="button" disabled={busy} onClick={handleSave}>
+        <button type="button" disabled={!canManage || busy} onClick={handleSave}>
           {busy ? 'Creating…' : 'Create Group'}
         </button>
-        <button type="button" onClick={onCancel}>Cancel</button>
+        <button type="button" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
     </div>
   );
@@ -186,13 +280,23 @@ function GroupForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
 
 /* ── Group Detail ──────────────────────────────────────────── */
 
-function GroupDetail({ group, attributes }: { group: AttributeGroup; attributes: AttributeDefinition[] }) {
+function GroupDetail({
+  group,
+  attributes,
+  error,
+}: {
+  group: AttributeGroup;
+  attributes: AttributeDefinition[];
+  error: string | null;
+}) {
   return (
     <div>
       <div className={styles['fields']}>
         <div>
           <dt>ID</dt>
-          <dd><code style={{ fontSize: 12 }}>{group.id}</code></dd>
+          <dd>
+            <code style={{ fontSize: 12 }}>{group.id}</code>
+          </dd>
         </div>
         <div>
           <dt>Name</dt>
@@ -208,11 +312,15 @@ function GroupDetail({ group, attributes }: { group: AttributeGroup; attributes:
         </div>
         <div>
           <dt>Created</dt>
-          <dd><time dateTime={group.createdAt}>{new Date(group.createdAt).toLocaleString()}</time></dd>
+          <dd>
+            <time dateTime={group.createdAt}>{new Date(group.createdAt).toLocaleString()}</time>
+          </dd>
         </div>
         <div>
           <dt>Updated</dt>
-          <dd><time dateTime={group.updatedAt}>{new Date(group.updatedAt).toLocaleString()}</time></dd>
+          <dd>
+            <time dateTime={group.updatedAt}>{new Date(group.updatedAt).toLocaleString()}</time>
+          </dd>
         </div>
       </div>
 
@@ -220,20 +328,28 @@ function GroupDetail({ group, attributes }: { group: AttributeGroup; attributes:
         All Attributes ({attributes.length})
       </h3>
       <p style={{ fontSize: 12, color: '#5b6b74', marginBottom: 12 }}>
-        Attributes are assigned to groups when configuring a Product Type via the Product Type Builder.
+        Attributes are assigned to groups when configuring a Product Type via the Product Type
+        Builder.
       </p>
       {attributes.length > 0 ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {attributes.map(attr => (
-            <span key={attr.id} style={{
-              fontSize: 12, padding: '4px 10px', borderRadius: 6,
-              background: '#e0f2fe', color: '#0369a1', fontWeight: 500,
-            }}>
+          {attributes.map((attr) => (
+            <span
+              key={attr.id}
+              style={{
+                fontSize: 12,
+                padding: '4px 10px',
+                borderRadius: 6,
+                background: '#e0f2fe',
+                color: '#0369a1',
+                fontWeight: 500,
+              }}
+            >
               {attr.name} <small style={{ opacity: 0.7 }}>({attr.code})</small>
             </span>
           ))}
         </div>
-      ) : (
+      ) : error ? null : (
         <p style={{ fontSize: 13, color: '#5b6b74' }}>No attributes defined yet.</p>
       )}
     </div>

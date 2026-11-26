@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
 import '../../services/api_service.dart';
@@ -11,6 +12,14 @@ import '../../widgets/common_widgets.dart';
 /// is client-side over the already-fetched list, so tabs switch instantly with
 /// no extra round-trip (audit 4.3 row 159 / §24).
 enum _OrderFilter { all, active, completed, cancelled }
+
+Future<void> _refreshBuyerOrders(WidgetRef ref) async {
+  try {
+    await ref.refresh(ordersProvider.future).then<void>((_) {});
+  } catch (_) {
+    // The AsyncValue carries the refresh failure; keep pull-to-refresh usable.
+  }
+}
 
 class OrdersListScreen extends ConsumerStatefulWidget {
   const OrdersListScreen({super.key});
@@ -46,48 +55,79 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
   Widget build(BuildContext context) {
     final orders = ref.watch(ordersProvider);
     return Scaffold(
-        appBar: AppBar(title: const Text('My Orders'), actions: [
+      appBar: AppBar(
+        title: const Text('My Orders'),
+        actions: [
           IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () => ref.invalidate(ordersProvider)),
-        ]),
-        body: Column(children: [
+            tooltip: 'Refresh orders',
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.invalidate(ordersProvider),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
           _filterBar(),
           Expanded(
             child: orders.when(
+              skipLoadingOnRefresh: true,
+              skipError: true,
               data: (list) {
-                if (list.isEmpty) {
-                  return EmptyState(
-                      title: 'No orders yet',
-                      description: 'Place your first order from the store',
-                      icon: Icons.receipt_long,
-                      onAction: () => context.go('/search'),
-                      actionLabel: 'Browse');
-                }
+                final showRefreshNotice =
+                    orders.isRefreshing || orders.hasError;
                 final filtered = list.where(_matches).toList();
-                if (filtered.isEmpty) {
-                  return EmptyState(
-                      title: 'Nothing here',
-                      description: 'No ${_filter.name} orders.',
-                      icon: Icons.filter_alt_off_outlined);
-                }
+                final children = <Widget>[
+                  if (showRefreshNotice)
+                    _refreshNotice(
+                      orders.isRefreshing
+                          ? 'Refreshing orders… showing the last successfully loaded list.'
+                          : 'Could not refresh orders: ${ApiService.errorMessage(orders.error!)}. Showing the last successfully loaded list.',
+                      () => ref.invalidate(ordersProvider),
+                    ),
+                  if (list.isEmpty)
+                    SizedBox(
+                      height: 320,
+                      child: EmptyState(
+                        title: 'No orders yet',
+                        description: 'Place your first order from the store',
+                        icon: Icons.receipt_long,
+                        onAction: () => context.go('/search'),
+                        actionLabel: 'Browse',
+                      ),
+                    )
+                  else if (filtered.isEmpty)
+                    SizedBox(
+                      height: 320,
+                      child: EmptyState(
+                        title: 'Nothing here',
+                        description: 'No ${_filter.name} orders.',
+                        icon: Icons.filter_alt_off_outlined,
+                      ),
+                    )
+                  else
+                    ...filtered.map(_orderCard),
+                ];
+
                 return RefreshIndicator(
-                  onRefresh: () async => ref.invalidate(ordersProvider),
-                  child: ListView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(16),
-                      itemCount: filtered.length,
-                      itemBuilder: (_, i) => _orderCard(filtered[i])),
+                  onRefresh: () => _refreshBuyerOrders(ref),
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    children: children,
+                  ),
                 );
               },
               loading: () => const LoadingSpinner(),
               error: (e, _) => EmptyState(
-                  title: 'Error',
-                  description: ApiService.errorMessage(e),
-                  onAction: () => ref.invalidate(ordersProvider)),
+                title: 'Error',
+                description: ApiService.errorMessage(e),
+                onAction: () => ref.invalidate(ordersProvider),
+              ),
             ),
           ),
-        ]));
+        ],
+      ),
+    );
   }
 
   Widget _filterBar() => SingleChildScrollView(
@@ -117,4 +157,25 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
               '${DateTime.tryParse(o.createdAt)?.toLocal().toString().substring(0, 16) ?? o.createdAt} · ${formatMinor(o.totalMinor, o.currency)}'),
           trailing: StatusBadge(o.status),
           onTap: () => context.push('/orders/${o.id}')));
+
+  Widget _refreshNotice(String message, VoidCallback onRetry) => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: TaifTokens.err.withValues(alpha: 0.06),
+          border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+              ),
+            ),
+            TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
+      );
 }
