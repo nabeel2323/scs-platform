@@ -542,7 +542,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       await cartService.addItem(buyerA, { variantId, quantity: 1, offerId: offerA });
       const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `fsm-cancel-${randomUUID()}` });
       const cancelId = co.subOrders[0]?.id;
-      await ordersService.cancelOrder(cancelId!, buyerA, 'CUSTOMER_REQUEST', undefined);
+      await ordersService.cancelOrder(cancelId!, buyerA, 'CUSTOMER_REQUEST', { sub: buyerA, role: 'BUYER', activeOrg: null });
       const cancelled = await ordersService.getOrder(cancelId!);
       expect(cancelled.status).toBe('CANCELLED');
 
@@ -555,7 +555,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       await cartService.addItem(buyerA, { variantId, quantity: 1, offerId: offerA });
       const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `fsm-reject-${randomUUID()}` });
       const rejectId = co.subOrders[0]?.id;
-      await ordersService.rejectOrder(rejectId!, merchantA, 'Out of stock');
+      await ordersService.rejectOrder(rejectId!, merchantA, 'Out of stock', { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA });
       const rejected = await ordersService.getOrder(rejectId!);
       expect(rejected.status).toBe('REJECTED');
 
