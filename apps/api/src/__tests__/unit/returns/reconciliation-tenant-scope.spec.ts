@@ -62,7 +62,10 @@ describe('ReconciliationService — scoped discrepancy mutation', () => {
     const update = vi.fn().mockReturnValue({ set });
     const service = new ReconciliationService({
       db: {
-        query: { reconciliationDiscrepancies: { findFirst } },
+        query: {
+          reconciliationDiscrepancies: { findFirst },
+          reconciliationRuns: { findFirst: vi.fn().mockResolvedValue({ id: 'run-a', orgId: 'org-a' }) },
+        },
         update,
       },
     } as any);
