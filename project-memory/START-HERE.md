@@ -1,3 +1,18 @@
+## 26 November 2026 — PR #157 test-fixture repair batch committed
+
+- Owner's integration priority is unchanged: protect PR #138, integrate its required remediation safely into develop via bounded slices, then reconcile #153 and #154. Batch related changes and avoid CI runs for small edits.
+- PR #157 `integration/g002-actor-context-foundation` advanced from failed CI head `0d97dd446d5912d6d0a815d8a931a88f53db009c` to `a0f32189b14700bad6701a4b948fd70c5755a0be`.
+- One grouped commit `a0f32189b14700bad6701a4b948fd70c5755a0be` repairs three evidence-fixture issues:
+  1. P4 HTTP test migrations now execute BEGIN/SQL/ledger/COMMIT on a single checked-out PostgreSQL client; migration failures roll back and fail setup with the migration filename and database error instead of being silently swallowed. This removes misleading downstream HTTP 500s and surfaces the actual migration fault if one remains.
+  2. P6 concurrency probes now create the required ACTIVE organization membership independently of the store-membership row they toggle, so their 25-allow/25-deny assertions test the intended store-membership transition.
+  3. P6 independent runtime fixture now supplies phone/email identifiers required by the users table check constraint.
+- GitHub Actions CI run `45764646880` was observed QUEUED for the exact new head `a0f32189b14700bad6701a4b948fd70c5755a0be`. No result is available yet; do not call this green or verified.
+- The P4 migration failure is now intentionally fail-fast, not assumed resolved until CI demonstrates it. If it fails, inspect the exact migration named in the setup error and fix the real migration dependency/SQL rather than weakening assertions.
+- PR #138 remains OPEN / DRAFT / UNMERGED and dirty (1,943 changed files). Its source head before this documentation-only checkpoint is `7285ab3e87fd28fabe5ca0657333eb3ed80b0abf`; preservation ref is expected at the same SHA. No source history rewrite.
+- No database/staging mutations, migration execution against any shared environment, grant/RLS change, worker activation, deployment, or merge occurred.
+
+---
+
 ## 26 November 2026 — PR #157 CI #1558 failure triage and PR #138 priority
 
 - PR #138 remains OPEN / DRAFT / UNMERGED, base develop, mergeable=false / dirty, 1,943 changed files. Source and preservation refs were synchronized at `e3ff391b4bd069113d572f9602ef7b5b6c962262` before this memory-only update. The preceding source implementation head was `e9fb552850f605fd412fc4aa35b812e945f3c702`; the two intervening commits updated project memory only. No exact-head CI is available for the implementation, so PR #138 remains NOT CI-VERIFIED. Do not merge its broad branch diff.
