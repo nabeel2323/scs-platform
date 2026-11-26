@@ -229,7 +229,7 @@ export default function MerchantReturnsPage() {
                   >
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>
-                        {ret.reason} — {ret.subOrderId.slice(0, 8)}…
+                        {ret.reason} — {ret.subOrderId.slice(0, 9)}…
                       </div>
                       <div style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
                         {formatDate(ret.createdAt)} · {ret.items.length} item(s)

@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
+const auth = vi.hoisted(() => ({
+  user: { id: 'buyer-1', role: 'RETAILER', perms: [] as string[] },
+}));
+
 const api = vi.hoisted(() => ({
   fetchNotifications: vi.fn(),
   markNotificationRead: vi.fn(),
@@ -23,7 +27,7 @@ vi.mock('next/link', () => ({
   ),
 }));
 vi.mock('../components/AuthProvider', () => ({
-  useAuth: () => ({ user: { id: 'buyer-1', role: 'RETAILER', perms: [] }, loading: false }),
+  useAuth: () => ({ user: auth.user, loading: false }),
 }));
 vi.mock('../lib/buyer-api', () => ({
   fetchNotifications: (...args: unknown[]) => api.fetchNotifications(...args),

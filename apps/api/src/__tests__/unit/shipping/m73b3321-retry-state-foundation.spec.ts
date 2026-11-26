@@ -132,6 +132,9 @@ function createMocks(shipment: ShipmentRow, circuitBreakerOpen = false) {
       stores: {
         findFirst: vi.fn(async () => ({ orgId: 'org-001' })),
       },
+      orders: {
+        findFirst: vi.fn(async () => ({ storeId: shipment.storeId })),
+      },
       carrierWebhookEvents: {
         findFirst: vi.fn(async () => null),
       },
@@ -152,7 +155,15 @@ function createMocks(shipment: ShipmentRow, circuitBreakerOpen = false) {
     execute: vi.fn(async () => ({ rows: [] })),
   };
 
-  const db = { db: innerDb };
+  const db = {
+    db: innerDb,
+    withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
+  };
+  const storage = {} as any;
+  const merchant = {
+    getStoreTenantContextForSystem: vi.fn(async () => ({ orgId: 'org-001' })),
+  };
+  const webhookRouting = {} as any;
   const registry = new ShippingProviderRegistry();
   const credentials = {} as any;
   const configurations = {} as any;
@@ -185,6 +196,9 @@ function createMocks(shipment: ShipmentRow, circuitBreakerOpen = false) {
     emailResolver,
     retryPolicy,
     circuitBreaker,
+    storage,
+    merchant,
+    webhookRouting,
     updateSets,
   };
 }
@@ -205,6 +219,9 @@ function createWorker(
     mocks.emailResolver,
     mocks.retryPolicy,
     mocks.circuitBreaker,
+    mocks.storage,
+    mocks.merchant,
+    mocks.webhookRouting,
   );
 }
 

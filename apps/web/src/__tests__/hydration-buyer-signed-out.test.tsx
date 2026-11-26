@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import MerchantLayout from '../app/merchant/layout';
+import { AuthProvider } from '../components/AuthProvider';
 import {
   asDocumentRoot,
   cleanupDocumentRoots,
@@ -35,9 +36,11 @@ const PROTECTED_SCREEN = 'Merchant order pipeline';
 
 function merchantRoute() {
   return asDocumentRoot(
-    <MerchantLayout>
-      <div>{PROTECTED_SCREEN}</div>
-    </MerchantLayout>,
+    <AuthProvider>
+      <MerchantLayout>
+        <div>{PROTECTED_SCREEN}</div>
+      </MerchantLayout>
+    </AuthProvider>,
   );
 }
 
