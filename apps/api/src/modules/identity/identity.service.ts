@@ -1058,10 +1058,21 @@ export class IdentityService {
       { role: actor.role, activeOrg: null },
       async () => {
         const membership = await this.db.db.query.organizationMembers.findFirst({
-          where: and(eq(organizationMembers.userId, userId), eq(organizationMembers.orgId, orgId)),
+          where: and(
+            eq(organizationMembers.userId, userId),
+            eq(organizationMembers.orgId, orgId),
+            eq(organizationMembers.status, 'ACTIVE'),
+          ),
         });
-        if (!membership) {
-          throw new ForbiddenException('Not a member of this organization');
+        if (!membership || membership.status !== 'ACTIVE') {
+          throw new ForbiddenException('Not an active member of this organization');
+        }
+        const organization = await this.db.db.query.organizations.findFirst({
+          where: and(eq(organizations.id, orgId), eq(organizations.isActive, true)),
+          columns: { id: true },
+        });
+        if (!organization) {
+          throw new ForbiddenException('Organization is not active');
         }
         return this.buildClaims(userId, orgId);
       },
@@ -1104,34 +1115,43 @@ export class IdentityService {
     if (!user) throw new NotFoundException('User not found');
 
     const memberships = await this.db.db.query.organizationMembers.findMany({
-      where: eq(organizationMembers.userId, userId),
+      where: and(eq(organizationMembers.userId, userId), eq(organizationMembers.status, 'ACTIVE')),
     });
+    const activeMemberships = memberships.filter((membership) => membership.status === 'ACTIVE');
 
-    // Batch-fetch orgs in one query (avoids N+1: was 1 query per membership).
+    // Only project organizations that are themselves active. Membership status
+    // and organization status are both revalidated because stale JWT claims and
+    // legacy rows must never restore a revoked merchant role.
     const orgList = [];
-    if (memberships.length > 0) {
+    if (activeMemberships.length > 0) {
       const orgs = await this.db.db.query.organizations.findMany({
         where: inArray(
           organizations.id,
-          memberships.map((m) => m.orgId),
+          activeMemberships.map((membership) => membership.orgId),
         ),
       });
-      const orgById = new Map(orgs.map((o) => [o.id, o]));
-      for (const m of memberships) {
-        const org = orgById.get(m.orgId);
-        if (org) orgList.push({ ...org, membershipStatus: m.status });
+      const activeOrgById = new Map(
+        orgs.filter((organization) => organization.isActive === true).map((organization) => [organization.id, organization]),
+      );
+      for (const membership of activeMemberships) {
+        const organization = activeOrgById.get(membership.orgId);
+        if (organization) orgList.push({ ...organization, membershipStatus: membership.status });
       }
     }
 
-    // Resolve the current role from the active org (single lookup by the active
-    // membership's roleId, mirroring buildClaims) so it matches the role the
-    // PermissionsGuard enforces for this token, including after switchOrg.
-    const resolvedActiveOrgId = activeOrgId ?? memberships[0]?.orgId ?? null;
-    const activeMembership = memberships.find((m) => m.orgId === resolvedActiveOrgId);
+    // An explicit null activeOrg means the JWT has no active organization; do
+    // not silently select another membership. Only internal callers that omit
+    // the argument may fall back to the first currently valid membership.
+    const requestedOrgId = activeOrgId === undefined
+      ? orgList[0]?.id ?? null
+      : activeOrgId;
+    const activeMembership = activeMemberships.find(
+      (membership) =>
+        membership.orgId === requestedOrgId &&
+        orgList.some((organization) => organization.id === requestedOrgId),
+    );
+    const resolvedActiveOrgId = activeMembership?.orgId ?? null;
 
-    // Mirror buildClaims: a user with no active membership is still a BUYER,
-    // so fall back to the seeded BUYER role instead of leaving the permission
-    // keys empty — these keys drive client-side gating (RBAC audit GAP-6).
     let roleId = activeMembership?.roleId ?? null;
     let role = 'BUYER';
     if (roleId) {
@@ -2753,13 +2773,29 @@ export class IdentityService {
   }
 
   private async buildClaims(userId: string, preferredOrgId?: string) {
-    // Get user's org memberships
+    // Resolve only currently active memberships. A previously issued JWT or a
+    // stale membership row must not restore tenant access after revocation.
     const memberships = await this.db.db.query.organizationMembers.findMany({
-      where: eq(organizationMembers.userId, userId),
+      where: and(eq(organizationMembers.userId, userId), eq(organizationMembers.status, 'ACTIVE')),
     });
+    const activeMemberships = memberships.filter((membership) => membership.status === 'ACTIVE');
+    let activeMembership = preferredOrgId
+      ? activeMemberships.find((membership) => membership.orgId === preferredOrgId)
+      : activeMemberships[0];
+    let activeOrgId = activeMembership?.orgId ?? null;
 
-    const activeOrgId = preferredOrgId || memberships[0]?.orgId || null;
-    const activeMembership = memberships.find((m) => m.orgId === activeOrgId);
+    // Membership alone is insufficient: an inactive organization cannot be
+    // selected for authentication claims or merchant-role projection.
+    if (activeOrgId) {
+      const organization = await this.db.db.query.organizations.findFirst({
+        where: and(eq(organizations.id, activeOrgId), eq(organizations.isActive, true)),
+        columns: { id: true },
+      });
+      if (!organization) {
+        activeMembership = undefined;
+        activeOrgId = null;
+      }
+    }
 
     // Resolve the role and its permission set.
     //
