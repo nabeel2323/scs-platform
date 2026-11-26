@@ -326,3 +326,11 @@ Commits: 94c8fc5f1a2ae5d69e276909f31b8a539a7001ed, 76894a736d7279ba2a523685af38c
 - Test fixture repair commits 21d4e344... and 4341fef0... updated DatabaseService test initialization, membership schema/seed fixtures, catalog/tenant-scope mocks and scratch spec exclusion. The actual test suites have not yet been validated after these changes.
 - PR #158 head 5c7e41bf... remains stacked on old parent 77145bc...; do not rebase until #1557 is green.
 - PR #138 source/preservation refs remain identical at the latest memory commit; the PR #138 cancel/reject actor hardening and SQL scan are source-reviewed only, not tested.
+
+
+## 26 November 2026 — latest PR #157 parent-stack status
+
+- PR #157 head advanced to d204b9ea18958f623e0379c7cc307fd0545f8863 after the 6901389d config correction. Run #1557 is still validating 6901389d, not d204b9e; migration full apply, lint/typecheck, mobile, Web/Admin and E6 checks passed, while Unit/Coverage and Integration Tests are still running.
+- d204b9e adds lazy AsyncLocalStorage initialization for prototype-based DatabaseService test doubles, parameterized SQL-builder fallback for organization/store lookups when Drizzle relation query objects are unavailable, and P4/P12 fixture changes. Wait for #1557 to finish, then run one consolidated check on d204b9e.
+- PR #158 head 4f2ac7d... includes earlier parent fixture work but not the 6901389d/d204b9e parent commits; keep it stacked and reconcile only after PR #157 is green.
+- PR #138 source and preservation refs remain identical at the latest project-memory checkpoint. OrdersService actor hardening and bounded SQL scan remain untested; no DB writes, staging mutations, RLS/grant changes, worker activation or deployment occurred.
