@@ -3077,3 +3077,11 @@ Next source-only work should review the changed fixture semantics without weaken
 - No GitHub Actions run is associated with the latest code head. All source/test corrections remain VERIFICATION_PENDING; historical CI #1617 is diagnostic only. Continue grouped fixture review, then run one exact-head mandatory CI campaign.
 - PR #138 remains OPEN / DRAFT / UNMERGED, 1,943 changed files; its source and preservation refs have both advanced and are verified identical at `927302dc75d6b31f7521cc32a9ac55655b248c9d`. Preserve this source and never merge it wholesale.
 - No reviewer requests, database writes, migrations, provider calls, worker activation, Render changes, deployments, restarts or releases were performed. PR #170 must remain draft until mandatory CI passes and separate staging-release/migration authorization is given.
+
+
+## Continuation checkpoint — 26 November 2026 (remaining focused unit fixtures)
+
+- Added an actor-context wrapper to the RealtimeGateway unit harness (`52110e7cea3f04c052e3fb02860402f832584d16`), matching the gateway's authenticated DB room-access scope.
+- This follows the same grouped fixture batch already recorded above: active store fixtures for checkout, merchant refund actor scope, settlement adjustment cross-org/foreign-return assertions, and carrier recovery queue innerJoin support.
+- No local tests have been executed. There is no exact-head CI run for PR #170 head `52110e7cea3f04c052e3fb02860402f832584d16`. All changes remain VERIFICATION_PENDING. Continue only where a concrete production/test contract mismatch is evidenced; then run one consolidated exact-head mandatory CI campaign.
+- PR #170 remains OPEN / DRAFT / UNMERGED. PR #138 remains OPEN / DRAFT / UNMERGED and protected as source/recovery material; never merge wholesale. No reviewers, staging/production DB writes, migrations, provider calls, worker activation, Render changes, deployments, restarts or releases occurred.
