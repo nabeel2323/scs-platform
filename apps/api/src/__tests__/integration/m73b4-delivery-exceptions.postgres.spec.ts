@@ -176,7 +176,12 @@ describe('M7.3-B.4 — Delivery Exceptions + Retry (PostgreSQL)', () => {
     outbox = new OutboxDispatcher(database);
     const promotions = new PromotionsService(database);
     const inventoryService = new InventoryService(database, outbox);
-    const shipping = { assertDriverEligibleForStore: vi.fn().mockResolvedValue(undefined) } as any;
+    // These suites cover delivery-exception/RTS behavior, not shipping checkout policy.
+    // Keep checkout setup valid while retaining the explicit driver eligibility collaborator.
+    const shipping = {
+      validateCheckoutSelection: vi.fn().mockResolvedValue(undefined),
+      assertDriverEligibleForStore: vi.fn().mockResolvedValue(undefined),
+    } as any;
     ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications, shipping);
 
     const rolesRes = await pool.query(`SELECT id, key FROM roles`);
