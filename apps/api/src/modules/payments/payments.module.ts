@@ -15,12 +15,14 @@ import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
 import { PaymentProviderRegistry } from './payments.provider-registry';
 import { ManualVerificationProvider } from './manual-verification.provider';
+import { PaymentProofCleanupWorker } from './payment-proof-cleanup.worker';
 
 @Global()
 @Module({
   controllers: [PaymentsController],
   providers: [
     PaymentsService,
+    PaymentProofCleanupWorker,
     PaymentProviderRegistry,
     ManualVerificationProvider,
     {

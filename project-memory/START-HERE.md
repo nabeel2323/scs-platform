@@ -2,7 +2,7 @@
 
 **Last updated:** 27 November 2026  
 **Repository:** `nabeel2323/scs-platform`  
-**Merged integration:** [PR #170 — Bulk PR #138 remediation extraction](https://github.com/nabeel2323/scs-platform/pull/170)  
+**Merged integration:** [PR #170](https://github.com/nabeel2323/scs-platform/pull/170) + [PR #171](https://github.com/nabeel2323/scs-platform/pull/171) — bounded PR #138 remediation extraction  
 **Protected remediation source:** [#138 — Phase 0–1 tenant/security remediation](https://github.com/nabeel2323/scs-platform/pull/138)
 
 ## Read these documents first
@@ -259,3 +259,14 @@ The newest dated entries in the checkpoint and progress tracker override older h
 - PR #138 remains OPEN / DRAFT / UNMERGED. Source branch `remediation/phase-0-1-tenant-security` and preservation branch `preservation/pr138-remediation-2026-11-25` were rechecked and are identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`. Keep this source protected; never merge PR #138 wholesale.
 - No staging/production DB writes, migrations, RLS/grant changes, provider calls, worker activation, Render changes, deployment, restart or release occurred. Keep PR #170 draft/unmerged until the user separately authorizes the staging-release/migration step; passing CI and GitHub mergeability do not provide that authorization.
 - This checkpoint is documentation-only and uses `[skip ci]`; no redundant code CI should be launched for this note.
+
+
+## Latest continuation — PR #171 merged; PR #172 implementation prepared (27 November 2026)
+
+- PR #171 was merged into `develop` at `f37ebaf97e2ce6330e69ded9b41d58c7229f4c40`. Exact head `9202bfac403e0bb8480b6b1fe90f06d4055d8845` passed all 10 mandatory jobs in CI #1710 (run `46056460442`), including API unit/coverage, PostgreSQL integration, migration full apply, E6, build and container smoke. k6 and staging release were skipped.
+- PR #138 remains OPEN / DRAFT / UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; source and preservation refs remain identical. Never merge PR #138 wholesale or rewrite its refs.
+- [PR #172](https://github.com/nabeel2323/scs-platform/pull/172) is open against `develop` from branch `remediation/carrier-payment-reconciliation-safety-2026-11-27`, based on the merged PR #171 head. Current PR head is `54cb775418652c4f2bc0660b37c5e85b57ab364d`.
+- PR #172 implementation batch now includes: (1) carrier webhook retries fail closed whenever credential_id is absent, even if shipment_id is already linked; (2) migration 0077 detaches legacy uncredentialed shipment links for manual review without changing processed/processed_at, with a PostgreSQL integration test; (3) migration 0074 preflights dangling, cross-scope, non-monotonic, branching and duplicate-version history before rewriting pointers, with PostgreSQL tests proving valid three-version chain conversion and rollback on invalid history; (4) PaymentProofCleanupWorker is registered but only schedules when PAYMENT_PROOF_CLEANUP_WORKER_ENABLED=true, with bounded interval, overlap protection and unit tests. The cleanup service continues checking all payment references before object deletion and uses existing leases/backoff.
+- PR #172 code is not yet validated. Run one consolidated exact-head CI after the branch/PR is complete. No staging/production migrations, database writes, worker activation, provider calls, Render changes, deployments, restarts or releases occurred.
+- G-002 remains IN PROGRESS / NOT VERIFIED overall. Previously confirmed protected read-only migration identity was postgres with BYPASSRLS, CREATEROLE and CREATEDB; latest historical API runtime evidence was also postgres with BYPASSRLS and TLS disabled. Migration TLS has not been confirmed. Do not enable RLS or deploy fail-closed guards until least-privilege role ownership/ACL and TLS transition are separately prepared and authorized.
+- G-001 independent security review remains PARTIAL; G-007 buyer journey/order-detail UAT remains pending. No reviewers are required. Keep PR #138 protected and batch related changes to avoid redundant CI.

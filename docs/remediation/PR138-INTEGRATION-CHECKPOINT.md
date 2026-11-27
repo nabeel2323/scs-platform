@@ -326,3 +326,12 @@
 - PR #138 remains OPEN / DRAFT / UNMERGED. Source branch `remediation/phase-0-1-tenant-security` and preservation branch `preservation/pr138-remediation-2026-11-25` were rechecked and are identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`. Keep this source protected; never merge PR #138 wholesale.
 - No staging/production DB writes, migrations, RLS/grant changes, provider calls, worker activation, Render changes, deployment, restart or release occurred. Keep PR #170 draft/unmerged until the user separately authorizes the staging-release/migration step; passing CI and GitHub mergeability do not provide that authorization.
 - This checkpoint is documentation-only and uses `[skip ci]`; no redundant code CI should be launched for this note.
+
+
+## PR #171 merged; grouped carrier/payment follow-up prepared — 27 November 2026
+
+- PR #171 is MERGED into `develop` at `f37ebaf97e2ce6330e69ded9b41d58c7229f4c40`; exact-head CI #1710 (`46056460442`) passed all 10 mandatory jobs. k6 and staging release skipped.
+- PR #138 remains OPEN / DRAFT / UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; source and preservation refs remain synchronized. Never merge wholesale or rewrite either ref.
+- Grouped next branch: `remediation/carrier-payment-reconciliation-safety-2026-11-27`. It contains carrier webhook credential fail-closed retry handling, migration 0077 legacy-link quarantine, migration 0074 preflight integrity validation with PostgreSQL tests, and a payment-proof cleanup worker registered but disabled by default.
+- No staging/production migration, write, worker activation, provider call, Render mutation, deployment, restart or release occurred. PR #172 still requires final review and one consolidated exact-head CI campaign before merge.
+- G-002 remains IN PROGRESS / NOT VERIFIED overall. The previous protected audit found the migration DB identity to be postgres with BYPASSRLS/CREATEROLE/CREATEDB; API runtime evidence also showed postgres with BYPASSRLS and TLS disabled. Migration TLS remains unconfirmed. Keep the RLS/least-privilege/TLS transition as a separate gated workstream.
