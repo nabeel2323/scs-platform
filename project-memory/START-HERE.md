@@ -70,3 +70,10 @@ The newest dated entries in the checkpoint and progress tracker override older h
 - Tracker/checkpoint updates: `c330fcd8839912b2cc5ca35323fc7cd1eef5b181` and `06a3762b1467176ee8d23c556ba6aaa39c532097`.
 - No tests have run locally and there is no exact-head Actions run. The latest known Vercel contexts are free-plan build-rate-limit failures, not application test evidence. Do not trigger extra Vercel builds.
 - Keep working through remaining API tests with source review; never weaken authorization or tenant boundaries. Consolidate before one exact-head CI run. Do not merge PR #170 or alter PR #138; no staging or production operations.
+
+
+### Current continuation — 27 November 2026
+
+- PR #170 exact-head CI #1685 (`45918515070`) failed at API typecheck only after lint and Flutter passed. The failure was a strict typing issue in the saved-suppliers unit test query mocks; no downstream suites ran. Test-only correction committed as `baef54ec07160733c3c18e119e63a0182ea02adb`; not yet verified.
+- Continue grouped source-level audit before a single consolidated exact-head CI run. Do not run per-fix CI or additional Vercel previews. PR #138 and its preservation branch remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; never merge PR #138 wholesale.
+- PR #170 remains OPEN / DRAFT / UNMERGED. Do not merge until exact-head mandatory CI passes and separate staging-release/migration authorization is received. No reviewers are needed.
