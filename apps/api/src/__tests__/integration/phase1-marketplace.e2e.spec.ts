@@ -774,12 +774,25 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     beforeAll(async () => {
       // Create a fresh order for FSM testing
       await cartService.addItem(buyerA, { variantId, quantity: 1, offerId: offerA });
+      // Earlier scenarios may leave another seller's line in buyerA's active cart.
+      // Isolate this lifecycle test so its caller is authorized for the selected store.
+      await pool.query(
+        `DELETE FROM cart_items WHERE cart_id IN
+         (SELECT id FROM carts WHERE user_id = $1 AND status = 'ACTIVE')`,
+        [buyerA],
+      );
+      await pool.query(
+        `UPDATE carts SET status = 'CONVERTED' WHERE user_id = $1 AND status = 'ACTIVE'`,
+        [buyerA],
+      );
       const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
         idempotencyKey: `fsm-full-${randomUUID()}`,
       });
-      freshOrderId = (co.subOrders[0] as any).id;
+      const storeOrder = (co.subOrders as any[]).find((subOrder) => subOrder.storeId === storeA);
+      if (!storeOrder) throw new Error(`Checkout did not produce a sub-order for store ${storeA}`);
+      freshOrderId = storeOrder.id;
       expect(freshOrderId).toBeTruthy();
     });
 

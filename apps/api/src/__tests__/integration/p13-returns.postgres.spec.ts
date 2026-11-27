@@ -1485,7 +1485,7 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
       platformEscalationAuthority(buyerA, orgA),
     );
     // The method returns undefined when already processed (early return)
-    expect(second).toBeUndefined();
+    expect(second).toBeNull();
 
     // Verify the return is still ESCALATED in DB
     const dbRow = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [ret.id]);

@@ -268,6 +268,16 @@ describe('P13 Phase 3.1.1 — Concurrency Verification', () => {
       [crypto.randomUUID(), adjId, adminB],
     );
 
+    // Posting requires a primary settlement for this exact order/payment/store.
+    await pool.query(
+      `INSERT INTO settlement_records (
+         id, sub_order_id, payment_record_id, merchant_store_id,
+         gross_minor, refund_minor, commission_minor, fee_minor, net_minor,
+         currency, status, calculated_at
+       ) VALUES ($1, $2, $3, $4, 5500, 0, 250, 500, 4750, 'SYP', 'CALCULATED', now())`,
+      [crypto.randomUUID(), orderA, paymentA, storeA],
+    );
+
     // Two concurrent post attempts
     const results = await Promise.allSettled([
       settlementService.postAdjustment(adjId, adminB, orgA),

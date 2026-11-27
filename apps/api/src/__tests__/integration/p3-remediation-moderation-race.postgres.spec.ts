@@ -93,8 +93,14 @@ describe('P3-19 Remediation — Moderation concurrency race', () => {
   function merchantActor() {
     return { sub: merchantId, role: 'MERCHANT_OWNER', activeOrg: orgId };
   }
+  function traceFailure<T>(label: string, promise: Promise<T>): Promise<T> {
+    return promise.catch((error) => {
+      console.error(`[P3 moderation race] ${label}`, error instanceof Error ? error.stack : error);
+      throw error;
+    });
+  }
   function updateAdminProduct(id: string, input: any, updatedAt?: string) {
-    return admin.adminUpdateProduct(id, input, updatedAt, adminActor());
+    return traceFailure('admin update', admin.adminUpdateProduct(id, input, updatedAt, adminActor()));
   }
 
   afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
@@ -200,7 +206,7 @@ describe('P3-19 Remediation — Moderation concurrency race', () => {
 
       const results = await Promise.allSettled([
         updateAdminProduct(productId, { title: `Admin Wins ${i}` } as any, updatedAt),
-        catalog.updateProduct(productId, { title: `Merchant Wins ${i}` } as any, updatedAt, merchantActor()),
+        traceFailure('merchant update', catalog.updateProduct(productId, { title: `Merchant Wins ${i}` } as any, updatedAt, merchantActor())),
       ]);
 
       const fulfilled = results.filter(r => r.status === 'fulfilled');

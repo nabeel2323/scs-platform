@@ -700,17 +700,18 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       orgA,
     );
     const dispute = await openDispute(orderId);
-    const paymentId = (
-      await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
-    ).rows[0].id;
+    const payment = (
+      await pool.query(`SELECT id, currency FROM payment_records WHERE order_id = $1`, [orderId])
+    ).rows[0];
+    const paymentId = payment.id as string;
 
     // Simulate the crash window of the previous design: requestRefund committed,
     // dispute-resolution transaction never completed.
     const orphanRefundId = randomUUID();
     await pool.query(
       `INSERT INTO refunds (id, payment_record_id, order_id, idempotency_key, amount_minor, currency, status, reason, requested_by)
-       VALUES ($1, $2, $3, $4, 1000, 'SYP', 'REQUESTED', 'PRODUCT_NOT_AS_DESCRIBED', $5)`,
-      [orphanRefundId, paymentId, orderId, `dispute-refund:${dispute.id}`, buyerA],
+       VALUES ($1, $2, $3, $4, 1000, $5, 'REQUESTED', 'PRODUCT_NOT_AS_DESCRIBED', $6)`,
+      [orphanRefundId, paymentId, orderId, `dispute-refund:${dispute.id}`, payment.currency, buyerA],
     );
 
     const resolved = await disputesService.resolveDispute(
@@ -866,7 +867,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
 
     await expect(
-      returnsService.transitionReturn(ret.id, 'REFUND_PENDING', merchantCaller),
+      returnsService.transitionReturn(ret.id, 'REFUND_PENDING', adminCaller),
     ).rejects.toThrow(/idempotency key was already used for a different request/i);
 
     const state = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [ret.id]);
@@ -927,7 +928,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
 
     await expect(
-      returnsService.transitionReturn(ret.id, 'REFUND_PENDING', merchantCaller),
+      returnsService.transitionReturn(ret.id, 'REFUND_PENDING', adminCaller),
     ).rejects.toThrow(/idempotency key was already used for a different request/i);
 
     const state = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [ret.id]);
@@ -1042,7 +1043,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     );
 
     const results = await Promise.allSettled([
-      returnsService.transitionReturn(ret.id, 'REFUND_PENDING', merchantCaller),
+      returnsService.transitionReturn(ret.id, 'REFUND_PENDING', adminCaller),
       disputesService.resolveDispute(dispute.id, adminA, 'Concurrent dispute refund', adminCaller, {
         amountMinor: 1000,
         reason: 'PRODUCT_NOT_AS_DESCRIBED',
@@ -1557,7 +1558,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
         const order = await originalGetOrder(id);
         await pool.query(
           `UPDATE orders SET status = 'ACCEPTED' WHERE id = $1 AND status = 'PAYMENT_PENDING'`,
-          [id],
+          [order.id],
         );
         return order;
       });
@@ -3912,7 +3913,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [run.runId, `return:${ret.id}`],
     );
     expect(duplicate.rows).toHaveLength(1);
-    expect(duplicate.rows[0].actual_minor).toBe(2);
+    expect(Number(duplicate.rows[0].actual_minor)).toBe(2);
   }, 90_000);
 
   it('FIN-DSH-60: adjustment reconciliation uses posting period and ignores unposted drafts', async () => {
@@ -4013,7 +4014,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
     try {
       await expect(
-        returnsService.transitionReturn(ret.id, 'REFUND_PENDING', merchantCaller),
+        returnsService.transitionReturn(ret.id, 'REFUND_PENDING', adminCaller),
       ).rejects.toThrow('Injected return outbox persistence failure');
     } finally {
       publishSpy.mockRestore();

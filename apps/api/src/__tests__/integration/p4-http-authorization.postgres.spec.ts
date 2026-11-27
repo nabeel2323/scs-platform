@@ -299,7 +299,7 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
         if (!(exception instanceof HttpException)) {
           console.error(
             '[P4 HTTP exception]',
-            exception instanceof Error ? `${exception.name}: ${exception.message}` : String(exception),
+            exception instanceof Error ? (exception.stack ?? `${exception.name}: ${exception.message}`) : String(exception),
           );
         }
         new AllExceptionsFilter().catch(exception, host);
