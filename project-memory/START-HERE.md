@@ -40,3 +40,16 @@ The newest dated entries in the checkpoint and progress tracker override older h
 - Keep the staging-release safety hold disabled.
 - No staging/production DB writes, migrations, RLS/grant/default-ACL changes, provider calls, worker activation, Render changes, deployments, restarts or releases without separate authorization.
 - Keep this file, the integration checkpoint, progress tracker and PR description synchronized after meaningful grouped work.
+
+
+## Latest continuation update — 27 November 2026 (buyer confirmation atomicity + API fixture batch)
+
+- Production fix `3aa3358e5d213876988bcfe4f20930237873b2b5`: buyer confirmation timestamp now commits in the same transaction as order completion, with a `buyerConfirmedAt IS NULL` compare-and-set and idempotent concurrent-loser handling.
+- Grouped test fixture corrections:
+  - `3151fc2f460a72fc0b1ef720360618c6093f4e2c` — privileged RTS admin fixture retains valid shipment/store lineage while testing cross-org bypass.
+  - `574f3a4626c7a2ebd6cfc19a509d1790ad988320` — ReturnsService worker escalation mock follows `db.db.transaction` and provides result projection queries.
+  - `0b1ec543232310f6c333b17bd03ae5a895135446` — DisputesService authorization tests provide transaction/locking mocks.
+  - `358ac213c1f632340336c542e9b6361040e60621` — Catalog saved-favorites fixture supports `where().limit(1)`.
+- Tracker/checkpoint updated in commits `103d7140f0594e6fc50546923647045103eff98f` and `e4f1124472ef9e70fae072def2e08af620e6a560`.
+- All changes are UNVERIFIED: no local runner or exact-head CI has executed them. Historical CI #1659 still identifies carrier reconciliation mutex tests B34-PG-10/11, shipping/carrier tenant-context mocks, catalog publication visibility assertions, orders checkout fixtures, P4.1.8 signing-exception mock, and other payment/returns/admin assertions. Re-check each against current source before changing; some may have been superseded.
+- Next task: source-review B34-PG-10/11 carrier reconciliation mutex separation and the remaining current unit fixture failures. Group related fixes, do not weaken tenant/actor guards, and run only one consolidated exact-head CI after the batch is complete.
