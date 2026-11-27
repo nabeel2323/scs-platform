@@ -33,6 +33,9 @@
  *     without --confirm-production, when a Super Admin already exists, or
  *     when an unexpired token already exists (unless --revoke-existing).
  *   - Never infers environment from DATABASE_URL; never prints credentials.
+ *   - Production-like issuance requires verified TLS and a non-privileged,
+ *     non-owning database identity on the exact issuing connection.
+ *   - The issuance transaction carries an explicit bootstrap operator context.
  */
 
 import { Client } from 'pg';
