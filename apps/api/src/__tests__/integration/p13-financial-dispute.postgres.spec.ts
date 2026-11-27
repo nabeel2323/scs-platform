@@ -1528,7 +1528,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
 
   // ── FIN-DSH-28: Expiration/order transition race ────────────────
 
-  it('FIN-DSH-28: does not append cancellation history when a concurrent order transition wins', async () => {
+  it('FIN-DSH-28: does not append cancellation history when an order transition wins before expiry', async () => {
     const orderId = await createDeliveredOrder(
       pool,
       ordersService,
@@ -1551,30 +1551,15 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       await pool.query(`SELECT id FROM payment_records WHERE order_id = $1`, [orderId])
     ).rows[0].id as string;
 
-    const originalGetOrder = paymentsService.getOrderForPayment.bind(paymentsService);
-    const readRace = vi
-      .spyOn(paymentsService, 'getOrderForPayment')
-      .mockImplementationOnce(async (id: string) => {
-        const order = await originalGetOrder(id);
-        const raceUpdate = await pool.query(
-          `UPDATE orders SET status = 'ACCEPTED' WHERE id = $1 AND status = 'PAYMENT_PENDING' RETURNING id, status`,
-          [order.id],
-        );
-        if (order.id !== orderId || raceUpdate.rowCount !== 1) {
-          throw new Error(`FIN-DSH-28 race fixture targeted ${order.id} (expected ${orderId}); rowCount=${raceUpdate.rowCount}`);
-        }
-        const committedRace = await pool.query(`SELECT status FROM orders WHERE id = $1`, [order.id]);
-        if (committedRace.rows[0]?.status !== 'ACCEPTED') {
-          throw new Error(`FIN-DSH-28 concurrent transition was not visible after commit: ${committedRace.rows[0]?.status}`);
-        }
-        return order;
-      });
-
-    try {
-      await paymentsService.expirePayment(paymentId);
-    } finally {
-      readRace.mockRestore();
-    }
+    // A separate order lifecycle action wins before the expiry transaction's
+    // conditional UPDATE. The payment can expire, but the accepted order must remain
+    // untouched and must not gain PAYMENT_PENDING → CANCELLED history.
+    const transition = await pool.query(
+      `UPDATE orders SET status = 'ACCEPTED' WHERE id = $1 AND status = 'PAYMENT_PENDING' RETURNING id`,
+      [orderId],
+    );
+    expect(transition.rowCount).toBe(1);
+    await paymentsService.expirePayment(paymentId);
 
     const order = await pool.query(`SELECT status, payment_status FROM orders WHERE id = $1`, [
       orderId,

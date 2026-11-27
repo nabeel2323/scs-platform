@@ -1885,27 +1885,25 @@ export class PaymentsService {
         notes: 'Payment expired — time window exceeded',
       });
 
-      // Transition order to CANCELLED if still in payment-pending state
-      const order = await this.getOrderForPayment(payment.orderId);
-      if (['PAYMENT_PENDING'].includes(order.status)) {
-        const orderFlip = await tx
-          .update(orders)
-          .set({ status: 'CANCELLED', paymentStatus: 'EXPIRED', updatedAt: new Date() })
-          .where(and(eq(orders.id, payment.orderId), eq(orders.status, 'PAYMENT_PENDING')))
-          .returning({ id: orders.id });
+      // Attempt the order transition directly. The conditional UPDATE is the
+      // concurrency guard: if an order lifecycle action has already moved the row
+      // away from PAYMENT_PENDING, PostgreSQL returns no row and we append no
+      // cancellation history. Avoid a read-then-write status check that can go stale.
+      const orderFlip = await tx
+        .update(orders)
+        .set({ status: 'CANCELLED', paymentStatus: 'EXPIRED', updatedAt: new Date() })
+        .where(and(eq(orders.id, payment.orderId), eq(orders.status, 'PAYMENT_PENDING')))
+        .returning({ id: orders.id });
 
-        // A concurrent order lifecycle action can win after the read above.
-        // Append cancellation history only when this transaction changed the row.
-        if (orderFlip.length > 0) {
-          await tx.insert(orderStatusHistory).values({
-            id: crypto.randomUUID(),
-            orderId: payment.orderId,
-            fromStatus: 'PAYMENT_PENDING',
-            toStatus: 'CANCELLED',
-            actorType: 'SYSTEM',
-            reason: 'Payment expired',
-          });
-        }
+      if (orderFlip.length > 0) {
+        await tx.insert(orderStatusHistory).values({
+          id: crypto.randomUUID(),
+          orderId: payment.orderId,
+          fromStatus: 'PAYMENT_PENDING',
+          toStatus: 'CANCELLED',
+          actorType: 'SYSTEM',
+          reason: 'Payment expired',
+        });
       }
 
       await this.outbox.publish(
