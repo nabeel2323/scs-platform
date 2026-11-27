@@ -90,7 +90,10 @@ function createMocks() {
   const insertValues = vi.fn().mockResolvedValue(undefined);
   const forUpdateRows: unknown[][] = [[mockProduct], mockOffers];
   const forUpdate = vi.fn().mockImplementation(async () => forUpdateRows.shift() ?? []);
-  const updateWhere = vi.fn().mockResolvedValue(undefined);
+  const updateWhere = vi.fn().mockImplementation(() => Object.assign(
+    Promise.resolve(undefined),
+    { returning: vi.fn().mockResolvedValue([{ id: 'updated-row' }]) },
+  ));
   const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
 
   const db = {
@@ -210,6 +213,9 @@ describe('Checkout Integration', () => {
       mocks.db.query.cartItems.findMany.mockResolvedValue([mockCartItems[0]]);
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue({ ...mockProduct, moq: 50 });
+      mocks.db.query.stores.findMany.mockResolvedValue([
+        { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      ]);
 
       await expect(
         checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
@@ -240,7 +246,10 @@ describe('Checkout Integration', () => {
       mocks.db.query.merchantOffers.findMany.mockResolvedValue([originalOffer]);
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
-      // First FOR UPDATE result is the product row; second is the current offer row.
+      // First FOR UPDATE result
+      mocks.db.query.stores.findMany.mockResolvedValue([
+        { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      ]); is the product row; second is the current offer row.
       mocks.forUpdateRows.splice(1, 1, [updatedOffer]);
 
       await expect(
@@ -256,6 +265,9 @@ describe('Checkout Integration', () => {
       mocks.db.query.cartItems.findMany.mockResolvedValue([mockCartItems[0]]);
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue({ ...mockProduct, moq: 5 });
+      mocks.db.query.stores.findMany.mockResolvedValue([
+        { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      ]);
       // No idempotency key → getMasterOrder is the only findFirst call
       mocks.db.query.masterOrders.findFirst.mockResolvedValue({
         id: 'new-master',
@@ -302,6 +314,9 @@ describe('Checkout Integration', () => {
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
+      mocks.db.query.stores.findMany.mockResolvedValue([
+        { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      ]);
 
       await checkoutAsBuyer(service, {
         buyerId: BUYER_ID,
