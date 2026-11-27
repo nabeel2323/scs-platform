@@ -403,7 +403,7 @@ describe('OrdersService.checkout MOQ and order-increment enforcement', () => {
         stores: { findMany: vi.fn(async () => [{ id: 'store-1', currency: 'SAR', orgId: null }]) },
       },
     };
-    const service = new OrdersService({ db } as any, {} as any, {} as any);
+    const service = new OrdersService({ db, withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()) } as any, {} as any, {} as any);
 
     await expect(service.checkout({ buyerId: 'buyer-1' } as any, CHECKOUT_ACTOR)).rejects.toThrow(
       'increments of 3',
@@ -439,7 +439,7 @@ describe('OrdersService.previewCheckout', () => {
         stores: { findMany: vi.fn(async () => [{ id: 'store-1', currency: 'SAR' }]) },
       },
     };
-    const service = new OrdersService({ db } as any, {} as any, {} as any);
+    const service = new OrdersService({ db, withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()) } as any, {} as any, {} as any);
     const preview = await service.previewCheckout({
       buyerId: 'buyer-1',
       deliveryAddress: { street: 'Main St', city: 'Riyadh' },
@@ -495,7 +495,7 @@ describe('OrdersService.previewCheckout', () => {
         products: { findFirst: vi.fn(async () => ({ id: 'product-1', title: 'Widget', moq: 1 })) },
       },
     };
-    const service = new OrdersService({ db } as any, {} as any, {} as any);
+    const service = new OrdersService({ db, withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()) } as any, {} as any, {} as any);
     await expect(
       service.previewCheckout({
         buyerId: 'buyer-1',
@@ -543,7 +543,7 @@ describe('OrdersService.checkout payment method support', () => {
       transaction: vi.fn(),
     };
     const service = new OrdersService(
-      { db } as any,
+      { db, withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()) } as any,
       {} as any,
       { resolveApplicable: vi.fn(), calculateDiscount: vi.fn() } as any,
     );
@@ -688,7 +688,7 @@ describe('OrdersService.checkout authoritative offer lock', () => {
         transaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback(tx)),
       };
       const service = new OrdersService(
-        { db } as any,
+        { db, withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()) } as any,
         {} as any,
         { resolveApplicable: vi.fn(), calculateDiscount: vi.fn() } as any,
       );
