@@ -216,9 +216,11 @@ export async function issueToken(
     connectionString: databaseUrl,
     ...(ssl && { ssl }),
   });
-  await client.connect();
-
+  let connected = false;
   try {
+    await client.connect();
+    connected = true;
+
     if (productionLike) {
       const identityResult = await client.query(RUNTIME_DATABASE_IDENTITY_SQL);
       const identity = identityResult.rows[0];
@@ -322,7 +324,7 @@ export async function issueToken(
 
     return { token: plaintextToken, digest, expiresAt, purpose };
   } finally {
-    await client.end();
+    if (connected) await client.end();
   }
 }
 
