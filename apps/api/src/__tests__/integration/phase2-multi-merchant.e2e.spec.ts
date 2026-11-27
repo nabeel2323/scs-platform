@@ -698,7 +698,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       const beforeInv = await inventoryService.getItem(invA1);
 
       // Accept
-      const accepted = await ordersService.acceptOrder(subId!, merchantA);
+      const accepted = await ordersService.acceptOrder(subId!, merchantA, callerA());
       expect(accepted.status).toBe('ACCEPTED');
 
       // Stock reserved
@@ -744,7 +744,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       // Confirm only 3 of 10
       const result = await ordersService.partiallyAcceptOrder(subId!, merchantA, [
         { itemId, qtyConfirmed: 3 },
-      ]);
+      ], callerA());
       expect(result.status).toBe('PARTIALLY_ACCEPTED');
 
       // Financial recalculation: 3 × unitPrice
@@ -771,7 +771,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
 
       // Accept first (to reserve stock)
-      await ordersService.acceptOrder(subId!, merchantA);
+      await ordersService.acceptOrder(subId!, merchantA, callerA());
       const afterAccept = await inventoryService.getItem(invA1);
       const reservedAfterAccept = afterAccept.qtyReserved;
 
@@ -817,7 +817,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
 
       // Accept to reserve
-      await ordersService.acceptOrder(subId!, merchantA);
+      await ordersService.acceptOrder(subId!, merchantA, callerA());
       const afterAccept = await inventoryService.getItem(invA1);
 
       // Cancel
@@ -916,7 +916,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         idempotencyKey: `p2-inv-cancel-${randomUUID()}`,
       });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
-      await ordersService.acceptOrder(subId!, merchantA);
+      await ordersService.acceptOrder(subId!, merchantA, callerA());
 
       const afterReserve = await inventoryService.getItem(testInv.id);
       expect(afterReserve.qtyReserved).toBe(8);
@@ -978,7 +978,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         idempotencyKey: `p2-inv-deliver-${randomUUID()}`,
       });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
-      await ordersService.acceptOrder(subId!, merchantA);
+      await ordersService.acceptOrder(subId!, merchantA, callerA());
 
       const afterReserve = await inventoryService.getItem(testInv.id);
       expect(afterReserve.qtyReserved).toBe(6);
@@ -1219,7 +1219,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         idempotencyKey: `p2-retry-cancel-${randomUUID()}`,
       });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
-      await ordersService.acceptOrder(subId!, merchantA);
+      await ordersService.acceptOrder(subId!, merchantA, callerA());
       await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', {
         sub: buyerA,
         role: 'BUYER',
@@ -1289,8 +1289,8 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
 
       // Two concurrent accepts — SELECT FOR UPDATE on order row serialises them
       const results = await Promise.allSettled([
-        ordersService.acceptOrder(subId!, merchantA),
-        ordersService.acceptOrder(subId!, merchantA),
+        ordersService.acceptOrder(subId!, merchantA, callerA()),
+        ordersService.acceptOrder(subId!, merchantA, callerA()),
       ]);
 
       // Exactly one succeeds; the other fails FSM (ACCEPTED → ACCEPTED invalid)

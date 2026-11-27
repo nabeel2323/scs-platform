@@ -979,7 +979,11 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
         idempotencyKey: `p3-own-accept-${randomUUID()}`,
       });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
-      const result = await ordersService.acceptOrder(subId!, merchantOwnerA);
+      const result = await ordersService.acceptOrder(subId!, merchantOwnerA, {
+        sub: merchantOwnerA,
+        role: 'MERCHANT_OWNER',
+        activeOrg: orgA,
+      });
       expect(result.status).toBe('ACCEPTED');
     });
 

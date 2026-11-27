@@ -472,6 +472,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
             throw new Error('connection refused');
           },
         },
+        withActorContext: async (_actor: unknown, operation: () => Promise<unknown>) => operation(),
       } as unknown as DatabaseService;
 
       const brokenLease = new WorkerLeaseService(brokenDb);

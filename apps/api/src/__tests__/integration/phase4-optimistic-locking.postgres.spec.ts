@@ -344,16 +344,16 @@ describe('TEST 6 — Stale timestamp after successful update → 409', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TEST 7: Product does not exist → 404
+// TEST 7: Product does not exist → 403 (non-enumerating access boundary)
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('TEST 7 — Product does not exist → 404', () => {
+describe('TEST 7 — Product does not exist → 403 (non-enumerating access boundary)', () => {
   it('updateProduct on missing product throws NotFoundException', async () => {
     try {
       await updateProduct(randomUUID(), { title: 'Ghost' }, new Date().toISOString());
       expect.fail('Should have thrown');
     } catch (err: any) {
-      expect(err.status).toBe(404);
+      expect(err.status).toBe(403);
     }
   });
 });

@@ -319,16 +319,16 @@ describe('T14 — Combined productTypeId + identifiers', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// T11: Missing product → 404
+// T11: Missing product → 403 (non-enumerating access boundary)
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('T11 — Missing product', () => {
+describe('T11 — Missing product → 403 (non-enumerating access boundary)', () => {
   it('updateProduct on nonexistent product → 404', async () => {
     try {
       await updateProduct(randomUUID(), { gtin: 'X' });
       expect.fail('Should have thrown');
     } catch (err: any) {
-      expect(err.status).toBe(404);
+      expect(err.status).toBe(403);
     }
   });
 });

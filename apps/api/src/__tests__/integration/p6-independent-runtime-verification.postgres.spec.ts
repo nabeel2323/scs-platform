@@ -114,10 +114,17 @@ beforeAll(async () => {
   await pool.query(`INSERT INTO stores (id, org_id, slug, display_name) VALUES ($1, $2, 'store-a', 'Store A')`, [storeA, orgX]);
   await pool.query(`INSERT INTO stores (id, org_id, slug, display_name) VALUES ($1, $2, 'store-b', 'Store B')`, [storeB, orgX]);
   await pool.query(`INSERT INTO stores (id, org_id, slug, display_name) VALUES ($1, $2, 'store-y', 'Store Y')`, [storeY, orgY]);
+  await pool.query(
+    `INSERT INTO store_members (id, store_id, user_id, role, status) VALUES
+      ($1, $2, $3, 'OWNER', 'ACTIVE'),
+      ($4, $5, $6, 'OWNER', 'ACTIVE'),
+      ($7, $8, $9, 'OWNER', 'ACTIVE')`,
+    [randomUUID(), storeA, merchantAId, randomUUID(), storeB, merchantBId, randomUUID(), storeY, merchantYId],
+  );
 
-  merchantA = { sub: merchantAId, role: 'MERCHANT', activeOrg: orgX };
-  merchantB = { sub: merchantBId, role: 'MERCHANT', activeOrg: orgX };
-  merchantY = { sub: merchantYId, role: 'MERCHANT', activeOrg: orgY };
+  merchantA = { sub: merchantAId, role: 'MERCHANT_OWNER', activeOrg: orgX };
+  merchantB = { sub: merchantBId, role: 'MERCHANT_OWNER', activeOrg: orgX };
+  merchantY = { sub: merchantYId, role: 'MERCHANT_OWNER', activeOrg: orgY };
   adminCaller = { sub: adminId, role: 'ADMIN', activeOrg: orgX };
 
   productTypeId = randomUUID();

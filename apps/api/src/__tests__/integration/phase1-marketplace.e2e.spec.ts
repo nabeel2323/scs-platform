@@ -789,7 +789,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     });
 
     it('PENDING_CONFIRMATION → ACCEPTED', async () => {
-      const result = await ordersService.acceptOrder(freshOrderId, merchantA);
+      const result = await ordersService.acceptOrder(freshOrderId, merchantA, callerA());
       expect(result.status).toBe('ACCEPTED');
     });
 
@@ -897,7 +897,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
 
       const result = await ordersService.partiallyAcceptOrder(partialId!, merchantA, [
         { itemId, qtyConfirmed: 2 },
-      ]);
+      ], callerA());
       expect(result.status).toBe('PARTIALLY_ACCEPTED');
 
       const preparing = await ordersService.transitionStatus(

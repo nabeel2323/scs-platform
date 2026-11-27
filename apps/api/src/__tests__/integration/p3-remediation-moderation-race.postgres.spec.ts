@@ -68,6 +68,17 @@ describe('P3-19 Remediation — Moderation concurrency race', () => {
       { id: merchantId, fullName: 'Race Merchant', phone: '+19990000089' },
     ]);
     await db.insert(stores).values({ id: storeId, orgId, slug: 'race-store', displayName: 'Race Store' });
+    await pool.query(
+      `INSERT INTO roles (id, key, name) VALUES ($1, 'MERCHANT_OWNER', 'Merchant Owner')
+       ON CONFLICT (key) DO NOTHING`,
+      [randomUUID()],
+    );
+    const merchantRole = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_OWNER' LIMIT 1`);
+    await pool.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status)
+       VALUES ($1, $2, $3, $4, 'ACTIVE')`,
+      [randomUUID(), orgId, merchantId, merchantRole.rows[0].id],
+    );
     await db.insert(storeMembers).values({
       storeId,
       userId: merchantId,
