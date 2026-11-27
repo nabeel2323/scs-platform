@@ -7,7 +7,7 @@ SET shipment_id = NULL,
     processing_error = CASE
       WHEN processing_error IS NULL OR btrim(processing_error) = ''
         THEN 'Legacy webhook had no credential binding; shipment link detached for manual review'
-      ELSE left(processing_error || E'\nLegacy webhook had no credential binding; shipment link detached for manual review', 2000)
+      ELSE left(processing_error, 1800) || E'\nLegacy webhook had no credential binding; shipment link detached for manual review'
     END
 WHERE credential_id IS NULL
   AND shipment_id IS NOT NULL;

@@ -43,6 +43,8 @@ describe('Migration 0077 — legacy carrier webhook manual review', () => {
     const processedLegacy = randomUUID();
     const credentialBound = randomUUID();
     const unlinkedLegacy = randomUUID();
+    const longErrorLegacy = randomUUID();
+    const longError = 'x'.repeat(1900);
     const shipment = randomUUID();
     const credential = randomUUID();
     const processedAt = new Date('2026-11-20T12:00:00.000Z');
@@ -54,8 +56,9 @@ describe('Migration 0077 — legacy carrier webhook manual review', () => {
        ($1, NULL, $5, NULL, false, NULL),
        ($2, NULL, $5, NULL, true, $6),
        ($3, $7, $5, NULL, false, NULL),
-       ($4, NULL, NULL, NULL, false, NULL)`,
-      [pendingLegacy, processedLegacy, credentialBound, unlinkedLegacy, shipment, processedAt, credential],
+       ($4, NULL, NULL, NULL, false, NULL),
+       ($8, NULL, $5, $9, false, NULL)`,
+      [pendingLegacy, processedLegacy, credentialBound, unlinkedLegacy, shipment, processedAt, credential, longErrorLegacy, longError],
     );
 
     await pool.query(MIGRATION);
@@ -84,5 +87,10 @@ describe('Migration 0077 — legacy carrier webhook manual review', () => {
     const unlinked = byId.get(unlinkedLegacy) as any;
     expect(unlinked.shipment_id).toBeNull();
     expect(unlinked.processing_error).toBeNull();
+
+    const longErrorRow = byId.get(longErrorLegacy) as any;
+    expect(longErrorRow.shipment_id).toBeNull();
+    expect(longErrorRow.processing_error).toContain('manual review');
+    expect(longErrorRow.processing_error.length).toBeLessThanOrEqual(2000);
   });
 });
