@@ -602,22 +602,35 @@ describe('M7.3-B.3.4 — Delivered-After-Cancel + Mutex Separation (PostgreSQL)'
   async function withHeldFirstCycle(
     run: (release: () => void) => Promise<void>,
   ): Promise<void> {
-    const realExecute = dbService.db.execute.bind(dbService.db);
+    const realWithActorContext = dbService.withActorContext.bind(dbService);
     let n = 0;
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
-    (dbService.db as any).execute = async (query: any) => {
-      // Capture the index BEFORE awaiting — a second concurrent cycle would
-      // otherwise bump `n` and let the first cycle escape the gate.
-      const myCall = ++n;
-      const result = await (realExecute as any)(query);
-      if (myCall === 1) await gate;
-      return result;
-    };
+    // DatabaseService.db resolves to a transaction-bound Drizzle handle inside
+    // withActorContext. Intercept that scoped handle, not the root pool handle,
+    // or the test's barrier will never observe the worker's claim query.
+    (dbService as any).withActorContext = (context: any, operation: () => Promise<unknown>) =>
+      realWithActorContext(context, async () => {
+        const scopedDb = dbService.db;
+        const realExecute = scopedDb.execute.bind(scopedDb);
+        (scopedDb as any).execute = async (query: any) => {
+          // Capture the index BEFORE awaiting — a second concurrent cycle would
+          // otherwise bump `n` and let the first cycle escape the gate.
+          const myCall = ++n;
+          const result = await (realExecute as any)(query);
+          if (myCall === 1) await gate;
+          return result;
+        };
+        try {
+          return await operation();
+        } finally {
+          (scopedDb as any).execute = realExecute;
+        }
+      });
     try {
       await run(release);
     } finally {
-      (dbService.db as any).execute = realExecute;
+      (dbService as any).withActorContext = realWithActorContext;
     }
   }
 
