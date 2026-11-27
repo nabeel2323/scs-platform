@@ -7,7 +7,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Pool, type PoolClient } from 'pg';
-import { acquireMigrationLock, releaseMigrationLock } from '../../src/common/database/migration-lock';
+import {
+  acquireMigrationLock,
+  releaseMigrationLock,
+} from '../../src/common/database/migration-lock';
 import { readMigrationDatabaseIdentity } from './migration-identity';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../infra/drizzle/migrations');
