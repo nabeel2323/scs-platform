@@ -1,3 +1,31 @@
+# Post-merge continuation checkpoint — 27 November 2026
+
+## Current repository state
+
+- PR #170 is **MERGED** into `develop` at `d078fe0124ac04fb0da3fc26f3ff02306c45a33f`. Tested implementation head `5ba67eb00810d4419b0dfb901596a1eb948b8595` passed all ten mandatory CI #1707 jobs (run `46048745793`); only documentation updates followed before merge. k6 and staging-release jobs were skipped.
+- PR #138 remains **OPEN / DRAFT / UNMERGED** at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; source and preservation branches remain identical. It is recovery/source material only. Never merge it wholesale, force-push, reset or delete either ref.
+- Active bounded follow-up branch: `remediation/g002-post-merge-followups-2026-11-27`, created from post-merge `develop`.
+
+## G-002 follow-up batch authored (verification pending)
+
+- `.github/workflows/db-access-audit.yml` checks out `${{ github.sha }}`, the immutable revision selected for workflow_dispatch, rather than always checking out `develop`. The protected `staging` environment remains required; this workflow has NOT been dispatched.
+- `apps/api/infra/drizzle/migrate-pg.ts` records non-secret session/effective migration identity metadata from the exact PoolClient used by the migration runner. It also validates the historical 0013/0018 analytics ledger relationship and verifies pg_partman retention state before trusting those ledger rows. Diagnostics are non-fatal; inconsistent migration state fails closed before new migrations apply.
+- `apps/api/src/__tests__/integration/migration-lock.postgres.spec.ts` covers migration identity metadata and session advisory-lock serialization/release using disposable PostgreSQL. It reuses the canonical lock helper under `src/common/database`.
+- No staging/production database writes, migrations, grants/default-ACL/RLS changes or protected workflow dispatch occurred. CI for this branch has not yet run.
+
+## Reconciliation decisions
+
+- Preserve newer `develop` code for DatabaseService's lazy actor-context storage, tenant scope/interceptor, safe non-polling OutboxDispatcher, request-log/OTP redaction, catalog-import actor-context boundaries and Orders schema. PR #138's versions of these files are stale or regress current safeguards; do not copy them back.
+- Migration 0070 filename collision is already resolved in merged `develop`: G-020 search_path guard remains in develop's 0070; privilege/default-ACL revocations are isolated in 0076. Do not reintroduce PR #138's combined 0070. Keep develop's 0071 claim-lease DDL.
+- Exclude all scratch artifacts, test-token.txt and the bootstrap-token issuer.
+
+## Next work
+
+1. Complete G-002 source inventory: raw SQL, functions/triggers/partitions, exact operation ownership predicates, FK-to-tenant crosswalk, and worker/bootstrap/CLI/audit/realtime actor-context nesting.
+2. Review the protected read-only audit path and capture the actual migration identity only through its authorized staging environment. Do not dispatch it automatically.
+3. Prepare the dedicated least-privilege API/migration role and verified TLS rollout. Historical Render evidence reports API `postgres`, BYPASSRLS and TLS disabled; RLS is ineffective under that identity. Do not deploy the fail-closed runtime guard or apply RLS/grant migrations until role ownership, migration identity, rollback and TLS are verified.
+4. Finish grouped source/test changes, then run one consolidated exact-head CI campaign. No per-fix CI, reviewers or redundant Vercel builds.
+
 # PR #138 Integration Continuation Checkpoint
 
 **Updated:** 2026-11-26 UTC  
