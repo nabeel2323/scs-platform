@@ -3283,3 +3283,14 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
 - The same CI log still reports further failures in delivery-exception/RTS integration tests, carrier reconciliation race tests, Product CRUD tenant fixtures, and catalog/order unit fixtures. Continue source-level grouping; do not waive tenant/actor guards or rerun per-fix CI.
 - PR #138 source and preservation refs were re-compared and remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01` (0 ahead / 0 behind). PR #138 remains OPEN / DRAFT / UNMERGED; never merge it wholesale.
 - PR #170 remains OPEN / DRAFT / UNMERGED against `develop`. No staging/production writes, migrations, RLS/grant changes, provider calls, worker activation, Render mutations, deployments, restarts, releases or reviewer requests were made. Keep the staging-release safety hold disabled.
+
+
+## Shipping eligibility fixture alignment — 27 November 2026
+
+- Reviewed the API integration failure details from exact-head CI #1659 (run ID `45914688537`). The delivery-exception and RTS PostgreSQL suites construct OrdersService without its optional ShippingService dependency, but their setup helpers call `assignDriver`; the production method correctly fails closed when driver-eligibility validation is unavailable.
+- Added a narrow test-only shipping collaborator to both suites. It resolves `assertDriverEligibleForStore` for the explicitly seeded driver, because these suites exercise delivery-exception/RTS behavior rather than ShippingService's eligibility policy:
+  - `m73b5-rts-reconciliation.postgres.spec.ts` — commit `fb6de7e4ce1305ce2da121f411eddc5939e9e81d`.
+  - `m73b4-delivery-exceptions.postgres.spec.ts` — commit `c80e652e708e4d523169eaf9a741bdb44edc0dc9`.
+- No production code or authorization/tenant guard was changed. No local test runner is available through the connected GitHub tools; these fixture changes remain **UNVERIFIED** until consolidated exact-head CI.
+- Current PR #170 head after this batch: `c80e652e708e4d523169eaf9a741bdb44edc0dc9`; it remains OPEN / DRAFT / UNMERGED against `develop`. GitHub currently reports `mergeable=false`; investigate/reconcile this before any merge consideration. PR #138 and its preservation branch remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01` and must never be merged wholesale.
+- Do not dispatch per-fix CI. Continue source-reviewed grouped API fixture repairs, then one consolidated exact-head mandatory CI run. Keep the staging-release safety hold disabled. No staging/production database changes, migrations, RLS/grant/default-ACL changes, provider calls, worker activation, Render mutations, deployments, restarts, releases or reviewer requests.
