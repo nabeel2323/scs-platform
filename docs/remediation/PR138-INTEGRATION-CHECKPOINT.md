@@ -45,3 +45,17 @@
 - Candidate follow-up fixes reviewed against exact-head run #1621. Web/Admin failures: permission-dependent hydration landmark and quote-normalization mismatch. API failures: actor-context test wrappers, M7.1 test-only shipping eligibility injection, M7.2.2 unsupported INACTIVE membership state, checkout currency fixture rows, catalog canonical/private fixture collision, and webhook dedup tests that predate migration 0072 credential scoping.
 - Follow-up batch is being assembled as one commit on `integration/pr138-bulk-remediation-2026-11-26`; it must be validated on its exact commit SHA before PR #170 can be considered merge-ready.
 - Keep staging-release predicate hard-disabled. Do not merge PR #138 wholesale; it remains the preserved source/recovery branch. PR #170 stays draft. No deployment, staging/prod DB writes, Render edits, or reviewer requests.
+
+
+## Consolidated fixture repair checkpoint — 27 November 2026
+
+- Reviewed exact-head CI run #1659 (run ID 45914688537) on code head `a39acd446767d071eea2b175d1341897c9c6b3e4`. Lint/typecheck, Flutter, Web/Admin tests, migration full apply and E6 boundary lint passed; API integration and Unit/Coverage failed. Staging release was skipped. Historical CI is diagnostic only for later commits.
+- The run exposed missing explicit CallerContext arguments in transaction-lifecycle accept/partial-accept tests, misplaced DatabaseService.withActorContext mocks in OrdersService unit tests, and a checkout MOQ test that changed product.moq while the current contract validates the selected merchant offer's MOQ.
+- Grouped corrections pushed to the integration branch (all use `[skip ci]` to avoid premature duplicate CI):
+  - `2b9cc406aafd36c0414399bbce21663a377c3f35`: place actor-context wrapper on the DatabaseService mock in OrdersService unit tests.
+  - `526cf957bf4b1810737021681546408a31e9a96b`: pass the explicit caller context to acceptOrder and partiallyAcceptOrder in transaction-lifecycle integration tests.
+  - `00375d43f5f206f1d5807eb089fabd5fc7aff6a5`: align the checkout MOQ fixture's initial and locked merchant-offer snapshots with the tested MOQ.
+- No local test runner is available through the connected GitHub tooling. These changes are not claimed as passing; they remain VERIFICATION_PENDING until the next consolidated exact-head CI.
+- The same CI log still reports further failures in delivery-exception/RTS integration tests, carrier reconciliation race tests, Product CRUD tenant fixtures, and catalog/order unit fixtures. Continue source-level grouping; do not waive tenant/actor guards or rerun per-fix CI.
+- PR #138 source and preservation refs were re-compared and remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01` (0 ahead / 0 behind). PR #138 remains OPEN / DRAFT / UNMERGED; never merge it wholesale.
+- PR #170 remains OPEN / DRAFT / UNMERGED against `develop`. No staging/production writes, migrations, RLS/grant changes, provider calls, worker activation, Render mutations, deployments, restarts, releases or reviewer requests were made. Keep the staging-release safety hold disabled.
