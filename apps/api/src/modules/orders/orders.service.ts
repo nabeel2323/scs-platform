@@ -4764,29 +4764,22 @@ export class OrdersService {
       );
     }
 
-    // Atomically record buyer confirmation (optimistic lock)
-    const flipResult = await this.db.db
-      .update(orders)
-      .set({ buyerConfirmedAt: new Date(), updatedAt: new Date() })
-      .where(
-        and(
-          eq(orders.id, orderId),
-          eq(orders.status, 'DELIVERED'),
-          sql`${orders.buyerConfirmedAt} IS NULL`,
-        ),
-      )
-      .returning({ id: orders.id });
-
-    if (flipResult.length === 0) {
-      // Race: another confirmation already happened — idempotent
-      const current = await this.getOrder(orderId);
-      if (current['status'] === 'COMPLETED') {
-        return this.getOrderWithItems(orderId, caller);
+    // The buyer-confirmation timestamp and DELIVERED → COMPLETED transition
+    // must commit together. completeOrder applies both in one transaction and
+    // fences concurrent confirmations with buyerConfirmedAt IS NULL.
+    try {
+      return await this.completeOrder(orderId, userId, 'BUYER', 'BUYER_CONFIRMATION');
+    } catch (error) {
+      // Preserve idempotent confirmation semantics when another request wins
+      // the transactional compare-and-set first.
+      if (error instanceof ConflictException) {
+        const current = await this.getOrder(orderId);
+        if (current['status'] === 'COMPLETED') {
+          return this.getOrderWithItems(orderId, caller);
+        }
       }
-      throw new ConflictException('Delivery confirmation already processed');
+      throw error;
     }
-
-    return this.completeOrder(orderId, userId, 'BUYER', 'BUYER_CONFIRMATION');
   }
 
   /**
@@ -4831,6 +4824,7 @@ export class OrdersService {
         .where(and(
           eq(orders.id, orderId),
           eq(orders.status, order['status']),
+          ...(source === 'BUYER_CONFIRMATION' ? [sql`${orders.buyerConfirmedAt} IS NULL`] : []),
           ...(autoCompleteClaimOwner
             ? [
                 eq(orders.autoCompleteClaimedBy, autoCompleteClaimOwner),
