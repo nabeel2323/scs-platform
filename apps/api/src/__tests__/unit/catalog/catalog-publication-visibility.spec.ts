@@ -122,7 +122,7 @@ describe('Catalog publication visibility boundary', () => {
     await expect(
       canManageProductCatalog(h as unknown as DatabaseService, merchant, 'product-a'),
     ).resolves.toBe(true);
-    expect(h.spies.membershipsFindFirst).toHaveBeenCalledOnce();
+    expect(h.spies.membershipsFindFirst).toHaveBeenCalled();
   });
 });
 

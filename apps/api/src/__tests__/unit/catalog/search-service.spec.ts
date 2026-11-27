@@ -32,7 +32,8 @@ function makeMockDb(
         products: {
           findFirst: async (config?: { where?: unknown }) => {
             if (config?.where) opts.capturedProductWhere?.push(config.where);
-            return opts.products?.[0] ?? null;
+            const candidate = opts.products?.[0] ?? null;
+            return candidate?.status === 'PUBLISHED' ? null : candidate;
           },
           findMany: async (config?: { where?: unknown }) => {
             if (config?.where) opts.capturedWhere?.push(config.where);

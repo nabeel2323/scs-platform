@@ -376,7 +376,7 @@ describe('CatalogOfferService — conditional ownership predicates (G-002)', () 
     const compiled = new PgDialect().sqlToQuery(updateConditions[0] as SQL);
     expect(compiled.params).toContain('o1');
     expect(compiled.params).toContain('s1');
-    expect(compiled.params).toContain(updatedAt);
+    expect(compiled.params.some((value) => new Date(value as any).getTime() === updatedAt.getTime())).toBe(true);
   });
 
   it('uses the previously-read lifecycle status as a compare-and-set predicate for governance transitions', async () => {

@@ -286,6 +286,7 @@ describe('Shipping and carrier tenant context', () => {
     const storeTenantContext = vi.fn().mockResolvedValue({ id: 'store-a', orgId: 'org-a' });
     const worker = Object.create(ShippingCarrierWorker.prototype) as any;
     worker.merchant = { getStoreTenantContextForSystem: storeTenantContext };
+    worker.db = { currentActorContext: null, withActorContext: runActorContext };
 
     await expect(
       worker.assertOutboxTenantMatchesShipment(
@@ -301,6 +302,7 @@ describe('Shipping and carrier tenant context', () => {
     const storeTenantContext = vi.fn().mockResolvedValue({ id: 'store-a', orgId: 'org-a' });
     const worker = Object.create(ShippingCarrierWorker.prototype) as any;
     worker.merchant = { getStoreTenantContextForSystem: storeTenantContext };
+    worker.db = { currentActorContext: null, withActorContext: runActorContext };
 
     await expect(
       worker.assertOutboxTenantMatchesShipment(

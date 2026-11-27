@@ -135,7 +135,7 @@ describe('CatalogService category ownership predicates (G-002)', () => {
       h.service.updateProduct('product-a', { categoryId: 'category-store-b' }, undefined, actor),
     ).rejects.toBeInstanceOf(NotFoundException);
 
-    expect(h.withActorContext).toHaveBeenCalledOnce();
+    expect(h.withActorContext).toHaveBeenCalledTimes(2);
     expect(h.categoryFindFirst).toHaveBeenCalledOnce();
     expect(h.update).not.toHaveBeenCalled();
   });

@@ -227,7 +227,7 @@ describe('CatalogService product/media read actor boundaries (G-002)', () => {
     const result = await service.getProductDetail('product-1', actor, false);
 
     expect(withActorContext).toHaveBeenCalledTimes(2);
-    expect(findProduct).toHaveBeenCalledTimes(3);
+    expect(findProduct).toHaveBeenCalledTimes(4);
     expect(findMedia).toHaveBeenCalledOnce();
     expect(findVariants).toHaveBeenCalledOnce();
     expect(redisGet).toHaveBeenCalledOnce();

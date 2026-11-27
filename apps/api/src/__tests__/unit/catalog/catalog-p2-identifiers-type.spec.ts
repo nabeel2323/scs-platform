@@ -105,6 +105,11 @@ function makeMockDb(opts: MockOpts) {
     let selectCallCount = 0;
     const smartTx = {
       ...tx,
+      query: {
+        products: { findFirst: productsFindFirst },
+        productTypes: { findFirst: vi.fn().mockResolvedValue(productType) },
+        productVariants: { findFirst: vi.fn().mockResolvedValue(null) },
+      },
       select: (cols?: any) => {
         selectCallCount++;
         // First select = FOR UPDATE lock (returns product row)

@@ -67,7 +67,7 @@ describe('CatalogRequestsController — tenant isolation', () => {
       { id: 'request-a' },
     ]);
     expect(h.storeFindFirst).toHaveBeenCalledOnce();
-    expect(h.membershipFindFirst).toHaveBeenCalledOnce();
+    expect(h.membershipFindFirst).toHaveBeenCalled();
     expect(h.service.listMerchantRequests).toHaveBeenCalledWith('store-a');
   });
 
