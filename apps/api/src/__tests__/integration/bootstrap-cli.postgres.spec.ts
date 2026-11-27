@@ -162,7 +162,7 @@ describe('Bootstrap CLI issuance (PostgreSQL)', () => {
   it('sets a transaction-local bootstrap operator principal for the issuance audit', async () => {
     await seedRbacAndOrg(pool);
     await pool.query(`
-      CREATE FUNCTION capture_bootstrap_actor_context() RETURNS trigger AS $
+      CREATE FUNCTION capture_bootstrap_actor_context() RETURNS trigger AS $capture$
       BEGIN
         NEW.metadata = COALESCE(NEW.metadata, '{}'::jsonb) ||
           jsonb_build_object(
@@ -171,7 +171,7 @@ describe('Bootstrap CLI issuance (PostgreSQL)', () => {
           );
         RETURN NEW;
       END;
-      $ LANGUAGE plpgsql
+      $capture$ LANGUAGE plpgsql
     `);
     await pool.query(`
       CREATE TRIGGER capture_bootstrap_actor_context
