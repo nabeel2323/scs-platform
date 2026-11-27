@@ -129,9 +129,9 @@ function createMocks() {
       // Checkout fixtures use two active, verified stores by default. Tests
       // covering unreadable seller metadata explicitly override this with [].
       stores: {
+        // Most checkout cases use STORE_1 only; multi-store cases override this fixture.
         findMany: vi.fn().mockResolvedValue([
           { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
-          { id: STORE_2, currency: 'SAR', orgId: 'org-2', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
         ]),
       },
       // A4-4: transitions now consult the stock ledger before writing the status.
@@ -246,7 +246,6 @@ describe('Checkout Integration', () => {
       mocks.db.query.merchantOffers.findMany.mockResolvedValue([originalOffer]);
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
-      // First FOR UPDATE result
       // First FOR UPDATE result is the product row; second is the current offer row.
       mocks.db.query.stores.findMany.mockResolvedValue([
         { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
@@ -318,9 +317,6 @@ describe('Checkout Integration', () => {
         { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
       ]);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
-      mocks.db.query.stores.findMany.mockResolvedValue([
-        { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
-      ]);
 
       await checkoutAsBuyer(service, {
         buyerId: BUYER_ID,
@@ -346,6 +342,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       mocks.db.query.stores.findMany.mockResolvedValue([
         { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+        { id: STORE_2, currency: 'SAR', orgId: 'org-2', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
       ]);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
