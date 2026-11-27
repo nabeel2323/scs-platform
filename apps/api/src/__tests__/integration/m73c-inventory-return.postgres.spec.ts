@@ -154,7 +154,10 @@ describe('M7.3-C — Inventory Return-to-Stock (PostgreSQL)', () => {
     outbox = new OutboxDispatcher(database);
     const promotions = new PromotionsService(database);
     inventoryService = new InventoryService(database, outbox);
-    ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications);
+    // These inventory-return tests exercise delivery/return behavior, not carrier policy.
+    // Keep the explicit fail-closed driver-eligibility dependency available in the harness.
+    const shipping = { assertDriverEligibleForStore: vi.fn().mockResolvedValue(undefined) } as any;
+    ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications, shipping);
 
     const roles = await poolRef.query(`SELECT id, key FROM roles`);
     const roleById = new Map(roles.rows.map((r: any) => [r.key, r.id] as const));

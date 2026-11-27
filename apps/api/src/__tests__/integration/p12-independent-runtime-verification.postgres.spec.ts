@@ -73,8 +73,8 @@ describe('P12 Independent Runtime Verification', () => {
   const adminUser = randomUUID();
   const modUser = randomUUID();
 
-  const callerBuyerA: CallerContext = { sub: buyerA, role: null, activeOrg: null };
-  const callerBuyerB: CallerContext = { sub: buyerB, role: null, activeOrg: null };
+  const callerBuyerA: CallerContext = { sub: buyerA, role: 'BUYER', activeOrg: null };
+  const callerBuyerB: CallerContext = { sub: buyerB, role: 'BUYER', activeOrg: null };
   const callerAdmin: CallerContext = { sub: adminUser, role: 'ADMIN', activeOrg: null };
   const callerMod: CallerContext = { sub: modUser, role: 'MODERATOR', activeOrg: null };
   const callerMerchA1: CallerContext = { sub: merchantA1, role: 'MERCHANT_OWNER', activeOrg: orgA };
