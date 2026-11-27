@@ -124,7 +124,7 @@ describe('Shipping and carrier tenant context', () => {
       },
     };
 
-    await expect(service.resolveForStore('org-a', 'store-b')).resolves.toBeNull();
+    await expect(service.resolveForStore('org-a', 'store-b', 'aramex')).resolves.toBeNull();
     expect(configFindFirst).not.toHaveBeenCalled();
   });
 
@@ -149,7 +149,7 @@ describe('Shipping and carrier tenant context', () => {
       },
     };
 
-    await expect(service.resolveForStore('org-a', 'store-a')).resolves.toBeNull();
+    await expect(service.resolveForStore('org-a', 'store-a', 'aramex')).resolves.toBeNull();
     expect(credentialFindFirst).toHaveBeenCalled();
   });
 
@@ -187,7 +187,7 @@ describe('Shipping and carrier tenant context', () => {
       NonRetryableCarrierError,
     );
 
-    expect(resolveForStore).toHaveBeenCalledWith('org-a', 'store-a');
+    expect(resolveForStore).toHaveBeenCalledWith('org-a', 'store-a', 'aramex');
     expect(provider.credentials.decryptCredentials).not.toHaveBeenCalled();
   });
 

@@ -277,14 +277,14 @@ suite('S1.7 — Cross-instance distributed throttling (REAL Redis)', () => {
     // All should have been processed (no crashes).
     expect(results).toHaveLength(20);
 
-    // Once the limit is exceeded, blocked requests don't increment the counter
-    // (they return early from the Lua script). So totalHits will be somewhere
-    // between limit+1 and 20, depending on timing.
-    const lastResult = results[results.length - 1]!;
-    expect(lastResult.totalHits).toBeGreaterThanOrEqual(limit + 1);
-    expect(lastResult.totalHits).toBeLessThanOrEqual(20);
+    // Promise.all preserves input order, not Redis execution order. The final
+    // array element is therefore not necessarily the request that crossed the
+    // limit. The atomic Lua script increments exactly once beyond the limit,
+    // sets the block key, and makes all later requests return that same count.
+    const maximumObservedHits = Math.max(...results.map((result) => result.totalHits));
+    expect(maximumObservedHits).toBe(limit + 1);
 
-    // At least some should be blocked (those after the limit was exceeded).
+    // At least some requests must observe the active block.
     const blockedCount = results.filter((r: { isBlocked: boolean }) => r.isBlocked).length;
     expect(blockedCount).toBeGreaterThan(0);
   });

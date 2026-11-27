@@ -270,3 +270,21 @@ The newest dated entries in the checkpoint and progress tracker override older h
 - Exact-head CI #1713 (run `46062206421`, attempt 2) passed all 10 mandatory jobs for PR #172, including unit/coverage, PostgreSQL integration, migration full apply, E6, build and container smoke. The initial container-smoke attempt encountered a transient PostgreSQL shutdown during disposable-service setup; only that failed job was rerun, and it passed. k6 and staging-release jobs were skipped. No staging/production migrations, database writes, worker activation, provider calls, Render changes, deployments, restarts or releases occurred.
 - G-002 remains IN PROGRESS / NOT VERIFIED overall. Previously confirmed protected read-only migration identity was postgres with BYPASSRLS, CREATEROLE and CREATEDB; latest historical API runtime evidence was also postgres with BYPASSRLS and TLS disabled. Migration TLS has not been confirmed. Do not enable RLS or deploy fail-closed guards until least-privilege role ownership/ACL and TLS transition are separately prepared and authorized.
 - G-001 independent security review remains PARTIAL; G-007 buyer journey/order-detail UAT remains pending. No reviewers are required. Keep PR #138 protected and batch related changes to avoid redundant CI.
+
+
+## Latest continuation — PR #173 carrier provider binding and CI correction (28 November 2026)
+
+- PR #173 targets `develop` and contains the G-002 carrier-configuration provider-binding fix. The source requires provider-scoped configuration lookup, checks that the linked credential is active and matches both organization and provider, rejects mismatched credential/provider pairs on creation, and makes the Aramex adapter request only the Aramex configuration.
+- Exact PR head `5acd0d5822f947a08524527e48eb531c1b778378` ran CI #1716 (`46069073203`). Lint/typecheck, mobile, PostgreSQL integration, E6, Web/Admin and full migration apply passed. API Unit/Coverage failed one stale assertion in `shipping-tenant-context.spec.ts`: the Aramex provider now correctly calls `resolveForStore(orgId, storeId, 'aramex')`, while the test expected only two arguments.
+- Corrected all three legacy call/expectation sites in that unit spec. Fix commit: `bb2b7edc4d045d25daf3c8de1e7b07f818c74303`. This is test-only; provider/tenant validation remains unchanged. The correction is **NOT YET VERIFIED** by a new exact-head CI run.
+- PR #173 branch compares 3 commits ahead / 0 behind `develop` at base `bb39cb6488acd958a6079b60c2da4a2cfdbcab28`. PR remains OPEN / DRAFT / UNMERGED. Do not merge until a consolidated exact-head CI passes.
+- PR #138 remains OPEN / DRAFT / UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; its preservation branch is identical. Never merge or rewrite either ref.
+- No reviewers, no per-fix CI, and no Vercel retry for the admin build-rate-limit status. No staging/production DB writes or migrations, RLS/grant/default-ACL changes, provider calls, worker activation, Render mutations, deployments, restarts or releases.
+
+
+## 28 November 2026 — PR #173 integration CI triage
+
+- CI #1717 (46074130374) on code/test head bb2b7edc4d045d25daf3c8de1e7b07f818c74303 passed lint/typecheck, Mobile, Web/Admin, E6, API Unit/Coverage and Migration Full Apply. API Integration had one failure in cross-instance-throttling.spec.ts: the test asserted that the last Promise.all input had the threshold-crossing count, which is invalid because Promise.all preserves input order, not Redis execution order.
+- Reviewed the atomic Redis Lua script and corrected the test to assert the maximum observed count is exactly limit + 1, with at least one blocked result. This checks the intended atomic behavior without depending on scheduling.
+- Test-only correction commit: 442d993e569eb77c435256ac0300c322600bb9d8. It is NOT YET VERIFIED. Continue grouped source review and run one consolidated exact-head CI only after the batch is complete.
+- PR #173 remains OPEN / DRAFT / UNMERGED. PR #138 and its preservation branch remain identical at 81f30f5c30654b233ef373c15fd3f2cb867aba01; never merge PR #138 wholesale. No reviewers, extra Vercel builds, or staging/production operations.
