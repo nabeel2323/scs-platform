@@ -227,8 +227,8 @@ describe('M7.3-B.3.3.2.2 — Retry-After Header Parsing (PostgreSQL)', () => {
 
     // Mark as PROCESSING (simulating claim)
     await pool.query(
-      `UPDATE outbox_events SET status = 'PROCESSING', locked_at = NOW(), locked_by = 'test-worker' WHERE id = $1`,
-      [eventId],
+      `UPDATE outbox_events SET status = 'PROCESSING', locked_at = NOW(), locked_by = $2 WHERE id = $1`,
+      [eventId, worker.workerId],
     );
 
     const before = Date.now();
@@ -264,8 +264,8 @@ describe('M7.3-B.3.3.2.2 — Retry-After Header Parsing (PostgreSQL)', () => {
     const { shipmentId, eventId } = await insertShipmentAndEvent('ratelimit-retryafter');
 
     await pool.query(
-      `UPDATE outbox_events SET status = 'PROCESSING', locked_at = NOW(), locked_by = 'test-worker' WHERE id = $1`,
-      [eventId],
+      `UPDATE outbox_events SET status = 'PROCESSING', locked_at = NOW(), locked_by = $2 WHERE id = $1`,
+      [eventId, worker.workerId],
     );
 
     const before = Date.now();
@@ -301,8 +301,8 @@ describe('M7.3-B.3.3.2.2 — Retry-After Header Parsing (PostgreSQL)', () => {
     const { shipmentId, eventId } = await insertShipmentAndEvent('ratelimit-retryafter');
 
     await pool.query(
-      `UPDATE outbox_events SET status = 'PROCESSING', locked_at = NOW(), locked_by = 'test-worker' WHERE id = $1`,
-      [eventId],
+      `UPDATE outbox_events SET status = 'PROCESSING', locked_at = NOW(), locked_by = $2 WHERE id = $1`,
+      [eventId, worker.workerId],
     );
 
     const before = Date.now();
@@ -339,8 +339,8 @@ describe('M7.3-B.3.3.2.2 — Retry-After Header Parsing (PostgreSQL)', () => {
     const { shipmentId, eventId } = await insertShipmentAndEvent('ratelimit-retryafter');
 
     await pool.query(
-      `UPDATE outbox_events SET status = 'PROCESSING', locked_at = NOW(), locked_by = 'test-worker' WHERE id = $1`,
-      [eventId],
+      `UPDATE outbox_events SET status = 'PROCESSING', locked_at = NOW(), locked_by = $2 WHERE id = $1`,
+      [eventId, worker.workerId],
     );
 
     const before = Date.now();
