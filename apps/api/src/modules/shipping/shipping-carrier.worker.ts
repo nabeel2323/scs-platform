@@ -1187,18 +1187,23 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
     let activeOrgId: string | undefined;
     try {
-      // A persisted shipment link does not replace credential ownership. When
-      // the event has a credential binding, validate that credential on every
-      // retry, including already-linked events.
-      const credential = webhookEvent.credentialId
-        ? await this.withWorkerContext(() =>
-            this.db.db.query.carrierCredentials.findFirst({
-              where: eq(carrierCredentials.id, webhookEvent.credentialId!),
-            }),
-          )
-        : null;
+      // A persisted shipment link never substitutes for the credential that
+      // authenticated the inbound webhook. Legacy rows without a credential
+      // binding are quarantined for manual review, even when shipment_id exists.
+      if (!webhookEvent.credentialId) {
+        throw new NonRetryableCarrierError(
+          'Legacy webhook event has no authenticated credential binding; manual review required',
+          { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
+        );
+      }
 
-      if (webhookEvent.credentialId && (!credential || !credential.isActive)) {
+      const credential = await this.withWorkerContext(() =>
+        this.db.db.query.carrierCredentials.findFirst({
+          where: eq(carrierCredentials.id, webhookEvent.credentialId!),
+        }),
+      );
+
+      if (!credential || !credential.isActive) {
         throw new NonRetryableCarrierError(
           'Webhook credential is missing, inactive or was deleted',
           { providerKey: webhookEvent.providerKey, operation: 'webhook.retry' },
