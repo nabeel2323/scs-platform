@@ -102,3 +102,9 @@
 - Commit `ea2e17f011f0503e96a24d2b2094ee244218673c` fixes the P4.1.8 signing-exception test mock to inspect compiled Drizzle SQL, not non-existent `query.sql` fields.
 - Catalog visibility test corrections: `d65e8ad42a4c5d6518eb8167f0850cb65981a12b` and `b88a68dbd5b4ae6435bd8e52a4f2b08cc2bd88e6`. Assertions now match the actor-aware controller/service signature and explicitly verify the active membership predicate.
 - No local tests or CI were run. Keep all changes UNVERIFIED until consolidated exact-head CI.
+
+
+## Shipping tenant validation ordering — 27 November 2026
+
+- Commit `035bd65269c07c6c3a3e447c190932607870b439` moves the event/expected organization comparison immediately after authoritative store tenant resolution and before the order-lineage query. A known organization mismatch is now rejected without requiring an unrelated order lookup; shipment order/store lineage remains enforced before provider side effects.
+- This resolves the fixture's focused-path TypeError without weakening tenant validation. No local test or CI execution; remains UNVERIFIED.
