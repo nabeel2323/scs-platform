@@ -772,10 +772,8 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     let freshOrderId!: string;
 
     beforeAll(async () => {
-      // Create a fresh order for FSM testing
-      await cartService.addItem(buyerA, { variantId, quantity: 1, offerId: offerA });
       // Earlier scenarios may leave another seller's line in buyerA's active cart.
-      // Isolate this lifecycle test so its caller is authorized for the selected store.
+      // Isolate this lifecycle test before adding its storeA item.
       await pool.query(
         `DELETE FROM cart_items WHERE cart_id IN
          (SELECT id FROM carts WHERE user_id = $1 AND status = 'ACTIVE')`,
@@ -785,6 +783,8 @@ describe('Phase 1 — Core Marketplace E2E', () => {
         `UPDATE carts SET status = 'CONVERTED' WHERE user_id = $1 AND status = 'ACTIVE'`,
         [buyerA],
       );
+      // Create a fresh order for FSM testing after the old active cart is closed.
+      await cartService.addItem(buyerA, { variantId, quantity: 1, offerId: offerA });
       const co = await checkoutAsBuyer({
         buyerId: buyerA,
         deliveryAddress: {},
