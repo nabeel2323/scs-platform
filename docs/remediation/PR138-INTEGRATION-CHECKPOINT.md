@@ -78,3 +78,11 @@
 - Source-reviewed the historical Unit/Coverage failure in `m73c-inventory-return.spec.ts`. The cancelled-order case omitted the shipment's matching store lineage in its overridden order fixture, causing the production preflight to correctly fail as “Shipment not found” before the intended CANCELLED-state assertion.
 - Added the matching `storeId` in test-only commit `5cb4d044ea1a8a121b33a3c78238ff13a7b75d7d`. No production code or tenant guard changed.
 - Recorded in the implementation tracker commit `ae0a08d255992400b5b6bb852bdfb3f8fb4a13ca`. No local tests or CI were run; the correction remains unverified. Continue grouped source review and reserve CI for one consolidated exact-head run.
+
+
+## Buyer confirmation atomicity repair — 27 November 2026
+
+- Production defect found while investigating the API Unit/Coverage failure: `confirmDelivery` wrote `buyerConfirmedAt` outside the completion transaction. A later shipment/history/outbox failure could leave a DELIVERED order with a committed confirmation timestamp.
+- Commit `3aa3358e5d213876988bcfe4f20930237873b2b5` moves confirmation into `completeOrder`'s transaction and adds a `buyerConfirmedAt IS NULL` compare-and-set predicate for buyer-confirmation source. A losing concurrent confirmer rereads the order and returns the completed projection if the winner committed.
+- Existing regression test checks the intended rollback boundary; not executed locally. Fix remains UNVERIFIED pending consolidated exact-head CI.
+- Test-only privileged RTS admin fixture was also aligned in commit `3151fc2f460a72fc0b1ef720360618c6093f4e2c`: retain shipment/store lineage, use another org to exercise privileged bypass. No production authorization logic changed.
