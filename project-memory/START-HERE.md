@@ -214,3 +214,11 @@ The newest dated entries in the checkpoint and progress tracker override older h
 - Break the runtime cycle with a narrow notification realtime port/token. NotificationsService now injects the interface via `NOTIFICATION_REALTIME_EMITTER` without importing RealtimeGateway; RealtimeModule binds that token to its existing RealtimeGateway using `useExisting` and exports it. IN_APP persistence and live emit behavior remain intact.
 - This grouped code change is UNVERIFIED until exact-head CI, especially container startup and health checks, pass. No merge/deploy/staging operation.
 - PR #170 remains OPEN / DRAFT / UNMERGED; PR #138 remains protected/unmerged. No reviewers; no staging/production writes, migrations, RLS/grant changes, provider calls, worker activation, deployments, restarts or releases.
+
+
+## CI #1703 container smoke follow-up — second circular barrel import — 27 November 2026
+
+- Run #1703 (`46038700205`) passed Lint/Typecheck, Flutter, Unit/Coverage, Integration, Web/Admin, Migration Full Apply, E6, Contract/Codegen and Build. Container startup progressed past the NotificationsService cycle but failed on a second runtime cycle: `ReferenceError: Cannot access '_ordersservice' before initialization` at `modules/orders/index.js`, imported by `shipping/carrier-webhook-routing.js`.
+- Root cause: `carrier-webhook-routing.ts` imports `OrdersService` through the `../orders/index` barrel. That barrel eagerly re-exports OrdersModule, which imports ShippingModule, which imports CarrierWebhookRoutingService, creating the class initialization cycle. Change only this type/provider import to the direct `../orders/orders.service` module path, bypassing the OrdersModule barrel. Existing `forwardRef(() => OrdersService)` injection remains in place.
+- The previous NotificationsService → RealtimeGateway cycle has been removed using the notification realtime port. The current direct-import correction is not yet verified; rerun exact-head CI and require the container health endpoints to pass.
+- PR #170 remains OPEN / DRAFT / UNMERGED; PR #138 remains protected/unmerged. No reviewers, staging/production writes, migrations, RLS/grant changes, provider calls, worker activation, deployments, restarts or releases.

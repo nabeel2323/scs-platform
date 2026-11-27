@@ -1,6 +1,6 @@
 import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { MerchantService } from '../merchant/index';
-import { OrdersService } from '../orders/index';
+import { OrdersService } from '../orders/orders.service';
 
 export type CarrierWebhookShipmentResolution =
   | { status: 'FOUND'; shipment: any }
