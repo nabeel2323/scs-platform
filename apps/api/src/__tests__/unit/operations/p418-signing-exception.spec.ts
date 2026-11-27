@@ -39,8 +39,9 @@ describe('P13 Phase 4.1.8 — signing exception cannot trigger unsigned delivery
           const compiled = new PgDialect().sqlToQuery(query);
           const isInsert = /INSERT INTO ops_alerts/i.test(compiled.sql);
           const isUpdate = /UPDATE\s+["']?ops_alerts["']?/i.test(compiled.sql);
+          const rowId = isInsert ? compiled.params[0] : compiled.params[compiled.params.length - 1];
           return {
-            rows: isInsert || isUpdate ? [{ id: alertId }] : [],
+            rows: isInsert || isUpdate ? [{ id: rowId }] : [],
             rowCount: isInsert || isUpdate ? 1 : 0,
           };
         }),
