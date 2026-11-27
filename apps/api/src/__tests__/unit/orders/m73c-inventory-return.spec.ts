@@ -277,7 +277,7 @@ describe('M7.3-C — Authorization & tenancy', () => {
   });
 
   it('8. authorizes a platform admin (privileged bypass)', async () => {
-    const { svc } = serviceFor(baseFixture({ store: undefined })); // admin bypasses store lookup
+    const { svc } = serviceFor(baseFixture({ store: { orgId: 'org-other' } })); // admin bypasses store lookup
     const res = await svc.recordReturn('ship-1', line(2, 'GOOD'), ADMIN);
     expect(res.idempotent).toBe(false);
   });
