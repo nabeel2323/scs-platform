@@ -74,7 +74,7 @@ BEGIN
   ) THEN
     RAISE EXCEPTION '0074 preflight: duplicate reconciliation version in the same organization scope';
   END IF;
-END
+END;
 $preflight$;
 
 -- Phase 3.1 stored the previous run ID on the newly-created row. Convert those

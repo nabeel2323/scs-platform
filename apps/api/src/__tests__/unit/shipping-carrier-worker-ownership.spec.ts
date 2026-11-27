@@ -159,3 +159,49 @@ describe('ShippingCarrierWorker event ownership', () => {
     expect(update).not.toHaveBeenCalled();
   });
 });
+
+  
+  it('rejects a linked legacy webhook retry when no authenticated credential binding exists', async () => {
+    const event = {
+      id: 'legacy-webhook-event',
+      providerKey: 'aramex',
+      externalDeliveryId: 'external-legacy-1',
+      credentialId: null,
+      shipmentId: 'shipment-already-linked',
+      processed: false,
+    };
+    const findWebhook = vi.fn().mockResolvedValue(event);
+    const findCredential = vi.fn();
+    const findShipment = vi.fn();
+    const where = vi.fn().mockResolvedValue(undefined);
+    const set = vi.fn().mockReturnValue({ where });
+    const update = vi.fn().mockReturnValue({ set });
+    const database = {
+      db: {
+        query: {
+          carrierWebhookEvents: { findFirst: findWebhook },
+          carrierCredentials: { findFirst: findCredential },
+          shipments: { findFirst: findShipment },
+        },
+        update,
+      },
+      withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
+    };
+    const worker = Object.create(ShippingCarrierWorker.prototype) as any;
+    worker.db = database;
+    worker.logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    worker.observability = { incrementCounter: vi.fn() };
+
+    await expect(worker.handleWebhookRetry({ aggregateId: event.id })).rejects.toThrow(
+      'no authenticated credential binding',
+    );
+
+    expect(findWebhook).toHaveBeenCalledOnce();
+    expect(findCredential).not.toHaveBeenCalled();
+    expect(findShipment).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledOnce();
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({
+      processed: false,
+      processingError: expect.stringContaining('no authenticated credential binding'),
+    }));
+  });
