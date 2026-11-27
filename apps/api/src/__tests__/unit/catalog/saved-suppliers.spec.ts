@@ -20,9 +20,16 @@ import type { SQL } from 'drizzle-orm';
 // ── Mock builder ──────────────────────────────────────────────────
 function createMocks() {
   // select().from().where() chain used by the batched store fetch.
+  const where = vi.fn(() => {
+    // Product-read authorization uses where().limit(1), while the batched
+    // saved-supplier projection awaits where() directly.
+    const result: any = Promise.resolve([]);
+    result.limit = vi.fn().mockResolvedValue([]);
+    return result;
+  });
   const selectChain = {
     from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockResolvedValue([]),
+    where,
   };
 
   const db = {
