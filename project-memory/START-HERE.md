@@ -18,7 +18,7 @@ The progress tracker and integration checkpoint are authoritative for the curren
 
 - PR #170 is **OPEN / DRAFT / UNMERGED**, targeting `develop`.
 - Integration branch: `integration/pr138-bulk-remediation-2026-11-26`.
-- Latest branch head: `a5aa7a66f66ddbd9337af6c857f69de0ccae42d4`.
+- The live branch head SHA is maintained by GitHub and is visible in the PR #170 metadata; do not rely on a hard-coded SHA in this handoff file.
 - PR #170 contains 628 changed files and is 112 commits ahead / 0 behind `develop`.
 - GitHub reports mergeable, but this is not test evidence and does not authorize merge.
 - PR #138 remains **OPEN / DRAFT / UNMERGED** with 1,943 changed files. It is preservation/source material only and must never be merged wholesale.
