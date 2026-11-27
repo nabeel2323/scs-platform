@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
-import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { Inject } from '@nestjs/common';
+import { NOTIFICATION_REALTIME_EMITTER, NotificationRealtimeEmitter } from './notifications-realtime.port';
 import { notifications, notificationPreferences, deviceTokens } from './notifications.schema';
 import { eq, and, desc, isNull, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
@@ -19,9 +20,11 @@ import crypto from 'node:crypto';
 export class NotificationsService implements OnModuleInit {
   constructor(
     private readonly db: DatabaseService,
-    // Optional so isolated unit tests can build the service with just the DB;
-    // supplied by the @Global RealtimeModule at runtime.
-    @Optional() private readonly realtime?: RealtimeGateway,
+    // Optional so isolated unit tests can build the service with just the DB.
+    // The global RealtimeModule binds this port to RealtimeGateway without a
+    // static service → gateway import cycle.
+    @Optional() @Inject(NOTIFICATION_REALTIME_EMITTER)
+    private readonly realtime?: NotificationRealtimeEmitter,
   ) {}
 
   onModuleInit() {

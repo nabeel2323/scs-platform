@@ -3471,3 +3471,12 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
 - The remaining unit failure showed the test's payment retained `CASH_ON_DELIVERY` from `createDeliveredOrder`. Production correctly returns early for COD payments, so the test never exercised expiration and payment stayed AWAITING_PAYMENT. Correct the fixture to `BANK_TRANSFER` when resetting payment status to AWAITING_PAYMENT. This is a test setup correction; production COD protection remains intact.
 - Production expiry now uses the atomic conditional order UPDATE and writes cancellation history only if a PAYMENT_PENDING row was actually transitioned. Current test fixture and implementation require a new exact-head validation run.
 - PR #170 remains OPEN / DRAFT / UNMERGED; PR #138 remains protected and unmerged. No reviewers, no staging/production writes, migrations, RLS/grant changes, provider calls, worker activation, deployments, restarts or releases.
+
+
+## CI #1702 runtime smoke finding — notification/realtime import cycle — 27 November 2026
+
+- Run #1702 (`46036124557`) passed Lint & Typecheck, Flutter, Unit/Coverage, Integration, Web/Admin, Migration Full Apply, E6, Contract/Codegen, and Build. Container Build & Smoke failed at API startup with `ReferenceError: Cannot access 'NotificationsService' before initialization` from compiled `notifications.controller.js`.
+- Root cause is the static import cycle: NotificationsService imports RealtimeGateway; RealtimeGateway imports OrdersModule; OrdersModule imports NotificationsModule and OrdersService imports NotificationsService. This makes the controller's service reference execute while NotificationsService is still initializing.
+- Break the runtime cycle with a narrow notification realtime port/token. NotificationsService now injects the interface via `NOTIFICATION_REALTIME_EMITTER` without importing RealtimeGateway; RealtimeModule binds that token to its existing RealtimeGateway using `useExisting` and exports it. IN_APP persistence and live emit behavior remain intact.
+- This grouped code change is UNVERIFIED until exact-head CI, especially container startup and health checks, pass. No merge/deploy/staging operation.
+- PR #170 remains OPEN / DRAFT / UNMERGED; PR #138 remains protected/unmerged. No reviewers; no staging/production writes, migrations, RLS/grant changes, provider calls, worker activation, deployments, restarts or releases.
