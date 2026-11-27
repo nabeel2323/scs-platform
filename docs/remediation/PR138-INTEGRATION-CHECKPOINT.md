@@ -71,3 +71,10 @@
 - Current PR #170 head will advance with this checkpoint documentation commit. It remains OPEN / DRAFT / UNMERGED against `develop`; GitHub's mergeable flag is not test evidence or authorization. The integration branch remains 0 commits behind `develop`; latest compare previously reported 117 commits ahead. PR #138 source/preservation refs remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; never merge PR #138 wholesale.
 - No local tests were run. These fixes remain UNVERIFIED pending one consolidated exact-head mandatory CI campaign after remaining concrete API fixture mismatches are source-reviewed and grouped. Do not dispatch per-fix CI or additional Vercel builds.
 - Keep staging-release disabled. No staging/production DB writes, migrations, RLS/grant/default-ACL changes, provider calls, worker activation, Render mutations, deployments, restarts, releases or reviewer requests.
+
+
+## Follow-up unit fixture correction — 27 November 2026
+
+- Source-reviewed the historical Unit/Coverage failure in `m73c-inventory-return.spec.ts`. The cancelled-order case omitted the shipment's matching store lineage in its overridden order fixture, causing the production preflight to correctly fail as “Shipment not found” before the intended CANCELLED-state assertion.
+- Added the matching `storeId` in test-only commit `5cb4d044ea1a8a121b33a3c78238ff13a7b75d7d`. No production code or tenant guard changed.
+- Recorded in the implementation tracker commit `ae0a08d255992400b5b6bb852bdfb3f8fb4a13ca`. No local tests or CI were run; the correction remains unverified. Continue grouped source review and reserve CI for one consolidated exact-head run.
