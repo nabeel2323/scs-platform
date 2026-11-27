@@ -21,7 +21,7 @@ import {
   type CallerContext,
 } from '../../common/tenant-scope';
 import { MerchantService } from '../merchant/index';
-import { OrderRealtimeAccessService } from '../orders/index';
+import { OrderRealtimeAccessService } from '../orders/order-realtime-access.service';
 
 /**
  * Realtime WebSocket Gateway — `/realtime`
