@@ -74,7 +74,7 @@ import { OrdersModule } from '../orders/orders.module';
 @Module({
   imports: [
     AuditModule, // M7.2.3-C: audit trail for recovery operations
-    IdentityModule, // Platform organization lookup stays inside Identity
+    forwardRef(() => IdentityModule), // Defer the Identity/Shipping module reference during startup
     MerchantModule, // Store ownership lookup stays inside Merchant
     forwardRef(() => OrdersModule), // Carrier reads use Orders-owned contracts
   ],
