@@ -280,3 +280,11 @@ The newest dated entries in the checkpoint and progress tracker override older h
 - PR #173 branch compares 3 commits ahead / 0 behind `develop` at base `bb39cb6488acd958a6079b60c2da4a2cfdbcab28`. PR remains OPEN / DRAFT / UNMERGED. Do not merge until a consolidated exact-head CI passes.
 - PR #138 remains OPEN / DRAFT / UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; its preservation branch is identical. Never merge or rewrite either ref.
 - No reviewers, no per-fix CI, and no Vercel retry for the admin build-rate-limit status. No staging/production DB writes or migrations, RLS/grant/default-ACL changes, provider calls, worker activation, Render mutations, deployments, restarts or releases.
+
+
+## 28 November 2026 — PR #173 integration CI triage
+
+- CI #1717 (46074130374) on code/test head bb2b7edc4d045d25daf3c8de1e7b07f818c74303 passed lint/typecheck, Mobile, Web/Admin, E6, API Unit/Coverage and Migration Full Apply. API Integration had one failure in cross-instance-throttling.spec.ts: the test asserted that the last Promise.all input had the threshold-crossing count, which is invalid because Promise.all preserves input order, not Redis execution order.
+- Reviewed the atomic Redis Lua script and corrected the test to assert the maximum observed count is exactly limit + 1, with at least one blocked result. This checks the intended atomic behavior without depending on scheduling.
+- Test-only correction commit: 442d993e569eb77c435256ac0300c322600bb9d8. It is NOT YET VERIFIED. Continue grouped source review and run one consolidated exact-head CI only after the batch is complete.
+- PR #173 remains OPEN / DRAFT / UNMERGED. PR #138 and its preservation branch remain identical at 81f30f5c30654b233ef373c15fd3f2cb867aba01; never merge PR #138 wholesale. No reviewers, extra Vercel builds, or staging/production operations.
