@@ -583,7 +583,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
 
     it('transitions ACCEPTED → PREPARING → READY → OUT_FOR_DELIVERY → DELIVERED → COMPLETED', async () => {
       if (!orderId) return;
-      const accepted = await withCallerActor(callerA(), () => ordersService.acceptOrder(orderId, merchantA));
+      const accepted = await withCallerActor(callerA(), () => ordersService.acceptOrder(orderId, merchantA, callerA()));
       expect(accepted.status).toBe('ACCEPTED');
 
       const preparing = await withCallerActor(callerA(), () => ordersService.transitionStatus(
@@ -672,7 +672,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       const beforeReserved = before.qtyReserved;
 
       // Accept
-      await withCallerActor(callerA(), () => ordersService.acceptOrder(subId!, merchantA));
+      await withCallerActor(callerA(), () => ordersService.acceptOrder(subId!, merchantA, callerA()));
 
       // After accept: qty_reserved increased
       const after = await inventoryService.getItem(invItemA);
@@ -701,7 +701,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
         idempotencyKey: `release-${randomUUID()}`,
       });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
-      await withCallerActor(callerA(), () => ordersService.acceptOrder(subId!, merchantA));
+      await withCallerActor(callerA(), () => ordersService.acceptOrder(subId!, merchantA, callerA()));
 
       const before = await inventoryService.getItem(invItemA);
       const beforeReserved = before.qtyReserved;
@@ -743,7 +743,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
         idempotencyKey: `consume-${randomUUID()}`,
       });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
-      await withCallerActor(callerA(), () => ordersService.acceptOrder(subId!, merchantA));
+      await withCallerActor(callerA(), () => ordersService.acceptOrder(subId!, merchantA, callerA()));
 
       const afterAccept = await inventoryService.getItem(invItemA);
 
@@ -1106,7 +1106,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       expect(subId).toBeTruthy();
 
       // Accept the order — triggers stock reservation
-      await withCallerActor(callerA(), () => ordersService.acceptOrder(subId!, merchantA));
+      await withCallerActor(callerA(), () => ordersService.acceptOrder(subId!, merchantA, callerA()));
 
       // Only 5 units reserved (available), not 10 (ordered)
       const after = await inventoryService.getItem(limitedInv.id);
@@ -1149,7 +1149,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
 
       const result = await withCallerActor(callerA(), () => ordersService.partiallyAcceptOrder(subId!, merchantA, [
         { itemId, qtyConfirmed: 2 },
-      ]));
+      ], callerA()));
       expect(result.status).toBe('PARTIALLY_ACCEPTED');
 
       // Financial recalculation: 2 * unitPriceMinor
