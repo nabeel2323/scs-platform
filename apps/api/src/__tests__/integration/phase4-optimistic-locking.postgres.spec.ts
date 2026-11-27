@@ -28,7 +28,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { products, productVariants } from '../../modules/catalog/catalog.schema';
-import { organizations, users } from '../../modules/identity/identity.schema';
+import { organizations, users, organizationMembers } from '../../modules/identity/identity.schema';
+import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 import { stores, storeMembers } from '../../modules/merchant/merchant.schema';
 import * as schema from '../../drizzle/schema';
 
@@ -88,6 +89,8 @@ beforeAll(async () => {
   catalog = makeCatalogService(database, taxonomy);
 
   await applyMigrations(pool);
+  const rbacClient = await pool.connect();
+  try { await seedPlatformRbac(rbacClient); } finally { rbacClient.release(); }
 
   // Seed org/store
   orgId = randomUUID();
@@ -97,6 +100,8 @@ beforeAll(async () => {
 
   merchantUserId = randomUUID();
   await db.insert(users).values({ id: merchantUserId, fullName: 'Optimistic Lock Store Owner', phone: '+10000001201' });
+  const merchantRole = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_OWNER' LIMIT 1`);
+  await db.insert(organizationMembers).values({ id: randomUUID(), orgId, userId: merchantUserId, roleId: merchantRole.rows[0].id, status: 'ACTIVE' });
   await db.insert(storeMembers).values({
     storeId,
     userId: merchantUserId,

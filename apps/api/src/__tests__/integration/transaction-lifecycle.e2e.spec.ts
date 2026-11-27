@@ -95,6 +95,8 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
   let pool: Pool;
   let db: DatabaseService['db'];
   let database: DatabaseService;
+  const withCallerActor = <T>(caller: { sub: string; role: string; activeOrg?: string | null }, operation: () => Promise<T>) =>
+    database.withActorContext({ actorKind: 'user', actorId: caller.sub, actorRole: caller.role, activeOrgId: caller.activeOrg ?? null }, operation);
   let catalog: CatalogService;
   let taxonomy: CatalogTaxonomyService;
   let offerService: CatalogOfferService;
@@ -581,49 +583,49 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
 
     it('transitions ACCEPTED → PREPARING → READY → OUT_FOR_DELIVERY → DELIVERED → COMPLETED', async () => {
       if (!orderId) return;
-      const accepted = await ordersService.acceptOrder(orderId, merchantA);
+      const accepted = await withCallerActor(callerA(), () => ordersService.acceptOrder(orderId, merchantA));
       expect(accepted.status).toBe('ACCEPTED');
 
-      const preparing = await ordersService.transitionStatus(
+      const preparing = await withCallerActor(callerA(), () => ordersService.transitionStatus(
         orderId,
         'PREPARING',
         merchantA,
         'MERCHANT',
-      );
+      ));
       expect(preparing.status).toBe('PREPARING');
 
-      const ready = await ordersService.transitionStatus(orderId, 'READY', merchantA, 'MERCHANT');
+      const ready = await withCallerActor(callerA(), () => ordersService.transitionStatus(orderId, 'READY', merchantA, 'MERCHANT'));
       expect(ready.status).toBe('READY');
 
-      const outForDelivery = await ordersService.transitionStatus(
+      const outForDelivery = await withCallerActor(callerA(), () => ordersService.transitionStatus(
         orderId,
         'OUT_FOR_DELIVERY',
         merchantA,
         'MERCHANT',
-      );
+      ));
       expect(outForDelivery.status).toBe('OUT_FOR_DELIVERY');
 
-      const delivered = await ordersService.transitionStatus(
+      const delivered = await withCallerActor(callerA(), () => ordersService.transitionStatus(
         orderId,
         'DELIVERED',
         merchantA,
         'MERCHANT',
-      );
+      ));
       expect(delivered.status).toBe('DELIVERED');
 
-      const completed = await ordersService.transitionStatus(
+      const completed = await withCallerActor(callerA(), () => ordersService.transitionStatus(
         orderId,
         'COMPLETED',
         merchantA,
         'MERCHANT',
-      );
+      ));
       expect(completed.status).toBe('COMPLETED');
     });
 
     it('rejects invalid transition COMPLETED → ACCEPTED', async () => {
       if (!orderId) return;
       await expect(
-        ordersService.transitionStatus(orderId, 'ACCEPTED', merchantA, 'MERCHANT'),
+        withCallerActor(callerA(), () => ordersService.transitionStatus(orderId, 'ACCEPTED', merchantA, 'MERCHANT')),
       ).rejects.toThrow(/Invalid transition/);
     });
 
@@ -639,13 +641,13 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       const subId = co.subOrders[0]?.id;
       expect(subId).toBeTruthy();
 
-      await ordersService.rejectOrder(subId!, merchantA, 'Out of stock', { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA });
+      await withCallerActor(callerA(), () => ordersService.rejectOrder(subId!, merchantA, 'Out of stock', callerA()));
       const rejected = await ordersService.getOrder(subId!);
       expect(rejected.status).toBe('REJECTED');
 
       // Cannot transition from REJECTED
       await expect(
-        ordersService.transitionStatus(subId!, 'ACCEPTED', merchantA, 'MERCHANT'),
+        withCallerActor(callerA(), () => ordersService.transitionStatus(subId!, 'ACCEPTED', merchantA, 'MERCHANT')),
       ).rejects.toThrow(/Invalid transition/);
     });
   });
@@ -670,7 +672,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       const beforeReserved = before.qtyReserved;
 
       // Accept
-      await ordersService.acceptOrder(subId!, merchantA);
+      await withCallerActor(callerA(), () => ordersService.acceptOrder(subId!, merchantA));
 
       // After accept: qty_reserved increased
       const after = await inventoryService.getItem(invItemA);
@@ -699,13 +701,13 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
         idempotencyKey: `release-${randomUUID()}`,
       });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
-      await ordersService.acceptOrder(subId!, merchantA);
+      await withCallerActor(callerA(), () => ordersService.acceptOrder(subId!, merchantA));
 
       const before = await inventoryService.getItem(invItemA);
       const beforeReserved = before.qtyReserved;
 
       // Cancel
-      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', { sub: buyerA, role: 'BUYER', activeOrg: null });
+      await withCallerActor({ sub: buyerA, role: 'BUYER', activeOrg: null }, () => ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', { sub: buyerA, role: 'BUYER', activeOrg: null }));
 
       const after = await inventoryService.getItem(invItemA);
       expect(after.qtyReserved).toBe(beforeReserved - 2);
@@ -725,7 +727,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       );
       if (cancelledRes.rows.length === 0) return;
       const id = cancelledRes.rows[0].id;
-      await expect(ordersService.cancelOrder(id, buyerA, 'Again', { sub: buyerA, role: 'BUYER', activeOrg: null })).rejects.toThrow();
+      await expect(withCallerActor({ sub: buyerA, role: 'BUYER', activeOrg: null }, () => ordersService.cancelOrder(id, buyerA, 'Again', { sub: buyerA, role: 'BUYER', activeOrg: null }))).rejects.toThrow();
     });
   });
 
@@ -741,15 +743,15 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
         idempotencyKey: `consume-${randomUUID()}`,
       });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
-      await ordersService.acceptOrder(subId!, merchantA);
+      await withCallerActor(callerA(), () => ordersService.acceptOrder(subId!, merchantA));
 
       const afterAccept = await inventoryService.getItem(invItemA);
 
       // Advance to DELIVERED
-      await ordersService.transitionStatus(subId!, 'PREPARING', merchantA, 'MERCHANT');
-      await ordersService.transitionStatus(subId!, 'READY', merchantA, 'MERCHANT');
-      await ordersService.transitionStatus(subId!, 'OUT_FOR_DELIVERY', merchantA, 'MERCHANT');
-      await ordersService.transitionStatus(subId!, 'DELIVERED', merchantA, 'MERCHANT');
+      await withCallerActor(callerA(), () => ordersService.transitionStatus(subId!, 'PREPARING', merchantA, 'MERCHANT'));
+      await withCallerActor(callerA(), () => ordersService.transitionStatus(subId!, 'READY', merchantA, 'MERCHANT'));
+      await withCallerActor(callerA(), () => ordersService.transitionStatus(subId!, 'OUT_FOR_DELIVERY', merchantA, 'MERCHANT'));
+      await withCallerActor(callerA(), () => ordersService.transitionStatus(subId!, 'DELIVERED', merchantA, 'MERCHANT'));
 
       const afterDeliver = await inventoryService.getItem(invItemA);
       expect(afterDeliver.qtyOnHand).toBe(afterAccept.qtyOnHand - 2);
@@ -1104,7 +1106,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       expect(subId).toBeTruthy();
 
       // Accept the order — triggers stock reservation
-      await ordersService.acceptOrder(subId!, merchantA);
+      await withCallerActor(callerA(), () => ordersService.acceptOrder(subId!, merchantA));
 
       // Only 5 units reserved (available), not 10 (ordered)
       const after = await inventoryService.getItem(limitedInv.id);
@@ -1145,9 +1147,9 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       expect(items.items.length).toBeGreaterThan(0);
       const itemId = items.items[0]!.id;
 
-      const result = await ordersService.partiallyAcceptOrder(subId!, merchantA, [
+      const result = await withCallerActor(callerA(), () => ordersService.partiallyAcceptOrder(subId!, merchantA, [
         { itemId, qtyConfirmed: 2 },
-      ]);
+      ]));
       expect(result.status).toBe('PARTIALLY_ACCEPTED');
 
       // Financial recalculation: 2 * unitPriceMinor

@@ -33,7 +33,8 @@ import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { products, productVariants } from '../../modules/catalog/catalog.schema';
 import { productTypes } from '../../modules/catalog/catalog.taxonomy.schema';
-import { organizations, users } from '../../modules/identity/identity.schema';
+import { organizations, users, organizationMembers } from '../../modules/identity/identity.schema';
+import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 import { stores, storeMembers } from '../../modules/merchant/merchant.schema';
 import { merchantOffers } from '../../modules/catalog/catalog.offer.schema';
 import * as schema from '../../drizzle/schema';
@@ -96,6 +97,8 @@ beforeAll(async () => {
   catalog = makeCatalogService(database, taxonomy);
 
   await applyMigrations(pool);
+  const rbacClient = await pool.connect();
+  try { await seedPlatformRbac(rbacClient); } finally { rbacClient.release(); }
 
   // Seed orgs/stores
   orgId = randomUUID();
@@ -114,6 +117,11 @@ beforeAll(async () => {
   await db.insert(users).values([
     { id: merchantUserId, fullName: 'P2 Merchant A', phone: '+10000001301' },
     { id: otherMerchantUserId, fullName: 'P2 Merchant B', phone: '+10000001302' },
+  ]);
+  const merchantRole = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_OWNER' LIMIT 1`);
+  await db.insert(organizationMembers).values([
+    { id: randomUUID(), orgId, userId: merchantUserId, roleId: merchantRole.rows[0].id, status: 'ACTIVE' },
+    { id: randomUUID(), orgId: orgId2, userId: otherMerchantUserId, roleId: merchantRole.rows[0].id, status: 'ACTIVE' },
   ]);
   await db.insert(storeMembers).values([
     { storeId, userId: merchantUserId, role: 'OWNER', status: 'ACTIVE' },
