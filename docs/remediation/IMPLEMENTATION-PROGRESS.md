@@ -3546,3 +3546,13 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
   - PaymentProofCleanupWorker is registered in PaymentsModule but disabled unless PAYMENT_PROOF_CLEANUP_WORKER_ENABLED=true. It uses a bounded polling interval and overlap guard; no environment has enabled it.
 - [PR #172](https://github.com/nabeel2323/scs-platform/pull/172) is open and ready for review against `develop` at head `54cb775418652c4f2bc0660b37c5e85b57ab364d`. Exact-head CI has not yet completed; do not merge until all mandatory jobs pass. No staging/production migration or worker activation has occurred.
 - Safety remains: do not run DB migrations, role/grant/RLS/default-ACL changes, provider calls, Render changes, deployments, restarts or releases without separate authorization. Preserve PR #138 source and preservation refs unchanged.
+
+
+## PR #172 merged — 27 November 2026
+
+- PR #172 (carrier webhook and reconciliation history safety) merged into `develop` at `825f19b9214af97d34b4abdea1ff104325104361`; implementation head `a3a0d1199a08e62f6382c710006aa3e794d862ca`.
+- Exact-head CI #1713 (run `46062206421`, attempt 2) passed all 10 mandatory jobs: lint/typecheck, Flutter, unit/coverage, Web/Admin, PostgreSQL integration, migration full apply, E6, contract/codegen, build, and container build/smoke. The first container-smoke attempt hit a transient PostgreSQL shutdown during disposable-service setup; only the failed container job was rerun and it passed. k6 and staging release were skipped.
+- Final webhook migration hardening ensures a long pre-existing processing_error cannot truncate the manual-review marker; integration coverage includes a 1,900-character legacy error.
+- PR #172 delivered fail-closed retries for uncredentialed carrier webhooks, migration 0077 legacy-link quarantine while preserving processed state, migration 0074 fail-closed reconciliation-history preflight and chain conversion tests, and a PaymentProofCleanupWorker that is registered but schedules only when `PAYMENT_PROOF_CLEANUP_WORKER_ENABLED=true`. This PR did not set that environment flag or activate the worker.
+- No staging/production DB writes or migrations, RLS/grant/default-ACL changes, provider calls, Render changes, deployments, restarts or releases occurred. PR #138 remains OPEN / DRAFT / UNMERGED with source and preservation refs unchanged.
+- G-002 remains IN PROGRESS / NOT VERIFIED overall. Least-privilege role ownership/ACL and verified TLS transition remain separate gated work; do not enable RLS or deploy the fail-closed runtime guard until those are ready and separately authorized.

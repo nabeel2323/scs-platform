@@ -335,3 +335,12 @@
 - Grouped next branch: `remediation/carrier-payment-reconciliation-safety-2026-11-27`. It contains carrier webhook credential fail-closed retry handling, migration 0077 legacy-link quarantine, migration 0074 preflight integrity validation with PostgreSQL tests, and a payment-proof cleanup worker registered but disabled by default.
 - No staging/production migration, write, worker activation, provider call, Render mutation, deployment, restart or release occurred. PR #172 still requires final review and one consolidated exact-head CI campaign before merge.
 - G-002 remains IN PROGRESS / NOT VERIFIED overall. The previous protected audit found the migration DB identity to be postgres with BYPASSRLS/CREATEROLE/CREATEDB; API runtime evidence also showed postgres with BYPASSRLS and TLS disabled. Migration TLS remains unconfirmed. Keep the RLS/least-privilege/TLS transition as a separate gated workstream.
+
+
+## PR #172 merged and exact-head validation complete — 27 November 2026
+
+- PR #172 merged into `develop` at `825f19b9214af97d34b4abdea1ff104325104361` from implementation head `a3a0d1199a08e62f6382c710006aa3e794d862ca`.
+- CI #1713 (run `46062206421`, attempt 2) passed all 10 mandatory jobs. The first container-smoke attempt had a transient PostgreSQL shutdown during disposable-service setup; only that job was rerun, and the retry passed. k6 and staging release remained skipped.
+- PR #172 adds fail-closed handling for carrier webhook retries without credential binding, migration 0077 for legacy webhook manual-review quarantine, migration 0074 reconciliation-history preflight/chain integrity tests, and a registered payment-proof cleanup worker gated off unless its environment flag is explicitly true. This PR did not set the flag or activate the worker.
+- PR #138 remains OPEN / DRAFT / UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; source and preservation refs remain synchronized and protected. Never merge PR #138 wholesale or rewrite its refs.
+- No staging/production migration or DB write, role/grant/RLS/default-ACL change, provider call, worker activation, Render mutation, deployment, restart or release occurred. G-002 remains IN PROGRESS / NOT VERIFIED; least-privilege role/ACL and TLS transition remain separate gated tasks.
