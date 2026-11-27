@@ -73,6 +73,9 @@ describe('Migration 0074 — reconciliation history integrity', () => {
   }
 
   async function expectRejectedWithoutRewrite(message: RegExp) {
+    const before = await pool.query(
+      'SELECT id, superseded_by FROM reconciliation_runs ORDER BY id',
+    );
     await pool.query('BEGIN');
     let failure: unknown;
     try {
@@ -83,6 +86,10 @@ describe('Migration 0074 — reconciliation history integrity', () => {
       await pool.query('ROLLBACK');
     }
     expect(String((failure as Error | undefined)?.message ?? failure)).toMatch(message);
+    const after = await pool.query(
+      'SELECT id, superseded_by FROM reconciliation_runs ORDER BY id',
+    );
+    expect(after.rows).toEqual(before.rows);
   }
 
   it('reverses a valid three-version backward-pointer chain without losing the middle link', async () => {
