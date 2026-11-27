@@ -209,7 +209,7 @@ describe('ShippingCarrierWorker label persistence (G-010)', () => {
     const pending = worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' });
     // Flush the async DB/provider/allowlist chain until fetch has installed the
     // abort signal and timeout; advancing first would move the clock too early.
-    for (let attempt = 0; attempt < 10 && fetchMock.mock.calls.length === 0; attempt += 1) {
+    for (let attempt = 0; attempt < 40 && fetchMock.mock.calls.length === 0; attempt += 1) {
       await Promise.resolve();
     }
     expect(fetchMock).toHaveBeenCalledOnce();

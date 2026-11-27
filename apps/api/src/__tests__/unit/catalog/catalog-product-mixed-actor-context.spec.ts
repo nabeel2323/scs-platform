@@ -42,6 +42,7 @@ function buildService() {
     withActorContext,
     db: {
       update,
+      select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ id: 'org-membership-1' }]) })) })) })),
       query: {
         products: {
           findFirst: vi.fn(async () => {

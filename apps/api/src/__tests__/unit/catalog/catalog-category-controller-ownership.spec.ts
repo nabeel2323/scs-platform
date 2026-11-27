@@ -32,7 +32,7 @@ function buildController(options?: {
       },
       select: vi.fn(() => ({
         from: vi.fn(() => ({
-          where: membershipWhere,
+          where: vi.fn(() => ({ limit: membershipWhere })),
         })),
       })),
     },

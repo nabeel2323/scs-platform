@@ -164,6 +164,7 @@ function makeCatalogController(options?: {
           storeMembers: { findFirst: membershipFindFirst },
         },
       },
+      withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
     } as unknown as DatabaseService,
     {} as any,
     {} as any,

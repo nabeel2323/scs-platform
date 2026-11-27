@@ -34,7 +34,7 @@ describe('P13 Phase 4.1.8 — signing exception cannot trigger unsigned delivery
     // Minimal mock — the service won't reach the DB for the signing check.
     mockDb = {
       db: {
-        execute: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+        execute: vi.fn(async (query: any) => ({ rows: query.sql?.includes('INSERT INTO ops_alerts') ? [{ id: query.params[0] }] : [], rowCount: query.sql?.includes('INSERT INTO ops_alerts') ? 1 : 0 })),
       },
       withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
       currentActorContext: null,
