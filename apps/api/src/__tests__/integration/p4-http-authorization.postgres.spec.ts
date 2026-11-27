@@ -44,6 +44,8 @@ import { DatabaseService } from '../../common/database/database.service';
 import { RedisService } from '../../common/redis/redis.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { PaymentsService } from '../../modules/payments/payments.service';
+import { IdentityService } from '../../modules/identity/identity.service';
+import { MerchantService } from '../../modules/merchant/merchant.service';
 import { AllExceptionsFilter } from '../../common/filters/all-exceptions.filter';
 import { denylistKey } from '../../common/auth/token-denylist';
 import { AuditService } from '../../modules/audit/audit.service';
@@ -219,6 +221,15 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       },
     } as unknown as RedisService;
 
+    // PilotControlService resolves org/store identity through the real identity
+    // and merchant services. These methods are read-only DB lookups; construct
+    // the real services with inert dependencies that are not used by getOrg/getStore.
+    const identityService = new IdentityService(
+      database, redis, new JwtService({ secret: process.env['JWT_ACCESS_SECRET']! }),
+      {} as any, {} as any, {} as any, {} as any,
+    );
+    const merchantService = new MerchantService(database, outbox, {} as any);
+
     // ── Constructor metadata for this transform pipeline ──
     // `nest build` runs on the SWC builder, which emits `design:paramtypes`, so the
     // real application resolves every class below by type. Vitest transpiles with
@@ -233,7 +244,7 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       [SettlementAdjustmentService, [DatabaseService, OutboxDispatcher]],
       [ReconciliationService, [DatabaseService]],
       [CommissionReversalService, [DatabaseService, OutboxDispatcher]],
-      [PilotControlService, [DatabaseService, AuditService, OpsAlertService]],
+      [PilotControlService, [DatabaseService, AuditService, OpsAlertService, IdentityService, MerchantService]],
       [ReturnsService, [
         DatabaseService, OutboxDispatcher, PaymentsService, BusinessCalendarService,
         CommissionReversalService, SettlementAdjustmentService, PilotControlService,
@@ -265,6 +276,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
         { provide: RedisService, useValue: redis },
         { provide: OutboxDispatcher, useValue: outbox },
         { provide: PaymentsService, useValue: {} },
+        { provide: IdentityService, useValue: identityService },
+        { provide: MerchantService, useValue: merchantService },
         AuditService,
         BusinessCalendarService,
         SettlementAdjustmentService,
