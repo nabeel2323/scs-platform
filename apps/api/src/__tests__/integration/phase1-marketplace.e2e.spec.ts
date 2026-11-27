@@ -263,10 +263,10 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       { id: warehouseB, storeId: storeB, name: 'Beta Warehouse' },
     ]);
     await db.insert(organizationMembers).values([
-      { id: randomUUID(), orgId: orgA, userId: merchantA, roleId: merchantRoleId },
-      { id: randomUUID(), orgId: orgB, userId: merchantB, roleId: merchantRoleId },
-      { id: randomUUID(), orgId: orgA, userId: buyerA, roleId: buyerRoleId },
-      { id: randomUUID(), orgId: orgB, userId: buyerB, roleId: buyerRoleId },
+      { id: randomUUID(), orgId: orgA, userId: merchantA, roleId: merchantRoleId, status: 'ACTIVE' },
+      { id: randomUUID(), orgId: orgB, userId: merchantB, roleId: merchantRoleId, status: 'ACTIVE' },
+      { id: randomUUID(), orgId: orgA, userId: buyerA, roleId: buyerRoleId, status: 'ACTIVE' },
+      { id: randomUUID(), orgId: orgB, userId: buyerB, roleId: buyerRoleId, status: 'ACTIVE' },
     ]);
 
     // ── Catalog setup ─────────────────────────────────────────────
@@ -799,6 +799,8 @@ describe('Phase 1 — Core Marketplace E2E', () => {
         'PREPARING',
         merchantA,
         'MERCHANT',
+        undefined,
+        callerA(),
       );
       expect(result.status).toBe('PREPARING');
     });
@@ -809,6 +811,8 @@ describe('Phase 1 — Core Marketplace E2E', () => {
         'READY',
         merchantA,
         'MERCHANT',
+        undefined,
+        callerA(),
       );
       expect(result.status).toBe('READY');
     });
@@ -819,6 +823,8 @@ describe('Phase 1 — Core Marketplace E2E', () => {
         'OUT_FOR_DELIVERY',
         merchantA,
         'MERCHANT',
+        undefined,
+        callerA(),
       );
       expect(result.status).toBe('OUT_FOR_DELIVERY');
     });
@@ -829,6 +835,8 @@ describe('Phase 1 — Core Marketplace E2E', () => {
         'DELIVERED',
         merchantA,
         'MERCHANT',
+        undefined,
+        callerA(),
       );
       expect(result.status).toBe('DELIVERED');
     });
@@ -839,13 +847,15 @@ describe('Phase 1 — Core Marketplace E2E', () => {
         'COMPLETED',
         merchantA,
         'MERCHANT',
+        undefined,
+        callerA(),
       );
       expect(result.status).toBe('COMPLETED');
     });
 
     it('COMPLETED is terminal (no forward transitions)', async () => {
       await expect(
-        ordersService.transitionStatus(freshOrderId, 'ACCEPTED', merchantA, 'MERCHANT'),
+        ordersService.transitionStatus(freshOrderId, 'ACCEPTED', merchantA, 'MERCHANT', undefined, callerA()),
       ).rejects.toThrow(/Invalid transition/);
     });
 
@@ -863,7 +873,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       expect(cancelled.status).toBe('CANCELLED');
 
       await expect(
-        ordersService.transitionStatus(cancelId!, 'ACCEPTED', merchantA, 'MERCHANT'),
+        ordersService.transitionStatus(cancelId!, 'ACCEPTED', merchantA, 'MERCHANT', undefined, callerA()),
       ).rejects.toThrow(/Invalid transition/);
     });
 
@@ -880,7 +890,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       expect(rejected.status).toBe('REJECTED');
 
       await expect(
-        ordersService.transitionStatus(rejectId!, 'ACCEPTED', merchantA, 'MERCHANT'),
+        ordersService.transitionStatus(rejectId!, 'ACCEPTED', merchantA, 'MERCHANT', undefined, callerA()),
       ).rejects.toThrow(/Invalid transition/);
     });
 
@@ -905,6 +915,8 @@ describe('Phase 1 — Core Marketplace E2E', () => {
         'PREPARING',
         merchantA,
         'MERCHANT',
+        undefined,
+        callerA(),
       );
       expect(preparing.status).toBe('PREPARING');
     });
@@ -919,7 +931,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       const skipId = co.subOrders[0]?.id;
 
       await expect(
-        ordersService.transitionStatus(skipId!, 'DELIVERED', merchantA, 'MERCHANT'),
+        ordersService.transitionStatus(skipId!, 'DELIVERED', merchantA, 'MERCHANT', undefined, callerA()),
       ).rejects.toThrow(/Invalid transition/);
     });
 

@@ -118,6 +118,21 @@ beforeAll(async () => {
     [storeA, merchantUserId],
   );
 
+  // Product edit authorization requires both active organization membership
+  // and active store ownership; the two checks intentionally remain distinct.
+  await pool.query(
+    `INSERT INTO roles (id, key, name) VALUES ($1, 'MERCHANT_OWNER', 'Merchant Owner')
+     ON CONFLICT (key) DO NOTHING`,
+    [randomUUID()],
+  );
+  const ownerRole = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_OWNER' LIMIT 1`);
+  if (!ownerRole.rows[0]?.id) throw new Error('MERCHANT_OWNER role was not seeded');
+  await pool.query(
+    `INSERT INTO organization_members (id, org_id, user_id, role_id, status)
+     VALUES ($1, $2, $3, $4, 'ACTIVE')`,
+    [randomUUID(), orgA, merchantUserId, ownerRole.rows[0].id],
+  );
+
   // ── Seed taxonomy ───────────────────────────────────────────────
   productTypeId = randomUUID();
   await pool.query(`INSERT INTO product_types (id, code, name) VALUES ($1, 'p6-type', 'P6 Type')`, [productTypeId]);
