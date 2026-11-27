@@ -62,3 +62,11 @@ The newest dated entries in the checkpoint and progress tracker override older h
 - `d65e8ad42a4c5d6518eb8167f0850cb65981a12b` and `b88a68dbd5b4ae6435bd8e52a4f2b08cc2bd88e6`: Catalog visibility assertions now match the actor-aware product detail contract and verify active membership predicate.
 - Tracker/checkpoint updates: `b5e1d6d9a85972b5437b120671508aed11b3b930`, `cb048757d1ab50e16c0375130ac219b57e070307`.
 - These remain unverified; no local tests or exact-head CI run. Continue source review of remaining API fixture and behavior failures, batch related changes, and use one consolidated exact-head CI campaign only when the batch is complete. Keep PR #170 draft/unmerged and preserve PR #138 unchanged.
+
+
+## Latest continuation update — 27 November 2026 (shipping tenant validation)
+
+- Commit `035bd65269c07c6c3a3e447c190932607870b439` now rejects mismatched event/expected organization immediately after resolving the authoritative shipment store tenant and before the order-lineage lookup. The mandatory order/store lineage check still runs before provider side effects.
+- Tracker/checkpoint updates: `c330fcd8839912b2cc5ca35323fc7cd1eef5b181` and `06a3762b1467176ee8d23c556ba6aaa39c532097`.
+- No tests have run locally and there is no exact-head Actions run. The latest known Vercel contexts are free-plan build-rate-limit failures, not application test evidence. Do not trigger extra Vercel builds.
+- Keep working through remaining API tests with source review; never weaken authorization or tenant boundaries. Consolidate before one exact-head CI run. Do not merge PR #170 or alter PR #138; no staging or production operations.
