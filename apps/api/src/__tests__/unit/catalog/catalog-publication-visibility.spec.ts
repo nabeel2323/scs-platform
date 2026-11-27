@@ -79,7 +79,12 @@ describe('Catalog publication visibility boundary', () => {
     await expect(
       assertProductReadable(h as unknown as DatabaseService, merchant, 'product-a'),
     ).resolves.toBeUndefined();
-    expect(h.spies.membershipsFindFirst).toHaveBeenCalledOnce();
+    const membershipQueries = h.spies.membershipsFindFirst.mock.calls
+      .filter(([input]) => input?.where)
+      .map(([input]) => new PgDialect().sqlToQuery(input.where).params);
+    expect(membershipQueries.some((params) =>
+      params.includes('ACTIVE') && params.includes('merchant-a'),
+    )).toBe(true);
   });
 
   it('denies a same-organization non-member access to DRAFT product details', async () => {
@@ -193,7 +198,7 @@ describe('Catalog publication visibility at controller boundaries', () => {
   it('requests the public product-detail representation for a buyer', async () => {
     const h = makeCatalogController();
     await h.controller.getProduct('product-a', buyer as any);
-    expect(h.catalogService.getProductDetail).toHaveBeenCalledWith('product-a', false);
+    expect(h.catalogService.getProductDetail).toHaveBeenCalledWith('product-a', buyer, false);
   });
 
   it('preserves studio product-detail visibility for an active owning-store member', async () => {
@@ -202,7 +207,7 @@ describe('Catalog publication visibility at controller boundaries', () => {
       membership: { id: 'membership-a' },
     });
     await h.controller.getProduct('product-a', merchant as any);
-    expect(h.catalogService.getProductDetail).toHaveBeenCalledWith('product-a', true);
+    expect(h.catalogService.getProductDetail).toHaveBeenCalledWith('product-a', merchant, true);
   });
 
   it('requests only active variants on the buyer-facing variant endpoint', async () => {
