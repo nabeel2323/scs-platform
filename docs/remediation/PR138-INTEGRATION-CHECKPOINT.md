@@ -236,3 +236,11 @@
 - Root cause refinement: `expirePayment` performed a status read before a conditional UPDATE. The read was redundant and introduced a stale-read window. Production now attempts the single atomic `UPDATE orders ... WHERE status='PAYMENT_PENDING' RETURNING id` directly and appends cancellation history only when that UPDATE returns a row. This preserves the payment-expiry invariant and closes the read/write gap.
 - FIN-DSH-28 test is now deterministic: it commits an order transition to ACCEPTED before expiry attempts its conditional update, then verifies payment expiry does not overwrite the order or append cancellation history. The test title reflects this exact ordering; no false claim of a controlled mid-transaction race.
 - Current head before this correction: `82b5d29c099241324fb7a30044060f93d80f74aa`. New code/test changes are not yet CI-verified. PR #170 remains OPEN / DRAFT / UNMERGED; PR #138 remains protected and unmerged. No reviewers, no staging/production writes, migrations, RLS/grant changes, provider calls, worker activation, deployments, restarts or releases.
+
+
+## CI #1701 FIN-DSH-28 fixture correction — 27 November 2026
+
+- Run #1701 (`46035005436`) on head `70b67f6158b1355b01986e472d66483452ce6992`: lint/typecheck, Flutter, E6, Web/Admin, and Migration Full Apply passed. Unit/Coverage failed one FIN-DSH-28 assertion; integration result was still running at the time of this note.
+- The remaining unit failure showed the test's payment retained `CASH_ON_DELIVERY` from `createDeliveredOrder`. Production correctly returns early for COD payments, so the test never exercised expiration and payment stayed AWAITING_PAYMENT. Correct the fixture to `BANK_TRANSFER` when resetting payment status to AWAITING_PAYMENT. This is a test setup correction; production COD protection remains intact.
+- Production expiry now uses the atomic conditional order UPDATE and writes cancellation history only if a PAYMENT_PENDING row was actually transitioned. Current test fixture and implementation require a new exact-head validation run.
+- PR #170 remains OPEN / DRAFT / UNMERGED; PR #138 remains protected and unmerged. No reviewers, no staging/production writes, migrations, RLS/grant changes, provider calls, worker activation, deployments, restarts or releases.

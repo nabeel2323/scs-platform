@@ -1544,7 +1544,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       [orderId],
     );
     await pool.query(
-      `UPDATE payment_records SET status = 'AWAITING_PAYMENT', confirmed_amount_minor = NULL WHERE order_id = $1`,
+      `UPDATE payment_records SET status = 'AWAITING_PAYMENT', confirmed_amount_minor = NULL, payment_method = 'BANK_TRANSFER' WHERE order_id = $1`,
       [orderId],
     );
     const paymentId = (
