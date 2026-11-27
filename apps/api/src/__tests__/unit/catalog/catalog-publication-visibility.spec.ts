@@ -1,4 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, expect, it, vi } from 'vitest';
 import {
   assertProductReadable,
