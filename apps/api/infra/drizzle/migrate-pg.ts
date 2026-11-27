@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Pool, type PoolClient } from 'pg';
 import { acquireMigrationLock, releaseMigrationLock } from '../../src/common/database/migration-lock';
+import { readMigrationDatabaseIdentity } from './migration-identity';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../infra/drizzle/migrations');
 
@@ -19,7 +20,10 @@ function listMigrationFiles(): string[] {
   if (!fs.existsSync(MIGRATIONS_DIR)) {
     throw new Error(`Migrations directory not found: ${MIGRATIONS_DIR}`);
   }
-  return fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
+  return fs
+    .readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
 }
 
 async function main(): Promise<void> {
@@ -49,6 +53,23 @@ async function main(): Promise<void> {
     client = await pool.connect();
     await client.query('SELECT 1');
 
+    // Capture the migration credential's actual identity independently of the API pool.
+    // Diagnostics are non-fatal and never print connection details or SQL.
+    try {
+      const identity = await readMigrationDatabaseIdentity(client);
+      if (identity) {
+        console.log(`   Migration database identity: ${JSON.stringify(identity)}`);
+      } else {
+        console.warn(
+          '   Migration database identity returned no role metadata; identity remains unverified.',
+        );
+      }
+    } catch {
+      console.warn(
+        '   Migration database identity diagnostics failed; identity remains unverified.',
+      );
+    }
+
     // Hold this session lock for the entire ledger-check/apply sequence.
     // PostgreSQL releases it automatically if this process or connection dies.
     await acquireMigrationLock(client);
@@ -66,6 +87,57 @@ async function main(): Promise<void> {
       ? { rows: [] as { name: string }[] }
       : await client.query('SELECT name FROM _migration_log ORDER BY name');
     const applied = new Set(appliedRes.rows.map((r) => r.name));
+
+    // 0018 depends on 0013; reject an impossible ledger state before applying anything.
+    if (applied.has('0018_analytics_retention.sql') && !applied.has('0013_analytics.sql')) {
+      throw new Error('Migration ledger lists 0018_analytics_retention.sql without 0013_analytics.sql.');
+    }
+
+    // A legacy non-atomic runner could log analytics migrations after only part
+    // of the file applied. Never trust those ledger rows if pg_partman/config is absent.
+    if (applied.has('0013_analytics.sql')) {
+      const partmanState = await client.query<{
+        extension_installed: boolean;
+        config_relation_exists: boolean;
+      }>(`
+        SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_partman') AS extension_installed,
+               to_regclass('partman.part_config') IS NOT NULL AS config_relation_exists
+      `);
+      const state = partmanState.rows[0];
+      if (!state?.extension_installed || !state.config_relation_exists) {
+        throw new Error(
+          'Migration ledger lists 0013_analytics.sql but pg_partman or partman.part_config is missing. ' +
+            'Refusing to trust a possibly partial migration; reconcile this target through the approved database recovery procedure.',
+        );
+      }
+
+      const config = await client.query<{
+        retention: string | null;
+        retention_keep_table: boolean;
+        retention_keep_index: boolean;
+      }>(`
+        SELECT retention, retention_keep_table, retention_keep_index
+        FROM partman.part_config
+        WHERE parent_table = 'public.analytics_events'
+      `);
+      const retentionConfig = config.rows[0];
+      if (config.rowCount !== 1 || !retentionConfig) {
+        throw new Error(
+          'Migration ledger lists 0013_analytics.sql but the public.analytics_events pg_partman configuration is missing.',
+        );
+      }
+      if (
+        applied.has('0018_analytics_retention.sql') &&
+        (retentionConfig.retention !== '12 months' ||
+          retentionConfig.retention_keep_table !== false ||
+          retentionConfig.retention_keep_index !== false)
+      ) {
+        throw new Error(
+          'Migration ledger lists 0018_analytics_retention.sql but the analytics_events retention configuration does not match the migration.',
+        );
+      }
+    }
+
     const pending = files.filter((f) => !applied.has(f));
 
     if (dryRun) {
