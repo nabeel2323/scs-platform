@@ -203,6 +203,7 @@ async function advanceReturnToRefundPending(
   buyerId: string,
   merchantId: string,
   orgId: string,
+  systemCaller: { sub: string; role: 'ADMIN'; activeOrg?: string | null },
 ): Promise<any> {
   const itemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
   const orderItemId = itemsRes.rows[0].id as string;
@@ -225,7 +226,7 @@ async function advanceReturnToRefundPending(
   });
   await returnsService.transitionReturn(ret.id, 'RECEIVED', merchantCaller);
   await returnsService.transitionReturn(ret.id, 'INSPECTED', merchantCaller, { condition: 'GOOD' });
-  return returnsService.transitionReturn(ret.id, 'REFUND_PENDING', merchantCaller);
+  return returnsService.transitionReturn(ret.id, 'REFUND_PENDING', systemCaller);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1903,6 +1904,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       buyerA,
       merchantA,
       orgA,
+    adminCaller,
     );
     const refundId = pendingRet.refundId as string;
     const refundMinor = Number(
@@ -1976,6 +1978,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       buyerA,
       merchantA,
       orgA,
+    adminCaller,
     );
     const refundId = pendingRet.refundId as string;
     const refundMinor = Number(
@@ -2089,6 +2092,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       buyerA,
       merchantA,
       orgA,
+    adminCaller,
     );
     const refundId = pendingRet.refundId as string;
     const settlement = await paymentsService.calculateSettlement(orderId, adminA, adminCaller);
@@ -2137,6 +2141,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       buyerA,
       merchantA,
       orgA,
+    adminCaller,
     );
     await pool.query(
       `UPDATE return_requests SET responsibility_category = 'MERCHANT' WHERE id = $1`,
@@ -2204,7 +2209,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       {
         subOrderId: orderId,
         lines: [{ orderItemId, quantity: 1 }],
-        reason: 'DAMAGED',
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
         deliveryFeeException: { reason: 'Carrier damage' },
       } as any,
       buyerCaller,
@@ -2239,7 +2244,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const request = {
       subOrderId: orderId,
       lines: [{ orderItemId, quantity: 1 }],
-      reason: 'DAMAGED',
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
       description: 'Idempotent return retry',
       idempotencyKey: `return-idempotency-${randomUUID()}`,
     };
@@ -2422,6 +2427,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       buyerA,
       merchantA,
       orgA,
+    adminCaller,
     );
     const refundId = pendingRet.refundId as string;
     const refundMinor = Number(
@@ -2556,6 +2562,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       buyerA,
       merchantA,
       orgA,
+    adminCaller,
     );
     const refundId = pendingReturn.refundId as string;
     await pool.query(`UPDATE refunds SET status = 'FAILED' WHERE id = $1`, [refundId]);
@@ -2600,6 +2607,11 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const periodStart = '2098-04-01';
     const periodEnd = '2098-04-30';
     const orgB = randomUUID();
+    await pool.query(
+      `INSERT INTO organizations (id, type, name, country)
+       VALUES ($1, 'WHOLESALER', 'Reconciliation Org B', 'SA')`,
+      [orgB],
+    );
     const [firstA, secondA, firstB] = await Promise.all([
       reconciliationService.executeReconciliation(periodStart, periodEnd, 'SYP', adminA, orgA),
       reconciliationService.executeReconciliation(periodStart, periodEnd, 'SYP', adminA, orgA),
@@ -3700,7 +3712,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
         },
         buyerCaller,
       ),
-    ).rejects.toThrow(/remaining refundable payment amount/i);
+    ).rejects.toThrow(/Refund amount .* exceeds remaining/i);
 
     const largeOrderId = await createDeliveredOrder(
       pool,
@@ -3787,6 +3799,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       buyerA,
       merchantA,
       orgA,
+    adminCaller,
     );
     const completedEventId = randomUUID();
 
@@ -4053,6 +4066,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       buyerA,
       merchantA,
       orgA,
+    adminCaller,
     );
     await paymentsService.approveRefund(ret.refundId, adminA, adminCaller);
 
@@ -4110,6 +4124,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       buyerA,
       merchantA,
       orgA,
+    adminCaller,
     );
     const refundId = pendingReturn.refundId as string;
     const paymentId = (
@@ -4227,6 +4242,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       buyerA,
       merchantA,
       orgA,
+    adminCaller,
     );
     const refundId = pendingReturn.refundId as string;
     const paymentId = (
@@ -4369,6 +4385,7 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       buyerA,
       merchantA,
       orgA,
+    adminCaller,
     );
     const payment = (
       await pool.query(`SELECT currency FROM payment_records WHERE order_id = $1`, [orderId])
