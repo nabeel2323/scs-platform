@@ -94,3 +94,11 @@
 - Grouped test-only fixture repairs: RTS privileged-admin lineage (`3151fc2f460a72fc0b1ef720360618c6093f4e2c`), ReturnsService worker transaction/query contract (`574f3a4626c7a2ebd6cfc19a509d1790ad988320`), DisputesService transactional authorization fixtures (`0b1ec543232310f6c333b17bd03ae5a895135446`), and Catalog saved-favorites limited membership query (`358ac213c1f632340336c542e9b6361040e60621`).
 - No local test runner is available through connected GitHub tools; none of these changes have been executed. Keep all changes UNVERIFIED until consolidated exact-head CI.
 - Continue by source-reviewing remaining CI #1659 failures, starting with carrier reconciliation mutex B34-PG-10/11 and any test fixture mismatches still present at current head. Treat historical logs as diagnostic only; never weaken tenant/actor guards. Do not trigger per-fix CI.
+
+
+## Carrier race harness and catalog/operations fixture batch — 27 November 2026
+
+- B34-PG-10/11 previously patched `dbService.db.execute` on the root handle, but `withActorContext` redirects service queries to a transaction-bound Drizzle handle. Commit `4bd5521f44eb411251162b8c8336649027c2e611` moves the test barrier to the scoped handle so the test actually holds the first claim query while the other reconciliation cycle runs. Production carrier code unchanged; DB concurrency assertions remain unverified.
+- Commit `ea2e17f011f0503e96a24d2b2094ee244218673c` fixes the P4.1.8 signing-exception test mock to inspect compiled Drizzle SQL, not non-existent `query.sql` fields.
+- Catalog visibility test corrections: `d65e8ad42a4c5d6518eb8167f0850cb65981a12b` and `b88a68dbd5b4ae6435bd8e52a4f2b08cc2bd88e6`. Assertions now match the actor-aware controller/service signature and explicitly verify the active membership predicate.
+- No local tests or CI were run. Keep all changes UNVERIFIED until consolidated exact-head CI.
