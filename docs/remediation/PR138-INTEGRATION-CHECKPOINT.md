@@ -354,3 +354,11 @@
 - The corrected head has not yet received a completed exact-head CI run. Keep PR #173 OPEN / DRAFT / UNMERGED until all mandatory jobs, including API Unit/Coverage and any required container smoke, pass.
 - PR #173 compares 3 commits ahead / 0 behind `develop` at base `bb39cb6488acd958a6079b60c2da4a2cfdbcab28`. PR #138 source and preservation refs remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; preserve both unchanged.
 - No reviewers or extra Vercel builds. No staging/production writes, migrations, RLS/grant/default-ACL changes, provider calls, worker activation, Render changes, deployments, restarts or releases.
+
+
+## 28 November 2026 — PR #173 CI #1717 concurrency assertion triage
+
+- CI #1717 (46074130374) on bb2b7edc4d045d25daf3c8de1e7b07f818c74303 passed lint/typecheck, mobile, Web/Admin, E6, unit/coverage and migration full apply. Integration had one failure in cross-instance-throttling.spec.ts: the test compared the final Promise.all array element to the threshold-crossing count. Promise.all preserves input order, not Redis execution order.
+- Reviewed the Redis Lua implementation: the counter increments atomically; the first count above the limit creates the block; subsequent calls return the blocked counter without incrementing. The test now asserts the maximum observed count is exactly limit + 1 and that at least one request observed the block.
+- Test-only correction commit: 442d993e569eb77c435256ac0300c322600bb9d8. Not yet locally or CI verified. Do not launch per-fix CI; continue source review, then one consolidated exact-head campaign.
+- PR #173 remains OPEN / DRAFT / UNMERGED. PR #138 source and preservation refs remain identical at 81f30f5c30654b233ef373c15fd3f2cb867aba01. No reviewers, Vercel retries, staging/production writes, migrations, role/grant/RLS/default-ACL changes, provider calls, worker activation, Render changes, deployments, restarts or releases.
