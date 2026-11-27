@@ -24,7 +24,17 @@ function makeService(options?: { leaseRows?: unknown[]; updatedRows?: unknown[] 
       return operation();
     },
   );
-  const db = { db: { query: { returnRequests: { findFirst } }, transaction }, withActorContext };
+  const db = {
+    db: {
+      query: {
+        returnRequests: { findFirst },
+        returnRequestItems: { findMany: vi.fn().mockResolvedValue([]) },
+        returnRequestEvents: { findMany: vi.fn().mockResolvedValue([]) },
+      },
+      transaction,
+    },
+    withActorContext,
+  };
   const calendar = {
     addBusinessDays: vi.fn().mockResolvedValue(new Date('2026-11-25T00:00:00.000Z')),
   };
