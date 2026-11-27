@@ -114,6 +114,27 @@ describe('DisputesService participant authorization', () => {
     });
     const storeMemberFindFirst = vi.fn().mockResolvedValue(null);
     const insert = vi.fn();
+    const select = vi.fn(() => {
+      const builder: any = {
+        from: vi.fn(() => builder),
+        where: vi.fn(() => builder),
+        for: vi.fn().mockResolvedValue([{
+          id: 'order-a',
+          buyerId: 'buyer-a',
+          storeId: 'store-a',
+          status: 'DELIVERED',
+          updatedAt: new Date(),
+          createdAt: new Date(),
+        }]),
+      };
+      return builder;
+    });
+    const tx = {
+      select,
+      query: { storeMembers: { findFirst: storeMemberFindFirst } },
+      insert,
+    };
+    const transaction = vi.fn(async (callback: (executor: any) => Promise<unknown>) => callback(tx));
     const service = new DisputesService(
       {
         db: {
@@ -121,6 +142,7 @@ describe('DisputesService participant authorization', () => {
             orders: { findFirst: orderFindFirst },
             storeMembers: { findFirst: storeMemberFindFirst },
           },
+          transaction,
           insert,
         },
       } as any,
@@ -173,8 +195,22 @@ describe('DisputesService participant authorization', () => {
       status: 'OPEN',
     });
     const update = vi.fn();
+    const select = vi.fn(() => {
+      const builder: any = {
+        from: vi.fn(() => builder),
+        where: vi.fn(() => builder),
+        for: vi.fn().mockResolvedValue([{
+          id: 'dispute-a',
+          raisedBy: 'buyer-a',
+          againstId: 'merchant-a',
+          status: 'OPEN',
+        }]),
+      };
+      return builder;
+    });
+    const transaction = vi.fn(async (callback: (executor: any) => Promise<unknown>) => callback({ select, update }));
     const service = new DisputesService(
-      { db: { query: { disputes: { findFirst: disputeFindFirst } }, update } } as any,
+      { db: { query: { disputes: { findFirst: disputeFindFirst } }, transaction, update } } as any,
       {} as any,
     );
 
