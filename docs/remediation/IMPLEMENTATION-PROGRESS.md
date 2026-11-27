@@ -3301,3 +3301,11 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
 - Reviewed the historical Unit/Coverage failure in `m73c-inventory-return.spec.ts`: the cancelled-order case overrode the order fixture without its `storeId`, so the current shipment-lineage preflight correctly returned “Shipment not found” before the test reached the intended CANCELLED-order guard.
 - Added the matching `storeId: 'store-1'` to the cancelled-order fixture in commit `5cb4d044ea1a8a121b33a3c78238ff13a7b75d7d`. This keeps the test focused on the cancellation rule and does not weaken the production lineage check.
 - Not executed locally or in CI; remains UNVERIFIED pending consolidated exact-head verification. No production code changed.
+
+
+## Buyer confirmation transactional atomicity — 27 November 2026
+
+- Reviewed the failing `order-completion-atomicity.spec.ts` case and production `OrdersService.confirmDelivery`. The previous implementation committed `buyerConfirmedAt` in a standalone UPDATE before calling `completeOrder`, allowing a failed completion to leave a partially committed confirmation.
+- Fixed production behavior in commit `3aa3358e5d213876988bcfe4f20930237873b2b5`: buyer confirmation now delegates directly to the existing completion transaction; the transactional order compare-and-set additionally requires `buyerConfirmedAt IS NULL` for buyer confirmation. If a concurrent request wins, the losing request rereads state and returns the completed order idempotently.
+- The existing atomicity regression test explicitly asserts that the outer database UPDATE is not called and that the transaction contains both COMPLETED status and buyerConfirmedAt. No local test execution is available here; this fix remains UNVERIFIED until consolidated exact-head CI.
+- Also corrected the M7.3-C privileged-admin unit fixture in commit `3151fc2f460a72fc0b1ef720360618c6093f4e2c`: it now provides valid shipment/order/store lineage but uses a different store organization, so the test verifies privileged org bypass without bypassing mandatory lineage validation. Test-only; no production guard weakened.
