@@ -37,6 +37,10 @@
 
 import { Client } from 'pg';
 import crypto from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { isProductionLikeEnv } from '../config/env-gate';
+import { RUNTIME_DATABASE_IDENTITY_SQL } from '../common/database/runtime-database-identity';
+import { setOperatorActorContext } from '../common/database/operator-actor-context';
 
 type Environment = 'development' | 'test' | 'staging' | 'production';
 
@@ -201,13 +205,47 @@ export async function issueToken(
     );
   }
 
-  const client = new Client({ connectionString: databaseUrl });
+  const productionLike = isProductionLikeEnv(environment);
+  const sslCaFile = process.env['PGSSLROOTCERT'];
+  const ssl = sslCaFile
+    ? { ca: readFileSync(sslCaFile, 'utf8'), rejectUnauthorized: true }
+    : productionLike
+      ? { rejectUnauthorized: true }
+      : undefined;
+  const client = new Client({
+    connectionString: databaseUrl,
+    ...(ssl && { ssl }),
+  });
   await client.connect();
 
   try {
+    if (productionLike) {
+      const identityResult = await client.query(RUNTIME_DATABASE_IDENTITY_SQL);
+      const identity = identityResult.rows[0];
+      if (!identity) {
+        throw new Error('Operator database identity is unavailable; refusing to issue a bootstrap authorization.');
+      }
+
+      const unsafe: string[] = [];
+      if (identity.session_user !== identity.current_user) unsafe.push('session/effective role mismatch');
+      if (identity.session_role_superuser || identity.effective_role_superuser) unsafe.push('superuser');
+      if (identity.session_role_bypassrls || identity.effective_role_bypassrls) unsafe.push('BYPASSRLS');
+      if (identity.session_role_createrole || identity.effective_role_createrole) unsafe.push('CREATEROLE');
+      if (identity.session_role_createdb || identity.effective_role_createdb) unsafe.push('CREATEDB');
+      if (identity.owns_public_tables || identity.owns_public_schema) unsafe.push('owns public tables/schema');
+      if (identity.ssl !== true) unsafe.push('TLS disabled or unverified');
+
+      if (unsafe.length > 0) {
+        throw new Error(
+          `Unsafe operator database identity (${unsafe.join(', ')}); refusing to issue a bootstrap authorization.`,
+        );
+      }
+    }
+
     await client.query('BEGIN');
 
     await client.query(`SELECT pg_advisory_xact_lock(${ISSUANCE_ADVISORY_LOCK_KEY})`);
+    await setOperatorActorContext(client, 'bootstrap', `bootstrap-cli:${operator}`);
 
     const existingAdmin = await client.query(`
       SELECT COUNT(*)::int AS cnt
