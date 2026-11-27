@@ -53,3 +53,12 @@ The newest dated entries in the checkpoint and progress tracker override older h
 - Tracker/checkpoint updated in commits `103d7140f0594e6fc50546923647045103eff98f` and `e4f1124472ef9e70fae072def2e08af620e6a560`.
 - All changes are UNVERIFIED: no local runner or exact-head CI has executed them. Historical CI #1659 still identifies carrier reconciliation mutex tests B34-PG-10/11, shipping/carrier tenant-context mocks, catalog publication visibility assertions, orders checkout fixtures, P4.1.8 signing-exception mock, and other payment/returns/admin assertions. Re-check each against current source before changing; some may have been superseded.
 - Next task: source-review B34-PG-10/11 carrier reconciliation mutex separation and the remaining current unit fixture failures. Group related fixes, do not weaken tenant/actor guards, and run only one consolidated exact-head CI after the batch is complete.
+
+
+## Further grouped API follow-ups — 27 November 2026
+
+- `4bd5521f44eb411251162b8c8336649027c2e611`: corrected B34-PG-10/11 barrier to intercept the transaction-scoped Drizzle handle inside DatabaseService.withActorContext; the old root-handle patch could not hold the real worker claim query.
+- `ea2e17f011f0503e96a24d2b2094ee244218673c`: P4.1.8 signing exception mock now inspects compiled Drizzle SQL to detect INSERT and return its ID.
+- `d65e8ad42a4c5d6518eb8167f0850cb65981a12b` and `b88a68dbd5b4ae6435bd8e52a4f2b08cc2bd88e6`: Catalog visibility assertions now match the actor-aware product detail contract and verify active membership predicate.
+- Tracker/checkpoint updates: `b5e1d6d9a85972b5437b120671508aed11b3b930`, `cb048757d1ab50e16c0375130ac219b57e070307`.
+- These remain unverified; no local tests or exact-head CI run. Continue source review of remaining API fixture and behavior failures, batch related changes, and use one consolidated exact-head CI campaign only when the batch is complete. Keep PR #170 draft/unmerged and preserve PR #138 unchanged.
